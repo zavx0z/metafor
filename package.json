@@ -2,7 +2,8 @@
   "name": "littlesun",
   "type": "module",
   "workspaces": [
-    "app/*"
+    "app/*",
+    "lib/*"
   ],
   "devDependencies": {
     "@types/gtag.js": "^0.0.18",
@@ -13,5 +14,8 @@
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
+  },
+  "dependencies": {
+    "svelte": "4.2.8"
   }
 }

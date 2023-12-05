@@ -1,21 +1,21 @@
 <script lang="ts">
   import { T } from "@threlte/core"
-  import { ContactShadows, GLTF, Grid, OrbitControls, useGltf } from "@threlte/extras"
+  import { ContactShadows, Float, Grid, OrbitControls } from "@threlte/extras"
   import Space from "./Space.svelte"
   import type { SimulatorActorType } from "$lib/simulator"
   import type { DirectedGraphEdge } from "$lib/types"
   import type { AnyStateNode } from "xstate"
   import Thing from "./thing/Thing.svelte"
   import { thingMachine } from "./machine"
-  import Bots from "../Bots.svelte"
+  import Bots from "../bots/Bots.svelte"
+  import Telegram from "$lib/telegram/Telegram.svelte"
+  import { themeColorHEX } from "@lib/theme"
 
   export let actor: SimulatorActorType
   let edges: { [key: string]: DirectedGraphEdge } = {}
   let nodes: { [key: string]: AnyStateNode } = {}
   let digraph: any
 </script>
-
-
 
 <Space {actor} bind:edges bind:nodes bind:digraph>
   <T.PerspectiveCamera makeDefault position={[0, 4, 9]} fov={15}>
@@ -25,9 +25,9 @@
   <T.DirectionalLight args={["#fff", 0.5]} intensity={0.6} />
   <Grid
     position.y={-0.001}
-    cellColor="#324560"
-    sectionColor="#1b2634"
-    sectionThickness={0}
+    cellColor={themeColorHEX("--color-primary-900")}
+    sectionColor={themeColorHEX("--color-primary-900")}
+    sectionThickness={1}
     fadeDistance={14}
     cellSize={1}
   />
@@ -41,10 +41,7 @@
     far={1.8}
     opacity={0.7}
   />
-  <!-- <GLTF castShadow receiveShadow url={"../bots.glb"} position={{ y: 1 }} scale={3} /> -->
+  <Telegram />
   <Bots />
   <Thing machine={thingMachine} />
-  <!-- {#if $gltf}
-    <T is={$gltf.nodes["node-name"]} />
-  {/if} -->
 </Space>

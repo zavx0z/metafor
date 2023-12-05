@@ -4,6 +4,7 @@
   import { useActor, useSelector } from "@xstate/svelte"
   import { Float } from "@threlte/extras"
   import Torus from "./Torus.svelte"
+  import { themeColorHEX } from "@lib/theme"
 
   let level = 1
   export let machine: AnyStateMachine
@@ -19,7 +20,7 @@
         tube: level / 2,
         material: {
           opacity: 0.1,
-          color: " #426573",
+          color: themeColorHEX("--color-primary-500"),
           emissive: 0.001,
         },
       },
@@ -58,33 +59,33 @@
     position={[x, y, z]}
     detail={2}
     scale={scale * 1.4 * $scaleParent}
-    color={"#7d6639"}
-    colorBase={"#e6bc69"}
     emissive={1}
     opacity={1}
     {opacityMaterial}
+    color={themeColorHEX("--color-warning-900")}
+    colorBase={themeColorHEX("--color-warning-700")}
   />
   <Particle
     position={[scale * $scaleParent + 0.1, y, z]}
     rotationSpeed={12}
     rotationIntensity={0.3}
     detail={1}
-    color={"#7d4545"}
-    colorBase={"#FF8D8D"}
     scale={scale * $scaleParent}
     opacity={1}
     {opacityMaterial}
     emissive={0.7}
+    color={themeColorHEX("--color-error-900")}
+    colorBase={themeColorHEX("--color-error-800")}
   />
   <Particle
     rotationSpeed={12}
-    color={"#426573"}
-    colorBase={"#7ab9d4"}
     position={[-scale * $scaleParent - 0.1, y, z]}
     detail={1}
     scale={scale * $scaleParent}
     opacity={1}
     {opacityMaterial}
     emissive={0.7}
+    color={themeColorHEX("--color-primary-900")}
+    colorBase={themeColorHEX("--color-primary-800")}
   />
 </Float>
