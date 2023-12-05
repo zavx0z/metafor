@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+	<head>
+		<meta charset="utf-8" />
+		<link rel="icon" href="./favicon.png" />
+		<meta name="viewport" content="width=device-width, initial-scale=1" />
+		
+		<link rel="modulepreload" href="./internal/immutable/entry/start.63bcea63.js">
+		<link rel="modulepreload" href="./internal/immutable/chunks/scheduler.c03d0109.js">
+		<link rel="modulepreload" href="./internal/immutable/chunks/singletons.3f4538c9.js">
+		<link rel="modulepreload" href="./internal/immutable/chunks/index.17ca9755.js">
+		<link rel="modulepreload" href="./internal/immutable/entry/app.ad889d48.js">
+		<link rel="modulepreload" href="./internal/immutable/chunks/index.bd9bea11.js">
+	</head>
+	<body data-sveltekit-preload-data="hover">
+		<div style="display: contents">
+			<script>
+				{
+					__sveltekit_8voxp = {
+						assets: "/littlesun",
+						base: new URL(".", location).pathname.slice(0, -1),
+						env: {}
+					};
+
+					const element = document.currentScript.parentElement;
+
+					Promise.all([
+						import("./internal/immutable/entry/start.63bcea63.js"),
+						import("./internal/immutable/entry/app.ad889d48.js")
+					]).then(([kit, app]) => {
+						kit.start(app, element);
+					});
+				}
+			</script>
+		</div>
+	</body>
+</html>
