@@ -7,7 +7,7 @@
   import type { AnyStateNode } from "xstate"
   import Thing from "./thing/Thing.svelte"
   import { thingMachine } from "./machine"
-  import Bots from "../../Bots.svelte"
+  import Bots from "../Bots.svelte"
 
   export let actor: SimulatorActorType
   let edges: { [key: string]: DirectedGraphEdge } = {}
@@ -15,9 +15,11 @@
   let digraph: any
 </script>
 
+
+
 <Space {actor} bind:edges bind:nodes bind:digraph>
   <T.PerspectiveCamera makeDefault position={[0, 4, 9]} fov={15}>
-    <OrbitControls autoRotate enableZoom={true} enableDamping autoRotateSpeed={2} target.y={.8} />
+    <OrbitControls autoRotate enableZoom={true} enableDamping autoRotateSpeed={2} target.y={0.8} />
   </T.PerspectiveCamera>
   <T.AmbientLight intensity={0.5} />
   <T.DirectionalLight args={["#fff", 0.5]} intensity={0.6} />

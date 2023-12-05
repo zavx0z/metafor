@@ -5,10 +5,11 @@
     "app/*"
   ],
   "devDependencies": {
+    "@types/gtag.js": "^0.0.18",
+    "bun-types": "latest",
     "prettier": "^3.1.0",
     "prettier-plugin-svelte": "^3.1.2",
-    "prettier-plugin-tailwindcss": "^0.5.7",
-    "bun-types": "latest"
+    "prettier-plugin-tailwindcss": "^0.5.7"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"

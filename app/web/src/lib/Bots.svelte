@@ -12,8 +12,7 @@ Command: npx @threlte/gltf@2.0.1 ./static/bots.glb
 
   const gltf = useGltf(bots)
   export const { actions, mixer } = useGltfAnimations(gltf, ref)
-  $: Object.entries($actions).forEach(([key, value]) => {
-    console.log(key, value)
+  $: Object.entries($actions).forEach(([_, value]) => {
     value?.play()
   })
   const component = forwardEventHandlers()

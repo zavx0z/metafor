@@ -55,7 +55,6 @@
   <Particle
     rotationSpeed={0}
     rotationIntensity={0}
-
     position={[x, y, z]}
     detail={2}
     scale={scale * 1.4 * $scaleParent}
