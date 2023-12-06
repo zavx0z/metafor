@@ -5,7 +5,7 @@
   import { interactivity } from "@threlte/extras"
   import { spring } from "svelte/motion"
   import model from "$lib/telegram/telegram.glb?url"
-  import { browser } from "$app/environment"
+  import Title from "./Title.svelte"
 
   export const ref = new Group()
 
@@ -28,8 +28,9 @@
   let rotation = [0, Math.PI / 2, Math.PI / 2]
 </script>
 
-<Float floatIntensity={0.04} rotationIntensity={0} speed={18}>
-  <T is={ref} dispose={false} {...$$restProps} bind:this={$component} {position}>
+<Float floatIntensity={0.004} rotationIntensity={0} speed={12} {position}>
+  <T is={ref} dispose={false} {...$$restProps} bind:this={$component}>
+    <Title />
     {#await gltf}
       <slot name="fallback" />
     {:then gltf}
@@ -41,7 +42,13 @@
             scale.damping = initSpring.damping
             scale.set(0.12)
           })
-          window.open("https://t.me/zavx0zMetaFor", "_blank")?.focus()
+          window
+            .open(
+              // "https://t.me/zavx0zMetaFor"
+              "https://t.me/+KbHj7frVRUJmNGQy",
+              "_blank"
+            )
+            ?.focus()
         }}
         interactive
         {rotation}
