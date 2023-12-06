@@ -12,14 +12,14 @@ label {
   @apply mb-2 block text-sm capitalize text-primary-500;
 } */
 
-/* input {
+input {
   @apply flex h-10 w-full rounded-md border border-surface-500 bg-transparent px-3 py-2 
     text-sm text-primary-100 transition-colors
     file:border-0 file:bg-transparent file:text-sm file:font-medium
     placeholder:text-primary-500
     focus:outline-none focus:ring-1 focus:ring-surface-500 focus:placeholder:text-transparent
     disabled:cursor-not-allowed disabled:opacity-50;
-} */
+}
 
 button {
   @apply select-none rounded-md border border-primary-500 px-4 py-1 font-bold text-primary-400 hover:border-primary-200;

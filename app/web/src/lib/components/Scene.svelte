@@ -7,8 +7,8 @@
   import type { AnyStateNode } from "xstate"
   import Thing from "./thing/Thing.svelte"
   import { thingMachine } from "./machine"
-  import Bots from "../bots/Bots.svelte"
-  import Telegram from "$lib/telegram/Telegram.svelte"
+  import Bots from "../models/bots/Bots.svelte"
+  import Telegram from "$lib/models/bots/telegram/Telegram.svelte"
   import { themeColorHEX } from "@lib/theme"
 
   export let actor: SimulatorActorType

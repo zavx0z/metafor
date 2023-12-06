@@ -3,7 +3,8 @@
   "type": "module",
   "workspaces": [
     "app/*",
-    "lib/*"
+    "lib/*",
+    "service/*"
   ],
   "devDependencies": {
     "@types/gtag.js": "^0.0.18",
