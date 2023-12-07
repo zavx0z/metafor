@@ -1,7 +1,5 @@
-// import adapter from "@sveltejs/adapter-auto"
 import adapter from "@sveltejs/adapter-static"
 import { vitePreprocess } from "@sveltejs/kit/vite"
-// import adapter from "svelte-adapter-bun"
 
 /** @type {import('@sveltejs/kit').Config} */
 const config = {
@@ -12,7 +10,7 @@ const config = {
       assets: "build",
     }),
     paths: {
-      base: process.argv.includes("dev") ? "" : "/littlesun",
+      base: process.argv.includes("dev") ? "" : "/metafor",
     },
     appDir: "internal",
   },
