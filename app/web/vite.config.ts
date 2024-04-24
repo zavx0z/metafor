@@ -3,7 +3,11 @@ import { defineConfig } from 'vite';
 
 export default defineConfig({
 	plugins: [sveltekit()],
-	ssr: {
-		noExternal: ['three']
-	}
+	server: {
+		fs: {
+			allow: [
+				"/home/zavx0z/view-port-threlte/dist",
+			],
+		},
+	},
 });
