@@ -1,5 +1,5 @@
 {
-  "name": "littlesun",
+  "name": "metafor",
   "type": "module",
   "workspaces": [
     "app/*"
