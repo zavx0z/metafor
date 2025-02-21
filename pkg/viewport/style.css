@@ -1,0 +1,93 @@
+quantum-viewport {
+  display: block;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  position: relative;
+  user-select: none;
+  touch-action: none;
+  -webkit-touch-callout: none;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+  overscroll-behavior: none;
+  -webkit-overscroll-behavior: none;
+  --viewport-grid-size: 50;
+  --viewport-grid-color: rgba(49, 49, 49, 0.325);
+  --viewport-grid-line-width: 1;
+  --viewport-grid-main-color: rgba(119, 118, 119, 0.1);
+  --viewport-grid-main-line-width: 2;
+
+  *,
+  .viewport-content {
+    user-select: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+  }
+
+  .viewport-content {
+    position: absolute;
+    transform-origin: 0 0;
+    -webkit-transform-origin: 0 0;
+    will-change: transform;
+    /* background: none; */
+    backface-visibility: hidden;
+    -webkit-backface-visibility: hidden;
+    touch-action: none;
+    width: 0;
+    height: 0;
+    transition-property: none;
+    transition-duration: 0ms;
+    transition-timing-function: ease-out;
+    transform-style: preserve-3d;
+    -webkit-transform-style: preserve-3d;
+    perspective: 1000px;
+    -webkit-perspective: 1000px;
+    
+
+    .grid-canvas {
+      position: absolute;
+      top: 0;
+      left: 0;
+      pointer-events: none;
+      z-index: 1;
+    }
+
+    .grid {
+      &::before,
+      &::after {
+        content: "";
+        position: absolute;
+        background: rgb(var(--surface-800));
+        z-index: 1;
+      }
+
+      &::before {
+        /* Ось Y */
+        width: 2px;
+        height: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+      }
+
+      &::after {
+        /* Ось X */
+        width: 100%;
+        height: 2px;
+        top: 50%;
+        transform: translateY(-50%);
+      }
+    }
+
+    .draggable {
+      position: absolute;
+      cursor: move;
+      user-select: none;
+      touch-action: none;
+    }
+  }
+}
+/* Опционально: при активном перетаскивании */
+[data-drag-selector]:active {
+  cursor: grabbing;
+}

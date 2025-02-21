@@ -1,16 +1,11 @@
 {
-  "name": "littlesun",
+  "name": "metafor",
   "type": "module",
   "workspaces": [
-    "app/*"
+    "app/*",
+    "quantum/*"
   ],
   "devDependencies": {
-    "prettier": "^3.1.0",
-    "prettier-plugin-svelte": "^3.1.2",
-    "prettier-plugin-tailwindcss": "^0.5.7",
-    "bun-types": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5.0.0"
+    "typescript": "^5.7.3"
   }
 }

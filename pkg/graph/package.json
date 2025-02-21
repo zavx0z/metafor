@@ -1,0 +1,31 @@
+{
+  "name": "@quantum/graph",
+  "type": "module",
+  "module": "index.js",
+  "exports": [
+    "./components/node.js"
+  ],
+  "scripts": {
+    "dev": "bun --hot server.ts",
+    "build": "bun run graph.js",
+    "test": "bun test",
+    "test:operators": "bun test test/operators.spec.js",
+    "test:triggers": "bun test test/triggers.spec.js --update-snapshots",
+    "test:graph-socket": "bun test test/graph-socket.test.ts",
+    "test:layout": "bun test test/layout.spec.ts"
+  },
+  "buildStats": {
+    "lastBuild": "2024-11-13T16:14:20.019Z",
+    "sizeTarget": "7.80 MB",
+    "sizeMap": "0 B",
+    "buildDuration": "0:00.118"
+  },
+  "dependencies": {
+    "@quantum/viewport": "workspace:*",
+    "libavoid-js": "^0.4.0",
+    "elkjs": "^0.9.3"
+  },
+  "devDependencies": {
+    "web-worker": "^1.3.0"
+  }
+}

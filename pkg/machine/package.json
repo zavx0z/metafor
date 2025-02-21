@@ -1,0 +1,39 @@
+{
+  "name": "@quantum/machine",
+  "type": "module",
+  "module": "index.js",
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
+  "scripts": {
+    "test": "bun test tests",
+    "test[watch]": "bun test quantum/machine/tests --watch",
+    "test:init": "bun test tests/init.spec.ts",
+    "test:state": "bun test tests/state.spec.ts",
+    "test:onCollapse": "bun test tests/onCollapse.spec.ts",
+    "test:serialize": "bun test tests/serialize.spec.ts",
+    "test:isNull": "bun test tests/isNull.spec.ts",
+    "test:actions": "bun test tests/actions.spec.ts",
+    "test:graph": "bun test tests/graph.spec.ts",
+    "test:graph:debug": "bun test tests/graph.spec.ts --debug",
+    "test:trigger.loc": "bun test tests/trigger.loc.spec.ts",
+    "test:core": "bun test tests/core.spec.ts",
+    "test:core[debug]": "bun test quantum/machine/tests/core.spec.ts --debug",
+    "test:core[watch]": "bun test quantum/machine/tests/core.spec.ts --watch",
+    "test:update": "bun test tests/update.spec.ts",
+    "test:update[debug]": "bun test tests/update.spec.ts --debug",
+    "test:update[watch]": "bun test tests/update.spec.ts --watch",
+    "test:enum": "bun test tests/enum.spec.ts",
+    "test:dev": "bun test tests/dev.spec.ts",
+    "test:lifecycle": "bun test tests/lifecycle",
+    "test:lifecycle:withoutAction": "bun test tests/lifecycle/withoutAction.spec.ts",
+    "test:lifecycle:withAction": "bun test tests/lifecycle/withAction.spec.ts",
+    "test:sync": "bun test tests/sync.spec.ts",
+    "test:extract": "bun test tests/extract.spec.ts",
+    "test:pipe": "bun test tests/pipe.spec.ts",
+    "test:web:conditions": "bun test web/tests/conditions.spec.ts"
+  }
+}

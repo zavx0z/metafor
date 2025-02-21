@@ -1,0 +1,13 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="@quantum/machine:isNull" type="BunRunConfiguration">
+    <option name="applicationParameters">
+      <list>
+        <option value="--timeout" />
+        <option value="10000" />
+      </list>
+    </option>
+    <option name="program" value="tests/isNull.spec.ts" />
+    <option name="workingDirectory" value="$PROJECT_DIR$/quantum/machine" />
+    <method v="2" />
+  </configuration>
+</component>

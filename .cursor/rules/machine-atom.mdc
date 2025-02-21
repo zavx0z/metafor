@@ -1,0 +1,150 @@
+---
+description: @quantum/machine Atom - Создание атома в Quantum Atom
+globs: *.js, *.ts
+---
+# Atom - Создание атома в Quantum Atom
+
+Этот документ описывает этапы и правила создания конечного автомата с использованием **бесконечно-конечного автомата** и **акторной модели**.
+
+---
+
+## Этапы создания конечного автомата
+
+### 1. Atom - Укажите название автомата
+
+Задайте уникальное имя для вашего автомата, которое будет использоваться как идентификатор в системе.
+
+**Правило:** [Именование автоматов](mdc:mnt/data/naming - Именование автоматов.md)
+
+### 2. states - Определите состояния
+
+Составьте список всех возможных состояний вашего автомата. Каждое состояние должно быть четко описано.
+
+**Правило:** [states - Определение состояний](mdc:mnt/data/states%20-%20Определение%20состояний.md)
+
+### 3. context - Определите контекст
+
+Контекст описывает параметры, определяющие текущее состояние системы. Укажите типы параметров и их значения по умолчанию.
+
+**Правило:** [context - Определение контекста](mdc:mnt/data/context%20-%20Определение%20контекста.md)
+
+### 4. collapses - Определите коллапсы
+
+Определите правила переходов между состояниями, включая начальные и конечные состояния, триггеры и связанные действия.
+
+**Правило:** [collapses - Переходы между состояниями](mdc:mnt/data/collapses%20-%20Переходы%20между%20состояниями.md)
+
+### 5. core - Определите ядро (core)
+
+Реализуйте основную логику взаимодействия с внешними системами и обработки событий. Типы данных указываются только в ядре, используя JSDoc. Другие части автомата не требуют явной типизации.
+
+**Правило:** [Логика ядра](mdc:mnt/data/core%20-%20Логика%20ядра.md)
+
+### 6. actions - Определите действия
+
+Опишите логику выполнения операций при наступлении событий или переходов между состояниями.
+
+**Правило:** [actions - Описание действий](mdc:mnt/data/actions%20-%20Описание%20действий.md)
+
+### 7. reactions - Определите реакции
+
+Добавьте реакции для автоматического выполнения действий на основе изменений состояния или контекста.
+
+**Правило:** [reactions - Реакции на изменения](mdc:mnt/data/reactions%20-%20Реакции%20на%20изменения.md)
+
+### 8. create - Соберите автомат
+
+Соберите все компоненты в один автомат с помощью метода `create`.
+
+**Правило:** [create - Создание автомата](mdc:mnt/data/create%20-%20Создание%20автомата.md)
+
+---
+
+## Правило: Создание атомов в JavaScript
+
+Для работы с конечным автоматом создавайте атомы в JavaScript. Типизация не требуется в компонентах автомата, за исключением ядра. В ядре используйте JSDoc для строгой типизации данных.
+
+**Важно:** При создании атома объекты не должны выноситься из коллбеков. Все внутренние состояния и переменные должны быть инкапсулированы внутри функций.
+
+**Пример ядра:**
+
+```javascript
+core(() => ({
+  chunk: /** @type {Float32Array[]} */ [],
+  stream: /** @type {MediaStream|null} */ (null),
+  audioContext: /** @type {AudioContext|null} */ (null),
+  processor: /** @type {AudioWorkletNode|null} */ (null),
+  source: /** @type {MediaStreamAudioSourceNode|null} */ (null),
+  audioData: /** @type {Float32Array[]} */ []
+}))
+```
+
+---
+
+## Полная структура конечного автомата
+
+```javascript
+const atom = Atom("WebSocketManager")
+  .states("ПОДКЛЮЧАЕТСЯ", "ОТКРЫТ", "ЗАКРЫТ")
+  .context({
+    uri: t.string({title: "Адрес", default: "wss://localhost:3000"}),
+    readyState: t.enum(0, 1, 2, 3)({title: "Состояние", default: 0}),
+    retry: t.number({title: "Попытка", default: 50})
+  })
+  .collapses([
+    {
+      from: "ПОДКЛЮЧАЕТСЯ",
+      action: "init",
+      to: [
+        {state: "ОТКРЫТ", trigger: {readyState: 1}},
+        {state: "ЗАКРЫТ", trigger: {retry: 0}}
+      ]
+    },
+    {
+      from: "ОТКРЫТ",
+      action: "close",
+      to: [{state: "ЗАКРЫТ", trigger: {readyState: 2}}]
+    }
+  ])
+  .core(({update, context}) => {
+    let ws = null
+    return {
+      connect: () => {
+        ws = new WebSocket(context.uri)
+        ws.addEventListener("open", () => update({readyState: 1}))
+        ws.addEventListener("message", event => update({message: event.data}))
+        ws.addEventListener("close", event => {
+          update({readyState: 2, error: event.reason})
+          ws = null
+        })
+      },
+      sendMessage: message => {
+        if (ws && ws.readyState === WebSocket.OPEN) {
+          ws.send(message)
+        }
+      },
+      closeConnection: () => {
+        if (ws) ws.close()
+      }
+    }
+  })
+  .actions({
+    init({core}) {
+      core.connect()
+    },
+    close() {
+      console.log("Соединение закрыто")
+    },
+    retry({update, context}) {
+      const timeout = context.retry > 10 ? 1000 : 5000
+      setTimeout(() => update({retry: context.retry - 1}), timeout)
+    }
+  })
+  .reactions([])
+  .create({
+    state: "ПОДКЛЮЧАЕТСЯ",
+    context: {
+      uri: "wss://example.com"
+    }
+  })
+```

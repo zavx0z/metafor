@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru" class="theme-dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Machine</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "elkjs": "/quantum/layout/lib/elk-api.js"
+      }
+    }
+  </script>
+  <script type="module">
+    await import('../components/quantum-graph.js')
+    // const ws = new WebSocket(`${window.location.protocol === 'https:' ? 'wss' : 'ws'}://${window.location.hostname}:${window.location.port}/debug`)
+    const ws = new WebSocket("ws://localhost:3000/debug")
+    const channel = new BroadcastChannel("graph")
+
+    ws.onmessage = (event) => {
+      channel.postMessage(JSON.parse(event.data))
+    }
+    ws.onopen = () => {
+      console.log(`connected to ${ws.url}`)
+      ws.send(JSON.stringify({meta: {}, patch: {op: "test", path: "/"}}))
+    }
+    ws.onclose = () => {
+      console.log(`disconnected to ${ws.url}`)
+    }
+    ws.onerror = () => {
+      console.log("error")
+    }
+  </script>
+  <link rel="stylesheet" href="../style.css">
+  <style>
+    body {
+      margin: 0;
+      overflow: hidden;
+      background-color: #121212;
+    }
+  </style>
+</head>
+<body>
+<quantum-graph></quantum-graph>
+</body>
+</html>

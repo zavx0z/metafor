@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ru" class="theme-dark">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PGNpcmNsZSBjeD0iMTYiIGN5PSIxNiIgcj0iOCIgZmlsbD0iIzAwRkZGRiIvPjwvc3ZnPg==" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <title>Layout</title>
+
+    <link rel="stylesheet" href="../../graph/style.css" />
+    <link rel="stylesheet" href="../../viewport/style.css" />
+    <script type="importmap">
+      {
+        "imports": {
+          "elkjs": "../../layout/lib/elk-api.js"
+        }
+      }
+    </script>
+    <script type="module" src="../../core/browser.js"></script>
+    <script type="module" src="./light.js"></script>
+    <!-- <link rel="stylesheet" href="style.css" /> -->
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        position: fixed;
+        touch-action: none;
+        overscroll-behavior: none;
+        -webkit-overscroll-behavior: none;
+        background-color: #121212;
+      }
+    </style>
+  </head>
+  <body>
+    <quantum-graph></quantum-graph>
+  </body>
+</html>

@@ -1,0 +1,7 @@
+<component name="ProjectRunConfigurationManager">
+  <configuration default="false" name="@quantum/machine:web:conditions" type="BunRunConfiguration">
+    <option name="program" value="web/tests/conditions.spec.ts" />
+    <option name="workingDirectory" value="$PROJECT_DIR$/quantum/machine" />
+    <method v="2" />
+  </configuration>
+</component>

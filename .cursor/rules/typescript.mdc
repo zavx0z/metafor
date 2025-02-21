@@ -1,0 +1,116 @@
+---
+description: 
+globs: *.ts
+---
+# Правила типизации TypeScript файлов
+
+```yaml
+name: typescript-docs
+description: |
+   Правила оформления JSDoc в TypeScript файлах.
+structure: |
+   /**
+    * Описание интерфейса
+    * @interface InterfaceName
+    * @extends ParentInterface
+    * @property propertyName - Описание свойства
+    * @property methodName - Описание метода
+    */
+rules:
+   - Комментарии только в JSDoc-блоках
+   - Описание начинается с большой буквы, без точки
+   - @property для всех свойств интерфейса
+   - @extends: для наследования интерфейсов
+examples:
+   - |
+      /**
+       * Конфигурация viewport
+       * @interface ViewportConfig
+       * @property size - Размер области просмотра
+       * @property scale - Масштаб
+       */
+      export interface ViewportConfig {
+        size: Size;
+        scale: number;
+      }
+```
+
+---
+
+## Развёрнутое описание
+
+### Общие правила
+
+- **Комментарии только в JSDoc-блоках**: Вся документация должна быть в формате JSDoc, чтобы её можно было использовать для генерации автодокументации.
+- **Описание свойств начинается с большой буквы**: Каждый комментарий должен начинаться с заглавной буквы и не содержать точку в конце.
+- **Использование `@property`**: Для каждого свойства интерфейса используется аннотация `@property`.
+
+### Структура JSDoc-блока
+
+```typescript
+/**
+ * Описание интерфейса
+ * @interface InterfaceName
+ * @extends ParentInterface
+ * @property propertyName - Описание свойства
+ * @property methodName - Описание метода
+ */
+export interface InterfaceName extends ParentInterface {
+  propertyName: Type;
+  methodName(): ReturnType;
+}
+```
+
+---
+
+### Примеры
+
+#### Пример интерфейса с простыми типами
+
+```typescript
+/**
+ * Конфигурация viewport
+ * @interface ViewportConfig
+ * @property size - Размер области просмотра
+ * @property scale - Масштаб
+ */
+export interface ViewportConfig {
+  size: Size;
+  scale: number;
+}
+```
+
+#### Пример интерфейса с методами
+
+```typescript
+/**
+ * Обработчик событий viewport
+ * @interface ViewportHandler
+ * @extends EventHandler
+ * @property handleMove - Метод для обработки перемещения
+ * @property handleZoom - Метод для обработки масштабирования
+ */
+export interface ViewportHandler extends EventHandler {
+  handleMove(event: MoveEvent): void;
+  handleZoom(event: ZoomEvent): void;
+}
+```
+
+---
+
+## Часто задаваемые вопросы
+
+1. **Почему важны JSDoc-комментарии?**
+   JSDoc позволяет генерировать автодокументацию и облегчает понимание структуры кода.
+
+2. **Как описывать методы?**
+   Методы описываются через `@property` или `@method` (если метод требует уточнения в комментариях).
+
+3. **Можно ли использовать однострочные комментарии?**
+   Нет, используйте только полноценные JSDoc-блоки для интерфейсов.
+
+---
+
+## Дополнительные материалы
+
+- [Документация JSDoc](mdc:https:/jsdoc.app)

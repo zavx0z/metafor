@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <title>Quantum Viewport</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIGZpbGw9IiMxMjEyMTIiLz48cGF0aCBkPSJNOCAxNkgyNE0xNiA4VjI0IiBzdHJva2U9IiM5RTlCRUMiIHN0cm9rZS13aWR0aD0iMiIvPjwvc3ZnPg==" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <link rel="stylesheet" href="../style.css" />
+    <style>
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+        width: 100%;
+        height: 100%;
+        overflow: hidden;
+        position: fixed;
+        touch-action: none;
+        overscroll-behavior: none;
+        -webkit-overscroll-behavior: none;
+        background-color: #121212;
+      }
+
+      .viewport-container {
+        position: fixed;
+        left: 50%;
+        top: 50%;
+        transform: translate(-50%, -50%);
+        width: 1080px;
+        height: 600px;
+        border-bottom-right-radius: 8px;
+        box-shadow: inset 0 0 7px 0 rgba(158, 155, 236, 0.347);
+        overflow: hidden;
+        overscroll-behavior: none;
+        -webkit-overscroll-behavior: none;
+      }
+
+      quantum-viewport div {
+        width: 100px;
+        height: 100px;
+        background: rgb(var(--surface-700));
+        position: absolute;
+      }
+    </style>
+    <script type="module" src="../../core/browser.js"></script>
+    <script type="module" src="../viewport.js"></script>
+    <!-- <script type="module" src="connection.js"></script> -->
+  </head>
+  <body>
+    <div class="viewport-container">
+      <q-viewport>
+      </q-viewport>
+    </div>
+  </body>
+</html>
+<!-- <quantum-viewport grid debug="true">
+        <div id="el1" data-drag-selector="quantum-viewport div"></div>
+        <div id="el2" data-drag-selector="quantum-viewport div" style="transform: translate(300px, 200px);"></div>
+      </quantum-viewport> -->

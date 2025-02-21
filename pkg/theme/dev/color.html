@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Таблица Цветов Темы</title>
+    <script>
+        // Определяем и применяем тему до загрузки контента
+        const systemTheme = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        const savedTheme = localStorage.getItem('theme');
+        const theme = savedTheme || systemTheme;
+        document.documentElement.classList.add(`theme-${theme}`);
+    </script>
+    <link rel="stylesheet" href="/quantum/theme/theme.css">
+    <script src="../../core/browser.js" type="module"></script>
+    <script src="./color.js" type="module"></script>
+    <script src="../components/theme-toggle.js" type="module"></script>
+    <style>
+        h1 {
+            text-align: center;
+            margin: 2rem 0;
+            color: var(--font-color);
+        }
+
+        #search-input {
+            width: 100%;
+            padding: 0.75rem;
+            border: none;
+            border-bottom: 1px solid var(--widget-color);
+            background-color: var(--widget-background-color);
+            color: var(--font-color);
+            margin: 0;
+        }
+
+        #search-input::placeholder {
+            color: var(--widget-color);
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            background-color: var(--window-background-color);
+            margin: 0;
+            border-radius: 0;
+        }
+
+        th {
+            background-color: var(--highlight-background-color);
+            color: var(--font-color);
+            font-weight: 600;
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--widget-color);
+        }
+
+        td {
+            padding: 1rem;
+            text-align: left;
+            border-bottom: 1px solid var(--widget-color);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+
+        .color-swatch {
+            width: 100px;
+            height: 30px;
+            border-radius: 4px;
+            border: 1px solid var(--widget-color);
+        }
+
+        .category-header {
+            background-color: var(--widget-background-color);
+            color: var(--font-color);
+            font-weight: 600;
+        }
+
+        .container {
+            min-width: 800px;
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            overflow-y: auto;
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            padding: 0;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        thead {
+            position: sticky;
+            top: 0;
+            z-index: 1;
+            background-color: var(--window-background-color);
+        }
+
+        tr:last-child td {
+            border-bottom: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Таблица Цветов Темы</h1>
+        <q-theme-toggle></q-theme-toggle>
+        <input type="text" id="search-input" placeholder="Поиск по переменным...">
+        <table id="colors-table">
+            <thead>
+                <tr>
+                    <th>Категория</th>
+                    <th>Название переменной</th>
+                    <th>RGB</th>
+                    <th>HEX</th>
+                    <th>Образец</th>
+                </tr>
+            </thead>
+        </table>
+    </div>
+</body>
+</html>

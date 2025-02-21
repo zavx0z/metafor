@@ -1,0 +1,54 @@
+// Bun Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`layout should be defined 1`] = `
+{
+  "collapses": [
+    {
+      "action": undefined,
+      "from": "state1",
+      "to": [
+        {
+          "state": "state2",
+          "trigger": {
+            "param1": "value1",
+          },
+        },
+      ],
+    },
+    {
+      "action": undefined,
+      "from": "state2",
+      "to": [
+        {
+          "state": "state1",
+          "trigger": {
+            "param2": "value2",
+          },
+        },
+      ],
+    },
+  ],
+  "context": {
+    "param1": undefined,
+    "param2": undefined,
+  },
+  "description": "",
+  "id": "layout-test",
+  "state": "state1",
+  "states": [
+    "state1",
+    "state2",
+  ],
+  "title": "layout-test",
+  "types": {
+    "param1": {
+      "title": "Param 1",
+      "type": "string",
+    },
+    "param2": {
+      "title": "Param 2",
+      "type": "string",
+    },
+  },
+}
+`;

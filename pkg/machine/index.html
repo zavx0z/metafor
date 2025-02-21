@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Quantum Machine Graph</title>
+</head>
+<script type="importmap">
+  {
+    "imports": {
+      "elkjs": "/quantum/layout/lib/elk-api.js"
+    }
+  }
+</script>
+<style>
+  html,
+  body {
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: #121212;
+  }
+</style>
+<link rel="stylesheet" href="../graph/style.css" type="text/css"/>
+<link rel="stylesheet" href="../viewport/style.css" type="text/css"/>
+<script src="../graph/components/quantum-graph.js" type="module"></script>
+<script src="./dev/atom-graph.js" type="module"></script>
+<body>
+<quantum-graph></quantum-graph>
+</body>
+</html>

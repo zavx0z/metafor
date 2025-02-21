@@ -1,0 +1,51 @@
+:root {
+  --node-background: rgba(40, 40, 40, 0.4);
+  --highlight-color: rgba(255, 255, 255, 0.1);
+  --grid-step: 100px;
+  --node-shadow: 0 0 8px 2px rgba(0, 0, 0, 0.4);
+  --stroke-color: rgba(44, 88, 88, 0.8); /* Цвет грани */
+  --stroke-width: 2px; /* Толщина грани */
+  --dash-length: 10px; /* Длина штриха грани */
+  --gap-length: 0px; /* Длина пробела между штрихами */
+  --animation-speed: 4.444s; /* Скорость анимации */
+  --animation-direction: reverse; /* Направление анимации */
+  --node-shadow-size: 10px;
+  --color-active: rgba(76, 175, 80, 0.6);
+  --color-preview: rgba(125, 164, 245, 0.66);
+  --color-preview-not-hovered: rgba(125, 164, 245, 0.33);
+  --color-state-header: rgba(60, 60, 60, 0.8);
+  --node-header-height: 36;
+  --border-radius: 13px;
+
+  .graph-parameter {
+    --background-color: rgba(var(--surface-300));
+    position: relative;
+    display: flex;
+    align-items: center;
+    align-content: center;
+    box-sizing: border-box;
+    padding: 0 4px;
+    border-radius: 4px;
+    height: 28px;
+    gap: 4px;
+
+    &:before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      border-radius: inherit;
+      background-color: var(--background-color);
+      z-index: -1;
+    }
+
+    & span.parameter-name {
+      color: var(--font-color);
+      font-size: 13px;
+      white-space: nowrap;
+      user-select: none;
+    }
+  }
+}

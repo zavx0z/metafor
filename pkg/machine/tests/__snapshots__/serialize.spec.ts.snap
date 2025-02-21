@@ -1,0 +1,107 @@
+// Bun Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`Сериализация и десериализация атома с состояниями IDLE, RUNNING, ERROR, SUCCESS Сериализация атома Должна корректно сериализовать атом 1`] = `
+{
+  "actions": {},
+  "collapses": [
+    {
+      "action": undefined,
+      "from": "IDLE",
+      "to": [
+        {
+          "state": "RUNNING",
+          "trigger": {
+            "retries": {
+              "gt": 0,
+              "lt": 5,
+            },
+            "url": {
+              "include": "https",
+            },
+          },
+        },
+      ],
+    },
+    {
+      "action": undefined,
+      "from": "RUNNING",
+      "to": [
+        {
+          "state": "SUCCESS",
+          "trigger": {
+            "isComplete": "true",
+          },
+        },
+        {
+          "state": "ERROR",
+          "trigger": {
+            "errorCode": {
+              "gt": 400,
+              "lt": 599,
+            },
+          },
+        },
+      ],
+    },
+    {
+      "action": undefined,
+      "from": "ERROR",
+      "to": [
+        {
+          "state": "IDLE",
+          "trigger": {
+            "retries": {
+              "gt": 0,
+              "lt": 5,
+            },
+          },
+        },
+      ],
+    },
+  ],
+  "context": {
+    "errorCode": undefined,
+    "isComplete": undefined,
+    "retries": 1,
+    "url": "https://task.com",
+  },
+  "core": {
+    "updateUrl": {
+      "read": [
+        "url",
+      ],
+      "write": [
+        "url",
+      ],
+    },
+  },
+  "description": "",
+  "id": "Задача",
+  "state": "RUNNING",
+  "states": [
+    "IDLE",
+    "RUNNING",
+    "ERROR",
+    "SUCCESS",
+  ],
+  "title": "",
+  "types": {
+    "errorCode": {
+      "title": "Код ошибки",
+      "type": "number",
+    },
+    "isComplete": {
+      "title": "Завершено",
+      "type": "string",
+    },
+    "retries": {
+      "title": "Количество попыток",
+      "type": "number",
+    },
+    "url": {
+      "title": "Адрес",
+      "type": "string",
+    },
+  },
+}
+`;
