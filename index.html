@@ -1,40 +1,24 @@
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
-	<head>
-		<meta charset="utf-8" />
-		<link rel="icon" href="./favicon.png" />
-		<meta name="viewport" content="width=device-width, initial-scale=1" />
-		<script src="https://telegram.org/js/telegram-web-app.js"></script>
-		<link rel="modulepreload" href="./internal/immutable/entry/start.63bcea63.js">
-		<link rel="modulepreload" href="./internal/immutable/chunks/scheduler.c03d0109.js">
-		<link rel="modulepreload" href="./internal/immutable/chunks/singletons.3f4538c9.js">
-		<link rel="modulepreload" href="./internal/immutable/chunks/index.17ca9755.js">
-		<link rel="modulepreload" href="./internal/immutable/entry/app.ad889d48.js">
-		<link rel="modulepreload" href="./internal/immutable/chunks/index.bd9bea11.js">
+<head>
+  <meta charset="UTF-8">
+  <title>MetaFor</title>
+  <script type="importmap">
+    {
+      "imports": {
+        "@zavx0z/context": "./core/context/dist/context.js"
+      }
+    }
+  </script>
+<!--  https://cdn.jsdelivr.net/npm/@zavx0z/context/dist/context.min.js-->
+  <style>
+    html, body {
+      background-color: black;
+    }
+  </style>
+</head>
+<script type="module" src="index.js"></script>
+<body>
 
-	</head>
-	<body data-sveltekit-preload-data="hover">
-		<div style="display: contents">
-			<script>
-				{
-					__sveltekit_8voxp = {
-						assets: "/littlesun",
-						base: new URL(".", location).pathname.slice(0, -1),
-						env: {}
-					};
-
-					const element = document.currentScript.parentElement;
-
-					Promise.all([
-						import("./internal/immutable/entry/start.63bcea63.js"),
-						import("./internal/immutable/entry/app.ad889d48.js")
-					]).then(([kit, app]) => {
-						kit.start(app, element);
-					});
-				}
-				const webApp = window.Telegram.WebApp;
-				webApp.requestFullscreen(); // Включает полноэкранный режим
-			</script>
-		</div>
-	</body>
+</body>
 </html>
