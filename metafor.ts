@@ -1,5 +1,5 @@
 /**
- * MetaFor - библиотека для создания динамических контекстов с типизированными параметрами
+ * MetaFor - библиотека для создания актора конечного автомата
  * @packageDocumentation
  */
 
@@ -44,7 +44,13 @@ export function MetaFor(name: string) {
      * ```
      */
     context<const T extends ContextSchema>(schema: (types: ContextTypes) => T): ContextInstance<T> {
-      return createContext(schema(types))
+      const ctx = createContext(schema(types))
+      return {
+        context: ctx.context,
+        update: ctx.update,
+        onUpdate: ctx.onUpdate,
+        schema: ctx.schema,
+      }
     },
   }
 }

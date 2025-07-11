@@ -1,6 +1,6 @@
 {
   "name": "@zavx0z/metafor",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "module": "metafor.ts",
   "type": "module",
   "private": false,
@@ -23,13 +23,14 @@
   ],
   "devDependencies": {
     "@types/bun": "^1.2.18",
-    "@zavx0z/context": "0.2.0",
+    "@zavx0z/context": "0.2.2",
     "dts-bundle-generator": "^9.5.1"
   },
   "peerDependencies": {
     "typescript": "^5.8.3"
   },
   "scripts": {
+    "upd": "bun update --latest && bun i",
     "build:dev": "bun run build:js --dev",
     "build:prod": "bun run build:js --prod",
     "publish:npm": "bun run build:prod && bun publish --access public",
