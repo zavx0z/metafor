@@ -10,6 +10,7 @@ async function build(dev: boolean, distDir: string, entrypoint: string) {
     sourcemap: dev ? "inline" : "none",
     splitting: false,
     minify: !dev,
+    external: ["@zavx0z/context"],
   })
 
   console.log(result.success ? "Build success" : "Build failed")

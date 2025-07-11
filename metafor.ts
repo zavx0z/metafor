@@ -44,13 +44,7 @@ export function MetaFor(name: string) {
      * ```
      */
     context<const T extends ContextSchema>(schema: (types: ContextTypes) => T): ContextInstance<T> {
-      const ctx = createContext(schema(types))
-      return {
-        context: ctx.context,
-        update: ctx.update,
-        onUpdate: ctx.onUpdate,
-        schema: ctx.schema,
-      }
+      return createContext(schema(types))
     },
   }
 }
