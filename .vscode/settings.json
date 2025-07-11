@@ -24,6 +24,7 @@
         "*.js": "${capture}.js.map, ${capture}.min.js, ${capture}.html",
     },
     "cSpell.words": [
+        "апгрейдил",
         "bunfig"
     ],
 }

@@ -4,17 +4,24 @@ import { MetaFor } from "../metafor"
 describe("MetaFor", () => {
   describe("базовая функциональность", () => {
     it("должен создавать контекст с простой схемой", () => {
-      const { context, onUpdate, update, schema } = MetaFor("user").context((types) => ({
+      document.body.innerHTML = `
+        <metafor-user></metafor-user>
+      `
+
+      const Actor = MetaFor("user").context((types) => ({
         name: types.string.required("Гость")({ title: "Имя пользователя" }),
         age: types.number.optional(),
       }))
+
+      const actor = document.querySelector(`metafor-user`) as InstanceType<typeof Actor>
+      const { context, onUpdate, update, schema } = actor
 
       let count = 0
       onUpdate((ctx) => {
         count++
       })
 
-      expect(context).toBeDefined()
+      expect(actor).toBeDefined()
 
       expect(context.age).toBeNull()
       expect(context._title.name).toBe("Имя пользователя")
