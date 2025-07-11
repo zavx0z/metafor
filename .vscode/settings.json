@@ -7,9 +7,10 @@
         "**/Thumbs.db": true,
         "**/CVS": true,
         "**/*.crswap": true,
-        "**/node_modules": false,
+        "**/node_modules": true,
         "**/__pycache__": true,
-        ".venv": true
+        ".venv": true,
+        ".idea": true
     },
     "hide-files.files": [
         ".idea"

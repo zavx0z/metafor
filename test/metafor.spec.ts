@@ -1,5 +1,5 @@
 import { describe, it, expect } from "bun:test"
-import { MetaFor } from "./metafor"
+import { MetaFor } from "../metafor"
 
 describe("MetaFor", () => {
   describe("базовая функциональность", () => {

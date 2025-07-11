@@ -9,7 +9,7 @@ import type { ContextSchema, ContextTypes, ContextInstance } from "@zavx0z/conte
 /**
  * Основная функция MetaFor
  * Создает экземпляр MetaFor с указанным именем
- * @param name - имя контекста
+ * @param tag - имя контекста
  * @returns Объект с методом context для создания типизированного контекста
  *
  * @example
@@ -20,7 +20,7 @@ import type { ContextSchema, ContextTypes, ContextInstance } from "@zavx0z/conte
  * }))
  * ```
  */
-export function MetaFor(name: string) {
+export function MetaFor(tag: string) {
   return {
     /**
      * Создает типизированный контекст на основе схемы
@@ -44,6 +44,12 @@ export function MetaFor(name: string) {
      * ```
      */
     context<const T extends ContextSchema>(schema: (types: ContextTypes) => T): ContextInstance<T> {
+      class WebComponent extends HTMLElement {
+        constructor() {
+          super()
+        }
+      }
+      customElements.define(`metafor-${tag}`, WebComponent)
       return createContext(schema(types))
     },
   }
