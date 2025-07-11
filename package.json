@@ -1,7 +1,6 @@
 {
   "name": "@zavx0z/metafor",
-  "version": "0.2.1",
-  "module": "metafor.ts",
+  "version": "0.2.3",
   "type": "module",
   "private": false,
   "license": "MIT",
@@ -21,13 +20,10 @@
     "dist/",
     "README.md"
   ],
-  "workspaces": [
-    "@zavx0z/*"
-  ],
   "devDependencies": {
     "@happy-dom/global-registrator": "^18.0.1",
     "@types/bun": "^1.2.18",
-    "@zavx0z/context": "workspace:*",
+    "@zavx0z/context": "^0.3.0",
     "dts-bundle-generator": "^9.5.1",
     "happy-dom": "^18.0.1"
   },
