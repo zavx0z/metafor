@@ -1,0 +1,48 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "version-push-patch",
+            "type": "shell",
+            "command": "bun script/version.ts patch",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always"
+            },
+            "group": "build"
+        },
+        {
+            "label": "version-push-minor",
+            "type": "shell",
+            "command": "bun script/version.ts minor",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always"
+            },
+            "group": "build"
+        },
+        {
+            "label": "version-push-major",
+            "type": "shell",
+            "command": "bun script/version.ts major",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always"
+            },
+            "group": "build"
+        },
+        {
+            "label": "version-push",
+            "type": "shell",
+            "command": "echo 'Выберите тип версии:' && echo '1) patch (0.0.1 → 0.0.2)' && echo '2) minor (0.0.1 → 0.1.0)' && echo '3) major (0.0.1 → 1.0.0)' && read -p 'Введите номер (1-3): ' choice && case $choice in 1) bun script/version.ts patch ;; 2) bun script/version.ts minor ;; 3) bun script/version.ts major ;; *) echo 'Неверный выбор' && exit 1 ;; esac",
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "always"
+            },
+            "group": {
+                "kind": "build",
+                "isDefault": true
+            }
+        }
+    ]
+}

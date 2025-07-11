@@ -24,9 +24,12 @@
     // Some stricter flags (disabled by default)
     "noUnusedLocals": false,
     "noUnusedParameters": false,
-    "noPropertyAccessFromIndexSignature": false
+    "noPropertyAccessFromIndexSignature": false,
+    "exactOptionalPropertyTypes": true
   },
   "exclude": [
+    "script",
+//    "package",
     "core/**/*",
     "node_modules/**/*",
     ".idea/**/*",

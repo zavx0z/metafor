@@ -1,0 +1,28 @@
+{
+    "files.exclude": {
+        "**/.git": true,
+        "**/.svn": true,
+        "**/.hg": true,
+        "**/.DS_Store": true,
+        "**/Thumbs.db": true,
+        "**/CVS": true,
+        "**/*.crswap": true,
+        "**/node_modules": true,
+        "**/__pycache__": true,
+        ".venv": true
+    },
+    "hide-files.files": [
+        ".idea"
+    ],
+    "explorer.fileNesting.enabled": true,
+    "explorer.fileNesting.expand": false,
+    "explorer.fileNesting.patterns": {
+        "tsconfig.json": "tsconfig.*.json",
+        "package.json": "package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lock, bun.lockb, bunfig.toml, .npmrc",
+        "*.ts": "${capture}.t.ts, ${capture}.spec.ts",
+        "*.js": "${capture}.js.map, ${capture}.min.js, ${capture}.html",
+    },
+    "cSpell.words": [
+        "bunfig"
+    ],
+}

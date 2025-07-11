@@ -1,0 +1,56 @@
+# Правило: typed – возврат типизированного экземпляра
+
+## Зачем это нужно
+
+1. **Сохранение JSDoc/typedoc.** Когда фабрика возвращает экземпляр класса, типизированный публичным интерфейсом (например, `ContextInstance<T>`), IDE может показать комментарии для каждого свойства (`context`, `update`, `onUpdate`). При возврате «анонимного» объекта JSDoc теряется.
+2. **Единый контракт API.** Интерфейс описывает публичную поверхность-обещание. Клиентский код опирается на него, а не на случайную форму возвращаемого объекта.
+3. **Упрощённый рефакторинг.** Изменения в классе автоматически актуализируются для потребителей через интерфейс; при ручной сборке объекта это легко нарушить.
+4. **Расширяемость.** Добавление новых методов в класс сразу становится доступным без модификации фабрики.
+
+## Правило
+
+1. Если фабричная функция создаёт экземпляр класса с публичным интерфейсом — она ДОЛЖНА возвращать этот экземпляр, типизированный интерфейсом.
+2. Запрещено возвращать составленные вручную объекты, имитирующие API класса, если для него уже объявлен интерфейс.
+3. Все публичные методы/свойства обязаны документироваться в интерфейсе; класс реализует (`implements`) интерфейс.
+4. При скрытии деталей реализации используйте интерфейс как тип возвращаемого значения.
+
+## Пример
+
+❌ **Неправильно**
+
+```ts
+export function createContext<T extends ContextSchema>(schema: T) {
+  const inst = new Context(schema)
+  return {
+    context: inst.context,
+    update: inst.update.bind(inst),
+    onUpdate: inst.onUpdate.bind(inst),
+  }
+}
+```
+
+✅ **Правильно**
+
+```ts
+export function createContext<T extends ContextSchema>(schema: T): ContextInstance<T> {
+  return new Context(schema)
+}
+```
+
+## Проверка
+
+- Наведите курсор на `ctx.context`/`ctx.update`/`ctx.onUpdate` — IDE должна показывать JSDoc из интерфейса.
+- Если подсказка отсутствует, убедитесь, что фабрика возвращает типизированный экземпляр.
+
+**Это правило обязательно. Нарушение ведёт к потере документации в подсказках и усложняет поддержку кода.**
+
+---
+
+## Ссылки и подтверждения
+
+- [TypeScript: JSDoc Reference](https://www.typescriptlang.org/docs/handbook/jsdoc-supported-types.html)
+- [TypeScript: Classes and Interfaces](https://www.typescriptlang.org/docs/handbook/2/classes.html)
+- [GitHub Issue: JSDoc comments are not shown for properties of object literals](https://github.com/microsoft/TypeScript/issues/43918)
+- [GitHub Issue: JSDoc comments not shown for destructured properties](https://github.com/microsoft/TypeScript/issues/39617)
+- [VSCode: JavaScript and TypeScript IntelliSense](https://code.visualstudio.com/docs/languages/javascript#_intellisense)
+- [VSCode: JSDoc support](https://code.visualstudio.com/docs/languages/javascript#_jsdoc-support)

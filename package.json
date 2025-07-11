@@ -1,18 +1,39 @@
 {
-  "name": "metafor",
-  "module": "index.js",
+  "name": "@zavx0z/metafor",
+  "version": "0.0.1",
+  "module": "metafor.ts",
   "type": "module",
-  "private": true,
+  "private": false,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zavx0z/context.git"
+  },
+  "main": "./dist/metafor.js",
+  "types": "./dist/metafor.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/metafor.js",
+      "types": "./dist/metafor.d.ts"
+    }
+  },
+  "files": [
+    "dist/",
+    "README.md"
+  ],
   "devDependencies": {
-    "@types/bun": "latest",
-    "@zavx0z/context": "workspace:*"
+    "@types/bun": "^1.2.18",
+    "@zavx0z/context": "0.2.0",
+    "dts-bundle-generator": "^9.5.1"
   },
   "peerDependencies": {
     "typescript": "^5.8.3"
   },
-  "dependencies": {
-  },
-  "workspaces": [
-    "core/*"
-  ]
+  "scripts": {
+    "build:dev": "bun run build:js --dev",
+    "build:prod": "bun run build:js --prod",
+    "publish:npm": "bun run build:prod && bun publish --access public",
+    "build:js": "bun run script/build.ts",
+    "publish:dry": "bun run build:prod && bun publish --dry-run"
+  }
 }
