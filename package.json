@@ -1,6 +1,6 @@
 {
   "name": "@zavx0z/metafor",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "module": "metafor.ts",
   "type": "module",
   "private": false,

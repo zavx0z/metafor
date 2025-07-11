@@ -25,6 +25,10 @@
     },
     "cSpell.words": [
         "апгрейдил",
+        "коммита",
         "bunfig"
     ],
+    "cSpell.ignorePaths": [
+        ".github"
+    ]
 }
