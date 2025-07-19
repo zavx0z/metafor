@@ -95,6 +95,17 @@ export type AnyDefinition =
 export type ContextSchema = Record<string, AnyDefinition>
 
 // Новые типы для chainable API
+/**
+ * Фабрики типов для создания схем контекста
+ * @example
+ * ```typescript
+ * types.string.required('Гость')
+ * types.number.optional()
+ * types.boolean.required()
+ * types.array().optional()
+ * types.enum('user', 'admin').required('user')
+ * ```
+ */
 export type ContextTypes = {
   string: {
     required: <T extends string = string>(
