@@ -3,8 +3,8 @@
  * @packageDocumentation
  */
 
-import {types, createContext} from "@zavx0z/context"
-import type {ContextSchema, ContextTypes, ContextInstance, JsonPatch} from "@zavx0z/context"
+import { types, createContext } from "./context"
+import type { ContextSchema, ContextTypes, ContextInstance, JsonPatch } from "./context"
 
 /**
  * Основная функция MetaFor
@@ -44,37 +44,37 @@ export function MetaFor(tag: string) {
      * ```
      */
     context<const T extends ContextSchema>(schema: (types: ContextTypes) => T): void {
+      const elementName = `metafor-${tag}` as const
+
       class WebComponent extends HTMLElement {
         #ctx: ContextInstance<T>
+        #shadow: ShadowRoot
 
         constructor() {
           super()
           this.#ctx = createContext(schema(types))
+          this.#shadow = this.attachShadow({ mode: "closed" })
         }
 
-        get context(): ContextInstance<T>["context"] {
-          return this.#ctx.context
+        connectedCallback() {
+          this.#ctx.onUpdate(this.#onUpdateContext)
         }
 
-        update = (data: Partial<ContextInstance<T>["context"]>) => {
-          this.#ctx.update(data)
-        }
-
-        onUpdate = (callback: (patches: JsonPatch[]) => void) => {
-          this.#ctx.onUpdate(callback)
-        }
-
-        public get schema() {
-          return this.#ctx.schema
+        #onUpdateContext = (patches: JsonPatch[]) => {
+          this.#shadow.dispatchEvent(
+            new CustomEvent("force", {
+              detail: {
+                patches,
+              },
+              bubbles: true,
+              composed: true,
+            })
+          )
         }
       }
-
-      const elementName = `metafor-${tag}` as const
 
       // Регистрируем компонент один раз
-      if (!customElements.get(elementName)) {
-        customElements.define(elementName, WebComponent)
-      }
+      if (!customElements.get(elementName)) customElements.define(elementName, WebComponent)
     },
   }
 }

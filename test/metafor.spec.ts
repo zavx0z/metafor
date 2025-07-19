@@ -13,7 +13,6 @@ describe("MetaFor", () => {
         age: types.number.optional(),
       }))
 
-      const actor = document.querySelector(`metafor-user`)!
     })
   })
 })
