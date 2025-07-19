@@ -21,8 +21,8 @@
 ### Импорт
 
 ```typescript
-import { Machine } from "./machine"
-import type { StateConfig } from "./machine"
+import { Machine } from "./index"
+import type { StateConfig } from "./index"
 ```
 
 ### Пример использования
@@ -255,20 +255,19 @@ const userProcess: StateProcess<UserContext, UserResult> = {
 
 ```text
 machine/
-├── index.ts          # Основной экспорт модуля
+├── index.ts          # Основной экспорт модуля с реализацией класса Machine
 ├── index.t.ts        # Типы для модуля
-├── Machine.ts        # Реализация класса Machine
 ├── transition.t.ts   # Типы условий переходов
 ├── example.ts        # Пример использования
 ├── README.md         # Документация
 └── test/             # Тесты
     ├── state.spec.ts
-    └── Machine.spec.ts
+    └── machine.spec.ts
 ```
 
 ### Основные компоненты
 
-- **Machine** - класс для управления конечным автоматом
+- **Machine** - класс для управления конечным автоматом (реализован в index.ts)
 - **StateProcess** - типизированные процессы состояний
 - **TransitionConditions** - система условий переходов
 - **StateConfig** - конфигурация всех состояний
