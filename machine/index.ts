@@ -13,12 +13,13 @@ import type { StateConfig, MachineInstance, StateProcess, TransitionConditions }
 import type { ContextSchema, ExtractValues, UpdateValues } from "../context/index.t.ts"
 
 /**
- * Класс конечного автомата
+ * Класс конечного автомата с автоматическими переходами на основе контекста
  */
 export class Machine<S extends string, C extends ContextSchema, R = any> implements MachineInstance<S, C, R> {
   private _currentState: S
   private _isExecuting: boolean = false
   private config: StateConfig<S, C, R>
+  private updateSubscribers: Array<(patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>) => void> = []
 
   constructor(config: StateConfig<S, C, R>, initialState: S) {
     this.config = config
@@ -40,13 +41,105 @@ export class Machine<S extends string, C extends ContextSchema, R = any> impleme
   }
 
   /**
-   * Доступные переходы из текущего состояния
+   * Уведомляет подписчиков об изменении состояния
    */
-  get availableTransitions(): S[] {
-    const currentStateConfig = this.config[this._currentState]
-    if (!currentStateConfig) return []
+  private notifySubscribers(patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>): void {
+    for (const subscriber of this.updateSubscribers) {
+      subscriber(patches)
+    }
+  }
 
-    return Object.keys(currentStateConfig.to) as S[]
+  /**
+   * Подписка на обновления состояния автомата.
+   * Позволяет получать уведомления о каждом изменении состояния в формате JSON Patch.
+   * Возвращает функцию для отписки.
+   *
+   * @param callback - функция, вызываемая при изменении состояния
+   * @returns функция для отписки
+   *
+   * @example
+   * const unsubscribe = machine.onUpdate((patches) => {
+   *   console.log('Патчи состояния:', patches)
+   * })
+   * // ...
+   * unsubscribe() // для отписки
+   */
+  onUpdate(callback: (patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>) => void): () => void {
+    this.updateSubscribers.push(callback)
+    return () => {
+      const idx = this.updateSubscribers.indexOf(callback)
+      if (idx !== -1) this.updateSubscribers.splice(idx, 1)
+    }
+  }
+
+  /**
+   * Обновляет контекст и выполняет автоматические переходы
+   * Возвращает результат выполнения процесса, если он был запущен
+   */
+  async update(context: ExtractValues<C>): Promise<R | undefined> {
+    let result: R | undefined = undefined
+    let currentContext = { ...context }
+    let hasTransitioned = true
+    let maxIterations = 100 // Защита от бесконечных циклов
+    let iteration = 0
+    let visitedStates = new Set<S>()
+
+    // Выполняем переходы пока есть возможность
+    while (hasTransitioned && iteration < maxIterations) {
+      hasTransitioned = false
+      iteration++
+
+      // Проверяем все возможные переходы из текущего состояния
+      const currentStateConfig = this.config[this._currentState]
+      if (!currentStateConfig) break
+
+      for (const [targetState, conditions] of Object.entries(currentStateConfig.to)) {
+        if (this.checkTransitionConditions(conditions as TransitionConditions<C>, currentContext)) {
+          // Выполняем переход
+          this._currentState = targetState as S
+          hasTransitioned = true
+
+          // Уведомляем подписчиков об изменении состояния
+          const patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }> = []
+
+          // Определяем тип операции на основе наличия процесса
+          const newStateConfig = this.config[this._currentState]
+          if (newStateConfig?.process) {
+            // Если есть процесс - это test операция
+            patches.push({ op: "test", path: "/state", value: this._currentState })
+          } else {
+            // Если нет процесса - это replace операция
+            patches.push({ op: "replace", path: "/state", value: this._currentState })
+          }
+
+          this.notifySubscribers(patches)
+
+          // Если мы уже были в этом состоянии, это может быть цикл
+          if (visitedStates.has(this._currentState)) {
+            console.warn(`Обнаружен возможный цикл: повторное посещение состояния ${this._currentState}`)
+            return result
+          }
+
+          visitedStates.add(this._currentState)
+          break
+        }
+      }
+
+      // Если перешли в состояние с процессом, выполняем его
+      const newStateConfig = this.config[this._currentState]
+      if (newStateConfig?.process && !this._isExecuting) {
+        result = await this.execute(currentContext)
+
+        // После успешного выполнения процесса отправляем replace патч
+        this.notifySubscribers([{ op: "replace", path: "/state", value: this._currentState }])
+      }
+    }
+
+    if (iteration >= maxIterations) {
+      console.warn(`Машина достигла максимального количества итераций (${maxIterations}). Возможен бесконечный цикл.`)
+    }
+
+    return result
   }
 
   /**
@@ -206,34 +299,9 @@ export class Machine<S extends string, C extends ContextSchema, R = any> impleme
   }
 
   /**
-   * Проверяет, возможен ли переход в указанное состояние
+   * Запускает процесс текущего состояния (внутренний метод)
    */
-  canTransitionTo(targetState: S, context: ExtractValues<C>): boolean {
-    const currentStateConfig = this.config[this._currentState]
-    if (!currentStateConfig) return false
-
-    const transitionConditions = currentStateConfig.to[targetState]
-    if (!transitionConditions) return false
-
-    return this.checkTransitionConditions(transitionConditions, context)
-  }
-
-  /**
-   * Выполняет переход в указанное состояние
-   */
-  transitionTo(targetState: S, context: ExtractValues<C>): boolean {
-    if (!this.canTransitionTo(targetState, context)) {
-      return false
-    }
-
-    this._currentState = targetState
-    return true
-  }
-
-  /**
-   * Запускает процесс текущего состояния
-   */
-  async execute(context: ExtractValues<C>): Promise<R | undefined> {
+  private async execute(context: ExtractValues<C>): Promise<R | undefined> {
     const currentStateConfig = this.config[this._currentState]
     if (!currentStateConfig?.process) {
       return undefined
@@ -253,9 +321,8 @@ export class Machine<S extends string, C extends ContextSchema, R = any> impleme
       if (process.success) {
         // Создаем функцию update для обновления контекста
         const update = (values: UpdateValues<ExtractValues<C>>) => {
-          // В реальной реализации здесь будет обновление контекста
-          // Пока просто возвращаем обновленный контекст
-          return { ...context, ...values } as ExtractValues<C>
+          // Обновляем контекст
+          Object.assign(context, values)
         }
 
         process.success({ update, data: result })
@@ -267,7 +334,8 @@ export class Machine<S extends string, C extends ContextSchema, R = any> impleme
       const process = currentStateConfig.process!
       if (process.error) {
         const update = (values: UpdateValues<ExtractValues<C>>) => {
-          return { ...context, ...values } as ExtractValues<C>
+          // Обновляем контекст
+          Object.assign(context, values)
         }
 
         process.error({ update })

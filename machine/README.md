@@ -1,18 +1,19 @@
 # Machine
 
-Модуль фреймворка MetaFor для создания конечных автоматов с типизированными состояниями и переходами. Позволяет определять состояния, процессы и условия переходов между ними на основе контекста.
+Модуль фреймворка MetaFor для создания контекстно-ориентированных конечных автоматов с типизированными состояниями и автоматическими переходами. Позволяет определять состояния, процессы и условия переходов между ними на основе контекста.
 
 ---
 
 ## Основные возможности
 
+- **Автоматические переходы** - переходы происходят автоматически на основе контекста
 - Типизированные состояния с процессами
 - Условные переходы на основе контекста
 - Поддержка действий, обработки ошибок и успешных операций
 - Интеграция с контекстом MetaFor
 - Автоматическая типизация переходов
 - **Типизированные результаты процессов** - передача данных из `action` в `success` с полной типизацией
-- **Класс Machine** - runtime-реализация конечного автомата с проверкой условий переходов
+- **Класс Machine** - runtime-реализация конечного автомата с автоматическими переходами
 
 ---
 
@@ -25,7 +26,7 @@ import { Machine } from "./index"
 import type { StateConfig } from "./index"
 ```
 
-### Пример использования
+### Базовое использование
 
 ```typescript
 // Определяем типы
@@ -53,15 +54,12 @@ const config: StateConfig<UserStates, UserContext, UserResult> = {
   loading: {
     process: {
       action: async ({ context }) => {
-        // Имитируем API запрос
-        await new Promise((resolve) => setTimeout(resolve, 100))
         return {
           userId: `user_${Date.now()}`,
           profile: { name: context.name, age: context.age },
         }
       },
       success: ({ update, data }) => {
-        console.log(`Пользователь создан: ${data.userId}`)
         update({ userId: data.userId })
       },
       error: ({ update }) => {
@@ -80,21 +78,9 @@ const config: StateConfig<UserStates, UserContext, UserResult> = {
 // Создаем автомат
 const machine = new Machine<UserStates, UserContext, UserResult>(config, "idle")
 
-// Используем
+// Используем - просто передаем контекст!
 const context = { name: "Иван", age: null, isActive: true }
-console.log(machine.currentState) // "idle"
-console.log(machine.isExecuting) // false
-
-// Проверяем переходы
-console.log(machine.canTransitionTo("loading", context)) // true
-
-// Выполняем переход
-machine.transitionTo("loading", context)
-console.log(machine.currentState) // "loading"
-
-// Запускаем процесс
-const result = await machine.execute(context)
-console.log(result) // { userId: "user_123...", profile: {...} }
+const result = await machine.update(context)
 ```
 
 ---
@@ -103,7 +89,7 @@ console.log(result) // { userId: "user_123...", profile: {...} }
 
 ### Класс Machine
 
-Класс для управления конечным автоматом.
+Класс для управления контекстно-ориентированным конечным автоматом.
 
 #### Конструктор
 
@@ -119,9 +105,86 @@ new Machine<S, C, R>(config: StateConfig<S, C, R>, initialState: S)
 
 #### Методы
 
-- `canTransitionTo(targetState: S, context: ExtractValues<C>): boolean` - проверяет возможность перехода
-- `transitionTo(targetState: S, context: ExtractValues<C>): boolean` - выполняет переход
-- `execute(context: ExtractValues<C>): Promise<R | undefined>` - запускает процесс текущего состояния
+- `update(context: ExtractValues<C>): Promise<R | undefined>` - **основной метод** - обновляет контекст и выполняет автоматические переходы
+- `onUpdate(callback: (patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>) => void): () => void` - подписка на изменения состояния в формате JSON Patch
+
+---
+
+## Автоматические переходы
+
+### Метод update
+
+Основной метод для работы с контекстно-ориентированной машиной:
+
+```typescript
+async update(context: ExtractValues<C>): Promise<R | undefined>
+```
+
+**Как это работает:**
+
+1. **Анализ контекста** - машина анализирует переданный контекст
+2. **Проверка условий** - проверяет все возможные переходы из текущего состояния
+3. **Автоматический переход** - если условия выполняются, выполняет переход
+4. **Выполнение процесса** - если новое состояние имеет процесс, запускает его
+5. **Повтор** - повторяет цикл, пока есть возможные переходы
+6. **Возврат результата** - возвращает результат последнего выполненного процесса
+
+**Пример:**
+
+```typescript
+// Начальное состояние: "idle"
+const machine = new Machine(config, "idle")
+
+// Передаем контекст
+const context = { name: "Иван", age: 25, isActive: true }
+const result = await machine.update(context)
+
+// Машина автоматически:
+// 1. idle -> loading (условия выполняются)
+// 2. Выполняет процесс loading
+// 3. loading -> success (userId не null)
+// 4. success -> idle (нет условий)
+// 5. Возвращает результат процесса loading
+```
+
+### Метод onUpdate
+
+Подписка на изменения состояния автомата в формате JSON Patch:
+
+```typescript
+onUpdate(callback: (patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>) => void): () => void
+```
+
+**Операции:**
+
+- `test` - когда входим в состояние с `action` (процессом)
+- `replace` - когда входим в состояние без `action` или после успешного выполнения `action`
+
+**Пример:**
+
+```typescript
+// Подписываемся на изменения состояния
+const unsubscribe = machine.onUpdate((patches) => {
+  patches.forEach((patch) => {
+    console.log(`${patch.op === "test" ? "Тестируем" : "Заменяем"} состояние: ${patch.value}`)
+  })
+})
+
+// Обновляем контекст
+await machine.update(context)
+
+// Отписываемся
+unsubscribe()
+```
+
+### Преимущества автоматических переходов
+
+1. **Простота использования** - не нужно вручную управлять переходами
+2. **Контекстная логика** - переходы определяются данными, а не кодом
+3. **Автоматическая обработка** - машина сама определяет последовательность состояний
+4. **Типобезопасность** - все переходы типизированы
+5. **Гибкость** - легко изменять логику через конфигурацию
+6. **Реактивность** - возможность подписываться на изменения состояния
 
 ---
 
@@ -258,7 +321,6 @@ machine/
 ├── index.ts          # Основной экспорт модуля с реализацией класса Machine
 ├── index.t.ts        # Типы для модуля
 ├── transition.t.ts   # Типы условий переходов
-├── example.ts        # Пример использования
 ├── README.md         # Документация
 └── test/             # Тесты
     ├── state.spec.ts
@@ -267,7 +329,8 @@ machine/
 
 ### Основные компоненты
 
-- **Machine** - класс для управления конечным автоматом (реализован в index.ts)
+- **Machine** - класс для управления контекстно-ориентированным конечным автоматом (реализован в index.ts)
 - **StateProcess** - типизированные процессы состояний
 - **TransitionConditions** - система условий переходов
 - **StateConfig** - конфигурация всех состояний
+- **update** - основной метод для автоматической обработки контекста

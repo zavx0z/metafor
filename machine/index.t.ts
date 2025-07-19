@@ -21,8 +21,8 @@ export type StateTransitions<T extends string, C extends ContextSchema = any> = 
  */
 export type StateProcess<T extends ContextSchema = any, R = any> = {
   action: (params: { context: ExtractValues<T> }) => R | Promise<R>
-  error: (params: { update: (values: UpdateValues<ExtractValues<T>>) => ExtractValues<T> }) => void
-  success?: (params: { update: (values: UpdateValues<ExtractValues<T>>) => ExtractValues<T>; data: R }) => void
+  error: (params: { update: (values: UpdateValues<ExtractValues<T>>) => void }) => void
+  success?: (params: { update: (values: UpdateValues<ExtractValues<T>>) => void; data: R }) => void
 }
 
 /**
@@ -46,14 +46,10 @@ export interface MachineInstance<S extends string, C extends ContextSchema = any
   readonly currentState: S
   /** Выполняется ли действие в текущем состоянии */
   readonly isExecuting: boolean
-  /** Доступные переходы из текущего состояния */
-  readonly availableTransitions: S[]
-  /** Проверяет, возможен ли переход в указанное состояние */
-  canTransitionTo: (targetState: S, context: ExtractValues<C>) => boolean
-  /** Выполняет переход в указанное состояние */
-  transitionTo: (targetState: S, context: ExtractValues<C>) => boolean
-  /** Запускает процесс текущего состояния */
-  execute: (context: ExtractValues<C>) => Promise<R | undefined>
+  /** Обновляет контекст и выполняет автоматические переходы */
+  update: (context: ExtractValues<C>) => Promise<R | undefined>
+  /** Подписка на обновления состояния автомата */
+  onUpdate: (callback: (patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>) => void) => () => void
 }
 
 /**
