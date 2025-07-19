@@ -3,8 +3,8 @@
  * @packageDocumentation
  */
 
-import { types, createContext } from "@zavx0z/context"
-import type { ContextSchema, ContextTypes, ContextInstance, JsonPatch } from "@zavx0z/context"
+import {types, createContext} from "@zavx0z/context"
+import type {ContextSchema, ContextTypes, ContextInstance, JsonPatch} from "@zavx0z/context"
 
 /**
  * Основная функция MetaFor
@@ -43,50 +43,38 @@ export function MetaFor(tag: string) {
      * // context.context.tags - string[] | null (optional)
      * ```
      */
-    context<const T extends ContextSchema>(schema: (types: ContextTypes) => T): MetaForComponent<T> {
+    context<const T extends ContextSchema>(schema: (types: ContextTypes) => T): void {
       class WebComponent extends HTMLElement {
-        public context: ContextInstance<T>["context"]
-        private ctx: ContextInstance<T>
+        #ctx: ContextInstance<T>
 
         constructor() {
           super()
-          this.ctx = createContext(schema(types))
+          this.#ctx = createContext(schema(types))
+        }
 
-          this.context = this.ctx.context
+        get context(): ContextInstance<T>["context"] {
+          return this.#ctx.context
         }
 
         update = (data: Partial<ContextInstance<T>["context"]>) => {
-          this.ctx.update(data)
+          this.#ctx.update(data)
         }
 
         onUpdate = (callback: (patches: JsonPatch[]) => void) => {
-          this.ctx.onUpdate(callback)
+          this.#ctx.onUpdate(callback)
         }
 
         public get schema() {
-          return this.ctx.schema
+          return this.#ctx.schema
         }
       }
+
       const elementName = `metafor-${tag}` as const
 
       // Регистрируем компонент один раз
       if (!customElements.get(elementName)) {
         customElements.define(elementName, WebComponent)
       }
-
-      // Возвращаем конструктор компонента — типы не теряются,
-      // при необходимости пользователь может создать экземпляр
-      // или использовать `InstanceType<typeof Component>` для получения типа
-      return WebComponent as unknown as MetaForComponent<T>
     },
   }
-}
-
-// Публичный тип возвращаемого веб-компонента
-export type MetaForElement<T extends ContextSchema> = ContextInstance<T> & HTMLElement
-
-// Конструктор компонента, который возвращает MetaForElement<T>
-export type MetaForComponent<T extends ContextSchema> = {
-  new (): MetaForElement<T>
-  readonly prototype: MetaForElement<T>
 }
