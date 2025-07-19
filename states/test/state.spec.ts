@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import type { StateProcess, StateDefinition, StateConfig } from "../index.ts"
+import type { StateProcess, StateDefinition, StateConfig } from "../index.t.ts"
 
 // Тестовые типы контекста
 type TestContext = {
