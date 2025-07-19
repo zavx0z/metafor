@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import { Machine } from "../Machine.ts"
+import { Machine } from "../index.ts"
 import type { StateConfig } from "../index.t.ts"
 
 // Тестовые типы

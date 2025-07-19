@@ -101,7 +101,7 @@ console.log(result) // { userId: "user_123...", profile: {...} }
 
 ## API
 
-### Machine
+### Класс Machine
 
 Класс для управления конечным автоматом.
 

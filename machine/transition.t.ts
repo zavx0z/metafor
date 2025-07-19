@@ -358,7 +358,6 @@ import type {
       : ConditionOptional<ExtractValues<T>[K]>
   }
   
-  // Обратная совместимость - старые типы теперь являются union типов
   export type CondBoolean = CondBooleanRequired | CondBooleanOptional
   export type CondEnum<E extends readonly (string | number)[]> = CondEnumRequired<E> | CondEnumOptional<E>
   export type CondString = CondStringRequired | CondStringOptional
