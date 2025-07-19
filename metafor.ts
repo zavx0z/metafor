@@ -1,5 +1,5 @@
 /**
- * MetaFor - библиотека для создания актора конечного автомата
+ * MetaFor - фреймворк для создания актора конечного автомата
  * @packageDocumentation
  */
 
@@ -14,7 +14,7 @@ import type { ContextSchema, ContextTypes, ContextInstance, JsonPatch } from "./
  *
  * @example
  * ```typescript
- * const userContext = MetaFor('user').context(types => ({
+ * MetaFor('user').context(types => ({
  *   name: types.string.required('Гость'),
  *   age: types.number.optional()
  * }))
