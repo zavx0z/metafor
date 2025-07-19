@@ -40,8 +40,10 @@ test("StateProcess типизация с generic параметром R", () => 
 
   // Проверяем, что process.action возвращает правильный тип
   const result = process.action({ context: { name: "test", age: 25 } })
-  expect(result.userId).toBeTypeOf("string")
-  expect(result.timestamp).toBeTypeOf("number")
+  // Проверяем, что результат не является Promise
+  expect(result).not.toBeInstanceOf(Promise)
+  expect((result as TestResult).userId).toBeTypeOf("string")
+  expect((result as TestResult).timestamp).toBeTypeOf("number")
 })
 
 test("StateDefinition с generic параметром R", () => {
