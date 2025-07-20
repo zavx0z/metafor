@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import { MetaFor, Machine } from "../metafor.ts"
+import { MetaFor } from "../metafor.ts"
 import type { StateConfig } from "../machine"
 
 // Тестовые типы
@@ -14,7 +14,6 @@ type TestResult = {
 }
 
 test("MetaFor - интеграция с модулем machine", () => {
-  // Создаем конфигурацию состояний
   const states: StateConfig<TestStates, TestContext, TestResult> = {
     idle: {
       to: {
@@ -50,53 +49,12 @@ test("MetaFor - интеграция с модулем machine", () => {
     },
   }
 
-  // Создаем экземпляр MetaFor
   const metafor = MetaFor("test")
   const context = metafor.context((types) => ({
     name: types.string.required(),
     isActive: types.boolean.required(),
   }))
-
-  // Проверяем, что states метод доступен
   expect(typeof context.states, "Метод states должен быть доступен").toBe("function")
-
-  // Вызываем метод states - он должен зарегистрировать компонент
   context.states(states)
-
-  // Проверяем, что компонент зарегистрирован в customElements
-  const elementName = "metafor-test"
-  expect(customElements.get(elementName), "Компонент должен быть зарегистрирован в customElements").toBeDefined()
-})
-
-test("Machine - прямой экспорт работает", () => {
-  // Проверяем, что класс Machine экспортируется
-  expect(typeof Machine, "Класс Machine должен быть экспортирован").toBe("function")
-
-  // Создаем простую конфигурацию
-  const config: StateConfig<"idle" | "active", TestContext, TestResult> = {
-    idle: {
-      to: {
-        active: {
-          isActive: true,
-        },
-      },
-    },
-    active: {
-      to: {
-        idle: {},
-      },
-    },
-  }
-
-  // Создаем экземпляр машины
-  const machine = new Machine(config, "idle", (values) => values)
-
-  // Проверяем базовые свойства
-  expect(machine.currentState, "Текущее состояние должно быть idle").toBe("idle")
-  expect(machine.isExecuting, "Машина не должна выполняться в начальном состоянии").toBe(false)
-})
-
-test("MetaFor - экспорт типов работает", () => {
-  // Проверяем, что типы экспортируются (StateConfig это тип, не значение)
-  expect(typeof Machine, "Класс Machine должен быть экспортирован").toBe("function")
+  expect(customElements.get("metafor-test"), "Компонент должен быть зарегистрирован в customElements").toBeDefined()
 })

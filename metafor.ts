@@ -3,10 +3,10 @@
  * @packageDocumentation
  */
 
-import { types, createContext } from "./context"
-import type { ContextSchema, ContextTypes, ContextInstance, JsonPatch } from "./context"
-import type { StateConfig } from "./machine"
-import { Machine } from "./machine"
+import {types, createContext} from "./context"
+import type {ContextSchema, ContextTypes, ContextInstance, JsonPatch} from "./context"
+import type {StateConfig} from "./machine"
+import {Machine} from "./machine"
 
 /**
  * Основная функция MetaFor
@@ -21,29 +21,24 @@ export function MetaFor(tag: string) {
      * @template С - схема контекста
      * @param schema - функция, принимающая types и возвращающая схему
      */
-    context<const С extends ContextSchema>(schema: (types: ContextTypes) => С) {
+    context<const C extends ContextSchema>(schema: (types: ContextTypes) => C) {
       return {
         /**
          * Создает конечный автомат с состояниями
          * @template S - тип состояний
          * @param states - конфигурация состояний
          */
-        states<S extends string>(states: StateConfig<S, С>) {
+        states<S extends string>(states: StateConfig<S, C>) {
           class WebComponent extends HTMLElement {
-            #ctx: ContextInstance<С>
+            #ctx: ContextInstance<C>
             #shadow: ShadowRoot
-            #machine: Machine<S, С>
+            #machine: Machine<S, C>
 
             constructor() {
               super()
               this.#ctx = createContext(schema(types))
-              this.#shadow = this.attachShadow({ mode: "closed" })
-
-              // Создаем машину состояний
-              this.#machine = new Machine(states, Object.keys(states)[0] as S, (values) => {
-                // Обновляем контекст через стандартный механизм MetaFor
-                return this.#ctx.update(values)
-              })
+              this.#shadow = this.attachShadow({mode: "closed"})
+              this.#machine = new Machine(states, Object.keys(states)[0] as S, this.#ctx.update)
             }
 
             connectedCallback() {
@@ -53,7 +48,7 @@ export function MetaFor(tag: string) {
               this.#machine.onUpdate((patches) => {
                 this.#shadow.dispatchEvent(
                   new CustomEvent("state-change", {
-                    detail: { patches },
+                    detail: {patches},
                     bubbles: true,
                     composed: true,
                   })
@@ -62,15 +57,7 @@ export function MetaFor(tag: string) {
             }
 
             #onUpdateContext = (patches: JsonPatch[]) => {
-              this.#shadow.dispatchEvent(
-                new CustomEvent("force", {
-                  detail: {
-                    patches,
-                  },
-                  bubbles: true,
-                  composed: true,
-                })
-              )
+              this.#shadow.dispatchEvent(new CustomEvent("force", {detail: {patches}, bubbles: true, composed: true}))
             }
 
             /**
@@ -79,7 +66,6 @@ export function MetaFor(tag: string) {
             async updateContext(context: any) {
               // Обновляем контекст MetaFor
               this.#ctx.update(context)
-
               // Запускаем машину состояний
               return await this.#machine.update(context)
             }
@@ -99,14 +85,9 @@ export function MetaFor(tag: string) {
             }
           }
 
-          // Регистрируем компонент один раз
           if (!customElements.get(elementName)) customElements.define(elementName, WebComponent)
         },
       }
     },
   }
 }
-
-// Экспортируем типы и классы для прямого использования
-export { Machine } from "./machine"
-export type { StateConfig, StateProcess, StateDefinition } from "./machine"
