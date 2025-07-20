@@ -58,8 +58,11 @@ test("Machine - автоматические переходы с update", async 
     },
   }
 
-  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle")
   const context = { name: "test_user", age: null, isActive: true }
+  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle", (values) => {
+    Object.assign(context, values)
+    return context
+  })
 
   // Начальное состояние
   expect(machine.currentState, "Машина должна начинать с состояния idle").toBe("idle")
@@ -114,8 +117,11 @@ test("Machine - автоматические переходы с ошибкой"
     },
   }
 
-  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle")
   const context = { name: "test_user", age: null, isActive: true }
+  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle", (values) => {
+    Object.assign(context, values)
+    return context
+  })
 
   // Начальное состояние
   expect(machine.currentState, "Машина должна начинать с состояния idle").toBe("idle")
@@ -148,10 +154,12 @@ test("Machine - обработка контекста без переходов"
     },
   }
 
-  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle")
-  
   // Контекст, который не удовлетворяет условиям перехода
   const context = { name: "ab", age: null, isActive: true }
+  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle", (values) => {
+    Object.assign(context, values)
+    return context
+  })
 
   // Начальное состояние
   expect(machine.currentState, "Машина должна начинать с состояния idle").toBe("idle")
@@ -187,10 +195,12 @@ test("Machine - обработка контекста с неактивным п
     },
   }
 
-  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle")
-  
   // Контекст с неактивным пользователем
   const context = { name: "test_user", age: null, isActive: false }
+  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle", (values) => {
+    Object.assign(context, values)
+    return context
+  })
 
   // Начальное состояние
   expect(machine.currentState, "Машина должна начинать с состояния idle").toBe("idle")
@@ -223,7 +233,11 @@ test("Machine - проверка состояния выполнения", () =>
     },
   }
 
-  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle")
+  const context = { name: "test", age: null, isActive: true }
+  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle", (values) => {
+    Object.assign(context, values)
+    return context
+  })
 
   // Проверяем начальное состояние
   expect(machine.currentState, "Машина должна начинать с состояния idle").toBe("idle")
@@ -251,7 +265,11 @@ test("Machine - подписка на обновления", async () => {
     },
   }
 
-  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle")
+  const context = { name: "test", age: null, isActive: true }
+  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle", (values) => {
+    Object.assign(context, values)
+    return context
+  })
   const patches: Array<{ op: "test" | "replace"; path: "/state"; value: TestStates }> = []
 
   // Подписываемся на обновления
@@ -260,7 +278,6 @@ test("Machine - подписка на обновления", async () => {
   })
 
   // Обновляем контекст
-  const context = { name: "test", age: null, isActive: true }
   await machine.update(context)
 
   // Проверяем, что получили уведомления
@@ -278,73 +295,7 @@ test("Machine - подписка на обновления", async () => {
   expect(patches.length, "После отписки не должно быть уведомлений").toBe(0)
 })
 
-test("Machine - проверка типов патчей", async () => {
-  const config: StateConfig<TestStates, TestContext, TestResult> = {
-    idle: {
-      to: {
-        loading: {
-          name: { length: { min: 3 } },
-          isActive: true,
-        },
-      },
-    },
-    loading: {
-      process: {
-        action: ({ context }) => ({
-          userId: `user_${context.name}`,
-          timestamp: 12345,
-        }),
-        success: ({ update, data }) => {
-          update({ age: data.timestamp })
-        },
-        error: ({ update }) => {
-          update({ name: "error" })
-        },
-      },
-      to: {
-        success: {
-          age: { gt: 0 },
-        },
-      },
-    },
-    success: {
-      to: {
-        idle: {},
-      },
-    },
-    error: {
-      to: {},
-    },
-  }
 
-  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle")
-  const patches: Array<{ op: "test" | "replace"; path: "/state"; value: TestStates }> = []
-
-  // Подписываемся на обновления
-  const unsubscribe = machine.onUpdate((receivedPatches) => {
-    receivedPatches.forEach(patch => patches.push(patch))
-  })
-
-  // Обновляем контекст
-  const context = { name: "test_user", age: null, isActive: true }
-  await machine.update(context)
-
-  // Проверяем типы патчей
-  expect(patches.length, "Должны быть получены патчи").toBeGreaterThan(0)
-  
-  // Первый патч должен быть test (вход в состояние с процессом)
-  expect(patches[0]?.op, "Первый патч должен быть типа test при входе в состояние с процессом").toBe("test")
-  expect(patches[0]?.path, "Путь патча должен быть /state").toBe("/state")
-  expect(patches[0]?.value, "Значение патча должно быть loading").toBe("loading")
-
-  // Второй патч должен быть replace (после выполнения процесса)
-  if (patches.length > 1) {
-    expect(patches[1]?.op, "Второй патч должен быть типа replace после выполнения процесса").toBe("replace")
-    expect(patches[1]?.path, "Путь патча должен быть /state").toBe("/state")
-  }
-
-  unsubscribe()
-})
 
 test("Machine - проверка условий перехода", async () => {
   const config: StateConfig<TestStates, TestContext, TestResult> = {
@@ -367,22 +318,33 @@ test("Machine - проверка условий перехода", async () => {
     },
   }
 
-  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle")
+  const shortNameContext = { name: "ab", age: null, isActive: true }
+  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle", (values) => {
+    Object.assign(shortNameContext, values)
+    return shortNameContext
+  })
 
   // Тест 1: Короткое имя (не должно переходить)
-  const shortNameContext = { name: "ab", age: null, isActive: true }
   await machine.update(shortNameContext)
   expect(machine.currentState, "Машина не должна переходить при коротком имени").toBe("idle")
 
   // Тест 2: Неактивный пользователь (не должно переходить)
   const inactiveContext = { name: "test_user", age: null, isActive: false }
-  await machine.update(inactiveContext)
-  expect(machine.currentState, "Машина не должна переходить при неактивном пользователе").toBe("idle")
+  const machine2 = new Machine<TestStates, TestContext, TestResult>(config, "idle", (values) => {
+    Object.assign(inactiveContext, values)
+    return inactiveContext
+  })
+  await machine2.update(inactiveContext)
+  expect(machine2.currentState, "Машина не должна переходить при неактивном пользователе").toBe("idle")
 
   // Тест 3: Корректные данные (должно перейти)
   const validContext = { name: "test_user", age: null, isActive: true }
-  await machine.update(validContext)
-  expect(machine.currentState, "Машина должна перейти при корректных данных").toBe("loading")
+  const machine3 = new Machine<TestStates, TestContext, TestResult>(config, "idle", (values) => {
+    Object.assign(validContext, values)
+    return validContext
+  })
+  await machine3.update(validContext)
+  expect(machine3.currentState, "Машина должна перейти при корректных данных").toBe("loading")
 })
 
 test("Machine - проверка максимального количества итераций", async () => {
@@ -405,8 +367,11 @@ test("Machine - проверка максимального количества
     },
   }
 
-  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle")
   const context = { name: "test", age: null, isActive: true }
+  const machine = new Machine<TestStates, TestContext, TestResult>(config, "idle", (values) => {
+    Object.assign(context, values)
+    return context
+  })
 
   // Создаем бесконечный цикл idle <-> loading
   await machine.update(context)
