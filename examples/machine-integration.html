@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>MetaFor - Интеграция с Machine</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .state-display {
+        background: #f5f5f5;
+        padding: 10px;
+        border-radius: 5px;
+        margin: 10px 0;
+      }
+      .controls {
+        margin: 20px 0;
+      }
+      button {
+        padding: 10px 20px;
+        margin: 5px;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+      .btn-primary {
+        background: #007bff;
+        color: white;
+      }
+      .btn-success {
+        background: #28a745;
+        color: white;
+      }
+      .btn-danger {
+        background: #dc3545;
+        color: white;
+      }
+      .events {
+        background: #f8f9fa;
+        padding: 10px;
+        border-radius: 5px;
+        margin: 10px 0;
+        max-height: 200px;
+        overflow-y: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>MetaFor - Интеграция с Machine</h1>
+
+    <div class="state-display">
+      <h3>Текущее состояние: <span id="current-state">idle</span></h3>
+      <p>Выполняется процесс: <span id="is-executing">false</span></p>
+    </div>
+
+    <div class="controls">
+      <button class="btn-primary" onclick="updateName()">Установить имя "Иван"</button>
+      <button class="btn-success" onclick="activateUser()">Активировать пользователя</button>
+      <button class="btn-danger" onclick="deactivateUser()">Деактивировать пользователя</button>
+      <button onclick="resetContext()">Сбросить контекст</button>
+    </div>
+
+    <div class="events">
+      <h3>События:</h3>
+      <div id="events-log"></div>
+    </div>
+
+    <script type="module">
+      import { MetaFor } from "../dist/metafor.js"
+
+      // Определяем типы
+      const states = {
+        idle: {
+          to: {
+            loading: {
+              name: { length: { min: 3 } },
+              isActive: true,
+            },
+          },
+        },
+        loading: {
+          process: {
+            action: async ({ context }) => {
+              console.log("Выполняется процесс loading...")
+              // Имитируем асинхронную операцию
+              await new Promise((resolve) => setTimeout(resolve, 1000))
+              return {
+                userId: `user_${context.name}_${Date.now()}`,
+                timestamp: Date.now(),
+              }
+            },
+            success: ({ update, data }) => {
+              console.log("Процесс успешно завершен:", data)
+              update({ name: data.userId })
+            },
+            error: ({ update }) => {
+              console.log("Произошла ошибка в процессе")
+              update({ name: "error_user" })
+            },
+          },
+          to: {
+            success: {
+              name: { startsWith: "user_" },
+            },
+            error: {
+              name: { eq: "error_user" },
+            },
+          },
+        },
+        success: {
+          to: {
+            idle: {},
+          },
+        },
+        error: {
+          to: {
+            idle: {},
+          },
+        },
+      }
+
+      // Создаем экземпляр MetaFor
+      const metafor = MetaFor("demo")
+      const context = metafor.context((types) => ({
+        name: types.string.required(),
+        isActive: types.boolean.required(),
+      }))
+
+      // Создаем компонент с машиной состояний
+      context.states(states)
+
+      // Ждем регистрации компонента
+      await customElements.whenDefined("metafor-demo")
+
+      // Создаем экземпляр компонента
+      const component = document.createElement("metafor-demo")
+      document.body.appendChild(component)
+
+      // Подписываемся на события изменения состояния
+      component.addEventListener("state-change", (event) => {
+        const patches = event.detail.patches
+        patches.forEach((patch) => {
+          addEvent(`Состояние: ${patch.op} -> ${patch.value}`)
+        })
+      })
+
+      // Подписываемся на события обновления контекста
+      component.addEventListener("force", (event) => {
+        const patches = event.detail.patches
+        patches.forEach((patch) => {
+          addEvent(`Контекст: ${patch.op} ${patch.path} = ${JSON.stringify(patch.value)}`)
+        })
+      })
+
+      // Глобальные функции для управления
+      window.updateName = () => {
+        component.updateContext({ name: "Иван", isActive: true })
+      }
+
+      window.activateUser = () => {
+        component.updateContext({ isActive: true })
+      }
+
+      window.deactivateUser = () => {
+        component.updateContext({ isActive: false })
+      }
+
+      window.resetContext = () => {
+        component.updateContext({ name: "", isActive: false })
+      }
+
+      // Функция для добавления событий в лог
+      function addEvent(message) {
+        const eventsLog = document.getElementById("events-log")
+        const eventElement = document.createElement("div")
+        eventElement.textContent = `[${new Date().toLocaleTimeString()}] ${message}`
+        eventsLog.appendChild(eventElement)
+        eventsLog.scrollTop = eventsLog.scrollHeight
+      }
+
+      // Обновляем отображение состояния
+      function updateStateDisplay() {
+        document.getElementById("current-state").textContent = component.currentState
+        document.getElementById("is-executing").textContent = component.isExecuting
+      }
+
+      // Обновляем отображение каждые 100мс
+      setInterval(updateStateDisplay, 100)
+
+      // Начальное событие
+      addEvent("Компонент инициализирован")
+    </script>
+  </body>
+</html>
