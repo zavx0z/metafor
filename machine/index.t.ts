@@ -26,6 +26,13 @@ export type StateProcess<T extends ContextSchema = any, R = any> = {
 }
 
 /**
+ * Функция обновления контекста
+ */
+export type UpdateFunction<T extends ContextSchema = any> = (
+  values: UpdateValues<ExtractValues<T>>
+) => Partial<ExtractValues<T>>
+
+/**
  * Конфигурация одного состояния
  */
 export type StateDefinition<T extends string, C extends ContextSchema = any, R = any> = {

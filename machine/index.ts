@@ -9,7 +9,7 @@ export type { StateTransitions, StateProcess, StateDefinition, StateConfig } fro
  * @packageDocumentation
  */
 
-import type { StateConfig, MachineInstance, StateProcess, TransitionConditions } from "./index.t.ts"
+import type { StateConfig, MachineInstance, StateProcess, TransitionConditions, UpdateFunction } from "./index.t.ts"
 import type { ContextSchema, ExtractValues, UpdateValues } from "../context/index.t.ts"
 
 /**
@@ -20,10 +20,12 @@ export class Machine<S extends string, C extends ContextSchema, R = any> impleme
   private _isExecuting: boolean = false
   private config: StateConfig<S, C, R>
   private updateSubscribers: Array<(patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>) => void> = []
+  private updateFunction: UpdateFunction<C>
 
-  constructor(config: StateConfig<S, C, R>, initialState: S) {
+  constructor(config: StateConfig<S, C, R>, initialState: S, updateFunction: UpdateFunction<C>) {
     this.config = config
     this._currentState = initialState
+    this.updateFunction = updateFunction
   }
 
   /**
@@ -319,13 +321,7 @@ export class Machine<S extends string, C extends ContextSchema, R = any> impleme
 
       // Если есть success обработчик, вызываем его
       if (process.success) {
-        // Создаем функцию update для обновления контекста
-        const update = (values: UpdateValues<ExtractValues<C>>) => {
-          // Обновляем контекст
-          Object.assign(context, values)
-        }
-
-        process.success({ update, data: result })
+        process.success({ update: this.updateFunction, data: result })
       }
 
       return result
@@ -333,12 +329,7 @@ export class Machine<S extends string, C extends ContextSchema, R = any> impleme
       // Если есть error обработчик, вызываем его
       const process = currentStateConfig.process!
       if (process.error) {
-        const update = (values: UpdateValues<ExtractValues<C>>) => {
-          // Обновляем контекст
-          Object.assign(context, values)
-        }
-
-        process.error({ update })
+        process.error({ update: this.updateFunction })
       }
 
       throw error

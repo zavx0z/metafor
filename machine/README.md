@@ -94,8 +94,14 @@ const result = await machine.update(context)
 #### Конструктор
 
 ```typescript
-new Machine<S, C, R>(config: StateConfig<S, C, R>, initialState: S)
+new Machine<S, C, R>(config: StateConfig<S, C, R>, initialState: S, updateFunction: UpdateFunction<C>)
 ```
+
+**Параметры:**
+
+- `config` - конфигурация состояний автомата
+- `initialState` - начальное состояние
+- `updateFunction` - функция для обновления контекста, передаваемая в обработчики `success` и `error`
 
 #### Свойства
 
@@ -133,10 +139,14 @@ async update(context: ExtractValues<C>): Promise<R | undefined>
 
 ```typescript
 // Начальное состояние: "idle"
-const machine = new Machine(config, "idle")
+const context = { name: "Иван", age: 25, isActive: true }
+const machine = new Machine(config, "idle", (values) => {
+  // Обновляем контекст
+  Object.assign(context, values)
+  return context
+})
 
 // Передаем контекст
-const context = { name: "Иван", age: 25, isActive: true }
 const result = await machine.update(context)
 
 // Машина автоматически:
