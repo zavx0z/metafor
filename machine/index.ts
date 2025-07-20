@@ -81,7 +81,6 @@ export class Machine<S extends string, C extends ContextSchema, R = any> impleme
   async update(context: Partial<ExtractValues<C>>): Promise<R | undefined> {
     let result: R | undefined = undefined
     let currentContext = { ...context }
-    console.log("currentContext :", currentContext)
     let hasTransitioned = true
     let maxIterations = 100 // Защита от бесконечных циклов
     let iteration = 0
@@ -132,9 +131,6 @@ export class Machine<S extends string, C extends ContextSchema, R = any> impleme
       const newStateConfig = this.config[this._currentState]
       if (newStateConfig?.process && !this._isExecuting) {
         result = await this.execute(currentContext)
-
-        // После успешного выполнения процесса отправляем replace патч
-        this.notifySubscribers([{ op: "replace", path: "/state", value: this._currentState }])
       }
     }
 

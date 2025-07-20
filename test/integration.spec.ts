@@ -70,5 +70,7 @@ test("MetaFor - интеграция с модулем machine", async () => {
 
   expect(customElements.get("metafor-test"), "Компонент должен быть зарегистрирован в customElements").toBeDefined()
   const messages = await waitForMessages(400)
-  console.log(messages)
+  for (const message of messages) {
+    console.log(message.patches)
+  }
 })
