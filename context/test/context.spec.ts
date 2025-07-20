@@ -381,13 +381,11 @@ describe("Примеры использования", () => {
     }
     const { context, update } = createContext(schema)
 
-    expect(context, "userContext должен содержать значения по умолчанию для всех полей").toPlainObjectEqual(schema, {
-      name: "Гость",
-      age: null,
-      isActive: true,
-      role: "user",
-      tags: null,
-    })
+    expect(context.name).toBe("Гость")
+    expect(context.age).toBe(null)
+    expect(context.isActive).toBe(true)
+    expect(context.role).toBe("user")
+    expect(context.tags).toBe(null)
 
     const updated = update({ name: "Иван", age: 25 })
     expect(updated, "После update должны вернуться только обновленные поля").toEqual({
@@ -414,14 +412,12 @@ describe("Примеры использования", () => {
     }
     const { context, update } = createContext(schema)
 
-    expect(context, "productContext должен содержать значения по умолчанию для всех полей").toPlainObjectEqual(schema, {
-      id: "",
-      name: "Новый продукт",
-      price: 0,
-      inStock: false,
-      category: null,
-      images: [],
-    })
+    expect(context.id).toBe("")
+    expect(context.name).toBe("Новый продукт")
+    expect(context.price).toBe(0)
+    expect(context.inStock).toBe(false)
+    expect(context.category).toBe(null)
+    expect(context.images).toEqual([])
 
     const updated = update({
       id: "prod-123",
@@ -448,12 +444,10 @@ describe("Примеры использования", () => {
     }
     const { context, update } = createContext(schema)
 
-    expect(context, "articleContext должен содержать значения по умолчанию для всех полей").toPlainObjectEqual(schema, {
-      title: "Заголовок",
-      content: null,
-      published: false,
-      views: 0,
-    })
+    expect(context.title).toBe("Заголовок")
+    expect(context.content).toBe(null)
+    expect(context.published).toBe(false)
+    expect(context.views).toBe(0)
 
     const updated = update({
       title: "Новый заголовок",
@@ -465,5 +459,195 @@ describe("Примеры использования", () => {
       content: "Содержание статьи",
       published: true,
     })
+  })
+})
+
+describe("getSnapshot", () => {
+  it("возвращает снимок текущего состояния контекста", () => {
+    const { context, getSnapshot } = createContext({
+      name: types.string.required("Гость"),
+      age: types.number.optional(),
+      isActive: types.boolean.required(true),
+      role: types.enum("user", "admin").required("user"),
+      tags: types.array.optional(),
+    })
+
+    // Проверяем начальный снимок
+    expect(getSnapshot(), "Снимок должен содержать начальные значения").toEqual({
+      name: "Гость",
+      age: null,
+      isActive: true,
+      role: "user",
+      tags: null,
+    })
+
+    // Проверяем, что снимок идентичен контексту
+    expect(getSnapshot()).toEqual({
+      name: context.name,
+      age: context.age,
+      isActive: context.isActive,
+      role: context.role,
+      tags: context.tags,
+    })
+  })
+
+  it("отражает изменения в контексте", () => {
+    const { context, update, getSnapshot } = createContext({
+      name: types.string.required("Гость"),
+      age: types.number.optional(),
+      isActive: types.boolean.required(true),
+    })
+
+    // Начальный снимок
+    const initialSnapshot = getSnapshot()
+    expect(initialSnapshot.name).toBe("Гость")
+    expect(initialSnapshot.age).toBe(null)
+    expect(initialSnapshot.isActive).toBe(true)
+
+    // Обновляем контекст
+    update({ name: "Иван", age: 25 })
+
+    // Новый снимок должен отразить изменения
+    const newSnapshot = getSnapshot()
+    expect(newSnapshot.name, "Снимок должен отразить изменение name").toBe("Иван")
+    expect(newSnapshot.age, "Снимок должен отразить изменение age").toBe(25)
+    expect(newSnapshot.isActive, "Снимок должен сохранить неизмененное поле").toBe(true)
+
+    // Проверяем, что снимок идентичен обновленному контексту
+    expect(newSnapshot).toEqual({
+      name: context.name,
+      age: context.age,
+      isActive: context.isActive,
+    })
+
+    // Старый снимок остается неизменным
+    expect(initialSnapshot.name).toBe("Гость")
+    expect(initialSnapshot.age).toBe(null)
+  })
+
+  it("работает со всеми типами данных", () => {
+    const { context, update, getSnapshot } = createContext({
+      title: types.string.required("Заголовок"),
+      description: types.string(),
+      age: types.number.required(18),
+      score: types.number(),
+      isActive: types.boolean.required(true),
+      isVerified: types.boolean(),
+      status: types.enum("draft", "published", "archived").required("draft"),
+      category: types.enum("tech", "design", "business")(),
+      tags: types.array.required([]),
+      permissions: types.array(),
+    })
+
+    // Проверяем начальный снимок
+    expect(getSnapshot()).toEqual({
+      title: "Заголовок",
+      description: null,
+      age: 18,
+      score: null,
+      isActive: true,
+      isVerified: null,
+      status: "draft",
+      category: null,
+      tags: [],
+      permissions: null,
+    })
+
+    // Обновляем все поля
+    update({
+      title: "Новый заголовок",
+      description: "Новое описание",
+      age: 25,
+      score: 100,
+      isActive: false,
+      isVerified: true,
+      status: "published",
+      category: "tech",
+      tags: ["typescript", "library"],
+      permissions: [1, 2, 3],
+    })
+
+    // Проверяем обновленный снимок
+    const updatedSnapshot = getSnapshot()
+    expect(updatedSnapshot).toEqual({
+      title: "Новый заголовок",
+      description: "Новое описание",
+      age: 25,
+      score: 100,
+      isActive: false,
+      isVerified: true,
+      status: "published",
+      category: "tech",
+      tags: ["typescript", "library"],
+      permissions: [1, 2, 3],
+    })
+  })
+
+  it("снимок доступен только для чтения", () => {
+    const { getSnapshot } = createContext({
+      name: types.string.required("Гость"),
+      age: types.number.optional(),
+    })
+
+    // Проверяем, что снимок доступен только для чтения
+    const snapshot = getSnapshot()
+    expect(() => {
+      ;(snapshot as any).name = "Новое имя"
+    }, "Попытка изменения снимка должна вызвать ошибку").toThrow()
+
+    expect(() => {
+      ;(snapshot as any).newField = "значение"
+    }, "Попытка добавления нового поля в снимок должна вызвать ошибку").toThrow()
+
+    expect(() => {
+      delete (snapshot as any).name
+    }, "Попытка удаления поля из снимка должна вызвать ошибку").toThrow()
+
+    // Проверяем, что значения не изменились
+    expect(snapshot.name).toBe("Гость")
+    expect(snapshot.age).toBe(null)
+  })
+
+  it("снимок является отдельным объектом", () => {
+    const { context, update, getSnapshot } = createContext({
+      name: types.string.required("Гость"),
+      age: types.number.optional(),
+    })
+
+    // Получаем снимок
+    const currentSnapshot = getSnapshot()
+
+    // Обновляем контекст
+    update({ name: "Иван", age: 25 })
+
+    // Новый снимок должен отразить изменения
+    const newSnapshot = getSnapshot()
+    expect(newSnapshot.name).toBe("Иван")
+    expect(newSnapshot.age).toBe(25)
+
+    // Старый снимок остается неизменным (это копия)
+    expect(currentSnapshot.name).toBe("Гость")
+    expect(currentSnapshot.age).toBe(null)
+  })
+
+  it("снимок экспортируется из createContext", () => {
+    const { context, update, onUpdate, schema, getSnapshot } = createContext({
+      name: types.string.required("Гость"),
+      age: types.number.optional(),
+    })
+
+    // Проверяем, что getSnapshot доступен
+    expect(getSnapshot, "getSnapshot должен быть доступен").toBeDefined()
+    expect(typeof getSnapshot, "getSnapshot должен быть функцией").toBe("function")
+
+    // Проверяем начальные значения
+    const snapshot = getSnapshot()
+    expect(snapshot.name).toBe("Гость")
+    expect(snapshot.age).toBe(null)
+
+    // Обновляем и проверяем
+    update({ name: "Иван" })
+    const updatedSnapshot = getSnapshot()
+    expect(updatedSnapshot.name).toBe("Иван")
   })
 })

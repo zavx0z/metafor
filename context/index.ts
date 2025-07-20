@@ -230,6 +230,10 @@ export class Context<T extends ContextSchema> implements ContextInstance<T> {
 
     return updatedValues
   }
+
+  getSnapshot(): ExtractValues<T> {
+    return Object.freeze({ ...this.contextData })
+  }
 }
 
 /**
@@ -252,5 +256,6 @@ export function createContext<const T extends ContextSchema>(schema: T): Context
     update: contextInstance.update.bind(contextInstance),
     onUpdate: contextInstance.onUpdate.bind(contextInstance),
     schema: contextInstance.schema,
+    getSnapshot: contextInstance.getSnapshot.bind(contextInstance),
   }
 }

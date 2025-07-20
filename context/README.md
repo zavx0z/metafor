@@ -25,7 +25,7 @@ const schema = {
   tags: types.array.optional(),
 }
 
-const { context, update, onUpdate, schema } = createContext(schema)
+const { context, update, onUpdate, schema, getSnapshot } = createContext(schema)
 
 console.log(context.name) // "Гость"
 update({ name: "Иван", age: 25 })
@@ -34,6 +34,10 @@ console.log(context.name) // "Иван"
 // update возвращает только обновлённые поля:
 const changed = update({ age: 30 })
 console.log(changed) // { age: 30 }
+
+// Получение снимка контекста (только для чтения):
+const currentState = getSnapshot()
+console.log(currentState) // { name: "Иван", age: 30, isActive: true, role: "user", tags: null }
 
 const unsubscribe = onUpdate((patches) => {
   console.log("JSON Patch:", patches)
@@ -151,6 +155,7 @@ types.string.required("default")({ title: "Название поля" })
   - **ВНИМАНИЕ:** update возвращает объект только с реально обновлёнными полями (а не весь контекст)
 - `onUpdate(cb)` — подписка на изменения (возвращает функцию отписки)
 - `schema` — схема контекста (только для чтения)
+- `getSnapshot()` — функция для получения снимка текущего состояния контекста (только для чтения)
 
 ---
 
@@ -224,6 +229,39 @@ const { context, update, schema } = createContext({
 const result = update({ name: "Гость", age: 25 })
 console.log(result) // { age: 25 } - только изменившееся поле!
 ```
+
+### Метод getSnapshot
+
+Метод `getSnapshot()` предоставляет доступ к текущему состоянию контекста в режиме только для чтения:
+
+```ts
+const { context, update, getSnapshot } = createContext({
+  name: types.string.required("Гость"),
+  age: types.number.optional(),
+  isActive: types.boolean.required(true),
+})
+
+// Получение снимка текущего состояния
+const currentState = getSnapshot()
+console.log(currentState) // { name: "Гость", age: null, isActive: true }
+
+// Обновление контекста
+update({ name: "Иван", age: 25 })
+
+// Снимок автоматически отражает изменения
+console.log(getSnapshot()) // { name: "Иван", age: 25, isActive: true }
+
+// Снимок доступен только для чтения
+// const snapshot = getSnapshot()
+// snapshot.name = "Новое имя" // Ошибка! Снимок только для чтения
+```
+
+**Особенности:**
+
+- `getSnapshot()` всегда возвращает актуальное состояние контекста
+- Снимок доступен только для чтения (read-only)
+- Изменения в контексте автоматически отражаются в снимке
+- Полезен для получения полного состояния без прямого доступа к контексту
 
 ### Типизация опциональных полей
 
