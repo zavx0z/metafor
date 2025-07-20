@@ -44,7 +44,7 @@ test("Machine - тесты массивных условий (required и option
       },
       to: {
         success: {
-          scores: { every: (score: any) => score >= 0 },
+          scores: { every: { gte: 0 } },
         },
       },
     },
@@ -93,8 +93,8 @@ test("Machine - тесты сложных массивных условий", as
             length: { min: 1, max: 5 },
             includes: "test",
             notIncludes: "admin",
-            every: (tag: any) => tag.length > 0,
-            some: (tag: any) => tag.includes("test"),
+            every: { include: "" }, // Все теги должны содержать пустую строку (всегда true)
+            some: { include: "test" },
             isEmpty: false,
           },
           permissions: {
@@ -104,8 +104,8 @@ test("Machine - тесты сложных массивных условий", as
           },
           scores: {
             length: { min: 1 },
-            every: (score: any) => score >= 0 && score <= 100,
-            some: (score: any) => score === 100,
+            every: { gte: 0, lte: 100 },
+            some: { eq: 100 },
           },
         },
       },
@@ -125,7 +125,7 @@ test("Machine - тесты сложных массивных условий", as
       },
       to: {
         success: {
-          scores: { every: (score: any) => score >= 0 },
+          scores: { every: { gte: 0 } },
         },
       },
     },

@@ -19,7 +19,9 @@ MetaFor("user")
         },
       },
       to: {
-        user: {},
+        user: {
+          name: "Гость"
+        },
       },
     },
     user: {

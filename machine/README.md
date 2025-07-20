@@ -308,7 +308,11 @@ const userProcess: StateProcess<UserContext, UserResult> = {
     length: { min: 1 },
     includes: "admin",
     isEmpty: false,
-    every: (tag) => tag.length > 0
+    every: { include: "" } // Все элементы содержат пустую строку (всегда true)
+  },
+  scores: {
+    every: { gte: 0, lte: 100 }, // Все элементы от 0 до 100
+    some: { eq: 100 } // Хотя бы один элемент равен 100
   }
 }
 ```

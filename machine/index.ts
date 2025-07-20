@@ -289,10 +289,58 @@ export class Machine<S extends string, C extends ContextSchema, R = any> impleme
       if ("isEmpty" in condition && (value.length === 0) !== condition.isEmpty) {
         return false
       }
-      if ("every" in condition && !value.every(condition.every)) {
+      if ("every" in condition) {
+        const everyCondition = condition.every
+        if (!value.every((item) => this.evaluateArrayItemCondition(everyCondition, item))) {
+          return false
+        }
+      }
+      if ("some" in condition) {
+        const someCondition = condition.some
+        if (!value.some((item) => this.evaluateArrayItemCondition(someCondition, item))) {
+          return false
+        }
+      }
+    }
+
+    return true
+  }
+
+  /**
+   * Вычисляет условие для элемента массива
+   */
+  private evaluateArrayItemCondition(condition: any, item: any): boolean {
+    // Числовые элементы
+    if (typeof item === "number") {
+      if ("gt" in condition && item <= condition.gt) {
         return false
       }
-      if ("some" in condition && !value.some(condition.some)) {
+      if ("gte" in condition && item < condition.gte) {
+        return false
+      }
+      if ("lt" in condition && item >= condition.lt) {
+        return false
+      }
+      if ("lte" in condition && item > condition.lte) {
+        return false
+      }
+      if ("eq" in condition && item !== condition.eq) {
+        return false
+      }
+    }
+
+    // Строковые элементы
+    if (typeof item === "string") {
+      if ("include" in condition && !item.includes(condition.include)) {
+        return false
+      }
+      if ("startsWith" in condition && !item.startsWith(condition.startsWith)) {
+        return false
+      }
+      if ("endsWith" in condition && !item.endsWith(condition.endsWith)) {
+        return false
+      }
+      if ("pattern" in condition && !condition.pattern.test(item)) {
         return false
       }
     }
