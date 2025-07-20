@@ -20,7 +20,7 @@ export type StateTransitions<T extends string, C extends ContextSchema = any> = 
  * Конфигурация процесса состояния
  */
 export type StateProcess<T extends ContextSchema = any, R = any> = {
-  action: (params: { context: ExtractValues<T> }) => R | Promise<R>
+  action: (params: { context: Partial<ExtractValues<T>> }) => R | Promise<R>
   error: (params: { update: (values: UpdateValues<ExtractValues<T>>) => void }) => void
   success?: (params: { update: (values: UpdateValues<ExtractValues<T>>) => void; data: R }) => void
 }

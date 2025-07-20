@@ -3,10 +3,10 @@
  * @packageDocumentation
  */
 
-import {types, createContext} from "./context"
-import type {ContextSchema, ContextTypes, ContextInstance, JsonPatch} from "./context"
-import type {StateConfig} from "./machine"
-import {Machine} from "./machine"
+import { types, createContext } from "./context"
+import type { ContextSchema, ContextTypes, ContextInstance, JsonPatch, ExtractValues } from "./context"
+import type { StateConfig } from "./machine"
+import { Machine } from "./machine"
 
 /**
  * Основная функция MetaFor
@@ -22,6 +22,7 @@ export function MetaFor(tag: string) {
      * @param schema - функция, принимающая types и возвращающая схему
      */
     context<const C extends ContextSchema>(schema: (types: ContextTypes) => C) {
+      const contextSchema = schema(types)
       return {
         /**
          * Создает конечный автомат с состояниями
@@ -29,16 +30,19 @@ export function MetaFor(tag: string) {
          * @param states - конфигурация состояний
          */
         states<S extends string>(states: StateConfig<S, C>) {
+          const initialState = Object.keys(states)[0] as S
           class WebComponent extends HTMLElement {
             #ctx: ContextInstance<C>
             #shadow: ShadowRoot
             #machine: Machine<S, C>
+            #channel: BroadcastChannel
 
             constructor() {
               super()
-              this.#ctx = createContext(schema(types))
-              this.#shadow = this.attachShadow({mode: "closed"})
-              this.#machine = new Machine(states, Object.keys(states)[0] as S, this.#ctx.update)
+              this.#shadow = this.attachShadow({ mode: "closed" })
+              this.#channel = new BroadcastChannel("channel")
+              this.#ctx = createContext(contextSchema)
+              this.#machine = new Machine(states, initialState, this.#ctx.update)
             }
 
             connectedCallback() {
@@ -46,28 +50,26 @@ export function MetaFor(tag: string) {
 
               // Подписываемся на изменения состояния машины
               this.#machine.onUpdate((patches) => {
-                this.#shadow.dispatchEvent(
-                  new CustomEvent("state-change", {
-                    detail: {patches},
-                    bubbles: true,
-                    composed: true,
-                  })
-                )
+                this.#channel.postMessage({ patches, meta: { tag } })
               })
+              this.#machine.update(this.#ctx.getSnapshot())
             }
 
             #onUpdateContext = (patches: JsonPatch[]) => {
-              this.#shadow.dispatchEvent(new CustomEvent("force", {detail: {patches}, bubbles: true, composed: true}))
+              this.#shadow.dispatchEvent(
+                new CustomEvent("channel", { detail: { patches, meta: { tag } }, bubbles: true, composed: true })
+              )
             }
 
             /**
              * Обновляет контекст и запускает автоматические переходы машины
              */
-            async updateContext(context: any) {
-              // Обновляем контекст MetaFor
-              this.#ctx.update(context)
-              // Запускаем машину состояний
-              return await this.#machine.update(context)
+            updateContext(context: Partial<ExtractValues<C>>) {
+              const updatedContext = this.#ctx.update(context)
+              if (Object.keys(updatedContext).length === 0) {
+                return
+              }
+              this.#machine.update(updatedContext)
             }
 
             /**

@@ -3,6 +3,7 @@
  * @packageDocumentation
  */
 
+import type { JsonPatch } from "../metafor.t"
 import type {
   ContextSchema,
   RequiredStringDefinition,
@@ -54,11 +55,6 @@ export type SerializedSchema<T extends ContextSchema> = {
     values?: T[K] extends { values: any } ? T[K]["values"] : never
   }
 }
-
-export type JsonPatch =
-  | { op: "replace"; path: string; value: any }
-  | { op: "add"; path: string; value: any }
-  | { op: "remove"; path: string }
 
 export interface ContextInstance<T extends ContextSchema> {
   /** Схема контекста (только для чтения) */

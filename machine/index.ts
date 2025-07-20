@@ -78,9 +78,10 @@ export class Machine<S extends string, C extends ContextSchema, R = any> impleme
    * Обновляет контекст и выполняет автоматические переходы
    * Возвращает результат выполнения процесса, если он был запущен
    */
-  async update(context: ExtractValues<C>): Promise<R | undefined> {
+  async update(context: Partial<ExtractValues<C>>): Promise<R | undefined> {
     let result: R | undefined = undefined
     let currentContext = { ...context }
+    console.log("currentContext :", currentContext)
     let hasTransitioned = true
     let maxIterations = 100 // Защита от бесконечных циклов
     let iteration = 0
@@ -147,7 +148,7 @@ export class Machine<S extends string, C extends ContextSchema, R = any> impleme
   /**
    * Проверяет условия перехода
    */
-  private checkTransitionConditions(conditions: TransitionConditions<C>, context: ExtractValues<C>): boolean {
+  private checkTransitionConditions(conditions: TransitionConditions<C>, context: Partial<ExtractValues<C>>): boolean {
     for (const [field, condition] of Object.entries(conditions)) {
       const value = context[field as keyof ExtractValues<C>]
 
@@ -351,7 +352,7 @@ export class Machine<S extends string, C extends ContextSchema, R = any> impleme
   /**
    * Запускает процесс текущего состояния (внутренний метод)
    */
-  private async execute(context: ExtractValues<C>): Promise<R | undefined> {
+  private async execute(context: Partial<ExtractValues<C>>): Promise<R | undefined> {
     const currentStateConfig = this.config[this._currentState]
     if (!currentStateConfig?.process) {
       return undefined

@@ -1,6 +1,7 @@
 import { test, expect } from "bun:test"
 import { MetaFor } from "../metafor.ts"
 import type { StateConfig } from "../machine"
+import { messagesFixture } from "../fixture/broadcast.ts"
 
 // Тестовые типы
 type TestStates = "idle" | "loading" | "success"
@@ -13,7 +14,17 @@ type TestResult = {
   timestamp: number
 }
 
-test("MetaFor - интеграция с модулем machine", () => {
+test("MetaFor - интеграция с модулем machine", async () => {
+  const {waitForMessages} = messagesFixture({meta: "test"})
+
+
+  document.body.innerHTML = `<metafor-test></metafor-test>`
+
+  const metafor = MetaFor("test").context((types) => ({
+    name: types.string.required("name"),
+    isActive: types.boolean.required(true),
+  }))
+
   const states: StateConfig<TestStates, TestContext, TestResult> = {
     idle: {
       to: {
@@ -25,10 +36,12 @@ test("MetaFor - интеграция с модулем machine", () => {
     },
     loading: {
       process: {
-        action: ({ context }) => ({
-          userId: `user_${context.name}`,
-          timestamp: Date.now(),
-        }),
+        action: ({ context }) => {
+          return {
+            userId: `user_${context.name}`,
+            timestamp: Date.now(),
+          }
+        },
         success: ({ update, data }) => {
           update({ name: data.userId })
         },
@@ -49,12 +62,13 @@ test("MetaFor - интеграция с модулем machine", () => {
     },
   }
 
-  const metafor = MetaFor("test")
-  const context = metafor.context((types) => ({
-    name: types.string.required(),
-    isActive: types.boolean.required(),
-  }))
-  expect(typeof context.states, "Метод states должен быть доступен").toBe("function")
-  context.states(states)
+  const element = document.querySelector("metafor-test")
+  expect(element, "Компонент должен быть зарегистрирован в customElements").toBeDefined()
+
+  expect(typeof metafor.states, "Метод states должен быть доступен").toBe("function")
+  metafor.states(states)
+
   expect(customElements.get("metafor-test"), "Компонент должен быть зарегистрирован в customElements").toBeDefined()
+  const messages = await waitForMessages(400)
+  console.log(messages)
 })
