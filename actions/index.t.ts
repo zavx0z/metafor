@@ -1,14 +1,14 @@
-import type {ContextSchema, ExtractValues} from "../context"
+import type { ContextSchema, ExtractValues } from "../context"
 
 /**
  * Тип функции для создания chain API действия автомата.
  * @template C - схема контекста
  * @template Res - тип результата действия
- * @param fn - функция действия, принимает { context }, возвращает результат или промис
+ * @param action - функция действия, принимает { context }, возвращает результат или промис
  * @returns chain API с методами success и error
  */
 export type ActionType<C extends ContextSchema> = <Res = any>(
-  fn: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
+  action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
 ) => {
   /**
    * Зарегистрировать обработчик успеха для действия

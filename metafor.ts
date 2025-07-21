@@ -4,110 +4,11 @@
  */
 
 import { types, createContext } from "./context"
-import type { ContextSchema, ContextTypes, ContextInstance, JsonPatch, ExtractValues } from "./context"
+import type { ContextSchema, ContextTypes, ContextInstance, JsonPatch } from "./context"
 import { Machine } from "./machine"
-import type { StateConfig } from "./machine/index.t.ts"
-
-type StatesConfig<S extends string> = Record<S, Partial<Record<S, any>>>
-
-/**
- * Тип функции для создания chain API действия автомата.
- * @template C - схема контекста
- * @template Res - тип результата действия
- * @param fn - функция действия, принимает { context }, возвращает результат или промис
- * @returns chain API с методами success и error
- */
-type ActionType<C extends ContextSchema> = <Res = any>(
-  fn: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
-) => {
-  /**
-   * Зарегистрировать обработчик успеха для действия
-   * @param handler - функция, вызываемая при успешном завершении действия
-   * @returns chain API с методами success и error
-   */
-  success: ActionSuccess<C, Res>
-  /**
-   * Зарегистрировать обработчик ошибки для действия
-   * @param handler - функция, вызываемая при ошибке выполнения действия
-   * @returns chain API с методами success и error
-   */
-  error: ActionError<C>
-}
-
-/**
- * Обработчик успеха для действия автомата
- * @template C - схема контекста
- * @template Res - тип результата действия
- * @param params - объект с update (функция обновления контекста) и data (результат)
- */
-type ActionSuccessHandler<C extends ContextSchema, Res> = (params: {
-  update: (values: Partial<ExtractValues<C>>) => void
-  data: Res
-}) => void
-
-/**
- * Обработчик ошибки для действия автомата
- * @template C - схема контекста
- * @param params - объект с update (функция обновления контекста) и error (ошибка)
- */
-type ActionErrorHandler<C extends ContextSchema> = (params: {
-  update: (values: Partial<ExtractValues<C>>) => void
-  error: any
-}) => void
-
-/**
- * Метод chain API для регистрации обработчика успеха
- * @template C - схема контекста
- * @template Res - тип результата действия
- * @param handler - функция-обработчик успеха
- * @returns chain API с методами success и error
- */
-type ActionSuccess<C extends ContextSchema, Res> = (handler: ActionSuccessHandler<C, Res>) => {
-  success: ActionSuccess<C, Res>
-  error: ActionError<C>
-}
-
-/**
- * Метод chain API для регистрации обработчика ошибки
- * @template C - схема контекста
- * @param handler - функция-обработчик ошибки
- * @returns chain API с методами success и error
- */
-type ActionError<C extends ContextSchema> = (handler: ActionErrorHandler<C>) => {
-  success: ActionSuccess<C, any>
-  error: ActionError<C>
-}
-
-/**
- * Вспомогательная функция для создания actionsConfig через builder и chain API.
- * @param builder - функция, принимающая action chain API
- * @returns объект actionsConfig для автомата
- */
-function createActionsConfig<C extends ContextSchema, S extends string>(
-  builder: (action: ActionType<C>) => Partial<Record<S, ReturnType<ActionType<C>>>>
-) {
-  return builder(<Res = any>(fn: (params: { context: ExtractValues<C> }) => Res | Promise<Res>) => {
-    function success(handler: ActionSuccessHandler<C, Res>): ReturnType<ActionSuccess<C, Res>> {
-      chain.successHandler = handler
-      return chainApi
-    }
-    function error(handler: ActionErrorHandler<C>): ReturnType<ActionError<C>> {
-      chain.errorHandler = handler
-      return chainApi
-    }
-    const chainApi = {
-      action: fn,
-      success,
-      error,
-    }
-    const chain: any = {
-      ...chainApi,
-      successHandler: undefined,
-      errorHandler: undefined,
-    }
-    return chainApi
-  })
-}
+import { createActionsConfig } from "./actions"
+import type { ActionType } from "./actions/index.t"
+import type { StateConfig } from "./machine/index.t"
 
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
@@ -146,11 +47,8 @@ export function MetaFor(tag: string) {
          * ```
          * @returns chain API для вызова .actions(...)
          */
-        states<S extends string>(states: StatesConfig<S>) {
+        states<S extends string>(states: StateConfig<S, C>) {
           const initialState = Object.keys(states)[0] as S
-          const stateConfig = Object.fromEntries(
-            Object.entries(states).map(([state, transitions]) => [state, { to: transitions }])
-          )
           return {
             /**
              * Регистрирует действия автомата для нужных состояний.
@@ -171,7 +69,7 @@ export function MetaFor(tag: string) {
              * @returns Объект с действиями только для нужных состояний
              */
             actions(builder: (action: ActionType<C>) => Partial<Record<S, ReturnType<ActionType<C>>>>) {
-              const actionsConfig = createActionsConfig<C, S>(builder)
+              const actionsConfig = createActionsConfig<C, S>(builder as any)
 
               class WebComponent extends HTMLElement {
                 #ctx: ContextInstance<any>
@@ -184,12 +82,7 @@ export function MetaFor(tag: string) {
                   this.#shadow = this.attachShadow({ mode: "closed" })
                   this.#channel = new BroadcastChannel("channel")
                   this.#ctx = createContext(contextSchema!)
-                  this.#machine = new Machine(
-                    stateConfig as StateConfig<S, any>,
-                    actionsConfig!,
-                    initialState,
-                    this.#ctx.update
-                  )
+                  this.#machine = new Machine(states, actionsConfig, initialState, this.#ctx.update)
                 }
 
                 connectedCallback() {

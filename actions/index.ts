@@ -1,4 +1,4 @@
-import type { ActionType, ActionSuccessHandler, ActionSuccess, ActionErrorHandler, ActionError } from "./index.t"
+import type { ActionType, ActionSuccessHandler, ActionErrorHandler } from "./index.t"
 import type { ContextSchema, ExtractValues } from "../context"
 
 /**
@@ -8,28 +8,53 @@ import type { ContextSchema, ExtractValues } from "../context"
  */
 
 export function createActionsConfig<C extends ContextSchema, S extends string>(
-  builder: (action: ActionType<C>) => Partial<Record<S, ReturnType<ActionType<C>>>>
+  builder: (action: ActionType<C>) => Partial<
+    Record<
+      S,
+      {
+        action: (params: { context: ExtractValues<C> }) => any
+        success?: ActionSuccessHandler<C, any>
+        error?: ActionErrorHandler<C>
+      }
+    >
+  >
 ) {
   function action<Res = any>(fn: (params: { context: ExtractValues<C> }) => Res | Promise<Res>) {
-    function success(handler: ActionSuccessHandler<C, Res>): ReturnType<ActionSuccess<C, Res>> {
-      chain.successHandler = handler
-      return chainApi
-    }
-    function error(handler: ActionErrorHandler<C>): ReturnType<ActionError<C>> {
-      chain.errorHandler = handler
-      return chainApi
-    }
-    const chainApi = {
+    let successHandler: ActionSuccessHandler<C, Res> | undefined
+    let errorHandler: ActionErrorHandler<C> | undefined
+    const chain = {
       action: fn,
-      success,
-      error,
+      success(handler: ActionSuccessHandler<C, Res>) {
+        successHandler = handler
+        return chain
+      },
+      error(handler: ActionErrorHandler<C>) {
+        errorHandler = handler
+        return chain
+      },
+      getResult() {
+        return {
+          action: fn,
+          success: successHandler,
+          error: errorHandler,
+        }
+      },
     }
-    const chain: any = {
-      ...chainApi,
-      successHandler: undefined,
-      errorHandler: undefined,
-    }
-    return chainApi
+    return chain
   }
-  return builder(action)
+  // Собираем результат: вызываем getResult() для каждого состояния
+  const raw = builder(action as any)
+  const result: Partial<
+    Record<S, { action: unknown; success?: ActionSuccessHandler<C, unknown>; error?: ActionErrorHandler<C> }>
+  > = {}
+  for (const key in raw) {
+    if (raw[key]) {
+      if (typeof (raw[key] as any).getResult === "function") {
+        result[key] = (raw[key] as any).getResult()
+      } else {
+        result[key] = raw[key]
+      }
+    }
+  }
+  return result
 }

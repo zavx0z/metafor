@@ -4,7 +4,7 @@
  */
 
 import type { StateConfig, ActionsConfig } from "./index.t.ts"
-import type { ContextSchema, ExtractValues, UpdateValues } from "../context/index.t.ts"
+import type { ContextSchema} from "../context"
 
 /**
  * Класс конечного автомата с автоматическими переходами на основе контекста
@@ -96,7 +96,7 @@ export class Machine<S extends string, C extends ContextSchema, R = any> {
       const currentStateConfig = this.config[this._currentState]
       if (!currentStateConfig) break
 
-      for (const [targetState, conditions] of Object.entries(currentStateConfig.to)) {
+      for (const [targetState, conditions] of Object.entries(currentStateConfig)) {
         if (this.checkTransitionConditions(conditions as any, currentContext)) {
           // Выполняем переход
           this._currentState = targetState as S
@@ -356,13 +356,7 @@ export class Machine<S extends string, C extends ContextSchema, R = any> {
 
     try {
       const actionObj = this.actions[this._currentState]
-      if (!actionObj) return undefined
-      let result: any
-      if (typeof actionObj === "function") {
-        result = await actionObj({ context })
-      } else if (actionObj && typeof actionObj.action === "function") {
-        result = await actionObj.action({ context })
-      }
+      let result: any = undefined
       if (actionObj && typeof actionObj.success === "function") {
         actionObj.success({ update: this.updateFunction, data: result })
       }
