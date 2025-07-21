@@ -42,7 +42,7 @@ export type ExtractValue<T> = T extends RequiredStringDefinition
   ? U[number] | null
   : never
 
-export type ExtractValues<S extends ContextSchema> = { [K in keyof S]: ExtractValue<S[K]> }
+export type ExtractValues<C extends ContextSchema> = { [K in keyof C]: ExtractValue<C[K]> }
 export type UpdateValues<T> = { [K in keyof T]?: T[K] }
 
 // Тип для сериализованной схемы

@@ -1,18 +1,42 @@
-import {describe, it, expect} from "bun:test"
-import {MetaFor} from "../metafor"
+import { test, expect } from "bun:test"
+import { MetaFor } from "../metafor.ts"
+import { messagesFixture } from "../fixture/broadcast.ts"
 
-describe("MetaFor", () => {
-  describe("базовая функциональность", () => {
-    it("должен создавать контекст с простой схемой", () => {
-      document.body.innerHTML = `
-        <metafor-user></metafor-user>
-      `
+test("MetaFor - базовый функционал", async () => {
+  const { waitForMessages } = messagesFixture({ meta: "test" })
 
-      MetaFor("user").context((types) => ({
-        name: types.string.required("Гость")({title: "Имя пользователя"}),
-        age: types.number.optional(),
-      }))
+  document.body.innerHTML = `<metafor-test></metafor-test>`
 
+  MetaFor("test")
+    .context((types) => ({
+      name: types.string.required("Anonymous"),
+      isActive: types.boolean.required(false),
+    }))
+    .states({
+      anonymous: {
+        loading: {},
+      },
+      loading: {
+        anonymous: {},
+      },
     })
-  })
+    .actions((action) => ({
+      anonymous: action(({ context }) => {
+        const name = context.name === "Anonymous" ? "User" : context.name
+        return { name, age: 18 }
+      })
+        .success(({ update, data }) => update({ name: data.name, isActive: true }))
+        .error(({ update, error }) => update({ name: error.message })),
+      loading: action(({ context }) => {
+        return { name: context.name }
+      }).error(({ update, error }) => update({ name: error.message })),
+    }))
+
+  const element = document.querySelector("metafor-test")
+  expect(element, "Компонент должен быть зарегистрирован в customElements").toBeDefined()
+  expect(customElements.get("metafor-test"), "Компонент должен быть зарегистрирован в customElements").toBeDefined()
+  const messages = await waitForMessages(400)
+  for (const message of messages) {
+    console.log(message.patches)
+  }
 })

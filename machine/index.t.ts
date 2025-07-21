@@ -35,15 +35,14 @@ export type UpdateFunction<T extends ContextSchema = any> = (
 /**
  * Конфигурация одного состояния
  */
-export type StateDefinition<T extends string, C extends ContextSchema = any, R = any> = {
-  process?: StateProcess<C, R>
+export type StateDefinition<T extends string, C extends ContextSchema = any> = {
   to: StateTransitions<T, C>
 }
 
 /**
  * Конфигурация всех состояний
  */
-export type StateConfig<S extends string, C extends ContextSchema = any, R = any> = Record<S, StateDefinition<S, C, R>>
+export type StateConfig<S extends string, C extends ContextSchema = any> = Record<S, StateDefinition<S, C>>
 
 /**
  * Интерфейс для экземпляра конечного автомата
@@ -62,7 +61,10 @@ export interface MachineInstance<S extends string, C extends ContextSchema = any
 /**
  * Функция для создания экземпляра конечного автомата
  */
-export type CreateMachine = <S extends string, C extends ContextSchema = any, R = any>(
-  config: StateConfig<S, C, R>,
+export type CreateMachine = <S extends string, C extends ContextSchema = any>(
+  config: StateConfig<S, C>,
   initialState: S
-) => MachineInstance<S, C, R>
+) => MachineInstance<S, C>
+
+// Новый тип для карты действий
+export type ActionsConfig<S extends string, C extends ContextSchema = any> = Partial<Record<S, any>>
