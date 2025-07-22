@@ -26,21 +26,25 @@ export type ActionChain<C extends ContextSchema, Res> = {
    * @param handler - функция, вызываемая при успехе (получает update и data)
    * @returns цепочку для дальнейшего конфигурирования
    */
-  success: (handler: (params: { update: any; data: Res }) => void) => ActionChain<C, Res>
+  success: (
+    handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void
+  ) => ActionChain<C, Res>
   /**
    * Добавляет обработчик ошибки выполнения действия.
-   * @param handler - функция, вызываемая при ошибке (получает update и error)
+   * @param handler - функция, вызываемая при ошибке (получает update и error типа Error)
    * @returns цепочку для дальнейшего конфигурирования
    */
-  error: (handler: (params: { update: any; error: any }) => void) => ActionChain<C, Res>
+  error: (
+    handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void
+  ) => ActionChain<C, Res>
   /**
    * Возвращает итоговый объект конфигурации действия для автомата.
    * @returns объект с action, success и error (если заданы)
    */
   getResult: () => {
     action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
-    success?: (params: { update: any; data: Res }) => void
-    error?: (params: { update: any; error: any }) => void
+    success?: (params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void
+    error?: (params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void
   }
 }
 
@@ -113,7 +117,7 @@ export type ActionSuccessHandler<C extends ContextSchema, Res> = (params: {
  */
 export type ActionErrorHandler<C extends ContextSchema> = (params: {
   update: (values: Partial<ExtractValues<C>>) => void
-  error: any
+  error: Error
 }) => void
 
 /**

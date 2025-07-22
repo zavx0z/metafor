@@ -1,6 +1,6 @@
 import type { ContextSchema, ExtractValues } from "../context"
 import type { ActionChain, Builder } from "./index.t"
-
+export type { Builder }
 /**
  * Вспомогательная функция для декларации actionsConfig автомата через builder и chain API.
  * Гарантирует строгую типизацию и удобный API.
@@ -21,23 +21,27 @@ import type { ActionChain, Builder } from "./index.t"
  */
 export function createActionsConfig<C extends ContextSchema, S extends string>(builder: Builder<C, S>) {
   function action<Res>(fn: (params: { context: ExtractValues<C> }) => Res | Promise<Res>): ActionChain<C, Res> {
-    let successHandler: ((params: { update: any; data: Res }) => void) | undefined
-    let errorHandler: ((params: { update: any; error: any }) => void) | undefined
+    let successHandler:
+      | ((params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void)
+      | undefined
+    let errorHandler:
+      | ((params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void)
+      | undefined
     const chain: ActionChain<C, Res> = {
       action: fn,
-      success(handler: (params: { update: any; data: Res }) => void) {
+      success(handler) {
         successHandler = handler
         return chain
       },
-      error(handler: (params: { update: any; error: any }) => void) {
+      error(handler) {
         errorHandler = handler
         return chain
       },
       getResult() {
         const result: {
           action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
-          success?: (params: { update: any; data: Res }) => void
-          error?: (params: { update: any; error: any }) => void
+          success?: (params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void
+          error?: (params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void
         } = {
           action: fn,
         }
