@@ -1,6 +1,7 @@
 import { test, expect } from "bun:test"
 import { Machine } from "../index.ts"
 import type { StateConfig } from "../index.t.ts"
+import type { ExtractValues } from "../../context"
 
 // Тестовые типы состояний
 type TestStates = "idle" | "number_test" | "success"
@@ -12,6 +13,7 @@ type NumberContext = {
   rating: { type: "number"; required: true }
   price: { type: "number"; required: false }
 }
+type Ctx = ExtractValues<NumberContext>
 
 // Тестовый тип результата
 type TestResult = {
@@ -20,43 +22,40 @@ type TestResult = {
 }
 
 test("Machine - тесты числовых условий (required и optional)", async () => {
-  const config: StateConfig<TestStates, NumberContext, TestResult> = {
+  const stateConfig: StateConfig<TestStates, NumberContext> = {
     idle: {
-      to: {
-        number_test: {
-          age: { gte: 18 },
-          score: { gt: 0 },
-          rating: { between: [1, 5] },
-        },
+      number_test: {
+        age: { gte: 18 },
+        score: { gt: 0 },
+        rating: { between: [1, 5] },
       },
     },
     number_test: {
-      process: {
-        action: ({ context }) => ({
-          message: `Number test: age=${context.age}, score=${context.score}`,
-          timestamp: Date.now(),
-        }),
-        success: ({ update, data }) => {
-          update({ price: data.timestamp })
-        },
-        error: ({ update }) => {
-          update({ age: 0 })
-        },
-      },
-      to: {
-        success: {
-          price: { gt: 0 },
-        },
+      success: {
+        price: { gt: 0 },
       },
     },
-    success: {
-      to: {},
+    success: {},
+  }
+
+  const actionsConfig = {
+    number_test: {
+      action: ({ context }: { context: Ctx }) => ({
+        message: `Number test: age=${context.age}, score=${context.score}`,
+        timestamp: Date.now(),
+      }),
+      success: ({ update, data }: { update: (v: Partial<Ctx>) => void; data: TestResult }) => {
+        update({ price: data.timestamp })
+      },
+      error: ({ update }: { update: (v: Partial<Ctx>) => void }) => {
+        update({ age: 0 })
+      },
     },
   }
 
   // Тест 1: Корректные числовые данные
-  const validContext = { age: 25, score: 85, rating: 4, price: null }
-  const machine = new Machine<TestStates, NumberContext, TestResult>(config, "idle", (values) => {
+  const validContext: Ctx = { age: 25, score: 85, rating: 4, price: null }
+  const machine = new Machine<TestStates, NumberContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(validContext, values)
     return validContext
   })
@@ -65,8 +64,8 @@ test("Machine - тесты числовых условий (required и optional
   expect(machine.currentState, "Машина должна перейти в success при корректных числовых данных").toBe("success")
 
   // Тест 2: Недостаточный возраст (не должно переходить)
-  const youngContext = { age: 16, score: 85, rating: 4, price: null }
-  const machine2 = new Machine<TestStates, NumberContext, TestResult>(config, "idle", (values) => {
+  const youngContext: Ctx = { age: 16, score: 85, rating: 4, price: null }
+  const machine2 = new Machine<TestStates, NumberContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(youngContext, values)
     return youngContext
   })
@@ -75,8 +74,8 @@ test("Machine - тесты числовых условий (required и optional
   expect(machine2.currentState, "Машина не должна переходить при недостаточном возрасте").toBe("idle")
 
   // Тест 3: Низкий рейтинг (не должно переходить)
-  const lowRatingContext = { age: 25, score: 85, rating: 0, price: null }
-  const machine3 = new Machine<TestStates, NumberContext, TestResult>(config, "idle", (values) => {
+  const lowRatingContext: Ctx = { age: 25, score: 85, rating: 0, price: null }
+  const machine3 = new Machine<TestStates, NumberContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(lowRatingContext, values)
     return lowRatingContext
   })
@@ -86,61 +85,58 @@ test("Machine - тесты числовых условий (required и optional
 })
 
 test("Machine - тесты сложных числовых условий", async () => {
-  const config: StateConfig<TestStates, NumberContext, TestResult> = {
+  const stateConfig: StateConfig<TestStates, NumberContext> = {
     idle: {
-      to: {
-        number_test: {
-          age: {
-            gte: 18,
-            lte: 65,
-            notEq: 0,
-            notGt: 100,
-            notLt: 0,
-            between: [18, 65],
-          },
-          score: {
-            gt: 0,
-            lt: 101,
-            notEq: 0,
-            notGte: 101,
-            notLte: 0,
-          },
-          rating: {
-            eq: 5,
-            notEq: 0,
-            notGt: 5,
-            notLt: 1,
-          },
+      number_test: {
+        age: {
+          gte: 18,
+          lte: 65,
+          notEq: 0,
+          notGt: 100,
+          notLt: 0,
+          between: [18, 65],
+        },
+        score: {
+          gt: 0,
+          lt: 101,
+          notEq: 0,
+          notGte: 101,
+          notLte: 0,
+        },
+        rating: {
+          eq: 5,
+          notEq: 0,
+          notGt: 5,
+          notLt: 1,
         },
       },
     },
     number_test: {
-      process: {
-        action: ({ context }) => ({
-          message: `Complex number test: age=${context.age}, score=${context.score}`,
-          timestamp: Date.now(),
-        }),
-        success: ({ update, data }) => {
-          update({ price: data.timestamp })
-        },
-        error: ({ update }) => {
-          update({ age: 0 })
-        },
-      },
-      to: {
-        success: {
-          price: { gt: 0 },
-        },
+      success: {
+        price: { gt: 0 },
       },
     },
-    success: {
-      to: {},
+    success: {},
+  }
+
+  const actionsConfig = {
+    number_test: {
+      action: ({ context }: { context: Ctx }) => ({
+        message: `Complex number test: age=${context.age}, score=${context.score}`,
+        timestamp: Date.now(),
+      }),
+      success: ({ update, data }: { update: (v: Partial<Ctx>) => void; data: TestResult }) => {
+        update({ price: data.timestamp })
+      },
+      error: ({ update }: { update: (v: Partial<Ctx>) => void }) => {
+        update({ age: 0 })
+      },
     },
   }
 
   // Тест 1: Корректные сложные числовые данные
-  const validContext = { age: 25, score: 85, rating: 5, price: null }
-  const machine = new Machine<TestStates, NumberContext, TestResult>(config, "idle", (values) => {
+  const validContext: Ctx = { age: 25, score: 85, rating: 5, price: null }
+  const machine = new Machine<TestStates, NumberContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(validContext, values)
     return validContext
   })
@@ -149,8 +145,8 @@ test("Machine - тесты сложных числовых условий", asyn
   expect(machine.currentState, "Машина должна перейти в success при корректных сложных числовых данных").toBe("success")
 
   // Тест 2: Возраст вне диапазона (не должно переходить)
-  const invalidAgeContext = { age: 70, score: 85, rating: 5, price: null }
-  const machine2 = new Machine<TestStates, NumberContext, TestResult>(config, "idle", (values) => {
+  const invalidAgeContext: Ctx = { age: 70, score: 85, rating: 5, price: null }
+  const machine2 = new Machine<TestStates, NumberContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(invalidAgeContext, values)
     return invalidAgeContext
   })
@@ -159,8 +155,8 @@ test("Machine - тесты сложных числовых условий", asyn
   expect(machine2.currentState, "Машина не должна переходить при возрасте вне диапазона").toBe("idle")
 
   // Тест 3: Низкий рейтинг (не должно переходить)
-  const lowRatingContext = { age: 25, score: 85, rating: 3, price: null }
-  const machine3 = new Machine<TestStates, NumberContext, TestResult>(config, "idle", (values) => {
+  const lowRatingContext: Ctx = { age: 25, score: 85, rating: 3, price: null }
+  const machine3 = new Machine<TestStates, NumberContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(lowRatingContext, values)
     return lowRatingContext
   })

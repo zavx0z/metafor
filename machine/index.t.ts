@@ -3,12 +3,11 @@
  * @packageDocumentation
  */
 
-import type {TransitionConditions} from "./transition.t.ts"
-import type {ContextSchema, UpdateValues, ExtractValues} from "../context"
-import type {ActionErrorHandler, ActionSuccessHandler} from "../actions/index.t.ts"
+import type { TransitionConditions } from "./transition.t.ts"
+import type { ContextSchema, UpdateValues, ExtractValues } from "../context"
 
 // Экспортируем типы из transition.t.ts
-export type {TransitionConditions} from "./transition.t.ts"
+export type { TransitionConditions } from "./transition.t.ts"
 
 /**
  * Тип StateTransitions — переходы только к ключам из T с условиями
@@ -58,8 +57,11 @@ export type CreateMachine = <S extends string, C extends ContextSchema>(
   initialState: S
 ) => MachineInstance<S, C>
 
-export type ActionsConfig<S extends string, C extends ContextSchema> = Partial<Record<S, {
-  action: unknown;
-  success?: ActionSuccessHandler<C, unknown>;
-  error?: ActionErrorHandler<C>;
-}>>
+export type ActionsConfig = Record<
+  string,
+  {
+    action: (params: { context: any }) => any
+    success?: (params: { update: any; data: any }) => void
+    error?: (params: { update: any; error: any }) => void
+  }
+>

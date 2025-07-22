@@ -1,6 +1,7 @@
 import { test, expect } from "bun:test"
 import { Machine } from "../index.ts"
 import type { StateConfig } from "../index.t.ts"
+import type { ExtractValues } from "../../context"
 
 // Тестовые типы состояний
 type TestStates = "idle" | "enum_test" | "success"
@@ -11,6 +12,7 @@ type EnumContext = {
   role: { type: "enum"; required: false; values: readonly ["admin", "user", "moderator"] }
   priority: { type: "enum"; required: true; values: readonly ["low", "medium", "high"] }
 }
+type Ctx = ExtractValues<EnumContext>
 
 // Тестовый тип результата
 type TestResult = {
@@ -19,43 +21,40 @@ type TestResult = {
 }
 
 test("Machine - тесты enum условий (required и optional)", async () => {
-  const config: StateConfig<TestStates, EnumContext, TestResult> = {
+  const stateConfig: StateConfig<TestStates, EnumContext> = {
     idle: {
-      to: {
-        enum_test: {
-          status: { eq: "active" },
-          role: { null: false },
-          priority: "high",
-        },
+      enum_test: {
+        status: { eq: "active" },
+        role: { null: false },
+        priority: "high",
       },
     },
     enum_test: {
-      process: {
-        action: ({ context }) => ({
-          message: `Enum test: status=${context.status}, role=${context.role}`,
-          timestamp: Date.now(),
-        }),
-        success: ({ update, data }) => {
-          update({ status: "active" as const })
-        },
-        error: ({ update }) => {
-          update({ status: "inactive" as const })
-        },
-      },
-      to: {
-        success: {
-          status: "active",
-        },
+      success: {
+        status: "active",
       },
     },
-    success: {
-      to: {},
+    success: {},
+  }
+
+  const actionsConfig = {
+    enum_test: {
+      action: ({ context }: { context: Ctx }) => ({
+        message: `Enum test: status=${context.status}, role=${context.role}`,
+        timestamp: Date.now(),
+      }),
+      success: ({ update, data }: { update: (v: Partial<Ctx>) => void; data: TestResult }) => {
+        update({ status: "active" })
+      },
+      error: ({ update }: { update: (v: Partial<Ctx>) => void }) => {
+        update({ status: "inactive" })
+      },
     },
   }
 
   // Тест 1: Корректные enum данные
   const validContext = { status: "active" as const, role: "admin" as const, priority: "high" as const }
-  const machine = new Machine<TestStates, EnumContext, TestResult>(config, "idle", (values) => {
+  const machine = new Machine<TestStates, EnumContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(validContext, values)
     return validContext
   })
@@ -65,7 +64,7 @@ test("Machine - тесты enum условий (required и optional)", async ()
 
   // Тест 2: Неактивный статус (не должно переходить)
   const inactiveContext = { status: "inactive" as const, role: "admin" as const, priority: "high" as const }
-  const machine2 = new Machine<TestStates, EnumContext, TestResult>(config, "idle", (values) => {
+  const machine2 = new Machine<TestStates, EnumContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(inactiveContext, values)
     return inactiveContext
   })
@@ -75,7 +74,7 @@ test("Machine - тесты enum условий (required и optional)", async ()
 
   // Тест 3: Null role (не должно переходить)
   const nullRoleContext = { status: "active" as const, role: null, priority: "high" as const }
-  const machine3 = new Machine<TestStates, EnumContext, TestResult>(config, "idle", (values) => {
+  const machine3 = new Machine<TestStates, EnumContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(nullRoleContext, values)
     return nullRoleContext
   })

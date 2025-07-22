@@ -8,6 +8,7 @@ test("chain API — поддержка async action", async () => {
   const schema = { name: types.string.required("anon") }
   type S = typeof schema
   type V = ExtractValues<S>
+  
   const actions = createActionsConfig<S, "guest">((action: ActionType<S>) => ({
     guest: action(async ({ context }: { context: V }) => {
       return context.name + "!async"

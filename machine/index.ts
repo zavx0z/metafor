@@ -4,7 +4,7 @@
  */
 
 import type { StateConfig, ActionsConfig } from "./index.t.ts"
-import type { ContextSchema} from "../context"
+import type { ContextSchema } from "../context"
 
 /**
  * Класс конечного автомата с автоматическими переходами на основе контекста
@@ -13,13 +13,13 @@ export class Machine<S extends string, C extends ContextSchema, R = any> {
   private _currentState: S
   private _isExecuting: boolean = false
   private config: StateConfig<S, C>
-  private actions: ActionsConfig<S, C>
+  private actions: ActionsConfig
   private updateSubscribers: Array<(patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>) => void> = []
   private updateFunction: (values: any) => any
 
   constructor(
     config: StateConfig<S, C>,
-    actions: ActionsConfig<S, C>,
+    actions: ActionsConfig,
     initialState: S,
     updateFunction: (values: any) => any
   ) {
@@ -357,6 +357,9 @@ export class Machine<S extends string, C extends ContextSchema, R = any> {
     try {
       const actionObj = this.actions[this._currentState]
       let result: any = undefined
+      if (actionObj && typeof actionObj.action === "function") {
+        result = await actionObj.action({ context })
+      }
       if (actionObj && typeof actionObj.success === "function") {
         actionObj.success({ update: this.updateFunction, data: result })
       }

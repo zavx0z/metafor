@@ -1,93 +1,76 @@
 import { test, expect } from "bun:test"
-import type { StateProcess, StateDefinition, StateConfig } from "../index.t.ts"
+import type { StateConfig } from "../index.t.ts"
+import type { ExtractValues } from "../../context"
 
-// Тестовые типы контекста
+type TestStates = "idle" | "loading" | "success"
 type TestContext = {
   name: { type: "string"; required: true }
   age: { type: "number"; required: false }
 }
-
-// Тестовый тип результата
+type Ctx = ExtractValues<TestContext>
 type TestResult = {
   userId: string
   timestamp: number
 }
 
-test("StateProcess типизация с generic параметром R", () => {
-  const process: StateProcess<TestContext, TestResult> = {
-    action: ({ context }) => {
-      // TypeScript должен вывести тип context как { name: string, age: number | null }
-      expect(context.name).toBeTypeOf("string")
-
-      // Возвращаем результат с правильным типом
-      return {
-        userId: "123",
-        timestamp: Date.now(),
-      }
+test("StateConfig — типизация переходов и действий", () => {
+  const stateConfig: StateConfig<TestStates, TestContext> = {
+    idle: {
+      loading: { name: { length: { min: 3 } } },
     },
-    success: ({ update, data }) => {
-      // TypeScript должен вывести тип data как TestResult
-      expect(data.userId).toBeTypeOf("string")
-      expect(data.timestamp).toBeTypeOf("number")
-
-      // Обновляем контекст с результатом
-      update({ age: data.timestamp })
+    loading: {
+      success: { age: { gt: 0 } },
     },
-    error: ({ update }) => {
-      update({ name: "error" })
-    },
+    success: {},
   }
-
-  // Проверяем, что process.action возвращает правильный тип
-  const result = process.action({ context: { name: "test", age: 25 } })
-  // Проверяем, что результат не является Promise
-  expect(result).not.toBeInstanceOf(Promise)
-  expect((result as TestResult).userId).toBeTypeOf("string")
-  expect((result as TestResult).timestamp).toBeTypeOf("number")
-})
-
-test("StateDefinition с generic параметром R", () => {
-  const stateDefinition: StateDefinition<"test", TestContext, TestResult> = {
-    process: {
-      action: ({ context }) => ({
-        userId: context.name,
-        timestamp: Date.now(),
-      }),
-      success: ({ update, data }) => {
+  const actionsConfig = {
+    loading: {
+      action: ({ context }: { context: Ctx }) => {
+        expect(typeof context.name, "context.name должен быть строкой").toBe("string")
+        return { userId: context.name, timestamp: Date.now() }
+      },
+      success: ({ update, data }: { update: (v: Partial<Ctx>) => void; data: TestResult }) => {
+        expect(typeof data.userId, "userId должен быть строкой").toBe("string")
+        expect(typeof data.timestamp, "timestamp должен быть числом").toBe("number")
         update({ age: data.timestamp })
       },
-      error: ({ update }) => {
+      error: ({ update }: { update: (v: Partial<Ctx>) => void }) => {
         update({ name: "error" })
       },
     },
-    to: {},
   }
-
-  expect(stateDefinition.process).toBeDefined()
+  // Проверяем, что типы корректны
+  const result = actionsConfig.loading.action({ context: { name: "test", age: 25 } })
+  expect(typeof result.userId, "userId должен быть строкой").toBe("string")
+  expect(typeof result.timestamp, "timestamp должен быть числом").toBe("number")
 })
 
-test("StateConfig с generic параметром R", () => {
-  const stateConfig: StateConfig<"state1" | "state2", TestContext, TestResult> = {
-    state1: {
-      process: {
-        action: ({ context }) => ({
-          userId: context.name,
-          timestamp: Date.now(),
-        }),
-        success: ({ update, data }) => {
-          update({ age: data.timestamp })
-        },
-        error: ({ update }) => {
-          update({ name: "error" })
-        },
+test("StateConfig — только переходы без действий", () => {
+  const stateConfig: StateConfig<TestStates, TestContext> = {
+    idle: { loading: { name: { length: { min: 3 } } } },
+    loading: { success: { age: { gt: 0 } } },
+    success: {},
+  }
+  // Нет actionsConfig — проверяем, что можно создать только переходы
+  expect(stateConfig.idle.loading).toBeDefined()
+  expect(stateConfig.loading.success).toBeDefined()
+})
+
+test("StateConfig — частичная карта действий", () => {
+  const stateConfig: StateConfig<TestStates, TestContext> = {
+    idle: { loading: { name: { length: { min: 3 } } } },
+    loading: { success: { age: { gt: 0 } } },
+    success: {},
+  }
+  const actionsConfig = {
+    loading: {
+      action: ({ context }: { context: Ctx }) => ({ userId: context.name, timestamp: Date.now() }),
+      success: ({ update, data }: { update: (v: Partial<Ctx>) => void; data: TestResult }) => {
+        update({ age: data.timestamp })
       },
-      to: {},
-    },
-    state2: {
-      to: {},
     },
   }
-
-  expect(stateConfig.state1.process).toBeDefined()
-  expect(stateConfig.state2.process).toBeUndefined()
+  expect(typeof actionsConfig.loading.action, "Метод action должен быть функцией").toBe("function")
+  expect(typeof actionsConfig.loading.success, "Метод success должен быть функцией").toBe("function")
+  expect("idle" in actionsConfig, "Для idle не должно быть действий").toBe(false)
 })

@@ -19,43 +19,40 @@ type TestResult = {
 }
 
 test("Machine - тесты массивных условий (required и optional)", async () => {
-  const config: StateConfig<TestStates, ArrayContext, TestResult> = {
+  const stateConfig: StateConfig<TestStates, ArrayContext> = {
     idle: {
-      to: {
-        array_test: {
-          tags: { length: { min: 1 } },
-          permissions: { null: false },
-          scores: { includes: 100 },
-        },
+      array_test: {
+        tags: { length: { min: 1 } },
+        permissions: { null: false },
+        scores: { includes: 100 },
       },
     },
     array_test: {
-      process: {
-        action: ({ context }) => ({
-          message: `Array test: tags=${context.tags.length}, permissions=${context.permissions?.length}`,
-          timestamp: Date.now(),
-        }),
-        success: ({ update, data }) => {
-          update({ scores: [data.timestamp % 100] })
-        },
-        error: ({ update }) => {
-          update({ tags: [] })
-        },
-      },
-      to: {
-        success: {
-          scores: { every: { gte: 0 } },
-        },
+      success: {
+        scores: { every: { gte: 0 } },
       },
     },
-    success: {
-      to: {},
+    success: {},
+  }
+
+  const actionsConfig = {
+    array_test: {
+      action: ({ context }: { context: any }) => ({
+        message: `Array test: tags=${context.tags.length}, permissions=${context.permissions?.length}`,
+        timestamp: Date.now(),
+      }),
+      success: ({ update, data }: any) => {
+        update({ scores: [data.timestamp % 100] })
+      },
+      error: ({ update }: any) => {
+        update({ tags: [] })
+      },
     },
   }
 
   // Тест 1: Корректные массивные данные
   const validContext = { tags: ["test", "user"], permissions: ["read", "write"], scores: [100, 85, 90] }
-  const machine = new Machine<TestStates, ArrayContext, TestResult>(config, "idle", (values) => {
+  const machine = new Machine<TestStates, ArrayContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(validContext, values)
     return validContext
   })
@@ -65,7 +62,7 @@ test("Machine - тесты массивных условий (required и option
 
   // Тест 2: Пустые теги (не должно переходить)
   const emptyTagsContext = { tags: [], permissions: ["read"], scores: [100] }
-  const machine2 = new Machine<TestStates, ArrayContext, TestResult>(config, "idle", (values) => {
+  const machine2 = new Machine<TestStates, ArrayContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(emptyTagsContext, values)
     return emptyTagsContext
   })
@@ -75,7 +72,7 @@ test("Machine - тесты массивных условий (required и option
 
   // Тест 3: Null permissions (не должно переходить)
   const nullPermissionsContext = { tags: ["test"], permissions: null, scores: [100] }
-  const machine3 = new Machine<TestStates, ArrayContext, TestResult>(config, "idle", (values) => {
+  const machine3 = new Machine<TestStates, ArrayContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(nullPermissionsContext, values)
     return nullPermissionsContext
   })
@@ -85,52 +82,49 @@ test("Machine - тесты массивных условий (required и option
 })
 
 test("Machine - тесты сложных массивных условий", async () => {
-  const config: StateConfig<TestStates, ArrayContext, TestResult> = {
+  const stateConfig: StateConfig<TestStates, ArrayContext> = {
     idle: {
-      to: {
-        array_test: {
-          tags: {
-            length: { min: 1, max: 5 },
-            includes: "test",
-            notIncludes: "admin",
-            every: { include: "" }, // Все теги должны содержать пустую строку (всегда true)
-            some: { include: "test" },
-            isEmpty: false,
-          },
-          permissions: {
-            null: false,
-            length: { min: 1 },
-            includes: "read",
-          },
-          scores: {
-            length: { min: 1 },
-            every: { gte: 0, lte: 100 },
-            some: { eq: 100 },
-          },
+      array_test: {
+        tags: {
+          length: { min: 1, max: 5 },
+          includes: "test",
+          notIncludes: "admin",
+          every: { include: "" },
+          some: { include: "test" },
+          isEmpty: false,
+        },
+        permissions: {
+          null: false,
+          length: { min: 1 },
+          includes: "read",
+        },
+        scores: {
+          length: { min: 1 },
+          every: { gte: 0, lte: 100 },
+          some: { eq: 100 },
         },
       },
     },
     array_test: {
-      process: {
-        action: ({ context }) => ({
-          message: `Complex array test: ${context.tags.length} tags, ${context.permissions?.length} permissions`,
-          timestamp: Date.now(),
-        }),
-        success: ({ update, data }) => {
-          update({ scores: [data.timestamp % 100] })
-        },
-        error: ({ update }) => {
-          update({ tags: [] })
-        },
-      },
-      to: {
-        success: {
-          scores: { every: { gte: 0 } },
-        },
+      success: {
+        scores: { every: { gte: 0 } },
       },
     },
-    success: {
-      to: {},
+    success: {},
+  }
+
+  const actionsConfig = {
+    array_test: {
+      action: ({ context }: { context: any }) => ({
+        message: `Complex array test: ${context.tags.length} tags, ${context.permissions?.length} permissions`,
+        timestamp: Date.now(),
+      }),
+      success: ({ update, data }: any) => {
+        update({ scores: [data.timestamp % 100] })
+      },
+      error: ({ update }: any) => {
+        update({ tags: [] })
+      },
     },
   }
 
@@ -140,7 +134,7 @@ test("Machine - тесты сложных массивных условий", as
     permissions: ["read", "write", "execute"],
     scores: [100, 85, 90, 95],
   }
-  const machine = new Machine<TestStates, ArrayContext, TestResult>(config, "idle", (values) => {
+  const machine = new Machine<TestStates, ArrayContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(validContext, values)
     return validContext
   })
@@ -156,7 +150,7 @@ test("Machine - тесты сложных массивных условий", as
     permissions: ["read", "write"],
     scores: [100, 85],
   }
-  const machine2 = new Machine<TestStates, ArrayContext, TestResult>(config, "idle", (values) => {
+  const machine2 = new Machine<TestStates, ArrayContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(adminTagsContext, values)
     return adminTagsContext
   })
@@ -170,7 +164,7 @@ test("Machine - тесты сложных массивных условий", as
     permissions: ["read"],
     scores: [100],
   }
-  const machine3 = new Machine<TestStates, ArrayContext, TestResult>(config, "idle", (values) => {
+  const machine3 = new Machine<TestStates, ArrayContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(manyTagsContext, values)
     return manyTagsContext
   })

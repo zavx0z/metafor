@@ -69,7 +69,7 @@ export function MetaFor(tag: string) {
              * @returns Объект с действиями только для нужных состояний
              */
             actions(builder: (action: ActionType<C>) => Partial<Record<S, ReturnType<ActionType<C>>>>) {
-              const actionsConfig = createActionsConfig<C, S>(builder as any)
+              const actionsConfig = createActionsConfig<C, S>(builder)
 
               class WebComponent extends HTMLElement {
                 #ctx: ContextInstance<any>
