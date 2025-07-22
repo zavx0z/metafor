@@ -97,7 +97,7 @@ export function MetaFor(tag: string) {
                         value: { state: this.#machine.currentState, context: this.#ctx.getSnapshot() },
                       },
                     ],
-                    meta: { tag },
+                    meta: { tag, timestamp: Date.now() },
                   })
                   this.#ctx.onUpdate(this.#onUpdateContext)
                   this.#machine.onUpdate((patches: any) => {
