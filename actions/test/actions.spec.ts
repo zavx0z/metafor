@@ -1,8 +1,6 @@
-import { test, expect, describe } from "bun:test"
-import { createActionsConfig } from "../index"
-import type { ActionType } from "../index.t"
-import { types } from "../../context"
-import type { ExtractValues } from "../../context"
+import {describe, expect, test} from "bun:test"
+import {createActionsConfig} from "../index"
+import {types} from "../../context"
 
 describe("createActionsConfig — chain API", () => {
   const ctxSchema = {
@@ -10,7 +8,6 @@ describe("createActionsConfig — chain API", () => {
     age: types.number.required(0),
   }
   type CtxSchema = typeof ctxSchema
-  type Ctx = ExtractValues<CtxSchema>
 
   test("базовый chain API", () => {
     const actions = createActionsConfig<CtxSchema, "guest" | "user">((action) => ({
@@ -33,7 +30,6 @@ describe("createActionsConfig — chain API", () => {
   test("строгая типизация", () => {
     const schema = { name: types.string.required("anon") }
     type S = typeof schema
-    type V = ExtractValues<S>
     const actions = createActionsConfig<S, "guest">((action) => ({
       guest: action(({ context }) => context.name)
         .success(({ update, data }) => {
@@ -51,7 +47,6 @@ describe("createActionsConfig — chain API", () => {
   test("порядок вызова error().success()", () => {
     const schema = { name: types.string.required("anon") }
     type S = typeof schema
-    type V = ExtractValues<S>
     const actions = createActionsConfig<S, "guest">((action) => ({
       guest: action(({ context }) => context.name)
         .error(({ update, error }) => update({ name: error.message }))
@@ -64,11 +59,55 @@ describe("createActionsConfig — chain API", () => {
   test("можно не указывать обработчики", () => {
     const schema = { name: types.string.required("anon") }
     type S = typeof schema
-    type V = ExtractValues<S>
     const actions = createActionsConfig<S, "guest">((action) => ({
       guest: action(({ context }) => context.name),
     }))
     expect(typeof actions.guest?.success, "Метод success должен быть функцией").toBe("function")
     expect(typeof actions.guest?.error, "Метод error должен быть функцией").toBe("function")
+  })
+
+  test("последний success/error перезаписывает предыдущий", () => {
+    const actions = createActionsConfig<{ name: ReturnType<typeof types.string.required> }, "guest">((action) => ({
+      guest: action(({ context }) => context.name)
+        .success(() => {
+          throw new Error("should not be called")
+        })
+        .success(({ update, data }) => update({ name: data }))
+        .error(() => {
+          throw new Error("should not be called")
+        })
+        .error(({ update, error }) => update({ name: error.message })),
+    }))
+    expect(typeof actions.guest?.success, "Метод success должен быть функцией").toBe("function")
+    expect(typeof actions.guest?.error, "Метод error должен быть функцией").toBe("function")
+  })
+
+  test("getResult возвращает правильный объект", () => {
+    const result = createActionsConfig<{ name: ReturnType<typeof types.string.required> }, "guest">((action) => ({
+      guest: action(({context}) => context.name)
+        .success(({update, data}) => update({name: data}))
+        .error(({update, error}) => update({name: error.message})),
+    })).guest
+    expect(typeof result.action).toBe("function")
+    expect(typeof result.success).toBe("function")
+    expect(typeof result.error).toBe("function")
+  })
+
+  test("action может возвращать void, number, массив", () => {
+    const actions = createActionsConfig<
+      {
+        name: ReturnType<typeof types.string.required>
+        num: ReturnType<typeof types.number.required>
+        arr: ReturnType<typeof types.array.required>
+      },
+      "void" | "number" | "array"
+    >((action) => ({
+      void: action(() => {}).success(({ update }) => update({ name: "ok" })),
+      number: action(() => 42).success(({ update, data }) => update({ num: data })),
+      array: action(() => [1, 2, 3]).success(({ update, data }) => update({ arr: data })),
+    }))
+    expect(typeof actions.void?.success).toBe("function")
+    expect(typeof actions.number?.success).toBe("function")
+    expect(typeof actions.array?.success).toBe("function")
   })
 })

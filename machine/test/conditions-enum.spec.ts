@@ -43,7 +43,7 @@ test("Machine - тесты enum условий (required и optional)", async ()
         message: `Enum test: status=${context.status}, role=${context.role}`,
         timestamp: Date.now(),
       }),
-      success: ({ update, data }: { update: (v: Partial<Ctx>) => void; data: TestResult }) => {
+      success: ({ update }: { update: (v: Partial<Ctx>) => void; data: TestResult }) => {
         update({ status: "active" })
       },
       error: ({ update }: { update: (v: Partial<Ctx>) => void }) => {

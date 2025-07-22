@@ -14,15 +14,6 @@ type TestResult = {
 }
 
 test("StateConfig — типизация переходов и действий", () => {
-  const stateConfig: StateConfig<TestStates, TestContext> = {
-    idle: {
-      loading: { name: { length: { min: 3 } } },
-    },
-    loading: {
-      success: { age: { gt: 0 } },
-    },
-    success: {},
-  }
   const actionsConfig = {
     loading: {
       action: ({ context }: { context: Ctx }) => {
@@ -57,11 +48,6 @@ test("StateConfig — только переходы без действий", ()
 })
 
 test("StateConfig — частичная карта действий", () => {
-  const stateConfig: StateConfig<TestStates, TestContext> = {
-    idle: { loading: { name: { length: { min: 3 } } } },
-    loading: { success: { age: { gt: 0 } } },
-    success: {},
-  }
   const actionsConfig = {
     loading: {
       action: ({ context }: { context: Ctx }) => ({ userId: context.name, timestamp: Date.now() }),

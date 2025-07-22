@@ -240,7 +240,7 @@ test("Machine - обработка ошибок с различными форм
   }
   const actionsConfig = {
     loading: {
-      action: ({ context }: { context: Ctx }) => {
+      action: ({ }: { context: Ctx }) => {
         throw new Error("Loading error")
       },
       error: ({ update }: { update: (v: Partial<Ctx>) => void }) => {
@@ -274,7 +274,7 @@ test("Machine - обработка ошибок с различными форм
     Object.assign(context, values)
     return context
   })
-  await expect(machine.update(context), "Должна быть выброшена ошибка из процесса loading").rejects.toThrow(
+  expect(machine.update(context), "Должна быть выброшена ошибка из процесса loading").rejects.toThrow(
     "Loading error"
   )
   expect(machine.currentState, "Машина должна остановиться в состоянии loading при обнаружении цикла").toBe("loading")

@@ -157,7 +157,7 @@ test("Machine - патчи при ошибке в действии", async () =>
   }
   const actionsConfig = {
     loading: {
-      action: ({ context }: { context: Ctx }) => {
+      action: ({ }: { context: Ctx }) => {
         throw new Error("Test error")
       },
       error: ({ update }: { update: (v: Partial<Ctx>) => void }) => {

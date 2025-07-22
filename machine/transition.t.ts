@@ -373,9 +373,3 @@ export type TransitionConditions<T extends ContextSchema> = {
     ? Condition<ExtractValues<T>[K]>
     : ConditionOptional<ExtractValues<T>[K]>
 }
-
-export type CondBoolean = CondBooleanRequired | CondBooleanOptional
-export type CondEnum<E extends readonly (string | number)[]> = CondEnumRequired<E> | CondEnumOptional<E>
-export type CondString = CondStringRequired | CondStringOptional
-export type CondNumber = CondNumberRequired | CondNumberOptional
-export type CondArray<T = any> = CondArrayRequired<T> | CondArrayOptional<T>

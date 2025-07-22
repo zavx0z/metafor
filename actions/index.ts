@@ -1,6 +1,7 @@
 import type { ContextSchema, ExtractValues } from "../context"
 import type { ActionChain, Builder } from "./index.t"
 export type { Builder }
+
 /**
  * Вспомогательная функция для декларации actionsConfig автомата через builder и chain API.
  * Гарантирует строгую типизацию и удобный API.
@@ -20,23 +21,33 @@ export type { Builder }
  * }))
  */
 export function createActionsConfig<C extends ContextSchema, S extends string>(builder: Builder<C, S>) {
+  /**
+   * Фабрика для создания chain-объекта для каждого действия.
+   * Каждый вызов action возвращает chain API с методами success, error, getResult.
+   */
   function action<Res>(fn: (params: { context: ExtractValues<C> }) => Res | Promise<Res>): ActionChain<C, Res> {
+    // Храним текущие success/error handler'ы (последний вызов перезаписывает предыдущий)
     let successHandler:
       | ((params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void)
       | undefined
     let errorHandler:
       | ((params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void)
       | undefined
+    // Chain API: каждый метод возвращает тот же объект, чтобы можно было строить цепочку
     const chain: ActionChain<C, Res> = {
+      // Основная функция действия
       action: fn,
+      // Добавляет/перезаписывает success handler
       success(handler) {
         successHandler = handler
         return chain
       },
+      // Добавляет/перезаписывает error handler
       error(handler) {
         errorHandler = handler
         return chain
       },
+      // Собирает итоговый объект: только те обработчики, которые были явно заданы
       getResult() {
         const result: {
           action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
@@ -52,10 +63,13 @@ export function createActionsConfig<C extends ContextSchema, S extends string>(b
     }
     return chain
   }
+  // Вызываем builder, передавая фабрику action. На выходе получаем объект, где значения — chain-объекты.
   const raw = builder(action)
+  // Для каждого ключа вызываем getResult, чтобы получить финальный объект с action, success, error.
   const result: Record<S, ReturnType<ActionChain<C, any>["getResult"]>> = {} as any
   for (const key in raw) {
     result[key] = raw[key].getResult()
   }
+  // Возвращаем actionsConfig: ключи — имена действий, значения — объекты с action, success, error
   return result
 }

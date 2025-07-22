@@ -6,7 +6,7 @@ import type { ExtractValues } from "../../context"
 // Тестовые типы состояний
 type TestStates = "idle" | "string_test" | "success"
 
-// Тестовые типы контекста с строковыми данными
+// Тестовые типы контекста со строковыми данными
 type StringContext = {
   name: { type: "string"; required: true }
   email: { type: "string"; required: false }

@@ -67,39 +67,6 @@ export type Builder<C extends ContextSchema, S extends string> = (
 ) => Record<S, ActionChain<C, any>>
 
 /**
- * Тип функции для создания chain API действия автомата.
- * @template C - схема контекста
- * @template Res - тип результата действия
- * @param action - функция действия, принимает { context }, возвращает результат или промис
- * @returns chain API с методами success и error
- */
-export type ActionType<C extends ContextSchema> = <Res = any>(
-  action: ActionHandler<C, Res>
-) => {
-  /**
-   * Зарегистрировать обработчик успеха для действия
-   * @param handler - функция, вызываемая при успешном завершении действия
-   * @returns chain API с методами success и error
-   */
-  success: ActionSuccess<C, Res>
-  /**
-   * Зарегистрировать обработчик ошибки для действия
-   * @param handler - функция, вызываемая при ошибке выполнения действия
-   * @returns chain API с методами success и error
-   */
-  error: ActionError<C>
-}
-
-/**
- * Тип функции для создания chain API действия автомата.
- * @template C - схема контекста
- * @template Res - тип результата действия
- * @param action - функция действия, принимает { context }, возвращает результат или промис
- * @returns chain API с методами success и error
- */
-export type ActionHandler<C extends ContextSchema, Res> = (params: { context: ExtractValues<C> }) => Res | Promise<Res>
-
-/**
  * Обработчик успеха для действия автомата
  * @template C - схема контекста
  * @template Res - тип результата действия

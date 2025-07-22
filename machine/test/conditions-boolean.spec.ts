@@ -42,7 +42,7 @@ test("Machine - тесты булевых условий (required и optional)"
         message: `Boolean test: active=${context.isActive}, verified=${context.isVerified}`,
         timestamp: Date.now(),
       }),
-      success: ({ update, data }) => {
+      success: ({ update }) => {
         update({ hasPermission: true })
       },
       error: ({ update }) => {

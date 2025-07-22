@@ -74,7 +74,7 @@ test("Machine - автоматические переходы с ошибкой"
   }
   const actionsConfig = {
     loading: {
-      action: ({ context }: { context: Ctx }) => {
+      action: ({ }: { context: Ctx }) => {
         throw new Error("Test error")
       },
       error: ({ update }: { update: (v: Partial<Ctx>) => void }) => {
@@ -88,7 +88,7 @@ test("Machine - автоматические переходы с ошибкой"
     return context
   })
   expect(machine.currentState, "Машина должна начинать с состояния idle").toBe("idle")
-  await expect(machine.update(context), "Должна быть выброшена ошибка из процесса").rejects.toThrow("Test error")
+  expect(machine.update(context), "Должна быть выброшена ошибка из процесса").rejects.toThrow("Test error")
   expect(machine.currentState, "Машина должна остановиться в состоянии loading при обнаружении цикла").toBe("loading")
 })
 

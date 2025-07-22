@@ -4,10 +4,7 @@
  @property meta - Метаданные сообщения
  @property meta.tag - Имя типа актора
  @property meta.timestamp - Время отправки сообщения
- @property patch - Патч для применения к актору
- @property patch.path - Путь к изменяемому свойству актора
- @property patch.op - Операция (add, remove, replace, move, copy, test)
- @property patch.value - Значение для операции
+ @property patches - Патч для применения к актору
  */
 export type BroadcastMessage = {
   meta: MetaDataMessage
