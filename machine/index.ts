@@ -13,13 +13,13 @@ export class Machine<S extends string, C extends ContextSchema, R = any> {
   private _currentState: S
   private _isExecuting: boolean = false
   private config: StateConfig<S, C>
-  private actions: ActionsConfig<C, S>
+  private actions: ActionsConfig<C, R>
   private updateSubscribers: Array<(patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>) => void> = []
   private updateFunction: (values: any) => any
 
   constructor(
     config: StateConfig<S, C>,
-    actions: ActionsConfig<C, S>,
+    actions: ActionsConfig<C, R>,
     initialState: S,
     updateFunction: (values: any) => any
   ) {

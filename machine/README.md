@@ -119,7 +119,7 @@ new Machine<S, C, R>(stateConfig: StateConfig<S, C>, actionsConfig: ActionsConfi
 #### Методы
 
 - `update(context: ExtractValues<C>): Promise<R | undefined>` — обновляет контекст и выполняет автоматические переходы
-- `onUpdate(callback: (patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>) => void): () => void` — подписка на изменения состояния
+- `onUpdate(callback: (prevState: S, nextState: S) => void): () => void` — подписка на изменения состояния
 
 ---
 
@@ -175,3 +175,22 @@ const machine = new Machine(stateConfig, actionsConfig, "idle", updateFn)
 ## Документация
 
 См. JSDoc/TypeDoc в исходном коде и примеры выше.
+
+### onUpdate(cb)
+
+Позволяет подписаться на изменения состояния автомата. Callback вызывается при каждом переходе и получает два аргумента: предыдущее состояние и новое состояние.
+
+```typescript
+const unsubscribe = machine.onUpdate((prev, next) => {
+  console.log(`Переход: ${prev} → ${next}`)
+})
+
+await machine.update(context)
+unsubscribe()
+```
+
+**Особенности:**
+
+- Callback вызывается только при реальном переходе между состояниями
+- Можно подписаться несколько раз (все подписчики получат уведомление)
+- Возвращаемая функция позволяет отписаться
