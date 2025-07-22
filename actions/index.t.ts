@@ -8,7 +8,7 @@ import type { ContextSchema, ExtractValues } from "../context"
  * @returns chain API с методами success и error
  */
 export type ActionType<C extends ContextSchema> = <Res = any>(
-  action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
+  action: ActionHandler<C, Res>
 ) => {
   /**
    * Зарегистрировать обработчик успеха для действия
@@ -23,6 +23,15 @@ export type ActionType<C extends ContextSchema> = <Res = any>(
    */
   error: ActionError<C>
 }
+
+/**
+ * Тип функции для создания chain API действия автомата.
+ * @template C - схема контекста
+ * @template Res - тип результата действия
+ * @param action - функция действия, принимает { context }, возвращает результат или промис
+ * @returns chain API с методами success и error
+ */
+export type ActionHandler<C extends ContextSchema, Res> = (params: { context: ExtractValues<C> }) => Res | Promise<Res>
 
 /**
  * Обработчик успеха для действия автомата

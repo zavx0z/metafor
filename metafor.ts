@@ -6,7 +6,7 @@
 import { types, createContext } from "./context"
 import type { ContextSchema, ContextTypes, ContextInstance, JsonPatch } from "./context"
 import { Machine } from "./machine"
-import { createActionsConfig } from "./actions"
+import { createActionsConfig, type Builder } from "./actions"
 import type { ActionType } from "./actions/index.t"
 import type { StateConfig } from "./machine/index.t"
 
@@ -68,7 +68,7 @@ export function MetaFor(tag: string) {
              *
              * @returns Объект с действиями только для нужных состояний
              */
-            actions(builder: (action: ActionType<C>) => Partial<Record<S, ReturnType<ActionType<C>>>>) {
+            actions(builder: Builder<C, S>) {
               const actionsConfig = createActionsConfig<C, S>(builder)
 
               class WebComponent extends HTMLElement {
