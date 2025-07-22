@@ -1,129 +1,166 @@
 # MetaFor
 
-Фреймворк для создания контекстно-ориентированных конечных автоматов с типизированными состояниями и автоматическими переходами.
+**MetaFor** — это фреймворк для декларативного создания web-компонентов-акторов на основе конечных автоматов с типизированным контекстом, автоматическими переходами и цепочкой действий. Подходит для построения сложных UI- и бизнес-процессов с прозрачной логикой переходов и строгой типизацией.
+
+---
+
+## Установка
+
+```sh
+bun add @zavx0z/metafor
+```
+
+---
+
+## Быстрый старт (пример: регистрация пользователя)
+
+```js
+import { MetaFor } from "@zavx0z/metafor"
+
+MetaFor("register")
+  .context((types) => ({
+    name: types.string.required(""),
+    email: types.string.required(""),
+    error: types.string.optional(),
+    isRegistered: types.boolean.required(false),
+  }))
+  .states({
+    form: { loading: { name: { length: { min: 2 } }, email: { pattern: /@/ } } },
+    loading: {
+      success: { isRegistered: true },
+      error: { error: { notEq: "" } },
+    },
+    success: { form: {} },
+    error: { form: {} },
+  })
+  .actions((action) => ({
+    loading: action(async ({ context }) => {
+      // имитация асинхронного запроса
+      if (context.email === "fail@example.com") throw new Error("Email уже занят")
+      await new Promise((r) => setTimeout(r, 500))
+      return { name: context.name }
+    })
+      .success(({ update, data }) => update({ isRegistered: true, error: "" }))
+      .error(({ update, error }) => update({ error: error.message, isRegistered: false })),
+    success: action(({ context }) => null).success(({ update }) =>
+      update({ name: "", email: "", isRegistered: false })
+    ),
+    error: action(({ context }) => null).success(({ update }) => update({ error: "" })),
+  }))
+```
+
+---
 
 ## Основные возможности
 
-- **Контекстно-ориентированные конечные автоматы** - переходы происходят автоматически на основе контекста
-- **Типизированные состояния** с процессами и условиями переходов
-- **Интеграция с Web Components** - создание компонентов с встроенными машинами состояний
-- **Реактивные подписки** - получение уведомлений об изменениях состояния в формате JSON Patch
-- **Полная типизация TypeScript** - типобезопасность на всех уровнях
+- **Web-компоненты-акторы**: каждый автомат инкапсулирован в собственный web-компонент
+- **Типобезопасный контекст**: строгая схема состояния с поддержкой типов, значений по умолчанию и заголовков
+- **Автоматические переходы**: переходы между состояниями происходят на основе условий в контексте
+- **Декларативные действия**: действия и обработчики успеха/ошибки описываются цепочкой (chain API)
+- **Иммутабельность и подписка на изменения**: контекст нельзя изменить напрямую, только через update; поддержка подписки на изменения (onUpdate)
+- **Гибкая архитектура**: разделение переходов (StateConfig) и действий (ActionsConfig)
+- **Тестируемость**: модульные тесты на bun:test
 
-## Быстрый старт
+---
 
-### Установка
+## Уникальность подхода
 
-```bash
-bun install
-```
+**MetaFor** — единственная публичная акторная система, в которой переходы между состояниями происходят автоматически на основании изменений контекста, **без необходимости явно отправлять сообщения или события** для смены состояния.
 
-### Базовое использование
+В классических акторных моделях (Erlang, Akka, Orleans) и популярных FSM-фреймворках (например, XState) переходы инициируются только через сообщения или события (`send('EVENT')`). В MetaFor всё управление осуществляется декларативно: вы описываете условия переходов через схему контекста, и автомат сам реагирует на изменения данных. Это делает логику прозрачной, реактивной и минимизирует boilerplate-код.
 
-```typescript
-import { MetaFor } from "./dist/metafor.js"
+**Ключевая особенность:**
+Переходы между состояниями полностью зависят от текущего контекста — если условия выполнены, автомат сам сменит состояние, без явных команд или событий.
 
-// Создаем экземпляр MetaFor
-const metafor = MetaFor("user")
+---
 
-// Определяем контекст
-const context = metafor.context((types) => ({
-  name: types.string.required(),
-  isActive: types.boolean.required(),
+## Структура API
+
+### 1. context(types => schema)
+
+Регистрация схемы контекста (описание структуры состояния).
+
+**Пример формирования контекста и поддерживаемые типы:**
+
+```js
+.context((types) => ({
+  name: types.string.required("Гость"),           // обязательная строка с дефолтом
+  age: types.number.optional(),                   // необязательное число (null по умолчанию)
+  isActive: types.boolean.required(true),         // обязательный boolean
+  role: types.enum("user", "admin").required("user"), // enum с дефолтом
+  tags: types.array.optional(),                   // необязательный массив
 }))
+```
 
-// Определяем состояния
-const states = {
-  idle: {
-    to: {
-      loading: {
-        name: { length: { min: 3 } },
-        isActive: true,
-      },
-    },
-  },
+**Типы:**
+
+- `types.string.required(default?)` / `types.string.optional(default?)`
+- `types.number.required(default?)` / `types.number.optional(default?)`
+- `types.boolean.required(default?)` / `types.boolean.optional(default?)`
+- `types.enum(...values).required(default?)` / `types.enum(...values).optional(default?)`
+- `types.array.required(default?)` / `types.array.optional(default?)`
+
+**Особенности:**
+
+- `required` — поле обязательно, всегда имеет значение (никогда не null)
+- `optional` — поле может быть null, если не задано явно
+- Можно указывать значения по умолчанию
+- Все поля доступны для чтения через объект `context` внутри action:
+
+  ```js
+  action(({ context }) => {
+    // context.name, context.age, context.isActive, context.role, context.tags
+  })
+  ```
+
+### 2. states({ ... })
+
+Описание переходов между состояниями автомата. Ключи — имена состояний, значения — карта переходов:
+
+```js
+.states({
+  form: { loading: { name: { length: { min: 2 } }, email: { pattern: /@/ } } },
   loading: {
-    process: {
-      action: async ({ context }) => ({
-        userId: `user_${context.name}`,
-        timestamp: Date.now(),
-      }),
-      success: ({ update, data }) => {
-        update({ name: data.userId })
-      },
-    },
-    to: {
-      success: { name: { startsWith: "user_" } },
-    },
+    success: { isRegistered: true },
+    error: { error: { notEq: "" } },
   },
-  success: { to: { idle: {} } },
-}
-
-// Создаем компонент с машиной состояний
-context.states(states)
-
-// Используем компонент
-const component = document.createElement("metafor-user")
-document.body.appendChild(component)
-
-// Обновляем контекст - машина автоматически выполнит переходы
-component.updateContext({ name: "Иван", isActive: true })
-```
-
-### Прямое использование Machine
-
-```typescript
-import { Machine } from "./dist/metafor.js"
-
-const machine = new Machine(config, "idle", (values) => {
-  // Функция обновления контекста
-  return { ...context, ...values }
+  success: { form: {} },
+  error: { form: {} },
 })
-
-// Автоматические переходы
-const result = await machine.update({ name: "Иван", isActive: true })
 ```
 
-## Модули
+### 3. actions(action => ({ ... }))
 
-### Core (metafor.ts)
+Декларация действий и обработчиков для нужных состояний:
 
-Основной API для создания Web Components с машинами состояний.
+- **action** — основная функция действия. Получает только `{ context }`. Здесь нельзя изменять состояние, только читать данные и возвращать результат (или промис).
+- **success** — обработчик успешного завершения действия. Получает `{ update, data }`. Здесь можно обновлять контекст через `update`.
+- **error** — обработчик ошибок. Получает `{ update, error }`. Здесь можно обновлять контекст через `update`.
 
-### Context (context/)
+**Пример:**
 
-Система типизированных контекстов с реактивными обновлениями.
-
-### Machine (machine/)
-
-Контекстно-ориентированные конечные автоматы с автоматическими переходами.
-
-## Примеры
-
-- [Интеграция с Machine](examples/machine-integration.html) - демонстрация полного цикла работы
-
-## Тестирование
-
-```bash
-# Все тесты
-bun test
-
-# Тесты контекста
-bun run CONTEXT:TEST
-
-# Тесты машины состояний
-bun run MACHINE:TEST
+```js
+actions((action) => ({
+  loading: action(async ({ context }) => {
+    // только чтение context, асинхронная логика
+    return { name: context.name }
+  })
+    .success(({ update, data }) => update({ isRegistered: true }))
+    .error(({ update, error }) => update({ error: error.message })),
+  success: action(({ context }) => null).success(({ update }) => update({ name: "", email: "", isRegistered: false })),
+  error: action(({ context }) => null).success(({ update }) => update({ error: "" })),
+}))
 ```
 
-## Сборка
+---
 
-```bash
-# Разработка
-bun run build:dev
+## Подробнее по модулям
 
-# Продакшн
-bun run build:prod
-```
+- [Контекст (context/)](context/README.md) — типобезопасные схемы, update, onUpdate, getSnapshot
+- [Машина состояний (machine/)](machine/README.md) — описание переходов и автоматических переходов
+- [Actions (actions/)](actions/README.md) — декларативное описание действий и chain API
+
+---
 
 ## Лицензия
 

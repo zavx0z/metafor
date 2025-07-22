@@ -1,22 +1,38 @@
 import { MetaFor } from "./dist/metafor.js"
 
-MetaFor("user")
+MetaFor("register")
   .context((types) => ({
-    name: types.string.required("Гость"),
-    age: types.number.optional(),
+    name: types.string.required(""),
+    email: types.string.required(""),
+    error: types.string.optional(),
+    isRegistered: types.boolean.required(false),
   }))
   .states({
-    guest: {
-      user: { name: "Пользователь" },
+    form: { loading: { name: { length: { min: 2 } }, email: { pattern: /@/ } } },
+    loading: {
+      success: { isRegistered: true },
+      error: { error: { notEq: "" } },
     },
-    user: {
-      guest: {},
-    },
+    success: { form: {} },
+    error: { form: {} },
   })
   .actions((action) => ({
-    guest: action(({ context }) => {
+    loading: action(async ({ context }) => {
+      // имитация асинхронного запроса
+      if (context.email === "fail@example.com") throw new Error("Email уже занят")
+      await new Promise((r) => setTimeout(r, 500))
       return { name: context.name }
     })
-      .success(({ update, data }) => update({ name: data.name, age: 18 }))
-      .error(({ update, error }) => update({ name: error.message })),
+      .success(({ update, data }) => {
+        update({ isRegistered: true, error: "" })
+      })
+      .error(({ update, error }) => {
+        update({ error: error.message, isRegistered: false })
+      }),
+    success: action(({ context }) => null).success(({ update }) => {
+      update({ name: "", email: "", isRegistered: false })
+    }),
+    error: action(({ context }) => null).success(({ update }) => {
+      update({ error: "" })
+    }),
   }))

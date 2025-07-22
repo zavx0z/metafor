@@ -1,19 +1,19 @@
 # Machine
 
-Модуль фреймворка MetaFor для создания контекстно-ориентированных конечных автоматов с типизированными состояниями и автоматическими переходами. Позволяет определять состояния, процессы и условия переходов между ними на основе контекста.
+Модуль фреймворка MetaFor для создания контекстно-ориентированных конечных автоматов с типизированными состояниями и автоматическими переходами. Позволяет определять состояния, переходы и действия отдельно, с полной типобезопасностью.
 
 ---
 
 ## Основные возможности
 
-- **Автоматические переходы** - переходы происходят автоматически на основе контекста
-- Типизированные состояния с процессами
-- Условные переходы на основе контекста
-- Поддержка действий, обработки ошибок и успешных операций
-- Интеграция с контекстом MetaFor
-- Автоматическая типизация переходов
-- **Типизированные результаты процессов** - передача данных из `action` в `success` с полной типизацией
-- **Класс Machine** - runtime-реализация конечного автомата с автоматическими переходами
+- **Автоматические переходы** — переходы происходят автоматически на основе контекста
+- **Разделение переходов и действий** — переходы (StateConfig) и действия (ActionsConfig) описываются отдельно
+- **Типизированные состояния и действия** — строгая типизация для всех частей автомата
+- **Условные переходы на основе контекста**
+- **Поддержка success/error-обработчиков** для действий
+- **Интеграция с контекстом MetaFor**
+- **Гибкая декларация** — действия можно задавать только для нужных состояний
+- **Класс Machine** — runtime-реализация конечного автомата с автоматическими переходами
 
 ---
 
@@ -22,11 +22,10 @@
 ### Импорт
 
 ```typescript
-import { Machine } from "./index"
-import type { StateConfig } from "./index"
+import { Machine, type StateConfig, type ActionsConfig } from "./index"
 ```
 
-### Базовое использование
+### Базовое использование (современный API)
 
 ```typescript
 // Определяем типы
@@ -41,42 +40,45 @@ type UserResult = {
   profile: { name: string; age: number | null }
 }
 
-// Конфигурация состояний
-const config: StateConfig<UserStates, UserContext, UserResult> = {
+// Конфигурация переходов (StateConfig)
+const stateConfig: StateConfig<UserStates, UserContext> = {
   idle: {
-    to: {
-      loading: {
-        name: { length: { min: 2 } },
-        isActive: true,
-      },
+    loading: {
+      name: { length: { min: 2 } },
+      isActive: true,
     },
   },
   loading: {
-    process: {
-      action: async ({ context }) => {
-        return {
-          userId: `user_${Date.now()}`,
-          profile: { name: context.name, age: context.age },
-        }
-      },
-      success: ({ update, data }) => {
-        update({ userId: data.userId })
-      },
-      error: ({ update }) => {
-        update({ name: "error_user" })
-      },
+    success: { userId: { notEq: null } },
+    error: { name: { eq: "error_user" } },
+  },
+  success: { idle: {} },
+  error: { idle: {} },
+}
+
+// Конфигурация действий (ActionsConfig)
+const actionsConfig: ActionsConfig<UserStates, UserContext> = {
+  loading: {
+    action: async ({ context }) => {
+      return {
+        userId: `user_${Date.now()}`,
+        profile: { name: context.name, age: context.age },
+      }
     },
-    to: {
-      success: { userId: { notEq: null } },
-      error: { name: { eq: "error_user" } },
+    success: ({ update, data }) => {
+      update({ userId: data.userId })
+    },
+    error: ({ update, error }) => {
+      update({ name: "error_user" })
     },
   },
-  success: { to: { idle: {} } },
-  error: { to: { idle: {} } },
 }
 
 // Создаем автомат
-const machine = new Machine<UserStates, UserContext, UserResult>(config, "idle")
+const machine = new Machine<UserStates, UserContext, UserResult>(stateConfig, actionsConfig, "idle", (values) => {
+  Object.assign(context, values)
+  return context
+})
 
 // Используем - просто передаем контекст!
 const context = { name: "Иван", age: null, isActive: true }
@@ -85,431 +87,91 @@ const result = await machine.update(context)
 
 ---
 
+## Архитектура
+
+- **StateConfig** — определяет переходы между состояниями (без действий)
+- **ActionsConfig** — определяет действия (action, success, error) только для нужных состояний (Partial<Record<S, ...>>)
+- **Machine** — принимает оба конфига и управляет автоматом
+
+### Пример архитектуры
+
+```typescript
+const stateConfig: StateConfig<...> = { ... } // только переходы
+const actionsConfig: ActionsConfig<...> = { ... } // только действия для нужных состояний
+const machine = new Machine(stateConfig, actionsConfig, initialState, updateFn)
+```
+
+---
+
 ## API
 
 ### Класс Machine
 
-Класс для управления контекстно-ориентированным конечным автоматом.
-
-#### Конструктор
-
 ```typescript
-new Machine<S, C, R>(config: StateConfig<S, C, R>, initialState: S, updateFunction: UpdateFunction<C>)
+new Machine<S, C, R>(stateConfig: StateConfig<S, C>, actionsConfig: ActionsConfig<S, C>, initialState: S, updateFunction: (values: any) => any)
 ```
 
-**Параметры:**
-
-- `config` - конфигурация состояний автомата
-- `initialState` - начальное состояние
-- `updateFunction` - функция для обновления контекста, передаваемая в обработчики `success` и `error`
-
-#### Свойства
-
-- `currentState: S` - текущее состояние автомата
-- `isExecuting: boolean` - выполняется ли действие в текущем состоянии
-- `availableTransitions: S[]` - доступные переходы из текущего состояния
+- `stateConfig` — карта переходов между состояниями
+- `actionsConfig` — карта действий (Partial<Record<S, ...>>)
+- `initialState` — начальное состояние
+- `updateFunction` — функция для обновления контекста
 
 #### Методы
 
-- `update(context: ExtractValues<C>): Promise<R | undefined>` - **основной метод** - обновляет контекст и выполняет автоматические переходы
-- `onUpdate(callback: (patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>) => void): () => void` - подписка на изменения состояния в формате JSON Patch
+- `update(context: ExtractValues<C>): Promise<R | undefined>` — обновляет контекст и выполняет автоматические переходы
+- `onUpdate(callback: (patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>) => void): () => void` — подписка на изменения состояния
 
 ---
 
-## Автоматические переходы
+## Примеры
 
-### Метод update
-
-Основной метод для работы с контекстно-ориентированной машиной:
+### Только переходы (без действий)
 
 ```typescript
-async update(context: ExtractValues<C>): Promise<R | undefined>
+const stateConfig: StateConfig<"idle" | "success", UserContext> = {
+  idle: { success: { name: { length: { min: 2 } } } },
+  success: { idle: {} },
+}
+const machine = new Machine(stateConfig, {}, "idle", updateFn)
 ```
 
-**Как это работает:**
-
-1. **Анализ контекста** - машина анализирует переданный контекст
-2. **Проверка условий** - проверяет все возможные переходы из текущего состояния
-3. **Автоматический переход** - если условия выполняются, выполняет переход
-4. **Выполнение процесса** - если новое состояние имеет процесс, запускает его
-5. **Повтор** - повторяет цикл, пока есть возможные переходы
-6. **Возврат результата** - возвращает результат последнего выполненного процесса
-
-**Пример:**
+### Только действия (без переходов)
 
 ```typescript
-// Начальное состояние: "idle"
-const context = { name: "Иван", age: 25, isActive: true }
-const machine = new Machine(config, "idle", (values) => {
-  // Обновляем контекст
-  Object.assign(context, values)
-  return context
-})
-
-// Передаем контекст
-const result = await machine.update(context)
-
-// Машина автоматически:
-// 1. idle -> loading (условия выполняются)
-// 2. Выполняет процесс loading
-// 3. loading -> success (userId не null)
-// 4. success -> idle (нет условий)
-// 5. Возвращает результат процесса loading
+const actionsConfig: ActionsConfig<"loading", UserContext> = {
+  loading: {
+    action: ({ context }) => ({ userId: "id", profile: { name: context.name, age: context.age } }),
+    success: ({ update, data }) => update({ userId: data.userId }),
+  },
+}
+const machine = new Machine({}, actionsConfig, "loading", updateFn)
 ```
 
-### Метод onUpdate
-
-Подписка на изменения состояния автомата в формате JSON Patch:
+### Полный автомат (переходы + действия)
 
 ```typescript
-onUpdate(callback: (patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>) => void): () => void
+const stateConfig: StateConfig<"idle" | "loading" | "success", UserContext> = { ... }
+const actionsConfig: ActionsConfig<"loading" | "success", UserContext> = { ... }
+const machine = new Machine(stateConfig, actionsConfig, "idle", updateFn)
 ```
-
-**Операции:**
-
-- `test` - когда входим в состояние с `action` (процессом)
-- `replace` - когда входим в состояние без `action` или после успешного выполнения `action`
-
-**Пример:**
-
-```typescript
-// Подписываемся на изменения состояния
-const unsubscribe = machine.onUpdate((patches) => {
-  patches.forEach((patch) => {
-    console.log(`${patch.op === "test" ? "Тестируем" : "Заменяем"} состояние: ${patch.value}`)
-  })
-})
-
-// Обновляем контекст
-await machine.update(context)
-
-// Отписываемся
-unsubscribe()
-```
-
-### Преимущества автоматических переходов
-
-1. **Простота использования** - не нужно вручную управлять переходами
-2. **Контекстная логика** - переходы определяются данными, а не кодом
-3. **Автоматическая обработка** - машина сама определяет последовательность состояний
-4. **Типобезопасность** - все переходы типизированы
-5. **Гибкость** - легко изменять логику через конфигурацию
-6. **Реактивность** - возможность подписываться на изменения состояния
 
 ---
 
-## Типизированные результаты процессов
+## Важно
 
-### StateProcess с generic параметром R
-
-```typescript
-type StateProcess<T extends ContextSchema = any, R = any> = {
-  action: (params: { context: ExtractValues<T> }) => R | Promise<R>
-  error: (params: { update: (values: UpdateValues<ExtractValues<T>>) => ExtractValues<T> }) => void
-  success?: (params: { update: (values: UpdateValues<ExtractValues<T>>) => ExtractValues<T>; data: R }) => void
-}
-```
-
-#### Пример StateProcess
-
-```typescript
-// Определяем типы
-type UserContext = {
-  name: { type: "string"; required: true }
-  email: { type: "string"; required: true }
-}
-
-type UserResult = {
-  userId: string
-  profile: { name: string; email: string }
-}
-
-// Создаем StateProcess с типизацией
-const userProcess: StateProcess<UserContext, UserResult> = {
-  action: ({ context }) => {
-    // context имеет тип { name: string, email: string }
-    return {
-      userId: `user_${Date.now()}`,
-      profile: {
-        name: context.name,
-        email: context.email,
-      },
-    }
-  },
-  success: ({ update, data }) => {
-    // data имеет тип UserResult
-    console.log(`User created: ${data.userId}`)
-    update({ name: data.profile.name })
-  },
-  error: ({ update }) => {
-    update({ name: "Error User" })
-  },
-}
-```
-
-#### Преимущества
-
-1. **Типобезопасность результатов**: TypeScript автоматически выводит тип результата из `action` в `success`
-2. **IntelliSense поддержка**: Полная поддержка автодополнения и проверки типов
-3. **Ошибки на этапе компиляции**: Неправильное использование типов будет обнаружено до выполнения
-4. **Рефакторинг**: Безопасное изменение типов с автоматическим обновлением всех зависимостей
-5. **Асинхронная поддержка**: Поддержка как синхронных, так и асинхронных действий
-
----
-
-## Условия переходов
-
-Модуль поддерживает богатую систему условий для переходов между состояниями:
-
-### Строковые условия
-
-```typescript
-{
-  name: {
-    startsWith: "test",
-    endsWith: "user",
-    include: "admin",
-    pattern: /^[a-z]+$/,
-    length: { min: 3, max: 20 },
-    eq: "exact_match"
-  }
-}
-```
-
-### Числовые условия
-
-```typescript
-{
-  age: {
-    gt: 18,
-    gte: 21,
-    lt: 65,
-    lte: 60,
-    between: [18, 65],
-    eq: 25
-  }
-}
-```
-
-### Булевы условия
-
-```typescript
-{
-  isActive: true,
-  isVerified: { eq: false, logicalEq: true }
-}
-```
-
-### Массивы
-
-```typescript
-{
-  tags: {
-    length: { min: 1 },
-    includes: "admin",
-    isEmpty: false,
-    every: { include: "" } // Все элементы содержат пустую строку (всегда true)
-  },
-  scores: {
-    every: { gte: 0, lte: 100 }, // Все элементы от 0 до 100
-    some: { eq: 100 } // Хотя бы один элемент равен 100
-  }
-}
-```
-
-### Проверка на null (для optional полей)
-
-```typescript
-{
-  email: { null: false },
-  phone: null
-}
-```
+- **ActionsConfig** теперь всегда Partial<Record<S, ...>> — можно описывать действия только для нужных состояний.
+- **StateConfig** описывает только переходы, без process/action.
+- Вся логика success/error теперь в actionsConfig.
+- Для строгой типизации всегда указывайте типы состояний и контекста явно.
 
 ---
 
 ## Тестирование
 
-Модуль включает полный набор тестов для проверки всех аспектов работы машины состояний:
-
-### Структура тестов
-
-```text
-machine/test/
-├── machine.spec.ts      # Основные тесты функциональности
-├── patches.spec.ts      # Тесты JSON Patch операций
-├── transitions.spec.ts  # Тесты переходов состояний с действиями
-├── success-data.spec.ts # Тесты различных форматов данных в success
-├── state.spec.ts        # Тесты типизации состояний
-├── conditions-string.spec.ts  # Тесты строковых условий
-├── conditions-number.spec.ts  # Тесты числовых условий
-├── conditions-boolean.spec.ts # Тесты булевых условий
-├── conditions-array.spec.ts   # Тесты массивных условий
-├── conditions-enum.spec.ts    # Тесты enum условий
-└── conditions-mixed.spec.ts   # Тесты смешанных условий
-```
-
-### Описание тестовых файлов
-
-#### machine.spec.ts - Основные тесты функциональности
-
-**Назначение:** Тестирование базовой функциональности класса Machine и основных сценариев использования.
-
-**Тесты:**
-
-- **Автоматические переходы с update** - проверка полного цикла переходов через все состояния
-- **Автоматические переходы с ошибкой** - проверка обработки ошибок в процессах
-- **Обработка контекста без переходов** - проверка поведения при невыполнении условий перехода
-- **Обработка контекста с неактивным пользователем** - проверка условных переходов
-- **Проверка состояния выполнения** - проверка свойства `isExecuting`
-- **Подписка на обновления** - проверка метода `onUpdate` и JSON Patch операций
-- **Проверка условий перехода** - проверка различных типов условий
-- **Проверка максимального количества итераций** - проверка защиты от бесконечных циклов
-
-#### patches.spec.ts - Тесты JSON Patch операций
-
-**Назначение:** Специализированные тесты для проверки реактивных подписок на изменения состояния в формате JSON Patch.
-
-**Тесты:**
-
-- **Патчи при входе в состояние с действием (test)** - проверка операции `test` при входе в состояние с процессом
-- **Патчи после выполнения действия (replace)** - проверка операции `replace` после успешного выполнения процесса
-- **Патчи при переходе в состояние без действия (replace)** - проверка операции `replace` для состояний без процессов
-- **Патчи при ошибке в действии** - проверка патчей при возникновении ошибок в процессах
-- **Последовательность патчей в полном цикле** - проверка полной последовательности патчей при прохождении всех состояний
-
-#### transitions.spec.ts - Тесты переходов состояний с действиями
-
-**Назначение:** Тестирование переходов состояний во всех состояниях, где определены действия (процессы).
-
-**Тесты:**
-
-- **Переходы во всех состояниях с действиями** - проверка полного цикла переходов через все состояния с процессами (idle → loading → processing → success → error)
-- **Переходы с ошибками в каждом состоянии** - проверка обработки ошибок в каждом состоянии с действиями
-- **Переходы с асинхронными действиями** - проверка работы с асинхронными процессами в каждом состоянии
-
-#### success-data.spec.ts - Тесты различных форматов данных в success
-
-**Назначение:** Тестирование различных форматов данных, передаваемых из `action` в `success` обработчики в рамках одной машины состояний.
-
-**Тесты:**
-
-- **Различные форматы данных в разных состояниях** - проверка полного цикла состояний с разными типами данных:
-  - `loading`: UserResult (профили, даты, разрешения)
-  - `processing`: ProductResult (детали товаров, метаданные)
-  - `success`: OrderResult (заказы, суммы, временные метки)
-- **Обработка ошибок с различными форматами данных** - проверка обработки ошибок с переходом в error состояние (ErrorResult)
-- **Простые и сложные данные в разных состояниях** - проверка перехода от простых к сложным данным:
-  - `loading`: SimpleResult (строки, числа)
-  - `processing`: ComplexResult (многоуровневые структуры)
-
-#### state.spec.ts - Тесты типизации состояний
-
-**Назначение:** Тестирование системы типов и типизации состояний машины.
-
-**Тесты:**
-
-- **StateProcess типизация с generic параметром R** - проверка типизации процессов состояний
-- **StateDefinition с generic параметром R** - проверка типизации определений состояний
-- **StateConfig с generic параметром R** - проверка типизации конфигурации состояний
-
-#### conditions-string.spec.ts - Тесты строковых условий
-
-**Назначение:** Тестирование всех строковых условий переходов для проверки полноты системы типизации строковых полей.
-
-**Тесты:**
-
-- **Тесты строковых условий (required и optional)** - проверка всех строковых операторов: `length`, `startsWith`, `endsWith`, `include`, `pattern`, `null`, `notInclude`, `notStartsWith`, `notEndsWith`, `between`
-- **Тесты сложных строковых условий** - проверка комбинаций множественных строковых условий
-
-#### conditions-number.spec.ts - Тесты числовых условий
-
-**Назначение:** Тестирование всех числовых условий переходов для проверки полноты системы типизации числовых полей.
-
-**Тесты:**
-
-- **Тесты числовых условий (required и optional)** - проверка всех числовых операторов: `eq`, `gt`, `gte`, `lt`, `lte`, `notEq`, `notGt`, `notGte`, `notLt`, `notLte`, `between`
-- **Тесты сложных числовых условий** - проверка комбинаций множественных числовых условий
-
-#### conditions-boolean.spec.ts - Тесты булевых условий
-
-**Назначение:** Тестирование всех булевых условий переходов для проверки полноты системы типизации булевых полей.
-
-**Тесты:**
-
-- **Тесты булевых условий (required и optional)** - проверка булевых операторов: `eq`, `notEq`, `logicalEq`
-
-#### conditions-array.spec.ts - Тесты массивных условий
-
-**Назначение:** Тестирование всех массивных условий переходов для проверки полноты системы типизации массивных полей.
-
-**Тесты:**
-
-- **Тесты массивных условий (required и optional)** - проверка массивных операторов: `length`, `includes`, `notIncludes`, `every`, `some`, `isEmpty`, `null`
-- **Тесты сложных массивных условий** - проверка комбинаций множественных массивных условий
-
-#### conditions-enum.spec.ts - Тесты enum условий
-
-**Назначение:** Тестирование всех enum условий переходов для проверки полноты системы типизации enum полей.
-
-**Тесты:**
-
-- **Тесты enum условий (required и optional)** - проверка enum операторов: `eq`, `notEq`, `oneOf`, `notOneOf`, `null`
-
-#### conditions-mixed.spec.ts - Тесты смешанных условий
-
-**Назначение:** Тестирование работы всех типов условий в одном контексте для проверки совместимости и корректности работы системы.
-
-**Тесты:**
-
-- **Тесты смешанных условий** - проверка работы всех типов условий в одном контексте
-
-### Покрытие тестами
-
-**Общее количество тестов:** 27 тестов
-
-**Покрываемые аспекты:**
-
-- ✅ Базовая функциональность машины состояний
-- ✅ Автоматические переходы между состояниями
-- ✅ Обработка ошибок и исключений
-- ✅ Условные переходы на основе контекста
-- ✅ Реактивные подписки (JSON Patch)
-- ✅ Различные форматы данных в процессах
-- ✅ Типизация всех компонентов
-- ✅ Защита от бесконечных циклов
-- ✅ Асинхронные процессы
-- ✅ Интеграция с контекстом MetaFor
-
-**Запуск тестов:**
-
-```bash
-cd machine
-bun test
-```
+Модуль включает полный набор тестов для проверки всех аспектов работы машины состояний. См. папку `machine/test/`.
 
 ---
 
-## Архитектура
+## Документация
 
-```text
-machine/
-├── index.ts          # Основной экспорт модуля с реализацией класса Machine
-├── index.t.ts        # Типы для модуля
-├── transition.t.ts   # Типы условий переходов
-├── README.md         # Документация
-└── test/             # Тесты
-    ├── machine.spec.ts      # Основные тесты функциональности
-    ├── patches.spec.ts      # Тесты JSON Patch операций
-    ├── transitions.spec.ts  # Тесты переходов состояний с действиями
-    ├── success-data.spec.ts # Тесты различных форматов данных в success
-    └── state.spec.ts        # Тесты типизации состояний
-```
-
-### Основные компоненты
-
-- **Machine** - класс для управления контекстно-ориентированным конечным автоматом (реализован в index.ts)
-- **StateProcess** - типизированные процессы состояний
-- **TransitionConditions** - система условий переходов
-- **StateConfig** - конфигурация всех состояний
-- **update** - основной метод для автоматической обработки контекста
+См. JSDoc/TypeDoc в исходном коде и примеры выше.
