@@ -89,6 +89,16 @@ export function MetaFor(tag: string) {
                 }
 
                 connectedCallback() {
+                  this.#channel.postMessage({
+                    patches: [
+                      {
+                        op: "add",
+                        path: "/",
+                        value: { state: this.#machine.currentState, context: this.#ctx.getSnapshot() },
+                      },
+                    ],
+                    meta: { tag },
+                  })
                   this.#ctx.onUpdate(this.#onUpdateContext)
                   this.#machine.onUpdate((patches: any) => {
                     this.#channel.postMessage({ patches, meta: { tag } })
