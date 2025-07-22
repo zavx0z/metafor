@@ -1,6 +1,7 @@
 import { test, expect } from "bun:test"
 import { Machine } from "../index.ts"
 import type { StateConfig } from "../index.t.ts"
+import type { ActionsConfig } from "../index.t.ts"
 
 // Тестовые типы состояний
 type TestStates = "idle" | "boolean_test" | "success"
@@ -35,28 +36,16 @@ test("Machine - тесты булевых условий (required и optional)"
     success: {},
   }
 
-  const actionsConfig = {
+  const actionsConfig: ActionsConfig<BooleanContext, TestResult> = {
     boolean_test: {
-      action: ({ context }: {
-        context: { isActive: boolean; isVerified: boolean | null; hasPermission: boolean }
-      }) => ({
+      action: ({ context }) => ({
         message: `Boolean test: active=${context.isActive}, verified=${context.isVerified}`,
         timestamp: Date.now(),
       }),
-      success: ({
-        update,
-        data,
-      }: {
-        update: (v: Partial<{ isActive: boolean; isVerified: boolean | null; hasPermission: boolean }>) => void
-        data: TestResult
-      }) => {
+      success: ({ update, data }) => {
         update({ hasPermission: true })
       },
-      error: ({
-        update,
-      }: {
-        update: (v: Partial<{ isActive: boolean; isVerified: boolean | null; hasPermission: boolean }>) => void
-      }) => {
+      error: ({ update }) => {
         update({ isActive: false })
       },
     },

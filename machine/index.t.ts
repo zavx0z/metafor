@@ -4,7 +4,7 @@
  */
 
 import type { TransitionConditions } from "./transition.t.ts"
-import type { ContextSchema, UpdateValues, ExtractValues } from "../context"
+import type { ContextSchema, ExtractValues, UpdateValues } from "../context"
 
 // Экспортируем типы из transition.t.ts
 export type { TransitionConditions } from "./transition.t.ts"
@@ -57,11 +57,11 @@ export type CreateMachine = <S extends string, C extends ContextSchema>(
   initialState: S
 ) => MachineInstance<S, C>
 
-export type ActionsConfig = Record<
+export type ActionsConfig<C extends ContextSchema = any, Res = any> = Record<
   string,
   {
-    action: (params: { context: any }) => any
-    success?: (params: { update: any; data: any }) => void
-    error?: (params: { update: any; error: any }) => void
+    action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
+    success?: (params: { update: (values: UpdateValues<ExtractValues<C>>) => void; data: Res }) => void
+    error?: (params: { update: (values: UpdateValues<ExtractValues<C>>) => void; error: Error }) => void
   }
 >
