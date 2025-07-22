@@ -66,9 +66,11 @@ export function createActionsConfig<C extends ContextSchema, S extends string>(b
   // Вызываем builder, передавая фабрику action. На выходе получаем объект, где значения — chain-объекты.
   const raw = builder(action)
   // Для каждого ключа вызываем getResult, чтобы получить финальный объект с action, success, error.
-  const result: Record<S, ReturnType<ActionChain<C, any>["getResult"]>> = {} as any
+  const result: Partial<Record<S, ReturnType<ActionChain<C, any>["getResult"]>>> = {} as any
   for (const key in raw) {
-    result[key] = raw[key].getResult()
+    if (raw[key]) {
+      result[key] = raw[key]!.getResult()
+    }
   }
   // Возвращаем actionsConfig: ключи — имена действий, значения — объекты с action, success, error
   return result

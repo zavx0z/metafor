@@ -64,7 +64,7 @@ export type ActionChain<C extends ContextSchema, Res> = {
  */
 export type Builder<C extends ContextSchema, S extends string> = (
   action: <Res>(fn: (params: { context: ExtractValues<C> }) => Res | Promise<Res>) => ActionChain<C, Res>
-) => Record<S, ActionChain<C, any>>
+) => Partial<Record<S, ActionChain<C, any>>>
 
 /**
  * Обработчик успеха для действия автомата

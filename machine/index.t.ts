@@ -26,11 +26,13 @@ export type StateDefinition<T extends string, C extends ContextSchema> = StateTr
  */
 export type StateConfig<S extends string, C extends ContextSchema> = Record<S, StateDefinition<S, C>>
 
-export type ActionsConfig<C extends ContextSchema = any, Res = any> = Record<
-  string,
-  {
-    action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
-    success?: (params: { update: (values: UpdateValues<ExtractValues<C>>) => void; data: Res }) => void
-    error?: (params: { update: (values: UpdateValues<ExtractValues<C>>) => void; error: Error }) => void
-  }
+export type ActionsConfig<C extends ContextSchema = any, Res = any> = Partial<
+  Record<
+    string,
+    {
+      action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
+      success?: (params: { update: (values: UpdateValues<ExtractValues<C>>) => void; data: Res }) => void
+      error?: (params: { update: (values: UpdateValues<ExtractValues<C>>) => void; error: Error }) => void
+    }
+  >
 >

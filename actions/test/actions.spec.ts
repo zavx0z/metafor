@@ -88,9 +88,12 @@ describe("createActionsConfig — chain API", () => {
         .success(({update, data}) => update({name: data}))
         .error(({update, error}) => update({name: error.message})),
     })).guest
-    expect(typeof result.action).toBe("function")
-    expect(typeof result.success).toBe("function")
-    expect(typeof result.error).toBe("function")
+    expect(result).toBeDefined()
+    if (result) {
+      expect(typeof result.action).toBe("function")
+      expect(typeof result.success).toBe("function")
+      expect(typeof result.error).toBe("function")
+    }
   })
 
   test("action может возвращать void, number, массив", () => {

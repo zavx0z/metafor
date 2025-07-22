@@ -81,7 +81,12 @@ export function MetaFor(tag: string) {
                   this.#shadow = this.attachShadow({ mode: "closed" })
                   this.#channel = new BroadcastChannel("channel")
                   this.#ctx = createContext(contextSchema!)
-                  this.#machine = new Machine(states, actionsConfig, initialState, this.#ctx.update)
+                  this.#machine = new Machine(
+                    states,
+                    actionsConfig as Partial<Record<S, any>>,
+                    initialState,
+                    this.#ctx.update
+                  )
                 }
 
                 connectedCallback() {
