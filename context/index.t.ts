@@ -3,7 +3,6 @@
  * @packageDocumentation
  */
 
-import type { JsonPatch } from "../message/index.t"
 import type {
   ContextSchema,
   RequiredStringDefinition,
@@ -63,8 +62,7 @@ export interface ContextInstance<T extends ContextSchema> {
   context: ExtractValues<T> & { _title: Record<keyof T, string> }
   /** Обновляет значения в контексте */
   update: (values: UpdateValues<ExtractValues<T>>) => Partial<ExtractValues<T>>
-  /** Подписка на обновления контекста */
-  onUpdate: (cb: (patches: JsonPatch[]) => void) => () => void
+  onUpdate: (cb: (updated: Partial<ExtractValues<T>>) => void) => () => void
   /** Снимок контекста (только для чтения) */
   getSnapshot: () => ExtractValues<T>
 }

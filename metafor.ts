@@ -4,9 +4,10 @@
  */
 
 import { types, createContext } from "./context"
-import type { ContextSchema, ContextTypes, ContextInstance, JsonPatch } from "./context"
+import type { ContextSchema, ContextTypes, ContextInstance, ExtractValues } from "./context"
 import { Machine, type StateConfig } from "./machine"
 import { createActionsConfig, type Builder } from "./actions"
+import type { JsonPatch } from "./message/index.t"
 
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
@@ -106,9 +107,16 @@ export function MetaFor(tag: string) {
                   this.#machine.update(this.#ctx.getSnapshot())
                 }
 
-                #onUpdateContext = (patches: JsonPatch[]) => {
+                #onUpdateContext = (values: Partial<ExtractValues<C>>) => {
                   this.#shadow.dispatchEvent(
-                    new CustomEvent("channel", { detail: { patches, meta: { tag } }, bubbles: true, composed: true })
+                    new CustomEvent("channel", {
+                      detail: {
+                        patches: [{ op: "replace", path: "/context", value: values }],
+                        meta: { tag, timestamp: Date.now() },
+                      },
+                      bubbles: true,
+                      composed: true,
+                    })
                   )
                 }
 

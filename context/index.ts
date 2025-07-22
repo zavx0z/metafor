@@ -6,10 +6,9 @@ import { types } from "./types"
 
 import type { ContextSchema, ContextTypes } from "./types.t"
 import type { ExtractValues, UpdateValues, ContextInstance, SerializedSchema } from "./index.t"
-import type { JsonPatch } from "../message/index.t"
 
 export { types }
-export type { ContextSchema, SerializedSchema, ExtractValues, UpdateValues, ContextInstance, ContextTypes, JsonPatch }
+export type { ContextSchema, SerializedSchema, ExtractValues, UpdateValues, ContextInstance, ContextTypes }
 
 /**
  * Класс для работы с типизированными контекстами.
@@ -30,12 +29,7 @@ export class Context<T extends ContextSchema> implements ContextInstance<T> {
   private immutableContext: ExtractValues<T> & { _title: Record<keyof T, string> }
   /** @internal */
   private schemaDefinition: T
-  /**
-   * Список подписчиков на обновления контекста.
-   * Каждый подписчик получает массив JSON Patch при изменении.
-   * @internal
-   */
-  private updateSubscribers: Array<(patches: JsonPatch[]) => void> = []
+  private updateSubscribers: Array<(updated: Partial<ExtractValues<T>>) => void> = []
 
   /**
    * Создает новый экземпляр контекста на основе схемы.
@@ -160,27 +154,6 @@ export class Context<T extends ContextSchema> implements ContextInstance<T> {
   }
 
   /**
-   * Подписка на обновления контекста.
-   * Позволяет получать уведомления о каждом update в виде массива JSON Patch (RFC 6902).
-   * Возвращает функцию для отписки.
-   *
-   * @param callback - функция, вызываемая при обновлении контекста
-   * @returns функция для отписки
-   *
-   * @example
-   * const unsubscribe = ctx.onUpdate(patches => {console.log('Изменения:', patches)})
-   * // ...
-   * unsubscribe() // для отписки
-   */
-  onUpdate(callback: (patches: JsonPatch[]) => void): () => void {
-    this.updateSubscribers.push(callback)
-    return () => {
-      const idx = this.updateSubscribers.indexOf(callback)
-      if (idx !== -1) this.updateSubscribers.splice(idx, 1)
-    }
-  }
-
-  /**
    * Обновляет значения в контексте.
    * Только переданные значения будут обновлены, остальные останутся без изменений.
    *
@@ -195,41 +168,39 @@ export class Context<T extends ContextSchema> implements ContextInstance<T> {
       Object.entries(values).filter(([_, value]) => value !== undefined)
     ) as Partial<ExtractValues<T>>
 
-    // Формируем JSON Patch только для реально измененных значений
-    const patches: JsonPatch[] = []
     const updatedValues: Partial<ExtractValues<T>> = {}
 
     for (const [key, value] of Object.entries(filteredValues)) {
       const currentValue = (this.contextData as any)[key]
-
-      // Проверяем, действительно ли значение изменилось
       if (value === null) {
-        // Для null — если текущее значение не null, делаем replace с value: null
         if (currentValue !== null) {
-          patches.push({ op: "replace", path: `/${key}`, value: null })
           updatedValues[key as keyof ExtractValues<T>] = value
         }
       } else {
-        // Для обычных значений — сравниваем с текущим
         if (currentValue !== value) {
-          patches.push({ op: "replace", path: `/${key}`, value })
           updatedValues[key as keyof ExtractValues<T>] = value
         }
       }
     }
 
-    // Обновляем данные только если есть реальные изменения
-    if (patches.length > 0) {
-      Object.assign(this.contextData, filteredValues)
-      // Оповещаем подписчиков
+    if (Object.keys(updatedValues).length > 0) {
+      Object.assign(this.contextData, updatedValues)
       for (const cb of this.updateSubscribers) {
         try {
-          cb(patches)
+          cb(updatedValues)
         } catch {}
       }
     }
 
     return updatedValues
+  }
+
+  onUpdate(callback: (updated: Partial<ExtractValues<T>>) => void): () => void {
+    this.updateSubscribers.push(callback)
+    return () => {
+      const idx = this.updateSubscribers.indexOf(callback)
+      if (idx !== -1) this.updateSubscribers.splice(idx, 1)
+    }
   }
 
   getSnapshot(): ExtractValues<T> {

@@ -75,7 +75,7 @@ describe("MetaFor: инициализация с действиями", async ()
       expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
       expect(patch.path, "patch.path должен быть '/context' ").toBe("/context")
       if (patch.op === "replace") {
-        expect(patch.value?.value, "patch.value.value должен быть nextContext").toEqual(nextContext)
+        expect(patch.value, "patch.value должен быть nextContext").toEqual(nextContext)
       } else {
         throw new Error("Второй патч не является replace")
       }

@@ -1,6 +1,6 @@
 # Context
 
-Модуль фреймворка MetaFor для создания типизированных, иммутабельных контекстов с поддержкой схем и подписки на изменения. Подходит для управления состоянием в проектах, где важен контроль изменений.
+Модуль фреймворка MetaFor для создания типизированных, иммутабельных контекстов с поддержкой схем. Подходит для управления состоянием в проектах, где важен контроль изменений.
 
 ---
 
@@ -25,7 +25,7 @@ const schema = {
   tags: types.array.optional(),
 }
 
-const { context, update, onUpdate, schema, getSnapshot } = createContext(schema)
+const { context, update, schema, getSnapshot } = createContext(schema)
 
 console.log(context.name) // "Гость"
 update({ name: "Иван", age: 25 })
@@ -38,13 +38,6 @@ console.log(changed) // { age: 30 }
 // Получение снимка контекста (только для чтения):
 const currentState = getSnapshot()
 console.log(currentState) // { name: "Иван", age: 30, isActive: true, role: "user", tags: null }
-
-const unsubscribe = onUpdate((patches) => {
-  console.log("JSON Patch:", patches)
-})
-
-update({ age: null }) // JSON Patch: [{ op: "replace", path: "/age", value: null }]
-unsubscribe()
 ```
 
 ### Chainable API с title
@@ -96,7 +89,6 @@ console.log(context.name) // "Гость" (не изменилось)
 - Типизированные схемы для описания структуры состояния
 - Иммутабельный доступ к значениям (контекст нельзя изменить напрямую)
 - Метод update для безопасного и контролируемого обновления
-- Подписка на изменения (onUpdate) с поддержкой JSON Patch (RFC 6902) для отслеживания изменений
 - Поддержка типов: string, number, boolean, array, enum
 - Chainable API для удобного описания схем
 
@@ -153,9 +145,35 @@ types.string.required("default")({ title: "Название поля" })
 - `context` — иммутабельный объект состояния
 - `update(values)` — обновление значений (только переданные ключи)
   - **ВНИМАНИЕ:** update возвращает объект только с реально обновлёнными полями (а не весь контекст)
-- `onUpdate(cb)` — подписка на изменения (возвращает функцию отписки)
 - `schema` — схема контекста (только для чтения)
 - `getSnapshot()` — функция для получения снимка текущего состояния контекста (только для чтения)
+
+### onUpdate(cb)
+
+Позволяет подписаться на изменения контекста. Callback вызывается только при реальных изменениях и получает объект с обновлёнными значениями (только те поля, которые действительно изменились).
+
+```ts
+const { update, onUpdate } = createContext({
+  name: types.string.required("Гость"),
+  age: types.number.optional(),
+})
+
+const unsubscribe = onUpdate((updated) => {
+  console.log("Изменения:", updated) // Например: { name: "Иван" }
+})
+
+update({ name: "Иван" }) // callback вызовется с { name: "Иван" }
+update({ age: 25 }) // callback вызовется с { age: 25 }
+
+unsubscribe() // отписка
+```
+
+**Особенности:**
+
+- Callback вызывается только если есть реальные изменения
+- В callback передаётся только объект с изменёнными значениями
+- Можно подписаться несколько раз (все подписчики получат уведомление)
+- Возвращаемая функция позволяет отписаться
 
 ---
 
@@ -204,11 +222,8 @@ const simpleSchema = {
 Модуль предоставляет следующие экспорты:
 
 ```ts
-// Основной экспорт
 import { createContext, types } from "./context"
-
-// Дополнительные экспорты типов
-import type { ContextSchema, ContextInstance, ExtractValues, JsonPatch } from "./context"
+import type { ContextSchema, ContextInstance, ExtractValues } from "./context"
 ```
 
 ---
@@ -289,7 +304,6 @@ context/
     ├── context.spec.ts
     ├── schema.spec.ts
     ├── update.spec.ts
-    └── onUpdate.spec.ts
 ```
 
 ### Основные компоненты
