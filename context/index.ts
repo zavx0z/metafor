@@ -6,7 +6,7 @@ import { types } from "./types"
 
 import type { ContextSchema, ContextTypes } from "./types.t"
 import type { ExtractValues, UpdateValues, ContextInstance, SerializedSchema } from "./index.t"
-import type { JsonPatch } from "../metafor.t"
+import type { JsonPatch } from "../message/index.t"
 
 export { types }
 export type { ContextSchema, SerializedSchema, ExtractValues, UpdateValues, ContextInstance, ContextTypes, JsonPatch }

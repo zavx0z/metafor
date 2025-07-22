@@ -3,7 +3,7 @@
  * @packageDocumentation
  */
 
-import type { JsonPatch } from "../metafor.t"
+import type { JsonPatch } from "../message/index.t"
 import type {
   ContextSchema,
   RequiredStringDefinition,

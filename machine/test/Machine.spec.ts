@@ -74,7 +74,7 @@ test("Machine - автоматические переходы с ошибкой"
   }
   const actionsConfig = {
     loading: {
-      action: ({ }: { context: Ctx }) => {
+      action: ({}: { context: Ctx }) => {
         throw new Error("Test error")
       },
       error: ({ update }: { update: (v: Partial<Ctx>) => void }) => {
