@@ -5,7 +5,7 @@
 
 import type { StateConfig, ActionsConfig } from "./index.t.ts"
 import type { ContextSchema } from "../context"
-
+export type { StateConfig }
 /**
  * Класс конечного автомата с автоматическими переходами на основе контекста
  */
@@ -13,13 +13,13 @@ export class Machine<S extends string, C extends ContextSchema, R = any> {
   private _currentState: S
   private _isExecuting: boolean = false
   private config: StateConfig<S, C>
-  private actions: ActionsConfig
+  private actions: ActionsConfig<C, S>
   private updateSubscribers: Array<(patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>) => void> = []
   private updateFunction: (values: any) => any
 
   constructor(
     config: StateConfig<S, C>,
-    actions: ActionsConfig,
+    actions: ActionsConfig<C, S>,
     initialState: S,
     updateFunction: (values: any) => any
   ) {

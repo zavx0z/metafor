@@ -5,9 +5,8 @@
 
 import { types, createContext } from "./context"
 import type { ContextSchema, ContextTypes, ContextInstance, JsonPatch } from "./context"
-import { Machine } from "./machine"
+import { Machine, type StateConfig } from "./machine"
 import { createActionsConfig, type Builder } from "./actions"
-import type { StateConfig } from "./machine/index.t"
 
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
