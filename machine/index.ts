@@ -146,7 +146,8 @@ export class Machine<S extends string, C extends ContextSchema, R = any> {
   private checkTransitionConditions(conditions: any, context: any): boolean {
     for (const [field, condition] of Object.entries(conditions)) {
       const value = context[field]
-
+      if (field === "status") {
+      }
       if (!this.evaluateCondition(condition, value)) {
         return false
       }
@@ -194,6 +195,9 @@ export class Machine<S extends string, C extends ContextSchema, R = any> {
 
     // Строковые условия
     if (typeof value === "string") {
+      if ("eq" in condition && value !== condition.eq) {
+        return false
+      }
       if ("startsWith" in condition && !value.startsWith(condition.startsWith)) {
         return false
       }

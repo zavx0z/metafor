@@ -70,7 +70,7 @@ test("Machine - тесты enum условий (required и optional)", async ()
   })
 
   await machine2.update(inactiveContext)
-  expect(machine2.currentState, "Машина должна перейти в enum_test при неактивном статусе").toBe("enum_test")
+  expect(machine2.currentState, "Машина не должна переходить при неактивном статусе").toBe("idle")
 
   // Тест 3: Null role (не должно переходить)
   const nullRoleContext = { status: "active" as const, role: null, priority: "high" as const }

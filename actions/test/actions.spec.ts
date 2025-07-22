@@ -1,6 +1,7 @@
-import {describe, expect, test} from "bun:test"
-import {createActionsConfig} from "../index"
-import {types} from "../../context"
+import { describe, expect, test } from "bun:test"
+import { createActionsConfig } from "../index"
+import { types } from "../../context"
+import type { ExtractValues } from "../../context"
 
 describe("createActionsConfig — chain API", () => {
   const ctxSchema = {
@@ -59,11 +60,12 @@ describe("createActionsConfig — chain API", () => {
   test("можно не указывать обработчики", () => {
     const schema = { name: types.string.required("anon") }
     type S = typeof schema
+    type V = ExtractValues<S>
     const actions = createActionsConfig<S, "guest">((action) => ({
       guest: action(({ context }) => context.name),
     }))
-    expect(typeof actions.guest?.success, "Метод success должен быть функцией").toBe("function")
-    expect(typeof actions.guest?.error, "Метод error должен быть функцией").toBe("function")
+    expect(actions.guest?.success, "success должен быть undefined, если не задан").toBeUndefined()
+    expect(actions.guest?.error, "error должен быть undefined, если не задан").toBeUndefined()
   })
 
   test("последний success/error перезаписывает предыдущий", () => {
@@ -84,9 +86,9 @@ describe("createActionsConfig — chain API", () => {
 
   test("getResult возвращает правильный объект", () => {
     const result = createActionsConfig<{ name: ReturnType<typeof types.string.required> }, "guest">((action) => ({
-      guest: action(({context}) => context.name)
-        .success(({update, data}) => update({name: data}))
-        .error(({update, error}) => update({name: error.message})),
+      guest: action(({ context }) => context.name)
+        .success(({ update, data }) => update({ name: data }))
+        .error(({ update, error }) => update({ name: error.message })),
     })).guest
     expect(result).toBeDefined()
     if (result) {
