@@ -1,5 +1,5 @@
 import {afterAll} from "bun:test"
-import {type BroadcastMessage} from "../metafor.t"
+import {type BroadcastMessage} from "../message/index.t"
 
 export const messagesFixture = (options?: {
   meta: string

@@ -11,18 +11,13 @@ export type BroadcastMessage = {
   patches: JsonPatch[]
 }
 /**
-   Метаданные сообщения
-  
-   @property tag - Имя типа актора (компонента)
-   @property timestamp - Время отправки сообщения в миллисекундах
-   */
+Метаданные сообщения
 
+@property tag - Имя типа актора (компонента)
+@property timestamp - Время отправки сообщения в миллисекундах
+*/
 export type MetaDataMessage = {
   tag: string
   timestamp?: number
 }
-export type JsonPatch =
-  | { op: "replace"; path: string; value: any }
-  | { op: "add"; path: string; value: any }
-  | { op: "remove"; path: string }
-  | { op: "test"; path: string; value: any }
+export type JsonPatch = { op: "replace" | "add" | "remove" | "test"; path: "/context" | "/state" | "/"; value?: any }
