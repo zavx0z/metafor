@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test"
 import { Machine } from "../index.ts"
-import type { StateConfig } from "../index.t.ts"
+import type { StatesConfig } from "../index.t.ts"
 import type { ExtractValues } from "../../context"
 
 // Тестовые типы состояний
@@ -21,7 +21,7 @@ type TestResult = {
 }
 
 test("Machine - тесты enum условий (required и optional)", async () => {
-  const stateConfig: StateConfig<TestStates, EnumContext> = {
+  const stateConfig: StatesConfig<TestStates, EnumContext> = {
     idle: {
       enum_test: {
         status: { eq: "active" },
@@ -54,7 +54,7 @@ test("Machine - тесты enum условий (required и optional)", async ()
 
   // Тест 1: Корректные enum данные
   const validContext = { status: "active" as const, role: "admin" as const, priority: "high" as const }
-  const machine = new Machine<TestStates, EnumContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine = new Machine<TestStates, EnumContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(validContext, values)
     return validContext
   })
@@ -64,7 +64,7 @@ test("Machine - тесты enum условий (required и optional)", async ()
 
   // Тест 2: Неактивный статус (не должно переходить)
   const inactiveContext = { status: "inactive" as const, role: "admin" as const, priority: "high" as const }
-  const machine2 = new Machine<TestStates, EnumContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine2 = new Machine<TestStates, EnumContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(inactiveContext, values)
     return inactiveContext
   })
@@ -74,7 +74,7 @@ test("Machine - тесты enum условий (required и optional)", async ()
 
   // Тест 3: Null role (не должно переходить)
   const nullRoleContext = { status: "active" as const, role: null, priority: "high" as const }
-  const machine3 = new Machine<TestStates, EnumContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine3 = new Machine<TestStates, EnumContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(nullRoleContext, values)
     return nullRoleContext
   })

@@ -6,7 +6,7 @@
  @property meta.timestamp - Время отправки сообщения
  @property patches - Патч для применения к актору
  */
-export type BroadcastMessage = {
+export type Message = {
   meta: MetaDataMessage
   patches: JsonPatch[]
 }
@@ -20,4 +20,5 @@ export type MetaDataMessage = {
   tag: string
   timestamp?: number
 }
+
 export type JsonPatch = { op: "replace" | "add" | "remove" | "test"; path: "/context" | "/state" | "/"; value?: any }

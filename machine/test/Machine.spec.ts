@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test"
 import { Machine } from "../index.ts"
-import type { StateConfig } from "../index.t.ts"
+import type { StatesConfig } from "../index.t.ts"
 import type { ExtractValues } from "../../context"
 
 type TestStates = "idle" | "loading" | "success" | "error"
@@ -16,7 +16,7 @@ type TestResult = {
 }
 
 test("Machine - автоматические переходы с update", async () => {
-  const stateConfig: StateConfig<TestStates, TestContext> = {
+  const stateConfig: StatesConfig<TestStates, TestContext> = {
     idle: {
       loading: {
         name: { length: { min: 3 } },
@@ -45,7 +45,7 @@ test("Machine - автоматические переходы с update", async 
     },
   }
   const context: Ctx = { name: "test_user", age: null, isActive: true }
-  const machine = new Machine<TestStates, TestContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine = new Machine<TestStates, TestContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(context, values)
     return context
   })
@@ -59,7 +59,7 @@ test("Machine - автоматические переходы с update", async 
 })
 
 test("Machine - автоматические переходы с ошибкой", async () => {
-  const stateConfig: StateConfig<TestStates, TestContext> = {
+  const stateConfig: StatesConfig<TestStates, TestContext> = {
     idle: {
       loading: {
         name: { length: { min: 3 } },
@@ -83,7 +83,7 @@ test("Machine - автоматические переходы с ошибкой"
     },
   }
   const context: Ctx = { name: "test_user", age: null, isActive: true }
-  const machine = new Machine<TestStates, TestContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine = new Machine<TestStates, TestContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(context, values)
     return context
   })
@@ -93,14 +93,14 @@ test("Machine - автоматические переходы с ошибкой"
 })
 
 test("Machine - обработка контекста без переходов", async () => {
-  const stateConfig: StateConfig<TestStates, TestContext> = {
+  const stateConfig: StatesConfig<TestStates, TestContext> = {
     idle: { loading: { name: { length: { min: 3 } }, isActive: true } },
     loading: {},
     success: {},
     error: {},
   }
   const context: Ctx = { name: "ab", age: null, isActive: true }
-  const machine = new Machine<TestStates, TestContext, TestResult>(stateConfig, {}, "idle", (values) => {
+  const machine = new Machine<TestStates, TestContext>(stateConfig, {}, "idle", (values) => {
     Object.assign(context, values)
     return context
   })
@@ -111,14 +111,14 @@ test("Machine - обработка контекста без переходов"
 })
 
 test("Machine - обработка контекста с неактивным пользователем", async () => {
-  const stateConfig: StateConfig<TestStates, TestContext> = {
+  const stateConfig: StatesConfig<TestStates, TestContext> = {
     idle: { loading: { name: { length: { min: 3 } }, isActive: true } },
     loading: {},
     success: {},
     error: {},
   }
   const context: Ctx = { name: "test_user", age: null, isActive: false }
-  const machine = new Machine<TestStates, TestContext, TestResult>(stateConfig, {}, "idle", (values) => {
+  const machine = new Machine<TestStates, TestContext>(stateConfig, {}, "idle", (values) => {
     Object.assign(context, values)
     return context
   })
@@ -129,14 +129,14 @@ test("Machine - обработка контекста с неактивным п
 })
 
 test("Machine - проверка состояния выполнения", () => {
-  const stateConfig: StateConfig<TestStates, TestContext> = {
+  const stateConfig: StatesConfig<TestStates, TestContext> = {
     idle: { loading: {} },
     loading: {},
     success: {},
     error: {},
   }
   const context: Ctx = { name: "test", age: null, isActive: true }
-  const machine = new Machine<TestStates, TestContext, TestResult>(stateConfig, {}, "idle", (values) => {
+  const machine = new Machine<TestStates, TestContext>(stateConfig, {}, "idle", (values) => {
     Object.assign(context, values)
     return context
   })
@@ -145,14 +145,14 @@ test("Machine - проверка состояния выполнения", () =>
 })
 
 test("Machine - подписка на обновления", async () => {
-  const stateConfig: StateConfig<TestStates, TestContext> = {
+  const stateConfig: StatesConfig<TestStates, TestContext> = {
     idle: { loading: { name: { length: { min: 3 } }, isActive: true } },
     loading: {},
     success: {},
     error: {},
   }
   const context: Ctx = { name: "test", age: null, isActive: true }
-  const machine = new Machine<TestStates, TestContext, TestResult>(stateConfig, {}, "idle", (values) => {
+  const machine = new Machine<TestStates, TestContext>(stateConfig, {}, "idle", (values) => {
     Object.assign(context, values)
     return context
   })
@@ -170,28 +170,28 @@ test("Machine - подписка на обновления", async () => {
 })
 
 test("Machine - проверка условий перехода", async () => {
-  const stateConfig: StateConfig<TestStates, TestContext> = {
+  const stateConfig: StatesConfig<TestStates, TestContext> = {
     idle: { loading: { name: { length: { min: 3 } }, isActive: true } },
     loading: {},
     success: {},
     error: {},
   }
   const shortNameContext: Ctx = { name: "ab", age: null, isActive: true }
-  const machine = new Machine<TestStates, TestContext, TestResult>(stateConfig, {}, "idle", (values) => {
+  const machine = new Machine<TestStates, TestContext>(stateConfig, {}, "idle", (values) => {
     Object.assign(shortNameContext, values)
     return shortNameContext
   })
   await machine.update(shortNameContext)
   expect(machine.currentState, "Машина не должна переходить при коротком имени").toBe("idle")
   const inactiveContext: Ctx = { name: "test_user", age: null, isActive: false }
-  const machine2 = new Machine<TestStates, TestContext, TestResult>(stateConfig, {}, "idle", (values) => {
+  const machine2 = new Machine<TestStates, TestContext>(stateConfig, {}, "idle", (values) => {
     Object.assign(inactiveContext, values)
     return inactiveContext
   })
   await machine2.update(inactiveContext)
   expect(machine2.currentState, "Машина не должна переходить при неактивном пользователе").toBe("idle")
   const validContext: Ctx = { name: "test_user", age: null, isActive: true }
-  const machine3 = new Machine<TestStates, TestContext, TestResult>(stateConfig, {}, "idle", (values) => {
+  const machine3 = new Machine<TestStates, TestContext>(stateConfig, {}, "idle", (values) => {
     Object.assign(validContext, values)
     return validContext
   })
@@ -200,14 +200,14 @@ test("Machine - проверка условий перехода", async () => {
 })
 
 test("Machine - проверка максимального количества итераций", async () => {
-  const stateConfig: StateConfig<TestStates, TestContext> = {
+  const stateConfig: StatesConfig<TestStates, TestContext> = {
     idle: { loading: {} },
     loading: { idle: {} },
     success: {},
     error: {},
   }
   const context: Ctx = { name: "test", age: null, isActive: true }
-  const machine = new Machine<TestStates, TestContext, TestResult>(stateConfig, {}, "idle", (values) => {
+  const machine = new Machine<TestStates, TestContext>(stateConfig, {}, "idle", (values) => {
     Object.assign(context, values)
     return context
   })

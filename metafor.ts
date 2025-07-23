@@ -7,7 +7,9 @@ import { types, createContext } from "./context"
 import type { ContextSchema, ContextTypes, ContextInstance, ExtractValues } from "./context"
 import { Machine, type StateConfig } from "./machine"
 import { createActionsConfig, type Builder } from "./actions"
-import type { JsonPatch } from "./message/index.t"
+import type { Snapshot } from "./metafor.t"
+import type { Message } from "./message/index.t"
+import { initMessage } from "./message"
 
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
@@ -15,7 +17,7 @@ import type { JsonPatch } from "./message/index.t"
  * @returns chain API: context() -> states() -> actions()
  */
 export function MetaFor(tag: string) {
-  const elementName = `metafor-${tag}` as const
+  const tagName = `metafor-${tag}` as const
   return {
     /**
      * Регистрирует схему контекста для автомата.
@@ -73,69 +75,65 @@ export function MetaFor(tag: string) {
               class WebComponent extends HTMLElement {
                 #ctx: ContextInstance<any>
                 #shadow: ShadowRoot
-                #machine: any
+                #machine: Machine<S, C>
                 #channel: BroadcastChannel
 
                 constructor() {
                   super()
                   this.#shadow = this.attachShadow({ mode: "closed" })
                   this.#channel = new BroadcastChannel("channel")
-                  this.#ctx = createContext(contextSchema!)
-                  this.#machine = new Machine(
-                    states,
-                    actionsConfig as Partial<Record<S, any>>,
-                    initialState,
-                    this.#ctx.update
-                  )
+
+                  this.#ctx = createContext(contextSchema)
+
+                  this.#machine = new Machine(states, actionsConfig, initialState, this.#ctx.update)
                 }
 
                 connectedCallback() {
-                  this.#channel.postMessage({
-                    patches: [
-                      {
-                        op: "add",
-                        path: "/",
-                        value: { state: this.#machine.currentState, context: this.#ctx.getSnapshot() },
-                      },
-                    ],
-                    meta: { tag, timestamp: Date.now() },
-                  })
+                  this.#sendEvent(initMessage(tag, this.getSnapshot()))
+
                   this.#ctx.onUpdate(this.#onUpdateContext)
                   this.#machine.onUpdate((patches: any) => {
                     this.#channel.postMessage({ patches, meta: { tag } })
                   })
-                  this.#machine.update(this.#ctx.getSnapshot())
+                  // this.#machine.update(this.#ctx.getSnapshot())
                 }
 
-                #onUpdateContext = (values: Partial<ExtractValues<C>>) => {
+                #sendEvent(message: Message) {
                   this.#shadow.dispatchEvent(
-                    new CustomEvent("channel", {
-                      detail: {
-                        patches: [{ op: "replace", path: "/context", value: values }],
-                        meta: { tag, timestamp: Date.now() },
-                      },
-                      bubbles: true,
-                      composed: true,
-                    })
+                    new CustomEvent("channel", { detail: message, bubbles: true, composed: true })
                   )
                 }
 
-                updateContext(context: Partial<any>) {
-                  const updatedContext = this.#ctx.update(context)
-                  if (Object.keys(updatedContext).length === 0) {
+                #onUpdateContext = (updated: Partial<ExtractValues<C>>) => {
+                  this.#sendEvent({
+                    patches: [{ op: "replace", path: "/context", value: updated }],
+                    meta: { tag, timestamp: Date.now() },
+                  })
+                }
+
+                update(values: Partial<ExtractValues<C>>) {
+                  const updated = this.#ctx.update(values)
+                  if (Object.keys(updated).length === 0) {
                     return
                   }
-                  this.#machine.update(updatedContext)
+                  this.#machine.update(updated)
                 }
 
                 get currentState() {
                   return this.#machine.currentState
                 }
-                get isExecuting() {
-                  return this.#machine.isExecuting
+
+                getSnapshot(): Snapshot<C, S> {
+                  return {
+                    state: this.#machine.currentState,
+                    states: states,
+                    context: this.#ctx.getSnapshot(),
+                    schema: this.#ctx.schema,
+                    // actions: actionsConfig,
+                  }
                 }
               }
-              if (!customElements.get(elementName)) customElements.define(elementName, WebComponent)
+              if (!customElements.get(tagName)) customElements.define(tagName, WebComponent)
             },
           }
         },

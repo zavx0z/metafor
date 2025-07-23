@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import type { StateConfig } from "../index.t.ts"
+import type { StatesConfig } from "../index.t.ts"
 import type { ExtractValues } from "../../context"
 
 type TestStates = "idle" | "loading" | "success"
@@ -37,7 +37,7 @@ test("StateConfig — типизация переходов и действий"
 })
 
 test("StateConfig — только переходы без действий", () => {
-  const stateConfig: StateConfig<TestStates, TestContext> = {
+  const stateConfig: StatesConfig<TestStates, TestContext> = {
     idle: { loading: { name: { length: { min: 3 } } } },
     loading: { success: { age: { gt: 0 } } },
     success: {},

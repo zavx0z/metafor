@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test"
 import { MetaFor } from "../metafor.ts"
-import { messagesFixture } from "../fixture/broadcast.ts"
+import { messagesFixture } from "../fixture/message.ts"
 
 test("MetaFor - базовый функционал", async () => {
   const { waitForMessages } = messagesFixture({ meta: "test" })

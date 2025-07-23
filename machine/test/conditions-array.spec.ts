@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test"
 import { Machine } from "../index.ts"
-import type { StateConfig } from "../index.t.ts"
+import type { StatesConfig } from "../index.t.ts"
 
 // Тестовые типы состояний
 type TestStates = "idle" | "array_test" | "success"
@@ -19,7 +19,7 @@ type TestResult = {
 }
 
 test("Machine - тесты массивных условий (required и optional)", async () => {
-  const stateConfig: StateConfig<TestStates, ArrayContext> = {
+  const stateConfig: StatesConfig<TestStates, ArrayContext> = {
     idle: {
       array_test: {
         tags: { length: { min: 1 } },
@@ -52,7 +52,7 @@ test("Machine - тесты массивных условий (required и option
 
   // Тест 1: Корректные массивные данные
   const validContext = { tags: ["test", "user"], permissions: ["read", "write"], scores: [100, 85, 90] }
-  const machine = new Machine<TestStates, ArrayContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine = new Machine<TestStates, ArrayContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(validContext, values)
     return validContext
   })
@@ -62,7 +62,7 @@ test("Machine - тесты массивных условий (required и option
 
   // Тест 2: Пустые теги (не должно переходить)
   const emptyTagsContext = { tags: [], permissions: ["read"], scores: [100] }
-  const machine2 = new Machine<TestStates, ArrayContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine2 = new Machine<TestStates, ArrayContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(emptyTagsContext, values)
     return emptyTagsContext
   })
@@ -72,7 +72,7 @@ test("Machine - тесты массивных условий (required и option
 
   // Тест 3: Null permissions (не должно переходить)
   const nullPermissionsContext = { tags: ["test"], permissions: null, scores: [100] }
-  const machine3 = new Machine<TestStates, ArrayContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine3 = new Machine<TestStates, ArrayContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(nullPermissionsContext, values)
     return nullPermissionsContext
   })
@@ -82,7 +82,7 @@ test("Machine - тесты массивных условий (required и option
 })
 
 test("Machine - тесты сложных массивных условий", async () => {
-  const stateConfig: StateConfig<TestStates, ArrayContext> = {
+  const stateConfig: StatesConfig<TestStates, ArrayContext> = {
     idle: {
       array_test: {
         tags: {
@@ -134,7 +134,7 @@ test("Machine - тесты сложных массивных условий", as
     permissions: ["read", "write", "execute"],
     scores: [100, 85, 90, 95],
   }
-  const machine = new Machine<TestStates, ArrayContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine = new Machine<TestStates, ArrayContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(validContext, values)
     return validContext
   })
@@ -150,7 +150,7 @@ test("Machine - тесты сложных массивных условий", as
     permissions: ["read", "write"],
     scores: [100, 85],
   }
-  const machine2 = new Machine<TestStates, ArrayContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine2 = new Machine<TestStates, ArrayContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(adminTagsContext, values)
     return adminTagsContext
   })
@@ -164,7 +164,7 @@ test("Machine - тесты сложных массивных условий", as
     permissions: ["read"],
     scores: [100],
   }
-  const machine3 = new Machine<TestStates, ArrayContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine3 = new Machine<TestStates, ArrayContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(manyTagsContext, values)
     return manyTagsContext
   })

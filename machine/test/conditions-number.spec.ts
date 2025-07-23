@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test"
 import { Machine } from "../index.ts"
-import type { StateConfig } from "../index.t.ts"
+import type { StatesConfig } from "../index.t.ts"
 import type { ExtractValues } from "../../context"
 
 // Тестовые типы состояний
@@ -22,7 +22,7 @@ type TestResult = {
 }
 
 test("Machine - тесты числовых условий (required и optional)", async () => {
-  const stateConfig: StateConfig<TestStates, NumberContext> = {
+  const stateConfig: StatesConfig<TestStates, NumberContext> = {
     idle: {
       number_test: {
         age: { gte: 18 },
@@ -55,7 +55,7 @@ test("Machine - тесты числовых условий (required и optional
 
   // Тест 1: Корректные числовые данные
   const validContext: Ctx = { age: 25, score: 85, rating: 4, price: null }
-  const machine = new Machine<TestStates, NumberContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine = new Machine<TestStates, NumberContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(validContext, values)
     return validContext
   })
@@ -65,7 +65,7 @@ test("Machine - тесты числовых условий (required и optional
 
   // Тест 2: Недостаточный возраст (не должно переходить)
   const youngContext: Ctx = { age: 16, score: 85, rating: 4, price: null }
-  const machine2 = new Machine<TestStates, NumberContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine2 = new Machine<TestStates, NumberContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(youngContext, values)
     return youngContext
   })
@@ -75,7 +75,7 @@ test("Machine - тесты числовых условий (required и optional
 
   // Тест 3: Низкий рейтинг (не должно переходить)
   const lowRatingContext: Ctx = { age: 25, score: 85, rating: 0, price: null }
-  const machine3 = new Machine<TestStates, NumberContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine3 = new Machine<TestStates, NumberContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(lowRatingContext, values)
     return lowRatingContext
   })
@@ -85,7 +85,7 @@ test("Machine - тесты числовых условий (required и optional
 })
 
 test("Machine - тесты сложных числовых условий", async () => {
-  const stateConfig: StateConfig<TestStates, NumberContext> = {
+  const stateConfig: StatesConfig<TestStates, NumberContext> = {
     idle: {
       number_test: {
         age: {
@@ -136,7 +136,7 @@ test("Machine - тесты сложных числовых условий", asyn
 
   // Тест 1: Корректные сложные числовые данные
   const validContext: Ctx = { age: 25, score: 85, rating: 5, price: null }
-  const machine = new Machine<TestStates, NumberContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine = new Machine<TestStates, NumberContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(validContext, values)
     return validContext
   })
@@ -146,7 +146,7 @@ test("Machine - тесты сложных числовых условий", asyn
 
   // Тест 2: Возраст вне диапазона (не должно переходить)
   const invalidAgeContext: Ctx = { age: 70, score: 85, rating: 5, price: null }
-  const machine2 = new Machine<TestStates, NumberContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine2 = new Machine<TestStates, NumberContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(invalidAgeContext, values)
     return invalidAgeContext
   })
@@ -156,7 +156,7 @@ test("Machine - тесты сложных числовых условий", asyn
 
   // Тест 3: Низкий рейтинг (не должно переходить)
   const lowRatingContext: Ctx = { age: 25, score: 85, rating: 3, price: null }
-  const machine3 = new Machine<TestStates, NumberContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine3 = new Machine<TestStates, NumberContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(lowRatingContext, values)
     return lowRatingContext
   })

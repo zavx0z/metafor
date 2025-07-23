@@ -1,4 +1,22 @@
-import type { ContextSchema, ExtractValues } from "../context"
+import type { ContextSchema, ExtractValues, UpdateValues } from "../context"
+
+/**
+ * Тип билдера для декларации набора действий автомата.
+ *
+ * @template C - схема контекста автомата
+ * @template S - строковые ключи состояний/действий
+ * @param action - фабрика для создания цепочки ActionChain
+ * @returns объект, где ключи — имена действий, а значения — цепочки ActionChain
+ *
+ * @example
+ * const config = builder(action => ({
+ *   foo: action(...).success(...),
+ *   bar: action(...)
+ * }))
+ */
+export type Builder<C extends ContextSchema, S extends string> = (
+  action: <Res>(action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>) => ActionChain<C, Res>
+) => Partial<Record<S, ActionChain<C, any>>>
 
 /**
  * Цепочка для декларации action с типобезопасной поддержкой success и error.
@@ -41,71 +59,19 @@ export type ActionChain<C extends ContextSchema, Res> = {
    * Возвращает итоговый объект конфигурации действия для автомата.
    * @returns объект с action, success и error (если заданы)
    */
-  getResult: () => {
-    action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
-    success?: (params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void
-    error?: (params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void
-  }
+  getResult: () => ActionConfig<C, Res>
+}
+
+export type ActionConfig<C extends ContextSchema, Res = any> = {
+  action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
+  success?: (params: { update: (values: UpdateValues<ExtractValues<C>>) => void; data: Res }) => void
+  error?: (params: { update: (values: UpdateValues<ExtractValues<C>>) => void; error: Error }) => void
 }
 
 /**
- * Тип билдера для декларации набора действий автомата.
- *
+ * Конфигурация действий автомата.
  * @template C - схема контекста автомата
- * @template S - строковые ключи состояний/действий
- * @param action - фабрика для создания цепочки ActionChain
- * @returns объект, где ключи — имена действий, а значения — цепочки ActionChain
- *
- * @example
- * const config = builder(action => ({
- *   foo: action(...).success(...),
- *   bar: action(...)
- * }))
+ * @template Res - возвращаемый тип результата action
+ * @returns объект с конфигурациями действий
  */
-export type Builder<C extends ContextSchema, S extends string> = (
-  action: <Res>(action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>) => ActionChain<C, Res>
-) => Partial<Record<S, ActionChain<C, any>>>
-
-/**
- * Обработчик успеха для действия автомата
- * @template C - схема контекста
- * @template Res - тип результата действия
- * @param params - объект с update (функция обновления контекста) и data (результат)
- */
-export type ActionSuccessHandler<C extends ContextSchema, Res> = (params: {
-  update: (values: Partial<ExtractValues<C>>) => void
-  data: Res
-}) => void
-
-/**
- * Обработчик ошибки для действия автомата
- * @template C - схема контекста
- * @param params - объект с update (функция обновления контекста) и error (ошибка)
- */
-export type ActionErrorHandler<C extends ContextSchema> = (params: {
-  update: (values: Partial<ExtractValues<C>>) => void
-  error: Error
-}) => void
-
-/**
- * Метод chain API для регистрации обработчика успеха
- * @template C - схема контекста
- * @template Res - тип результата действия
- * @param handler - функция-обработчик успеха
- * @returns chain API с методами success и error
- */
-export type ActionSuccess<C extends ContextSchema, Res> = (handler: ActionSuccessHandler<C, Res>) => {
-  success: ActionSuccess<C, Res>
-  error: ActionError<C>
-}
-
-/**
- * Метод chain API для регистрации обработчика ошибки
- * @template C - схема контекста
- * @param handler - функция-обработчик ошибки
- * @returns chain API с методами success и error
- */
-export type ActionError<C extends ContextSchema> = (handler: ActionErrorHandler<C>) => {
-  success: ActionSuccess<C, any>
-  error: ActionError<C>
-}
+export type ActionsConfig<C extends ContextSchema, S extends string, Res = any> = Partial<Record<S, ActionConfig<C, Res>>>

@@ -1,7 +1,7 @@
 import { test, expect } from "bun:test"
 import { Machine } from "../index.ts"
-import type { StateConfig } from "../index.t.ts"
-import type { ActionsConfig } from "../index.t.ts"
+import type { StatesConfig } from "../index.t.ts"
+import type { ActionsConfig } from "../../actions/index.t.ts"
 
 // Тестовые типы состояний
 type TestStates = "idle" | "boolean_test" | "success"
@@ -13,14 +13,8 @@ type BooleanContext = {
   hasPermission: { type: "boolean"; required: true }
 }
 
-// Тестовый тип результата
-type TestResult = {
-  message: string
-  timestamp: number
-}
-
 test("Machine - тесты булевых условий (required и optional)", async () => {
-  const stateConfig: StateConfig<TestStates, BooleanContext> = {
+  const stateConfig: StatesConfig<TestStates, BooleanContext> = {
     idle: {
       boolean_test: {
         isActive: true,
@@ -36,7 +30,7 @@ test("Machine - тесты булевых условий (required и optional)"
     success: {},
   }
 
-  const actionsConfig: ActionsConfig<BooleanContext, TestResult> = {
+  const actionsConfig: ActionsConfig<BooleanContext, TestStates> = {
     boolean_test: {
       action: ({ context }) => ({
         message: `Boolean test: active=${context.isActive}, verified=${context.isVerified}`,
@@ -53,7 +47,7 @@ test("Machine - тесты булевых условий (required и optional)"
 
   // Тест 1: Корректные булевы данные
   const validContext = { isActive: true, isVerified: true, hasPermission: false }
-  const machine = new Machine<TestStates, BooleanContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine = new Machine<TestStates, BooleanContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(validContext, values)
     return validContext
   })
@@ -63,7 +57,7 @@ test("Machine - тесты булевых условий (required и optional)"
 
   // Тест 2: Неактивный пользователь (не должно переходить)
   const inactiveContext = { isActive: false, isVerified: true, hasPermission: false }
-  const machine2 = new Machine<TestStates, BooleanContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine2 = new Machine<TestStates, BooleanContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(inactiveContext, values)
     return inactiveContext
   })
@@ -73,7 +67,7 @@ test("Machine - тесты булевых условий (required и optional)"
 
   // Тест 3: Неверифицированный пользователь (не должно переходить)
   const unverifiedContext = { isActive: true, isVerified: false, hasPermission: false }
-  const machine3 = new Machine<TestStates, BooleanContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine3 = new Machine<TestStates, BooleanContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(unverifiedContext, values)
     return unverifiedContext
   })

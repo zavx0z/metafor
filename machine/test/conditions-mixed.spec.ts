@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test"
 import { Machine } from "../index.ts"
-import type { StateConfig } from "../index.t.ts"
+import type { StatesConfig } from "../index.t.ts"
 import type { ExtractValues } from "../../context"
 
 // Тестовые типы состояний
@@ -28,7 +28,7 @@ type TestResult = {
 }
 
 test("Machine - тесты смешанных условий (все типы в одном контексте)", async () => {
-  const stateConfig: StateConfig<TestStates, MixedContext> = {
+  const stateConfig: StatesConfig<TestStates, MixedContext> = {
     idle: {
       mixed_test: {
         name: { length: { min: 3 } },
@@ -80,7 +80,7 @@ test("Machine - тесты смешанных условий (все типы в
     status: "active",
     role: "admin",
   }
-  const machine = new Machine<TestStates, MixedContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine = new Machine<TestStates, MixedContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(validContext, values)
     return validContext
   })
@@ -101,7 +101,7 @@ test("Machine - тесты смешанных условий (все типы в
     status: "active",
     role: "user",
   }
-  const machine2 = new Machine<TestStates, MixedContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine2 = new Machine<TestStates, MixedContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(youngContext, values)
     return youngContext
   })
@@ -122,7 +122,7 @@ test("Machine - тесты смешанных условий (все типы в
     status: "inactive",
     role: "user",
   }
-  const machine3 = new Machine<TestStates, MixedContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine3 = new Machine<TestStates, MixedContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(inactiveContext, values)
     return inactiveContext
   })

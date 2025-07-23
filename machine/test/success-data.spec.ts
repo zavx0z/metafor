@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test"
 import { Machine } from "../index.ts"
-import type { StateConfig } from "../index.t.ts"
+import type { StatesConfig } from "../index.t.ts"
 import type { ExtractValues } from "../../context"
 
 type TestStates = "idle" | "loading" | "processing" | "success" | "error"
@@ -86,7 +86,7 @@ type ErrorResult = {
 type CombinedResult = UserResult | ProductResult | OrderResult | SimpleResult | ComplexResult | ErrorResult
 
 test("Machine - различные форматы данных в разных состояниях", async () => {
-  const stateConfig: StateConfig<TestStates, TestContext> = {
+  const stateConfig: StatesConfig<TestStates, TestContext> = {
     idle: {
       loading: {
         name: { length: { min: 3 } },
@@ -207,7 +207,7 @@ test("Machine - различные форматы данных в разных �
     },
   }
   const context: Ctx = { name: "test_user", email: "test@example.com", isActive: true, age: 150 }
-  const machine = new Machine<TestStates, TestContext, CombinedResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine = new Machine<TestStates, TestContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(context, values)
     return context
   })
@@ -224,7 +224,7 @@ test("Machine - различные форматы данных в разных �
 })
 
 test("Machine - обработка ошибок с различными форматами данных", async () => {
-  const stateConfig: StateConfig<TestStates, TestContext> = {
+  const stateConfig: StatesConfig<TestStates, TestContext> = {
     idle: {
       loading: {
         name: { length: { min: 3 } },
@@ -240,7 +240,7 @@ test("Machine - обработка ошибок с различными форм
   }
   const actionsConfig = {
     loading: {
-      action: ({ }: { context: Ctx }) => {
+      action: ({}: { context: Ctx }) => {
         throw new Error("Loading error")
       },
       error: ({ update }: { update: (v: Partial<Ctx>) => void }) => {
@@ -270,18 +270,16 @@ test("Machine - обработка ошибок с различными форм
     },
   }
   const context: Ctx = { name: "test_user", email: "test@example.com", isActive: true, age: null }
-  const machine = new Machine<TestStates, TestContext, CombinedResult>(stateConfig, actionsConfig, "idle", (values) => {
+    const machine = new Machine<TestStates, TestContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(context, values)
     return context
   })
-  expect(machine.update(context), "Должна быть выброшена ошибка из процесса loading").rejects.toThrow(
-    "Loading error"
-  )
+  expect(machine.update(context), "Должна быть выброшена ошибка из процесса loading").rejects.toThrow("Loading error")
   expect(machine.currentState, "Машина должна остановиться в состоянии loading при обнаружении цикла").toBe("loading")
 })
 
 test("Machine - простые и сложные данные в разных состояниях", async () => {
-  const stateConfig: StateConfig<TestStates, TestContext> = {
+  const stateConfig: StatesConfig<TestStates, TestContext> = {
     idle: {
       loading: {
         name: { length: { min: 3 } },
@@ -355,7 +353,7 @@ test("Machine - простые и сложные данные в разных с
     },
   }
   const context: Ctx = { name: "Bob", email: null, isActive: true, age: 25 }
-  const machine = new Machine<TestStates, TestContext, CombinedResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine = new Machine<TestStates, TestContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(context, values)
     return context
   })

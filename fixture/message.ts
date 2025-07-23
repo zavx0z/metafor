@@ -1,43 +1,44 @@
-import {afterAll} from "bun:test"
-import {type BroadcastMessage} from "../message/index.t"
+import { afterAll } from "bun:test"
+import { type Message } from "../message/index.t"
 
 export const messagesFixture = (options?: {
   meta: string
 }): {
-  messages: BroadcastMessage[]
-  onmessage: (cb: (message: BroadcastMessage) => void) => void
-  waitForMessages: (delay?: number) => Promise<BroadcastMessage[]>
+  messages: Message[]
+  onmessage: (cb: (message: Message) => void) => void
+  waitForMessages: (delay?: number) => Promise<Message[]>
 } => {
   const channel = new BroadcastChannel("channel")
   afterAll(() => channel.close())
-  const messages: BroadcastMessage[] = []
+  const messages: Message[] = []
 
-  channel.addEventListener("message", ({data}) => {
+  channel.addEventListener("message", ({ data }) => {
     if (!options?.meta || data.meta?.tag === options.meta) {
       messages.push(data)
     }
   })
   // @ts-ignore
-  document.addEventListener('channel', ({detail}: CustomEvent) => {
+  document.addEventListener("channel", ({ detail }: CustomEvent) => {
+    console.log("channel", detail)
     if (!options?.meta || detail.meta?.tag === options.meta) {
       messages.push(detail)
     }
   })
-  const onmessage = (cb: (message: BroadcastMessage) => void) => {
-    channel.addEventListener("message", ({data}) => {
+  const onmessage = (cb: (message: Message) => void) => {
+    channel.addEventListener("message", ({ data }) => {
       if (!options?.meta || data.meta?.tag === options.meta) {
         cb(data)
       }
     })
     // @ts-ignore
-    document.addEventListener('channel', ({detail}: CustomEvent) => {
+    document.addEventListener("channel", ({ detail }: CustomEvent) => {
       if (!options?.meta || detail.meta?.tag === options.meta) {
         cb(detail)
       }
     })
   }
 
-  const waitForMessages = async (delay = 1000): Promise<BroadcastMessage[]> => {
+  const waitForMessages = async (delay = 1000): Promise<Message[]> => {
     let lastMessageTime = Date.now()
 
     return new Promise((resolve) => {
@@ -54,13 +55,14 @@ export const messagesFixture = (options?: {
         lastMessageTime = Date.now()
       }
 
-      channel.addEventListener("message", ({data}: MessageEvent) => {
+      channel.addEventListener("message", ({ data }: MessageEvent) => {
         if (!options?.meta || data.meta?.tag === options.meta) {
           updateLastMessageTime()
         }
       })
       // @ts-ignore
-      document.addEventListener('channel', ({detail}: CustomEvent) => {
+      document.addEventListener("channel", ({ detail }: CustomEvent) => {
+        console.log("channel", detail)
         if (!options?.meta || detail.meta?.tag === options.meta) {
           updateLastMessageTime()
         }
@@ -69,5 +71,5 @@ export const messagesFixture = (options?: {
     })
   }
 
-  return {messages, onmessage, waitForMessages}
+  return { messages, onmessage, waitForMessages }
 }

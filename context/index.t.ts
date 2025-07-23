@@ -55,14 +55,14 @@ export type SerializedSchema<T extends ContextSchema> = {
   }
 }
 
-export interface ContextInstance<T extends ContextSchema> {
+export interface ContextInstance<C extends ContextSchema> {
   /** Схема контекста (только для чтения) */
-  schema: SerializedSchema<T>
+  schema: SerializedSchema<C>
   /** Текущее состояние контекста (только для чтения) */
-  context: ExtractValues<T> & { _title: Record<keyof T, string> }
+  context: ExtractValues<C> & { _title: Record<keyof C, string> }
   /** Обновляет значения в контексте */
-  update: (values: UpdateValues<ExtractValues<T>>) => Partial<ExtractValues<T>>
-  onUpdate: (cb: (updated: Partial<ExtractValues<T>>) => void) => () => void
+  update: (values: UpdateValues<ExtractValues<C>>) => Partial<ExtractValues<C>>
+  onUpdate: (cb: (updated: Partial<ExtractValues<C>>) => void) => () => void
   /** Снимок контекста (только для чтения) */
-  getSnapshot: () => ExtractValues<T>
+  getSnapshot: () => ExtractValues<C>
 }

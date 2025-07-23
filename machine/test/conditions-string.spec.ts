@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test"
 import { Machine } from "../index.ts"
-import type { StateConfig } from "../index.t.ts"
+import type { StatesConfig } from "../index.t.ts"
 import type { ExtractValues } from "../../context"
 
 // Тестовые типы состояний
@@ -21,7 +21,7 @@ type TestResult = {
 }
 
 test("Machine - тесты строковых условий (required и optional)", async () => {
-  const stateConfig: StateConfig<TestStates, StringContext> = {
+  const stateConfig: StatesConfig<TestStates, StringContext> = {
     idle: {
       string_test: {
         name: { length: { min: 3 } },
@@ -53,7 +53,7 @@ test("Machine - тесты строковых условий (required и option
 
   // Тест 1: Корректные строковые данные
   const validContext: Ctx = { name: "test_user", email: "test@example.com", description: "" }
-  const machine = new Machine<TestStates, StringContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine = new Machine<TestStates, StringContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(validContext, values)
     return validContext
   })
@@ -65,7 +65,7 @@ test("Machine - тесты строковых условий (required и option
 
   // Тест 2: Короткое имя (не должно переходить)
   const shortNameContext: Ctx = { name: "ab", email: "test@example.com", description: "" }
-  const machine2 = new Machine<TestStates, StringContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine2 = new Machine<TestStates, StringContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(shortNameContext, values)
     return shortNameContext
   })
@@ -75,7 +75,7 @@ test("Machine - тесты строковых условий (required и option
 
   // Тест 3: Null email (не должно переходить)
   const nullEmailContext: Ctx = { name: "test_user", email: null, description: "" }
-  const machine3 = new Machine<TestStates, StringContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine3 = new Machine<TestStates, StringContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(nullEmailContext, values)
     return nullEmailContext
   })
@@ -85,7 +85,7 @@ test("Machine - тесты строковых условий (required и option
 })
 
 test("Machine - тесты сложных строковых условий", async () => {
-  const stateConfig: StateConfig<TestStates, StringContext> = {
+  const stateConfig: StatesConfig<TestStates, StringContext> = {
     idle: {
       string_test: {
         name: {
@@ -129,7 +129,7 @@ test("Machine - тесты сложных строковых условий", as
 
   // Тест 1: Корректные сложные строковые данные
   const validContext: Ctx = { name: "test_user", email: "test@example.com", description: "" }
-  const machine = new Machine<TestStates, StringContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine = new Machine<TestStates, StringContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(validContext, values)
     return validContext
   })
@@ -141,7 +141,7 @@ test("Machine - тесты сложных строковых условий", as
 
   // Тест 2: Неправильный email (не должно переходить)
   const invalidEmailContext: Ctx = { name: "test_user", email: "invalid-email", description: "" }
-  const machine2 = new Machine<TestStates, StringContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine2 = new Machine<TestStates, StringContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(invalidEmailContext, values)
     return invalidEmailContext
   })
@@ -151,7 +151,7 @@ test("Machine - тесты сложных строковых условий", as
 
   // Тест 3: Имя с "admin" (не должно переходить)
   const adminNameContext: Ctx = { name: "admin_user", email: "test@example.com", description: "" }
-  const machine3 = new Machine<TestStates, StringContext, TestResult>(stateConfig, actionsConfig, "idle", (values) => {
+  const machine3 = new Machine<TestStates, StringContext>(stateConfig, actionsConfig, "idle", (values) => {
     Object.assign(adminNameContext, values)
     return adminNameContext
   })

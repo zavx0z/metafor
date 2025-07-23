@@ -3,23 +3,24 @@
  * @packageDocumentation
  */
 
-import type { StateConfig, ActionsConfig } from "./index.t.ts"
-import type { ContextSchema } from "../context"
-export type { StateConfig }
+import type { StatesConfig } from "./index.t.ts"
+import type { ActionsConfig } from "../actions/index.t.ts"
+import type { ContextSchema, ExtractValues } from "../context"
+export type { StatesConfig as StateConfig }
 /**
  * Класс конечного автомата с автоматическими переходами на основе контекста
  */
-export class Machine<S extends string, C extends ContextSchema, R = any> {
+export class Machine<S extends string, C extends ContextSchema> {
   private _currentState: S
   private _isExecuting: boolean = false
-  private config: StateConfig<S, C>
-  private actions: ActionsConfig<C, R>
+  private config: StatesConfig<S, C>
+  private actions: ActionsConfig<C, S>
   private updateSubscribers: Array<(patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>) => void> = []
   private updateFunction: (values: any) => any
 
   constructor(
-    config: StateConfig<S, C>,
-    actions: ActionsConfig<C, R>,
+    config: StatesConfig<S, C>,
+    actions: ActionsConfig<C, S>,
     initialState: S,
     updateFunction: (values: any) => any
   ) {
@@ -79,8 +80,8 @@ export class Machine<S extends string, C extends ContextSchema, R = any> {
    * Обновляет контекст и выполняет автоматические переходы
    * Возвращает результат выполнения процесса, если он был запущен
    */
-  async update(context: any): Promise<R | undefined> {
-    let result: R | undefined = undefined
+  async update(context: Partial<ExtractValues<C>>): Promise<unknown | undefined> {
+    let result: unknown | undefined = undefined
     let currentContext = { ...context }
     let hasTransitioned = true
     let maxIterations = 100 // Защита от бесконечных циклов
@@ -153,6 +154,37 @@ export class Machine<S extends string, C extends ContextSchema, R = any> {
       }
     }
     return true
+  }
+
+  /**
+   * Запускает процесс текущего состояния (внутренний метод)
+   */
+  private async executeAction(context: any): Promise<unknown | undefined> {
+    if (this._isExecuting) {
+      throw new Error(`Action уже выполняется в состоянии: ${this._currentState}`)
+    }
+
+    this._isExecuting = true
+
+    try {
+      const actionObj = this.actions[this._currentState]
+      let result: any = undefined
+      if (actionObj && typeof actionObj.action === "function") {
+        result = await actionObj.action({ context })
+      }
+      if (actionObj && typeof actionObj.success === "function") {
+        actionObj.success({ update: this.updateFunction, data: result })
+      }
+      return result
+    } catch (error: any) {
+      const actionObj = this.actions[this._currentState]
+      if (actionObj && typeof actionObj.error === "function") {
+        actionObj.error({ update: this.updateFunction, error })
+      }
+      throw error
+    } finally {
+      this._isExecuting = false
+    }
   }
 
   /**
@@ -346,36 +378,5 @@ export class Machine<S extends string, C extends ContextSchema, R = any> {
     }
 
     return true
-  }
-
-  /**
-   * Запускает процесс текущего состояния (внутренний метод)
-   */
-  private async executeAction(context: any): Promise<R | undefined> {
-    if (this._isExecuting) {
-      throw new Error(`Action уже выполняется в состоянии: ${this._currentState}`)
-    }
-
-    this._isExecuting = true
-
-    try {
-      const actionObj = this.actions[this._currentState]
-      let result: any = undefined
-      if (actionObj && typeof actionObj.action === "function") {
-        result = await actionObj.action({ context })
-      }
-      if (actionObj && typeof actionObj.success === "function") {
-        actionObj.success({ update: this.updateFunction, data: result })
-      }
-      return result
-    } catch (error: any) {
-      const actionObj = this.actions[this._currentState]
-      if (actionObj && typeof actionObj.error === "function") {
-        actionObj.error({ update: this.updateFunction, error })
-      }
-      throw error
-    } finally {
-      this._isExecuting = false
-    }
   }
 }
