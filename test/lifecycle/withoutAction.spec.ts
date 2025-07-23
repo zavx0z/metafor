@@ -12,8 +12,9 @@ describe("MetaFor: инициализация без действия", async ()
       value: t.string.optional("ctx_1"),
     }))
     .states({
-      state_1: {},
-      state_2: {},
+      state_1: { state_2: { value: "ctx_1" } },
+      state_2: { state_3: { value: "ctx_1" } },
+      state_3: {},
     })
     .actions(() => ({}))
 
@@ -33,14 +34,30 @@ describe("MetaFor: инициализация без действия", async ()
         value: {
           state: "state_1",
           states: {
-            state_1: {},
-            state_2: {},
+            state_1: { state_2: { value: "ctx_1" } },
+            state_2: { state_3: { value: "ctx_1" } },
+            state_3: {},
           },
           context: { value: "ctx_1" },
           schema: {
             value: { type: "string", required: false, default: "ctx_1" },
           },
         },
+      },
+    })
+  })
+  test("сообщение 2", () => {
+    const message = messages[1]!
+    const patch = message.patch
+
+    expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
+    expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
+    expect(message, "message должен содержать snapshot").toEqual({
+      meta: { tag, timestamp: expect.any(Number) },
+      patch: {
+        op: "replace",
+        path: "/state",
+        value: "state_2",
       },
     })
   })

@@ -4,14 +4,14 @@
  */
 
 import type {
-  ContextSchema,
-  ExtractValues,
-  RequiredStringDefinition,
-  RequiredNumberDefinition,
-  RequiredBooleanDefinition,
-  RequiredArrayDefinition,
-  RequiredEnumDefinition,
-} from "../context/index.t.ts"
+      ContextSchema,
+      ExtractValues,
+      RequiredArrayDefinition,
+      RequiredBooleanDefinition,
+      RequiredEnumDefinition,
+      RequiredNumberDefinition,
+      RequiredStringDefinition,
+} from "./context/index.t.ts"
 
 /** # Условия для булевых значений (required)
   
@@ -373,3 +373,17 @@ export type TransitionConditions<T extends ContextSchema> = {
     ? Condition<ExtractValues<T>[K]>
     : ConditionOptional<ExtractValues<T>[K]>
 }
+/**
+ * Тип StateTransitions — переходы только к ключам из T с условиями
+ */
+export type StateTransitions<T extends string, C extends ContextSchema> = {
+      [K in T]?: TransitionConditions<C>
+}
+/**
+ * Конфигурация одного состояния — теперь это просто карта переходов
+ */
+export type StateDefinition<T extends string, C extends ContextSchema> = StateTransitions<T, C>
+/**
+ * Конфигурация всех состояний — карта переходов для каждого состояния
+ */
+export type StatesConfig<S extends string, C extends ContextSchema> = Record<S, StateDefinition<S, C>>

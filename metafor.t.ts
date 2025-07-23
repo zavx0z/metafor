@@ -1,6 +1,7 @@
 import type { ContextSchema, ExtractValues, SerializedSchema } from "./context"
 import type { ActionsConfig } from "./actions/index.t"
-import type { StatesConfig } from "./machine/index.t"
+
+import type {StatesConfig} from "./transition.t.ts"
 
 /**
  * @template C - схема контекста автомата

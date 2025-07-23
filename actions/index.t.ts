@@ -59,10 +59,10 @@ export type ActionChain<C extends ContextSchema, Res> = {
    * Возвращает итоговый объект конфигурации действия для автомата.
    * @returns объект с action, success и error (если заданы)
    */
-  getResult: () => ActionConfig<C, Res>
+  getResult: () => Process<C, Res>
 }
 
-export type ActionConfig<C extends ContextSchema, Res = any> = {
+export type Process<C extends ContextSchema, Res = any> = {
   action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
   success?: (params: { update: (values: UpdateValues<ExtractValues<C>>) => void; data: Res }) => void
   error?: (params: { update: (values: UpdateValues<ExtractValues<C>>) => void; error: Error }) => void
@@ -74,4 +74,4 @@ export type ActionConfig<C extends ContextSchema, Res = any> = {
  * @template Res - возвращаемый тип результата action
  * @returns объект с конфигурациями действий
  */
-export type ActionsConfig<C extends ContextSchema, S extends string, Res = any> = Partial<Record<S, ActionConfig<C, Res>>>
+export type ActionsConfig<C extends ContextSchema, S extends string, Res = any> = Partial<Record<S, Process<C, Res>>>

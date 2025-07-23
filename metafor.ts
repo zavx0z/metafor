@@ -5,11 +5,13 @@
 
 import { types, createContext } from "./context"
 import type { ContextSchema, ContextTypes, ContextInstance, ExtractValues } from "./context"
-import { Machine, type StateConfig } from "./machine"
+import { type StatesConfig } from "./transition.t.ts"
 import { createActionsConfig, type Builder } from "./actions"
 import type { Snapshot } from "./metafor.t"
 import type { Message } from "./message/index.t"
-import { initMessage } from "./message"
+import { initMessage, stateAfterActionMessage, stateBeforeActionMessage, updateContextMessage } from "./message"
+import type { Process } from "./actions/index.t"
+import {checkTransitionConditions} from "./transition.ts"
 
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
@@ -48,7 +50,7 @@ export function MetaFor(tag: string) {
          * ```
          * @returns chain API для вызова .actions(...)
          */
-        states<S extends string>(states: StateConfig<S, C>) {
+        states<S extends string>(states: StatesConfig<S, C>) {
           const initialState = Object.keys(states)[0] as S
           return {
             /**
@@ -72,30 +74,140 @@ export function MetaFor(tag: string) {
             actions(builder: Builder<C, S>) {
               const actionsConfig = createActionsConfig<C, S>(builder)
 
-              class WebComponent extends HTMLElement {
+              /**
+               * WebComponent - конечный автомат
+               */
+              class Actor extends HTMLElement {
                 #ctx: ContextInstance<C>
                 #shadow: ShadowRoot
-                #machine: Machine<S, C>
                 #channel: BroadcastChannel
-
+                #transitions = states
+                #actions = actionsConfig
+                /** ------------state-------------------------------- */
+                #state: S = initialState
+                #setState(state: S) {
+                  this.#state = state
+                }
+                /** ------------process-------------------------------- */
+                /** индикатор выполнения процесса */
+                #process: boolean = false
+                /**
+                 * 1. устанавливает состояние процесса
+                 * 2. при отключении процесса (после завершения действия)
+                 *  - обновляет контекст
+                 *  - выполняет переходы
+                 */
+                #setProcess(process: boolean) {
+                  if (this.#process === process) return
+                  this.#process = process
+                  if (!process) {
+                    stateAfterActionMessage(tag, this.#state)
+                    this.#updateContext(this.#ctx.getSnapshot())
+                    this.#transition()
+                  }
+                }
+                /** ------------process-------------------------------- */
                 constructor() {
                   super()
                   this.#shadow = this.attachShadow({ mode: "closed" })
                   this.#channel = new BroadcastChannel("channel")
-
                   this.#ctx = createContext(contextSchema)
-
-                  this.#machine = new Machine(states, actionsConfig, initialState, this.#ctx.update)
                 }
 
                 connectedCallback() {
                   this.#sendEvent(initMessage(tag, this.getSnapshot()))
 
+                  /** нужен для запуска процесса при подключении компонента
+                   * - выполняет процесс текущего состояния, если есть
+                   * - выполняет переходы
+                   */
+                  const transition = this.#transitions[this.#state]
+                  if (transition) {
+                    const process = this.#actions[this.#state]
+                    if (process) {
+                      this.#setProcess(true)
+                      this.#executeAction(process)
+                      this.#transition()
+                    } else {
+                      this.#transition()
+                    }
+                  }
+
                   this.#ctx.onUpdate(this.#onUpdateContext)
-                  this.#machine.onUpdate((patches: any) => {
-                    this.#channel.postMessage({ patches, meta: { tag } })
-                  })
-                  this.#machine.update(this.#ctx.getSnapshot())
+                }
+
+                /**
+                 * - выполняет действие, устанавливая состояние процесса в true
+                 * - после успешной обработки действия, если есть success, то обновляет контекст
+                 * - после ошибки в обработке действия, если есть error, то обновляет контекст
+                 * - после завершения действия, устанавливает состояние процесса в false
+                 * - отправляет сообщение о состоянии процесса в канал (MSG)
+                 *
+                 * @param process - конфигурация процесса состояния
+                 * @throws {Error} - если обработчик ошибки не найден
+                 */
+                #executeAction(process: Process<C>) {
+                  try {
+                    const result = process.action({ context: this.#ctx.getSnapshot() })
+                    if (result instanceof Promise) {
+                      this.#channel.postMessage(stateBeforeActionMessage(tag, this.#state))
+                      result
+                        .then((data) => process.success?.({ update: this.#ctx.update, data }))
+                        .catch((error) => {
+                          if (process.error) process.error({ update: this.#ctx.update, error })
+                          else throw new Error(`Обработчик ошибки не найден для состояния: ${this.#state} \n ${error}`)
+                        })
+                        .finally(() => {
+                          this.#channel.postMessage(stateAfterActionMessage(tag, this.#state))
+                          this.#setProcess(false)
+                        })
+                    } else {
+                      if (process.success) process.success({ update: this.#ctx.update, data: result })
+                      else throw new Error(`Обработчик успеха не найден для состояния: ${this.#state} \n ${result}`)
+                      this.#channel.postMessage(stateAfterActionMessage(tag, this.#state))
+                      this.#setProcess(false)
+                    }
+                  } catch (error) {
+                    if (error instanceof Error) process.error?.({ update: this.#ctx.update, error })
+                    this.#channel.postMessage(stateAfterActionMessage(tag, this.#state))
+                    this.#setProcess(false)
+                  }
+                }
+
+                /**
+                 * - обновляет контекст
+                 * - отправляет событие об обновлении контекста, если есть изменения
+                 */
+                #updateContext = (context: Partial<ExtractValues<C>>) => {
+                  const updated = this.#ctx.update(context)
+                  if (Object.keys(updated).length > 0) {
+                    this.#sendEvent(updateContextMessage(tag, updated))
+                  }
+                  return updated
+                }
+
+                /**
+                 * - выполняет переходы с установкой состояния
+                 * - запускает процесс если есть
+                 * - отправляет сообщение состояния если нет процесса (MSG)
+                 */
+                #transition() {
+                  const transition = this.#transitions[this.#state]
+                  if (!transition) return
+                  for (const [state, conditions] of Object.entries(transition)) {
+                    if (checkTransitionConditions(conditions, this.#ctx.getSnapshot())) {
+                      const process = this.#actions[this.#state]
+                      if (process) {
+                        this.#setProcess(true)
+                        this.#setState(state as S)
+                        this.#executeAction(process)
+                      } else {
+                        this.#setState(state as S)
+                        this.#channel.postMessage(stateAfterActionMessage(tag, state as S))
+                      }
+                      break
+                    }
+                  }
                 }
 
                 #sendEvent(message: Message) {
@@ -111,27 +223,17 @@ export function MetaFor(tag: string) {
                   })
                 }
 
-                update(values: Partial<ExtractValues<C>>) {
-                  const updated = this.#ctx.update(values)
-                  if (Object.keys(updated).length === 0) return
-                  this.#machine.update(this.#ctx.getSnapshot())
-                }
-
-                get currentState() {
-                  return this.#machine.currentState
-                }
-
                 getSnapshot(): Snapshot<C, S> {
                   return {
-                    state: this.#machine.currentState,
-                    states: states,
+                    state: this.#state,
+                    states: this.#transitions,
                     context: this.#ctx.getSnapshot(),
                     schema: this.#ctx.schema,
                     // actions: actionsConfig,
                   }
                 }
               }
-              if (!customElements.get(tagName)) customElements.define(tagName, WebComponent)
+              if (!customElements.get(tagName)) customElements.define(tagName, Actor)
             },
           }
         },
