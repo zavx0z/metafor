@@ -52,6 +52,8 @@ test("Machine - автоматические переходы с update", async 
   expect(machine.currentState, "Машина должна начинать с состояния idle").toBe("idle")
   await machine.update(context)
   expect(machine.currentState, "Машина должна остановиться в состоянии loading при обнаружении цикла").toBe("loading")
+  // Проверяем, что age был обновлён в success
+  expect(context.age, "Поле age должно быть обновлено в success").toBe(12345)
 })
 
 test("Machine - автоматические переходы с ошибкой", async () => {
@@ -84,8 +86,10 @@ test("Machine - автоматические переходы с ошибкой"
     return context
   })
   expect(machine.currentState, "Машина должна начинать с состояния idle").toBe("idle")
-  expect(machine.update(context), "Должна быть выброшена ошибка из процесса").rejects.toThrow("Test error")
+  await expect(machine.update(context), "Должна быть выброшена ошибка из процесса").rejects.toThrow("Test error")
   expect(machine.currentState, "Машина должна остановиться в состоянии loading при обнаружении цикла").toBe("loading")
+  // Проверяем, что name был обновлён в error
+  expect(context.name, "Поле name должно быть обновлено в error").toBe("error")
 })
 
 test("Machine - обработка контекста без переходов", async () => {
@@ -104,6 +108,8 @@ test("Machine - обработка контекста без переходов"
   const result = await machine.update(context)
   expect(result, "Результат должен быть undefined, так как не было выполнено ни одного процесса").toBeUndefined()
   expect(machine.currentState, "Состояние должно остаться idle, так как условия перехода не выполнены").toBe("idle")
+  // Контекст не должен измениться
+  expect(context.name, "Контекст не должен измениться").toBe("ab")
 })
 
 test("Machine - обработка контекста с неактивным пользователем", async () => {
@@ -122,6 +128,8 @@ test("Machine - обработка контекста с неактивным п
   const result = await machine.update(context)
   expect(result, "Результат должен быть undefined, так как пользователь неактивен").toBeUndefined()
   expect(machine.currentState, "Состояние должно остаться idle, так как пользователь неактивен").toBe("idle")
+  // Контекст не должен измениться
+  expect(context.isActive, "Контекст не должен измениться").toBe(false)
 })
 
 test("Machine - проверка состояния выполнения", () => {

@@ -213,7 +213,10 @@ test("Machine - различные форматы данных в разных �
   })
   expect(machine.currentState, "Машина должна начинать с состояния idle").toBe("idle")
   await machine.update(context)
-  expect(machine.currentState, "Машина должна быть в состоянии success").toBe("loading")
+  // Проверяем, что имя обновлено в success (см. update({ name: data.profile.name }) и далее update({ name: data.orderNumber }))
+  expect(context.name, "Контекст должен быть обновлён до имени заказа").toBe(`ORD-test_user`)
+  // Ожидаемое финальное состояние с учётом переходов и обновления контекста
+  expect(machine.currentState, "Машина должна быть в состоянии loading").toBe("loading")
 })
 
 test("Machine - обработка ошибок с различными форматами данных", async () => {
@@ -267,7 +270,12 @@ test("Machine - обработка ошибок с различными форм
     Object.assign(context, values)
     return context
   })
-  expect(machine.update(context), "Должна быть выброшена ошибка из процесса loading").rejects.toThrow("Loading error")
+  expect(machine.currentState, "Машина должна начинать с состояния idle").toBe("idle")
+  await expect(machine.update(context), "Должна быть выброшена ошибка из процесса loading").rejects.toThrow(
+    "Loading error"
+  )
+  // После error update({ name: "error_user" })
+  expect(context.name, "Контекст должен быть обновлён до error_user").toBe("error_user")
   expect(machine.currentState, "Машина должна остановиться в состоянии loading при обнаружении цикла").toBe("loading")
 })
 
@@ -351,5 +359,8 @@ test("Machine - простые и сложные данные в разных с
     return context
   })
   await machine.update(context)
+  // После success update({ name: data.data.primary.id })
+  expect(context.name, "Контекст должен быть обновлён до complex_Bob").toBe("complex_Bob")
+  // Ожидаемое финальное состояние с учётом переходов и обновления контекста
   expect(machine.currentState, "Машина должна быть в состоянии success").toBe("success")
 })
