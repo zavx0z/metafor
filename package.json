@@ -37,6 +37,6 @@
     "build:js": "bun run script/build.ts",
     "publish:dry": "bun run build:prod && bun publish --dry-run",
     "CONTEXT:TEST": "bun test context",
-    "MACHINE:TEST": "bun test machine"
+    "HTML:TEST": "bun test html"
   }
 }
