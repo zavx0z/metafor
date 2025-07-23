@@ -1,7 +1,7 @@
 import { test, expect } from "bun:test"
-import { Machine } from "../index.ts"
-import type { StatesConfig } from "../index.t.ts"
-import type { ActionsConfig } from "../../actions/index.t.ts"
+import { Machine } from "../../index.ts"
+import type { StatesConfig } from "../../index.t.ts"
+import type { ActionsConfig } from "../../../actions/index.t.ts"
 
 // Тестовые типы состояний
 type TestStates = "idle" | "boolean_test" | "success"

@@ -5,7 +5,7 @@
 
 import type { StatesConfig } from "./index.t.ts"
 import type { ActionsConfig } from "../actions/index.t.ts"
-import type { ContextSchema, ExtractValues } from "../context"
+import type { ContextSchema, ExtractValues, UpdateValues } from "../context"
 export type { StatesConfig as StateConfig }
 /**
  * Класс конечного автомата с автоматическими переходами на основе контекста
@@ -15,14 +15,14 @@ export class Machine<S extends string, C extends ContextSchema> {
   private _isExecuting: boolean = false
   private config: StatesConfig<S, C>
   private actions: ActionsConfig<C, S>
-  private updateSubscribers: Array<(patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>) => void> = []
-  private updateFunction: (values: any) => any
+  private updateSubscribers: ((prevState: S, nextState: S, process: boolean) => void)[] = []
+  private updateFunction: (values: UpdateValues<ExtractValues<C>>) => Partial<ExtractValues<C>>
 
   constructor(
     config: StatesConfig<S, C>,
     actions: ActionsConfig<C, S>,
     initialState: S,
-    updateFunction: (values: any) => any
+    updateFunction: (values: UpdateValues<ExtractValues<C>>) => Partial<ExtractValues<C>>
   ) {
     this.config = config
     this.actions = actions
@@ -47,9 +47,9 @@ export class Machine<S extends string, C extends ContextSchema> {
   /**
    * Уведомляет подписчиков об изменении состояния
    */
-  private notifySubscribers(patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>): void {
+  private notifySubscribers(prevState: S, nextState: S, process: boolean): void {
     for (const subscriber of this.updateSubscribers) {
-      subscriber(patches)
+      subscriber(prevState, nextState, process)
     }
   }
 
@@ -68,7 +68,7 @@ export class Machine<S extends string, C extends ContextSchema> {
    * // ...
    * unsubscribe() // для отписки
    */
-  onUpdate(callback: (patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }>) => void): () => void {
+  onUpdate(callback: (prevState: S, nextState: S, process: boolean) => void): () => void {
     this.updateSubscribers.push(callback)
     return () => {
       const idx = this.updateSubscribers.indexOf(callback)
@@ -80,8 +80,7 @@ export class Machine<S extends string, C extends ContextSchema> {
    * Обновляет контекст и выполняет автоматические переходы
    * Возвращает результат выполнения процесса, если он был запущен
    */
-  async update(context: Partial<ExtractValues<C>>): Promise<void> {
-    let currentContext = { ...context }
+  async update(context: ExtractValues<C>): Promise<void> {
     let hasTransitioned = true
     let maxIterations = 100 // Защита от бесконечных циклов
     let iteration = 0
@@ -97,24 +96,21 @@ export class Machine<S extends string, C extends ContextSchema> {
       if (!currentStateConfig) break
 
       for (const [targetState, conditions] of Object.entries(currentStateConfig)) {
-        if (this.checkTransitionConditions(conditions as any, currentContext)) {
+        if (this.checkTransitionConditions(conditions as any, context)) {
           // Выполняем переход
-          this._currentState = targetState as S
-          hasTransitioned = true
 
-          // Уведомляем подписчиков об изменении состояния
-          const patches: Array<{ op: "test" | "replace"; path: "/state"; value: S }> = []
-
-          // Определяем тип операции на основе наличия процесса
+          // Если перешли в состояние с процессом, выполняем его
           if (this.actions[this._currentState]) {
-            // Если есть процесс - это test операция
-            patches.push({ op: "test", path: "/state", value: this._currentState })
+            this.notifySubscribers(this._currentState, targetState as S, true)
+            this._currentState = targetState as S
+            this.executeAction(context).finally(() =>
+              this.notifySubscribers(this._currentState, targetState as S, this._isExecuting)
+            )
           } else {
-            // Если нет процесса - это replace операция
-            patches.push({ op: "replace", path: "/state", value: this._currentState })
+            this._currentState = targetState as S
+            this.notifySubscribers(this._currentState, targetState as S, this._isExecuting)
           }
-
-          this.notifySubscribers(patches)
+          hasTransitioned = true
 
           // Если мы уже были в этом состоянии, это может быть цикл
           if (visitedStates.has(this._currentState)) {
@@ -126,11 +122,6 @@ export class Machine<S extends string, C extends ContextSchema> {
           break
         }
       }
-
-      // Если перешли в состояние с процессом, выполняем его
-      if (this.actions[this._currentState] && !this._isExecuting) {
-        await this.executeAction(currentContext)
-      }
     }
 
     if (iteration >= maxIterations) {
@@ -141,7 +132,7 @@ export class Machine<S extends string, C extends ContextSchema> {
   /**
    * Проверяет условия перехода
    */
-  private checkTransitionConditions(conditions: any, context: any): boolean {
+  private checkTransitionConditions(conditions: any, context: Partial<ExtractValues<C>>): boolean {
     for (const [field, condition] of Object.entries(conditions)) {
       const value = context[field]
       if (field === "status") {
@@ -153,33 +144,43 @@ export class Machine<S extends string, C extends ContextSchema> {
     return true
   }
 
+  private _process: boolean = false
+  private get process(): boolean {
+    return this._process
+  }
+  private set process(value: boolean) {
+    this._process = value
+  }
   /**
    * Запускает процесс текущего состояния (внутренний метод)
    */
-  private async executeAction(context: any): Promise<void> {
+  private async executeAction(context: ExtractValues<C>): Promise<void> {
     if (this._isExecuting) {
       throw new Error(`Action уже выполняется в состоянии: ${this._currentState}`)
     }
 
     this._isExecuting = true
+    this._process = true
 
     try {
-      const actionObj = this.actions[this._currentState]
+      const process = this.actions[this._currentState]
       let result: any = undefined
-      if (actionObj && typeof actionObj.action === "function") {
-        result = await actionObj.action({ context })
+      if (process && typeof process.action === "function") {
+        result = await process.action({ context })
       }
-      if (actionObj && typeof actionObj.success === "function") {
-        actionObj.success({ update: this.updateFunction, data: result })
+      if (process && typeof process.success === "function") {
+        process.success({ update: this.updateFunction, data: result })
       }
     } catch (error: any) {
       const actionObj = this.actions[this._currentState]
       if (actionObj && typeof actionObj.error === "function") {
         actionObj.error({ update: this.updateFunction, error })
+      } else {
+        throw new Error(`Обработчик ошибки не найден для состояния: ${this._currentState} \n ${error}`)
       }
-      throw error
     } finally {
       this._isExecuting = false
+      this._process = false
     }
   }
 

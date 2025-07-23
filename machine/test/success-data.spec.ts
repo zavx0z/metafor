@@ -83,7 +83,6 @@ type ErrorResult = {
     message: string
   }
 }
-type CombinedResult = UserResult | ProductResult | OrderResult | SimpleResult | ComplexResult | ErrorResult
 
 test("Machine - различные форматы данных в разных состояниях", async () => {
   const stateConfig: StatesConfig<TestStates, TestContext> = {

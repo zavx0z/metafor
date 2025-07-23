@@ -22,22 +22,22 @@ export type { ContextSchema, SerializedSchema, ExtractValues, UpdateValues, Cont
  * ctx.context // доступ к значениям
  * ctx.update({name: 'Новое имя'})
  */
-export class Context<T extends ContextSchema> implements ContextInstance<T> {
+export class Context<C extends ContextSchema> implements ContextInstance<C> {
   /** @internal */
-  private contextData: ExtractValues<T>
+  private contextData: ExtractValues<C>
   /** @internal */
-  private immutableContext: ExtractValues<T> & { _title: Record<keyof T, string> }
+  private immutableContext: ExtractValues<C> & { _title: Record<keyof C, string> }
   /** @internal */
-  private schemaDefinition: T
-  private updateSubscribers: Array<(updated: Partial<ExtractValues<T>>) => void> = []
+  private schemaDefinition: C
+  private updateSubscribers: Array<(updated: Partial<ExtractValues<C>>) => void> = []
 
   /**
    * Создает новый экземпляр контекста на основе схемы.
    * @param schema - Схема контекста
    */
-  constructor(schema: T) {
+  constructor(schema: C) {
     this.schemaDefinition = schema
-    this.contextData = {} as ExtractValues<T>
+    this.contextData = {} as ExtractValues<C>
     this.initializeContext(schema)
     this.immutableContext = this.createImmutableContext()
   }
@@ -46,7 +46,7 @@ export class Context<T extends ContextSchema> implements ContextInstance<T> {
    * Инициализирует значения контекста по умолчанию согласно схеме.
    * @param schema - Схема контекста
    */
-  private initializeContext(schema: T): void {
+  private initializeContext(schema: C): void {
     for (const key in schema) {
       const definition = schema[key]
       if (!definition) continue
@@ -80,8 +80,8 @@ export class Context<T extends ContextSchema> implements ContextInstance<T> {
    * Создает иммутабельный (только для чтения) прокси-объект для доступа к значениям контекста.
    * @returns Иммутабельный объект контекста
    */
-  private createImmutableContext(): ExtractValues<T> & { _title: Record<keyof T, string> } {
-    const titleData: Record<keyof T, string> = {} as Record<keyof T, string>
+  private createImmutableContext(): ExtractValues<C> & { _title: Record<keyof C, string> } {
+    const titleData: Record<keyof C, string> = {} as Record<keyof C, string>
 
     // Инициализируем метаданные: если title не указан — всегда пустая строка
     for (const key in this.schema) {
@@ -89,7 +89,7 @@ export class Context<T extends ContextSchema> implements ContextInstance<T> {
       titleData[key] = definition && "title" in definition && definition.title ? definition.title : ""
     }
 
-    const immutableContext = new Proxy({} as ExtractValues<T> & { _title: Record<keyof T, string> }, {
+    const immutableContext = new Proxy({} as ExtractValues<C> & { _title: Record<keyof C, string> }, {
       get: (_, prop) => {
         if (prop === "_title") {
           return titleData
@@ -116,7 +116,7 @@ export class Context<T extends ContextSchema> implements ContextInstance<T> {
    * Текущее состояние контекста (только для чтения).
    * @readonly
    */
-  get context(): ExtractValues<T> & { _title: Record<keyof T, string> } {
+  get context(): ExtractValues<C> & { _title: Record<keyof C, string> } {
     return this.immutableContext
   }
 
@@ -124,8 +124,8 @@ export class Context<T extends ContextSchema> implements ContextInstance<T> {
    * Схема контекста (только для чтения).
    * @readonly
    */
-  get schema(): Record<keyof T, any> {
-    const result: Record<keyof T, any> = {} as Record<keyof T, any>
+  get schema(): Record<keyof C, any> {
+    const result: Record<keyof C, any> = {} as Record<keyof C, any>
 
     for (const key in this.schemaDefinition) {
       const definition = this.schemaDefinition[key]
@@ -163,22 +163,22 @@ export class Context<T extends ContextSchema> implements ContextInstance<T> {
    * @example
    * context.update({name: 'Новое имя', age: 30})
    */
-  update(values: UpdateValues<ExtractValues<T>>): Partial<ExtractValues<T>> {
+  update(values: UpdateValues<ExtractValues<C>>): Partial<ExtractValues<C>> {
     const filteredValues = Object.fromEntries(
       Object.entries(values).filter(([_, value]) => value !== undefined)
-    ) as Partial<ExtractValues<T>>
+    ) as Partial<ExtractValues<C>>
 
-    const updatedValues: Partial<ExtractValues<T>> = {}
+    const updatedValues: Partial<ExtractValues<C>> = {}
 
     for (const [key, value] of Object.entries(filteredValues)) {
       const currentValue = (this.contextData as any)[key]
       if (value === null) {
         if (currentValue !== null) {
-          updatedValues[key as keyof ExtractValues<T>] = value
+          updatedValues[key as keyof ExtractValues<C>] = value
         }
       } else {
         if (currentValue !== value) {
-          updatedValues[key as keyof ExtractValues<T>] = value
+          updatedValues[key as keyof ExtractValues<C>] = value
         }
       }
     }
@@ -195,7 +195,7 @@ export class Context<T extends ContextSchema> implements ContextInstance<T> {
     return updatedValues
   }
 
-  onUpdate(callback: (updated: Partial<ExtractValues<T>>) => void): () => void {
+  onUpdate(callback: (updated: Partial<ExtractValues<C>>) => void): () => void {
     this.updateSubscribers.push(callback)
     return () => {
       const idx = this.updateSubscribers.indexOf(callback)
@@ -203,7 +203,7 @@ export class Context<T extends ContextSchema> implements ContextInstance<T> {
     }
   }
 
-  getSnapshot(): ExtractValues<T> {
+  getSnapshot(): ExtractValues<C> {
     return Object.freeze({ ...this.contextData })
   }
 }

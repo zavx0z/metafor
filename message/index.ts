@@ -7,10 +7,21 @@ export const initMessage = <C extends ContextSchema, S extends string>(
   snapshot: Snapshot<C, S>
 ): Message => {
   return {
-    meta: {
-      tag,
-      timestamp: Date.now(),
-    },
+    meta: { tag, timestamp: Date.now() },
     patch: { op: "add", path: "/", value: snapshot },
+  }
+}
+
+export const stateBeforeActionMessage = <S extends string>(tag: string, state: S): Message => {
+  return {
+    meta: { tag, timestamp: Date.now() },
+    patch: { op: "test", path: "/state", value: state },
+  }
+}
+
+export const stateAfterActionMessage = <S extends string>(tag: string, state: S): Message => {
+  return {
+    meta: { tag, timestamp: Date.now() },
+    patch: { op: "replace", path: "/state", value: state },
   }
 }

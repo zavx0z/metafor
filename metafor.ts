@@ -73,7 +73,7 @@ export function MetaFor(tag: string) {
               const actionsConfig = createActionsConfig<C, S>(builder)
 
               class WebComponent extends HTMLElement {
-                #ctx: ContextInstance<any>
+                #ctx: ContextInstance<C>
                 #shadow: ShadowRoot
                 #machine: Machine<S, C>
                 #channel: BroadcastChannel
@@ -95,7 +95,7 @@ export function MetaFor(tag: string) {
                   this.#machine.onUpdate((patches: any) => {
                     this.#channel.postMessage({ patches, meta: { tag } })
                   })
-                  // this.#machine.update(this.#ctx.getSnapshot())
+                  this.#machine.update(this.#ctx.getSnapshot())
                 }
 
                 #sendEvent(message: Message) {
@@ -113,10 +113,8 @@ export function MetaFor(tag: string) {
 
                 update(values: Partial<ExtractValues<C>>) {
                   const updated = this.#ctx.update(values)
-                  if (Object.keys(updated).length === 0) {
-                    return
-                  }
-                  this.#machine.update(updated)
+                  if (Object.keys(updated).length === 0) return
+                  this.#machine.update(this.#ctx.getSnapshot())
                 }
 
                 get currentState() {

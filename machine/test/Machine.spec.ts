@@ -161,8 +161,8 @@ test("Machine - подписка на обновления", async () => {
     return context
   })
   const patches: Array<{ op: "test" | "replace"; path: "/state"; value: TestStates }> = []
-  const unsubscribe = machine.onUpdate((receivedPatches) => {
-    receivedPatches.forEach((patch) => patches.push(patch))
+  const unsubscribe = machine.onUpdate((prevState, nextState, process) => {
+    patches.push({ op: process ? "test" : "replace", path: "/state", value: nextState })
   })
   await machine.update(context)
   expect(patches.length, "Должны быть получены патчи при изменении состояния").toBeGreaterThan(0)
