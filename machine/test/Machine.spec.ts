@@ -50,11 +50,7 @@ test("Machine - автоматические переходы с update", async 
     return context
   })
   expect(machine.currentState, "Машина должна начинать с состояния idle").toBe("idle")
-  const result = await machine.update(context)
-  expect(result, "Результат должен содержать userId и timestamp из процесса loading").toEqual({
-    userId: "user_test_user",
-    timestamp: 12345,
-  })
+  await machine.update(context)
   expect(machine.currentState, "Машина должна остановиться в состоянии loading при обнаружении цикла").toBe("loading")
 })
 

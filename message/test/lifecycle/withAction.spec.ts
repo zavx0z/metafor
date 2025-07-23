@@ -14,7 +14,7 @@ describe("MetaFor: инициализация с действиями", async ()
   const otherContext = { value: "other" }
 
   document.body.innerHTML = `<metafor-${tag}></metafor-${tag}>`
-  const messages = await waitForMessages(1000)
+  const messages = await waitForMessages(400)
 
   MetaFor(tag)
     .context((t) => ({

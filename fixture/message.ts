@@ -19,7 +19,6 @@ export const messagesFixture = (options?: {
   })
   // @ts-ignore
   document.addEventListener("channel", ({ detail }: CustomEvent) => {
-    console.log("channel", detail)
     if (!options?.meta || detail.meta?.tag === options.meta) {
       messages.push(detail)
     }
@@ -62,7 +61,6 @@ export const messagesFixture = (options?: {
       })
       // @ts-ignore
       document.addEventListener("channel", ({ detail }: CustomEvent) => {
-        console.log("channel", detail)
         if (!options?.meta || detail.meta?.tag === options.meta) {
           updateLastMessageTime()
         }

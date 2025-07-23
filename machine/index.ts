@@ -80,8 +80,7 @@ export class Machine<S extends string, C extends ContextSchema> {
    * Обновляет контекст и выполняет автоматические переходы
    * Возвращает результат выполнения процесса, если он был запущен
    */
-  async update(context: Partial<ExtractValues<C>>): Promise<unknown | undefined> {
-    let result: unknown | undefined = undefined
+  async update(context: Partial<ExtractValues<C>>): Promise<void> {
     let currentContext = { ...context }
     let hasTransitioned = true
     let maxIterations = 100 // Защита от бесконечных циклов
@@ -120,7 +119,7 @@ export class Machine<S extends string, C extends ContextSchema> {
           // Если мы уже были в этом состоянии, это может быть цикл
           if (visitedStates.has(this._currentState)) {
             console.warn(`Обнаружен возможный цикл: повторное посещение состояния ${this._currentState}`)
-            return result
+            return
           }
 
           visitedStates.add(this._currentState)
@@ -130,15 +129,13 @@ export class Machine<S extends string, C extends ContextSchema> {
 
       // Если перешли в состояние с процессом, выполняем его
       if (this.actions[this._currentState] && !this._isExecuting) {
-        result = await this.executeAction(currentContext)
+        await this.executeAction(currentContext)
       }
     }
 
     if (iteration >= maxIterations) {
       console.warn(`Машина достигла максимального количества итераций (${maxIterations}). Возможен бесконечный цикл.`)
     }
-
-    return result
   }
 
   /**
@@ -159,7 +156,7 @@ export class Machine<S extends string, C extends ContextSchema> {
   /**
    * Запускает процесс текущего состояния (внутренний метод)
    */
-  private async executeAction(context: any): Promise<unknown | undefined> {
+  private async executeAction(context: any): Promise<void> {
     if (this._isExecuting) {
       throw new Error(`Action уже выполняется в состоянии: ${this._currentState}`)
     }
@@ -175,7 +172,6 @@ export class Machine<S extends string, C extends ContextSchema> {
       if (actionObj && typeof actionObj.success === "function") {
         actionObj.success({ update: this.updateFunction, data: result })
       }
-      return result
     } catch (error: any) {
       const actionObj = this.actions[this._currentState]
       if (actionObj && typeof actionObj.error === "function") {

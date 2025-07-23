@@ -36,7 +36,4 @@ test("MetaFor - базовый функционал", async () => {
   expect(element, "Компонент должен быть зарегистрирован в customElements").toBeDefined()
   expect(customElements.get("metafor-test"), "Компонент должен быть зарегистрирован в customElements").toBeDefined()
   const messages = await waitForMessages(400)
-  for (const message of messages) {
-    console.log(message.patches)
-  }
 })
