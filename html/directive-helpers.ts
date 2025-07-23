@@ -1,14 +1,6 @@
-import type {
-  Part,
-  DirectiveParent,
-  CompiledTemplateResult,
-  MaybeCompiledTemplateResult,
-  UncompiledTemplateResult,
-} from "./html.t"
+import type { Part, DirectiveParent, CompiledTemplateResult, UncompiledTemplateResult } from "./html.t"
 import { _$LH } from "./html"
-import type { DirectiveResult, DirectiveClass, PartInfo, AttributePartInfo } from "./directive"
-
-type Primitive = null | undefined | boolean | number | string | symbol | bigint
+import type { DirectiveResult, DirectiveClass, PartInfo, AttributePartInfo } from "./directive.t"
 
 const { _ChildPart: ChildPart } = _$LH
 
@@ -28,7 +20,7 @@ const wrap = (node: Node): Node => {
  *
  * См. https://tc39.github.io/ecma262/#sec-typeof-operator
  */
-export const isPrimitive = (value: unknown): value is Primitive =>
+export const isPrimitive = (value: unknown): value is null | undefined | boolean | number | string | symbol | bigint =>
   value === null || (typeof value != "object" && typeof value != "function")
 
 export const TemplateResultType = {
@@ -37,19 +29,12 @@ export const TemplateResultType = {
   MATHML: 3,
 } as const
 
-export type TemplateResultType = (typeof TemplateResultType)[keyof typeof TemplateResultType]
-
-type IsTemplateResult = {
-  (val: unknown): val is MaybeCompiledTemplateResult
-  <T extends TemplateResultType>(val: unknown, type: T): val is UncompiledTemplateResult<T>
-}
-
 /**
  * Проверяет, является ли значение TemplateResult или CompiledTemplateResult.
  */
-export const isTemplateResult: IsTemplateResult = (
+export const isTemplateResult = (
   value: unknown,
-  type?: TemplateResultType
+  type?: (typeof TemplateResultType)[keyof typeof TemplateResultType]
 ): value is UncompiledTemplateResult =>
   type === undefined
     ? // Это свойство не должно быть минифицировано.

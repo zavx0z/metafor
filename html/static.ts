@@ -1,19 +1,6 @@
 import { html as coreHtml, svg as coreSvg, mathml as coreMathml } from "./html"
+import type { StaticValue } from "./static.t"
 import type { TemplateResult } from "./html.t"
-
-/**
- * Тип для статических значений, которые можно безопасно вставлять в шаблон.
- * Используется для предотвращения XSS и других атак через шаблоны.
- */
-export interface StaticValue {
-  /** Значение, которое будет вставлено в шаблон как есть. */
-  _$htmlStatic$: string
-  /**
-   * Маркер, который невозможно получить через обычный JSON.parse,
-   * что усложняет атаки через сериализацию/десериализацию.
-   */
-  r: typeof brand
-}
 
 /**
  * Символ-бренд для защиты от подделки статических значений.
@@ -92,7 +79,7 @@ export const withStatic =
     let s: string
 
     while (i < l) {
-      s = strings[i]
+      s = strings[i]!
       // Собираем все unsafeStatic значения и следующие за ними строки шаблона,
       // чтобы рассматривать их как одну статическую строку.
       while (i < l && ((dynamicValue = values[i]), (staticValue = unwrapStaticValue(dynamicValue))) !== undefined) {
@@ -108,7 +95,7 @@ export const withStatic =
     }
     // Если последнее значение не статическое, добавляем последнюю строку.
     if (i === l) {
-      staticStrings.push(strings[l])
+      staticStrings.push(strings[l]!)
     }
 
     if (hasStatics) {

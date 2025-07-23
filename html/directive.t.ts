@@ -3,20 +3,14 @@
  * @packageDocumentation
  */
 
-import type {Directive} from './directive.js'
+import type { Disconnectable, Part } from "./html.t"
 
 /**
  * Интерфейс класса-директивы (конструктор).
  */
 export interface DirectiveClass {
-  new (part: PartInfo): Directive
+  new (part: PartInfo): unknown
 }
-
-/**
- * Вспомогательный тип для извлечения сигнатуры метода render() из класса-директивы.
- * Используется для типизации функции-директивы.
- */
-export type DirectiveParameters<C extends Directive> = Parameters<C['render']>
 
 /**
  * Результат вызова функции-директивы. Не выполняет саму директиву, а только
@@ -27,9 +21,9 @@ export interface DirectiveResult<C extends DirectiveClass = DirectiveClass> {
    * Это свойство не должно быть минифицировано.
    * @internal
    */
-  ['_$htmlDirective$']: C
+  ["_$htmlDirective$"]: C
   /** @internal */
-  values: DirectiveParameters<InstanceType<C>>
+  values: unknown[]
 }
 
 /**
