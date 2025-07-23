@@ -8,7 +8,7 @@
  */
 export type Message = {
   meta: MetaDataMessage
-  patches: JsonPatch[]
+  patch: JsonPatch
 }
 /**
 Метаданные сообщения

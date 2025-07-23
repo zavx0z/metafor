@@ -11,6 +11,6 @@ export const initMessage = <C extends ContextSchema, S extends string>(
       tag,
       timestamp: Date.now(),
     },
-    patches: [{ op: "add", path: "/", value: snapshot }],
+    patch: { op: "add", path: "/", value: snapshot },
   }
 }

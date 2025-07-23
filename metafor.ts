@@ -106,8 +106,8 @@ export function MetaFor(tag: string) {
 
                 #onUpdateContext = (updated: Partial<ExtractValues<C>>) => {
                   this.#sendEvent({
-                    patches: [{ op: "replace", path: "/context", value: updated }],
                     meta: { tag, timestamp: Date.now() },
+                    patch: { op: "replace", path: "/context", value: updated },
                   })
                 }
 
