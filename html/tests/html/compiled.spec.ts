@@ -78,7 +78,7 @@ describe("скомпилированные шаблоны", () => {
       values: [ref(r)],
     }
     assertRender(result, "<div></div>")
-    const div = container.firstElementChild
+    const div = container.firstElementChild!
     expect(div).toBeDefined()
     expect(r.value).toBe(div)
   })

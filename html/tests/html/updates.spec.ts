@@ -182,7 +182,7 @@ describe("обновления", () => {
     )
 
     expect(container.children.length).toBe(1)
-    const fooDiv = container.children[0]
+    const fooDiv = container.children[0]!
     expect(fooDiv.textContent).toBe("foo")
 
     render(
@@ -193,7 +193,7 @@ describe("обновления", () => {
     )
 
     expect(container.children.length).toBe(1)
-    const barDiv = container.children[0]
+    const barDiv = container.children[0]!
     expect(barDiv.textContent).toBe("bar")
 
     expect(fooDiv).not.toBe(barDiv)

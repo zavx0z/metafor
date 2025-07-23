@@ -17,6 +17,7 @@ describe("MetaFor: инициализация без действия", async ()
       state_3: {},
     })
     .actions(() => ({}))
+    .view()
 
   const messages = await waitForMessages(10)
 

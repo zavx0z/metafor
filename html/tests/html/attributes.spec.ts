@@ -2,7 +2,7 @@ import { describe, test, expect, beforeEach } from "bun:test"
 import { render, html, noChange, nothing } from "../../html"
 import type { RenderOptions, CompiledTemplateResult, TemplateResult } from "../../html.t"
 
-describe("attributes", () => {
+describe("аттрибуты", () => {
   let container: HTMLDivElement
   beforeEach(() => {
     container = document.createElement("div")

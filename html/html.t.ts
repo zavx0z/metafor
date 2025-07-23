@@ -29,7 +29,7 @@ export const COMMENT_PART = 7
 // ==================== ТИПЫ РЕЗУЛЬТАТА ШАБЛОНА ====================
 
 export type UncompiledTemplateResult<T extends ResultType = ResultType> = {
-  ['_$htmlType$']: T
+  ["_$htmlType$"]: T
   strings: TemplateStringsArray
   values: unknown[]
 }
@@ -38,8 +38,7 @@ export type MaybeCompiledTemplateResult<T extends ResultType = ResultType> =
   | UncompiledTemplateResult<T>
   | CompiledTemplateResult
 
-export type TemplateResult<T extends ResultType = ResultType> =
-  UncompiledTemplateResult<T>
+export type TemplateResult<T extends ResultType = ResultType> = UncompiledTemplateResult<T>
 
 export type HTMLTemplateResult = TemplateResult<typeof HTML_RESULT>
 
@@ -48,11 +47,11 @@ export type SVGTemplateResult = TemplateResult<typeof SVG_RESULT>
 export type MathMLTemplateResult = TemplateResult<typeof MATHML_RESULT>
 
 export interface CompiledTemplateResult {
-  ['_$htmlType$']: CompiledTemplate
+  ["_$htmlType$"]: CompiledTemplate
   values: unknown[]
 }
 
-export interface CompiledTemplate extends Omit<Template, 'el'> {
+export interface CompiledTemplate extends Omit<Template, "el"> {
   el?: HTMLTemplateElement
   h: TemplateStringsArray
 }
@@ -82,11 +81,7 @@ export type CommentTemplatePart = {
   readonly index: number
 }
 
-export type TemplatePart =
-  | ChildTemplatePart
-  | AttributeTemplatePart
-  | ElementTemplatePart
-  | CommentTemplatePart
+export type TemplatePart = ChildTemplatePart | AttributeTemplatePart | ElementTemplatePart | CommentTemplatePart
 
 export type Part = any
 
@@ -123,11 +118,7 @@ export interface DebugLoggingWindow {
 
 // ==================== ТИПЫ SANITIZER ====================
 
-export type SanitizerFactory = (
-  node: Node,
-  name: string,
-  type: 'property' | 'attribute'
-) => ValueSanitizer
+export type SanitizerFactory = (node: Node, name: string, type: "property" | "attribute") => ValueSanitizer
 
 export type ValueSanitizer = (value: unknown) => unknown
 
@@ -136,14 +127,13 @@ export type ValueSanitizer = (value: unknown) => unknown
 export interface RenderOptions {
   host?: object
   renderBefore?: ChildNode | null
-  creationScope?: {importNode(node: Node, deep?: boolean): Node}
+  creationScope?: { importNode(node: Node, deep?: boolean): Node }
   isConnected?: boolean
 }
 
 // ==================== ТИПЫ ОБРАБОТЧИКОВ СОБЫТИЙ ====================
 
-export type EventListenerWithOptions = EventListenerOrEventListenerObject &
-  Partial<AddEventListenerOptions>
+export type EventListenerWithOptions = EventListenerOrEventListenerObject & Partial<AddEventListenerOptions>
 
 // ==================== ИНТЕРФЕЙС ROOT PART ====================
 
@@ -159,7 +149,10 @@ export interface TrustedHTML {
 
 export interface TrustedTypesWindow {
   trustedTypes?: {
-    createPolicy(name: string, rules: { createHTML: (s: string) => string }): {
+    createPolicy(
+      name: string,
+      rules: { createHTML: (s: string) => string }
+    ): {
       createHTML: (s: string) => TrustedHTML
     }
     emptyScript: TrustedHTML
@@ -169,7 +162,7 @@ export interface TrustedTypesWindow {
 // ==================== ГЛОБАЛЬНЫЕ РАСШИРЕНИЯ ====================
 
 declare global {
-  var litIssuedWarnings: Set<string>
+  var htmlIssuedWarnings: Set<string>
   var ShadyDOM: {
     inUse?: boolean
     noPatch?: boolean

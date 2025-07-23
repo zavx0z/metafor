@@ -102,11 +102,12 @@
  * ту же операцию, просто передавая isConnected: true вниз по дереву, сигнализируя какой колбэк вызывать.
  */
 
-import type {AttributePart, ChildPart} from './html.js'
-import  type{ Disconnectable, Part} from "./html.t.js"
-import {isSingleExpression} from './directive-helpers.js'
-import {Directive, type PartInfo, PartType} from './directive.js'
-export * from './directive.js'
+import type { AttributePart, ChildPart } from "./html"
+import type { Disconnectable, Part } from "./html.t"
+import { isSingleExpression } from "./directive-helpers"
+import { Directive } from "./directive"
+import { type PartInfo, PartType } from "./directive.t"
+export * from "./directive.js"
 
 /**
  * Рекурсивно проходит по дереву частей/TemplateInstances/Directives, чтобы установить
@@ -114,10 +115,7 @@ export * from './directive.js'
  *
  * @return True, если были отключены дети; false в противном случае
  */
-const notifyChildrenConnectedChanged = (
-  parent: Disconnectable,
-  isConnected: boolean
-): boolean => {
+const notifyChildrenConnectedChanged = (parent: Disconnectable, isConnected: boolean): boolean => {
   const children = parent._$disconnectableChildren
   if (children === undefined) {
     return false
@@ -131,10 +129,7 @@ const notifyChildrenConnectedChanged = (
     // в этом списке
     // Отключить директиву (и любые вложенные директивы, содержащиеся в ней)
     // Это свойство должно оставаться неминифицированным.
-    (obj as AsyncDirective)['_$notifyDirectiveConnectionChanged']?.(
-      isConnected,
-      false
-    )
+    ;(obj as AsyncDirective)["_$notifyDirectiveConnectionChanged"]?.(isConnected, false)
     // Отключить часть/TemplateInstance
     notifyChildrenConnectedChanged(obj, isConnected)
   }
@@ -248,8 +243,7 @@ function notifyChildPartConnectedChanged(
  */
 const installDisconnectAPI = (obj: Disconnectable) => {
   if ((obj as ChildPart).type == PartType.CHILD) {
-    (obj as ChildPart)._$notifyConnectionChanged ??=
-      notifyChildPartConnectedChanged
+    ;(obj as ChildPart)._$notifyConnectionChanged ??= notifyChildPartConnectedChanged
     ;(obj as ChildPart)._$reparentDisconnectables ??= reparentDisconnectables
   }
 }
@@ -289,11 +283,7 @@ export abstract class AsyncDirective extends Directive {
    * @param parent
    * @param attributeIndex
    */
-  override _$initialize(
-    part: Part,
-    parent: Disconnectable,
-    attributeIndex: number | undefined
-  ) {
+  override _$initialize(part: Part, parent: Disconnectable, attributeIndex: number | undefined) {
     super._$initialize(part, parent, attributeIndex)
     addDisconnectableToParent(this)
     this.isConnected = part._$isConnected
@@ -310,10 +300,7 @@ export abstract class AsyncDirective extends Directive {
    *     дерево отключается
    * @internal
    */
-  override ['_$notifyDirectiveConnectionChanged'](
-    isConnected: boolean,
-    isClearingDirective = true
-  ) {
+  override ["_$notifyDirectiveConnectionChanged"](isConnected: boolean, isClearingDirective = true) {
     if (isConnected !== this.isConnected) {
       this.isConnected = isConnected
       if (isConnected) {
@@ -349,7 +336,7 @@ export abstract class AsyncDirective extends Directive {
       const committedValue = this.__part._$committedValue as Array<unknown>
       const newValues = [...committedValue]
       newValues[this.__attributeIndex!] = value as unknown
-      (this.__part as AttributePart)._$setValue(newValues, this, 0)
+      ;(this.__part as AttributePart)._$setValue(newValues, this, 0)
     }
   }
 

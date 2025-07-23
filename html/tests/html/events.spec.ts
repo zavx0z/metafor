@@ -1,7 +1,7 @@
-import {afterEach, beforeEach, describe, expect, test} from "bun:test"
-import {html, render} from "../../html.js"
+import { afterEach, beforeEach, describe, expect, test } from "bun:test"
+import { html, render } from "../../html.js"
 
-describe("events", () => {
+describe("события", () => {
   let container: HTMLDivElement
   beforeEach(() => {
     container = document.createElement("div")
@@ -13,7 +13,7 @@ describe("events", () => {
     document.body.removeChild(container)
   })
 
-  test("adds event listener functions, calls with right this value", () => {
+  test("добавляет обработчики событий, вызывает с правильным значением this", () => {
     let thisValue
     let event: Event | undefined = undefined
     const listener = function (this: any, e: any) {
@@ -22,76 +22,56 @@ describe("events", () => {
       thisValue = this
     }
     const host = {} as EventTarget
-    render(
-      html`
-        <div @click=${listener}></div>
-      `,
-      container,
-      {host}
-    )
+    render(html` <div @click=${listener}></div> `, container, { host })
     const div = container.querySelector("div")!
     div.click()
     if (event === undefined) {
-      throw new Error(`Event listener never fired!`)
+      throw new Error(`Обработчик события никогда не был вызван!`)
     }
-    expect(thisValue).toBe(host)
+    // @ts-ignore
+    expect(thisValue, "this должен быть host").toBe(host)
 
-    // MouseEvent is not a function in IE, so the event cannot be an instance
-    // of it
+    // MouseEvent не является функцией в IE, поэтому событие не может быть экземпляром
+    // из него
     if (typeof MouseEvent === "function") {
-      expect(event).toBeInstanceOf(MouseEvent)
+      expect(event, "event должен быть MouseEvent").toBeInstanceOf(MouseEvent)
     } else {
-      expect((event as MouseEvent).initMouseEvent).toBeDefined()
+      expect((event as MouseEvent).initMouseEvent, "initMouseEvent должен быть определён").toBeDefined()
     }
   })
 
-  test("adds event listener objects, calls with right this value", () => {
+  test("добавляет обработчики событий объектов, вызывает с правильным значением this", () => {
     let thisValue
     const listener = {
       handleEvent(_e: Event) {
         // eslint-disable-next-line @typescript-eslint/no-this-alias
         thisValue = this
-      }
+      },
     }
     const host = {} as EventTarget
-    render(
-      html`
-        <div @click=${listener}></div>
-      `,
-      container,
-      {
-        host
-      }
-    )
+    render(html` <div @click=${listener}></div> `, container, {
+      host,
+    })
     const div = container.querySelector("div")!
     div.click()
-    expect(thisValue).toBe(listener)
+    // @ts-ignore
+    expect(thisValue, "this должен быть listener").toBe(listener)
   })
 
-  test("only adds event listener once", () => {
+  test("добавляет обработчики событий только один раз", () => {
     let count = 0
     const listener = () => {
       count++
     }
-    render(
-      html`
-        <div @click=${listener}></div>
-      `,
-      container
-    )
-    render(
-      html`
-        <div @click=${listener}></div>
-      `,
-      container
-    )
+    render(html` <div @click=${listener}></div> `, container)
+    render(html` <div @click=${listener}></div> `, container)
 
     const div = container.querySelector("div")!
     div.click()
-    expect(count).toBe(1)
+    expect(count, "обработчик должен быть вызван один раз").toBe(1)
   })
 
-  test("adds event listeners on self-closing tags", () => {
+  test("добавляет обработчики событий на самозакрывающиеся теги", () => {
     let count = 0
     const listener = () => {
       count++
@@ -104,10 +84,10 @@ describe("events", () => {
 
     const div = container.querySelector("div")!
     div.click()
-    expect(count).toBe(1)
+    expect(count, "обработчик должен быть вызван один раз").toBe(1)
   })
 
-  test("allows updating event listener", () => {
+  test("позволяет обновлять обработчик события", () => {
     let count1 = 0
     const listener1 = () => {
       count1++
@@ -116,23 +96,19 @@ describe("events", () => {
     const listener2 = () => {
       count2++
     }
-    const t = (listener: () => void) => html`
-      <div @click=${listener}></div>
-    `
+    const t = (listener: () => void) => html` <div @click=${listener}></div> `
     render(t(listener1), container)
     render(t(listener2), container)
 
     const div = container.querySelector("div")!
     div.click()
-    expect(count1).toBe(0)
-    expect(count2).toBe(1)
+    expect(count1, "старый обработчик не должен быть вызван").toBe(0)
+    expect(count2, "новый обработчик должен быть вызван").toBe(1)
   })
 
-  test("allows updating event listener without extra calls to remove/addEventListener", () => {
+  test("позволяет обновлять обработчик события без лишних вызовов remove/addEventListener", () => {
     let listener: Function | null
-    const t = () => html`
-      <div @click=${listener}></div>
-    `
+    const t = () => html` <div @click=${listener}></div> `
     render(t(), container)
     const div = container.querySelector("div")!
 
@@ -143,58 +119,57 @@ describe("events", () => {
 
     listener = () => {}
     render(t(), container)
-    expect(addCount).toBe(1)
-    expect(removeCount).toBe(0)
+    expect(addCount, "addEventListener должен быть вызван 1 раз").toBe(1)
+    expect(removeCount, "removeEventListener не должен быть вызван").toBe(0)
 
     listener = () => {}
     render(t(), container)
-    expect(addCount).toBe(1)
-    expect(removeCount).toBe(0)
+    expect(addCount, "addEventListener не должен вызываться повторно").toBe(1)
+    expect(removeCount, "removeEventListener не должен быть вызван").toBe(0)
 
     listener = null
     render(t(), container)
-    expect(addCount).toBe(1)
-    expect(removeCount).toBe(1)
+    expect(addCount, "addEventListener не должен вызываться при удалении").toBe(1)
+    expect(removeCount, "removeEventListener должен быть вызван 1 раз").toBe(1)
 
     listener = () => {}
     render(t(), container)
-    expect(addCount).toBe(2)
-    expect(removeCount).toBe(1)
+    expect(addCount, "addEventListener должен быть вызван второй раз").toBe(2)
+    expect(removeCount, "removeEventListener должен быть вызван 1 раз").toBe(1)
 
     listener = () => {}
     render(t(), container)
-    expect(addCount).toBe(2)
-    expect(removeCount).toBe(1)
+    expect(addCount, "addEventListener не должен вызываться повторно").toBe(2)
+    expect(removeCount, "removeEventListener должен быть вызван 1 раз").toBe(1)
   })
 
-  test("removes event listeners", () => {
+  test("удаляет обработчики событий", () => {
     let target
     let listener: any = (e: any) => (target = e.target)
-    const t = () => html`
-      <div @click=${listener}></div>
-    `
+    const t = () => html` <div @click=${listener}></div> `
     render(t(), container)
     const div = container.querySelector("div")!
     div.click()
-    expect(target).toBe(div)
+    // @ts-ignore
+    expect(target, "target должен быть div").toBe(div)
 
     listener = null
     target = undefined
     render(t(), container)
     div.click()
-    expect(target).toBe(undefined)
+    expect(target, "target должен быть undefined после удаления обработчика").toBe(undefined)
   })
 
-  test("allows capturing events", () => {
+  test("позволяет отлавливать события", () => {
     let event!: Event
     let eventPhase!: number
     const listener = {
       handleEvent(e: Event) {
         event = e
-        // read here because it changes
+        // читать здесь, потому что оно меняется
         eventPhase = event.eventPhase
       },
-      capture: true
+      capture: true,
     }
     render(
       html`
@@ -208,19 +183,19 @@ describe("events", () => {
     )
     const inner = container.querySelector("#inner")!
     inner.dispatchEvent(new Event("test"))
-    expect(event).toBeDefined()
+    expect(event, "event должен быть определён").toBeDefined()
     // expect(eventPhase).toBe(Event.CAPTURING_PHASE)
-    expect(eventPhase).toBe(1)
+    expect(eventPhase, "eventPhase должен быть 1 (CAPTURING_PHASE)").toBe(1)
   })
 
-  test("event listeners can see events fired by dynamic children", () => {
-    // This tests that node directives are called in the commit phase, not
-    // the setValue phase
+  test("обработчики событий могут видеть события, вызванные динамическими дочерними элементами", () => {
+    // Этот тест проверяет, что директивы узлов вызываются в фазе коммита, а не
+    // в фазе setValue
     class TestElement1 extends HTMLElement {
       connectedCallback() {
         this.dispatchEvent(
           new CustomEvent("test-event", {
-            bubbles: true
+            bubbles: true,
           })
         )
       }
@@ -233,16 +208,7 @@ describe("events", () => {
       event = e
     }
     document.body.appendChild(container)
-    render(
-      html`
-        <div @test-event=${listener}>
-          ${html`
-            <test-element-1></test-element-1>
-          `}
-        </div>
-      `,
-      container
-    )
-    expect(event).toBeDefined()
+    render(html` <div @test-event=${listener}>${html` <test-element-1></test-element-1> `}</div> `, container)
+    expect(event, "event должен быть определён").toBeDefined()
   })
 })

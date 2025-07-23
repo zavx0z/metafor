@@ -1,5 +1,6 @@
 // ВАЖНО: эти импорты должны быть только для типов
-import type {Directive, DirectiveResult, PartInfo} from './directive'
+import type { Directive } from "./directive"
+import type { DirectiveResult, PartInfo } from "./directive.t"
 import {
   HTML_RESULT,
   SVG_RESULT,
@@ -11,7 +12,7 @@ import {
   EVENT_PART,
   ELEMENT_PART,
   COMMENT_PART,
-} from './html.t'
+} from "./html.t"
 import type {
   Primitive,
   ResultType,
@@ -31,8 +32,8 @@ import type {
   EventListenerWithOptions,
   RootPart,
   TrustedHTML,
-  TrustedTypesWindow
-} from './html.t'
+  TrustedTypesWindow,
+} from "./html.t"
 
 const ENABLE_EXTRA_SECURITY_HOOKS = true
 const ENABLE_SHADYDOM_NOPATCH = true
@@ -53,20 +54,20 @@ const global = globalThis
  *
  * Не включается в production-сборки.
  */
-const debugLogEvent = process.env.DEV_MODE !== "production"
-  ? (event: LitUnstable.DebugLog.Entry) => {
-    const shouldEmit = (global as unknown as DebugLoggingWindow)
-      .emitLitDebugLogEvents
-    if (!shouldEmit) {
-      return
-    }
-    global.dispatchEvent(
-      new CustomEvent<LitUnstable.DebugLog.Entry>('html-debug', {
-        detail: event,
-      })
-    )
-  }
-  : undefined
+const debugLogEvent =
+  process.env.DEV_MODE !== "production"
+    ? (event: LitUnstable.DebugLog.Entry) => {
+        const shouldEmit = (global as unknown as DebugLoggingWindow).emitLitDebugLogEvents
+        if (!shouldEmit) {
+          return
+        }
+        global.dispatchEvent(
+          new CustomEvent<LitUnstable.DebugLog.Entry>("html-debug", {
+            detail: event,
+          })
+        )
+      }
+    : undefined
 // Используется для связывания beginRender и endRender при вложенных рендерах,
 // когда из-за ошибок не вызывается endRender.
 let debugLogRenderId = 0
@@ -74,7 +75,7 @@ let debugLogRenderId = 0
 let issueWarning: (code: string, warning: string) => void
 
 if (process.env.DEV_MODE !== "production") {
-  global.litIssuedWarnings ??= new Set()
+  global.htmlIssuedWarnings ??= new Set()
 
   /**
    * Выдает предупреждение, если мы еще не выдали его, на основе `code` или
@@ -82,30 +83,20 @@ if (process.env.DEV_MODE !== "production") {
    * отключение по `code` может быть выполнено пользователями.
    */
   issueWarning = (code: string, warning: string) => {
-    warning += code
-      ? ` См. https://metafor.space/msg/${code} для получения дополнительной информации.`
-      : ''
-    if (
-      !global.litIssuedWarnings!.has(warning) &&
-      !global.litIssuedWarnings!.has(code)
-    ) {
+    warning += code ? ` См. https://metafor.space/msg/${code} для получения дополнительной информации.` : ""
+    if (!global.htmlIssuedWarnings!.has(warning) && !global.htmlIssuedWarnings!.has(code)) {
       console.warn(warning)
-      global.litIssuedWarnings!.add(warning)
+      global.htmlIssuedWarnings!.add(warning)
     }
   }
 
   queueMicrotask(() => {
-    issueWarning(
-      'dev-mode',
-      `@metafor/html находится в режиме разработки. Не рекомендуется для продакшена!`
-    )
+    issueWarning("dev-mode", `@metafor/html находится в режиме разработки. Не рекомендуется для продакшена!`)
   })
 }
 
 const wrap =
-  ENABLE_SHADYDOM_NOPATCH &&
-  global.ShadyDOM?.inUse &&
-  global.ShadyDOM?.noPatch === true
+  ENABLE_SHADYDOM_NOPATCH && global.ShadyDOM?.inUse && global.ShadyDOM?.noPatch === true
     ? (global.ShadyDOM!.wrap as <T extends Node>(node: T) => T)
     : <T extends Node>(node: T) => node
 
@@ -120,9 +111,9 @@ const trustedTypes = (global as unknown as TrustedTypesWindow).trustedTypes
  * выражения. Следовательно, он считается безопасным по конструкции.
  */
 const policy = trustedTypes
-  ? trustedTypes.createPolicy('html', {
-    createHTML: (s) => s,
-  })
+  ? trustedTypes.createPolicy("html", {
+      createHTML: (s) => s,
+    })
   : undefined
 
 /**
@@ -148,13 +139,9 @@ const policy = trustedTypes
  * @return Функция, которая будет очищать этот класс записей.
  */
 
-
 const identityFunction: ValueSanitizer = (value: unknown) => value
-const noopSanitizer: SanitizerFactory = (
-  _node: Node,
-  _name: string,
-  _type: 'property' | 'attribute'
-) => identityFunction
+const noopSanitizer: SanitizerFactory = (_node: Node, _name: string, _type: "property" | "attribute") =>
+  identityFunction
 
 /** Устанавливает глобальный фабрик очистки. */
 const setSanitizer = (newSanitizer: SanitizerFactory) => {
@@ -164,7 +151,7 @@ const setSanitizer = (newSanitizer: SanitizerFactory) => {
   if (sanitizerFactoryInternal !== noopSanitizer) {
     throw new Error(
       `Попытка перезаписать существующую политику безопасности @metafor/html.` +
-      ` setSanitizeDOMValueFactory должен быть вызван не более одного раза.`
+        ` setSanitizeDOMValueFactory должен быть вызван не более одного раза.`
     )
   }
   sanitizerFactoryInternal = newSanitizer
@@ -183,7 +170,7 @@ const createSanitizer: SanitizerFactory = (node, name, type) => {
 
 // Добавляется к имени атрибута, чтобы отметить атрибут как связанный, чтобы
 // мы могли его легко найти.
-const boundAttributeSuffix = '$html$'
+const boundAttributeSuffix = "$html$"
 
 // Этот маркер используется в множестве синтаксических позициях в HTML, поэтому
 // он должен быть допустимым именем элемента и атрибута. Мы не поддерживаем
@@ -193,7 +180,7 @@ const marker = `html$${Math.random().toFixed(9).slice(2)}$`
 
 // Строка, используемая для определения того, является ли комментарий маркерным
 // комментарием.
-const markerMatch = '?' + marker
+const markerMatch = "?" + marker
 
 // Текст, используемый для вставки узла маркерного комментария. Мы используем
 // синтаксис обработки инструкций, потому что он немного меньше, но парсится
@@ -203,23 +190,23 @@ const nodeMarker = `<${markerMatch}>`
 const d =
   NODE_MODE && global.document === undefined
     ? ({
-      createTreeWalker() {
-        return {}
-      },
-    } as unknown as Document)
+        createTreeWalker() {
+          return {}
+        },
+      } as unknown as Document)
     : document
 
 // Создает динамический маркер. Мы никогда не должны искать эти узлы в DOM.
-const createMarker = () => d.createComment('')
+const createMarker = () => d.createComment("")
 
 // https://tc39.github.io/ecma262/#sec-typeof-operator
 const isPrimitive = (value: unknown): value is Primitive =>
-  value === null || (typeof value != 'object' && typeof value != 'function')
+  value === null || (typeof value != "object" && typeof value != "function")
 const isArray = Array.isArray
 const isIterable = (value: unknown): value is Iterable<unknown> =>
   isArray(value) ||
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  typeof (value as any)?.[Symbol.iterator] === 'function'
+  typeof (value as any)?.[Symbol.iterator] === "function"
 
 const SPACE_CHAR = `[ \t\n\f\r]`
 const ATTR_VALUE_CHAR = `[^ \t\n\f\r"'\`<>=]`
@@ -277,7 +264,7 @@ const comment2EndRegex = />/g
  */
 const tagEndRegex = new RegExp(
   `>|${SPACE_CHAR}(?:(${NAME_CHAR}+)(${SPACE_CHAR}*=${SPACE_CHAR}*(?:${ATTR_VALUE_CHAR}|("|')|))|$)`,
-  'g'
+  "g"
 )
 const ENTIRE_MATCH = 0
 const ATTRIBUTE_NAME = 1
@@ -297,45 +284,42 @@ const rawTextElement = /^(?:script|style|textarea|title)$/i
 /** Типы TemplateResult */
 // Важно: эти должны соответствовать значениям в PartType
 
-
 /**
  * Генерирует функцию тега, которая возвращает TemplateResult с заданным
  * типом результата.
  */
 const tag =
   <T extends ResultType>(type: T) =>
-    (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<T> => {
-      // Предупреждает о последовательностях escape-последовательностей восьмеричного
-      // кода в шаблонах
-      // Мы делаем это здесь, а не в рендере, чтобы предупреждение было ближе к
-      // определению шаблона.
-      if (process.env.DEV_MODE !== "production" && strings.some((s) => s === undefined)) {
-        console.warn(
-          'Некоторые строковые шаблоны undefined.\n' +
-          'Это, вероятно, вызвано нелегальными последовательностями escape-последовательностей восьмеричного кода.'
+  (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<T> => {
+    // Предупреждает о последовательностях escape-последовательностей восьмеричного
+    // кода в шаблонах
+    // Мы делаем это здесь, а не в рендере, чтобы предупреждение было ближе к
+    // определению шаблона.
+    if (process.env.DEV_MODE !== "production" && strings.some((s) => s === undefined)) {
+      console.warn(
+        "Некоторые строковые шаблоны undefined.\n" +
+          "Это, вероятно, вызвано нелегальными последовательностями escape-последовательностей восьмеричного кода."
+      )
+    }
+    if (process.env.DEV_MODE !== "production") {
+      // Импорт static-html.js вызывает циклическую зависимость, которую g3 не
+      // обрабатывает. Вместо этого мы знаем, что статические значения должны
+      // иметь поле `_$htmlStatic$`.
+      if (values.some((val) => (val as { _$htmlStatic$: unknown })?.["_$htmlStatic$"])) {
+        issueWarning(
+          "",
+          `Статические значения 'literal' или 'unsafeStatic' не могут использоваться в нестатических шаблонах.\n` +
+            `Пожалуйста, используйте статическую функцию 'html' для тега, чтобы увидеть https://metafor.dev/docs/templates/expressions/#static-expressions`
         )
       }
-      if (process.env.DEV_MODE !== "production") {
-        // Импорт static-html.js вызывает циклическую зависимость, которую g3 не
-        // обрабатывает. Вместо этого мы знаем, что статические значения должны
-        // иметь поле `_$htmlStatic$`.
-        if (
-          values.some((val) => (val as { _$htmlStatic$: unknown })?.['_$htmlStatic$'])
-        ) {
-          issueWarning(
-            '',
-            `Статические значения 'literal' или 'unsafeStatic' не могут использоваться в нестатических шаблонах.\n` +
-            `Пожалуйста, используйте статическую функцию 'html' для тега, чтобы увидеть https://metafor.dev/docs/templates/expressions/#static-expressions`
-          )
-        }
-      }
-      return {
-        // Это свойство должно оставаться неминифицированным.
-        ['_$htmlType$']: type,
-        strings,
-        values,
-      }
     }
+    return {
+      // Это свойство должно оставаться неминифицированным.
+      ["_$htmlType$"]: type,
+      strings,
+      values,
+    }
+  }
 
 /**
  * Интерпретирует литеральный шаблон как HTML-шаблон, который может эффективно
@@ -409,7 +393,7 @@ export const mathml = tag(MATHML_RESULT)
  * Значение-отправка, которое сигнализирует о том, что значение было обработано
  * директивой и не должно записываться в DOM.
  */
-export const noChange = Symbol.for('html-noChange')
+export const noChange = Symbol.for("html-noChange")
 
 /**
  * Значение-отправка, которое сигнализирует о том, что ChildPart должен полностью
@@ -432,7 +416,7 @@ export const noChange = Symbol.for('html-noChange')
  * атрибут, в то время как `undefined` и `null` будут рендерить пустую строку.
  * В свойственных выражениях `nothing` становится `undefined`.
  */
-export const nothing = Symbol.for('html-nothing')
+export const nothing = Symbol.for("html-nothing")
 
 /**
  * Кэш подготовленных шаблонов, ключами которого являются TemplateStringsArray
@@ -443,11 +427,7 @@ export const nothing = Symbol.for('html-nothing')
  */
 const templateCache = new WeakMap<TemplateStringsArray, Template>()
 
-
-const walker = d.createTreeWalker(
-  d,
-  129 /* NodeFilter.SHOW_{ELEMENT|COMMENT} */
-)
+const walker = d.createTreeWalker(d, 129 /* NodeFilter.SHOW_{ELEMENT|COMMENT} */)
 
 let sanitizerFactoryInternal: SanitizerFactory = noopSanitizer
 
@@ -461,18 +441,14 @@ let sanitizerFactoryInternal: SanitizerFactory = noopSanitizer
 // Тип для классов, которые имеют поле `_directive` или `_directives[]`,
 // используемое `resolveDirective`
 
-
-function trustFromTemplateString(
-  tsa: TemplateStringsArray,
-  stringFromTSA: string
-): TrustedHTML {
+function trustFromTemplateString(tsa: TemplateStringsArray, stringFromTSA: string): TrustedHTML {
   // Проверка безопасности для предотвращения подделки результатов шаблона Lit.
   // В будущем мы можем заменить это на Array.isTemplateObject, хотя нам
   // может потребоваться сделать эту проверку внутри функций html и svg,
   // потому что предварительно скомпилированные шаблоны не поступают в виде
   // объектов TemplateStringArray.
-  if (!isArray(tsa) || !tsa.hasOwnProperty('raw')) {
-    let message = 'invalid template strings array';
+  if (!isArray(tsa) || !tsa.hasOwnProperty("raw")) {
+    let message = "invalid template strings array"
     if (process.env.DEV_MODE !== "production") {
       message = `
           Internal Error: expected template strings to be an array
@@ -486,13 +462,11 @@ function trustFromTemplateString(
           and include information about your build tooling, if any.
         `
         .trim()
-        .replace(/\n */g, '\n');
+        .replace(/\n */g, "\n")
     }
-    throw new Error(message);
+    throw new Error(message)
   }
-  return policy !== undefined
-    ? policy.createHTML(stringFromTSA)
-    : (stringFromTSA as unknown as TrustedHTML);
+  return policy !== undefined ? policy.createHTML(stringFromTSA) : (stringFromTSA as unknown as TrustedHTML)
 }
 
 /**
@@ -508,113 +482,106 @@ function trustFromTemplateString(
  *     чтобы избежать полей объекта, так как этот код используется в
  *     неминифицированном коде SSR)
  */
-const getTemplateHtml = (
-  strings: TemplateStringsArray,
-  type: ResultType
-): [TrustedHTML, Array<string>] => {
+const getTemplateHtml = (strings: TemplateStringsArray, type: ResultType): [TrustedHTML, Array<string>] => {
   // Вставляет маркеры в HTML-шаблон, чтобы представить позицию связывания.
   // Следующий код сканирует строки шаблона, чтобы определить синтаксическую
   // позицию связывания. Они могут находиться в текстовой позиции, где
   // мы вставляем HTML-комментарий, позицию значения атрибута, где мы
   // вставляем строку-отправку и переписываем имя атрибута, или внутри
   // тега, где мы вставляем строку-отправку.
-  const l = strings.length - 1;
+  const l = strings.length - 1
   // Хранит чувствительные к регистру имена атрибутов, связанных с частями,
   // в порядке их частей. Элементы также отражены в этом массиве как undefined
   // вместо строки, чтобы дистанцировать от связывания атрибутов.
-  const attrNames: Array<string> = [];
-  let html =
-    type === SVG_RESULT ? '<svg>' : type === MATHML_RESULT ? '<math>' : '';
+  const attrNames: Array<string> = []
+  let html = type === SVG_RESULT ? "<svg>" : type === MATHML_RESULT ? "<math>" : ""
 
   // Когда мы внутри необработанного текстового тега (не его текстовое содержимое),
   // регулярное выражение все еще будет tagRegex, поэтому мы можем найти
   // атрибуты, но переключится на это регулярное выражение, когда тег
   // завершится.
-  let rawTextEndRegex: RegExp | undefined;
+  let rawTextEndRegex: RegExp | undefined
 
   // Текущее состояние парсинга, представленное ссылкой на одно из регулярных
   // выражений
-  let regex = textEndRegex;
+  let regex = textEndRegex
 
   for (let i = 0; i < l; i++) {
-    const s = strings[i];
+    const s = strings[i]!
     // Индекс конца последнего имени атрибута. Когда это положительно в конце
     // строки, это означает, что мы находимся в позиции значения атрибута
     // и нам нужно переписать имя атрибута.
     // Мы также используем специальное значение -2, чтобы указать, что мы
     // встретили конец строки в позиции имени атрибута.
-    let attrNameEndIndex = -1;
-    let attrName: string | undefined;
-    let lastIndex = 0;
-    let match!: RegExpExecArray | null;
+    let attrNameEndIndex = -1
+    let attrName: string | undefined
+    let lastIndex = 0
+    let match!: RegExpExecArray | null
 
     // Условия в этом цикле обрабатывают текущее состояние парсинга, и
     // присваивания переменной `regex` являются переходами состояния.
     while (lastIndex < s.length) {
       // Убедимся, что мы начинаем поиск с того места, где мы остановились
       // ранее
-      regex.lastIndex = lastIndex;
-      match = regex.exec(s);
+      regex.lastIndex = lastIndex
+      match = regex.exec(s)
       if (match === null) {
-        break;
+        break
       }
-      lastIndex = regex.lastIndex;
+      lastIndex = regex.lastIndex
       if (regex === textEndRegex) {
-        if (match[COMMENT_START] === '!--') {
-          regex = commentEndRegex;
+        if (match[COMMENT_START] === "!--") {
+          regex = commentEndRegex
         } else if (match[COMMENT_START] !== undefined) {
           // Мы начали странный комментарий, например </{
-          regex = comment2EndRegex;
+          regex = comment2EndRegex
         } else if (match[TAG_NAME] !== undefined) {
           if (rawTextElement.test(match[TAG_NAME])) {
             // Записываем, если мы встречаем необработанный текстовый элемент.
             // Мы переключимся на это регулярное выражение в конце тега.
-            rawTextEndRegex = new RegExp(`</${match[TAG_NAME]}`, 'g');
+            rawTextEndRegex = new RegExp(`</${match[TAG_NAME]}`, "g")
           }
-          regex = tagEndRegex;
+          regex = tagEndRegex
         } else if (match[DYNAMIC_TAG_NAME] !== undefined) {
           if (process.env.DEV_MODE !== "production") {
             throw new Error(
-              'Связывания в именах тегов не поддерживаются. Пожалуйста, используйте статические шаблоны вместо этого. ' +
-              'См. https://lit.dev/docs/templates/expressions/#static-expressions'
-            );
+              "Связывания в именах тегов не поддерживаются. Пожалуйста, используйте статические шаблоны вместо этого. " +
+                "См. https://lit.dev/docs/templates/expressions/#static-expressions"
+            )
           }
-          regex = tagEndRegex;
+          regex = tagEndRegex
         }
       } else if (regex === tagEndRegex) {
-        if (match[ENTIRE_MATCH] === '>') {
+        if (match[ENTIRE_MATCH] === ">") {
           // Конец тега. Если мы начали необработанный текстовый элемент,
           // используем это регулярное выражение
-          regex = rawTextEndRegex ?? textEndRegex;
+          regex = rawTextEndRegex ?? textEndRegex
           // Мы можем заканчивать необученное значение атрибута, поэтому
           // убедитесь, что мы очищаем любой pending attrNameEndIndex
-          attrNameEndIndex = -1;
+          attrNameEndIndex = -1
         } else if (match[ATTRIBUTE_NAME] === undefined) {
           // Позиция имени атрибута
-          attrNameEndIndex = -2;
+          attrNameEndIndex = -2
         } else {
-          attrNameEndIndex = regex.lastIndex - match[SPACES_AND_EQUALS].length;
-          attrName = match[ATTRIBUTE_NAME];
+          attrNameEndIndex = regex.lastIndex - match[SPACES_AND_EQUALS]!.length
+          attrName = match[ATTRIBUTE_NAME]
           regex =
             match[QUOTE_CHAR] === undefined
               ? tagEndRegex
               : match[QUOTE_CHAR] === '"'
-                ? doubleQuoteAttrEndRegex
-                : singleQuoteAttrEndRegex;
+              ? doubleQuoteAttrEndRegex
+              : singleQuoteAttrEndRegex
         }
-      } else if (
-        regex === doubleQuoteAttrEndRegex ||
-        regex === singleQuoteAttrEndRegex
-      ) {
-        regex = tagEndRegex;
+      } else if (regex === doubleQuoteAttrEndRegex || regex === singleQuoteAttrEndRegex) {
+        regex = tagEndRegex
       } else if (regex === commentEndRegex || regex === comment2EndRegex) {
-        regex = textEndRegex;
+        regex = textEndRegex
       } else {
         // Не одно из пяти состояний регулярных выражений, поэтому оно должно
         // быть динамически созданным регулярным выражением необработанного
         // текстового элемента, и мы находимся в конце этого элемента.
-        regex = tagEndRegex;
-        rawTextEndRegex = undefined;
+        regex = tagEndRegex
+        rawTextEndRegex = undefined
       }
     }
 
@@ -625,11 +592,11 @@ const getTemplateHtml = (
       // значении атрибута.
       console.assert(
         attrNameEndIndex === -1 ||
-        regex === tagEndRegex ||
-        regex === singleQuoteAttrEndRegex ||
-        regex === doubleQuoteAttrEndRegex,
-        'unexpected parse state B'
-      );
+          regex === tagEndRegex ||
+          regex === singleQuoteAttrEndRegex ||
+          regex === doubleQuoteAttrEndRegex,
+        "unexpected parse state B"
+      )
     }
 
     // У нас есть четыре случая:
@@ -646,80 +613,71 @@ const getTemplateHtml = (
 
     // Обнаруживаем связывание рядом с концом самозакрывающегося тега и
     // вставляем пробел, чтобы отделить маркер от конца тега:
-    const end =
-      regex === tagEndRegex && strings[i + 1].startsWith('/>') ? ' ' : '';
+    const end = regex === tagEndRegex && strings[i + 1]!.startsWith("/>") ? " " : ""
     html +=
       regex === textEndRegex
         ? s + nodeMarker
         : attrNameEndIndex >= 0
-          ? (attrNames.push(attrName!),
-          s.slice(0, attrNameEndIndex) +
-          boundAttributeSuffix +
-          s.slice(attrNameEndIndex)) +
+        ? (attrNames.push(attrName!), s.slice(0, attrNameEndIndex) + boundAttributeSuffix + s.slice(attrNameEndIndex)) +
           marker +
           end
-          : s + marker + (attrNameEndIndex === -2 ? i : end);
+        : s + marker + (attrNameEndIndex === -2 ? i : end)
   }
 
   const htmlResult: string | TrustedHTML =
-    html +
-    (strings[l] || '<?>') +
-    (type === SVG_RESULT ? '</svg>' : type === MATHML_RESULT ? '</math>' : '');
+    html + (strings[l] || "<?>") + (type === SVG_RESULT ? "</svg>" : type === MATHML_RESULT ? "</math>" : "")
 
   // Возвращается как массив для краткости
-  return [trustFromTemplateString(strings, htmlResult as string), attrNames];
-};
+  return [trustFromTemplateString(strings, htmlResult as string), attrNames]
+}
 
 /** @internal */
-export type {Template};
+export type { Template }
 
 class Template {
   /** @internal */
-  el!: HTMLTemplateElement;
+  el!: HTMLTemplateElement
 
-  parts: Array<TemplatePart> = [];
+  parts: Array<TemplatePart> = []
 
   constructor(
     // Это свойство должно оставаться неминифицированным.
-    {strings, ['_$htmlType$']: type}: UncompiledTemplateResult,
+    { strings, ["_$htmlType$"]: type }: UncompiledTemplateResult,
     options?: RenderOptions
   ) {
-    let node: Node | null;
-    let nodeIndex = 0;
-    let attrNameIndex = 0;
-    const partCount = strings.length - 1;
-    const parts = this.parts;
+    let node: Node | null
+    let nodeIndex = 0
+    let attrNameIndex = 0
+    const partCount = strings.length - 1
+    const parts = this.parts
 
     // Создаем элемент шаблона
-    const [html, attrNames] = getTemplateHtml(strings, type);
-    this.el = Template.createElement(html, options);
-    walker.currentNode = this.el.content;
+    const [html, attrNames] = getTemplateHtml(strings, type)
+    this.el = Template.createElement(html, options)
+    walker.currentNode = this.el.content
 
     // Переродитель SVG или MathML узлы в корневой узел шаблона
     if (type === SVG_RESULT || type === MATHML_RESULT) {
-      const wrapper = this.el.content.firstChild!;
-      wrapper.replaceWith(...Array.from(wrapper.childNodes));
+      const wrapper = this.el.content.firstChild!
+      wrapper.replaceWith(...Array.from(wrapper.childNodes))
     }
 
     // Обходим шаблон, чтобы найти маркеры связывания и создать TemplateParts
     while ((node = walker.nextNode()) !== null && parts.length < partCount) {
       if (node.nodeType === 1) {
         if (process.env.DEV_MODE !== "production") {
-          const tag = (node as Element).localName;
+          const tag = (node as Element).localName
           // Предупреждаем, если `textarea` включает выражение и выбрасываем,
           // если `template` это делает, так как это не поддерживается.
           // Мы делаем это, проверяя innerHTML на что-то, похожее на маркер.
           // Это ловит случаи, когда маркеры превращаются в текстовые узлы.
-          if (
-            /^(?:textarea|template)$/i!.test(tag) &&
-            (node as Element).innerHTML.includes(marker)
-          ) {
+          if (/^(?:textarea|template)$/i!.test(tag) && (node as Element).innerHTML.includes(marker)) {
             const m =
               `Выражения не поддерживаются внутри \`${tag}\` ` +
               `элементов. См. https://metafor.dev/msg/expression-in-${tag} для получения дополнительной информации.`
-            if (tag === 'template') {
+            if (tag === "template") {
               throw new Error(m)
-            } else issueWarning('', m)
+            } else issueWarning("", m)
           }
         }
         // TODO (justinfagnani): для попыток динамических имен тегов мы не
@@ -728,31 +686,31 @@ class Template {
         if ((node as Element).hasAttributes()) {
           for (const name of (node as Element).getAttributeNames()) {
             if (name.endsWith(boundAttributeSuffix)) {
-              const realName = attrNames[attrNameIndex++];
-              const value = (node as Element).getAttribute(name)!;
-              const statics = value.split(marker);
-              const m = /([.?@])?(.*)/.exec(realName)!;
+              const realName = attrNames[attrNameIndex++]
+              const value = (node as Element).getAttribute(name)!
+              const statics = value.split(marker)
+              const m = /([.?@])?(.*)/.exec(realName!)!
               parts.push({
                 type: ATTRIBUTE_PART,
                 index: nodeIndex,
-                name: m[2],
+                name: m[2]!,
                 strings: statics,
                 ctor:
-                  m[1] === '.'
+                  m[1] === "."
                     ? PropertyPart
-                    : m[1] === '?'
-                      ? BooleanAttributePart
-                      : m[1] === '@'
-                        ? EventPart
-                        : AttributePart,
-              });
-              (node as Element).removeAttribute(name);
+                    : m[1] === "?"
+                    ? BooleanAttributePart
+                    : m[1] === "@"
+                    ? EventPart
+                    : AttributePart,
+              })
+              ;(node as Element).removeAttribute(name)
             } else if (name.startsWith(marker)) {
               parts.push({
                 type: ELEMENT_PART,
                 index: nodeIndex,
-              });
-              (node as Element).removeAttribute(name);
+              })
+              ;(node as Element).removeAttribute(name)
             }
           }
         }
@@ -762,43 +720,41 @@ class Template {
           // Для необработанных текстовых элементов нам нужно разбить их
           // текстовое содержимое на маркеры, создать Text узел для каждого
           // сегмента, и создать TemplatePart для каждого маркера.
-          const strings = (node as Element).textContent!.split(marker);
-          const lastIndex = strings.length - 1;
+          const strings = (node as Element).textContent!.split(marker)
+          const lastIndex = strings.length - 1
           if (lastIndex > 0) {
-            (node as Element).textContent = trustedTypes
-              ? (trustedTypes.emptyScript as unknown as '')
-              : '';
+            ;(node as Element).textContent = trustedTypes ? (trustedTypes.emptyScript as unknown as "") : ""
             // Генерируем новый Text узел для каждого литерального сегмента
             // Эти узлы также используются как маркеры для частей Child
             for (let i = 0; i < lastIndex; i++) {
-              (node as Element).append(strings[i], createMarker());
+              ;(node as Element).append(strings[i]!, createMarker())
               // Проходим мимо узла маркера, который мы только что добавили
-              walker.nextNode();
-              parts.push({type: CHILD_PART, index: ++nodeIndex});
+              walker.nextNode()
+              parts.push({ type: CHILD_PART, index: ++nodeIndex })
             }
             // Обратите внимание, что этот маркер добавляется после текущего
             // узла walker, поэтому он будет пройден в внешнем цикле (и
             // игнорируется), поэтому нам не нужно корректировать nodeIndex здесь
-            (node as Element).append(strings[lastIndex], createMarker());
+            ;(node as Element).append(strings[lastIndex]!, createMarker())
           }
         }
       } else if (node.nodeType === 8) {
-        const data = (node as Comment).data;
+        const data = (node as Comment).data
         if (data === markerMatch) {
-          parts.push({type: CHILD_PART, index: nodeIndex});
+          parts.push({ type: CHILD_PART, index: nodeIndex })
         } else {
-          let i = -1;
+          let i = -1
           while ((i = (node as Comment).data.indexOf(marker, i + 1)) !== -1) {
             // Узел комментария имеет маркер связывания внутри, создаем
             // неактивную часть
             // Связывание не будет работать, но последующие связывания будут
-            parts.push({type: COMMENT_PART, index: nodeIndex});
+            parts.push({ type: COMMENT_PART, index: nodeIndex })
             // Переходим к концу совпадения
-            i += marker.length - 1;
+            i += marker.length - 1
           }
         }
       }
-      nodeIndex++;
+      nodeIndex++
     }
 
     if (process.env.DEV_MODE !== "production") {
@@ -811,14 +767,14 @@ class Template {
       if (attrNames.length !== attrNameIndex) {
         throw new Error(
           `Обнаружен дублирующий атрибут связывания. Это происходит, если ваш шаблон ` +
-          `имеет дублирующие атрибуты на элементном теге. Например ` +
-          `"<input ?disabled=\${true} ?disabled=\${false}>" содержит ` +
-          `дублирующий атрибут "disabled". Ошибка была обнаружена в ` +
-          `следующем шаблоне: \n` +
-          '`' +
-          strings.join('${...}') +
-          '`'
-        );
+            `имеет дублирующие атрибуты на элементном теге. Например ` +
+            `"<input ?disabled=\${true} ?disabled=\${false}>" содержит ` +
+            `дублирующий атрибут "disabled". Ошибка была обнаружена в ` +
+            `следующем шаблоне: \n` +
+            "`" +
+            strings.join("${...}") +
+            "`"
+        )
       }
     }
 
@@ -826,24 +782,23 @@ class Template {
     // избежать утечки памяти, но каждый раз, когда мы подготавливаем шаблон,
     // мы сразу же его рендерим и переиспользуем walker в new TemplateInstance._clone().
     debugLogEvent &&
-    debugLogEvent({
-      kind: 'template prep',
-      template: this,
-      clonableTemplate: this.el,
-      parts: this.parts,
-      strings,
-    });
+      debugLogEvent({
+        kind: "template prep",
+        template: this,
+        clonableTemplate: this.el,
+        parts: this.parts,
+        strings,
+      })
   }
 
   // Переопределяется через `litHtmlPolyfillSupport` для поддержки платформы.
   /** @nocollapse */
   static createElement(html: TrustedHTML, _options?: RenderOptions) {
-    const el = d.createElement('template');
-    el.innerHTML = html as unknown as string;
-    return el;
+    const el = d.createElement("template")
+    el.innerHTML = html as unknown as string
+    return el
   }
 }
-
 
 function resolveDirective(
   part: ChildPart | AttributePart | ElementPart,
@@ -854,30 +809,29 @@ function resolveDirective(
   // Ранняя отмена, если значение явно noChange. Обратите внимание, это
   // означает, что любая вложенная директива все еще прикреплена и не запускается.
   if (value === noChange) {
-    return value;
+    return value
   }
   let currentDirective =
     attributeIndex !== undefined
       ? (parent as AttributePart).__directives?.[attributeIndex]
-      : (parent as ChildPart | ElementPart | Directive).__directive;
+      : (parent as ChildPart | ElementPart | Directive).__directive
   const nextDirectiveConstructor = isPrimitive(value)
     ? undefined
     : // Это свойство должно оставаться неминифицированным.
-    (value as DirectiveResult)['_$htmlDirective$'];
+      (value as DirectiveResult)["_$htmlDirective$"]
   if (currentDirective?.constructor !== nextDirectiveConstructor) {
     // Это свойство должно оставаться неминифицированным.
-    currentDirective?.['_$notifyDirectiveConnectionChanged']?.(false);
+    currentDirective?.["_$notifyDirectiveConnectionChanged"]?.(false)
     if (nextDirectiveConstructor === undefined) {
-      currentDirective = undefined;
+      currentDirective = undefined
     } else {
-      currentDirective = new nextDirectiveConstructor(part as PartInfo);
-      currentDirective._$initialize(part, parent, attributeIndex);
+      currentDirective = new nextDirectiveConstructor(part as PartInfo) as Directive
+      currentDirective._$initialize(part, parent, attributeIndex)
     }
     if (attributeIndex !== undefined) {
-      ((parent as AttributePart).__directives ??= [])[attributeIndex] =
-        currentDirective;
+      ;((parent as AttributePart).__directives ??= [])[attributeIndex] = currentDirective
     } else {
-      (parent as any).__directive = currentDirective;
+      ;(parent as any).__directive = currentDirective
     }
   }
   if (currentDirective !== undefined) {
@@ -886,117 +840,106 @@ function resolveDirective(
       currentDirective._$resolve(part, (value as DirectiveResult).values),
       currentDirective,
       attributeIndex
-    );
+    )
   }
-  return value;
+  return value
 }
 
-export type {TemplateInstance};
+export type { TemplateInstance }
 
 /**
  * Обновляемый экземпляр шаблона. Хранит ссылки на части, используемые для
  * обновления экземпляра шаблона.
  */
 class TemplateInstance implements Disconnectable {
-  _$template: Template;
-  _$parts: Array<Part | undefined> = [];
+  _$template: Template
+  _$parts: Array<Part | undefined> = []
 
   /** @internal */
-  _$parent: ChildPart;
+  _$parent: ChildPart
   /** @internal */
-  _$disconnectableChildren?: Set<Disconnectable> = undefined;
+  _$disconnectableChildren?: Set<Disconnectable> = undefined
 
   constructor(template: Template, parent: ChildPart) {
-    this._$template = template;
-    this._$parent = parent;
+    this._$template = template
+    this._$parent = parent
   }
 
   // Вызывается родительским узлом ChildPart get parentNode
   get parentNode() {
-    return this._$parent.parentNode;
+    return this._$parent.parentNode
   }
 
   // См. комментарий в интерфейсе Disconnectable для объяснения, почему это
   // геттер
   get _$isConnected() {
-    return this._$parent._$isConnected;
+    return this._$parent._$isConnected
   }
 
   // Этот метод отделен от конструктора, потому что нам нужно вернуть
   // DocumentFragment, и мы не хотим держать его с экземпляром поля.
   _clone(options: RenderOptions | undefined) {
     const {
-      el: {content},
+      el: { content },
       parts: parts,
-    } = this._$template;
-    const fragment = (options?.creationScope ?? d).importNode(content, true);
-    walker.currentNode = fragment;
+    } = this._$template
+    const fragment = (options?.creationScope ?? d).importNode(content, true)
+    walker.currentNode = fragment
 
-    let node = walker.nextNode()!;
-    let nodeIndex = 0;
-    let partIndex = 0;
-    let templatePart = parts[0];
+    let node = walker.nextNode()!
+    let nodeIndex = 0
+    let partIndex = 0
+    let templatePart = parts[0]
 
     while (templatePart !== undefined) {
       if (nodeIndex === templatePart.index) {
-        let part: Part | undefined;
+        let part: Part | undefined
         if (templatePart.type === CHILD_PART) {
-          part = new ChildPart(
-            node as HTMLElement,
-            node.nextSibling,
-            this,
-            options
-          );
+          part = new ChildPart(node as HTMLElement, node.nextSibling, this, options)
         } else if (templatePart.type === ATTRIBUTE_PART) {
-          part = new templatePart.ctor(
-            node as HTMLElement,
-            templatePart.name,
-            templatePart.strings,
-            this,
-            options
-          );
+          part = new templatePart.ctor(node as HTMLElement, templatePart.name, templatePart.strings, this, options)
         } else if (templatePart.type === ELEMENT_PART) {
-          part = new ElementPart(node as HTMLElement, this, options);
+          part = new ElementPart(node as HTMLElement, this, options)
         }
-        this._$parts.push(part);
-        templatePart = parts[++partIndex];
+        this._$parts.push(part)
+        templatePart = parts[++partIndex]
       }
       if (nodeIndex !== templatePart?.index) {
-        node = walker.nextNode()!;
-        nodeIndex++;
+        node = walker.nextNode()!
+        nodeIndex++
       }
     }
     // Нам нужно установить currentNode откуда-нибудь, чтобы избежать утечки
     // дерева, даже если дерево отсоединено и должно быть освобождено.
-    walker.currentNode = d;
-    return fragment;
+    walker.currentNode = d
+    return fragment
   }
 
   _update(values: Array<unknown>) {
-    let i = 0;
+    let i = 0
     for (const part of this._$parts) {
       if (part !== undefined) {
         debugLogEvent &&
-        debugLogEvent({
-          kind: 'set part',
-          part,
-          value: values[i],
-          valueIndex: i,
-          values,
-          templateInstance: this,
-        });
+          debugLogEvent({
+            kind: "set part",
+            part,
+            value: values[i],
+            valueIndex: i,
+            values,
+            templateInstance: this,
+          })
         if ((part as AttributePart).strings !== undefined) {
-          (part as AttributePart)._$setValue(values, part as AttributePart, i);
+          ;(part as AttributePart)._$setValue(values, part as AttributePart, i)
           // Количество значений, которые потребляет часть, равно
           // part.strings.length - 1, так как значения находятся между
           // промежутками шаблона. Мы увеличиваем i на 1 позже в цикле,
           // поэтому увеличиваем его на part.strings.length - 2 здесь
-          i += (part as AttributePart).strings!.length - 2;
+          i += (part as AttributePart).strings!.length - 2
         } else {
-          part._$setValue(values[i]);
+          part._$setValue(values[i])
         }
       }
-      i++;
+      i++
     }
   }
 }
@@ -1010,21 +953,21 @@ class TemplateInstance implements Disconnectable {
  * TemplateParts.
  */
 
-export type {ChildPart};
+export type { ChildPart }
 
 class ChildPart implements Disconnectable {
-  readonly type = CHILD_PART;
-  readonly options: RenderOptions | undefined;
-  _$committedValue: unknown = nothing;
+  readonly type = CHILD_PART
+  readonly options: RenderOptions | undefined
+  _$committedValue: unknown = nothing
   /** @internal */
-  __directive?: Directive;
+  __directive?: Directive
   /** @internal */
-  _$startNode: ChildNode;
+  _$startNode: ChildNode
   /** @internal */
-  _$endNode: ChildNode | null;
-  private _textSanitizer: ValueSanitizer | undefined;
+  _$endNode: ChildNode | null
+  private _textSanitizer: ValueSanitizer | undefined
   /** @internal */
-  _$parent: Disconnectable | undefined;
+  _$parent: Disconnectable | undefined
   /**
    * Состояние подключения для RootParts только (т.е. ChildPart без
    * _$parent, возвращаемого из верхнеуровневого `render`). Это поле
@@ -1034,7 +977,7 @@ class ChildPart implements Disconnectable {
    * возможно, из-за того, что вызовы сайтов стали полиморфными.
    * @internal
    */
-  __isConnected: boolean;
+  __isConnected: boolean
 
   // См. комментарий в интерфейсе Disconnectable для объяснения, почему это
   // геттер
@@ -1042,22 +985,18 @@ class ChildPart implements Disconnectable {
     // ChildParts, которые не находятся в корне, всегда создаются с родителем;
     // только RootChildNode's нет, поэтому они возвращают локальное состояние
     // isConnected
-    return this._$parent?._$isConnected ?? this.__isConnected;
+    return this._$parent?._$isConnected ?? this.__isConnected
   }
 
   // Следующие поля будут добавлены на ChildParts по требованию AsyncDirective
   /** @internal */
-  _$disconnectableChildren?: Set<Disconnectable> = undefined;
+  _$disconnectableChildren?: Set<Disconnectable> = undefined
 
   /** @internal */
-  _$notifyConnectionChanged?(
-    isConnected: boolean,
-    removeFromParent?: boolean,
-    from?: number
-  ): void;
+  _$notifyConnectionChanged?(isConnected: boolean, removeFromParent?: boolean, from?: number): void
 
   /** @internal */
-  _$reparentDisconnectables?(parent: Disconnectable): void;
+  _$reparentDisconnectables?(parent: Disconnectable): void
 
   constructor(
     startNode: ChildNode,
@@ -1065,17 +1004,17 @@ class ChildPart implements Disconnectable {
     parent: TemplateInstance | ChildPart | undefined,
     options: RenderOptions | undefined
   ) {
-    this._$startNode = startNode;
-    this._$endNode = endNode;
-    this._$parent = parent;
-    this.options = options;
+    this._$startNode = startNode
+    this._$endNode = endNode
+    this._$parent = parent
+    this.options = options
     // Обратите внимание, что __isConnected доступен только на RootParts (т.е.
     // когда _$parent отсутствует); значение на некорневой части равно "не
     // важно", но проверка на родителя была бы больше кода
-    this.__isConnected = options?.isConnected ?? true;
+    this.__isConnected = options?.isConnected ?? true
     if (ENABLE_EXTRA_SECURITY_HOOKS) {
       // Явно инициализируем для согласованной формы класса.
-      this._textSanitizer = undefined;
+      this._textSanitizer = undefined
     }
   }
 
@@ -1099,19 +1038,16 @@ class ChildPart implements Disconnectable {
    * части состоит из всех дочерних узлов `.parentNode`.
    */
   get parentNode(): Node {
-    let parentNode: Node = wrap(this._$startNode).parentNode!;
-    const parent = this._$parent;
-    if (
-      parent !== undefined &&
-      parentNode?.nodeType === 11 /* Node.DOCUMENT_FRAGMENT */
-    ) {
+    let parentNode: Node = wrap(this._$startNode).parentNode!
+    const parent = this._$parent
+    if (parent !== undefined && parentNode?.nodeType === 11 /* Node.DOCUMENT_FRAGMENT */) {
       // Если parentNode является DocumentFragment, это может быть потому,
       // что DOM все еще находится в клонированном фрагменте во время
       // начального рендеринга; если так, получаем реального parentNode,
       // который часть будет закоммичена в.
-      parentNode = (parent as ChildPart | TemplateInstance).parentNode;
+      parentNode = (parent as ChildPart | TemplateInstance).parentNode
     }
-    return parentNode;
+    return parentNode
   }
 
   /**
@@ -1119,7 +1055,7 @@ class ChildPart implements Disconnectable {
    * `.parentNode` для получения дополнительной информации.
    */
   get startNode(): Node | null {
-    return this._$startNode;
+    return this._$startNode
   }
 
   /**
@@ -1127,45 +1063,45 @@ class ChildPart implements Disconnectable {
    * `.parentNode` для получения дополнительной информации.
    */
   get endNode(): Node | null {
-    return this._$endNode;
+    return this._$endNode
   }
 
   _$setValue(value: unknown, directiveParent: DirectiveParent = this): void {
     if (process.env.DEV_MODE !== "production" && this.parentNode === null) {
       throw new Error(
         `Этот \`ChildPart\` не имеет \`parentNode\` и поэтому не может принять значение. Это, вероятно, означает, что элемент, содержащий часть, был изменен неподдерживаемым способом вне контроля Lit, что привело к тому, что маркерные узлы части были выброшены из DOM. Например, установка \`innerHTML\` или \`textContent\` может сделать это.`
-      );
+      )
     }
-    value = resolveDirective(this, value, directiveParent);
+    value = resolveDirective(this, value, directiveParent)
     if (isPrimitive(value)) {
       // Нерендеримые значения дочерних частей. Важно, чтобы эти не
       // рендерили пустые текстовые узлы, чтобы избежать проблем с
       // предотвращением стандартного содержимого `<slot>` fallback.
-      if (value === nothing || value == null || value === '') {
+      if (value === nothing || value == null || value === "") {
         if (this._$committedValue !== nothing) {
           debugLogEvent &&
-          debugLogEvent({
-            kind: 'commit nothing to child',
-            start: this._$startNode,
-            end: this._$endNode,
-            parent: this._$parent,
-            options: this.options,
-          });
-          this._$clear();
+            debugLogEvent({
+              kind: "commit nothing to child",
+              start: this._$startNode,
+              end: this._$endNode,
+              parent: this._$parent,
+              options: this.options,
+            })
+          this._$clear()
         }
-        this._$committedValue = nothing;
+        this._$committedValue = nothing
       } else if (value !== this._$committedValue && value !== noChange) {
-        this._commitText(value);
+        this._commitText(value)
       }
       // Это свойство должно оставаться неминифицированным.
-    } else if ((value as TemplateResult)['_$htmlType$'] !== undefined) {
-      this._commitTemplateResult(value as TemplateResult);
+    } else if ((value as TemplateResult)["_$htmlType$"] !== undefined) {
+      this._commitTemplateResult(value as TemplateResult)
     } else if ((value as Node).nodeType !== undefined) {
       if (process.env.DEV_MODE !== "production" && this.options?.host === value) {
         this._commitText(
           `[probable mistake: rendered a template's host in itself ` +
-          `(commonly caused by writing \${this} in a template]`
-        );
+            `(commonly caused by writing \${this} in a template]`
+        )
         console.warn(
           `Попытка отрендерить хост шаблона`,
           value,
@@ -1173,37 +1109,31 @@ class ChildPart implements Disconnectable {
           `мы рендерим некоторый предупреждающий текст. В продакшене `,
           `мы его рендерим, что обычно приводит к ошибке, и иногда `,
           `к элементу исчезает из DOM.`
-        );
-        return;
+        )
+        return
       }
-      this._commitNode(value as Node);
+      this._commitNode(value as Node)
     } else if (isIterable(value)) {
-      this._commitIterable(value);
+      this._commitIterable(value)
     } else {
       // Fallback, будет рендерить строковое представление
-      this._commitText(value);
+      this._commitText(value)
     }
   }
 
   private _insert<T extends Node>(node: T) {
-    return wrap(wrap(this._$startNode).parentNode!).insertBefore(
-      node,
-      this._$endNode
-    );
+    return wrap(wrap(this._$startNode).parentNode!).insertBefore(node, this._$endNode)
   }
 
   private _commitNode(value: Node): void {
     if (this._$committedValue !== value) {
-      this._$clear();
-      if (
-        ENABLE_EXTRA_SECURITY_HOOKS &&
-        sanitizerFactoryInternal !== noopSanitizer
-      ) {
-        const parentNodeName = this._$startNode.parentNode?.nodeName;
-        if (parentNodeName === 'STYLE' || parentNodeName === 'SCRIPT') {
-          let message = 'Запрещено';
+      this._$clear()
+      if (ENABLE_EXTRA_SECURITY_HOOKS && sanitizerFactoryInternal !== noopSanitizer) {
+        const parentNodeName = this._$startNode.parentNode?.nodeName
+        if (parentNodeName === "STYLE" || parentNodeName === "SCRIPT") {
+          let message = "Запрещено"
           if (process.env.DEV_MODE !== "production") {
-            if (parentNodeName === 'STYLE') {
+            if (parentNodeName === "STYLE") {
               message =
                 `Lit не поддерживает связывание внутри узлов стиля. ` +
                 `Это представляет собой угрозу безопасности, так как инъекция
@@ -1212,26 +1142,26 @@ class ChildPart implements Disconnectable {
                 `Рассмотрите вместо этого использование литералов css\`...\` ` +
                 `для составления стилей, и динамическое стилирование с ` +
                 `пользовательскими свойствами CSS, ::parts, <slot>s, ` +
-                `и путем мутации DOM, а не стилеток.`;
+                `и путем мутации DOM, а не стилеток.`
             } else {
               message =
                 `Lit не поддерживает связывание внутри узлов скрипта. ` +
                 `Это представляет собой угрозу безопасности, так как оно могло
-                позволить выполнение произвольного кода.`;
+                позволить выполнение произвольного кода.`
             }
           }
-          throw new Error(message);
+          throw new Error(message)
         }
       }
       debugLogEvent &&
-      debugLogEvent({
-        kind: 'commit node',
-        start: this._$startNode,
-        parent: this._$parent,
-        value: value,
-        options: this.options,
-      });
-      this._$committedValue = this._insert(value);
+        debugLogEvent({
+          kind: "commit node",
+          start: this._$startNode,
+          parent: this._$parent,
+          value: value,
+          options: this.options,
+        })
+      this._$committedValue = this._insert(value)
     }
   }
 
@@ -1240,126 +1170,118 @@ class ChildPart implements Disconnectable {
     // мы вызвали _commitText на предыдущем рендере, и мы знаем, что
     // this._$startNode.nextSibling является текстовым узлом. Мы можем
     // теперь просто заменить содержимое узла (.data).
-    if (
-      this._$committedValue !== nothing &&
-      isPrimitive(this._$committedValue)
-    ) {
-      const node = wrap(this._$startNode).nextSibling as Text;
+    if (this._$committedValue !== nothing && isPrimitive(this._$committedValue)) {
+      const node = wrap(this._$startNode).nextSibling as Text
       if (ENABLE_EXTRA_SECURITY_HOOKS) {
         if (this._textSanitizer === undefined) {
-          this._textSanitizer = createSanitizer(node, 'data', 'property');
+          this._textSanitizer = createSanitizer(node, "data", "property")
         }
-        value = this._textSanitizer(value);
+        value = this._textSanitizer(value)
       }
       debugLogEvent &&
-      debugLogEvent({
-        kind: 'commit text',
-        node,
-        value,
-        options: this.options,
-      });
-      (node as Text).data = value as string;
+        debugLogEvent({
+          kind: "commit text",
+          node,
+          value,
+          options: this.options,
+        })
+      ;(node as Text).data = value as string
     } else {
       if (ENABLE_EXTRA_SECURITY_HOOKS) {
-        const textNode = d.createTextNode('');
-        this._commitNode(textNode);
+        const textNode = d.createTextNode("")
+        this._commitNode(textNode)
         // При установке текстового содержимого важно, что родитель
         // важен. Например, <style> и <script> требуют особой осторожности,
         // в то время как <span> нет. Поэтому сначала нам нужно поместить
         // текстовый узел в документ, а затем мы можем очистить его содержимое.
         if (this._textSanitizer === undefined) {
-          this._textSanitizer = createSanitizer(textNode, 'data', 'property');
+          this._textSanitizer = createSanitizer(textNode, "data", "property")
         }
-        value = this._textSanitizer(value);
+        value = this._textSanitizer(value)
         debugLogEvent &&
-        debugLogEvent({
-          kind: 'commit text',
-          node: textNode,
-          value,
-          options: this.options,
-        });
-        textNode.data = value as string;
+          debugLogEvent({
+            kind: "commit text",
+            node: textNode,
+            value,
+            options: this.options,
+          })
+        textNode.data = value as string
       } else {
-        this._commitNode(d.createTextNode(value as string));
+        this._commitNode(d.createTextNode(value as string))
         debugLogEvent &&
-        debugLogEvent({
-          kind: 'commit text',
-          node: wrap(this._$startNode).nextSibling as Text,
-          value,
-          options: this.options,
-        });
+          debugLogEvent({
+            kind: "commit text",
+            node: wrap(this._$startNode).nextSibling as Text,
+            value,
+            options: this.options,
+          })
       }
     }
-    this._$committedValue = value;
+    this._$committedValue = value
   }
 
-  private _commitTemplateResult(
-    result: TemplateResult | CompiledTemplateResult
-  ): void {
+  private _commitTemplateResult(result: TemplateResult | CompiledTemplateResult): void {
     // Это свойство должно оставаться неминифицированным.
-    const {values, ['_$htmlType$']: type} = result;
+    const { values, ["_$htmlType$"]: type } = result
     // Если $htmlType$ является числом, result является простым TemplateResult,
     // и мы получаем шаблон из кэша шаблонов. Если нет, result является
     // CompiledTemplateResult, _$htmlType$ является CompiledTemplate, и нам
     // нужно создать элемент <template>, который мы впервые видим.
     const template: Template | CompiledTemplate =
-      typeof type === 'number'
+      typeof type === "number"
         ? this._$getTemplate(result as UncompiledTemplateResult)
         : (type.el === undefined &&
-        (type.el = Template.createElement(
-          trustFromTemplateString(type.h, type.h[0]),
-          this.options
-        )),
-          type);
+            (type.el = Template.createElement(trustFromTemplateString(type.h, type.h[0]!), this.options)),
+          type)
 
     if ((this._$committedValue as TemplateInstance)?._$template === template) {
       debugLogEvent &&
-      debugLogEvent({
-        kind: 'template updating',
-        template,
-        instance: this._$committedValue as TemplateInstance,
-        parts: (this._$committedValue as TemplateInstance)._$parts,
-        options: this.options,
-        values,
-      });
-      (this._$committedValue as TemplateInstance)._update(values);
+        debugLogEvent({
+          kind: "template updating",
+          template,
+          instance: this._$committedValue as TemplateInstance,
+          parts: (this._$committedValue as TemplateInstance)._$parts,
+          options: this.options,
+          values,
+        })
+      ;(this._$committedValue as TemplateInstance)._update(values)
     } else {
-      const instance = new TemplateInstance(template as Template, this);
-      const fragment = instance._clone(this.options);
+      const instance = new TemplateInstance(template as Template, this)
+      const fragment = instance._clone(this.options)
       debugLogEvent &&
-      debugLogEvent({
-        kind: 'template instantiated',
-        template,
-        instance,
-        parts: instance._$parts,
-        options: this.options,
-        fragment,
-        values,
-      });
-      instance._update(values);
+        debugLogEvent({
+          kind: "template instantiated",
+          template,
+          instance,
+          parts: instance._$parts,
+          options: this.options,
+          fragment,
+          values,
+        })
+      instance._update(values)
       debugLogEvent &&
-      debugLogEvent({
-        kind: 'template instantiated and updated',
-        template,
-        instance,
-        parts: instance._$parts,
-        options: this.options,
-        fragment,
-        values,
-      });
-      this._commitNode(fragment);
-      this._$committedValue = instance;
+        debugLogEvent({
+          kind: "template instantiated and updated",
+          template,
+          instance,
+          parts: instance._$parts,
+          options: this.options,
+          fragment,
+          values,
+        })
+      this._commitNode(fragment)
+      this._$committedValue = instance
     }
   }
 
   // Переопределяется через `litHtmlPolyfillSupport` для поддержки платформы.
   /** @internal */
   _$getTemplate(result: UncompiledTemplateResult) {
-    let template = templateCache.get(result.strings);
+    let template = templateCache.get(result.strings)
     if (template === undefined) {
-      templateCache.set(result.strings, (template = new Template(result)));
+      templateCache.set(result.strings, (template = new Template(result)))
     }
-    return template;
+    return template
   }
 
   private _commitIterable(value: Iterable<unknown>): void {
@@ -1375,15 +1297,15 @@ class ChildPart implements Disconnectable {
     // не является массивом, очищаем эту часть и создаем новый массив для
     // ChildParts.
     if (!isArray(this._$committedValue)) {
-      this._$committedValue = [];
-      this._$clear();
+      this._$committedValue = []
+      this._$clear()
     }
 
     // Позволяет нам отслеживать, сколько элементов мы оттискали, чтобы
     // очистить лишние элементы из предыдущего рендера
-    const itemParts = this._$committedValue as ChildPart[];
-    let partIndex = 0;
-    let itemPart: ChildPart | undefined;
+    const itemParts = this._$committedValue as ChildPart[]
+    let partIndex = 0
+    let itemPart: ChildPart | undefined
 
     for (const item of value) {
       if (partIndex === itemParts.length) {
@@ -1393,29 +1315,21 @@ class ChildPart implements Disconnectable {
         // между узлами
         // https://github.com/lit/lit/issues/1266
         itemParts.push(
-          (itemPart = new ChildPart(
-            this._insert(createMarker()),
-            this._insert(createMarker()),
-            this,
-            this.options
-          ))
-        );
+          (itemPart = new ChildPart(this._insert(createMarker()), this._insert(createMarker()), this, this.options))
+        )
       } else {
         // Переиспользуем существующую часть
-        itemPart = itemParts[partIndex];
+        itemPart = itemParts[partIndex]
       }
-      itemPart._$setValue(item);
-      partIndex++;
+      itemPart!._$setValue(item)
+      partIndex++
     }
 
     if (partIndex < itemParts.length) {
       // itemParts всегда имеют endNodes
-      this._$clear(
-        itemPart && wrap(itemPart._$endNode!).nextSibling,
-        partIndex
-      );
+      this._$clear(itemPart && wrap(itemPart._$endNode!).nextSibling, partIndex)
       // Усекаем массив частей, чтобы _value отражал текущее состояние
-      itemParts.length = partIndex;
+      itemParts.length = partIndex
     }
   }
 
@@ -1430,18 +1344,15 @@ class ChildPart implements Disconnectable {
    *
    * @internal
    */
-  _$clear(
-    start: ChildNode | null = wrap(this._$startNode).nextSibling,
-    from?: number
-  ) {
-    this._$notifyConnectionChanged?.(false, true, from);
+  _$clear(start: ChildNode | null = wrap(this._$startNode).nextSibling, from?: number) {
+    this._$notifyConnectionChanged?.(false, true, from)
     while (start !== this._$endNode) {
       // Неравенство нулевого утверждения безопасно, потому что если
       // _$startNode.nextSibling равен null, то _$endNode также равен null,
       // и мы бы не ввели этот цикл.
-      const n = wrap(start!).nextSibling;
-      wrap(start!).remove();
-      start = n;
+      const n = wrap(start!).nextSibling
+      wrap(start!).remove()
+      start = n
     }
   }
 
@@ -1455,52 +1366,46 @@ class ChildPart implements Disconnectable {
    */
   setConnected(isConnected: boolean) {
     if (this._$parent === undefined) {
-      this.__isConnected = isConnected;
-      this._$notifyConnectionChanged?.(isConnected);
+      this.__isConnected = isConnected
+      this._$notifyConnectionChanged?.(isConnected)
     } else if (process.env.DEV_MODE !== "production") {
-      throw new Error(
-        'part.setConnected() может быть вызван только на RootPart, возвращаемом из render().'
-      );
+      throw new Error("part.setConnected() может быть вызван только на RootPart, возвращаемом из render().")
     }
   }
 }
 
-
 export class AttributePart implements Disconnectable {
-  readonly type:
-    | typeof ATTRIBUTE_PART
-    | typeof PROPERTY_PART
-    | typeof BOOLEAN_ATTRIBUTE_PART
-    | typeof EVENT_PART = ATTRIBUTE_PART;
-  readonly element: HTMLElement;
-  readonly name: string;
-  readonly options: RenderOptions | undefined;
+  readonly type: typeof ATTRIBUTE_PART | typeof PROPERTY_PART | typeof BOOLEAN_ATTRIBUTE_PART | typeof EVENT_PART =
+    ATTRIBUTE_PART
+  readonly element: HTMLElement
+  readonly name: string
+  readonly options: RenderOptions | undefined
 
   /**
    * Если этот атрибутный часть представляет интерполяцию, это содержит
    * статические строки интерполяции. Для однозначных связываний это
    * undefined.
    */
-  readonly strings?: ReadonlyArray<string>;
+  readonly strings?: ReadonlyArray<string>
   /** @internal */
-  _$committedValue: unknown | Array<unknown> = nothing;
+  _$committedValue: unknown | Array<unknown> = nothing
   /** @internal */
-  __directives?: Array<Directive | undefined>;
+  __directives?: Array<Directive | undefined>
   /** @internal */
-  _$parent: Disconnectable;
+  _$parent: Disconnectable
   /** @internal */
-  _$disconnectableChildren?: Set<Disconnectable> = undefined;
+  _$disconnectableChildren?: Set<Disconnectable> = undefined
 
-  protected _sanitizer: ValueSanitizer | undefined;
+  protected _sanitizer: ValueSanitizer | undefined
 
   get tagName() {
-    return this.element.tagName;
+    return this.element.tagName
   }
 
   // См. комментарий в интерфейсе Disconnectable для объяснения, почему это
   // геттер
   get _$isConnected() {
-    return this._$parent._$isConnected;
+    return this._$parent._$isConnected
   }
 
   constructor(
@@ -1510,18 +1415,18 @@ export class AttributePart implements Disconnectable {
     parent: Disconnectable,
     options: RenderOptions | undefined
   ) {
-    this.element = element;
-    this.name = name;
-    this._$parent = parent;
-    this.options = options;
-    if (strings.length > 2 || strings[0] !== '' || strings[1] !== '') {
-      this._$committedValue = new Array(strings.length - 1).fill(new String());
-      this.strings = strings;
+    this.element = element
+    this.name = name
+    this._$parent = parent
+    this.options = options
+    if (strings.length > 2 || strings[0] !== "" || strings[1] !== "") {
+      this._$committedValue = new Array(strings.length - 1).fill(new String())
+      this.strings = strings
     } else {
-      this._$committedValue = nothing;
+      this._$committedValue = nothing
     }
     if (ENABLE_EXTRA_SECURITY_HOOKS) {
-      this._sanitizer = undefined;
+      this._sanitizer = undefined
     }
   }
 
@@ -1552,134 +1457,116 @@ export class AttributePart implements Disconnectable {
     valueIndex?: number,
     noCommit?: boolean
   ) {
-    const strings = this.strings;
+    const strings = this.strings
 
     // Указывает, изменилось ли какое-либо значение, для проверки грязных
-    let change = false;
+    let change = false
 
     if (strings === undefined) {
       // Случай однозначного связывания
-      value = resolveDirective(this, value, directiveParent, 0);
-      change =
-        !isPrimitive(value) ||
-        (value !== this._$committedValue && value !== noChange);
+      value = resolveDirective(this, value, directiveParent, 0)
+      change = !isPrimitive(value) || (value !== this._$committedValue && value !== noChange)
       if (change) {
-        this._$committedValue = value;
+        this._$committedValue = value
       }
     } else {
       // Случай интерполяции
-      const values = value as Array<unknown>;
-      value = strings[0];
+      const values = value as Array<unknown>
+      value = strings[0]
 
-      let i, v;
+      let i, v
       for (i = 0; i < strings.length - 1; i++) {
-        v = resolveDirective(this, values[valueIndex! + i], directiveParent, i);
+        v = resolveDirective(this, values[valueIndex! + i], directiveParent, i)
 
         if (v === noChange) {
           // Если предоставленное пользователем значение равно `noChange`,
           // используем предыдущее значение
-          v = (this._$committedValue as Array<unknown>)[i];
+          v = (this._$committedValue as Array<unknown>)[i]
         }
-        change ||=
-          !isPrimitive(v) || v !== (this._$committedValue as Array<unknown>)[i];
+        change ||= !isPrimitive(v) || v !== (this._$committedValue as Array<unknown>)[i]
         if (v === nothing) {
-          value = nothing;
+          value = nothing
         } else if (value !== nothing) {
-          value += (v ?? '') + strings[i + 1];
+          value += (v ?? "") + strings[i + 1]!
         }
         // Мы всегда записываем каждое значение, даже если одно из них равно
         // `nothing`, для будущей проверки изменений.
-        (this._$committedValue as Array<unknown>)[i] = v;
+        ;(this._$committedValue as Array<unknown>)[i] = v
       }
     }
     if (change && !noCommit) {
-      this._commitValue(value);
+      this._commitValue(value)
     }
   }
 
   /** @internal */
   _commitValue(value: unknown) {
     if (value === nothing) {
-      (wrap(this.element) as Element).removeAttribute(this.name);
+      ;(wrap(this.element) as Element).removeAttribute(this.name)
     } else {
       if (ENABLE_EXTRA_SECURITY_HOOKS) {
         if (this._sanitizer === undefined) {
-          this._sanitizer = sanitizerFactoryInternal(
-            this.element,
-            this.name,
-            'attribute'
-          );
+          this._sanitizer = sanitizerFactoryInternal(this.element, this.name, "attribute")
         }
-        value = this._sanitizer(value ?? '');
+        value = this._sanitizer(value ?? "")
       }
       debugLogEvent &&
-      debugLogEvent({
-        kind: 'commit attribute',
-        element: this.element,
-        name: this.name,
-        value,
-        options: this.options,
-      });
-      (wrap(this.element) as Element).setAttribute(
-        this.name,
-        (value ?? '') as string
-      );
+        debugLogEvent({
+          kind: "commit attribute",
+          element: this.element,
+          name: this.name,
+          value,
+          options: this.options,
+        })
+      ;(wrap(this.element) as Element).setAttribute(this.name, (value ?? "") as string)
     }
   }
 }
 
-export type {PropertyPart};
+export type { PropertyPart }
 
 class PropertyPart extends AttributePart {
-  override readonly type = PROPERTY_PART;
+  override readonly type = PROPERTY_PART
 
   /** @internal */
   override _commitValue(value: unknown) {
     if (ENABLE_EXTRA_SECURITY_HOOKS) {
       if (this._sanitizer === undefined) {
-        this._sanitizer = sanitizerFactoryInternal(
-          this.element,
-          this.name,
-          'property'
-        );
+        this._sanitizer = sanitizerFactoryInternal(this.element, this.name, "property")
       }
-      value = this._sanitizer(value);
+      value = this._sanitizer(value)
     }
     debugLogEvent &&
-    debugLogEvent({
-      kind: 'commit property',
-      element: this.element,
-      name: this.name,
-      value,
-      options: this.options,
-    });
+      debugLogEvent({
+        kind: "commit property",
+        element: this.element,
+        name: this.name,
+        value,
+        options: this.options,
+      })
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (this.element as any)[this.name] = value === nothing ? undefined : value;
+    ;(this.element as any)[this.name] = value === nothing ? undefined : value
   }
 }
 
-export type {BooleanAttributePart};
+export type { BooleanAttributePart }
 
 class BooleanAttributePart extends AttributePart {
-  override readonly type = BOOLEAN_ATTRIBUTE_PART;
+  override readonly type = BOOLEAN_ATTRIBUTE_PART
 
   /** @internal */
   override _commitValue(value: unknown) {
     debugLogEvent &&
-    debugLogEvent({
-      kind: 'commit boolean attribute',
-      element: this.element,
-      name: this.name,
-      value: !!(value && value !== nothing),
-      options: this.options,
-    });
-    (wrap(this.element) as Element).toggleAttribute(
-      this.name,
-      !!value && value !== nothing
-    );
+      debugLogEvent({
+        kind: "commit boolean attribute",
+        element: this.element,
+        name: this.name,
+        value: !!(value && value !== nothing),
+        options: this.options,
+      })
+    ;(wrap(this.element) as Element).toggleAttribute(this.name, !!value && value !== nothing)
   }
 }
-
 
 /**
  * Атрибутный часть, который управляет слушателем события через add/removeEventListener.
@@ -1693,10 +1580,10 @@ class BooleanAttributePart extends AttributePart {
  * быть осторожны, чтобы добавлять и удалять часть как слушателя, когда
  * опции слушателя меняются.
  */
-export type {EventPart};
+export type { EventPart }
 
 class EventPart extends AttributePart {
-  override readonly type = EVENT_PART;
+  override readonly type = EVENT_PART
 
   constructor(
     element: HTMLElement,
@@ -1705,128 +1592,107 @@ class EventPart extends AttributePart {
     parent: Disconnectable,
     options: RenderOptions | undefined
   ) {
-    super(element, name, strings, parent, options);
+    super(element, name, strings, parent, options)
 
     if (process.env.DEV_MODE !== "production" && this.strings !== undefined) {
       throw new Error(
         `У \`<${element.localName}>\` есть \`@${name}=...\` слушатель с ` +
-        'недопустимым содержимым. Слушатели событий в шаблонах должны иметь ' +
-        'точно одно выражение и не должно быть окружающего текста.'
-      );
+          "недопустимым содержимым. Слушатели событий в шаблонах должны иметь " +
+          "точно одно выражение и не должно быть окружающего текста."
+      )
     }
   }
 
   // EventPart не использует базовую реализацию _$setValue/_resolveValue,
   // так как проверка грязных значений более сложная
   /** @internal */
-  override _$setValue(
-    newListener: unknown,
-    directiveParent: DirectiveParent = this
-  ) {
-    newListener =
-      resolveDirective(this, newListener, directiveParent, 0) ?? nothing;
+  override _$setValue(newListener: unknown, directiveParent: DirectiveParent = this) {
+    newListener = resolveDirective(this, newListener, directiveParent, 0) ?? nothing
     if (newListener === noChange) {
-      return;
+      return
     }
-    const oldListener = this._$committedValue;
+    const oldListener = this._$committedValue
 
     // Если новое значение равно `nothing` или изменились какие-либо опции,
     // нам нужно удалить часть как слушателя.
     const shouldRemoveListener =
       (newListener === nothing && oldListener !== nothing) ||
-      (newListener as EventListenerWithOptions).capture !==
-      (oldListener as EventListenerWithOptions).capture ||
-      (newListener as EventListenerWithOptions).once !==
-      (oldListener as EventListenerWithOptions).once ||
-      (newListener as EventListenerWithOptions).passive !==
-      (oldListener as EventListenerWithOptions).passive;
+      (newListener as EventListenerWithOptions).capture !== (oldListener as EventListenerWithOptions).capture ||
+      (newListener as EventListenerWithOptions).once !== (oldListener as EventListenerWithOptions).once ||
+      (newListener as EventListenerWithOptions).passive !== (oldListener as EventListenerWithOptions).passive
 
     // Если новое значение не равно `nothing`, и мы удалили слушателя, нам
     // нужно добавить часть как слушателя.
-    const shouldAddListener =
-      newListener !== nothing &&
-      (oldListener === nothing || shouldRemoveListener);
+    const shouldAddListener = newListener !== nothing && (oldListener === nothing || shouldRemoveListener)
 
     debugLogEvent &&
-    debugLogEvent({
-      kind: 'commit event listener',
-      element: this.element,
-      name: this.name,
-      value: newListener,
-      options: this.options,
-      removeListener: shouldRemoveListener,
-      addListener: shouldAddListener,
-      oldListener,
-    });
+      debugLogEvent({
+        kind: "commit event listener",
+        element: this.element,
+        name: this.name,
+        value: newListener,
+        options: this.options,
+        removeListener: shouldRemoveListener,
+        addListener: shouldAddListener,
+        oldListener,
+      })
     if (shouldRemoveListener) {
-      this.element.removeEventListener(
-        this.name,
-        this,
-        oldListener as EventListenerWithOptions
-      );
+      this.element.removeEventListener(this.name, this, oldListener as EventListenerWithOptions)
     }
     if (shouldAddListener) {
-      this.element.addEventListener(
-        this.name,
-        this,
-        newListener as EventListenerWithOptions
-      );
+      this.element.addEventListener(this.name, this, newListener as EventListenerWithOptions)
     }
-    this._$committedValue = newListener;
+    this._$committedValue = newListener
   }
 
   handleEvent(event: Event) {
-    if (typeof this._$committedValue === 'function') {
-      this._$committedValue.call(this.options?.host ?? this.element, event);
+    if (typeof this._$committedValue === "function") {
+      this._$committedValue.call(this.options?.host ?? this.element, event)
     } else {
-      (this._$committedValue as EventListenerObject).handleEvent(event);
+      ;(this._$committedValue as EventListenerObject).handleEvent(event)
     }
   }
 }
 
-export type {ElementPart};
+export type { ElementPart }
 
 class ElementPart implements Disconnectable {
-  readonly type = ELEMENT_PART;
+  readonly type = ELEMENT_PART
 
   /** @internal */
-  __directive?: Directive;
+  __directive?: Directive
 
   // Это для того, чтобы каждая часть имела _$committedValue
-  _$committedValue: undefined;
+  _$committedValue: undefined
 
   /** @internal */
-  _$parent!: Disconnectable;
+  _$parent!: Disconnectable
 
   /** @internal */
-  _$disconnectableChildren?: Set<Disconnectable> = undefined;
+  _$disconnectableChildren?: Set<Disconnectable> = undefined
 
-  options: RenderOptions | undefined;
+  options: RenderOptions | undefined
 
-  constructor(
-    public element: Element,
-    parent: Disconnectable,
-    options: RenderOptions | undefined
-  ) {
-    this._$parent = parent;
-    this.options = options;
+  constructor(public element: Element, parent: Disconnectable, options: RenderOptions | undefined) {
+    this._$parent = parent
+    this.options = options
   }
 
   // См. комментарий в интерфейсе Disconnectable для объяснения, почему это
   // геттер
   get _$isConnected() {
-    return this._$parent._$isConnected;
+    return this._$parent._$isConnected
   }
 
   _$setValue(value: unknown): void {
     debugLogEvent &&
-    debugLogEvent({
-      kind: 'commit to element binding',
-      element: this.element,
-      value,
-      options: this.options,
-    });
-    resolveDirective(this, value);
+      debugLogEvent({
+        kind: "commit to element binding",
+        element: this.element,
+        value,
+        options: this.options,
+      })
+    resolveDirective(this, value)
   }
 }
 
@@ -1866,25 +1732,23 @@ export const _$LH = {
   _EventPart: EventPart,
   _PropertyPart: PropertyPart,
   _ElementPart: ElementPart,
-};
+}
 
 // Применяем полифилы, если они доступны
-const polyfillSupport = process.env.DEV_MODE !== "production"
-  ? global.litHtmlPolyfillSupportDevMode
-  : global.litHtmlPolyfillSupport
+const polyfillSupport =
+  process.env.DEV_MODE !== "production" ? global.litHtmlPolyfillSupportDevMode : global.litHtmlPolyfillSupport
 if (polyfillSupport) {
   polyfillSupport(Template, ChildPart)
 }
 
 // ВАЖНО: не меняйте имя свойства или выражение присваивания.
 // Эта строка будет использоваться в регулярных выражениях для поиска использования @metafor/html.
-(global.litHtmlVersions ??= []).push('3.3.0')
+;(global.litHtmlVersions ??= []).push("3.3.0")
 if (process.env.DEV_MODE !== "production" && global.litHtmlVersions.length > 1) {
   queueMicrotask(() => {
     issueWarning!(
-      'multiple-versions',
-      `Загружены несколько версий @metafor/html. ` +
-      `Загрузка нескольких версий не рекомендуется.`
+      "multiple-versions",
+      `Загружены несколько версий @metafor/html. ` + `Загрузка нескольких версий не рекомендуется.`
     )
   })
 }
@@ -1924,51 +1788,50 @@ export const render = (
     //     Uncaught TypeError: Cannot read properties of null (reading
     //     '_$htmlPart$')
     // которое читается как внутренняя ошибка Lit.
-    throw new TypeError(`Контейнер для рендеринга не может быть ${container}`);
+    throw new TypeError(`Контейнер для рендеринга не может быть ${container}`)
   }
-  const renderId = process.env.DEV_MODE !== "production" ? debugLogRenderId++ : 0;
-  const partOwnerNode = options?.renderBefore ?? container;
+  const renderId = process.env.DEV_MODE !== "production" ? debugLogRenderId++ : 0
+  const partOwnerNode = options?.renderBefore ?? container
   // Это свойство должно оставаться неминифицированным.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let part: ChildPart = (partOwnerNode as any)['_$htmlPart$'];
+  let part: ChildPart = (partOwnerNode as any)["_$htmlPart$"]
   debugLogEvent &&
-  debugLogEvent({
-    kind: 'begin render',
-    id: renderId,
-    value,
-    container,
-    options,
-    part,
-  });
+    debugLogEvent({
+      kind: "begin render",
+      id: renderId,
+      value,
+      container,
+      options,
+      part,
+    })
   if (part === undefined) {
-    const endNode = options?.renderBefore ?? null;
+    const endNode = options?.renderBefore ?? null
     // Это свойство должно оставаться неминифицированным.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (partOwnerNode as any)['_$htmlPart$'] = part = new ChildPart(
+    ;(partOwnerNode as any)["_$htmlPart$"] = part = new ChildPart(
       container.insertBefore(createMarker(), endNode),
       endNode,
       undefined,
       options ?? {}
-    );
+    )
   }
-  part._$setValue(value);
+  part._$setValue(value)
   debugLogEvent &&
-  debugLogEvent({
-    kind: 'end render',
-    id: renderId,
-    value,
-    container,
-    options,
-    part,
-  });
-  return part as RootPart;
-};
+    debugLogEvent({
+      kind: "end render",
+      id: renderId,
+      value,
+      container,
+      options,
+      part,
+    })
+  return part as RootPart
+}
 
 if (ENABLE_EXTRA_SECURITY_HOOKS) {
-  render.setSanitizer = setSanitizer;
-  render.createSanitizer = createSanitizer;
+  render.setSanitizer = setSanitizer
+  render.createSanitizer = createSanitizer
   if (process.env.DEV_MODE !== "production") {
-    render._testOnlyClearSanitizerFactoryDoNotCallOrElse =
-      _testOnlyClearSanitizerFactoryDoNotCallOrElse;
+    render._testOnlyClearSanitizerFactoryDoNotCallOrElse = _testOnlyClearSanitizerFactoryDoNotCallOrElse
   }
 }

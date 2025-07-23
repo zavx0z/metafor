@@ -31,6 +31,9 @@ test("MetaFor - базовый функционал", async () => {
         return { name: context.name }
       }).error(({ update, error }) => update({ name: error.message })),
     }))
+    .view({
+      render: ({ context, html }) => html`<div>${context.name}</div>`,
+    })
 
   const element = document.querySelector("metafor-test")
   expect(element, "Компонент должен быть зарегистрирован в customElements").toBeDefined()
