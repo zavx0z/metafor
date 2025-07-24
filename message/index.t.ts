@@ -18,6 +18,7 @@ export type Message = {
 */
 export type MetaDataMessage = {
   tag: string
+  index?: number
   timestamp?: number
 }
 

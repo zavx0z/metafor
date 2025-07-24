@@ -2,8 +2,10 @@
  * MetaFor - фреймворк для создания актора конечного автомата
  * @packageDocumentation
  */
-window.MetaForDebug = true
 window.MetaFor = MetaFor
+const debug = window.debugMetaFor
+let log: (message: Message, core: Record<string, any>) => void = (message, core) => void {}
+if (debug) log = (await import("./debug/console.js")).log
 
 import { types, createContext } from "./context"
 import type { ContextSchema, ContextTypes, ContextInstance, ExtractValues } from "./context"
@@ -166,7 +168,7 @@ export function MetaFor(tag: string) {
                       try {
                         const result = process.action({ context: this.#ctx.getSnapshot() })
                         if (result instanceof Promise) {
-                          this.#channel.postMessage(stateBeforeActionMessage(tag, this.#state))
+                          this.#broadcastMessage(stateBeforeActionMessage(tag, this.#state))
                           result
                             .then((data) => {
                               process.success?.({ update: this.#ctx.update, data })
@@ -177,18 +179,18 @@ export function MetaFor(tag: string) {
                                 throw new Error(`Обработчик ошибки не найден для состояния: ${this.#state} \n ${error}`)
                             })
                             .finally(() => {
-                              this.#channel.postMessage(stateAfterActionMessage(tag, this.#state))
+                              this.#broadcastMessage(stateAfterActionMessage(tag, this.#state))
                               this.#setProcess(false)
                             })
                         } else {
                           if (process.success) process.success({ update: this.#ctx.update, data: result })
                           else throw new Error(`Обработчик успеха не найден для состояния: ${this.#state} \n ${result}`)
-                          this.#channel.postMessage(stateAfterActionMessage(tag, this.#state))
+                          this.#broadcastMessage(stateAfterActionMessage(tag, this.#state))
                           this.#setProcess(false)
                         }
                       } catch (error) {
                         if (error instanceof Error) process.error?.({ update: this.#ctx.update, error })
-                        this.#channel.postMessage(stateAfterActionMessage(tag, this.#state))
+                        this.#broadcastMessage(stateAfterActionMessage(tag, this.#state))
                         this.#setProcess(false)
                       }
                     }
@@ -228,11 +230,15 @@ export function MetaFor(tag: string) {
                         }
                       }
                     }
-
+                    #broadcastMessage(message: Message) {
+                      this.#channel.postMessage(message)
+                      if (debug) log(message, {})
+                    }
                     #sendEvent(message: Message) {
                       this.#shadow.dispatchEvent(
                         new CustomEvent("channel", { detail: message, bubbles: true, composed: true })
                       )
+                      if (debug) log(message, {})
                     }
                     #updateView = () => {
                       if (!view?.render) return

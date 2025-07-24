@@ -6,7 +6,7 @@ describe("MetaFor: инициализация с действиями", async ()
   const { waitForMessages } = messagesFixture({ meta: tag })
 
   document.body.innerHTML = `<metafor-${tag}></metafor-${tag}>`
-
+  console.log(localStorage.getItem("debug"))
   MetaFor(tag)
     .context((t) => ({
       value: t.string.optional("ctx_1")({ title: "Value" }),

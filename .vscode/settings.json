@@ -23,6 +23,7 @@
         "*.ts": "${capture}.t.ts, ${capture}.spec.ts",
         "*.js": "${capture}.js.map, ${capture}.min.js, ${capture}.html",
     },
+    "bun.test.filePattern": "**/*{.test.,.spec.,_test_,_spec_}{js,ts,tsx,jsx,mts,cts}",
     "cSpell.words": [
         "акторных",
         "АЛИАСЫ",

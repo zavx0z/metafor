@@ -1,6 +1,10 @@
+[console]
+depth = 4
 [test]
 preload = [
     "./fixture/happydom.ts",
-    "./fixture/expect.ts",
     "./fixture/global.ts",
+    "./fixture/expect.ts",
 ]
+[define]
+"window.debugMetaFor" = "true"

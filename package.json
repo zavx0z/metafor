@@ -22,7 +22,7 @@
   ],
   "devDependencies": {
     "@happy-dom/global-registrator": "^18.0.1",
-    "@types/bun": "^1.2.18",
+    "@types/bun": "^1.2.19",
     "dts-bundle-generator": "^9.5.1",
     "happy-dom": "^18.0.1"
   },

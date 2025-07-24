@@ -35,8 +35,9 @@ import { MetaFor as FrameWork } from "./metafor"
 declare global {
   interface Window {
     MetaFor: typeof FrameWork
+    debugMetaFor: boolean
   }
-  var MetaForDebug: boolean
+  var debugMetaFor: boolean
   var htmlIssuedWarnings: Set<string>
   var MetaFor: typeof FrameWork
   var htmlPolyfillSupport: ((Template: any, ChildPart: any) => void) | undefined
