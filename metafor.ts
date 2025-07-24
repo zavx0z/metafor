@@ -2,6 +2,8 @@
  * MetaFor - фреймворк для создания актора конечного автомата
  * @packageDocumentation
  */
+window.MetaForDebug = true
+window.MetaFor = MetaFor
 
 import { types, createContext } from "./context"
 import type { ContextSchema, ContextTypes, ContextInstance, ExtractValues } from "./context"
@@ -88,6 +90,7 @@ export function MetaFor(tag: string) {
                     /** ------------state-------------------------------- */
                     #state: S = initialState
                     #setState(state: S) {
+                      this.setAttribute("state", state)
                       this.#state = state
                     }
                     /** ------------process-------------------------------- */
@@ -126,7 +129,7 @@ export function MetaFor(tag: string) {
 
                     connectedCallback() {
                       this.#sendEvent(initMessage(tag, this.getSnapshot()))
-
+                      this.setAttribute("state", this.#state)
                       /** нужен для запуска процесса при подключении компонента
                        * - выполняет процесс текущего состояния, если есть
                        * - выполняет переходы
@@ -146,6 +149,7 @@ export function MetaFor(tag: string) {
                       this.#ctx.onUpdate((updated) => {
                         this.#sendEvent(updateContextMessage(tag, updated))
                       })
+                      this.#updateView()
                     }
 
                     /**
@@ -255,3 +259,6 @@ export function MetaFor(tag: string) {
     },
   }
 }
+
+// Экспортируем MetaFor в глобальную область
+;(globalThis as any).MetaFor = MetaFor

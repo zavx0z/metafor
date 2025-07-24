@@ -104,7 +104,7 @@ export interface DirectiveParent {
 
 // ==================== DEBUG LOG ТИПЫ ====================
 
-export namespace LitUnstable {
+export namespace HtmlUnstable {
   export namespace DebugLog {
     export type Entry = any
   }
@@ -159,6 +159,26 @@ export interface TrustedTypesWindow {
   }
 }
 
+// ==================== РАСШИРЕНИЕ WINDOW ====================
+
+declare global {
+  // interface Window {
+  //   MetaForDebug?: boolean
+  // }
+
+  // var global: {
+  //   MetaForDebug?: boolean
+  //   htmlIssuedWarnings?: Set<string>
+  //   emitLitDebugLogEvents?: boolean
+  //   ShadyDOM?: {
+  //     inUse?: boolean
+  //     noPatch?: boolean
+  //     wrap?: <T extends Node>(node: T) => T
+  //   }
+  //   dispatchEvent?: (event: Event) => void
+  // }
+}
+
 // ==================== ГЛОБАЛЬНЫЕ РАСШИРЕНИЯ ====================
 
 declare global {
@@ -168,8 +188,10 @@ declare global {
     noPatch?: boolean
     wrap?: <T extends Node>(node: T) => T
   }
-  var litHtmlPolyfillSupport: ((Template: any, ChildPart: any) => void) | undefined
-  var litHtmlPolyfillSupportDevMode: ((Template: any, ChildPart: any) => void) | undefined
-  var litHtmlVersions: string[]
-  var emitLitDebugLogEvents: boolean
+  var MetaForDebug: boolean
+  var MetaForHtmlDebug: boolean
+  var htmlPolyfillSupport: ((Template: any, ChildPart: any) => void) | undefined
+  var htmlPolyfillSupportDevMode: ((Template: any, ChildPart: any) => void) | undefined
+  var htmlVersions: string[]
+  var emitHtmlDebugLogEvents: boolean
 }

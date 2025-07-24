@@ -29,3 +29,19 @@ export interface ViewConfig<C extends ContextSchema> {
   /** Стили */
   style?: ({ css }: { css: (strings: TemplateStringsArray, ...values: any[]) => CSSStyleSheet }) => void
 }
+
+import { MetaFor as FrameWork } from "./metafor"
+
+declare global {
+  interface Window {
+    MetaFor: typeof FrameWork
+  }
+  var MetaForDebug: boolean
+  var htmlIssuedWarnings: Set<string>
+  var MetaFor: typeof FrameWork
+  var htmlPolyfillSupport: ((Template: any, ChildPart: any) => void) | undefined
+  var htmlPolyfillSupportDevMode: ((Template: any, ChildPart: any) => void) | undefined
+  var htmlVersions: string[]
+  var emitHtmlDebugLogEvents: boolean
+}
+export {}

@@ -474,7 +474,7 @@ describe("вставка маркера", () => {
 
   test('"динамическое" имя тега', () => {
     const template = html`<${"A"}></${"A"}>`
-    if (process.env.DEV_MODE !== "production") {
+    if (global.MetaForHtmlDebug) {
       expect(() => render(template, container)).toThrow()
     } else {
       render(template, container)
@@ -485,7 +485,7 @@ describe("вставка маркера", () => {
   test('некорректное "динамическое" имя тега', () => {
     // `</ ` starts a comment
     const template = html`<${"A"}></ ${"A"}>`
-    if (process.env.DEV_MODE !== "production") {
+    if (global.MetaForHtmlDebug) {
       expect(() => render(template, container)).toThrow()
     } else {
       render(template, container)

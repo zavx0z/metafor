@@ -1,6 +1,4 @@
-import { MetaFor } from "./dist/metafor.js"
-
-MetaFor("register")
+MetaFor("user")
   .context((types) => ({
     name: types.string.required(""),
     email: types.string.required(""),
@@ -23,9 +21,7 @@ MetaFor("register")
       await new Promise((r) => setTimeout(r, 500))
       return { name: context.name }
     })
-      .success(({ update, data }) => {
-        update({ isRegistered: true, error: "" })
-      })
+      .success(({ update, data }) => update({ isRegistered: true, error: "" }))
       .error(({ update, error }) => {
         update({ error: error.message, isRegistered: false })
       }),
@@ -36,3 +32,6 @@ MetaFor("register")
       update({ error: "" })
     }),
   }))
+  .view({
+    render: ({ context, html }) => html`<div>${context.name}</div>`,
+  })

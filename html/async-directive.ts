@@ -330,7 +330,7 @@ export abstract class AsyncDirective extends Directive {
     } else {
       // В этом случае this.__attributeIndex будет определено, но
       // убедитесь, что это в dev-режиме
-      if (process.env.DEV_MODE !== "production" && this.__attributeIndex === undefined) {
+      if (global.MetaForHtmlDebug && this.__attributeIndex === undefined) {
         throw new Error(`Expected this.__attributeIndex to be a number`)
       }
       const committedValue = this.__part._$committedValue as Array<unknown>
