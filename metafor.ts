@@ -16,6 +16,7 @@ import { initMessage, stateAfterActionMessage, stateBeforeActionMessage, updateC
 import type { Message } from "./message"
 import { html, render } from "./html/html.ts"
 import { validateNoUnconditionalCycles } from "./validator"
+import { ref } from "./html/directives/ref.ts"
 
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
@@ -79,7 +80,7 @@ export function MetaFor(tag: string) {
             actions(builder: Builder<C, S>) {
               const actionsConfig = createActionsConfig<C, S>(builder)
               return {
-                view(view?: ViewConfig<C>) {
+                view(view?: ViewConfig<C, S>) {
                   /**
                    * WebComponent - конечный автомат
                    */
@@ -150,8 +151,10 @@ export function MetaFor(tag: string) {
 
                       this.#ctx.onUpdate((updated) => {
                         this.#sendEvent(updateContextMessage(tag, updated))
+                        this.#updateView()
                       })
                       this.#updateView()
+                      if (view?.onMount) view.onMount()
                     }
 
                     /**
@@ -197,9 +200,8 @@ export function MetaFor(tag: string) {
 
                     /**
                      * - обновляет контекст
-                     * - отправляет событие об обновлении контекста, если есть изменения
                      */
-                    #updateContext = (context: Partial<ExtractValues<C>>) => {
+                    update = (context: Partial<ExtractValues<C>>) => {
                       const updated = this.#ctx.update(context)
                       if (Object.keys(updated).length > 0) {
                         // this.#sendEvent(updateContextMessage(tag, updated))
@@ -242,7 +244,13 @@ export function MetaFor(tag: string) {
                     }
                     #updateView = () => {
                       if (!view?.render) return
-                      const template = view.render({ context: this.#ctx.getSnapshot(), html })
+                      const template = view.render({
+                        context: this.#ctx.getSnapshot(),
+                        html,
+                        update: this.#ctx.update,
+                        state: this.#state,
+                        ref: ref,
+                      })
                       if (template) render(template, this.#shadow)
                     }
                     getSnapshot(): Snapshot<C, S> {

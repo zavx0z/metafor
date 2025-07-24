@@ -54,15 +54,34 @@ export type SerializedSchema<T extends ContextSchema> = {
     values?: T[K] extends { values: any } ? T[K]["values"] : never
   }
 }
+/**
+ * Тип для обновления значений в контексте  
+ * @template C - Схема контекста
+ * @param values - Значения для обновления
+ * @returns Значения, которые были обновлены
+ */
+export type Update<C extends ContextSchema> = (values: UpdateValues<ExtractValues<C>>) => Partial<ExtractValues<C>>
 
+/**
+ * Тип для подписки на обновления контекста
+ * @template C - Схема контекста
+ * @param cb - Функция, которая будет вызываться при обновлении контекста
+ * @returns Функция для отписки от обновлений
+ */
+export type OnUpdate<C extends ContextSchema> = (cb: (updated: Partial<ExtractValues<C>>) => void) => () => void
+
+/**
+ * Интерфейс для экземпляра контекста
+ * @template C - Схема контекста
+ */
 export interface ContextInstance<C extends ContextSchema> {
   /** Схема контекста (только для чтения) */
   schema: SerializedSchema<C>
   /** Текущее состояние контекста (только для чтения) */
   context: ExtractValues<C> & { _title: Record<keyof C, string> }
   /** Обновляет значения в контексте */
-  update: (values: UpdateValues<ExtractValues<C>>) => Partial<ExtractValues<C>>
-  onUpdate: (cb: (updated: Partial<ExtractValues<C>>) => void) => () => void
+  update: Update<C>
+  onUpdate: OnUpdate<C>
   /** Снимок контекста (только для чтения) */
   getSnapshot: () => ExtractValues<C>
 }

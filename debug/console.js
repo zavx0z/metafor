@@ -35,6 +35,9 @@ const config = {
     tag: 22,
     op: 8,
     path: 15
+  },
+  detail: {
+    core: false
   }
 }
 /**
@@ -80,7 +83,7 @@ export function log(message, core) {
 
         if (typeof patch.value === 'object' && patch.value !== null) {
           console.log(value)
-          logCore(core)
+          config.detail.core && logCore(core)
         } else
           console.log(patch.value)
 
@@ -108,7 +111,7 @@ export function log(message, core) {
         try {
           if (typeof patch.value === 'object' && patch.value !== null) {
             console.log(value)
-            logCore(core)
+            config.detail.core && logCore(core)
           } else
             console.log(patch.value)
         } finally {
@@ -135,7 +138,7 @@ export function log(message, core) {
         ]
         config.collapseAll ? console.groupCollapsed(...msg) : console.group(...msg)
         try {
-          logCore(core)
+          config.detail.core && logCore(core)
         } finally {
           console.groupEnd()
         }
