@@ -17,6 +17,7 @@ import { initMessage, stateAfterActionMessage, stateBeforeActionMessage, updateC
 import type { Process } from "./actions/index.t"
 import { checkTransitionConditions } from "./transition.ts"
 import { html, render } from "./html/html.ts"
+import { validateNoUnconditionalCycles } from "./validator/index.ts"
 
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
@@ -56,6 +57,7 @@ export function MetaFor(tag: string) {
          * @returns chain API для вызова .actions(...)
          */
         states<S extends string>(states: StatesConfig<S, C>) {
+          validateNoUnconditionalCycles(states)
           const initialState = Object.keys(states)[0] as S
           return {
             /**
