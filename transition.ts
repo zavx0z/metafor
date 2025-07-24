@@ -1,6 +1,11 @@
-import type {ContextSchema, ExtractValues} from "./context"
+import type { ContextSchema, ExtractValues } from "./context"
+import type { Condition, StatesConfig } from "./transition.t"
+export type { Condition, StatesConfig }
 
-export const checkTransitionConditions = <C extends ContextSchema>(conditions: any, context: Partial<ExtractValues<C>>): boolean => {
+export const checkTransitionConditions = <C extends ContextSchema>(
+  conditions: any,
+  context: Partial<ExtractValues<C>>
+): boolean => {
   for (const [field, condition] of Object.entries(conditions)) {
     const value = context[field]
     if (field === "status") {

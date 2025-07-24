@@ -1,6 +1,6 @@
 import type { ContextSchema, ExtractValues } from "../context"
-import type { ActionChain, Builder } from "./index.t"
-export type { Builder }
+import type { ActionChain, Builder, Process } from "./index.t"
+export type { Builder, Process }
 
 /**
  * Вспомогательная функция для декларации actionsConfig автомата через builder и chain API.

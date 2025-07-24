@@ -9,15 +9,13 @@ if (debug) log = (await import("./debug/console.js")).log
 
 import { types, createContext } from "./context"
 import type { ContextSchema, ContextTypes, ContextInstance, ExtractValues } from "./context"
-import { type StatesConfig } from "./transition.t.ts"
-import { createActionsConfig, type Builder } from "./actions"
+import { checkTransitionConditions, type StatesConfig } from "./transition"
+import { createActionsConfig, type Builder, type Process } from "./actions"
 import type { Snapshot, ViewConfig } from "./metafor.t"
-import type { Message } from "./message/index.t"
 import { initMessage, stateAfterActionMessage, stateBeforeActionMessage, updateContextMessage } from "./message"
-import type { Process } from "./actions/index.t"
-import { checkTransitionConditions } from "./transition.ts"
+import type { Message } from "./message"
 import { html, render } from "./html/html.ts"
-import { validateNoUnconditionalCycles } from "./validator/index.ts"
+import { validateNoUnconditionalCycles } from "./validator"
 
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата

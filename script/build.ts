@@ -8,7 +8,7 @@ async function build(dev: boolean, distDir: string, entrypoint: string) {
     target: "browser",
     format: "esm",
     sourcemap: dev ? "inline" : "none",
-    splitting: false,
+    splitting: true,
     minify: !dev,
     external: []
   })

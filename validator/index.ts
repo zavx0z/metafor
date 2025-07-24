@@ -1,11 +1,12 @@
 // Валидация конфигурации состояний конечного автомата на наличие циклов безусловных переходов
+import type { ContextSchema } from "../context"
 import type { StatesConfig } from "../transition.t.ts"
 
 /**
  * Проверяет, что в конфигурации состояний нет циклов безусловных переходов.
  * Если цикл найден — выбрасывает ошибку с пояснением.
  */
-export function validateNoUnconditionalCycles<S extends string, C>(states: StatesConfig<S, C>) {
+export function validateNoUnconditionalCycles<S extends string, C extends ContextSchema>(states: StatesConfig<S, C>) {
   // Строим граф только по безусловным переходам (условия: {}, null, undefined)
   const graph: Record<string, string[]> = {}
   for (const [from, transitions] of Object.entries(states)) {

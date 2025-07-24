@@ -1,6 +1,7 @@
 import type { ContextSchema, ExtractValues } from "../context"
 import type { Snapshot } from "../metafor.t"
 import type { Message } from "./index.t"
+export type { Message }
 
 export const initMessage = <C extends ContextSchema, S extends string>(
   tag: string,
