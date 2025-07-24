@@ -1,5 +1,5 @@
 import type { ContextSchema, ExtractValues } from "../context"
-import type { ActionChain, Builder, Process } from "./index.t"
+import type { ActionChain, Builder, Process} from "./index.t"
 export type { Builder, Process }
 
 /**
@@ -75,3 +75,5 @@ export function createActionsConfig<C extends ContextSchema, S extends string>(b
   // Возвращаем actionsConfig: ключи — имена действий, значения — объекты с action, success, error
   return result
 }
+
+export { parseFunction, parseProcess } from "./parser"
