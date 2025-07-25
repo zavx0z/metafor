@@ -14,7 +14,7 @@ import type { ContextSchema, ExtractValues, UpdateValues } from "../context"
  *   bar: action(...)
  * }))
  */
-export type Builder<C extends ContextSchema, S extends string> = (
+export type ActionsDeclaration<C extends ContextSchema, S extends string> = (
   action: <Res>(action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>) => ActionChain<C, Res>
 ) => Partial<Record<S, ActionChain<C, any>>>
 

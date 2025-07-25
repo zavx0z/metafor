@@ -1,6 +1,6 @@
 import type { ContextSchema, ExtractValues } from "../context"
-import type { ActionChain, Builder, Process} from "./index.t"
-export type { Builder, Process }
+import type { ActionChain, ActionsDeclaration, Process } from "./index.t"
+export type { ActionsDeclaration, Process }
 
 /**
  * Вспомогательная функция для декларации actionsConfig автомата через builder и chain API.
@@ -20,7 +20,7 @@ export type { Builder, Process }
  *     .error(({ update, error }) => update({ name: error.message })),
  * }))
  */
-export function createActionsConfig<C extends ContextSchema, S extends string>(builder: Builder<C, S>) {
+export function createActionsConfig<C extends ContextSchema, S extends string>(builder: ActionsDeclaration<C, S>) {
   /**
    * Фабрика для создания chain-объекта для каждого действия.
    * Каждый вызов action возвращает chain API с методами success, error, getResult.

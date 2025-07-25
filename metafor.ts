@@ -8,9 +8,9 @@ let log: (message: Message, core: Record<string, any>) => void = (message, core)
 if (debug) log = (await import("./debug/console.js")).log
 
 import { types, createContext } from "./context"
-import type { ContextSchema, ContextTypes, ContextInstance, ExtractValues } from "./context"
+import type { ContextSchema, ContextTypes, ContextInstance, ExtractValues, Update } from "./context"
 import { checkTransitionConditions, type StatesConfig } from "./transition"
-import { createActionsConfig, type Builder, type Process } from "./actions"
+import { createActionsConfig, type ActionsDeclaration, type Process } from "./actions"
 import type { Snapshot, ViewConfig } from "./metafor.t"
 import { initMessage, stateAfterActionMessage, stateBeforeActionMessage, updateContextMessage } from "./message"
 import type { Message } from "./message"
@@ -26,9 +26,9 @@ import {
   runReactions,
   type ReactionMap,
   type Reaction,
-  type ReactionActionArgs,
-  type ReactionFilterArgs,
+  createReactionsConfig,
 } from "./react/index"
+import type { ReactionsDeclaration } from "./react/index.t.ts"
 
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
@@ -89,10 +89,16 @@ export function MetaFor(tag: string) {
              *
              * @returns Объект с действиями только для нужных состояний
              */
-            actions(builder: Builder<C, S>) {
+            actions(builder: ActionsDeclaration<C, S>) {
               const actionsConfig = createActionsConfig<C, S>(builder)
               return {
-                reactions(reactionMap: ReactionMap) {
+                /**
+                 * Регистрирует карту реакций для автомата.
+                 * @param builder Функция (update => декларация), где декларация — массив кортежей [string[], { update, filter, title }]
+                 * @returns chain API для вызова .view(...)
+                 */
+                reactions(builder: ReactionsDeclaration<C, S> = () => []) {
+                  const reactionsConfig = createReactionsConfig(builder)
                   return {
                     view(view?: ViewConfig<C, S>) {
                       /**
@@ -150,9 +156,13 @@ export function MetaFor(tag: string) {
                               return sheet
                             },
                           })
-                          // Инициализация реакций
-                          this.reactionsRaw = reactionMap
-                          this.reactions = transformReactionMapToSimple(reactionMap)
+                          // Инициализация реакций с прототипа, если не определены
+                          const proto = Object.getPrototypeOf(this)
+                          if (!this.reactionsRaw && proto.reactionsRaw) this.reactionsRaw = proto.reactionsRaw
+                          if (!this.reactions && proto.reactions) this.reactions = proto.reactions
+                          // Инициализация реакций из аргумента
+                          this.reactionsRaw = reactionsConfig
+                          this.reactions = transformReactionMapToSimple(reactionsConfig)
                         }
 
                         connectedCallback() {

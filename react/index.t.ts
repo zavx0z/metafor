@@ -1,3 +1,6 @@
+import type { Update, ExtractValues } from "../context/index.t"
+import type { Message } from "../message"
+import type { ContextSchema } from "../context/types.t"
 // Тип для meta и patch можно уточнить при интеграции
 
 export type ReactionActionArgs<C = any, Meta = any, Patch = any, Core = any> = {
@@ -23,3 +26,16 @@ export type Reaction<C = any, Meta = any, Patch = any, Core = any> = {
 
 // Ключ — массив состояний, значение — массив реакций
 export type ReactionMap<C = any, Meta = any, Patch = any, Core = any> = Map<string[], Reaction<C, Meta, Patch, Core>[]>
+
+export type ReactionDeclaration<C extends ContextSchema, S extends string> = [
+  S[],
+  {
+    update?: (args: { update: Update<C>; context: ExtractValues<C>; core: Record<string, any> }) => void
+    filter: (message: Message) => boolean
+    title: string
+  }
+][]
+
+export type ReactionsDeclaration<C extends ContextSchema, S extends string> = (
+  update: Update<C>
+) => ReactionDeclaration<C, S>
