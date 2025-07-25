@@ -43,9 +43,6 @@ test("MetaFor - базовый функционал", async () => {
 })
 
 test("MetaFor - интеграция с реакциями", async () => {
-  type Ctx = { value: number }
-  type Meta = { tag: string }
-  type Patch = { changed: boolean }
   let called = false
 
   MetaFor("react")
@@ -72,7 +69,7 @@ test("MetaFor - интеграция с реакциями", async () => {
       ],
     ])
     .view({
-      render: ({ context, html }: { context: Ctx; html: any }) => html`<div>${context.value}</div>`,
+      render: ({ context, html }) => html`<div>${context.value}</div>`,
     })
 
   document.body.innerHTML = `<metafor-react></metafor-react>`

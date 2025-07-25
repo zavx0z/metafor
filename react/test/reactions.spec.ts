@@ -16,7 +16,9 @@ describe("ReactionRegistry", () => {
       {
         title: "inc",
         filter: () => true,
-        update: ({ update, context }) => update({ value: context.value + 1 }),
+        update: ({ context }) => {
+          update({ value: context.value + 1 })
+        },
       },
     ],
     [
@@ -24,7 +26,9 @@ describe("ReactionRegistry", () => {
       {
         title: "reset",
         filter: () => true,
-        update: ({ update }) => update({ value: 0 }),
+        update: ({ context }) => {
+          context.value = 0
+        },
       },
     ],
   ]
