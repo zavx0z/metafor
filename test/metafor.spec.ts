@@ -1,6 +1,8 @@
 import { test, expect } from "bun:test"
 import { MetaFor } from "../metafor.ts"
 import { messagesFixture } from "../fixture/message.ts"
+import { createReactionMap } from "../react/index"
+import type { Reaction } from "../react/index.t"
 
 test("MetaFor - базовый функционал", async () => {
   const { waitForMessages } = messagesFixture({ meta: "test" })
@@ -39,4 +41,60 @@ test("MetaFor - базовый функционал", async () => {
   expect(element, "Компонент должен быть зарегистрирован в customElements").toBeDefined()
   expect(customElements.get("metafor-test"), "Компонент должен быть зарегистрирован в customElements").toBeDefined()
   const messages = await waitForMessages(400)
+})
+
+test("MetaFor - интеграция с реакциями", async () => {
+  type Ctx = { value: number }
+  type Meta = { tag: string }
+  type Patch = { changed: boolean }
+  let called = false
+  const reaction: Reaction<Ctx, Meta, Patch, {}> = {
+    title: "reaction1",
+    filter: ({ meta }) => meta.tag === "react",
+    action: ({ context, update }) => {
+      called = true
+      update({ value: context.value + 1 })
+    },
+  }
+  MetaFor("react")
+    .context((types) => ({ value: types.number.required(0) }))
+    .states({
+      idle: {},
+      active: {},
+    })
+    .actions((action) => ({
+      idle: action(({ context }) => ({ value: context.value })).success(({ update, data }) => update(data)),
+      active: action(({ context }) => ({ value: context.value })).success(({ update, data }) => update(data)),
+    }))
+    .reactions(createReactionMap([[["idle"], reaction]]))
+    .view({
+      render: ({ context, html }: { context: Ctx; html: any }) => html`<div>${context.value}</div>`,
+    })
+
+  document.body.innerHTML = `<metafor-react></metafor-react>`
+  const element = document.querySelector("metafor-react") as any
+  expect(element, "Компонент должен быть создан").toBeDefined()
+  // Имитируем входящее сообщение в канал
+  element.dispatchEvent(
+    new CustomEvent("channel", {
+      detail: { meta: { tag: "react" }, patch: { changed: true } },
+      bubbles: true,
+      composed: true,
+    })
+  )
+  await new Promise((r) => setTimeout(r, 10))
+  expect(called, "Реакция должна быть вызвана").toBe(true)
+  expect(element.getSnapshot().context.value, "Контекст должен быть обновлён реакцией").toBe(1)
+
+  // Проверяем, что filter работает
+  called = false
+  element.dispatchEvent(
+    new CustomEvent("channel", {
+      detail: { meta: { tag: "other" }, patch: { changed: true } },
+      bubbles: true,
+      composed: true,
+    })
+  )
+  await new Promise((r) => setTimeout(r, 10))
+  expect(called, "Реакция не должна быть вызвана, если filter false").toBe(false)
 })
