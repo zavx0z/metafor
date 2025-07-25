@@ -23,6 +23,10 @@
         "*.ts": "${capture}.t.ts, ${capture}.spec.ts",
         "*.js": "${capture}.js.map, ${capture}.min.js, ${capture}.html",
     },
+    "colorize.languages": [
+        "javascript",
+        "typescript"
+    ],
     "bun.test.filePattern": "**/*{.test.,.spec.,_test_,_spec_}{js,ts,tsx,jsx,mts,cts}",
     "cSpell.words": [
         "акторных",
@@ -30,6 +34,7 @@
         "апгрейдил",
         "бандла",
         "билдера",
+        "вендорных",
         "верхнеуровневого",
         "десериализацию",
         "дистанцировать",
@@ -38,6 +43,7 @@
         "закоммиченное",
         "закоммиченном",
         "закоммиченному",
+        "зануляем",
         "иммутабельному",
         "иммутабельности",
         "иммутабельных",

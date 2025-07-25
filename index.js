@@ -36,7 +36,7 @@ MetaFor("user")
     render: ({ context, html }) => html`<div>${context.name}</div>`,
     style: ({ css }) => css`
       div {
-        color: red;
+        color: #666;
       }
     `,
   })

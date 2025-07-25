@@ -17,6 +17,10 @@ import type { Message } from "./message"
 import { html, render } from "./html/html.ts"
 import { validateNoUnconditionalCycles } from "./validator"
 import { ref } from "./html/directives/ref.ts"
+import { repeat } from "./html/directives/repeat.ts"
+import { when } from "./html/directives/when.ts"
+import { map } from "./html/directives/map.ts"
+import { styleMap } from "./html/directives/style-map.ts"
 
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
@@ -245,11 +249,15 @@ export function MetaFor(tag: string) {
                     #updateView = () => {
                       if (!view?.render) return
                       const template = view.render({
-                        context: this.#ctx.getSnapshot(),
-                        html,
-                        update: this.#ctx.update,
                         state: this.#state,
-                        ref: ref,
+                        context: this.#ctx.getSnapshot(),
+                        update: this.#ctx.update,
+                        style: styleMap,
+                        html,
+                        ref,
+                        repeat,
+                        when,
+                        map,
                       })
                       if (template) render(template, this.#shadow)
                     }

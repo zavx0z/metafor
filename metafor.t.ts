@@ -16,7 +16,6 @@ export interface Snapshot<C extends ContextSchema, S extends string> {
   // actions: ActionsConfig<C, S>
 }
 
-
 /**
  Параметры функции рендеринга представления актора
 
@@ -29,12 +28,16 @@ export interface Snapshot<C extends ContextSchema, S extends string> {
  @property html - Функция шаблонизации HTML с поддержкой lit-html
  @property ref - Директива для создания ссылок на DOM элементы
  */
- type ViewDefinitionParams<C extends ContextSchema, S extends string> = {
+type ViewDefinitionParams<C extends ContextSchema, S extends string> = {
   update: Update<C>
   context: ExtractValues<C>
   state: S
   html: typeof html
   ref: typeof ref
+  repeat: typeof repeat
+  when: typeof when
+  map: typeof map
+  style: typeof styleMap
 }
 
 /**
@@ -53,6 +56,10 @@ export interface ViewConfig<C extends ContextSchema, S extends string> {
 
 import { MetaFor as FrameWork } from "./metafor"
 import type { ref } from "./html/directives/ref.ts"
+import type { repeat } from "./html/directives/repeat.ts"
+import type { when } from "./html/directives/when.ts"
+import type { map } from "./html/directives/map.ts"
+import type { styleMap } from "./html/directives/style-map.ts"
 
 declare global {
   interface Window {

@@ -1,5 +1,8 @@
 import type { Disconnectable, Part } from "./html.t"
-import type { DirectiveResult, PartInfo, DirectiveClass } from "./directive.t.ts"
+import type { DirectiveResult, PartInfo, DirectiveClass, DirectiveParameters } from "./directive.t"
+import { PartType } from "./directive.t"
+export type { PartInfo, DirectiveParameters }
+export { PartType }
 
 /**
  * Создаёт пользовательскую функцию-директиву из класса-директивы.

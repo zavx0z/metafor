@@ -3,7 +3,7 @@
  * @packageDocumentation
  */
 
-import type { Disconnectable, Part } from "./html.t"
+import type { Directive } from "./directive"
 
 /**
  * Интерфейс класса-директивы (конструктор).
@@ -11,6 +11,12 @@ import type { Disconnectable, Part } from "./html.t"
 export interface DirectiveClass {
   new (part: PartInfo): unknown
 }
+
+/**
+ * Этот утилитарный тип извлекает сигнатуру метода render() класса директивы,
+ * чтобы использовать её для типа генерируемой функции директивы.
+ */
+export type DirectiveParameters<C extends Directive> = Parameters<C["render"]>
 
 /**
  * Результат вызова функции-директивы. Не выполняет саму директиву, а только

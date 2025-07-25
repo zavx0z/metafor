@@ -1751,15 +1751,15 @@ if (global.MetaForHtmlDebug && global.htmlVersions.length > 1) {
 }
 
 /**
- * Рендерит значение, обычно TemplateResult Lit, в контейнер.
+ * Рендерит значение, обычно TemplateResult, в контейнер.
  *
- * Этот пример рендерит текст "Hello, Zoe!" внутри тега параграфа, добавляя
+ * Этот пример рендерит текст "Hello, zavx0z!" внутри тега параграфа, добавляя
  * его в контейнер `document.body`.
  *
  * ```js
- * import {html, render} from 'lit';
+ * import {html, render} from 'html';
  *
- * const name = "Zoe";
+ * const name = "zavx0z";
  * render(html`<p>Hello, ${name}!</p>`, document.body);
  * ```
  *
@@ -1782,9 +1782,8 @@ export const render = (
 ): RootPart => {
   if (global.MetaForHtmlDebug && container == null) {
     // Даем более понятное сообщение об ошибке, чем
-    //     Uncaught TypeError: Cannot read properties of null (reading
-    //     '_$htmlPart$')
-    // которое читается как внутренняя ошибка Lit.
+    // Uncaught TypeError: Cannot read properties of null (reading '_$htmlPart$')
+    // которое читается как внутренняя ошибка.
     throw new TypeError(`Контейнер для рендеринга не может быть ${container}`)
   }
   const renderId = global.MetaForHtmlDebug ? debugLogRenderId++ : 0
@@ -1792,19 +1791,10 @@ export const render = (
   // Это свойство должно оставаться неминифицированным.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let part: ChildPart = (partOwnerNode as any)["_$htmlPart$"]
-  debugLogEvent &&
-    debugLogEvent({
-      kind: "begin render",
-      id: renderId,
-      value,
-      container,
-      options,
-      part,
-    })
+  debugLogEvent && debugLogEvent({ kind: "begin render", id: renderId, value, container, options, part })
+
   if (part === undefined) {
     const endNode = options?.renderBefore ?? null
-    // Это свойство должно оставаться неминифицированным.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(partOwnerNode as any)["_$htmlPart$"] = part = new ChildPart(
       container.insertBefore(createMarker(), endNode),
       endNode,
@@ -1813,22 +1803,13 @@ export const render = (
     )
   }
   part._$setValue(value)
-  debugLogEvent &&
-    debugLogEvent({
-      kind: "end render",
-      id: renderId,
-      value,
-      container,
-      options,
-      part,
-    })
+  debugLogEvent && debugLogEvent({ kind: "end render", id: renderId, value, container, options, part })
   return part as RootPart
 }
 
 if (ENABLE_EXTRA_SECURITY_HOOKS) {
   render.setSanitizer = setSanitizer
   render.createSanitizer = createSanitizer
-  if (global.MetaForHtmlDebug) {
+  if (global.MetaForHtmlDebug)
     render._testOnlyClearSanitizerFactoryDoNotCallOrElse = _testOnlyClearSanitizerFactoryDoNotCallOrElse
-  }
 }
