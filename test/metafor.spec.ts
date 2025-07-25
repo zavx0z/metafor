@@ -1,8 +1,6 @@
 import { test, expect } from "bun:test"
 import { MetaFor } from "../metafor.ts"
 import { messagesFixture } from "../fixture/message.ts"
-import { createReactionMap } from "../react/index"
-import type { Reaction } from "../react/index.t"
 
 test("MetaFor - базовый функционал", async () => {
   const { waitForMessages } = messagesFixture({ meta: "test" })
@@ -33,6 +31,7 @@ test("MetaFor - базовый функционал", async () => {
         return { name: context.name }
       }).error(({ update, error }) => update({ name: error.message })),
     }))
+    .reactions()
     .view({
       render: ({ context, html }) => html`<div>${context.name}</div>`,
     })
@@ -48,14 +47,7 @@ test("MetaFor - интеграция с реакциями", async () => {
   type Meta = { tag: string }
   type Patch = { changed: boolean }
   let called = false
-  const reaction: Reaction<Ctx, Meta, Patch, {}> = {
-    title: "reaction1",
-    filter: ({ meta }) => meta.tag === "react",
-    action: ({ context, update }) => {
-      called = true
-      update({ value: context.value + 1 })
-    },
-  }
+
   MetaFor("react")
     .context((types) => ({ value: types.number.required(0) }))
     .states({
@@ -66,7 +58,19 @@ test("MetaFor - интеграция с реакциями", async () => {
       idle: action(({ context }) => ({ value: context.value })).success(({ update, data }) => update(data)),
       active: action(({ context }) => ({ value: context.value })).success(({ update, data }) => update(data)),
     }))
-    .reactions(createReactionMap([[["idle"], reaction]]))
+    .reactions((update) => [
+      [
+        ["idle"],
+        {
+          title: "reaction1",
+          filter: ({ meta }) => meta.tag === "react",
+          update: ({ context }) => {
+            called = true
+            update({ value: context.value + 1 })
+          },
+        },
+      ],
+    ])
     .view({
       render: ({ context, html }: { context: Ctx; html: any }) => html`<div>${context.value}</div>`,
     })

@@ -32,6 +32,15 @@ MetaFor("user")
       update({ error: "" })
     }),
   }))
+  .reactions((update) => [
+    [
+      ["form", "loading"],
+      {
+        update: update({ name: "User" }),
+        filter: ({ meta, patch }) => meta.tag === "user",
+      },
+    ],
+  ])
   .view({
     render: ({ context, html }) => html`<div>${context.name}</div>`,
     style: ({ css }) => css`

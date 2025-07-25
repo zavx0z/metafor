@@ -1,7 +1,7 @@
 import type { ContextSchema, ExtractValues } from "../context"
 import type { Snapshot } from "../metafor.t"
-import type { Message } from "./index.t"
-export type { Message }
+import type { Message, JsonPatch, MetaDataMessage } from "./index.t"
+export type { Message, JsonPatch, MetaDataMessage }
 
 export const initMessage = <C extends ContextSchema, S extends string>(
   tag: string,

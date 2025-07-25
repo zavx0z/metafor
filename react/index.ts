@@ -1,54 +1,106 @@
 /**
  * Утилиты для работы с ReactionMap
  */
-import type { Reaction, ReactionMap, ReactionActionArgs, ReactionFilterArgs } from "./index.t"
+import type { ContextSchema } from "../context"
+import type { Reaction, ReactionFilterArgs, ReactionsDeclaration, ReactionsMap } from "./index.t"
+import type { Update, ExtractValues } from "../context/index.t"
 
 /**
- * Создаёт карту реакций из массива кортежей [ключи, реакция/реакции]
- * @param entries Массив кортежей [массив состояний, реакция или массив реакций]
+ * Реестр реакций с deduped-структурой для экономии памяти и удобного API.
  */
-export function createReactionMap<C = any, Meta = any, Patch = any, Core = any>(
-  entries: ([string[], Reaction<C, Meta, Patch, Core>] | [string[], Reaction<C, Meta, Patch, Core>[]])[]
-): ReactionMap<C, Meta, Patch, Core> {
-  const map: ReactionMap<C, Meta, Patch, Core> = new Map()
-  for (const [keys, value] of entries) {
-    const arr = Array.isArray(value) ? value : [value]
-    map.set(keys, arr)
+export class ReactionRegistry<C extends ContextSchema, S extends string, Core = Record<string, any>> {
+  private reactionsById: Map<string, Reaction<C, S, Core>>
+  private stateToReactionIds: Map<S, string[]>
+
+  constructor(declaration: ReactionsDeclaration<C, S, Core>, update: Update<C>) {
+    const { reactionsById, stateToReactionIds } = createDedupedReactionsConfig(declaration, update)
+    this.reactionsById = reactionsById
+    this.stateToReactionIds = stateToReactionIds
   }
-  return map
-}
 
-/**
- * Находит все реакции, подходящие для текущего состояния
- * @param map ReactionMap
- * @param state Текущее состояние (строка)
- * @returns Массив реакций
- */
-export function findReactions<C = any, Meta = any, Patch = any, Core = any>(
-  map: ReactionMap<C, Meta, Patch, Core>,
-  state: string
-): Reaction<C, Meta, Patch, Core>[] {
-  const result: Reaction<C, Meta, Patch, Core>[] = []
-  for (const [keys, reactions] of map.entries()) {
-    if (keys.includes(state)) result.push(...reactions)
+  /** Получить все реакции для состояния */
+  getReactions(state: S): Reaction<C, S, Core>[] {
+    const ids = this.stateToReactionIds.get(state) || []
+    return ids.map((id) => this.reactionsById.get(id)!).filter(Boolean)
   }
-  return result
-}
 
-/**
- * Запускает все реакции, у которых filter возвращает true
- * @param reactions Массив реакций
- * @param filterArgs Аргументы для filter
- * @param actionArgs Аргументы для action
- */
-export function runReactions<C = any, Meta = any, Patch = any, Core = any>(
-  reactions: Reaction<C, Meta, Patch, Core>[],
-  filterArgs: ReactionFilterArgs<C, Meta, Patch>,
-  actionArgs: ReactionActionArgs<C, Meta, Patch, Core>
-) {
-  for (const reaction of reactions) {
-    if (reaction.filter(filterArgs)) {
-      reaction.action(actionArgs)
+  /** Исполнить все реакции для состояния */
+  run(
+    state: S,
+    filterArgs: ReactionFilterArgs<C, S>,
+    updateArgs: { update: Update<C>; context: ExtractValues<C>; core: Core }
+  ): void {
+    for (const reaction of this.getReactions(state)) {
+      if (reaction.filter(filterArgs)) {
+        reaction.update(updateArgs)
+      }
     }
   }
+
+  /** Получить все уникальные реакции */
+  getAllReactions(): Reaction<C, S, Core>[] {
+    return Array.from(this.reactionsById.values())
+  }
+
+  /** Получить все состояния, где используется реакция по id */
+  getStatesForReaction(id: string): S[] {
+    const result: S[] = []
+    for (const [state, ids] of this.stateToReactionIds.entries()) {
+      if (ids.includes(id)) result.push(state)
+    }
+    return result
+  }
+
+  /** Сериализация/экспорт */
+  toJSON(): { reactions: any[]; states: Record<string, string[]> } {
+    const reactions = Array.from(this.reactionsById.entries()).map(([id, reaction]) => ({ id, ...reaction }))
+    const states: Record<string, string[]> = {}
+    for (const [state, ids] of this.stateToReactionIds.entries()) {
+      states[state as string] = ids
+    }
+    return { reactions, states }
+  }
+}
+
+/**
+ * Вспомогательная функция для создания deduped-структуры реакций.
+ */
+function createDedupedReactionsConfig<C extends ContextSchema, S extends string, Core = Record<string, any>>(
+  declaration: ReactionsDeclaration<C, S, Core>,
+  update: Update<C>
+): {
+  reactionsById: Map<string, Reaction<C, S, Core>>
+  stateToReactionIds: Map<S, string[]>
+} {
+  let reactionAutoId = 0
+  function generateReactionId(reaction: Reaction<C, S, Core>): string {
+    return `${reaction.title}_${reactionAutoId++}`
+  }
+  const reactionsById = new Map<string, Reaction<C, S, Core>>()
+  const stateToReactionIds = new Map<S, string[]>()
+  const declarations = declaration(update)
+  for (const [states, value] of declarations) {
+    const { title, filter, update } = value
+    const reaction: Reaction<C, S, Core> = { title, filter, update }
+    let id = undefined
+    for (const [existingId, existingReaction] of reactionsById.entries()) {
+      if (
+        existingReaction.title === reaction.title &&
+        existingReaction.filter === reaction.filter &&
+        existingReaction.update === reaction.update
+      ) {
+        id = existingId
+        break
+      }
+    }
+    if (!id) {
+      id = generateReactionId(reaction)
+      reactionsById.set(id, reaction)
+    }
+    for (const state of states) {
+      if (!stateToReactionIds.has(state)) stateToReactionIds.set(state, [])
+      stateToReactionIds.get(state)!.push(id)
+    }
+  }
+  return { reactionsById, stateToReactionIds }
 }

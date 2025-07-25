@@ -21,13 +21,7 @@ import { repeat } from "./html/directives/repeat.ts"
 import { when } from "./html/directives/when.ts"
 import { map } from "./html/directives/map.ts"
 import { styleMap } from "./html/directives/style-map.ts"
-import {
-  transformReactionMapToSimple,
-  runReactions,
-  type ReactionMap,
-  type Reaction,
-  createReactionsConfig,
-} from "./react/index"
+import { ReactionRegistry } from "./react/index"
 import type { ReactionsDeclaration } from "./react/index.t.ts"
 
 /**
@@ -98,7 +92,6 @@ export function MetaFor(tag: string) {
                  * @returns chain API для вызова .view(...)
                  */
                 reactions(builder: ReactionsDeclaration<C, S> = () => []) {
-                  const reactionsConfig = createReactionsConfig(builder)
                   return {
                     view(view?: ViewConfig<C, S>) {
                       /**
@@ -110,6 +103,7 @@ export function MetaFor(tag: string) {
                         #channel: BroadcastChannel
                         #transitions = states
                         #actions = actionsConfig
+                        #reactions: ReactionRegistry<C, S, Record<string, any>>
                         /** ------------state-------------------------------- */
                         #state: S = initialState
                         #setState(state: S) {
@@ -119,14 +113,6 @@ export function MetaFor(tag: string) {
                         /** ------------process-------------------------------- */
                         /** индикатор выполнения процесса */
                         #process: boolean = false
-                        /**
-                         * Исходная карта реакций (Map<string[], Reaction[]>)
-                         */
-                        reactionsRaw?: ReactionMap
-                        /**
-                         * Быстрый map для поиска реакций по состоянию (Map<string, Reaction[]>)
-                         */
-                        reactions?: Map<string, Reaction[]>
                         /**
                          * 1. устанавливает состояние процесса
                          * 2. при отключении процесса (после завершения действия)
@@ -156,13 +142,8 @@ export function MetaFor(tag: string) {
                               return sheet
                             },
                           })
-                          // Инициализация реакций с прототипа, если не определены
-                          const proto = Object.getPrototypeOf(this)
-                          if (!this.reactionsRaw && proto.reactionsRaw) this.reactionsRaw = proto.reactionsRaw
-                          if (!this.reactions && proto.reactions) this.reactions = proto.reactions
-                          // Инициализация реакций из аргумента
-                          this.reactionsRaw = reactionsConfig
-                          this.reactions = transformReactionMapToSimple(reactionsConfig)
+
+                          this.#reactions = new ReactionRegistry(builder, this.#ctx.update)
                         }
 
                         connectedCallback() {
@@ -191,7 +172,7 @@ export function MetaFor(tag: string) {
                           this.#updateView()
                           if (view?.onMount) view.onMount()
                           // Подписка на канал для реакций
-                          if (this.reactions) {
+                          if (this.#reactions) {
                             this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
                             this.addEventListener("channel", (ev: Event) => {
                               const detail = (ev as CustomEvent).detail
@@ -320,21 +301,16 @@ export function MetaFor(tag: string) {
                          * Обработка входящих сообщений для реакций
                          */
                         #handleReactionMessage(message: any) {
-                          if (!this.reactions) return
+                          if (!this.#reactions) return
                           const { meta, patch } = message || {}
-                          const state = this.#state as string
-                          const reactions = this.reactions.get(state)
-                          if (!reactions || !reactions.length) return
-                          runReactions(
-                            reactions,
-                            { meta, patch, context: this.#ctx.getSnapshot() },
+                          const state = this.#state as S
+                          this.#reactions.run(
+                            state,
+                            { meta, patch, context: this.#ctx.getSnapshot(), state },
                             {
-                              id: (meta && meta.id) || "",
-                              patch,
-                              meta,
+                              update: this.#ctx.update,
                               context: this.#ctx.getSnapshot(),
-                              core: {}, // core можно расширить при необходимости
-                              update: (ctx) => this.update(ctx),
+                              core: {},
                             }
                           )
                         }
