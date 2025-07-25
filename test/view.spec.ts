@@ -14,7 +14,9 @@ describe("MetaFor view", () => {
       .states({
         init: {},
       })
+      .core()
       .actions(() => ({}))
+      .reactions()
       .view({
         render: function ({ html, update, context, ref }) {
           snapshot = `${context.param ? "true" : "false"}`
@@ -43,7 +45,9 @@ describe("MetaFor view", () => {
       .states({
         init: {},
       })
+      .core()
       .actions(() => ({}))
+      .reactions()
       .view({
         render: function ({ html, update, context, ref }) {
           snapshot = `${context.param ? "true" : "false"}`
@@ -77,7 +81,9 @@ describe("MetaFor view", () => {
       .states({
         init: {},
       })
+      .core()
       .actions(() => ({}))
+      .reactions()
       .view({
         render: function ({ html, update, context, ref }) {
           snapshot = `${context.param ? "true" : "false"}`

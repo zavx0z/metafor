@@ -41,6 +41,8 @@ const NODE_MODE = false
 
 // Позволяет минификаторам переименовывать ссылки на globalThis
 const global = globalThis
+global.MetaForHtmlDebug = true
+
 /**
  * Содержит типы, которые являются частью нестабильного debug API.
  *

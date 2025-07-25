@@ -16,6 +16,7 @@ describe("MetaFor: инициализация с действиями", async ()
       state_2: { state_3: { value: "ctx_3" } },
       state_3: {},
     })
+    .core()
     .actions((action) => ({
       state_1: action(async () => {
         await Bun.sleep(100)
@@ -30,6 +31,7 @@ describe("MetaFor: инициализация с действиями", async ()
         return { value: "ctx_4" }
       }).success(async ({ update, data }) => update({ value: data.value })),
     }))
+    .reactions()
     .view()
   const messages = await waitForMessages(500)
 
@@ -40,7 +42,7 @@ describe("MetaFor: инициализация с действиями", async ()
     expect(patch.op, "patch.op должен быть 'add'").toBe("add")
     expect(patch.path, "patch.path должен быть '/' ").toBe("/")
     expect(message, "message должен содержать snapshot").toEqual({
-      meta: { tag, timestamp: expect.any(Number) },
+      meta: { tag, index: 0, timestamp: expect.any(Number) },
       patch: {
         op: "add",
         path: "/",

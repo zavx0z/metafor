@@ -7,9 +7,11 @@ import type { ContextSchema } from "../context/types.t"
  * @param update Функция для обновления контекста
  * @returns Декларация реакций
  */
-export type ReactionsDeclaration<C extends ContextSchema, S extends string, Core = Record<string, any>> = (
-  update: Update<C>
-) => ReactionDeclaration<C, S, Core>
+export type ReactionsDeclaration<
+  C extends ContextSchema,
+  S extends string,
+  Core = Record<string, any>
+> = () => ReactionDeclaration<C, S, Core>
 
 /**
  * Карта реакций для быстрого поиска по состоянию.
@@ -28,7 +30,7 @@ export type ReactionsMap<C extends ContextSchema, S extends string, Core = Recor
 export type ReactionDeclaration<C extends ContextSchema, S extends string, Core = Record<string, any>> = [
   S[],
   {
-    update: (args: { context: ExtractValues<C>; core: Core }) => void
+    update: (args: { update: Update<C>; context: ExtractValues<C>; core: Core }) => void
     filter: (message: Message) => boolean
     title: string
   }
@@ -53,5 +55,5 @@ export type ReactionFilterArgs<C extends ContextSchema, S extends string> = {
 export type Reaction<C extends ContextSchema, S extends string, Core = Record<string, any>> = {
   title: string
   filter: (args: ReactionFilterArgs<C, S>) => boolean
-  update: (args: { context: ExtractValues<C>; core: Core }) => void
+  update: (args: { update: Update<C>; context: ExtractValues<C>; core: Core }) => void
 }

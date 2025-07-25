@@ -10,7 +10,10 @@ async function build(dev: boolean, distDir: string, entrypoint: string) {
     sourcemap: dev ? "inline" : "none",
     splitting: true,
     minify: !dev,
-    external: []
+    external: [],
+    define: {
+      "global.MetaForHtmlDebug": "false"
+    },
   })
 
   console.log(result.success ? "Build success" : "Build failed")

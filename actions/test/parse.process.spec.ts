@@ -113,15 +113,35 @@ describe("parseChain", () => {
   test("корректно парсит chain", () => {
     const schema = { foo: types.string.required("a"), bar: types.number.required(0) }
     type S = typeof schema
-    const actions = createActionsConfig<S, "test">((action) => ({
-      test: action(({ context }) => ({ foo: context.foo, bar: context.bar }))
-        .success(({ update, data }) => update({ foo: data.foo }))
-        .error(({ update, error }) => update({ bar: 42 })),
-    }))
-    // chain это Process, а не ActionChain, поэтому для теста создадим ActionChain вручную
-    // Но если actions.test это chain, то можно напрямую
-    // @ts-ignore
-    const parsed = parseChain(actions.test)
+    // Создаём action-фабрику вручную, чтобы получить именно ActionChain
+    const action = (fn: any) => {
+      let successHandler: any
+      let errorHandler: any
+      const chain = {
+        action: fn,
+        success(handler: any) {
+          successHandler = handler
+          return chain
+        },
+        error(handler: any) {
+          errorHandler = handler
+          return chain
+        },
+        getResult() {
+          const result: any = { action: fn }
+          if (successHandler) result.success = successHandler
+          if (errorHandler) result.error = errorHandler
+          return result
+        },
+      }
+      return chain
+    }
+    // Собираем ActionChain
+    const chain = action(({ context }: any) => ({ foo: context.foo, bar: context.bar }))
+      .success(({ update, data }: any) => update({ foo: data.foo }))
+      .error(({ update, error }: any) => update({ bar: 42 }))
+    // Теперь передаём именно ActionChain
+    const parsed = parseChain(chain)
     expect(parsed, "парсинг chain с success и error").toEqual({
       action: {
         fn: expect.any(Function),
