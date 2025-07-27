@@ -3,9 +3,6 @@
  * @packageDocumentation
  */
 window.MetaFor = MetaFor
-const debug = window.debugMetaFor
-let log: (message: Message, core: Record<string, any>) => void = (message, core) => void {}
-if (debug) log = (await import("./debug/console.js")).log
 
 import { types, createContext } from "./context"
 import type { ContextSchema, ContextTypes, ContextInstance, ExtractValues, Update } from "./context"
@@ -23,6 +20,49 @@ import { map } from "./html/directives/map.ts"
 import { styleMap } from "./html/directives/style-map.ts"
 import { ReactionRegistry } from "./react/index"
 import type { ReactionsDeclaration } from "./react/index.t.ts"
+
+// Фабрика логгера с ленивой загрузкой
+type Logger = (message: Message, core: Record<string, any>) => void
+
+function createLogger(): Logger {
+  if (!window.debugMetaFor) {
+    return () => {} // Пустая функция для продакшена
+  }
+
+  let loggerModule: { log: Logger } | null = null
+  let loading = false
+  const messageQueue: Array<{ message: Message; core: Record<string, any> }> = []
+
+  const loadLogger = async () => {
+    if (loggerModule || loading) return
+
+    loading = true
+    try {
+      loggerModule = await import("./debug/console.js")
+
+      // Обрабатываем накопленные сообщения
+      for (const item of messageQueue) {
+        loggerModule.log(item.message, item.core)
+      }
+      messageQueue.length = 0
+    } catch (error) {
+      console.warn("Failed to load debug logger:", error)
+    } finally {
+      loading = false
+    }
+  }
+
+  return (message: Message, core: Record<string, any>) => {
+    if (loggerModule) {
+      loggerModule.log(message, core)
+    } else {
+      messageQueue.push({ message, core })
+      loadLogger()
+    }
+  }
+}
+
+const log = createLogger()
 
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
@@ -268,13 +308,13 @@ export function MetaFor(tag: string) {
                             }
                             #broadcastMessage(message: Message) {
                               this.#channel.postMessage(message)
-                              if (debug) log(message, {})
+                              if (window.debugMetaFor) log(message, {})
                             }
                             #sendEvent(message: Message) {
                               this.#shadow.dispatchEvent(
                                 new CustomEvent("channel", { detail: message, bubbles: true, composed: true })
                               )
-                              if (debug) log(message, {})
+                              if (window.debugMetaFor) log(message, {})
                             }
                             #updateView = () => {
                               if (!view?.render) return
