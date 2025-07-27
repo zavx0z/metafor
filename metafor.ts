@@ -2,6 +2,8 @@
  * MetaFor - фреймворк для создания актора конечного автомата
  * @packageDocumentation
  */
+// Экспортируем MetaFor в глобальную область
+;(globalThis as any).MetaFor = MetaFor
 window.MetaFor = MetaFor
 
 import { types, createContext } from "./context"
@@ -125,7 +127,7 @@ export function MetaFor(tag: string) {
                  *
                  * @returns Объект с действиями только для нужных состояний
                  */
-                actions(builder: ActionsDeclaration<C, S>) {
+                actions(builder: ActionsDeclaration<C, S> = () => ({})) {
                   const actionsConfig = createActionsConfig<C, S>(builder)
                   return {
                     /**
@@ -133,7 +135,7 @@ export function MetaFor(tag: string) {
                      * @param builder Функция (update => декларация), где декларация — массив кортежей [string[], { update, filter, title }]
                      * @returns chain API для вызова .view(...)
                      */
-                    reactions(declaration: ReturnType<ReactionsDeclaration<C, S>> = []) {
+                    reactions(declaration: ReactionsDeclaration<C, S> = []) {
                       return {
                         view(view?: ViewConfig<C, S>) {
                           /**
@@ -177,6 +179,7 @@ export function MetaFor(tag: string) {
                               this.#channel = new BroadcastChannel("channel")
                               this.#ctx = createContext(contextSchema)
                               this.#core = core
+                              this.#reactions = new ReactionRegistry(declaration)
                               view?.style?.({
                                 css: (strings, ...values) => {
                                   const sheet = new CSSStyleSheet()
@@ -186,11 +189,10 @@ export function MetaFor(tag: string) {
                                   return sheet
                                 },
                               })
-
-                              this.#reactions = new ReactionRegistry(() => declaration, this.#ctx.update)
                             }
 
                             connectedCallback() {
+                              console.log("connected: ", tag)
                               this.#sendEvent(initMessage(tag, this.getSnapshot()))
                               this.setAttribute("state", this.#state)
                               /** нужен для запуска процесса при подключении компонента
@@ -214,7 +216,7 @@ export function MetaFor(tag: string) {
                                 this.#updateView()
                               })
                               this.#updateView()
-                              if (view?.onMount) view.onMount()
+
                               // Подписка на канал для реакций
                               if (this.#reactions) {
                                 this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
@@ -224,6 +226,7 @@ export function MetaFor(tag: string) {
                                   this.#handleReactionMessage(detail)
                                 })
                               }
+                              if (view?.onMount) view.onMount()
                             }
 
                             /**
@@ -312,7 +315,12 @@ export function MetaFor(tag: string) {
                             }
                             #sendEvent(message: Message) {
                               this.#shadow.dispatchEvent(
-                                new CustomEvent("channel", { detail: message, bubbles: true, composed: true })
+                                new CustomEvent("channel", {
+                                  detail: message,
+                                  bubbles: true,
+                                  cancelable: false,
+                                  composed: true,
+                                })
                               )
                               if (window.debugMetaFor) log(message, {})
                             }
@@ -345,18 +353,17 @@ export function MetaFor(tag: string) {
                              * Обработка входящих сообщений для реакций
                              */
                             #handleReactionMessage(message: Message) {
-                              console.log(message)
                               if (!this.#reactions) return
                               const { meta, patch } = message
                               const state = this.#state as S
-                              this.#reactions.run(
+                              this.#reactions.run({
+                                context: this.#ctx.getSnapshot(),
+                                core: this.#core,
+                                meta,
+                                patch,
                                 state,
-                                { meta, patch, context: this.#ctx.getSnapshot(), state },
-                                {
-                                  context: this.#ctx.getSnapshot(),
-                                  core: this.#core,
-                                }
-                              )
+                                update: this.#ctx.update,
+                              })
                             }
                           }
                           if (!customElements.get(tagName)) customElements.define(tagName, Actor)
@@ -373,6 +380,3 @@ export function MetaFor(tag: string) {
     },
   }
 }
-
-// Экспортируем MetaFor в глобальную область
-;(globalThis as any).MetaFor = MetaFor

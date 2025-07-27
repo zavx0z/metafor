@@ -2,8 +2,9 @@
  * Утилиты для работы с ReactionMap
  */
 import type { ContextSchema } from "../context"
-import type { Reaction, ReactionFilterArgs, ReactionsDeclaration, ReactionsMap } from "./index.t"
+import type { Reaction, ReactionFilterArgs, ReactionsDeclaration } from "./index.t"
 import type { Update, ExtractValues } from "../context/index.t"
+import type { JsonPatch, MetaDataMessage } from "../message"
 
 /**
  * Реестр реакций с deduped-структурой для экономии памяти и удобного API.
@@ -11,13 +12,11 @@ import type { Update, ExtractValues } from "../context/index.t"
 export class ReactionRegistry<C extends ContextSchema, S extends string, Core = Record<string, any>> {
   private reactionsById: Map<string, Reaction<C, S, Core>>
   private stateToReactionIds: Map<S, string[]>
-  private update: Update<C>
 
-  constructor(declaration: ReactionsDeclaration<C, S, Core>, update: Update<C>) {
+  constructor(declaration: ReactionsDeclaration<C, S, Core>) {
     const { reactionsById, stateToReactionIds } = createDedupedReactionsConfig(declaration)
     this.reactionsById = reactionsById
     this.stateToReactionIds = stateToReactionIds
-    this.update = update
   }
 
   /** Получить все реакции для состояния */
@@ -27,10 +26,24 @@ export class ReactionRegistry<C extends ContextSchema, S extends string, Core = 
   }
 
   /** Исполнить все реакции для состояния */
-  run(state: S, filterArgs: ReactionFilterArgs<C, S>, updateArgs: { context: ExtractValues<C>; core: Core }): void {
+  run({
+    state,
+    context,
+    core,
+    meta,
+    patch,
+    update,
+  }: {
+    state: S
+    context: ExtractValues<C>
+    core: Core
+    meta: MetaDataMessage
+    patch: JsonPatch
+    update: Update<C>
+  }): void {
     for (const reaction of this.getReactions(state)) {
-      if (reaction.filter(filterArgs)) {
-        reaction.update({ update: this.update, context: updateArgs.context, core: updateArgs.core })
+      if (reaction.filter({ context, meta, patch, state })) {
+        reaction.update({ update, context, core, meta, patch, state })
       }
     }
   }
@@ -64,7 +77,7 @@ export class ReactionRegistry<C extends ContextSchema, S extends string, Core = 
  * Вспомогательная функция для создания deduped-структуры реакций.
  */
 function createDedupedReactionsConfig<C extends ContextSchema, S extends string, Core = Record<string, any>>(
-  declaration: ReactionsDeclaration<C, S, Core>
+  declarations: ReactionsDeclaration<C, S, Core>
 ): {
   reactionsById: Map<string, Reaction<C, S, Core>>
   stateToReactionIds: Map<S, string[]>
@@ -75,7 +88,6 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
   }
   const reactionsById = new Map<string, Reaction<C, S, Core>>()
   const stateToReactionIds = new Map<S, string[]>()
-  const declarations = declaration()
   for (const [states, value] of declarations) {
     const { title, filter, update } = value
     const reaction: Reaction<C, S, Core> = { title: title ?? "", filter, update }

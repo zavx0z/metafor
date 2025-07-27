@@ -34,7 +34,7 @@ describe("MetaFor: инициализация с действиями", async ()
     .reactions()
     .view()
   const messages = await waitForMessages(500)
-
+  console.log(messages)
   test("сообщение 1", () => {
     const message = messages[0]!
     const patch = message.patch

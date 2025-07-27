@@ -11,7 +11,7 @@ export type ReactionsDeclaration<
   C extends ContextSchema,
   S extends string,
   Core = Record<string, any>
-> = () => ReactionDeclaration<C, S, Core>
+> = ReactionDeclaration<C, S, Core>[]
 
 /**
  * Карта реакций для быстрого поиска по состоянию.
@@ -30,20 +30,20 @@ export type ReactionsMap<C extends ContextSchema, S extends string, Core = Recor
 export type ReactionDeclaration<C extends ContextSchema, S extends string, Core = Record<string, any>> = [
   S[],
   {
-    update: (args: { update: Update<C>; context: ExtractValues<C>; core: Core }) => void
+    update: ReactionUpdate<C, S, Core>
     filter: (message: Message) => boolean
     title?: string
   }
-][]
+]
 
-export type ReactionActionArgs<C extends ContextSchema, S extends string, Core = Record<string, any>> = {
-  id: string
+export type ReactionUpdate<C extends ContextSchema, S extends string, Core = Record<string, any>> = ({patch, meta, context, state, core}:{
   patch: JsonPatch
   meta: MetaDataMessage
   context: C
+  state: S
   core: Core
-  update: (ctx: Partial<C>) => void
-}
+  update: Update<C>
+}) => void
 
 export type ReactionFilterArgs<C extends ContextSchema, S extends string> = {
   meta: MetaDataMessage
@@ -55,5 +55,5 @@ export type ReactionFilterArgs<C extends ContextSchema, S extends string> = {
 export type Reaction<C extends ContextSchema, S extends string, Core = Record<string, any>> = {
   title: string
   filter: (args: ReactionFilterArgs<C, S>) => boolean
-  update: (args: { update: Update<C>; context: ExtractValues<C>; core: Core }) => void
+  update: ReactionUpdate<C, S, Core>
 }
