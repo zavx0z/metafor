@@ -40,8 +40,8 @@ const ENABLE_SHADYDOM_NOPATCH = true
 const NODE_MODE = false
 
 // Позволяет минификаторам переименовывать ссылки на globalThis
+globalThis.MetaForHtmlDebug = true
 const global = globalThis
-global.MetaForHtmlDebug = true
 
 /**
  * Содержит типы, которые являются частью нестабильного debug API.

@@ -78,7 +78,7 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
   const declarations = declaration()
   for (const [states, value] of declarations) {
     const { title, filter, update } = value
-    const reaction: Reaction<C, S, Core> = { title, filter, update }
+    const reaction: Reaction<C, S, Core> = { title: title ?? "", filter, update }
     let id = undefined
     for (const [existingId, existingReaction] of reactionsById.entries()) {
       if (

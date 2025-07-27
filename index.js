@@ -14,6 +14,7 @@ MetaFor("user")
     success: { form: {} },
     error: { form: {} },
   })
+  .core()
   .actions((action) => ({
     loading: action(async ({ context }) => {
       // имитация асинхронного запроса
@@ -32,11 +33,11 @@ MetaFor("user")
       update({ error: "" })
     }),
   }))
-  .reactions((update) => [
+  .reactions([
     [
       ["form", "loading"],
       {
-        update: update({ name: "User" }),
+        update: ({ update }) => update({ name: "User" }),
         filter: ({ meta, patch }) => meta.tag === "user",
       },
     ],

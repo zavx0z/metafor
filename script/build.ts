@@ -3,16 +3,17 @@ import { join } from "path"
 
 async function build(dev: boolean, distDir: string, entrypoint: string) {
   const result = await Bun.build({
-    entrypoints: [entrypoint],
+    entrypoints: [entrypoint, "./debug/console.js"],
     outdir: distDir,
     target: "browser",
     format: "esm",
     sourcemap: dev ? "inline" : "none",
-    splitting: true,
+    splitting: false,
     minify: !dev,
-    external: [],
+    external: ["./debug/console.js"],
+    naming: "[dir]/[name].[ext]",
     define: {
-      "global.MetaForHtmlDebug": "false"
+      "globalThis.MetaForHtmlDebug": dev ? "true" : "false",
     },
   })
 

@@ -32,7 +32,7 @@ export type ReactionDeclaration<C extends ContextSchema, S extends string, Core 
   {
     update: (args: { update: Update<C>; context: ExtractValues<C>; core: Core }) => void
     filter: (message: Message) => boolean
-    title: string
+    title?: string
   }
 ][]
 
