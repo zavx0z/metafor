@@ -3,7 +3,7 @@
     "entryPoints": [
         "metafor.ts",
         "context/types.t.ts",
-        "transition.t.ts",
+        "state/index.t.ts",
         "proc/index.t.ts",
         "react/index.t.ts",
         "metafor.t.ts"
@@ -16,10 +16,8 @@
     "excludeExternals": true,
     "exclude": [
         "**/node_modules/**",
-        "**/test/**",
         "**/fixture/**",
-        "**/*.test.ts",
-        "**/*.spec.ts"
+        "**/*.test.ts"
     ],
     "includeVersion": true,
     "categorizeByGroup": true,
@@ -41,5 +39,8 @@
     "validation": {
         "invalidLink": true,
         "notExported": true
-    }
+    },
+    "plugin": [
+        "typedoc-plugin-include-example"
+    ]
 }

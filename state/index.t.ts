@@ -68,15 +68,7 @@ import type {
    | notEq      | boolean | Не равно указанному булеву значению|
    | logicalEq  | boolean | Логическое равенство               |
    
-   @example
-   ```typescript
-   // Простое условие
-   isActive: true
-   
-   // Сложное условие
-   isAdmin: { eq: true }
-   isVerified: { notEq: false }
-   ```
+   @includeExample ./state/test/conditions.boolean.spec.ts
    */
 export type CondBooleanRequired =
   | boolean
@@ -232,18 +224,7 @@ export type CondEnumOptional<E extends readonly (string | number)[]> =
    | length        | number \| { min?: number; max?: number } | Длина строки |
    | between       | [string, string] | Должно быть между двумя строками |
    
-   @example
-   ```typescript
-   // Простое условие
-   name: 'John'
-   
-   // Регулярное выражение
-   email: /@/
-   
-   // Сложное условие
-   name: { length: { min: 2 } }
-   email: { pattern: /@/, include: '.com' }
-   ```
+   @includeExample ./state/test/conditions.string.spec.ts
    */
 export type CondStringRequired =
   | string
@@ -363,15 +344,7 @@ export type CondStringOptional =
    | notLte     | number  | Не меньше или равно указанному числу|
    | between    | [number, number] | Должно быть между двумя числами |
    
-   @example
-   ```typescript
-   // Простое условие
-   age: 18
-   
-   // Сложное условие
-   age: { gte: 18, lte: 65 }
-   score: { between: [0, 100] }
-   ```
+   @includeExample ./state/test/conditions.number.spec.ts
    */
 export type CondNumberRequired =
   | number
@@ -636,5 +609,10 @@ export type StateDefinition<T extends string, C extends ContextSchema> = StateTr
 
 /**
  * Конфигурация всех состояний системы
+ *
+ * @includeExample ./state/test/states.config.basic.spec.ts
+ * @includeExample ./state/test/states.config.order.spec.ts
+ * @includeExample ./state/test/states.config.numeric.spec.ts
+ * @includeExample ./state/test/states.config.multiple.spec.ts
  */
 export type StatesConfig<S extends string, C extends ContextSchema> = Record<S, StateDefinition<S, C>>

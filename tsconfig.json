@@ -29,6 +29,7 @@
   },
   "exclude": [
     "script",
+    "docs",
     "dist/**/*",
     "core/**/*",
     "node_modules/**/*",
