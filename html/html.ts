@@ -1274,7 +1274,7 @@ class ChildPart implements Disconnectable {
     }
   }
 
-  // Переопределяется через `litHtmlPolyfillSupport` для поддержки платформы.
+  // Переопределяется через `htmlPolyfillSupport` для поддержки платформы.
   /** @internal */
   _$getTemplate(result: UncompiledTemplateResult) {
     let template = templateCache.get(result.strings)

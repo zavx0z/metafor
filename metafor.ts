@@ -135,7 +135,7 @@ export function MetaFor(tag: string) {
                      * @param builder Функция (update => декларация), где декларация — массив кортежей [string[], { update, filter, title }]
                      * @returns chain API для вызова .view(...)
                      */
-                    reactions(declaration: ReactionsDeclaration<C, S> = []) {
+                    reactions(reactions: ReactionsDeclaration<C, S> = []) {
                       return {
                         view(view?: ViewConfig<C, S>) {
                           /**
@@ -179,7 +179,7 @@ export function MetaFor(tag: string) {
                               this.#channel = new BroadcastChannel("channel")
                               this.#ctx = createContext(contextSchema)
                               this.#core = core
-                              this.#reactions = new ReactionRegistry(declaration)
+                              this.#reactions = new ReactionRegistry(reactions)
                               view?.style?.({
                                 css: (strings, ...values) => {
                                   const sheet = new CSSStyleSheet()
@@ -192,13 +192,17 @@ export function MetaFor(tag: string) {
                             }
 
                             connectedCallback() {
+                              this.setAttribute("state", this.#state)
                               console.log("connected: ", tag)
                               this.#sendEvent(initMessage(tag, this.getSnapshot()))
-                              this.setAttribute("state", this.#state)
-                              /** нужен для запуска процесса при подключении компонента
-                               * - выполняет процесс текущего состояния, если есть
-                               * - выполняет переходы
-                               */
+                              if (reactions) {
+                                this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
+                                this.addEventListener("channel", this.#reactionHandler)
+                              }
+                              this.#updateView()
+                              this.#ctx.onUpdate((updated) => {
+                                this.#sendEvent(updateContextMessage(tag, updated))
+                              })
                               const transition = this.#transitions[this.#state]
                               if (transition) {
                                 const process = this.#actions[this.#state]
@@ -210,25 +214,16 @@ export function MetaFor(tag: string) {
                                   this.#transition()
                                 }
                               }
-
-                              this.#ctx.onUpdate((updated) => {
-                                this.#sendEvent(updateContextMessage(tag, updated))
-                                this.#updateView()
-                              })
-                              this.#updateView()
-
-                              // Подписка на канал для реакций
-                              if (this.#reactions) {
-                                this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
-                                this.addEventListener("channel", (ev: Event) => {
-                                  const detail = (ev as CustomEvent).detail
-                                  if (detail?.meta?.tag === tag) return
-                                  this.#handleReactionMessage(detail)
-                                })
-                              }
                               if (view?.onMount) view.onMount()
                             }
-
+                            disconnectedCallback() {
+                              console.log("disconnected: ", tag)
+                            }
+                            #reactionHandler = (ev: Event) => {
+                              const detail = (ev as CustomEvent).detail
+                              if (detail?.meta?.tag === tag) return
+                              this.#handleReactionMessage(detail)
+                            }
                             /**
                              * - выполняет действие, устанавливая состояние процесса в true
                              * - после успешной обработки действия, если есть success, то обновляет контекст
@@ -239,14 +234,14 @@ export function MetaFor(tag: string) {
                              * @param process - конфигурация процесса состояния
                              * @throws {Error} - если обработчик ошибки не найден
                              */
-                            #executeAction(process: Process<C>) {
+                            #executeAction = (process: Process<C>) => {
                               try {
                                 const result = process.action({ context: this.#ctx.getSnapshot() })
                                 if (result instanceof Promise) {
                                   this.#broadcastMessage(stateBeforeActionMessage(tag, this.#state))
                                   result
                                     .then((data) => {
-                                      process.success?.({ update: this.#ctx.update, data })
+                                      if (process.success) process.success({ update: this.#ctx.update, data })
                                     })
                                     .catch((error) => {
                                       if (process.error) process.error({ update: this.#ctx.update, error })
@@ -261,10 +256,6 @@ export function MetaFor(tag: string) {
                                     })
                                 } else {
                                   if (process.success) process.success({ update: this.#ctx.update, data: result })
-                                  else
-                                    throw new Error(
-                                      `Обработчик успеха не найден для состояния: ${this.#state} \n ${result}`
-                                    )
                                   this.#broadcastMessage(stateAfterActionMessage(tag, this.#state))
                                   this.#setProcess(false)
                                 }
@@ -274,7 +265,6 @@ export function MetaFor(tag: string) {
                                 this.#setProcess(false)
                               }
                             }
-
                             /**
                              * - обновляет контекст
                              */
@@ -291,7 +281,7 @@ export function MetaFor(tag: string) {
                              * - запускает процесс если есть
                              * - отправляет сообщение состояния если нет процесса (MSG)
                              */
-                            #transition() {
+                            #transition = () => {
                               const transition = this.#transitions[this.#state]
                               if (!transition) return
                               for (const [state, conditions] of Object.entries(transition)) {
@@ -309,11 +299,12 @@ export function MetaFor(tag: string) {
                                 }
                               }
                             }
-                            #broadcastMessage(message: Message) {
+                            #broadcastMessage = (message: Message) => {
                               this.#channel.postMessage(message)
+                              this.#updateView()
                               if (window.debugMetaFor) log(message, {})
                             }
-                            #sendEvent(message: Message) {
+                            #sendEvent = (message: Message) => {
                               this.#shadow.dispatchEvent(
                                 new CustomEvent("channel", {
                                   detail: message,
@@ -323,6 +314,9 @@ export function MetaFor(tag: string) {
                                 })
                               )
                               if (window.debugMetaFor) log(message, {})
+                              if (message.patch.op === "add") 
+                                return
+                              this.#updateView()
                             }
                             #updateView = () => {
                               if (!view?.render) return
@@ -352,7 +346,7 @@ export function MetaFor(tag: string) {
                             /**
                              * Обработка входящих сообщений для реакций
                              */
-                            #handleReactionMessage(message: Message) {
+                            #handleReactionMessage = (message: Message) => {
                               if (!this.#reactions) return
                               const { meta, patch } = message
                               const state = this.#state as S
