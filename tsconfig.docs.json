@@ -1,0 +1,31 @@
+{
+    "extends": "./tsconfig.json",
+    "compilerOptions": {
+        "skipLibCheck": true,
+        "noEmit": true
+    },
+      "include": [
+    "metafor.ts",
+    "metafor.t.ts",
+    "context/**/*.ts",
+    "context/**/*.t.ts",
+    "proc/**/*.ts",
+    "proc/**/*.t.ts",
+    "react/**/*.ts",
+    "react/**/*.t.ts",
+    "message/**/*.ts",
+    "message/**/*.t.ts",
+    "transition.ts",
+    "transition.t.ts",
+    "html/**/*.ts",
+    "html/**/*.t.ts"
+  ],
+    "exclude": [
+        "node_modules",
+        "test",
+        "fixture",
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "**/*.d.ts"
+    ]
+}

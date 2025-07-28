@@ -1,5 +1,46 @@
 /**
  * MetaFor - фреймворк для создания актора конечного автомата
+ *
+ * MetaFor предоставляет декларативный способ создания web-компонентов с конечным автоматом.
+ * Каждый компонент имеет типизированный контекст, состояния, процессы, реакции и представление.
+ *
+ * @example
+ * ```typescript
+ * MetaFor("user-profile")
+ *   .context((types) => ({
+ *     userId: types.number.required(0),
+ *     userName: types.string.required(""),
+ *     isLoading: types.boolean.required(false),
+ *   }))
+ *   .states({
+ *     idle: { loading: {} },
+ *     loading: { success: {}, error: {} },
+ *     success: { idle: {} },
+ *     error: { idle: {} },
+ *   })
+ *   .core({ users: [] })
+ *   .processes((process) => ({
+ *     loadUser: process()
+ *       .action(async ({ context }) => {
+ *         const response = await fetch(`/api/users/${context.userId}`)
+ *         return await response.json()
+ *       })
+ *       .success(({ update, data }) => {
+ *         update({ userName: data.name, isLoading: false })
+ *       })
+ *   }))
+ *   .view({
+ *     render: ({ context, html, update }) => html`
+ *       <div>
+ *         <h1>${context.userName}</h1>
+ *         <button @click=${() => update({ isLoading: true })}>
+ *           Загрузить
+ *         </button>
+ *       </div>
+ *     `
+ *   })
+ * ```
+ *
  * @packageDocumentation
  */
 // Экспортируем MetaFor в глобальную область
@@ -77,15 +118,21 @@ export function MetaFor(tag: string) {
     /**
      * Регистрирует схему контекста для автомата.
      *
-     * @param schema Функция, принимающая types и возвращающая объект-схему контекста.
-     * Пример:
-     * ```ts
-     * .context(types => ({
-     *   name: types.string.required("Anonymous"),
-     *   isActive: types.boolean.required(false),
+     * Контекст содержит только простые типы данных. Сложные объекты храните в core.
+     *
+     * @param schema Функция, принимающая types и возвращающая объект-схему контекста
+     * @returns chain API для вызова .states(...)
+     *
+     * @example
+     * ```typescript
+     * .context((types) => ({
+     *   userId: types.number.required(0),
+     *   userName: types.string.required("Anonymous"),
+     *   selectedIds: types.array.required([]),
+     *   isLoading: types.boolean.required(false),
+     *   theme: types.enum.required(["light", "dark"]),
      * }))
      * ```
-     * @returns chain API для вызова .states(...)
      */
     context<C extends ContextSchema>(schema: (types: ContextTypes) => C) {
       const contextSchema = schema(types)

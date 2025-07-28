@@ -1,0 +1,344 @@
+# Правила для работы с MetaFor фреймворком
+
+## Архитектурные принципы
+
+### Контекст (Context)
+- Контекст должен содержать ТОЛЬКО простые типы: string, number, boolean, array, enum
+- Массивы в контексте должны содержать только ID (числа или строки)
+- Сложные объекты храните в core, а не в контексте
+- Используйте осмысленные значения по умолчанию
+
+```typescript
+// ✅ Правильно
+.context((types) => ({
+  userId: types.number.required(0),
+  userName: types.string.required("Anonymous"),
+  selectedIds: types.array.required([]),
+  isLoading: types.boolean.required(false),
+  theme: types.enum.required(["light", "dark"]),
+}))
+
+// ❌ Неправильно
+.context((types) => ({
+  user: types.object.required({...}), // Должно быть в core
+  items: types.array.required([{...}]), // Должно быть в core
+}))
+```
+
+### Core
+- Core - это простой объект с данными, используемыми во всех состояниях
+- Сложные объекты и структуры данных храните в core
+- Core доступен во всех процессах и реакциях
+- Используйте простые свойства для хранения данных
+
+```typescript
+// ✅ Правильно
+.core({
+  users: [],
+  settings: {
+    theme: "light",
+    language: "ru"
+  },
+  cache: new Map()
+})
+```
+
+### Состояния (States)
+- Перечисляйте ВСЕ состояния в массивах реакций, не используйте ["*"]
+- Состояния должны быть простыми и понятными
+- Используйте условия переходов на основе контекста
+- Не создавайте вложенные или параллельные состояния
+
+```typescript
+// ✅ Правильно
+.reactions((reaction) => [
+  [
+    ["idle", "loading", "success", "error"], // Все состояния
+    reaction()...
+  ]
+])
+
+// ❌ Неправильно
+.reactions((reaction) => [
+  [
+    ["*"], // Не используйте "*"
+    reaction()...
+  ]
+])
+```
+
+### Процессы (Processes)
+- Процессы по природе асинхронны, но могут быть и синхронными
+- Всегда обрабатывайте успех и ошибки
+- Используйте типизацию для данных процессов
+- Группируйте связанную логику в одном процессе
+
+```typescript
+// ✅ Правильно - асинхронный процесс
+.processes((process) => ({
+  loadUser: process({ title: "Загрузка пользователя" })
+    .action(async ({ context, core }) => {
+      const response = await fetch(`/api/users/${context.userId}`)
+      if (!response.ok) throw new Error("Пользователь не найден")
+      return await response.json()
+    })
+    .success(({ update, data, core }) => {
+      core.users.push(data)
+      update({ isLoading: false })
+    })
+    .error(({ update, error }) => {
+      update({ error: error.message, isLoading: false })
+    }),
+}))
+
+// ✅ Правильно - синхронный процесс
+.processes((process) => ({
+  validateForm: process({ title: "Валидация формы" })
+    .action(({ context }) => {
+      const errors = []
+      if (context.userName.length < 2) {
+        errors.push("Имя должно содержать минимум 2 символа")
+      }
+      if (!context.userEmail.includes("@")) {
+        errors.push("Некорректный email")
+      }
+      return { errors, isValid: errors.length === 0 }
+    })
+    .success(({ update, data }) => {
+      update({ errors: data.errors, isValid: data.isValid })
+    }),
+}))
+```
+
+### Реакции (Reactions)
+- Используйте специфичные фильтры для реакций
+- Группируйте связанные реакции по состояниям
+- Используйте осмысленные заголовки для реакций
+- Обрабатывайте ошибки в реакциях
+
+```typescript
+// ✅ Правильно
+.reactions((reaction) => [
+  [
+    ["idle", "loading"],
+    reaction({ title: "Обработка пользовательских сообщений" })
+      .filter({
+        tag: "user",
+        op: "replace",
+        path: "/context",
+      })
+      .equal(({ update, patch }) => {
+        update({ messageCount: patch.value + 1 })
+      }),
+  ],
+])
+```
+
+### Представление (View)
+- Используйте декларативный HTML template API
+- Разделяйте логику и представление
+- Используйте условный рендеринг вместо скрытия элементов
+- Применяйте семантическую разметку
+- Используйте CSS-переменные для динамических стилей
+
+```typescript
+// ✅ Правильно
+.view({
+  render: ({ context, html, update }) => html`
+    <div class="user-profile">
+      <h1>${context.userName}</h1>
+      ${context.isLoading 
+        ? html`<div class="loading">Загрузка...</div>`
+        : html`<div class="content">${context.content}</div>`
+      }
+    </div>
+  `,
+  style: ({ css }) => css`
+    .user-profile {
+      padding: 20px;
+    }
+  `
+})
+```
+
+## Стиль кода
+
+### Именование
+- Используйте camelCase для полей контекста
+- Используйте kebab-case для имен компонентов
+- Используйте PascalCase для типов и интерфейсов
+- Используйте описательные имена для процессов и реакций
+
+```typescript
+// ✅ Правильно
+MetaFor("user-profile")
+  .context((types) => ({
+    userId: types.number.required(0),
+    userName: types.string.required(""),
+    isUserLoading: types.boolean.required(false),
+  }))
+  .processes((process) => ({
+    loadUserData: process()...
+  }))
+```
+
+
+
+
+
+
+
+## Лучшие практики
+
+### Производительность
+- Минимизируйте количество полей в контексте
+- Используйте эффективные фильтры в реакциях
+- Избегайте избыточных обновлений контекста
+- Оптимизируйте рендеринг с помощью ключей в циклах
+
+### Безопасность
+- Валидируйте данные на входе
+- Обрабатывайте ошибки в процессах
+- Используйте безопасные методы работы с DOM
+- Проверяйте типы данных перед использованием
+
+### Тестирование
+- Пишите тесты для всех процессов
+- Тестируйте переходы между состояниями
+- Проверяйте работу реакций
+- Используйте снапшоты для тестирования UI
+
+```typescript
+// Пример теста
+describe('User Profile Component', () => {
+  it('should load user data', async () => {
+    const element = document.querySelector('metafor-user-profile')
+    await element.processes.loadUserData()
+    expect(element.context.userName).toBe('John Doe')
+  })
+})
+```
+
+## Ограничения
+
+### Не поддерживается
+- Вложенные состояния
+- Параллельные состояния
+- Условные переходы на основе событий
+- Прямой доступ к DOM в представлении
+- Асинхронный рендеринг
+- Вложенные компоненты
+
+### Альтернативы
+- Вместо вложенных состояний используйте флаги в контексте
+- Вместо параллельных состояний используйте отдельные компоненты
+- Вместо прямого доступа к DOM используйте refs
+- Вместо вложенных компонентов создавайте отдельные компоненты
+
+## Шаблоны
+
+### Базовый компонент
+```typescript
+MetaFor("component-name")
+  .context((types) => ({
+    // Простые типы только
+  }))
+  .states({
+    // Состояния с переходами
+  })
+  .core({
+    // Простые объекты с данными
+  })
+  .processes((process) => ({
+    // Асинхронные действия
+  }))
+  .reactions((reaction) => [
+    // Реакции на события
+  ])
+  .view({
+    // UI представление
+  })
+```
+
+### Форма с валидацией
+```typescript
+MetaFor("form-component")
+  .context((types) => ({
+    formData: types.object.required({
+      name: types.string.required(""),
+      email: types.string.required(""),
+    }),
+    errors: types.array.required([]),
+    isSubmitting: types.boolean.required(false),
+  }))
+  .states({
+    editing: {},
+    validating: {},
+  })
+  .processes((process) => ({
+    submit: process()
+      .action(async ({ context }) => {
+        // Валидация и отправка
+      })
+      .success(({ update }) => {
+        update({ isSubmitting: false })
+      })
+      .error(({ update, error }) => {
+        update({ errors: [error.message], isSubmitting: false })
+      }),
+  }))
+```
+
+### Список с фильтрацией
+```typescript
+MetaFor("list-component")
+  .context((types) => ({
+    selectedIds: types.array.required([]),
+    filter: types.string.required(""),
+    isLoading: types.boolean.required(false),
+  }))
+  .core({
+    items: [],
+  })
+  .processes((process) => ({
+    loadItems: process()
+      .action(async () => {
+        const response = await fetch("/api/items")
+        return await response.json()
+      })
+      .success(({ update, data, core }) => {
+        core.items = data
+        update({ isLoading: false })
+      }),
+  }))
+```
+
+## Автодополнение
+
+### Контекст
+- `context.` - доступ к полям контекста
+- `update({ })` - обновление контекста
+- `types.string.required()` - создание строкового поля
+- `types.number.required()` - создание числового поля
+- `types.boolean.required()` - создание булевого поля
+- `types.array.required()` - создание массива
+- `types.enum.required()` - создание перечисления
+
+### Процессы
+- `process()` - создание процесса
+- `.action()` - основная логика
+- `.success()` - обработка успеха
+- `.error()` - обработка ошибки
+
+### Реакции
+- `reaction()` - создание реакции
+- `.filter()` - фильтры
+- `.equal()` - обработчик
+
+### Представление
+- `html` - HTML template
+- `css` - CSS стили
+- `ref()` - ссылки на элементы
+- `@event` - обработчики событий
+- `?attribute` - булевы атрибуты
+- `.property` - свойства элементов 

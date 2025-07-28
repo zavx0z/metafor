@@ -1,0 +1,41 @@
+{
+    "tsconfig": "tsconfig.docs.json",
+    "entryPoints": [
+        "metafor.ts"
+    ],
+    "out": "docs",
+    "theme": "default",
+    "name": "MetaFor Documentation",
+    "excludePrivate": true,
+    "excludeProtected": true,
+    "excludeExternals": true,
+      "exclude": [
+    "**/node_modules/**",
+    "**/test/**",
+    "**/fixture/**",
+    "**/*.test.ts",
+    "**/*.spec.ts"
+  ],
+    "includeVersion": true,
+    "categorizeByGroup": true,
+    "categoryOrder": [
+        "Context",
+        "States",
+        "Processes",
+        "Reactions",
+        "View",
+        "Core",
+        "*"
+    ],
+    "readme": "README.md",
+    
+    "hideGenerator": true,
+    "sort": [
+        "source-order"
+    ],
+    "searchInComments": true,
+    "validation": {
+        "invalidLink": true,
+        "notExported": true
+    }
+}

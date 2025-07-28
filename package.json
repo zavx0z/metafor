@@ -24,7 +24,8 @@
     "@happy-dom/global-registrator": "^18.0.1",
     "@types/bun": "^1.2.19",
     "dts-bundle-generator": "^9.5.1",
-    "happy-dom": "^18.0.1"
+    "happy-dom": "^18.0.1",
+    "typedoc": "^0.28.8"
   },
   "peerDependencies": {
     "typescript": "^5.8.3"
@@ -37,6 +38,8 @@
     "build:js": "bun run script/build.ts",
     "publish:dry": "bun run build:prod && bun publish --dry-run",
     "CONTEXT:TEST": "bun test context",
-    "HTML:TEST": "bun test html"
+    "HTML:TEST": "bun test html",
+    "docs": "typedoc",
+    "docs:watch": "typedoc --watch"
   }
 }
