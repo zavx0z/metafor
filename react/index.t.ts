@@ -39,7 +39,7 @@ export type ReactionDeclaration<C extends ContextSchema, S extends string, Core 
 export type ReactionUpdate<C extends ContextSchema, S extends string, Core = Record<string, any>> = ({patch, meta, context, state, core}:{
   patch: JsonPatch
   meta: MetaDataMessage
-  context: C
+  context: ExtractValues<C>
   state: S
   core: Core
   update: Update<C>

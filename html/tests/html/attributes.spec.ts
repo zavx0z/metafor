@@ -83,7 +83,7 @@ describe("аттрибуты", () => {
 
   test.skip("отрисовка Symbol в массиве в атрибуте", () => {
     render(html` <div foo=${[Symbol("A")] as any}></div> `, container)
-    expect(container.querySelector("div")!.getAttribute("foo")!).toContain("")
+    expect(container.querySelector("div")!.getAttribute("foo")!).toContain("Symbol(A)")
   })
 
   test("отрисовка привязки в атрибуте style", () => {

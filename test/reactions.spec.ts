@@ -1,9 +1,9 @@
 import { test, expect, describe } from "bun:test"
 import { messagesFixture } from "../fixture/message.ts"
+import type { Message } from "../message/index.t.ts"
 
 describe("реакции", () => {
   test("MetaFor - базовый функционал", async () => {
-    const { waitForMessages } = messagesFixture({ meta: "parent" })
     // const { waitForMessages } = messagesFixture()
 
     // document.addEventListener("channel", (ev) => console.log(ev.detail))
@@ -36,7 +36,7 @@ describe("реакции", () => {
       .view({
         render: ({ html }) => html`<div></div>`,
       })
-
+    const reactionMessages: Array<Message> = []
     MetaFor("parent")
       .context((types) => ({
         childAdded: types.boolean.optional(),
@@ -51,12 +51,11 @@ describe("реакции", () => {
           ["state_1"],
           {
             filter: ({ meta, patch }) => {
-              console.log(meta.tag, patch)
+              reactionMessages.push({ meta, patch })
               return meta.tag === "child" && patch.op === "add"
             },
-            update: ({ update, context, patch }) => {
+            update: ({ update }) => {
               update({ childAdded: true })
-              // console.log("parent context childAdded: ", context.childAdded, patch)
             },
           },
         ],
@@ -65,10 +64,122 @@ describe("реакции", () => {
         render: ({ html, context }) => html`<metafor-child>${context.childAdded}</metafor-child>`,
       })
 
-    const messages = await waitForMessages(1500)
-    // console.log(messages)
+    await Bun.sleep(500)
 
-    expect(document.body.innerHTML).toContain("<metafor-parent")
-    expect(document.body.innerHTML).toContain('state="state_1"')
+    expect(reactionMessages).toEqual([
+      {
+        meta: {
+          tag: "child",
+          timestamp: expect.any(Number),
+          index: 0,
+        },
+        patch: {
+          op: "add",
+          path: "/",
+          value: {
+            state: "state_1",
+            states: {
+              state_1: {
+                state_2: {
+                  param: "param_1",
+                },
+              },
+              state_2: {
+                state_3: {
+                  param: "param_2",
+                },
+              },
+              state_3: {},
+            },
+            context: {
+              param: null,
+            },
+            schema: {
+              param: {
+                type: "string",
+                required: false,
+                default: undefined,
+              },
+            },
+          },
+        },
+      },
+      {
+        meta: {
+          tag: "child",
+          timestamp: expect.any(Number),
+          index: 0,
+        },
+        patch: {
+          op: "replace",
+          path: "/context",
+          value: {
+            param: "param_1",
+          },
+        },
+      },
+      {
+        meta: {
+          tag: "child",
+          timestamp: expect.any(Number),
+          index: 0,
+        },
+        patch: {
+          op: "replace",
+          path: "/state",
+          value: "state_1",
+        },
+      },
+      {
+        meta: {
+          tag: "child",
+          timestamp: expect.any(Number),
+          index: 0,
+        },
+        patch: {
+          op: "test",
+          path: "/state",
+          value: "state_2",
+        },
+      },
+      {
+        meta: {
+          tag: "child",
+          timestamp: expect.any(Number),
+          index: 0,
+        },
+        patch: {
+          op: "replace",
+          path: "/context",
+          value: {
+            param: "param_2",
+          },
+        },
+      },
+      {
+        meta: {
+          tag: "child",
+          timestamp: expect.any(Number),
+          index: 0,
+        },
+        patch: {
+          op: "replace",
+          path: "/state",
+          value: "state_2",
+        },
+      },
+      {
+        meta: {
+          tag: "child",
+          timestamp: expect.any(Number),
+          index: 0,
+        },
+        patch: {
+          op: "replace",
+          path: "/state",
+          value: "state_3",
+        },
+      },
+    ])
   })
 })

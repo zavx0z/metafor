@@ -6,7 +6,7 @@ describe("MetaFor: инициализация с действиями", async ()
   const { waitForMessages } = messagesFixture({ meta: tag })
 
   document.body.innerHTML = `<metafor-${tag}></metafor-${tag}>`
-  console.log(localStorage.getItem("debug"))
+
   MetaFor(tag)
     .context((t) => ({
       value: t.string.optional("ctx_1")({ title: "Value" }),
@@ -34,7 +34,7 @@ describe("MetaFor: инициализация с действиями", async ()
     .reactions()
     .view()
   const messages = await waitForMessages(500)
-  console.log(messages)
+
   test("сообщение 1", () => {
     const message = messages[0]!
     const patch = message.patch

@@ -1,5 +1,5 @@
 [console]
-depth = 4
+depth = 7
 [test]
 preload = [
     "./fixture/happydom.ts",

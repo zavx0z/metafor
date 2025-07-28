@@ -10,13 +10,13 @@ type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active" | "error"
 
 describe("ReactionRegistry", () => {
-  const declaration: ReactionsDeclaration<Ctx, State> = (update) => [
+  const declaration: ReactionsDeclaration<Ctx, State> = [
     [
       ["idle", "active"],
       {
         title: "inc",
         filter: () => true,
-        update: ({ context }) => {
+        update: ({ update, context }) => {
           update({ value: context.value + 1 })
         },
       },
@@ -38,7 +38,7 @@ describe("ReactionRegistry", () => {
   const fakeContext: ExtractValues<Ctx> = { value: 10 }
   const fakeMeta: MetaDataMessage = { tag: "test" } as MetaDataMessage
   const fakePatch: JsonPatch = [{ op: "replace", path: "/value", value: 1 }] as any
-  const registry = new ReactionRegistry(declaration, fakeUpdate)
+  const registry = new ReactionRegistry(declaration)
 
   it("создаёт уникальные реакции", () => {
     const all = registry.getAllReactions()
@@ -58,26 +58,26 @@ describe("ReactionRegistry", () => {
 
   it("исполняет реакции через run", () => {
     let called = false
-    const customRegistry = new ReactionRegistry<Ctx, State>(
-      (update) => [
-        [
-          ["active"],
-          {
-            title: "test",
-            filter: () => true,
-            update: () => {
-              called = true
-            },
+    const customRegistry = new ReactionRegistry<Ctx, State>([
+      [
+        ["active"],
+        {
+          title: "test",
+          filter: () => true,
+          update: () => {
+            called = true
           },
-        ],
+        },
       ],
-      fakeUpdate
-    )
-    customRegistry.run(
-      "active",
-      { meta: fakeMeta, patch: fakePatch, context: fakeContext as any, state: "active" },
-      { update: fakeUpdate, context: fakeContext, core: {} }
-    )
+    ])
+    customRegistry.run({
+      meta: fakeMeta,
+      patch: fakePatch,
+      context: fakeContext as any,
+      state: "active",
+      update: fakeUpdate,
+      core: {},
+    })
     expect(called, "run вызывает update").toBe(true)
   })
 
