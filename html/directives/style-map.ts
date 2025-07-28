@@ -100,8 +100,6 @@ class StyleMapDirective extends Directive {
  * Имена без дефисов считаются camelCase-именами JavaScript и устанавливаются через присваивание, что позволяет style-объекту преобразовывать их в CSS-имена.
  *
  * Например, `styleMap({backgroundColor: 'red', 'border-top': '5px', '--size': '0'})` задаёт свойства `background-color`, `border-top` и `--size`.
- *
- * @param styleInfo
  */
 export const styleMap = directive(StyleMapDirective)
 

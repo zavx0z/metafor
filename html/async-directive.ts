@@ -321,7 +321,6 @@ export abstract class AsyncDirective extends Directive {
    * Этот метод не должен вызываться синхронно из `update`
    * или `render` директивы.
    *
-   * @param directive Директива для обновления
    * @param value Значение для установки
    */
   setValue(value: unknown) {
