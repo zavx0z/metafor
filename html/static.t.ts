@@ -7,3 +7,11 @@ export interface StaticValue {
    */
   r: symbol
 }
+
+/**
+ * Функция для создания статических значений в HTML шаблонах
+ *
+ * @includeExample ./html/tests/static.basic.spec.ts
+ * @includeExample ./html/tests/static.attributes.spec.ts
+ */
+export type StaticFunction = (strings: TemplateStringsArray, ...values: any[]) => StaticValue

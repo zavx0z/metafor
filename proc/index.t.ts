@@ -98,38 +98,16 @@ import type { ContextSchema, ExtractValues, UpdateValues } from "../context"
  * Тип билдера для декларации набора процессов автомата.
  * 
  * Позволяет создавать типизированные процессы с удобным API.
- * 
+ *
  * @template C - схема контекста автомата
  * @template S - строковые ключи состояний/процессов
  * @param process - фабрика для создания цепочки ProcessChain
  * @returns объект, где ключи — имена процессов, а значения — цепочки ActionChain
  *
- * @example
- * ```typescript
- * const config: ActionsDeclaration<MyContext, "login" | "logout"> = (process) => ({
- *   login: process({ title: "Авторизация" })
- *     .action(async ({ context }) => {
- *       // Логика авторизации
- *       return await api.login(context.email, context.password)
- *     })
- *     .success(({ update, data }) => {
- *       update({ user: data.user, isAuthenticated: true })
- *     })
- *     .error(({ update, error }) => {
- *       update({ error: error.message })
- *     }),
- *   
- *   logout: process()
- *     .action(() => {
- *       localStorage.removeItem('token')
- *       return { success: true }
- *     })
- *     .success(({ update }) => {
- *       update({ user: null, isAuthenticated: false })
- *     })
- * })
- * ```
+ * @includeExample ./proc/test/actions.basic.spec.ts
+ * @includeExample ./proc/test/actions.types.spec.ts
  */
+
 export type ActionsDeclaration<C extends ContextSchema, S extends string> = (
   process: (config?: { title?: string; description?: string }) => ProcessChain<C>
 ) => Partial<Record<S, ActionChain<C, any>>>

@@ -73,16 +73,8 @@ import type {
  *
  * Содержит метаданные сообщения и патч для проверки условий фильтра.
  *
- * @example
- * ```typescript
- * const filterFn = (args: ReactionFilterArgs) => {
- *   console.log(args.meta.tag)    // Тег сообщения
- *   console.log(args.patch.op)    // Операция патча
- *   console.log(args.patch.path)  // Путь патча
- *   console.log(args.patch.value) // Значение патча
- *   return true // или false
- * }
- * ```
+ * @includeExample ./react/test/reactions.basic.spec.ts
+ * @includeExample ./react/test/reactions.execution.spec.ts
  */
 export type ReactionFilterArgs = {
   /** Метаданные сообщения (тег, индекс, временная метка) */
@@ -100,6 +92,9 @@ export type ReactionFilterArgs = {
  * @template C - схема контекста
  * @template S - строковые ключи состояний
  * @template Core - тип core объекта
+ *
+ * @includeExample ./react/test/reactions.basic.spec.ts
+ * @includeExample ./react/test/reactions.execution.spec.ts
  *
  * @example
  * ```typescript
