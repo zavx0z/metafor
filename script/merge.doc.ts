@@ -37,11 +37,7 @@ async function mergeDocBranch() {
       await $`git merge master --no-ff -m "[merge] merge master into doc"`
     }
 
-    // Генерируем документацию для проверки
-    console.log("📚 Генерируем документацию для проверки...")
-    await $`bun run docs`
-
-    // Проверяем, есть ли изменения в коде (не в документации)
+    // Проверяем, есть ли изменения в коде
     const status = await $`git status --porcelain`.text()
 
     if (status.trim()) {

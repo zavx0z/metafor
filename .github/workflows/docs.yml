@@ -1,0 +1,40 @@
+name: Generate and Deploy Documentation
+
+on:
+  push:
+    branches:
+      - doc
+  pull_request:
+    branches:
+      - doc
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install
+
+      - name: Run tests
+        run: bun test
+
+      - name: Generate documentation
+        run: bun run docs
+
+      - name: Deploy to GitHub Pages
+        if: github.ref == 'refs/heads/doc'
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./docs
+          destination_dir: .
+          force_orphan: true 
