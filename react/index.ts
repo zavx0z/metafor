@@ -3,15 +3,14 @@
  */
 import type { ContextSchema, ExtractValues } from "../context/index.t"
 import type { JsonPatch, MetaDataMessage } from "../message"
-import type { 
-  ReactionChain, 
-  ReactionsChain, 
-  ReactionFilterArgs, 
-  ReactionUpdate, 
+import type {
+  ReactionChain,
+  ReactionsChain,
+  ReactionFilterArgs,
+  ReactionUpdate,
   ReactionFilterConditions,
   Reaction,
-  ReactionsMap,
-  Update
+  Update,
 } from "./index.t"
 
 /**
@@ -107,7 +106,12 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
   // Преобразуем chain результат в декларацию
   const declarations = chainResult.map(([states, reaction]) => [states, reaction]) as [
     S[],
-    { filter: (args: ReactionFilterArgs<C, S>) => boolean; update: ReactionUpdate<C, S, Core>; title: string; description?: string }
+    {
+      filter: (args: ReactionFilterArgs<C, S>) => boolean
+      update: ReactionUpdate<C, S, Core>
+      title: string
+      description?: string
+    }
   ][]
 
   for (const [states, value] of declarations) {
@@ -152,7 +156,7 @@ export function createReactionsChain<
             // Создаем функцию фильтрации на основе декларативных условий
             const filterFn = (args: ReactionFilterArgs<C, S>): boolean => {
               const { meta, patch } = args
-              
+
               // Проверяем каждое условие
               if (conditions.tag !== undefined && meta.tag !== conditions.tag) return false
               if (conditions.index !== undefined && meta.index !== conditions.index) return false
@@ -160,10 +164,10 @@ export function createReactionsChain<
               if (conditions.op !== undefined && patch.op !== conditions.op) return false
               if (conditions.path !== undefined && patch.path !== conditions.path) return false
               if (conditions.value !== undefined && patch.value !== conditions.value) return false
-              
+
               return true
             }
-            
+
             return { filter: filterFn, update: updateFn, title: config.title, description: config.description }
           },
         }

@@ -37,12 +37,12 @@ describe("реакции", () => {
         render: ({ html }) => html`<div></div>`,
       })
     const reactionMessages: Array<Message> = []
-    
+
     // Функция для записи сообщений
     const recordMessage = (message: Message) => {
       reactionMessages.push(message)
     }
-    
+
     MetaFor("parent")
       .context((types) => ({
         childAdded: types.boolean.optional(),
@@ -57,17 +57,13 @@ describe("реакции", () => {
           ["state_1"],
           reaction({ title: "record_all_messages" })
             .filter({ tag: "child" })
-            .equal(({ meta, patch }) => {
-              recordMessage({ meta, patch })
-            }),
+            .equal(({ meta, patch }) => recordMessage({ meta, patch })),
         ],
         [
           ["state_1"],
           reaction({ title: "child_reaction" })
             .filter({ tag: "child", op: "add" })
-            .equal(({ update }) => {
-              update({ childAdded: true })
-            }),
+            .equal(({ update }) => update({ childAdded: true })),
         ],
       ])
       .view({

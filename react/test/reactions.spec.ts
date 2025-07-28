@@ -30,7 +30,7 @@ describe("ReactionRegistry", () => {
       [
         ["error"],
         reaction({ title: "reset" })
-          .filter(() => true)
+          .filter({ tag: "any" })
           .equal(({ update }) => update({ value: 0 })),
       ],
     ])
@@ -46,13 +46,13 @@ describe("ReactionRegistry", () => {
       [
         ["idle", "active"],
         reaction({ title: "inc" })
-          .filter(() => true)
+          .filter({ tag: "test" })
           .equal(({ update, context }) => update({ value: context.value + 1 })),
       ],
       [
         ["error"],
         reaction({ title: "reset" })
-          .filter(() => true)
+          .filter({ tag: "any" })
           .equal(({ update }) => update({ value: 0 })),
       ],
     ])
@@ -72,7 +72,7 @@ describe("ReactionRegistry", () => {
       [
         ["active"],
         reaction({ title: "test" })
-          .filter(() => true)
+          .filter({ tag: "test" })
           .equal(() => (called = true)),
       ],
     ])
@@ -94,13 +94,13 @@ describe("ReactionRegistry", () => {
       [
         ["idle", "active"],
         reaction({ title: "inc" })
-          .filter(() => true)
+          .filter({ tag: "test" })
           .equal(({ update, context }) => update({ value: context.value + 1 })),
       ],
       [
         ["error"],
         reaction({ title: "reset" })
-          .filter(() => true)
+          .filter({ tag: "any" })
           .equal(({ update }) => update({ value: 0 })),
       ],
     ])
