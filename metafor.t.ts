@@ -52,7 +52,7 @@ export interface Snapshot<C extends ContextSchema, S extends string> {
  * @property map - Директива для простого отображения массива в элементы. Например: `map(items, (item, i) => html`<li>${item}</li>` )`
  * @property style - Директива для применения inline-стилей. Например: `style({ color: 'red', fontWeight: 600 })`
  */
-type ViewDefinitionParams<C extends ContextSchema, S extends string> = {
+export type ViewDefinitionParams<C extends ContextSchema, S extends string> = {
   /**
    * Функция для обновления контекста.
    * Вызывается с частичным объектом контекста для изменения состояния.
