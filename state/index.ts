@@ -10,6 +10,34 @@ export { validateNoUnconditionalCycles } from "./validator.ts"
  * @param conditions - условия перехода
  * @param context - текущий контекст
  * @returns true если все условия выполнены
+ *
+ * @example
+ * ```typescript
+ * // Простые условия
+ * checkTransitionConditions({ name: "John" }, { name: "John" })
+ * // => true
+ *
+ * // Сложные условия
+ * checkTransitionConditions(
+ *   { age: { gte: 18, lte: 65 } },
+ *   { age: 25 }
+ * )
+ * // => true
+ *
+ * // Условия с регулярными выражениями
+ * checkTransitionConditions(
+ *   { email: { pattern: /@/ } },
+ *   { email: "test@example.com" }
+ * )
+ * // => true
+ * ```
+ */
+
+/**
+ * Проверяет условия переходов между состояниями
+ * @param conditions - условия перехода
+ * @param context - текущий контекст
+ * @returns true если все условия выполнены
  */
 export const checkTransitionConditions = <C extends ContextSchema>(
   conditions: any,

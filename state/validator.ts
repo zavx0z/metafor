@@ -5,6 +5,25 @@ import type { StatesConfig } from "./index.t.ts"
 /**
  * Проверяет, что в конфигурации состояний нет циклов безусловных переходов.
  * Если цикл найден — выбрасывает ошибку с пояснением.
+ *
+ * @example
+ * ```typescript
+ * // Корректная конфигурация без циклов
+ * const validStates = {
+ *   anonymous: { loading: {} },
+ *   loading: {}
+ * }
+ * validateNoUnconditionalCycles(validStates)
+ * // => не выбрасывает ошибку
+ *
+ * // Конфигурация с циклом
+ * const cyclicStates = {
+ *   anonymous: { loading: {} },
+ *   loading: { anonymous: {} }
+ * }
+ * validateNoUnconditionalCycles(cyclicStates)
+ * // => Error: Обнаружен цикл безусловных переходов
+ * ```
  */
 export function validateNoUnconditionalCycles<S extends string, C extends ContextSchema>(states: StatesConfig<S, C>) {
   // Строим граф только по безусловным переходам (условия: {}, null, undefined)
