@@ -1,18 +1,18 @@
-# @metafor/actions
+# Processes
 
-Chain API для описания действий автомата и вспомогательные типы.
+Chain API для описания процессов автомата и вспомогательные функции.
 
-## Как работает Action Chain (алгоритм)
+## Обзор
 
-Action Chain реализует декларативный и типобезопасный способ описания действий автомата. Алгоритм работы следующий:
+Process Chain реализует декларативный и типобезопасный способ описания процессов автомата. Алгоритм работы следующий:
 
-1. **process** — точка входа. Ты передаёшь опциональные параметры `title` и `description`, а затем вызываешь `action()` для добавления основной функции действия.
-2. **action** — добавляешь основную функцию действия, которая принимает context и возвращает результат (или промис). Эта функция сохраняется как основной обработчик действия.
+1. **process** — точка входа. Ты передаёшь опциональные параметры `title` и `description`, а затем вызываешь `action()` для добавления основной функции процесса.
+2. **action** — добавляешь основную функцию процесса, которая принимает context и возвращает результат (или промис). Эта функция сохраняется как основной обработчик процесса.
 3. **success** — опционально добавляешь обработчик успешного завершения. Каждый вызов success перезаписывает предыдущий handler. Handler получает update (функция для обновления контекста) и data (результат action).
 4. **error** — опционально добавляешь обработчик ошибки. Каждый вызов error перезаписывает предыдущий handler. Handler получает update и error (Error).
 5. **Цепочка** — каждый вызов success/error возвращает тот же chain-объект, что позволяет строить цепочку вызовов (process().action(...).success(...).error(...)).
-6. **getResult** — возвращает итоговый объект с action, success, error, title, description (если они были заданы). Обычно вызывается автоматически внутри createActionsConfig для каждого действия.
-7. **createActionsConfig** — принимает builder-функцию, в которую передаётся фабрика process. Для каждого ключа builder возвращает chain-объект, из которого автоматически вызывается getResult. Итоговый объект содержит action, success, error, title, description для каждого действия.
+6. **getResult** — возвращает итоговый объект с action, success, error, title, description (если они были заданы). Обычно вызывается автоматически внутри createActionsConfig для каждого процесса.
+7. **createActionsConfig** — принимает builder-функцию, в которую передаётся фабрика process. Для каждого ключа builder возвращает chain-объект, из которого автоматически вызывается getResult. Итоговый объект содержит action, success, error, title, description для каждого процесса.
 
 ### Внутренняя механика
 
@@ -25,7 +25,7 @@ Action Chain реализует декларативный и типобезоп
 ### Пример (пошагово)
 
 ```ts
-const chain = process({ title: "my_action", description: "Описание действия" })
+const chain = process({ title: "my_process", description: "Описание процесса" })
   .action(({ context }) => context.name)
   .success(({ update, data }) => update({ name: data }))
   .error(({ update, error }) => update({ name: error.message }))
@@ -44,7 +44,7 @@ const result = chain.getResult()
 
 ```ts
 const actionsConfig = createActionsConfig((process) => ({
-  guest: process({ title: "guest_action", description: "Действие для гостя" })
+  guest: process({ title: "guest_process", description: "Процесс для гостя" })
     .action(({ context }) => ({ name: context.name }))
     .success(({ update, data }) => update({ name: data.name }))
     .error(({ update, error }) => update({ name: error.message })),

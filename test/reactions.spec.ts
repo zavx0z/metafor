@@ -15,7 +15,7 @@ describe("реакции", () => {
         state_3: {},
       })
       .core()
-      .actions((process) => ({
+      .processes((process) => ({
         state_1: process()
           .action(() => true)
           .success(({ update }) => update({ param: "param_1" })),
@@ -49,7 +49,7 @@ describe("реакции", () => {
         state_1: {},
       })
       .core()
-      .actions()
+      .processes()
       .reactions((reaction) => [
         [
           ["state_1"],

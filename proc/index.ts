@@ -7,13 +7,13 @@ export type { ActionsDeclaration, Process }
  * Гарантирует строгую типизацию и удобный API.
  *
  * @template C - схема контекста автомата
- * @template S - строковые ключи состояний/действий
- * @param builder - функция, принимающая process chain API и возвращающая объект действий
- * @returns объект actionsConfig для автомата (ключи — имена действий, значения — объекты с action, success, error, title, description)
+ * @template S - строковые ключи состояний/процессов
+ * @param builder - функция, принимающая process chain API и возвращающая объект процессов
+ * @returns объект actionsConfig для автомата (ключи — имена процессов, значения — объекты с action, success, error, title, description)
  *
  * @example
  * const config = createActionsConfig((process) => ({
- *   anonymous: process({ title: "anonymous_action", description: "Действие для анонимного пользователя" })
+ *   anonymous: process({ title: "anonymous_process", description: "Процесс для анонимного пользователя" })
  *     .action(({ context }) => ({ name: "User", age: 18 }))
  *     .success(({ update, data }) => update({ name: data.name }))
  *     .error(({ update, error }) => update({ name: error.message })),
@@ -26,7 +26,7 @@ export function createActionsConfig<C extends ContextSchema, S extends string>(
   actions: ActionsDeclaration<C, S>
 ): Partial<Record<S, Process<C, any>>> {
   /**
-   * Фабрика для создания process chain-объекта для каждого действия.
+   * Фабрика для создания process chain-объекта для каждого процесса.
    * Каждый вызов process возвращает chain API с методами action, success, error, getResult.
    */
   function process(config?: { title?: string; description?: string }): ProcessChain<C> {
@@ -41,7 +41,7 @@ export function createActionsConfig<C extends ContextSchema, S extends string>(
           | undefined
         // Chain API: каждый метод возвращает тот же объект, чтобы можно было строить цепочку
         const chain: ActionChain<C, Res> = {
-          // Основная функция действия
+          // Основная функция процесса
           action: fn,
           // Добавляет/перезаписывает success handler
           success(handler) {
@@ -78,7 +78,7 @@ export function createActionsConfig<C extends ContextSchema, S extends string>(
       result[key] = raw[key]!.getResult()
     }
   }
-  // Возвращаем actionsConfig: ключи — имена действий, значения — объекты с action, success, error, title, description
+  // Возвращаем actionsConfig: ключи — имена процессов, значения — объекты с action, success, error, title, description
   return result
 }
 

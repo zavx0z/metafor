@@ -15,7 +15,7 @@ describe("MetaFor view", () => {
         init: {},
       })
       .core()
-      .actions(() => ({}))
+      .processes(() => ({}))
       .reactions()
       .view({
         render: function ({ html, update, context, ref }) {
@@ -46,7 +46,7 @@ describe("MetaFor view", () => {
         init: {},
       })
       .core()
-      .actions(() => ({}))
+      .processes(() => ({}))
       .reactions()
       .view({
         render: function ({ html, update, context, ref }) {
@@ -82,7 +82,7 @@ describe("MetaFor view", () => {
         init: {},
       })
       .core()
-      .actions(() => ({}))
+      .processes(() => ({}))
       .reactions()
       .view({
         render: function ({ html, update, context, ref }) {

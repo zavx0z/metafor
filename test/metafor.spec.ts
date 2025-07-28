@@ -21,7 +21,7 @@ test.todo("MetaFor - базовый функционал", async () => {
       },
     })
     .core()
-    .actions((process) => ({
+    .processes((process) => ({
       anonymous: process()
         .action(({ context }) => {
           const name = context.name === "Anonymous" ? "User" : context.name
@@ -56,7 +56,7 @@ test("MetaFor - интеграция с реакциями", async () => {
       active: {},
     })
     .core()
-    .actions((process) => ({
+    .processes((process) => ({
       idle: process({ title: "процесс", description: "описание процесса" })
         .action(({ context }) => ({ value: context.value }))
         .success(({ update, data }) => update({ value: data.value })),

@@ -17,7 +17,7 @@ describe("MetaFor: инициализация без действия", async ()
       state_3: {},
     })
     .core()
-    .actions(() => ({}))
+    .processes(() => ({}))
     .reactions()
     .view()
 

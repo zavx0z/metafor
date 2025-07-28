@@ -1,16 +1,16 @@
 import type { ContextSchema, ExtractValues, UpdateValues } from "../context"
 
 /**
- * Тип билдера для декларации набора действий автомата.
+ * Тип билдера для декларации набора процессов автомата.
  *
  * @template C - схема контекста автомата
- * @template S - строковые ключи состояний/действий
+ * @template S - строковые ключи состояний/процессов
  * @param process - фабрика для создания цепочки ProcessChain
- * @returns объект, где ключи — имена действий, а значения — цепочки ActionChain
+ * @returns объект, где ключи — имена процессов, а значения — цепочки ActionChain
  *
  * @example
  * const config = builder(process => ({
- *   foo: process({ title: "foo_action" }).action(...).success(...),
+ *   foo: process({ title: "foo_process" }).action(...).success(...),
  *   bar: process().action(...)
  * }))
  */
@@ -20,13 +20,13 @@ export type ActionsDeclaration<C extends ContextSchema, S extends string> = (
 
 /**
  * Chain API для создания процесса с опциональными параметрами title и description.
- * Позволяет удобно и строго типизировано описывать обработчики действий автомата.
+ * Позволяет удобно и строго типизировано описывать обработчики процессов автомата.
  *
  * @template C - схема контекста автомата
  * @template Res - возвращаемый тип результата action
  *
  * @example
- * const chain = process({ title: "my_action", description: "Описание действия" })
+ * const chain = process({ title: "my_process", description: "Описание процесса" })
  *   .action(({ context }) => ({ name: context.name }))
  *   .success(({ update, data }) => update({ name: data.name }))
  *   .error(({ update, error }) => update({ name: error.message }))
@@ -35,8 +35,8 @@ export type ActionsDeclaration<C extends ContextSchema, S extends string> = (
  */
 export type ProcessChain<C extends ContextSchema> = {
   /**
-   * Добавляет основную функцию действия.
-   * @param fn - функция действия, вызываемая автоматом
+   * Добавляет основную функцию процесса.
+   * @param fn - функция процесса, вызываемая автоматом
    * @returns цепочку для дальнейшего конфигурирования
    */
   action: <Res>(fn: (params: { context: ExtractValues<C> }) => Res | Promise<Res>) => ActionChain<C, Res>
@@ -44,7 +44,7 @@ export type ProcessChain<C extends ContextSchema> = {
 
 /**
  * Цепочка для декларации action с типобезопасной поддержкой success и error.
- * Позволяет удобно и строго типизировано описывать обработчики действий автомата.
+ * Позволяет удобно и строго типизировано описывать обработчики процессов автомата.
  *
  * @template C - схема контекста автомата
  * @template Res - возвращаемый тип результата action
@@ -58,13 +58,13 @@ export type ProcessChain<C extends ContextSchema> = {
  */
 export type ActionChain<C extends ContextSchema, Res> = {
   /**
-   * Основная функция действия, вызывается автоматом.
+   * Основная функция процесса, вызывается автоматом.
    * @param params - объект с текущим контекстом
-   * @returns результат действия (может быть промисом)
+   * @returns результат процесса (может быть промисом)
    */
   action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
   /**
-   * Добавляет обработчик успешного завершения действия.
+   * Добавляет обработчик успешного завершения процесса.
    * @param handler - функция, вызываемая при успехе (получает update и data)
    * @returns цепочку для дальнейшего конфигурирования
    */
@@ -72,7 +72,7 @@ export type ActionChain<C extends ContextSchema, Res> = {
     handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void
   ) => ActionChain<C, Res>
   /**
-   * Добавляет обработчик ошибки выполнения действия.
+   * Добавляет обработчик ошибки выполнения процесса.
    * @param handler - функция, вызываемая при ошибке (получает update и error типа Error)
    * @returns цепочку для дальнейшего конфигурирования
    */
@@ -80,7 +80,7 @@ export type ActionChain<C extends ContextSchema, Res> = {
     handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void
   ) => ActionChain<C, Res>
   /**
-   * Возвращает итоговый объект конфигурации действия для автомата.
+   * Возвращает итоговый объект конфигурации процесса для автомата.
    * @returns объект с action, success, error, title и description (если заданы)
    */
   getResult: () => Process<C, Res>
@@ -95,9 +95,9 @@ export type Process<C extends ContextSchema, Res = any> = {
 }
 
 /**
- * Конфигурация действий автомата.
+ * Конфигурация процессов автомата.
  * @template C - схема контекста автомата
  * @template Res - возвращаемый тип результата action
- * @returns объект с конфигурациями действий
+ * @returns объект с конфигурациями процессов
  */
 export type ActionsConfig<C extends ContextSchema, S extends string, Res = any> = Partial<Record<S, Process<C, Res>>>

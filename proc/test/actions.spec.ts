@@ -1,12 +1,12 @@
-import { describe, expect, test } from "bun:test"
-import { createActionsConfig } from "../index"
+import { test, describe, expect } from "bun:test"
+import { createActionsConfig } from "../index.ts"
 import { types } from "../../context"
 import type { ExtractValues } from "../../context"
 
 describe("createActionsConfig — chain API", () => {
   const ctxSchema = {
     name: types.string.required("anon"),
-    age: types.number.required(0),
+    age: types.number.required(18),
   }
   type CtxSchema = typeof ctxSchema
 
@@ -17,7 +17,7 @@ describe("createActionsConfig — chain API", () => {
         .success(({ update, data }) => {
           expect(data.name, "data.name должен быть строкой").toBeTypeOf("string")
           expect(data.age, "data.age должен быть числом").toBeTypeOf("number")
-          update({ name: data.name })
+          update({ name: data.name, age: data.age })
         })
         .error(({ update, error }) => {
           expect(error, "error должен быть определён").toBeDefined()
@@ -27,6 +27,7 @@ describe("createActionsConfig — chain API", () => {
     }))
     expect(typeof actions.guest?.success, "Метод success должен быть функцией").toBe("function")
     expect(typeof actions.guest?.error, "Метод error должен быть функцией").toBe("function")
+    expect(typeof actions.user?.action, "Метод action должен быть функцией").toBe("function")
   })
 
   test("строгая типизация", () => {
@@ -38,13 +39,15 @@ describe("createActionsConfig — chain API", () => {
         .success(({ update, data }) => {
           // @ts-expect-error update требует Partial<V>
           update({ age: 42 })
-          update({ name: data })
+          // @ts-expect-error data должен быть строкой
+          update({ name: data.age })
         })
         .error(({ update, error }) => {
-          update({ name: error.message })
+          // @ts-expect-error update требует Partial<V>
+          update({ age: 42 })
         }),
     }))
-    expect(typeof actions.guest?.success, "Метод success должен быть функцией").toBe("function")
+    expect(typeof actions.guest?.success).toBe("function")
   })
 
   test("порядок вызова error().success()", () => {
@@ -56,11 +59,11 @@ describe("createActionsConfig — chain API", () => {
         .error(({ update, error }) => update({ name: error.message }))
         .success(({ update, data }) => update({ name: data })),
     }))
-    expect(typeof actions.guest?.success, "Метод success должен быть функцией").toBe("function")
-    expect(typeof actions.guest?.error, "Метод error должен быть функцией").toBe("function")
+    expect(typeof actions.guest?.success).toBe("function")
+    expect(typeof actions.guest?.error).toBe("function")
   })
 
-  test("можно не указывать обработчики", () => {
+  test("опциональные success/error", () => {
     const schema = { name: types.string.required("anon") }
     type S = typeof schema
     type V = ExtractValues<S>
@@ -78,14 +81,14 @@ describe("createActionsConfig — chain API", () => {
         .success(() => {
           throw new Error("should not be called")
         })
-        .success(({ update, data }) => update({ name: data }))
         .error(() => {
           throw new Error("should not be called")
         })
+        .success(({ update, data }) => update({ name: data }))
         .error(({ update, error }) => update({ name: error.message })),
     }))
-    expect(typeof actions.guest?.success, "Метод success должен быть функцией").toBe("function")
-    expect(typeof actions.guest?.error, "Метод error должен быть функцией").toBe("function")
+    expect(typeof actions.guest?.success).toBe("function")
+    expect(typeof actions.guest?.error).toBe("function")
   })
 
   test("getResult возвращает правильный объект", () => {
@@ -95,15 +98,12 @@ describe("createActionsConfig — chain API", () => {
         .success(({ update, data }) => update({ name: data }))
         .error(({ update, error }) => update({ name: error.message })),
     })).guest
-    expect(result).toBeDefined()
-    if (result) {
-      expect(typeof result.action).toBe("function")
-      expect(typeof result.success).toBe("function")
-      expect(typeof result.error).toBe("function")
-    }
+    expect(result?.action, "action должен быть функцией").toBeTypeOf("function")
+    expect(result?.success, "success должен быть функцией").toBeTypeOf("function")
+    expect(result?.error, "error должен быть функцией").toBeTypeOf("function")
   })
 
-  test("action может возвращать void, number, массив", () => {
+  test("разные типы возвращаемых значений", () => {
     const actions = createActionsConfig<
       {
         name: ReturnType<typeof types.string.required>
@@ -129,12 +129,12 @@ describe("createActionsConfig — chain API", () => {
 
   test("поддержка title и description", () => {
     const actions = createActionsConfig<{ name: ReturnType<typeof types.string.required> }, "guest">((process) => ({
-      guest: process({ title: "guest_action", description: "Действие для гостя" })
+      guest: process({ title: "guest_process", description: "Процесс для гостя" })
         .action(({ context }) => context.name)
         .success(({ update, data }) => update({ name: data })),
     }))
-    expect(actions.guest?.title, "title должен быть установлен").toBe("guest_action")
-    expect(actions.guest?.description, "description должен быть установлен").toBe("Действие для гостя")
+    expect(actions.guest?.title, "title должен быть установлен").toBe("guest_process")
+    expect(actions.guest?.description, "description должен быть установлен").toBe("Процесс для гостя")
   })
 
   test("title и description опциональны", () => {

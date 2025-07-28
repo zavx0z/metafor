@@ -17,7 +17,7 @@ describe("MetaFor: инициализация с действиями", async ()
       state_3: {},
     })
     .core()
-    .actions((process) => ({
+    .processes((process) => ({
       state_1: process()
         .action(async () => {
           await Bun.sleep(100)

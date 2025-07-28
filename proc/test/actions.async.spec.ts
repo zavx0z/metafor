@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import { createActionsConfig } from "../index"
+import { createActionsConfig } from "../index.ts"
 import { types } from "../../context"
 
 test("chain API — поддержка async action", async () => {

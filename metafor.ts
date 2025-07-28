@@ -9,7 +9,7 @@ window.MetaFor = MetaFor
 import { types, createContext } from "./context"
 import type { ContextSchema, ContextTypes, ContextInstance, ExtractValues, Update } from "./context"
 import { checkTransitionConditions, type StatesConfig } from "./transition"
-import { createActionsConfig, type ActionsDeclaration, type Process } from "./actions"
+import { createActionsConfig, type ActionsDeclaration, type Process } from "./proc"
 import type { Snapshot, ViewConfig } from "./metafor.t"
 import { initMessage, stateAfterActionMessage, stateBeforeActionMessage, updateContextMessage } from "./message"
 import type { Message } from "./message"
@@ -110,24 +110,25 @@ export function MetaFor(tag: string) {
             core(core: Record<string, any> = {}) {
               return {
                 /**
-                 * Регистрирует действия автомата для нужных состояний.
+                 * Регистрирует процессы автомата для нужных состояний.
                  *
-                 * @param process Функция, принимающая action — фабрику chain API для описания действий.
-                 * Возвращает объект, где ключ — имя состояния (только для тех, где нужны действия), а значение — chain-объект с обработчиками.
+                 * @param process Функция, принимающая process — фабрику chain API для описания процессов.
+                 * Возвращает объект, где ключ — имя состояния (только для тех, где нужны процессы), а значение — chain-объект с обработчиками.
                  *
                  * Пример:
                  * ```ts
-                 * .actions(action => ({
-                 *   guest: action(({ context }) => { ... })
+                 * .actions(process => ({
+                 *   guest: process({ title: "guest_process", description: "Процесс для гостя" })
+                 *     .action(({ context }) => { ... })
                  *     .success(({ update, data }) => update({ ... }))
                  *     .error(({ update, error }) => update({ ... })),
-                 *   // для других состояний можно не указывать действие, если оно не требуется
+                 *   // для других состояний можно не указывать процесс, если он не требуется
                  * }))
                  * ```
                  *
-                 * @returns Объект с действиями только для нужных состояний
+                 * @returns Объект с процессами только для нужных состояний
                  */
-                actions(process: ActionsDeclaration<C, S> = () => ({})) {
+                processes(process: ActionsDeclaration<C, S> = () => ({})) {
                   const processesRegistry = createActionsConfig<C, S>(process)
                   return {
                     /**

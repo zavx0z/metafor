@@ -15,7 +15,7 @@ MetaFor("user")
     error: { form: {} },
   })
   .core()
-  .actions((process) => ({
+  .processes((process) => ({
     loading: process()
       .action(async ({ context }) => {
         // имитация асинхронного запроса
