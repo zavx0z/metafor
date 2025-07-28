@@ -5,18 +5,42 @@ import type { ContextSchema, ExtractValues, UpdateValues } from "../context"
  *
  * @template C - схема контекста автомата
  * @template S - строковые ключи состояний/действий
- * @param action - фабрика для создания цепочки ActionChain
+ * @param process - фабрика для создания цепочки ProcessChain
  * @returns объект, где ключи — имена действий, а значения — цепочки ActionChain
  *
  * @example
- * const config = builder(action => ({
- *   foo: action(...).success(...),
- *   bar: action(...)
+ * const config = builder(process => ({
+ *   foo: process({ title: "foo_action" }).action(...).success(...),
+ *   bar: process().action(...)
  * }))
  */
 export type ActionsDeclaration<C extends ContextSchema, S extends string> = (
-  action: <Res>(action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>) => ActionChain<C, Res>
+  process: (config?: { title?: string; description?: string }) => ProcessChain<C>
 ) => Partial<Record<S, ActionChain<C, any>>>
+
+/**
+ * Chain API для создания процесса с опциональными параметрами title и description.
+ * Позволяет удобно и строго типизировано описывать обработчики действий автомата.
+ *
+ * @template C - схема контекста автомата
+ * @template Res - возвращаемый тип результата action
+ *
+ * @example
+ * const chain = process({ title: "my_action", description: "Описание действия" })
+ *   .action(({ context }) => ({ name: context.name }))
+ *   .success(({ update, data }) => update({ name: data.name }))
+ *   .error(({ update, error }) => update({ name: error.message }))
+ *
+ * chain.getResult() // { action, success, error, title?, description? }
+ */
+export type ProcessChain<C extends ContextSchema> = {
+  /**
+   * Добавляет основную функцию действия.
+   * @param fn - функция действия, вызываемая автоматом
+   * @returns цепочку для дальнейшего конфигурирования
+   */
+  action: <Res>(fn: (params: { context: ExtractValues<C> }) => Res | Promise<Res>) => ActionChain<C, Res>
+}
 
 /**
  * Цепочка для декларации action с типобезопасной поддержкой success и error.
@@ -57,7 +81,7 @@ export type ActionChain<C extends ContextSchema, Res> = {
   ) => ActionChain<C, Res>
   /**
    * Возвращает итоговый объект конфигурации действия для автомата.
-   * @returns объект с action, success и error (если заданы)
+   * @returns объект с action, success, error, title и description (если заданы)
    */
   getResult: () => Process<C, Res>
 }
@@ -66,6 +90,8 @@ export type Process<C extends ContextSchema, Res = any> = {
   action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
   success?: (params: { update: (values: UpdateValues<ExtractValues<C>>) => void; data: Res }) => void
   error?: (params: { update: (values: UpdateValues<ExtractValues<C>>) => void; error: Error }) => void
+  title?: string
+  description?: string
 }
 
 /**

@@ -21,16 +21,19 @@ test.todo("MetaFor - базовый функционал", async () => {
       },
     })
     .core()
-    .actions((action) => ({
-      anonymous: action(({ context }) => {
-        const name = context.name === "Anonymous" ? "User" : context.name
-        return { name, age: 18 }
-      })
+    .actions((process) => ({
+      anonymous: process()
+        .action(({ context }) => {
+          const name = context.name === "Anonymous" ? "User" : context.name
+          return { name, age: 18 }
+        })
         .success(({ update, data }) => update({ name: data.name, isActive: true }))
         .error(({ update, error }) => update({ name: error.message })),
-      loading: action(({ context }) => {
-        return { name: context.name }
-      }).error(({ update, error }) => update({ name: error.message })),
+      loading: process()
+        .action(({ context }) => {
+          return { name: context.name }
+        })
+        .error(({ update, error }) => update({ name: error.message })),
     }))
     .reactions()
     .view({
@@ -53,8 +56,10 @@ test("MetaFor - интеграция с реакциями", async () => {
       active: {},
     })
     .core()
-    .actions((action) => ({
-      idle: action(({ context }) => ({ value: context.value })).success(({ update, data }) => update(data)),
+    .actions((process) => ({
+      idle: process({ title: "процесс", description: "описание процесса" })
+        .action(({ context }) => ({ value: context.value }))
+        .success(({ update, data }) => update({ value: data.value })),
     }))
     .reactions((reaction) => [
       [

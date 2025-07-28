@@ -15,16 +15,20 @@ describe("реакции", () => {
         state_3: {},
       })
       .core()
-      .actions((action) => ({
-        state_1: action(() => true).success(({ update }) => update({ param: "param_1" })),
-        state_2: action(
-          () =>
-            new Promise((resolve) =>
-              setTimeout(() => {
-                return resolve("")
-              }, 400)
-            )
-        ).success(({ update }) => update({ param: "param_2" })),
+      .actions((process) => ({
+        state_1: process()
+          .action(() => true)
+          .success(({ update }) => update({ param: "param_1" })),
+        state_2: process()
+          .action(
+            () =>
+              new Promise((resolve) =>
+                setTimeout(() => {
+                  return resolve("")
+                }, 400)
+              )
+          )
+          .success(({ update }) => update({ param: "param_2" })),
       }))
       .reactions()
       .view({

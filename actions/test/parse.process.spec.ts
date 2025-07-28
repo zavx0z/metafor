@@ -165,11 +165,16 @@ describe("parseChainsObject — разные варианты chain", () => {
   test("action, success, error варианты", () => {
     const schema = { foo: types.string.required("a"), bar: types.number.required(0) }
     type S = typeof schema
-    const actions = createActionsConfig<S, "onlyAction" | "onlySuccess" | "onlyError" | "allHandlers">((action) => ({
-      onlyAction: action(({ context }) => context.foo),
-      onlySuccess: action(({ context }) => context.foo).success(({ update, data }) => update({ foo: data })),
-      onlyError: action(({ context }) => context.foo).error(({ update, error }) => update({ bar: 1 })),
-      allHandlers: action(({ context }) => context.foo)
+    const actions = createActionsConfig<S, "onlyAction" | "onlySuccess" | "onlyError" | "allHandlers">((process) => ({
+      onlyAction: process().action(({ context }) => context.foo),
+      onlySuccess: process()
+        .action(({ context }) => context.foo)
+        .success(({ update, data }) => update({ foo: data })),
+      onlyError: process()
+        .action(({ context }) => context.foo)
+        .error(({ update, error }) => update({ bar: 1 })),
+      allHandlers: process()
+        .action(({ context }) => context.foo)
         .success(({ update, data }) => update({ foo: data }))
         .error(({ update, error }) => update({ bar: 2 })),
     }))
@@ -231,9 +236,13 @@ describe("parseChain — несколько chain", () => {
   test("корректно парсит объект с несколькими chain", () => {
     const schema = { foo: types.string.required("a"), bar: types.number.required(0) }
     type S = typeof schema
-    const actions = createActionsConfig<S, "first" | "second">((action) => ({
-      first: action(({ context }) => ({ foo: context.foo })).success(({ update, data }) => update({ foo: data.foo })),
-      second: action(({ context }) => ({ bar: context.bar })).error(({ update, error }) => update({ bar: 42 })),
+    const actions = createActionsConfig<S, "first" | "second">((process) => ({
+      first: process()
+        .action(({ context }) => ({ foo: context.foo }))
+        .success(({ update, data }) => update({ foo: data.foo })),
+      second: process()
+        .action(({ context }) => ({ bar: context.bar }))
+        .error(({ update, error }) => update({ bar: 42 })),
     }))
     if (!actions.first) throw new Error("actions.first is undefined")
     if (!actions.second) throw new Error("actions.second is undefined")

@@ -17,19 +17,25 @@ describe("MetaFor: инициализация с действиями", async ()
       state_3: {},
     })
     .core()
-    .actions((action) => ({
-      state_1: action(async () => {
-        await Bun.sleep(100)
-        return { value: "ctx_2" }
-      }).success(async ({ update, data }) => update({ value: data.value })),
-      state_2: action(async () => {
-        await Bun.sleep(100)
-        return { value: "ctx_3" }
-      }).success(async ({ update, data }) => update({ value: data.value })),
-      state_3: action(async () => {
-        await Bun.sleep(100)
-        return { value: "ctx_4" }
-      }).success(async ({ update, data }) => update({ value: data.value })),
+    .actions((process) => ({
+      state_1: process()
+        .action(async () => {
+          await Bun.sleep(100)
+          return { value: "ctx_2" }
+        })
+        .success(async ({ update, data }) => update({ value: data.value })),
+      state_2: process()
+        .action(async () => {
+          await Bun.sleep(100)
+          return { value: "ctx_3" }
+        })
+        .success(async ({ update, data }) => update({ value: data.value })),
+      state_3: process()
+        .action(async () => {
+          await Bun.sleep(100)
+          return { value: "ctx_4" }
+        })
+        .success(async ({ update, data }) => update({ value: data.value })),
     }))
     .reactions()
     .view()

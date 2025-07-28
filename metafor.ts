@@ -112,7 +112,7 @@ export function MetaFor(tag: string) {
                 /**
                  * Регистрирует действия автомата для нужных состояний.
                  *
-                 * @param actions Функция, принимающая action — фабрику chain API для описания действий.
+                 * @param process Функция, принимающая action — фабрику chain API для описания действий.
                  * Возвращает объект, где ключ — имя состояния (только для тех, где нужны действия), а значение — chain-объект с обработчиками.
                  *
                  * Пример:
@@ -127,16 +127,16 @@ export function MetaFor(tag: string) {
                  *
                  * @returns Объект с действиями только для нужных состояний
                  */
-                actions(actions: ActionsDeclaration<C, S> = () => ({})) {
-                  const actionsRegistry = createActionsConfig<C, S>(actions)
+                actions(process: ActionsDeclaration<C, S> = () => ({})) {
+                  const processesRegistry = createActionsConfig<C, S>(process)
                   return {
                     /**
                      * Регистрирует карту реакций для автомата.
-                     * @param reactions Функция (filter => декларация), где декларация — массив кортежей [string[], { update, filter, title }]
+                     * @param reaction Функция (filter => декларация), где декларация — массив кортежей [string[], { update, filter, title }]
                      * @returns chain API для вызова .view(...)
                      */
-                    reactions(reactions: ReactionsChain<C, S> = () => []) {
-                      const reactionsRegistry = new ReactionRegistry(reactions)
+                    reactions(reaction: ReactionsChain<C, S> = () => []) {
+                      const reactionsRegistry = new ReactionRegistry(reaction)
                       return {
                         view(view?: ViewConfig<C, S>) {
                           /**
@@ -147,7 +147,7 @@ export function MetaFor(tag: string) {
                             #shadow: ShadowRoot
                             #channel: BroadcastChannel
                             #transitions = states
-                            #actions = actionsRegistry
+                            #actions = processesRegistry
                             #reactions = reactionsRegistry
                             #core: Record<string, any> = {}
                             /** ------------state-------------------------------- */
