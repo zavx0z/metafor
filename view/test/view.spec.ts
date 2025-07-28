@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test"
-import { createRef } from "../html/directives/ref"
+import { createRef } from "../../html/directives/ref"
 
 describe("MetaFor view", () => {
   test("Рендерит правильный текст через внутренний snapshot", async () => {

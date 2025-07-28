@@ -22,7 +22,9 @@
         "html/directives/style-map.ts",
         "message/index.t.ts",
         "message/index.ts",
-        "metafor.t.ts"
+        "metafor.t.ts",
+        "view/index.ts",
+        "view/index.t.ts",
     ],
     "entryPointStrategy": "expand",
     "out": "docs",
