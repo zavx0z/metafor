@@ -1,0 +1,5 @@
+{
+  "name": "@metafor/context",
+  "version": "0.2.3",
+  "description": "Context types and utilities for MetaFor framework"
+}

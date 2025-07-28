@@ -32,21 +32,10 @@ async function mergeDocBranch() {
       await $`git merge ${originalBranch} --no-ff -m "[merge] merge ${originalBranch} into doc"`
     }
 
-    // Проверяем, есть ли изменения в коде
-    const status = await $`git status --porcelain`.text()
-
-    if (status.trim()) {
-      console.log("📝 Обнаружены изменения в коде, коммитим...")
-      await $`git add .`
-      await $`git commit -m "[merge] обновлен код после мерджа из ${originalBranch}"`
-
-      // Пушим изменения в doc ветку
-      console.log("📤 Пушим изменения в doc ветку...")
-      await $`git push origin doc`
-      console.log("✅ Изменения успешно запушены в doc ветку")
-    } else {
-      console.log("ℹ️  Изменений в коде не обнаружено")
-    }
+    // Пушим изменения в doc ветку
+    console.log("📤 Пушим изменения в doc ветку...")
+    await $`git push origin doc`
+    console.log("✅ Изменения успешно запушены в doc ветку")
 
     // Возвращаемся на исходную ветку
     console.log(`🔄 Возвращаемся на исходную ветку: ${originalBranch}`)

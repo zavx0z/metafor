@@ -142,7 +142,6 @@ export const insertPart = (containerPart: ChildPart, refPart?: ChildPart, part?:
  *
  * @param part Часть для установки
  * @param value Значение для установки
- * @param index Для `AttributePart`, индекс для установки
  * @param directiveParent Используется внутренне; не должно устанавливаться пользователем
  */
 export const setChildPartValue = <T extends ChildPart>(

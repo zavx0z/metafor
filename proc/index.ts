@@ -8,7 +8,7 @@ export type { ActionsDeclaration, Process }
  *
  * @template C - схема контекста автомата
  * @template S - строковые ключи состояний/процессов
- * @param builder - функция, принимающая process chain API и возвращающая объект процессов
+ * @param actions - функция, принимающая process chain API и возвращающая объект процессов
  * @returns объект actionsConfig для автомата (ключи — имена процессов, значения — объекты с action, success, error, title, description)
  *
  * @example
