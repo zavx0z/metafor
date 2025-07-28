@@ -99,7 +99,7 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
   // Преобразуем chain результат в декларацию
   const declarations = chainResult.map(([states, reaction]) => [states, reaction]) as [
     S[],
-    { filter: (args: ReactionFilterArgs<C, S>) => boolean; update: ReactionUpdate<C, S, Core>; title: string }
+    { filter: (args: ReactionFilterArgs<C, S>) => boolean; update: ReactionUpdate<C, S, Core>; title: string; description?: string }
   ][]
 
   for (const [states, value] of declarations) {
@@ -136,15 +136,15 @@ export function createReactionsChain<
   S extends string,
   Core = Record<string, any>
 >(): ReactionChain<C, S, Core> {
-  return (title: string) => {
+  return ((config: { title: string; description?: string }) => {
     return {
       filter: (filterFn: (args: ReactionFilterArgs<C, S>) => boolean) => {
         return {
           equal: (updateFn: ReactionUpdate<C, S, Core>) => {
-            return { filter: filterFn, update: updateFn, title }
+            return { filter: filterFn, update: updateFn, title: config.title, description: config.description }
           },
         }
       },
     }
-  }
+  }) as ReactionChain<C, S, Core>
 }

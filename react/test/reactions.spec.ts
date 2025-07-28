@@ -19,15 +19,15 @@ describe("ReactionRegistry", () => {
     const registry = new ReactionRegistry<Ctx, State>((reaction) => [
       [
         ["idle", "active"],
-        reaction("inc").filter(() => true).equal(({ update, context }) => {
-          update({ value: context.value + 1 })
-        }),
+        reaction({ title: "inc" })
+          .filter(() => true)
+          .equal(({ update, context }) => update({ value: context.value + 1 })),
       ],
       [
         ["error"],
-        reaction("reset").filter(() => true).equal(({ context }) => {
-          context.value = 0
-        }),
+        reaction({ title: "reset" })
+          .filter(() => true)
+          .equal(({ update }) => update({ value: 0 })),
       ],
     ])
 
@@ -41,15 +41,15 @@ describe("ReactionRegistry", () => {
     const registry = new ReactionRegistry<Ctx, State>((reaction) => [
       [
         ["idle", "active"],
-        reaction("inc").filter(() => true).equal(({ update, context }) => {
-          update({ value: context.value + 1 })
-        }),
+        reaction({ title: "inc" })
+          .filter(() => true)
+          .equal(({ update, context }) => update({ value: context.value + 1 })),
       ],
       [
         ["error"],
-        reaction("reset").filter(() => true).equal(({ context }) => {
-          context.value = 0
-        }),
+        reaction({ title: "reset" })
+          .filter(() => true)
+          .equal(({ update }) => update({ value: 0 })),
       ],
     ])
 
@@ -67,9 +67,9 @@ describe("ReactionRegistry", () => {
     const customRegistry = new ReactionRegistry<Ctx, State>((reaction) => [
       [
         ["active"],
-        reaction("test").filter(() => true).equal(() => {
-          called = true
-        }),
+        reaction({ title: "test" })
+          .filter(() => true)
+          .equal(() => (called = true)),
       ],
     ])
 
@@ -89,15 +89,15 @@ describe("ReactionRegistry", () => {
     const registry = new ReactionRegistry<Ctx, State>((reaction) => [
       [
         ["idle", "active"],
-        reaction("inc").filter(() => true).equal(({ update, context }) => {
-          update({ value: context.value + 1 })
-        }),
+        reaction({ title: "inc" })
+          .filter(() => true)
+          .equal(({ update, context }) => update({ value: context.value + 1 })),
       ],
       [
         ["error"],
-        reaction("reset").filter(() => true).equal(({ context }) => {
-          context.value = 0
-        }),
+        reaction({ title: "reset" })
+          .filter(() => true)
+          .equal(({ update }) => update({ value: 0 })),
       ],
     ])
 

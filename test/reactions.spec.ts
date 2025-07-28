@@ -49,7 +49,7 @@ describe("реакции", () => {
       .reactions((reaction) => [
         [
           ["state_1"],
-          reaction("child_reaction").filter(({ meta, patch }) => {
+          reaction({ title: "child_reaction" }).filter(({ meta, patch }) => {
             reactionMessages.push({ meta, patch })
             return meta.tag === "child" && patch.op === "add"
           }).equal(({ update }) => update({ childAdded: true })),

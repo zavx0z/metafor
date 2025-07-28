@@ -13,13 +13,14 @@ export type ReactionsChain<C extends ContextSchema, S extends string, Core = Rec
  * Chain API для создания реакции
  */
 export type ReactionChain<C extends ContextSchema, S extends string, Core = Record<string, any>> = (
-  title: string
+  config: { title: string; description?: string }
 ) => {
   filter: (filterFn: (args: ReactionFilterArgs<C, S>) => boolean) => {
     equal: (updateFn: ReactionUpdate<C, S, Core>) => {
       filter: (args: ReactionFilterArgs<C, S>) => boolean
       update: ReactionUpdate<C, S, Core>
       title: string
+      description?: string
     }
   }
 }
