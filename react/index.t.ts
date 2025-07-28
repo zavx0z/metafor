@@ -258,8 +258,8 @@ export type Reaction<C extends ContextSchema, S extends string, Core = Record<st
 /**
  * Chain API для создания реакции
  */
-export type ReactionChain<C extends ContextSchema, S extends string, Core = Record<string, any>> = (config: {
-  title: string
+export type ReactionChain<C extends ContextSchema, S extends string, Core = Record<string, any>> = (config?: {
+  title?: string
   description?: string
 }) => {
   filter: (conditions: ReactionFilterConditions) => {

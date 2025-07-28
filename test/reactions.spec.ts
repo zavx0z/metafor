@@ -55,7 +55,7 @@ describe("реакции", () => {
         ],
         [
           ["state_1"],
-          reaction({ title: "child_reaction" })
+          reaction()
             .filter({ tag: "child", op: "add" })
             .equal(({ update }) => update({ childAdded: true })),
         ],

@@ -33,13 +33,14 @@ MetaFor("user")
       update({ error: "" })
     }),
   }))
-  .reactions([
+  .reactions((reaction) => [
     [
       ["form", "loading"],
-      {
-        update: ({ update }) => update({ name: "User" }),
-        filter: ({ meta, patch }) => meta.tag === "user",
-      },
+      reaction()
+        .filter({
+          tag: "user",
+        })
+        .equal(({ update }) => update({ name: "User" })),
     ],
   ])
   .view({

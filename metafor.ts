@@ -194,7 +194,6 @@ export function MetaFor(tag: string) {
                             connectedCallback() {
                               this.#updateView()
                               this.setAttribute("state", this.#state)
-                              console.log("connected: ", tag)
                               if (this.#reactions.hasReactions()) {
                                 this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
                                 this.addEventListener("channel", this.#reactionHandler)

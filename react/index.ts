@@ -189,7 +189,7 @@ export function createReactionsChain<
   S extends string,
   Core = Record<string, any>
 >(): ReactionChain<C, S, Core> {
-  return ((config: { title: string; description?: string }) => {
+  return ((config?: { title?: string; description?: string }) => {
     return {
       filter: (conditions: ReactionFilterConditions) => {
         return {
@@ -216,7 +216,12 @@ export function createReactionsChain<
               return true
             }
 
-            return { filter: filterFn, update: updateFn, title: config.title, description: config.description }
+            return {
+              filter: filterFn,
+              update: updateFn,
+              title: config?.title || "",
+              description: config?.description || "",
+            }
           },
         }
       },
