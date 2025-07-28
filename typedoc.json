@@ -2,10 +2,12 @@
     "tsconfig": "tsconfig.docs.json",
     "entryPoints": [
         "metafor.ts",
+        "context/index.t.ts",
         "context/types.t.ts",
         "state/index.t.ts",
         "proc/index.t.ts",
         "react/index.t.ts",
+        "html/static.t.ts",
         "metafor.t.ts"
     ],
     "out": "docs",
@@ -16,8 +18,7 @@
     "excludeExternals": true,
     "exclude": [
         "**/node_modules/**",
-        "**/fixture/**",
-        "**/*.test.ts"
+        "**/fixture/**"
     ],
     "includeVersion": true,
     "categorizeByGroup": true,
