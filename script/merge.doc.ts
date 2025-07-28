@@ -11,11 +11,6 @@ async function mergeDocBranch() {
     // Сохраняем текущую ветку
     const originalBranch = currentBranch.trim()
 
-    // Переключаемся на master и обновляем её
-    console.log("📥 Переключаемся на master и обновляем...")
-    await $`git checkout master`
-    await $`git pull origin master`
-
     // Переключаемся на doc ветку
     console.log("📋 Переключаемся на doc ветку...")
     await $`git checkout doc`
@@ -26,15 +21,15 @@ async function mergeDocBranch() {
 
     // Проверяем, можно ли сделать fast-forward merge
     console.log("🔍 Проверяем возможность fast-forward merge...")
-    const mergeBase = await $`git merge-base HEAD master`.text()
-    const masterCommit = await $`git rev-parse master`.text()
+    const docCommit = await $`git rev-parse HEAD`.text()
+    const mergeBase = await $`git merge-base ${docCommit.trim()} ${originalBranch}`.text()
 
-    if (mergeBase.trim() === masterCommit.trim()) {
+    if (mergeBase.trim() === docCommit.trim()) {
       console.log("✅ Возможен fast-forward merge, выполняем...")
-      await $`git merge master --ff-only`
+      await $`git merge ${originalBranch} --ff-only`
     } else {
       console.log("⚠️  Fast-forward merge невозможен, выполняем обычный merge...")
-      await $`git merge master --no-ff -m "[merge] merge master into doc"`
+      await $`git merge ${originalBranch} --no-ff -m "[merge] merge ${originalBranch} into doc"`
     }
 
     // Проверяем, есть ли изменения в коде
@@ -43,7 +38,7 @@ async function mergeDocBranch() {
     if (status.trim()) {
       console.log("📝 Обнаружены изменения в коде, коммитим...")
       await $`git add .`
-      await $`git commit -m "[merge] обновлен код после мерджа из master"`
+      await $`git commit -m "[merge] обновлен код после мерджа из ${originalBranch}"`
 
       // Пушим изменения в doc ветку
       console.log("📤 Пушим изменения в doc ветку...")
