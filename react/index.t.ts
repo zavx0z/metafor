@@ -1,5 +1,12 @@
 import type { ContextSchema, ExtractValues } from "../context/index.t"
 import type { JsonPatch, MetaDataMessage } from "../message"
+import type {
+  CondStringRequired,
+  CondNumberRequired,
+  CondBooleanRequired,
+  CondArrayRequired,
+  CondEnumRequired,
+} from "../transition.t"
 
 /**
  * Аргументы для функции фильтрации
@@ -24,12 +31,15 @@ export type ReactionUpdate<C extends ContextSchema, S extends string, Core = Rec
 }) => void
 
 /**
- * Декларативные условия фильтрации
+ * Декларативные условия фильтрации реакций
+ * Плоская структура с расширенными возможностями для meta и patch
  */
 export type ReactionFilterConditions = {
-  tag?: string
-  index?: number
-  timestamp?: number
+  // Фильтрация по метаданным сообщения
+  tag?: CondStringRequired
+  index?: CondNumberRequired
+  timestamp?: CondNumberRequired
+  // Фильтрация по патчу
   op?: "replace" | "add" | "remove" | "test"
   path?: "/context" | "/state" | "/"
   value?: any
@@ -48,9 +58,10 @@ export type Reaction<C extends ContextSchema, S extends string, Core = Record<st
 /**
  * Chain API для создания реакции
  */
-export type ReactionChain<C extends ContextSchema, S extends string, Core = Record<string, any>> = (
-  config: { title: string; description?: string }
-) => {
+export type ReactionChain<C extends ContextSchema, S extends string, Core = Record<string, any>> = (config: {
+  title: string
+  description?: string
+}) => {
   filter: (conditions: ReactionFilterConditions) => {
     equal: (updateFn: ReactionUpdate<C, S, Core>) => {
       filter: (args: ReactionFilterArgs<C, S>) => boolean
@@ -66,7 +77,15 @@ export type ReactionChain<C extends ContextSchema, S extends string, Core = Reco
  */
 export type ReactionsChain<C extends ContextSchema, S extends string, Core = Record<string, any>> = (
   reaction: ReactionChain<C, S, Core>
-) => [S[], { filter: (args: ReactionFilterArgs<C, S>) => boolean; update: ReactionUpdate<C, S, Core>; title: string; description?: string }][]
+) => [
+  S[],
+  {
+    filter: (args: ReactionFilterArgs<C, S>) => boolean
+    update: ReactionUpdate<C, S, Core>
+    title: string
+    description?: string
+  }
+][]
 
 /**
  * Карта реакций для быстрого поиска по состоянию.

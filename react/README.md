@@ -1,113 +1,167 @@
-# Reactions
+# Реакции
 
-Реакции позволяют компонентам реагировать на сообщения от других компонентов или внутренние изменения состояния.
+Реакции позволяют реагировать на изменения контекста и состояния в MetaFor. Они предоставляют декларативный способ определения условий и действий.
 
 ## API
 
-Реакции создаются через chain API:
+### Создание реакции
 
 ```typescript
-.reactions((reaction) => [
-  [
-    ["state1", "state2"], // состояния, в которых реакция активна
-    reaction({
-      title: "reaction_name", // название реакции
-      description: "Описание реакции" // опциональное описание
-    })
-      .filter({
-        tag: "other_component", // фильтр по тегу компонента
-        op: "add", // фильтр по операции патча
-        path: "/context", // фильтр по пути патча
-        value: "expected_value" // фильтр по значению
-      })
-      .equal(({ update, context, core, meta, patch, state }) => {
-        // обновление контекста при активации реакции
-        update({ someValue: context.someValue + 1 })
-      }),
-  ],
-])
+reaction({ title: "my_reaction", description: "Описание реакции" })
+  .filter({
+    /* условия фильтрации */
+  })
+  .equal(({ update, context, core, meta, patch, state }) => {
+    // логика обновления
+  })
 ```
 
-## Параметры
+### Параметры reaction()
 
-### reaction(config)
+- `title: string` - обязательное название реакции
+- `description?: string` - необязательное описание реакции
 
-- `title` (обязательный) - название реакции
-- `description` (опциональный) - описание реакции
+### Фильтрация
 
-### filter
+Фильтр поддерживает декларативные условия для метаданных сообщения и патча:
 
-Объект с декларативными условиями фильтрации:
+#### Метаданные сообщения (meta)
 
-- `tag` - фильтр по тегу компонента (meta.tag)
-- `index` - фильтр по индексу сообщения (meta.index)
-- `timestamp` - фильтр по временной метке (meta.timestamp)
-- `op` - фильтр по операции патча ("replace" | "add" | "remove" | "test")
-- `path` - фильтр по пути патча ("/context" | "/state" | "/")
-- `value` - фильтр по значению патча
+- `tag?: CondStringRequired` - фильтрация по тегу сообщения
+- `index?: CondNumberRequired` - фильтрация по индексу сообщения
+- `timestamp?: CondNumberRequired` - фильтрация по временной метке
 
-### equal
+#### Патч (patch)
 
-Функция обновления, выполняемая при срабатывании реакции:
+- `op?: "replace" | "add" | "remove" | "test"` - операция патча
+- `path?: "/context" | "/state" | "/"` - путь патча
+- `value?: any` - значение патча
 
-- `update` - функция обновления контекста
-- `context` - текущий контекст компонента
-- `core` - дополнительные данные
-- `meta` - метаданные сообщения
-- `patch` - патч изменений
-- `state` - текущее состояние компонента
-
-## Примеры
-
-### Простая реакция
+#### Условия для строк (CondStringRequired)
 
 ```typescript
-.reactions((reaction) => [
-  [
-    ["idle"],
-    reaction({ title: "increment" })
-      .filter({ tag: "counter" })
-      .equal(({ update, context }) => {
-        update({ value: context.value + 1 })
-      }),
-  ],
-])
+// Простое сравнение
+tag: "test"
+
+// Регулярное выражение
+tag: /^test_/
+
+// Объект с условиями
+tag: {
+  eq: "test",                    // равно
+  notEq: "other",               // не равно
+  startsWith: "test",           // начинается с
+  endsWith: "end",              // заканчивается на
+  include: "substring",         // содержит подстроку
+  notInclude: "bad",            // не содержит подстроку
+  notStartsWith: "bad",         // не начинается с
+  notEndsWith: "bad",           // не заканчивается на
+  pattern: /^test_\d+$/,        // регулярное выражение
+  length: 5,                    // точная длина
+  length: { min: 3, max: 10 },  // диапазон длины
+  between: ["a", "z"]           // между двумя строками
+}
 ```
 
-### Реакция с описанием
+#### Условия для чисел (CondNumberRequired)
 
 ```typescript
-.reactions((reaction) => [
-  [
-    ["active", "loading"],
-    reaction({
-      title: "log_state_change",
-      description: "Логирует изменения состояния компонента"
-    })
-      .filter({ op: "replace", path: "/state" })
-      .equal(({ context, state }) => {
-        console.log(`State changed to: ${state}`)
-      }),
-  ],
-])
+// Простое сравнение
+index: 5
+
+// Объект с условиями
+index: {
+  eq: 5,                        // равно
+  notEq: 10,                    // не равно
+  gt: 0,                        // больше
+  gte: 1,                       // больше или равно
+  lt: 100,                      // меньше
+  lte: 50,                      // меньше или равно
+  notGt: 10,                    // не больше
+  notGte: 5,                    // не больше или равно
+  notLt: 0,                     // не меньше
+  notLte: 1,                    // не меньше или равно
+  between: [1, 10]              // между двумя числами
+}
 ```
 
-### Сложная фильтрация
+### Примеры
+
+#### Простая фильтрация
 
 ```typescript
-.reactions((reaction) => [
-  [
-    ["idle", "active"],
-    reaction({ title: "specific_update" })
-      .filter({ 
-        tag: "user_component", 
-        op: "replace", 
-        path: "/context",
-        value: { name: "John" }
-      })
-      .equal(({ update }) => {
-        update({ userUpdated: true })
-      }),
+reaction({ title: "increment" })
+  .filter({ tag: "test" })
+  .equal(({ update, context }) => {
+    update({ value: context.value + 1 })
+  })
+```
+
+#### Сложная фильтрация
+
+```typescript
+reaction({ title: "complex_filter" })
+  .filter({
+    tag: { startsWith: "user_" },
+    index: { gte: 1, lt: 100 },
+    op: "replace",
+    path: "/context",
+  })
+  .equal(({ update, context }) => {
+    update({ status: "processed" })
+  })
+```
+
+#### Фильтрация по временным меткам
+
+```typescript
+reaction({ title: "recent_activity" })
+  .filter({
+    timestamp: { gte: Date.now() - 60000 }, // последняя минута
+  })
+  .equal(({ update }) => {
+    update({ lastActivity: Date.now() })
+  })
+```
+
+#### Комбинированная фильтрация
+
+```typescript
+reaction({ title: "specific_update" })
+  .filter({
+    tag: { include: "user" },
+    index: { between: [1, 10] },
+    op: "add",
+    path: "/context",
+    value: { type: "notification" },
+  })
+  .equal(({ update, context }) => {
+    update({ notifications: [...context.notifications, context.value] })
+  })
+```
+
+## Использование в MetaFor
+
+```typescript
+import { MetaFor } from "metafor"
+
+const metafor = new MetaFor({
+  context: {
+    count: { type: "number", required: true },
+  },
+  states: {
+    idle: {},
+    active: {},
+  },
+  reactions: (reaction) => [
+    [
+      ["idle", "active"],
+      reaction({ title: "increment", description: "Увеличивает счетчик" })
+        .filter({ tag: "increment" })
+        .equal(({ update, context }) => {
+          update({ count: context.count + 1 })
+        }),
+    ],
   ],
-])
+})
 ```

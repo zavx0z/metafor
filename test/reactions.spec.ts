@@ -1,14 +1,8 @@
 import { test, expect, describe } from "bun:test"
-import { messagesFixture } from "../fixture/message.ts"
 import type { Message } from "../message/index.t.ts"
 
 describe("реакции", () => {
   test("MetaFor - базовый функционал", async () => {
-    // const { waitForMessages } = messagesFixture()
-
-    // document.addEventListener("channel", (ev) => console.log(ev.detail))
-    // @ts-ignore
-    document.addEventListener("html-debug", (ev) => console.log(ev.detail))
     document.body.innerHTML = `<metafor-parent></metafor-parent>`
 
     MetaFor("child")

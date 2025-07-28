@@ -3,13 +3,18 @@ import type { Update, ExtractValues } from "../../context/index.t"
 import { describe, it, expect } from "bun:test"
 import type { JsonPatch, MetaDataMessage } from "../../message"
 
-type Ctx = { value: { type: "number"; required: true } }
+type Ctx = {
+  value: { type: "number"; required: true }
+  name: { type: "string"; required: true }
+  isActive: { type: "boolean"; required: true }
+  tags: { type: "array"; required: true }
+}
 type State = "idle" | "active" | "error"
 
 describe("ReactionRegistry", () => {
   const fakeUpdate: Update<Ctx> = (values) => values as any
   // fakeContext должен быть типа ExtractValues<Ctx>, а не Ctx
-  const fakeContext: ExtractValues<Ctx> = { value: 10 }
+  const fakeContext: ExtractValues<Ctx> = { value: 10, name: "test", isActive: true, tags: ["tag1", "tag2"] }
   const fakeMeta: MetaDataMessage = { tag: "test", index: 0 }
   const fakePatch: JsonPatch = { op: "replace", path: "/context", value: 1 }
 
@@ -20,10 +25,9 @@ describe("ReactionRegistry", () => {
         reaction({ title: "inc" })
           .filter({
             tag: "test",
-            index: 0,
-            value: 1,
             op: "replace",
             path: "/context",
+            value: 1,
           })
           .equal(({ update, context }) => update({ value: context.value + 1 })),
       ],
@@ -108,5 +112,57 @@ describe("ReactionRegistry", () => {
     const json = registry.toJSON()
     expect(Array.isArray(json.reactions), "reactions массив").toBe(true)
     expect(typeof json.states, "states объект").toBe("object")
+  })
+
+  it("поддерживает сложные условия фильтрации", () => {
+    let called = false
+    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+      [
+        ["idle", "active"],
+        reaction({ title: "complex_filter" })
+          .filter({
+            tag: { startsWith: "test" },
+            index: { gt: 0 },
+          })
+          .equal(() => (called = true)),
+      ],
+    ])
+
+    registry.run({
+      meta: { tag: "test_component", index: 5 },
+      patch: fakePatch,
+      context: fakeContext,
+      state: "idle",
+      core: {},
+      update: fakeUpdate,
+    })
+
+    expect(called, "сложная фильтрация работает").toBe(true)
+  })
+
+  it("поддерживает числовые условия фильтрации", () => {
+    let called = false
+    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+      [
+        ["idle", "active"],
+        reaction({ title: "number_filter" })
+          .filter({
+            index: { gte: 5, lt: 10 },
+            timestamp: { between: [1000, 2000] },
+          })
+          .equal(() => (called = true)),
+      ],
+    ])
+
+    registry.run({
+      meta: { tag: "test", index: 7, timestamp: 1500 },
+      patch: fakePatch,
+      context: fakeContext,
+      state: "idle",
+      core: {},
+      update: fakeUpdate,
+    })
+
+    expect(called, "числовая фильтрация работает").toBe(true)
   })
 })

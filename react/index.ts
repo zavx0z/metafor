@@ -10,8 +10,114 @@ import type {
   ReactionUpdate,
   ReactionFilterConditions,
   Reaction,
+  ReactionsMap,
   Update,
 } from "./index.t"
+
+/**
+ * Проверяет условие для строкового значения
+ */
+function checkStringCondition(value: string, condition: any): boolean {
+  if (typeof condition === "string") {
+    return value === condition
+  }
+  if (condition instanceof RegExp) {
+    return condition.test(value)
+  }
+  if (typeof condition === "object" && condition !== null) {
+    if (condition.eq !== undefined && value !== condition.eq) return false
+    if (condition.notEq !== undefined && value === condition.notEq) return false
+    if (condition.startsWith !== undefined && !value.startsWith(condition.startsWith)) return false
+    if (condition.endsWith !== undefined && !value.endsWith(condition.endsWith)) return false
+    if (condition.include !== undefined && !value.includes(condition.include)) return false
+    if (condition.notInclude !== undefined && value.includes(condition.notInclude)) return false
+    if (condition.notStartsWith !== undefined && value.startsWith(condition.notStartsWith)) return false
+    if (condition.notEndsWith !== undefined && value.endsWith(condition.notEndsWith)) return false
+    if (condition.pattern !== undefined && !condition.pattern.test(value)) return false
+    if (condition.length !== undefined) {
+      if (typeof condition.length === "number") {
+        if (value.length !== condition.length) return false
+      } else {
+        if (condition.length.min !== undefined && value.length < condition.length.min) return false
+        if (condition.length.max !== undefined && value.length > condition.length.max) return false
+      }
+    }
+    if (condition.between !== undefined) {
+      const [min, max] = condition.between
+      if (value < min || value > max) return false
+    }
+  }
+  return true
+}
+
+/**
+ * Проверяет условие для числового значения
+ */
+function checkNumberCondition(value: number, condition: any): boolean {
+  if (typeof condition === "number") {
+    return value === condition
+  }
+  if (typeof condition === "object" && condition !== null) {
+    if (condition.eq !== undefined && value !== condition.eq) return false
+    if (condition.notEq !== undefined && value === condition.notEq) return false
+    if (condition.gt !== undefined && value <= condition.gt) return false
+    if (condition.gte !== undefined && value < condition.gte) return false
+    if (condition.lt !== undefined && value >= condition.lt) return false
+    if (condition.lte !== undefined && value > condition.lte) return false
+    if (condition.notGt !== undefined && value > condition.notGt) return false
+    if (condition.notGte !== undefined && value >= condition.notGte) return false
+    if (condition.notLt !== undefined && value < condition.notLt) return false
+    if (condition.notLte !== undefined && value <= condition.notLte) return false
+    if (condition.between !== undefined) {
+      const [min, max] = condition.between
+      if (value < min || value > max) return false
+    }
+  }
+  return true
+}
+
+/**
+ * Создает chain API для реакций
+ */
+export function createReactionsChain<
+  C extends ContextSchema,
+  S extends string,
+  Core = Record<string, any>
+>(): ReactionChain<C, S, Core> {
+  return ((config: { title: string; description?: string }) => {
+    return {
+      filter: (conditions: ReactionFilterConditions) => {
+        return {
+          equal: (updateFn: ReactionUpdate<C, S, Core>) => {
+            // Создаем функцию фильтрации на основе декларативных условий
+            const filterFn = (args: ReactionFilterArgs<C, S>): boolean => {
+              const { meta, patch } = args
+
+              // Проверяем условия для метаданных
+              if (conditions.tag !== undefined && !checkStringCondition(meta.tag, conditions.tag)) return false
+              if (conditions.index !== undefined && !checkNumberCondition(meta.index || 0, conditions.index))
+                return false
+              if (
+                conditions.timestamp !== undefined &&
+                !checkNumberCondition(meta.timestamp || 0, conditions.timestamp)
+              )
+                return false
+
+              // Проверяем условия для патча
+              if (conditions.op !== undefined && patch.op !== conditions.op) return false
+              if (conditions.path !== undefined && patch.path !== conditions.path) return false
+              if (conditions.value !== undefined && patch.value !== conditions.value) return false
+
+              return true
+            }
+
+            return { filter: filterFn, update: updateFn, title: config.title, description: config.description }
+          },
+        }
+      },
+    }
+  }) as ReactionChain<C, S, Core>
+}
 
 /**
  * Реестр реакций с deduped-структурой для экономии памяти и удобного API.
@@ -138,40 +244,4 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
     }
   }
   return { reactionsById, stateToReactionIds }
-}
-
-/**
- * Создает chain API для реакций
- */
-export function createReactionsChain<
-  C extends ContextSchema,
-  S extends string,
-  Core = Record<string, any>
->(): ReactionChain<C, S, Core> {
-  return ((config: { title: string; description?: string }) => {
-    return {
-      filter: (conditions: ReactionFilterConditions) => {
-        return {
-          equal: (updateFn: ReactionUpdate<C, S, Core>) => {
-            // Создаем функцию фильтрации на основе декларативных условий
-            const filterFn = (args: ReactionFilterArgs<C, S>): boolean => {
-              const { meta, patch } = args
-
-              // Проверяем каждое условие
-              if (conditions.tag !== undefined && meta.tag !== conditions.tag) return false
-              if (conditions.index !== undefined && meta.index !== conditions.index) return false
-              if (conditions.timestamp !== undefined && meta.timestamp !== conditions.timestamp) return false
-              if (conditions.op !== undefined && patch.op !== conditions.op) return false
-              if (conditions.path !== undefined && patch.path !== conditions.path) return false
-              if (conditions.value !== undefined && patch.value !== conditions.value) return false
-
-              return true
-            }
-
-            return { filter: filterFn, update: updateFn, title: config.title, description: config.description }
-          },
-        }
-      },
-    }
-  }) as ReactionChain<C, S, Core>
 }
