@@ -12,12 +12,6 @@
 - **Шаблонизация** — современный HTML template API с директивами
 - **Веб-компоненты** — нативная поддержка Custom Elements
 
-## 📦 Установка
-
-```bash
-npm install @metafor/core
-```
-
 ## 🎯 Быстрый старт
 
 ```typescript
