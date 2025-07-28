@@ -1,0 +1,15 @@
+{
+  "projects": {
+    "default": "metaforpro"
+  },
+  "targets": {
+    "metaforpro": {
+      "hosting": {
+        "docs": [
+          "metafor-docs"
+        ]
+      }
+    }
+  },
+  "etags": {}
+}

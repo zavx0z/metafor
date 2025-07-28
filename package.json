@@ -42,6 +42,10 @@
     "HTML:TEST": "bun test html",
     "docs": "typedoc",
     "docs:watch": "typedoc --watch",
-    "merge:doc": "bun run script/merge.doc.ts"
+    "merge:doc": "bun run script/merge.doc.ts",
+    "deploy:docs": "firebase deploy --only hosting:docs",
+    "deploy:docs:preview": "firebase hosting:channel:deploy preview",
+    "firebase:targets": "firebase target",
+    "firebase:sites": "firebase hosting:sites:list"
   }
 }
