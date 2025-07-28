@@ -60,7 +60,7 @@ test("MetaFor - интеграция с реакциями", async () => {
       [
         ["idle"],
         reaction({ title: "reaction1", description: "Description for reaction1" })
-          .filter(({ meta }) => meta.tag === "test")
+          .filter({ tag: "test" })
           .equal(({ context, update }) => {
             called = true
             update({ value: context.value + 1 })

@@ -1,10 +1,18 @@
 /**
  * Утилиты для работы с ReactionMap
  */
-import type { ContextSchema } from "../context"
-import type { Reaction, ReactionFilterArgs, ReactionsChain, ReactionUpdate, ReactionChain } from "./index.t"
-import type { Update, ExtractValues } from "../context/index.t"
+import type { ContextSchema, ExtractValues } from "../context/index.t"
 import type { JsonPatch, MetaDataMessage } from "../message"
+import type { 
+  ReactionChain, 
+  ReactionsChain, 
+  ReactionFilterArgs, 
+  ReactionUpdate, 
+  ReactionFilterConditions,
+  Reaction,
+  ReactionsMap,
+  Update
+} from "./index.t"
 
 /**
  * Реестр реакций с deduped-структурой для экономии памяти и удобного API.
@@ -138,9 +146,24 @@ export function createReactionsChain<
 >(): ReactionChain<C, S, Core> {
   return ((config: { title: string; description?: string }) => {
     return {
-      filter: (filterFn: (args: ReactionFilterArgs<C, S>) => boolean) => {
+      filter: (conditions: ReactionFilterConditions) => {
         return {
           equal: (updateFn: ReactionUpdate<C, S, Core>) => {
+            // Создаем функцию фильтрации на основе декларативных условий
+            const filterFn = (args: ReactionFilterArgs<C, S>): boolean => {
+              const { meta, patch } = args
+              
+              // Проверяем каждое условие
+              if (conditions.tag !== undefined && meta.tag !== conditions.tag) return false
+              if (conditions.index !== undefined && meta.index !== conditions.index) return false
+              if (conditions.timestamp !== undefined && meta.timestamp !== conditions.timestamp) return false
+              if (conditions.op !== undefined && patch.op !== conditions.op) return false
+              if (conditions.path !== undefined && patch.path !== conditions.path) return false
+              if (conditions.value !== undefined && patch.value !== conditions.value) return false
+              
+              return true
+            }
+            
             return { filter: filterFn, update: updateFn, title: config.title, description: config.description }
           },
         }

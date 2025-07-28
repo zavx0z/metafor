@@ -14,9 +14,11 @@
       title: "reaction_name", // название реакции
       description: "Описание реакции" // опциональное описание
     })
-      .filter(({ meta, patch, context, state }) => {
-        // условие активации реакции
-        return meta.tag === "other_component" && patch.op === "add"
+      .filter({
+        tag: "other_component", // фильтр по тегу компонента
+        op: "add", // фильтр по операции патча
+        path: "/context", // фильтр по пути патча
+        value: "expected_value" // фильтр по значению
       })
       .equal(({ update, context, core, meta, patch, state }) => {
         // обновление контекста при активации реакции
@@ -35,12 +37,14 @@
 
 ### filter
 
-Функция фильтрации, определяющая когда должна сработать реакция:
+Объект с декларативными условиями фильтрации:
 
-- `meta` - метаданные сообщения
-- `patch` - патч изменений
-- `context` - текущий контекст компонента
-- `state` - текущее состояние компонента
+- `tag` - фильтр по тегу компонента (meta.tag)
+- `index` - фильтр по индексу сообщения (meta.index)
+- `timestamp` - фильтр по временной метке (meta.timestamp)
+- `op` - фильтр по операции патча ("replace" | "add" | "remove" | "test")
+- `path` - фильтр по пути патча ("/context" | "/state" | "/")
+- `value` - фильтр по значению патча
 
 ### equal
 
@@ -62,7 +66,7 @@
   [
     ["idle"],
     reaction({ title: "increment" })
-      .filter(({ meta }) => meta.tag === "counter")
+      .filter({ tag: "counter" })
       .equal(({ update, context }) => {
         update({ value: context.value + 1 })
       }),
@@ -80,9 +84,29 @@
       title: "log_state_change",
       description: "Логирует изменения состояния компонента"
     })
-      .filter(({ patch }) => patch.op === "replace" && patch.path === "/state")
+      .filter({ op: "replace", path: "/state" })
       .equal(({ context, state }) => {
         console.log(`State changed to: ${state}`)
+      }),
+  ],
+])
+```
+
+### Сложная фильтрация
+
+```typescript
+.reactions((reaction) => [
+  [
+    ["idle", "active"],
+    reaction({ title: "specific_update" })
+      .filter({ 
+        tag: "user_component", 
+        op: "replace", 
+        path: "/context",
+        value: { name: "John" }
+      })
+      .equal(({ update }) => {
+        update({ userUpdated: true })
       }),
   ],
 ])

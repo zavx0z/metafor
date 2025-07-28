@@ -1,9 +1,7 @@
 import { ReactionRegistry, createReactionsChain } from "../index"
 import type { Update, ExtractValues } from "../../context/index.t"
 import { describe, it, expect } from "bun:test"
-
-type MetaDataMessage = { tag: string }
-type JsonPatch = any
+import type { JsonPatch, MetaDataMessage } from "../../message"
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active" | "error"
@@ -12,15 +10,21 @@ describe("ReactionRegistry", () => {
   const fakeUpdate: Update<Ctx> = (values) => values as any
   // fakeContext должен быть типа ExtractValues<Ctx>, а не Ctx
   const fakeContext: ExtractValues<Ctx> = { value: 10 }
-  const fakeMeta: MetaDataMessage = { tag: "test" } as MetaDataMessage
-  const fakePatch: JsonPatch = [{ op: "replace", path: "/value", value: 1 }] as any
+  const fakeMeta: MetaDataMessage = { tag: "test", index: 0 }
+  const fakePatch: JsonPatch = { op: "replace", path: "/context", value: 1 }
 
   it("создаёт уникальные реакции", () => {
     const registry = new ReactionRegistry<Ctx, State>((reaction) => [
       [
         ["idle", "active"],
         reaction({ title: "inc" })
-          .filter(() => true)
+          .filter({
+            tag: "test",
+            index: 0,
+            value: 1,
+            op: "replace",
+            path: "/context",
+          })
           .equal(({ update, context }) => update({ value: context.value + 1 })),
       ],
       [
