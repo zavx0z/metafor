@@ -30,15 +30,6 @@ jobs:
       - name: Generate documentation
         run: bun run docs
 
-      - name: Deploy to GitHub Pages
-        if: github.ref == 'refs/heads/doc'
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./docs
-          destination_dir: .
-          force_orphan: true
-
       - name: Deploy to Firebase
         if: github.ref == 'refs/heads/doc'
         uses: FirebaseExtended/action-hosting-deploy@v0
