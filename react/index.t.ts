@@ -1,21 +1,13 @@
 import type { ContextSchema, ExtractValues } from "../context/index.t"
 import type { JsonPatch, MetaDataMessage } from "../message"
-import type {
-  CondStringRequired,
-  CondNumberRequired,
-  CondBooleanRequired,
-  CondArrayRequired,
-  CondEnumRequired,
-} from "../transition.t"
+import type { CondStringRequired, CondNumberRequired } from "../transition.t"
 
 /**
  * Аргументы для функции фильтрации
  */
-export type ReactionFilterArgs<C extends ContextSchema, S extends string> = {
+export type ReactionFilterArgs = {
   meta: MetaDataMessage
   patch: JsonPatch
-  context: ExtractValues<C>
-  state: S
 }
 
 /**
@@ -35,13 +27,136 @@ export type ReactionUpdate<C extends ContextSchema, S extends string, Core = Rec
  * Плоская структура с расширенными возможностями для meta и patch
  */
 export type ReactionFilterConditions = {
-  // Фильтрация по метаданным сообщения
+  /** 
+   Фильтрация по тегу 
+   
+   1. Прямое сравнение строки с условием
+    - tag: "test" - тег должен быть равен "test"
+    - tag: /test/ - тег должен соответствовать регулярному выражению /test/ (без кавычек)
+   
+   2. Сравнение с условием
+    - tag: { eq: "test" } - тег должен быть равен "test"
+    - tag: { pattern: /test/ } - тег должен соответствовать регулярному выражению /test/
+
+   Условия сравнения:
+   | Параметр       | Тип                                  | Описание                              |
+   | -------------- | ------------------------------------ | ------------------------------------- |
+   | startsWith     | string                               | Начинается ли с указанной строки      |
+   | endsWith       | string                               | Заканчивается ли на указанную строку  |
+   | include        | string                               | Включает ли указанную подстроку       |
+   | pattern        | RegExp                               | Шаблон регулярного выражения          |
+   | eq             | string                               | Равно указанной строке                |
+   | notEq          | string                               | Не равно указанной строке             |
+   | notInclude     | string                               | Не включает указанную подстроку       |
+   | notStartsWith  | string                               | Не начинается с указанной строки      |
+   | notEndsWith    | string                               | Не заканчивается на указанную строку  |
+   | length         | number \| { min?: number; max?: number } | Длина строки                      |
+   | between        | [string, string]                     | Должно быть между двумя строками      |
+  */
   tag?: CondStringRequired
+  /** 
+   Фильтрация по индексу 
+   
+   1. Прямое сравнение числа с условием
+    - index: 5 - индекс должен быть равен 5
+   
+   2. Сравнение с условием
+    - index: { eq: 5 } - индекс должен быть равен 5
+    - index: { gt: 3 } - индекс должен быть больше 3
+
+   Условия сравнения:
+   | Параметр       | Тип                                  | Описание                              |
+   | -------------- | ------------------------------------ | ------------------------------------- |
+   | eq             | number                               | Равно указанному числу                |
+   | notEq          | number                               | Не равно указанному числу             |
+   | gt             | number                               | Больше указанного числа               |
+   | gte            | number                               | Больше или равно указанному числу     |
+   | lt             | number                               | Меньше указанного числа               |
+   | lte            | number                               | Меньше или равно указанному числу     |
+   | notGt          | number                               | Не больше указанного числа            |
+   | notGte         | number                               | Не больше или равно указанному числу  |
+   | notLt          | number                               | Не меньше указанного числа            |
+   | notLte         | number                               | Не меньше или равно указанному числу  |
+   | between        | [number, number]                     | Должно быть между двумя числами       |
+  */
   index?: CondNumberRequired
+  /** 
+   Фильтрация по временной метке 
+   
+   1. Прямое сравнение числа с условием
+    - timestamp: 1640995200000 - временная метка должна быть равна 1640995200000
+   
+   2. Сравнение с условием
+    - timestamp: { eq: 1640995200000 } - временная метка должна быть равна 1640995200000
+    - timestamp: { gt: 1640995200000 } - временная метка должна быть больше 1640995200000
+
+   Условия сравнения:
+   | Параметр       | Тип                                  | Описание                              |
+   | -------------- | ------------------------------------ | ------------------------------------- |
+   | eq             | number                               | Равно указанному числу                |
+   | notEq          | number                               | Не равно указанному числу             |
+   | gt             | number                               | Больше указанного числа               |
+   | gte            | number                               | Больше или равно указанному числу     |
+   | lt             | number                               | Меньше указанного числа               |
+   | lte            | number                               | Меньше или равно указанному числу     |
+   | notGt          | number                               | Не больше указанного числа            |
+   | notGte         | number                               | Не больше или равно указанному числу  |
+   | notLt          | number                               | Не меньше указанного числа            |
+   | notLte         | number                               | Не меньше или равно указанному числу  |
+   | between        | [number, number]                     | Должно быть между двумя числами       |
+  */
   timestamp?: CondNumberRequired
-  // Фильтрация по патчу
+  /** 
+   Фильтрация по операции патча 
+   
+   Доступные операции:
+   | Операция       | Описание                              |
+   | -------------- | ------------------------------------- |
+   | replace        | Замена значения по указанному пути    |
+   | add            | Добавление нового значения по пути     |
+   | remove         | Удаление значения по указанному пути   |
+   | test           | Проверка значения по указанному пути   |
+   
+   Примеры использования:
+   - op: "replace" - операция должна быть replace
+   - op: "add" - операция должна быть add
+  */
   op?: "replace" | "add" | "remove" | "test"
+  /** 
+   Фильтрация по пути патча 
+   
+   Доступные пути:
+   | Путь           | Описание                              |
+   | -------------- | ------------------------------------- |
+   | /context       | Путь к контексту актора               |
+   | /state         | Путь к состоянию актора               |
+   | /              | Корневой путь (полный объект актора)  |
+   
+   Примеры использования:
+   - path: "/context" - путь должен быть /context
+   - path: "/state" - путь должен быть /state
+  */
   path?: "/context" | "/state" | "/"
+  /** 
+   Фильтрация по значению патча 
+   
+   Поддерживаемые типы значений:
+   | Тип            | Описание                              | Пример                                |
+   | -------------- | ------------------------------------- | ------------------------------------- |
+   | string         | Строковые значения                    | value: "active"                       |
+   | number         | Числовые значения                     | value: 42                             |
+   | boolean        | Булевы значения                       | value: true                           |
+   | null           | Null значение                         | value: null                           |
+   | undefined      | Undefined значение                    | value: undefined                      |
+   | object         | Объекты любой сложности               | value: { name: "test", value: 42 }    |
+   | array          | Массивы любой сложности               | value: [1, 2, 3]                     |
+   | function       | Функции (не рекомендуется)            | value: () => "test"                   |
+   
+   Примеры использования:
+   - value: "active" - значение должно быть равно "active"
+   - value: 42 - значение должно быть равно 42
+   - value: { name: "test" } - значение должно быть равно объекту
+  */
   value?: any
 }
 
@@ -51,7 +166,7 @@ export type ReactionFilterConditions = {
 export type Reaction<C extends ContextSchema, S extends string, Core = Record<string, any>> = {
   title: string
   description?: string
-  filter: (args: ReactionFilterArgs<C, S>) => boolean
+  filter: (args: ReactionFilterArgs) => boolean
   update: ReactionUpdate<C, S, Core>
 }
 
@@ -64,7 +179,7 @@ export type ReactionChain<C extends ContextSchema, S extends string, Core = Reco
 }) => {
   filter: (conditions: ReactionFilterConditions) => {
     equal: (updateFn: ReactionUpdate<C, S, Core>) => {
-      filter: (args: ReactionFilterArgs<C, S>) => boolean
+      filter: (args: ReactionFilterArgs) => boolean
       update: ReactionUpdate<C, S, Core>
       title: string
       description?: string
@@ -80,7 +195,7 @@ export type ReactionsChain<C extends ContextSchema, S extends string, Core = Rec
 ) => [
   S[],
   {
-    filter: (args: ReactionFilterArgs<C, S>) => boolean
+    filter: (args: ReactionFilterArgs) => boolean
     update: ReactionUpdate<C, S, Core>
     title: string
     description?: string
