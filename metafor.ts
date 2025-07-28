@@ -48,7 +48,7 @@
 window.MetaFor = MetaFor
 
 import { types, createContext } from "./context"
-import type { ContextSchema, ContextTypes, ContextInstance, ExtractValues, Update } from "./context"
+import type { ContextSchema, ContextInstance, ExtractValues, Update } from "./context"
 import { checkTransitionConditions, type StatesConfig } from "./transition"
 import { createActionsConfig, type ActionsDeclaration, type Process } from "./proc"
 import type { Snapshot, ViewConfig } from "./metafor.t"
@@ -134,7 +134,7 @@ export function MetaFor(tag: string) {
      * }))
      * ```
      */
-    context<C extends ContextSchema>(schema: (types: ContextTypes) => C) {
+    context<C extends ContextSchema>(schema: (types: any) => C) {
       const contextSchema = schema(types)
       return {
         /**

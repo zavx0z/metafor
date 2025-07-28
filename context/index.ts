@@ -4,11 +4,11 @@
  */
 import { types } from "./types"
 
-import type { ContextSchema, ContextTypes } from "./types.t"
+import type { ContextSchema } from "./types.t"
 import type { ExtractValues, UpdateValues, ContextInstance, SerializedSchema, Update, OnUpdate } from "./index.t"
 
 export { types }
-export type { ContextSchema, SerializedSchema, ExtractValues, UpdateValues, ContextInstance, ContextTypes, Update, OnUpdate }
+export type { ContextSchema, SerializedSchema, ExtractValues, UpdateValues, ContextInstance, Update, OnUpdate }
 
 /**
  * Класс для работы с типизированными контекстами.

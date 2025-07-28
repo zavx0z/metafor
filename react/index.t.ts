@@ -1,3 +1,62 @@
+/**
+ * Типы для реакций (Reactions)
+ * @packageDocumentation
+ * 
+ * # Реакции (Reactions)
+ * 
+ * Реакции позволяют обрабатывать внешние события через декларативные фильтры.
+ * Они группируются по состояниям и срабатывают только в определенных состояниях автомата.
+ * 
+ * ## Основные принципы:
+ * - **Декларативные фильтры**: Используйте фильтры для выбора событий
+ * - **Группировка по состояниям**: Реакции срабатывают только в указанных состояниях
+ * - **Явное перечисление**: Всегда перечисляйте все состояния в массивах
+ * - **Типобезопасность**: TypeScript проверяет корректность фильтров
+ * 
+ * ## Структура реакций:
+ * ```typescript
+ * .reactions((reaction) => [
+ *   [
+ *     ["state1", "state2"], // Состояния, в которых активна реакция
+ *     reaction(config?)
+ *       .filter(conditions)
+ *       .equal(handler)
+ *   ]
+ * ])
+ * ```
+ * 
+ * @example
+ * ```typescript
+ * .reactions((reaction) => [
+ *   [
+ *     ["idle", "loading"], // Реакция активна в состояниях idle и loading
+ *     reaction({ title: "Обработка сообщений" })
+ *       .filter({
+ *         tag: "user",           // Фильтр по тегу
+ *         op: "replace",         // Фильтр по операции
+ *         path: "/context",      // Фильтр по пути
+ *         value: { gt: 0 }       // Фильтр по значению
+ *       })
+ *       .equal(({ update, context, meta, patch }) => {
+ *         // Обработка события
+ *         update({
+ *           lastMessage: patch.value,
+ *           messageCount: context.messageCount + 1
+ *         })
+ *       })
+ *   ],
+ *   [
+ *     ["idle", "loading", "success", "error"], // Все состояния
+ *     reaction()
+ *       .filter({ tag: "system" })
+ *       .equal(({ update }) => {
+ *         update({ systemNotification: true })
+ *       })
+ *   ]
+ * ])
+ * ```
+ */
+
 import type { ContextSchema, ExtractValues } from "../context/index.t"
 import type { JsonPatch, MetaDataMessage } from "../message"
 import type {
@@ -11,27 +70,87 @@ import type {
 
 /**
  * Аргументы для функции фильтрации
+ * 
+ * Содержит метаданные сообщения и патч для проверки условий фильтра.
+ * 
+ * @example
+ * ```typescript
+ * const filterFn = (args: ReactionFilterArgs) => {
+ *   console.log(args.meta.tag)    // Тег сообщения
+ *   console.log(args.patch.op)    // Операция патча
+ *   console.log(args.patch.path)  // Путь патча
+ *   console.log(args.patch.value) // Значение патча
+ *   return true // или false
+ * }
+ * ```
  */
 export type ReactionFilterArgs = {
+  /** Метаданные сообщения (тег, индекс, временная метка) */
   meta: MetaDataMessage
+  /** JSON Patch с операцией, путем и значением */
   patch: JsonPatch
 }
 
 /**
  * Функция обновления контекста
+ * 
+ * Вызывается когда реакция срабатывает и фильтр прошел успешно.
+ * Получает все необходимые данные для обработки события.
+ * 
+ * @template C - схема контекста
+ * @template S - строковые ключи состояний
+ * @template Core - тип core объекта
+ * 
+ * @example
+ * ```typescript
+ * const updateFn: ReactionUpdate<MyContext, "idle" | "loading"> = ({
+ *   update,    // Функция для обновления контекста
+ *   context,   // Текущий контекст
+ *   core,      // Core объект
+ *   meta,      // Метаданные сообщения
+ *   patch,     // JSON Patch
+ *   state      // Текущее состояние
+ * }) => {
+ *   // Обработка события
+ *   update({
+ *     lastMessage: patch.value,
+ *     messageCount: context.messageCount + 1
+ *   })
+ * }
+ * ```
  */
 export type ReactionUpdate<C extends ContextSchema, S extends string, Core = Record<string, any>> = (args: {
+  /** Функция для обновления контекста */
   update: (values: Partial<ExtractValues<C>>) => void
+  /** Текущий контекст */
   context: ExtractValues<C>
+  /** Core объект */
   core: Core
+  /** Метаданные сообщения */
   meta: MetaDataMessage
+  /** JSON Patch */
   patch: JsonPatch
+  /** Текущее состояние */
   state: S
 }) => void
 
 /**
  * Декларативные условия фильтрации реакций
- * Плоская структура с расширенными возможностями для meta и patch
+ * 
+ * Плоская структура с расширенными возможностями для meta и patch.
+ * Позволяет фильтровать события по различным критериям.
+ * 
+ * @example
+ * ```typescript
+ * const conditions: ReactionFilterConditions = {
+ *   tag: "user",                    // Фильтр по тегу
+ *   op: "replace",                  // Фильтр по операции
+ *   path: "/context",               // Фильтр по пути
+ *   value: { gt: 0 },               // Фильтр по значению
+ *   index: { gte: 0 },              // Фильтр по индексу
+ *   timestamp: { gt: Date.now() }   // Фильтр по временной метке
+ * }
+ * ```
  */
 export type ReactionFilterConditions = {
   /** 
@@ -59,6 +178,23 @@ export type ReactionFilterConditions = {
    | notEndsWith    | string                               | Не заканчивается на указанную строку  |
    | length         | number \| { min?: number; max?: number } | Длина строки                      |
    | between        | [string, string]                     | Должно быть между двумя строками      |
+   
+   @example
+   ```typescript
+   // Простые фильтры
+   tag: "user"
+   tag: /^user_/
+   
+   // Сложные фильтры
+   tag: { 
+     startsWith: "user",
+     notInclude: "admin"
+   }
+   tag: { 
+     pattern: /^[a-z]+_[0-9]+$/,
+     length: { min: 3, max: 20 }
+   }
+   ```
   */
   tag?: CondStringRequired
   /** 
@@ -85,6 +221,23 @@ export type ReactionFilterConditions = {
    | notLt          | number                               | Не меньше указанного числа            |
    | notLte         | number                               | Не меньше или равно указанному числу  |
    | between        | [number, number]                     | Должно быть между двумя числами       |
+   
+   @example
+   ```typescript
+   // Простые фильтры
+   index: 0
+   index: { gt: 10 }
+   
+   // Сложные фильтры
+   index: { 
+     gte: 0,
+     lte: 100
+   }
+   index: { 
+     between: [1, 10],
+     notEq: 5
+   }
+   ```
   */
   index?: CondNumberRequired
   /** 
@@ -111,6 +264,16 @@ export type ReactionFilterConditions = {
    | notLt          | number                               | Не меньше указанного числа            |
    | notLte         | number                               | Не меньше или равно указанному числу  |
    | between        | [number, number]                     | Должно быть между двумя числами       |
+   
+   @example
+   ```typescript
+   // Фильтры по времени
+   timestamp: { gt: Date.now() - 60000 }  // Последняя минута
+   timestamp: { 
+     gte: Date.now() - 3600000,           // Последний час
+     lte: Date.now()
+   }
+   ```
   */
   timestamp?: CondNumberRequired
   /** 
@@ -127,6 +290,14 @@ export type ReactionFilterConditions = {
    Примеры использования:
    - op: "replace" - операция должна быть replace
    - op: "add" - операция должна быть add
+   
+   @example
+   ```typescript
+   // Фильтры по операции
+   op: "replace"  // Только замены
+   op: "add"      // Только добавления
+   op: "remove"   // Только удаления
+   ```
   */
   op?: "replace" | "add" | "remove" | "test"
   /** 
@@ -142,6 +313,14 @@ export type ReactionFilterConditions = {
    Примеры использования:
    - path: "/context" - путь должен быть /context
    - path: "/state" - путь должен быть /state
+   
+   @example
+   ```typescript
+   // Фильтры по пути
+   path: "/context"  // Только изменения контекста
+   path: "/state"    // Только изменения состояния
+   path: "/"         // Любые изменения
+   ```
   */
   path?: "/context" | "/state" | "/"
   /** 
@@ -241,55 +420,167 @@ export type ReactionFilterConditions = {
      path: "/context"
    })
    ```
+   
+   @example
+   ```typescript
+   // Простые фильтры
+   value: "active"
+   value: 42
+   value: true
+   value: [1, 2, 3]
+   
+   // Сложные фильтры
+   value: { 
+     gt: 0,
+     lt: 100
+   }
+   value: { 
+     startsWith: "user",
+     length: { min: 3 }
+   }
+   value: { 
+     includes: "admin",
+     length: { min: 1 }
+   }
+   ```
   */
   value?: Condition<any> | ConditionOptional<any>
 }
 
 /**
- * Реакция
+ * Конфигурация одной реакции
+ * 
+ * Содержит название, описание, функцию фильтрации и функцию обновления.
+ * 
+ * @template C - схема контекста
+ * @template S - строковые ключи состояний
+ * @template Core - тип core объекта
+ * 
+ * @example
+ * ```typescript
+ * const reaction: Reaction<MyContext, "idle" | "loading"> = {
+ *   title: "Обработка сообщений",
+ *   description: "Обрабатывает входящие сообщения от пользователей",
+ *   filter: ({ meta, patch }) => {
+ *     return meta.tag === "user" && patch.op === "replace"
+ *   },
+ *   update: ({ update, context, patch }) => {
+ *     update({
+ *       lastMessage: patch.value,
+ *       messageCount: context.messageCount + 1
+ *     })
+ *   }
+ * }
+ * ```
  */
 export type Reaction<C extends ContextSchema, S extends string, Core = Record<string, any>> = {
+  /** Название реакции для документации */
   title: string
+  /** Описание реакции для документации */
   description?: string
+  /** Функция фильтрации событий */
   filter: (args: ReactionFilterArgs) => boolean
+  /** Функция обработки события */
   update: ReactionUpdate<C, S, Core>
 }
 
 /**
  * Chain API для создания реакции
+ * 
+ * Позволяет удобно создавать реакции с декларативными фильтрами.
+ * 
+ * @template C - схема контекста
+ * @template S - строковые ключи состояний
+ * @template Core - тип core объекта
+ * 
+ * @example
+ * ```typescript
+ * const chain = reaction({ 
+ *   title: "Обработка сообщений",
+ *   description: "Обрабатывает входящие сообщения"
+ * })
+ *   .filter({
+ *     tag: "user",
+ *     op: "replace",
+ *     path: "/context"
+ *   })
+ *   .equal(({ update, context, patch }) => {
+ *     update({
+ *       lastMessage: patch.value,
+ *       messageCount: context.messageCount + 1
+ *     })
+ *   })
+ * ```
  */
 export type ReactionChain<C extends ContextSchema, S extends string, Core = Record<string, any>> = (config?: {
+  /** Название реакции */
   title?: string
+  /** Описание реакции */
   description?: string
 }) => {
+  /** Добавляет декларативные фильтры */
   filter: (conditions: ReactionFilterConditions) => {
+    /** Добавляет функцию обработки события */
     equal: (updateFn: ReactionUpdate<C, S, Core>) => {
+      /** Функция фильтрации */
       filter: (args: ReactionFilterArgs) => boolean
+      /** Функция обработки */
       update: ReactionUpdate<C, S, Core>
+      /** Название реакции */
       title: string
+      /** Описание реакции */
       description?: string
     }
   }
 }
 
 /**
- * Chain API для создания реакций
+ * Цепочка для создания массива реакций
+ * 
+ * Позволяет создавать массив реакций с группировкой по состояниям.
+ * 
+ * @template C - схема контекста
+ * @template S - строковые ключи состояний
+ * @template Core - тип core объекта
+ * 
+ * @example
+ * ```typescript
+ * const reactions: ReactionsChain<MyContext, "idle" | "loading"> = (reaction) => [
+ *   [
+ *     ["idle", "loading"], // Состояния
+ *     reaction({ title: "Обработка сообщений" })
+ *       .filter({ tag: "user" })
+ *       .equal(({ update, patch }) => {
+ *         update({ lastMessage: patch.value })
+ *       })
+ *   ]
+ * ]
+ * ```
  */
 export type ReactionsChain<C extends ContextSchema, S extends string, Core = Record<string, any>> = (
   reaction: ReactionChain<C, S, Core>
 ) => [
-  S[],
+  S[], // Массив состояний
   {
+    /** Функция фильтрации */
     filter: (args: ReactionFilterArgs) => boolean
+    /** Функция обработки */
     update: ReactionUpdate<C, S, Core>
+    /** Название реакции */
     title: string
+    /** Описание реакции */
     description?: string
   }
 ][]
 
 /**
- * Карта реакций для быстрого поиска по состоянию.
- * Ключ — строка состояния, значение — массив реакций для этого состояния.
+ * Карта реакций по состояниям
+ * 
+ * Внутренний тип для хранения реакций, сгруппированных по состояниям.
+ * 
+ * @template C - схема контекста
+ * @template S - строковые ключи состояний
+ * @template Core - тип core объекта
  */
 export type ReactionsMap<C extends ContextSchema, S extends string, Core = Record<string, any>> = Map<
   S,
@@ -297,6 +588,18 @@ export type ReactionsMap<C extends ContextSchema, S extends string, Core = Recor
 >
 
 /**
- * Функция обновления
+ * Функция обновления контекста
+ * 
+ * Упрощенный тип для функции обновления контекста.
+ * 
+ * @template C - схема контекста
+ * 
+ * @example
+ * ```typescript
+ * const update: Update<MyContext> = (values) => {
+ *   // Обновление контекста
+ *   console.log('Обновление:', values)
+ * }
+ * ```
  */
 export type Update<C extends ContextSchema> = (values: Partial<ExtractValues<C>>) => void
