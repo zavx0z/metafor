@@ -77,6 +77,111 @@ function checkNumberCondition(value: number, condition: any): boolean {
 }
 
 /**
+ * Проверяет условие для булевого значения
+ */
+function checkBooleanCondition(value: boolean, condition: any): boolean {
+  if (typeof condition === "boolean") {
+    return value === condition
+  }
+  if (typeof condition === "object" && condition !== null) {
+    if (condition.eq !== undefined && value !== condition.eq) return false
+    if (condition.notEq !== undefined && value === condition.notEq) return false
+    if (condition.logicalEq !== undefined && Boolean(value) !== condition.logicalEq) return false
+  }
+  return true
+}
+
+/**
+ * Проверяет условие для массива
+ */
+function checkArrayCondition(value: any[], condition: any): boolean {
+  if (Array.isArray(condition)) {
+    return JSON.stringify(value) === JSON.stringify(condition)
+  }
+  if (typeof condition === "object" && condition !== null) {
+    if (condition.length !== undefined) {
+      if (typeof condition.length === "number") {
+        if (value.length !== condition.length) return false
+      } else {
+        if (condition.length.min !== undefined && value.length < condition.length.min) return false
+        if (condition.length.max !== undefined && value.length > condition.length.max) return false
+      }
+    }
+    if (condition.includes !== undefined && !value.includes(condition.includes)) return false
+    if (condition.notIncludes !== undefined && value.includes(condition.notIncludes)) return false
+    if (condition.isEmpty !== undefined && (condition.isEmpty ? value.length !== 0 : value.length === 0)) return false
+    if (condition.every !== undefined) {
+      if (
+        !value.every((item) => {
+          if (typeof item === "number") return checkNumberCondition(item, condition.every)
+          if (typeof item === "string") return checkStringCondition(item, condition.every)
+          return false
+        })
+      )
+        return false
+    }
+    if (condition.some !== undefined) {
+      if (
+        !value.some((item) => {
+          if (typeof item === "number") return checkNumberCondition(item, condition.some)
+          if (typeof item === "string") return checkStringCondition(item, condition.some)
+          return false
+        })
+      )
+        return false
+    }
+  }
+  return true
+}
+
+/**
+ * Проверяет условие для любого значения
+ */
+function checkValueCondition(value: any, condition: any): boolean {
+  // Проверка на null
+  if (condition === null) {
+    return value === null
+  }
+
+  // Проверка на undefined
+  if (condition === undefined) {
+    return value === undefined
+  }
+
+  // Проверка на null в объекте условий
+  if (typeof condition === "object" && condition !== null && condition.null !== undefined) {
+    if (condition.null && value !== null) return false
+    if (!condition.null && value === null) return false
+    return true // Если проверка null прошла успешно, возвращаем true
+  }
+
+  // Проверка по типу значения
+  if (typeof value === "string") {
+    return checkStringCondition(value, condition)
+  }
+  if (typeof value === "number") {
+    return checkNumberCondition(value, condition)
+  }
+  if (typeof value === "boolean") {
+    return checkBooleanCondition(value, condition)
+  }
+  if (Array.isArray(value)) {
+    return checkArrayCondition(value, condition)
+  }
+
+  // Для объектов и других типов - прямое сравнение
+  if (typeof condition === "object" && condition !== null) {
+    // Если это объект условий, но не подходящий тип - возвращаем false
+    if (condition.eq !== undefined || condition.gt !== undefined || condition.startsWith !== undefined) {
+      return false
+    }
+  }
+
+  // Прямое сравнение для объектов и других типов
+  return JSON.stringify(value) === JSON.stringify(condition)
+}
+
+/**
  * Создает chain API для реакций
  */
 export function createReactionsChain<
@@ -90,7 +195,7 @@ export function createReactionsChain<
         return {
           equal: (updateFn: ReactionUpdate<C, S, Core>) => {
             // Создаем функцию фильтрации на основе декларативных условий
-            const filterFn = (args: ReactionFilterArgs<C, S>): boolean => {
+            const filterFn = (args: ReactionFilterArgs): boolean => {
               const { meta, patch } = args
 
               // Проверяем условия для метаданных
@@ -106,7 +211,7 @@ export function createReactionsChain<
               // Проверяем условия для патча
               if (conditions.op !== undefined && patch.op !== conditions.op) return false
               if (conditions.path !== undefined && patch.path !== conditions.path) return false
-              if (conditions.value !== undefined && patch.value !== conditions.value) return false
+              if (conditions.value !== undefined && !checkValueCondition(patch.value, conditions.value)) return false
 
               return true
             }
@@ -157,7 +262,7 @@ export class ReactionRegistry<C extends ContextSchema, S extends string, Core = 
     update: Update<C>
   }): void {
     for (const reaction of this.getReactions(state)) {
-      if (reaction.filter({ context, meta, patch, state })) {
+      if (reaction.filter({ meta, patch })) {
         reaction.update({ update, context, core, meta, patch, state })
       }
     }
@@ -213,7 +318,7 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
   const declarations = chainResult.map(([states, reaction]) => [states, reaction]) as [
     S[],
     {
-      filter: (args: ReactionFilterArgs<C, S>) => boolean
+      filter: (args: ReactionFilterArgs) => boolean
       update: ReactionUpdate<C, S, Core>
       title: string
       description?: string

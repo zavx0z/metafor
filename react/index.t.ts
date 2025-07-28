@@ -1,6 +1,13 @@
 import type { ContextSchema, ExtractValues } from "../context/index.t"
 import type { JsonPatch, MetaDataMessage } from "../message"
-import type { CondStringRequired, CondNumberRequired } from "../transition.t"
+import type {
+  CondStringRequired,
+  CondNumberRequired,
+  CondBooleanRequired,
+  CondArrayRequired,
+  Condition,
+  ConditionOptional,
+} from "../transition.t"
 
 /**
  * Аргументы для функции фильтрации
@@ -28,7 +35,7 @@ export type ReactionUpdate<C extends ContextSchema, S extends string, Core = Rec
  */
 export type ReactionFilterConditions = {
   /** 
-   Фильтрация по тегу 
+   # Фильтрация по тегу 
    
    1. Прямое сравнение строки с условием
     - tag: "test" - тег должен быть равен "test"
@@ -55,7 +62,7 @@ export type ReactionFilterConditions = {
   */
   tag?: CondStringRequired
   /** 
-   Фильтрация по индексу 
+   # Фильтрация по индексу 
    
    1. Прямое сравнение числа с условием
     - index: 5 - индекс должен быть равен 5
@@ -81,7 +88,7 @@ export type ReactionFilterConditions = {
   */
   index?: CondNumberRequired
   /** 
-   Фильтрация по временной метке 
+   # Фильтрация по временной метке 
    
    1. Прямое сравнение числа с условием
     - timestamp: 1640995200000 - временная метка должна быть равна 1640995200000
@@ -107,7 +114,7 @@ export type ReactionFilterConditions = {
   */
   timestamp?: CondNumberRequired
   /** 
-   Фильтрация по операции патча 
+   # Фильтрация по операции патча 
    
    Доступные операции:
    | Операция       | Описание                              |
@@ -123,7 +130,7 @@ export type ReactionFilterConditions = {
   */
   op?: "replace" | "add" | "remove" | "test"
   /** 
-   Фильтрация по пути патча 
+   # Фильтрация по пути патча 
    
    Доступные пути:
    | Путь           | Описание                              |
@@ -138,26 +145,104 @@ export type ReactionFilterConditions = {
   */
   path?: "/context" | "/state" | "/"
   /** 
-   Фильтрация по значению патча 
+   # Фильтрация по значению патча 
    
-   Поддерживаемые типы значений:
-   | Тип            | Описание                              | Пример                                |
-   | -------------- | ------------------------------------- | ------------------------------------- |
-   | string         | Строковые значения                    | value: "active"                       |
-   | number         | Числовые значения                     | value: 42                             |
-   | boolean        | Булевы значения                       | value: true                           |
-   | null           | Null значение                         | value: null                           |
-   | undefined      | Undefined значение                    | value: undefined                      |
-   | object         | Объекты любой сложности               | value: { name: "test", value: 42 }    |
-   | array          | Массивы любой сложности               | value: [1, 2, 3]                     |
-   | function       | Функции (не рекомендуется)            | value: () => "test"                   |
+   Поддерживает все типы значений с расширенными условиями сравнения.
    
-   Примеры использования:
-   - value: "active" - значение должно быть равно "active"
-   - value: 42 - значение должно быть равно 42
-   - value: { name: "test" } - значение должно быть равно объекту
+   ## Строковые значения
+   
+   1. Прямое сравнение
+    - value: "active" - значение должно быть равно "active"
+    - value: /test/ - значение должно соответствовать регулярному выражению
+   
+   2. Расширенные условия
+   
+   | Параметр       | Тип                                  | Описание                              |
+   | -------------- | ------------------------------------ | ------------------------------------- |
+   | eq             | string                               | Равно указанной строке                |
+   | notEq          | string                               | Не равно указанной строке             |
+   | startsWith     | string                               | Начинается ли с указанной строки      |
+   | endsWith       | string                               | Заканчивается ли на указанную строку  |
+   | include        | string                               | Включает ли указанную подстроку       |
+   | notInclude     | string                               | Не включает указанную подстроку       |
+   | notStartsWith  | string                               | Не начинается с указанной строки      |
+   | notEndsWith    | string                               | Не заканчивается на указанную строку  |
+   | pattern        | RegExp                               | Шаблон регулярного выражения          |
+   | length         | number \| { min?: number; max?: number } | Длина строки                      |
+   | between        | [string, string]                     | Должно быть между двумя строками      |
+   
+   ## Числовые значения
+   
+   1. Прямое сравнение
+    - value: 42 - значение должно быть равно 42
+   
+   2. Расширенные условия
+   
+   | Параметр | Тип              | Описание                              |
+   | -------- | ---------------- | ------------------------------------- |
+   | eq       | number           | Равно указанному числу                |
+   | notEq    | number           | Не равно указанному числу             |
+   | gt       | number           | Больше указанного числа               |
+   | gte      | number           | Больше или равно указанному числу     |
+   | lt       | number           | Меньше указанного числа               |
+   | lte      | number           | Меньше или равно указанному числу     |
+   | notGt    | number           | Не больше указанного числа            |
+   | notGte   | number           | Не больше или равно указанному числу  |
+   | notLt    | number           | Не меньше указанного числа            |
+   | notLte   | number           | Не меньше или равно указанному числу  |
+   | between  | [number, number] | Должно быть между двумя числами       |
+   
+   ## Булевы значения
+   
+   1. Прямое сравнение
+    - value: true - значение должно быть true
+   
+   2. Расширенные условия
+   
+   | Параметр   | Тип     | Описание                           |
+   | ---------- | ------- | ---------------------------------- |
+   | eq         | boolean | Равно указанному булеву значению   |
+   | notEq      | boolean | Не равно указанному булеву значению|
+   | logicalEq  | boolean | Логическое равенство               |
+   
+   ## Массивы
+   
+   1. Прямое сравнение
+    - value: [1, 2, 3] - массив должен быть равен [1, 2, 3]
+   
+   2. Расширенные условия
+   
+   | Параметр    | Тип              | Описание                              |
+   | ----------- | ---------------- | ------------------------------------- |
+   | length      | number \| { min?: number; max?: number } | Длина массива                    |
+   | includes    | any              | Содержит ли массив указанный элемент  |
+   | notIncludes | any              | Не содержит ли массив указанный элемент|
+   | every       | { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number; include?: string } | Все элементы удовлетворяют условию |
+   | some        | { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number; include?: string } | Хотя бы один элемент удовлетворяет условию |
+   | isEmpty     | boolean          | Является ли массив пустым             |
+   
+   ## Null и undefined
+   
+   | Параметр | Тип     | Описание                    |
+   | -------- | ------- | --------------------------- |
+   | null     | boolean | Является ли значение null   |
+   
+   ## Объекты
+   
+   - value: { name: "test" } - объект должен быть равен { name: "test" }
+   
+   ## Комбинированные условия
+   
+   Можно комбинировать с другими фильтрами:
+   ```typescript
+   filter({
+     value: { gt: 10, lt: 100 },
+     op: "replace",
+     path: "/context"
+   })
+   ```
   */
-  value?: any
+  value?: Condition<any> | ConditionOptional<any>
 }
 
 /**

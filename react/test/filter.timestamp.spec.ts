@@ -355,7 +355,7 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp: undefined },
+      meta: { tag: "test", index: 0, timestamp: 0 },
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -415,4 +415,4 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     expect(called, "реакция должна сработать для сообщений в диапазоне времени").toBe(true)
   })
-}) 
+})

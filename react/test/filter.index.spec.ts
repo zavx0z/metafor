@@ -351,7 +351,7 @@ describe("Фильтрация по индексу (index)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test", index: undefined },
+      meta: { tag: "test", index: 0, timestamp: 0 },
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -361,4 +361,4 @@ describe("Фильтрация по индексу (index)", () => {
 
     expect(called, "реакция должна сработать при undefined index (преобразуется в 0)").toBe(true)
   })
-}) 
+})

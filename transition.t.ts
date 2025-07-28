@@ -27,8 +27,11 @@ import type {
 export type CondBooleanRequired =
   | boolean
   | {
+      /** Равно указанному булеву значению */
       eq?: boolean
+      /** Не равно указанному булеву значению */
       notEq?: boolean
+      /** Логическое равенство */
       logicalEq?: boolean
     }
 
@@ -48,9 +51,13 @@ export type CondBooleanOptional =
   | boolean
   | null
   | {
+      /** Является ли значение null */
       null?: boolean
+      /** Равно указанному булеву значению */
       eq?: boolean
+      /** Не равно указанному булеву значению */
       notEq?: boolean
+      /** Логическое равенство */
       logicalEq?: boolean
     }
 
@@ -71,9 +78,13 @@ export type CondBooleanOptional =
 export type CondEnumRequired<E extends readonly (string | number)[]> =
   | E[number]
   | {
+      /** Равно указанному значению */
       eq?: E[number]
+      /** Не равно указанному значению */
       notEq?: E[number]
+      /** Одно из указанных значений */
       oneOf?: E[number][]
+      /** Не одно из указанных значений */
       notOneOf?: E[number][]
     }
 
@@ -96,10 +107,15 @@ export type CondEnumOptional<E extends readonly (string | number)[]> =
   | E[number]
   | null
   | {
+      /** Является ли значение null */
       null?: boolean
+      /** Равно указанному значению */
       eq?: E[number]
+      /** Не равно указанному значению */
       notEq?: E[number]
+      /** Одно из указанных значений */
       oneOf?: E[number][]
+      /** Не одно из указанных значений */
       notOneOf?: E[number][]
     }
 
@@ -126,16 +142,27 @@ export type CondStringRequired =
   | string
   | RegExp
   | {
+      /** Начинается ли с указанной строки */
       startsWith?: string
+      /** Заканчивается ли на указанную строку */
       endsWith?: string
+      /** Включает ли указанную подстроку */
       include?: string
+      /** Шаблон регулярного выражения */
       pattern?: RegExp
+      /** Равно указанной строке */
       eq?: string
+      /** Не равно указанной строке */
       notEq?: string
+      /** Не включает указанную подстроку */
       notInclude?: string
-      notStartsWith?: string
+      /** Не начинается с указанной строки */
+        notStartsWith?: string
+      /** Не заканчивается на указанную строку */
       notEndsWith?: string
+      /** Длина строки */
       length?: number | { min?: number; max?: number }
+      /** Должно быть между двумя строками */
       between?: [string, string]
     }
 
@@ -164,17 +191,29 @@ export type CondStringOptional =
   | RegExp
   | null
   | {
+      /** Является ли значение null */
       null?: boolean
+      /** Начинается ли с указанной строки */
       startsWith?: string
+      /** Заканчивается ли на указанную строку */
       endsWith?: string
+      /** Включает ли указанную подстроку */
       include?: string
+      /** Шаблон регулярного выражения */
       pattern?: RegExp
+      /** Равно указанной строке */
       eq?: string
+      /** Не равно указанной строке */
       notEq?: string
+      /** Не включает указанную подстроку */
       notInclude?: string
+      /** Не начинается с указанной строки */
       notStartsWith?: string
+      /** Не заканчивается на указанную строку */
       notEndsWith?: string
+      /** Длина строки */
       length?: number | { min?: number; max?: number }
+      /** Должно быть между двумя строками */
       between?: [string, string]
     }
 
@@ -200,16 +239,27 @@ export type CondStringOptional =
 export type CondNumberRequired =
   | number
   | {
+      /** Равно указанному числу */
       eq?: number
+      /** Больше указанного числа */
       gt?: number
+      /** Больше или равно указанному числу */
       gte?: number
+      /** Меньше указанного числа */
       lt?: number
+      /** Меньше или равно указанному числу */
       lte?: number
+      /** Не равно указанному числу */
       notEq?: number
+      /** Не больше указанного числа */
       notGt?: number
+      /** Не больше или равно указанному числу */
       notGte?: number
+      /** Не меньше указанного числа */
       notLt?: number
+      /** Не меньше или равно указанному числу */
       notLte?: number
+      /** Должно быть между двумя числами */
       between?: [number, number]
     }
 
@@ -237,17 +287,29 @@ export type CondNumberOptional =
   | number
   | null
   | {
+      /** Является ли значение null */
       null?: boolean
+      /** Равно указанному числу */
       eq?: number
+      /** Больше указанного числа */
       gt?: number
+      /** Больше или равно указанному числу */
       gte?: number
+      /** Меньше указанного числа */
       lt?: number
+      /** Меньше или равно указанному числу */
       lte?: number
+      /** Не равно указанному числу */
       notEq?: number
+      /** Не больше указанного числа */
       notGt?: number
+      /** Не больше или равно указанному числу */
       notGte?: number
+      /** Не меньше указанного числа */
       notLt?: number
+      /** Не меньше или равно указанному числу */
       notLte?: number
+      /** Должно быть между двумя числами */
       between?: [number, number]
     }
 
@@ -268,19 +330,25 @@ export type CondNumberOptional =
 export type CondArrayRequired<T = any> =
   | T[]
   | {
+      /** Длина массива */
       length?: number | { min?: number; max?: number }
+      /** Содержит ли массив указанный элемент */
       includes?: T
+      /** Не содержит ли массив указанный элемент */
       notIncludes?: T
+      /** Все элементы удовлетворяют условию */
       every?: T extends number
         ? { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number }
         : T extends string
         ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
         : never
+      /** Хотя бы один элемент удовлетворяет условию */
       some?: T extends number
         ? { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number }
         : T extends string
         ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
         : never
+      /** Является ли массив пустым */
       isEmpty?: boolean
     }
 
@@ -303,20 +371,27 @@ export type CondArrayOptional<T = any> =
   | T[]
   | null
   | {
+      /** Является ли значение null */
       null?: boolean
+      /** Длина массива */
       length?: number | { min?: number; max?: number }
+      /** Содержит ли массив указанный элемент */
       includes?: T
+      /** Не содержит ли массив указанный элемент */
       notIncludes?: T
+      /** Все элементы удовлетворяют условию */
       every?: T extends number
         ? { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number }
         : T extends string
         ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
         : never
+      /** Хотя бы один элемент удовлетворяет условию */
       some?: T extends number
         ? { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number }
         : T extends string
         ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
         : never
+      /** Является ли массив пустым */
       isEmpty?: boolean
     }
 
