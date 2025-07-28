@@ -41,6 +41,7 @@
     "CONTEXT:TEST": "bun test context",
     "HTML:TEST": "bun test html",
     "docs": "typedoc",
-    "docs:watch": "typedoc --watch"
+    "docs:watch": "typedoc --watch",
+    "merge:doc": "bun run script/merge.doc.ts"
   }
 }

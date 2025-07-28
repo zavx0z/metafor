@@ -117,7 +117,8 @@
     "cSpell.ignorePaths": [
         ".github",
         "./html/tests/*",
-        "./docs"
+        "./docs",
+        "./script"
     ],
     "markdownlint.lintWorkspaceGlobs": [
         "!**/node_modules/**/*.md", // Exclude Markdown files within node_modules directories
