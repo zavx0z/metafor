@@ -1,17 +1,29 @@
 import type { Update, ExtractValues } from "../context/index.t"
-import type { JsonPatch, MetaDataMessage, Message } from "../message"
+import type { JsonPatch, MetaDataMessage } from "../message"
 import type { ContextSchema } from "../context/types.t"
 
 /**
- * Функция для создания декларации реакций
- * @param update Функция для обновления контекста
- * @returns Декларация реакций
+ * Chain API для создания реакций
  */
-export type ReactionsDeclaration<
-  C extends ContextSchema,
-  S extends string,
-  Core = Record<string, any>
-> = ReactionDeclaration<C, S, Core>[]
+export type ReactionsChain<C extends ContextSchema, S extends string, Core = Record<string, any>> = (
+  filter: ReactionFilterChain<C, S, Core>
+) => any[]
+
+/**
+ * Chain API для фильтра реакций
+ */
+export type ReactionFilterChain<C extends ContextSchema, S extends string, Core = Record<string, any>> = (
+  filterFn: (args: ReactionFilterArgs<C, S>) => boolean
+) => {
+  equal: (
+    updateFn: ReactionUpdate<C, S, Core>,
+    title?: string
+  ) => {
+    filter: (args: ReactionFilterArgs<C, S>) => boolean
+    update: ReactionUpdate<C, S, Core>
+    title: string | undefined
+  }
+}
 
 /**
  * Карта реакций для быстрого поиска по состоянию.
@@ -22,21 +34,13 @@ export type ReactionsMap<C extends ContextSchema, S extends string, Core = Recor
   Reaction<C, S, Core>[]
 >
 
-/**
- * Декларация реакций
- * @param C Контекст
- * @param S Состояние
- */
-export type ReactionDeclaration<C extends ContextSchema, S extends string, Core = Record<string, any>> = [
-  S[],
-  {
-    update: ReactionUpdate<C, S, Core>
-    filter: (message: Message) => boolean
-    title?: string
-  }
-]
-
-export type ReactionUpdate<C extends ContextSchema, S extends string, Core = Record<string, any>> = ({patch, meta, context, state, core}:{
+export type ReactionUpdate<C extends ContextSchema, S extends string, Core = Record<string, any>> = ({
+  patch,
+  meta,
+  context,
+  state,
+  core,
+}: {
   patch: JsonPatch
   meta: MetaDataMessage
   context: ExtractValues<C>
@@ -48,7 +52,7 @@ export type ReactionUpdate<C extends ContextSchema, S extends string, Core = Rec
 export type ReactionFilterArgs<C extends ContextSchema, S extends string> = {
   meta: MetaDataMessage
   patch: JsonPatch
-  context: C
+  context: ExtractValues<C>
   state: S
 }
 

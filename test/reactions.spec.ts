@@ -46,18 +46,13 @@ describe("реакции", () => {
       })
       .core()
       .actions()
-      .reactions([
+      .reactions((filter) => [
         [
           ["state_1"],
-          {
-            filter: ({ meta, patch }) => {
-              reactionMessages.push({ meta, patch })
-              return meta.tag === "child" && patch.op === "add"
-            },
-            update: ({ update }) => {
-              update({ childAdded: true })
-            },
-          },
+          filter(({ meta, patch }) => {
+            reactionMessages.push({ meta, patch })
+            return meta.tag === "child" && patch.op === "add"
+          }).equal(({ update }) => update({ childAdded: true })),
         ],
       ])
       .view({

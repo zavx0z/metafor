@@ -20,7 +20,7 @@ export type { ActionsDeclaration, Process }
  *     .error(({ update, error }) => update({ name: error.message })),
  * }))
  */
-export function createActionsConfig<C extends ContextSchema, S extends string>(builder: ActionsDeclaration<C, S>) {
+export function createActionsConfig<C extends ContextSchema, S extends string>(actions: ActionsDeclaration<C, S>): Partial<Record<S, Process<C, any>>> {
   /**
    * Фабрика для создания chain-объекта для каждого действия.
    * Каждый вызов action возвращает chain API с методами success, error, getResult.
@@ -64,7 +64,7 @@ export function createActionsConfig<C extends ContextSchema, S extends string>(b
     return chain
   }
   // Вызываем builder, передавая фабрику action. На выходе получаем объект, где значения — chain-объекты.
-  const raw = builder(action)
+  const raw = actions(action)
   // Для каждого ключа вызываем getResult, чтобы получить финальный объект с action, success, error.
   const result: Partial<Record<S, ReturnType<ActionChain<C, any>["getResult"]>>> = {} as any
   for (const key in raw) {

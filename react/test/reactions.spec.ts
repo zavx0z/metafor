@@ -1,5 +1,4 @@
-import { ReactionRegistry } from "../index"
-import type { ReactionsDeclaration } from "../index.t"
+import { ReactionRegistry, createReactionsChain } from "../index"
 import type { Update, ExtractValues } from "../../context/index.t"
 import { describe, it, expect } from "bun:test"
 
@@ -10,37 +9,28 @@ type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active" | "error"
 
 describe("ReactionRegistry", () => {
-  const declaration: ReactionsDeclaration<Ctx, State> = [
-    [
-      ["idle", "active"],
-      {
-        title: "inc",
-        filter: () => true,
-        update: ({ update, context }) => {
-          update({ value: context.value + 1 })
-        },
-      },
-    ],
-    [
-      ["error"],
-      {
-        title: "reset",
-        filter: () => true,
-        update: ({ context }) => {
-          context.value = 0
-        },
-      },
-    ],
-  ]
-
   const fakeUpdate: Update<Ctx> = (values) => values as any
   // fakeContext должен быть типа ExtractValues<Ctx>, а не Ctx
   const fakeContext: ExtractValues<Ctx> = { value: 10 }
   const fakeMeta: MetaDataMessage = { tag: "test" } as MetaDataMessage
   const fakePatch: JsonPatch = [{ op: "replace", path: "/value", value: 1 }] as any
-  const registry = new ReactionRegistry(declaration)
 
   it("создаёт уникальные реакции", () => {
+    const registry = new ReactionRegistry<Ctx, State>((filter) => [
+      [
+        ["idle", "active"],
+        filter(() => true).equal(({ update, context }) => {
+          update({ value: context.value + 1 })
+        }, "inc"),
+      ],
+      [
+        ["error"],
+        filter(() => true).equal(({ context }) => {
+          context.value = 0
+        }, "reset"),
+      ],
+    ])
+
     const all = registry.getAllReactions()
     expect(all?.length, "уникальные реакции").toBe(2)
     expect(all?.[0]?.title, "первая реакция").toBe("inc")
@@ -48,6 +38,21 @@ describe("ReactionRegistry", () => {
   })
 
   it("находит реакции по состоянию", () => {
+    const registry = new ReactionRegistry<Ctx, State>((filter) => [
+      [
+        ["idle", "active"],
+        filter(() => true).equal(({ update, context }) => {
+          update({ value: context.value + 1 })
+        }, "inc"),
+      ],
+      [
+        ["error"],
+        filter(() => true).equal(({ context }) => {
+          context.value = 0
+        }, "reset"),
+      ],
+    ])
+
     const idle = registry.getReactions("idle")
     expect(idle?.length, "idle реакции").toBe(1)
     expect(idle?.[0]?.title, "idle title").toBe("inc")
@@ -58,18 +63,15 @@ describe("ReactionRegistry", () => {
 
   it("исполняет реакции через run", () => {
     let called = false
-    const customRegistry = new ReactionRegistry<Ctx, State>([
+    const customRegistry = new ReactionRegistry<Ctx, State>((filter) => [
       [
         ["active"],
-        {
-          title: "test",
-          filter: () => true,
-          update: () => {
-            called = true
-          },
-        },
+        filter(() => true).equal(() => {
+          called = true
+        }, "test"),
       ],
     ])
+
     customRegistry.run({
       meta: fakeMeta,
       patch: fakePatch,
@@ -82,6 +84,21 @@ describe("ReactionRegistry", () => {
   })
 
   it("сериализует структуру", () => {
+    const registry = new ReactionRegistry<Ctx, State>((filter) => [
+      [
+        ["idle", "active"],
+        filter(() => true).equal(({ update, context }) => {
+          update({ value: context.value + 1 })
+        }, "inc"),
+      ],
+      [
+        ["error"],
+        filter(() => true).equal(({ context }) => {
+          context.value = 0
+        }, "reset"),
+      ],
+    ])
+
     const json = registry.toJSON()
     expect(Array.isArray(json.reactions), "reactions массив").toBe(true)
     expect(typeof json.states, "states объект").toBe("object")

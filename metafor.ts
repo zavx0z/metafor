@@ -21,7 +21,7 @@ import { when } from "./html/directives/when.ts"
 import { map } from "./html/directives/map.ts"
 import { styleMap } from "./html/directives/style-map.ts"
 import { ReactionRegistry } from "./react/index"
-import type { ReactionsDeclaration } from "./react/index.t.ts"
+import type { ReactionsChain } from "./react/index.t.ts"
 
 // Фабрика логгера с ленивой загрузкой
 type Logger = (message: Message, core: Record<string, any>) => void
@@ -112,7 +112,7 @@ export function MetaFor(tag: string) {
                 /**
                  * Регистрирует действия автомата для нужных состояний.
                  *
-                 * @param builder Функция, принимающая action — фабрику chain API для описания действий.
+                 * @param actions Функция, принимающая action — фабрику chain API для описания действий.
                  * Возвращает объект, где ключ — имя состояния (только для тех, где нужны действия), а значение — chain-объект с обработчиками.
                  *
                  * Пример:
@@ -127,15 +127,16 @@ export function MetaFor(tag: string) {
                  *
                  * @returns Объект с действиями только для нужных состояний
                  */
-                actions(builder: ActionsDeclaration<C, S> = () => ({})) {
-                  const actionsConfig = createActionsConfig<C, S>(builder)
+                actions(actions: ActionsDeclaration<C, S> = () => ({})) {
+                  const actionsRegistry = createActionsConfig<C, S>(actions)
                   return {
                     /**
                      * Регистрирует карту реакций для автомата.
-                     * @param builder Функция (update => декларация), где декларация — массив кортежей [string[], { update, filter, title }]
+                     * @param reactions Функция (filter => декларация), где декларация — массив кортежей [string[], { update, filter, title }]
                      * @returns chain API для вызова .view(...)
                      */
-                    reactions(reactions: ReactionsDeclaration<C, S> = []) {
+                    reactions(reactions: ReactionsChain<C, S> = () => []) {
+                      const reactionsRegistry = new ReactionRegistry(reactions)
                       return {
                         view(view?: ViewConfig<C, S>) {
                           /**
@@ -146,8 +147,8 @@ export function MetaFor(tag: string) {
                             #shadow: ShadowRoot
                             #channel: BroadcastChannel
                             #transitions = states
-                            #actions = actionsConfig
-                            #reactions: ReactionRegistry<C, S, Record<string, any>>
+                            #actions = actionsRegistry
+                            #reactions = reactionsRegistry
                             #core: Record<string, any> = {}
                             /** ------------state-------------------------------- */
                             #state: S = initialState
@@ -179,7 +180,6 @@ export function MetaFor(tag: string) {
                               this.#channel = new BroadcastChannel("channel")
                               this.#ctx = createContext(contextSchema)
                               this.#core = core
-                              this.#reactions = new ReactionRegistry(reactions)
                               view?.style?.({
                                 css: (strings, ...values) => {
                                   const sheet = new CSSStyleSheet()
@@ -195,7 +195,7 @@ export function MetaFor(tag: string) {
                               this.#updateView()
                               this.setAttribute("state", this.#state)
                               console.log("connected: ", tag)
-                              if (reactions) {
+                              if (this.#reactions.hasReactions()) {
                                 this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
                                 this.addEventListener("channel", this.#reactionHandler)
                               }
@@ -349,7 +349,7 @@ export function MetaFor(tag: string) {
                              * Обработка входящих сообщений для реакций
                              */
                             #handleReactionMessage = (message: Message) => {
-                              if (!this.#reactions) return
+                              if (!this.#reactions.hasReactions()) return
                               const { meta, patch } = message
                               const state = this.#state as S
                               this.#reactions.run({
