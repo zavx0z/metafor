@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test"
-import { validateNoUnconditionalCycles } from "../index.ts"
-import type { StatesConfig } from "../../transition.t.ts"
+import { validateNoUnconditionalCycles } from "../validator.ts"
+import type { StatesConfig } from "../index.t.ts"
 
 function getCyclicStates(): StatesConfig<string, any> {
   return {

@@ -1,17 +1,17 @@
 /**
- * Типы для условий переходов между состояниями
+ * Типы для состояний и переходов между ними
  * @packageDocumentation
- * 
+ *
  * # Состояния (States)
- * 
+ *
  * Состояния определяют возможные переходы автомата с условиями.
  * Каждое состояние может переходить в другие состояния при выполнении определенных условий.
- * 
+ *
  * ## Основные принципы:
  * - **Явное перечисление**: Всегда перечисляйте все состояния в массивах реакций
  * - **Условия переходов**: Определяйте условия для каждого перехода
  * - **Типобезопасность**: TypeScript проверяет корректность условий
- * 
+ *
  * ## Структура состояний:
  * ```typescript
  * .states({
@@ -21,7 +21,7 @@
  *   }
  * })
  * ```
- * 
+ *
  * @example
  * ```typescript
  * .states({
@@ -46,14 +46,14 @@
  */
 
 import type {
-      ContextSchema,
-      ExtractValues,
-      RequiredArrayDefinition,
-      RequiredBooleanDefinition,
-      RequiredEnumDefinition,
-      RequiredNumberDefinition,
-      RequiredStringDefinition,
-} from "./context/index.t.ts"
+  ContextSchema,
+  ExtractValues,
+  RequiredArrayDefinition,
+  RequiredBooleanDefinition,
+  RequiredEnumDefinition,
+  RequiredNumberDefinition,
+  RequiredStringDefinition,
+} from "../context/index.t.ts"
 
 /** 
  * # Условия для булевых значений (required)
@@ -105,12 +105,15 @@ export type CondBooleanRequired =
    
    @example
    ```typescript
-   // Проверка на null
-   isPremium: null
+   // Простое условие
+   isActive: true
    
-   // Проверка значения
-   isVerified: { eq: true }
-   isBlocked: { notEq: false }
+   // Проверка на null
+   isVerified: null
+   
+   // Сложное условие
+   isAdmin: { eq: true }
+   isVerified: { null: true }
    ```
    */
 export type CondBooleanOptional =
@@ -128,30 +131,27 @@ export type CondBooleanOptional =
     }
 
 /** 
- * # Условия для enum (required)
+ * # Условия для enum значений (required)
   
    Позволяет определять условия для обязательных enum значений в контексте.
-   Не поддерживает проверку на null.
+   Не поддерживает проверку на null, так как required поля всегда имеют значение.
   
    ## Параметры:
-   | Параметр  | Тип         | Описание                       |
-   | --------- | ----------- | ------------------------------ |
-   | eq        | E[number]   | Равно указанному значению      |
-   | notEq     | E[number]   | Не равно указанному значению   |
-   | oneOf     | E[number][] | Одно из указанных значений     |
-   | notOneOf  | E[number][] | Не одно из указанных значений  |
-  
-   @template E - Тип значений enum
+   | Параметр   | Тип     | Описание                           |
+   | ---------- | ------- | ---------------------------------- |
+   | eq         | E[number] | Равно указанному значению         |
+   | notEq      | E[number] | Не равно указанному значению      |
+   | oneOf      | E[number][] | Одно из указанных значений       |
+   | notOneOf   | E[number][] | Не одно из указанных значений    |
    
    @example
    ```typescript
    // Простое условие
-   status: "active"
+   role: 'admin'
    
-   // Сложные условия
-   role: { eq: "admin" }
-   status: { oneOf: ["pending", "active"] }
-   role: { notOneOf: ["banned", "suspended"] }
+   // Сложное условие
+   role: { eq: 'admin' }
+   status: { oneOf: ['active', 'pending'] }
    ```
    */
 export type CondEnumRequired<E extends readonly (string | number)[]> =
@@ -168,30 +168,31 @@ export type CondEnumRequired<E extends readonly (string | number)[]> =
     }
 
 /** 
- * # Условия для enum (optional)
+ * # Условия для enum значений (optional)
   
    Позволяет определять условия для опциональных enum значений в контексте.
    Поддерживает проверку на null.
   
    ## Параметры:
-   | Параметр  | Тип         | Описание                       |
-   | --------- | ----------- | ------------------------------ |
-   | null      | boolean     | Является ли значение null      |
-   | eq        | E[number]   | Равно указанному значению      |
-   | notEq     | E[number]   | Не равно указанному значению   |
-   | oneOf     | E[number][] | Одно из указанных значений     |
-   | notOneOf  | E[number][] | Не одно из указанных значений  |
-   
-   @template E - Тип значений enum
+   | Параметр   | Тип     | Описание                           |
+   | ---------- | ------- | ---------------------------------- |
+   | null       | boolean | Является ли значение null          |
+   | eq         | E[number] | Равно указанному значению         |
+   | notEq      | E[number] | Не равно указанному значению      |
+   | oneOf      | E[number][] | Одно из указанных значений       |
+   | notOneOf   | E[number][] | Не одно из указанных значений    |
    
    @example
    ```typescript
-   // Проверка на null
-   theme: null
+   // Простое условие
+   role: 'admin'
    
-   // Проверка значения
-   language: { eq: "ru" }
-   category: { oneOf: ["tech", "design"] }
+   // Проверка на null
+   role: null
+   
+   // Сложное условие
+   role: { eq: 'admin' }
+   status: { oneOf: ['active', 'pending'] }
    ```
    */
 export type CondEnumOptional<E extends readonly (string | number)[]> =
@@ -211,39 +212,37 @@ export type CondEnumOptional<E extends readonly (string | number)[]> =
     }
 
 /** 
- * # Условия для строк (required)
+ * # Условия для строковых значений (required)
   
    Позволяет определять условия для обязательных строковых значений в контексте.
-   Поддерживает различные проверки: равенство, регулярные выражения, длина и т.д.
+   Не поддерживает проверку на null, так как required поля всегда имеют значение.
   
    ## Параметры:
    | Параметр      | Тип     | Описание                           |
    | ------------- | ------- | ---------------------------------- |
+   | startsWith    | string  | Начинается ли с указанной строки   |
+   | endsWith      | string  | Заканчивается ли на указанную строку|
+   | include       | string  | Включает ли указанную подстроку    |
+   | pattern       | RegExp  | Шаблон регулярного выражения      |
    | eq            | string  | Равно указанной строке             |
    | notEq         | string  | Не равно указанной строке          |
-   | startsWith    | string  | Начинается с указанной строки      |
-   | endsWith      | string  | Заканчивается на указанную строку  |
-   | include       | string  | Содержит указанную подстроку       |
-   | notInclude    | string  | Не содержит указанную подстроку    |
-   | pattern       | RegExp  | Соответствует регулярному выражению|
-   | length        | number  | Длина строки                       |
-   | between       | [string, string] | Между двумя строками        |
+   | notInclude    | string  | Не включает указанную подстроку    |
+   | notStartsWith | string  | Не начинается с указанной строки   |
+   | notEndsWith   | string  | Не заканчивается на указанную строку|
+   | length        | number \| { min?: number; max?: number } | Длина строки |
+   | between       | [string, string] | Должно быть между двумя строками |
    
    @example
    ```typescript
-   // Простые условия
-   name: "admin"
+   // Простое условие
+   name: 'John'
+   
+   // Регулярное выражение
    email: /@/
    
-   // Сложные условия
-   name: { 
-     length: { min: 2, max: 20 },
-     startsWith: "user"
-   }
-   email: { 
-     pattern: /^[^@]+@[^@]+\.[^@]+$/,
-     notInclude: "spam"
-   }
+   // Сложное условие
+   name: { length: { min: 2 } }
+   email: { pattern: /@/, include: '.com' }
    ```
    */
 export type CondStringRequired =
@@ -265,7 +264,7 @@ export type CondStringRequired =
       /** Не включает указанную подстроку */
       notInclude?: string
       /** Не начинается с указанной строки */
-        notStartsWith?: string
+      notStartsWith?: string
       /** Не заканчивается на указанную строку */
       notEndsWith?: string
       /** Длина строки */
@@ -275,35 +274,41 @@ export type CondStringRequired =
     }
 
 /** 
- * # Условия для строк (optional)
+ * # Условия для строковых значений (optional)
   
    Позволяет определять условия для опциональных строковых значений в контексте.
-   Поддерживает проверку на null и все условия для required строк.
+   Поддерживает проверку на null.
   
    ## Параметры:
    | Параметр      | Тип     | Описание                           |
    | ------------- | ------- | ---------------------------------- |
    | null          | boolean | Является ли значение null          |
+   | startsWith    | string  | Начинается ли с указанной строки   |
+   | endsWith      | string  | Заканчивается ли на указанную строку|
+   | include       | string  | Включает ли указанную подстроку    |
+   | pattern       | RegExp  | Шаблон регулярного выражения      |
    | eq            | string  | Равно указанной строке             |
    | notEq         | string  | Не равно указанной строке          |
-   | startsWith    | string  | Начинается с указанной строки      |
-   | endsWith      | string  | Заканчивается на указанную строку  |
-   | include       | string  | Содержит указанную подстроку       |
-   | notInclude    | string  | Не содержит указанную подстроку    |
-   | pattern       | RegExp  | Соответствует регулярному выражению|
-   | length        | number  | Длина строки                       |
-   | between       | [string, string] | Между двумя строками        |
+   | notInclude    | string  | Не включает указанную подстроку    |
+   | notStartsWith | string  | Не начинается с указанной строки   |
+   | notEndsWith   | string  | Не заканчивается на указанную строку|
+   | length        | number \| { min?: number; max?: number } | Длина строки |
+   | between       | [string, string] | Должно быть между двумя строками |
    
    @example
    ```typescript
-   // Проверка на null
-   description: null
+   // Простое условие
+   name: 'John'
    
-   // Проверка значения
-   avatar: { 
-     pattern: /\.(jpg|png|gif)$/,
-     notInclude: "default"
-   }
+   // Проверка на null
+   name: null
+   
+   // Регулярное выражение
+   email: /@/
+   
+   // Сложное условие
+   name: { length: { min: 2 } }
+   email: { pattern: /@/, include: '.com' }
    ```
    */
 export type CondStringOptional =
@@ -338,37 +343,34 @@ export type CondStringOptional =
     }
 
 /** 
- * # Условия для чисел (required)
+ * # Условия для числовых значений (required)
   
    Позволяет определять условия для обязательных числовых значений в контексте.
-   Поддерживает сравнения, диапазоны и равенство.
+   Не поддерживает проверку на null, так как required поля всегда имеют значение.
   
    ## Параметры:
-   | Параметр | Тип     | Описание                           |
-   | -------- | ------- | ---------------------------------- |
-   | eq       | number  | Равно указанному числу             |
-   | gt       | number  | Больше указанного числа            |
-   | gte      | number  | Больше или равно указанному числу  |
-   | lt       | number  | Меньше указанного числа            |
-   | lte      | number  | Меньше или равно указанному числу  |
-   | notEq    | number  | Не равно указанному числу          |
-   | between  | [number, number] | Между двумя числами        |
+   | Параметр   | Тип     | Описание                           |
+   | ---------- | ------- | ---------------------------------- |
+   | eq         | number  | Равно указанному числу             |
+   | gt         | number  | Больше указанного числа            |
+   | gte        | number  | Больше или равно указанному числу  |
+   | lt         | number  | Меньше указанного числа            |
+   | lte        | number  | Меньше или равно указанному числу  |
+   | notEq      | number  | Не равно указанному числу          |
+   | notGt      | number  | Не больше указанного числа         |
+   | notGte     | number  | Не больше или равно указанному числу|
+   | notLt      | number  | Не меньше указанного числа         |
+   | notLte     | number  | Не меньше или равно указанному числу|
+   | between    | [number, number] | Должно быть между двумя числами |
    
    @example
    ```typescript
-   // Простые условия
+   // Простое условие
    age: 18
-   count: { gt: 0 }
    
-   // Сложные условия
-   age: { 
-     gte: 18,
-     lte: 65
-   }
-   rating: { 
-     between: [1, 5],
-     notEq: 0
-   }
+   // Сложное условие
+   age: { gte: 18, lte: 65 }
+   score: { between: [0, 100] }
    ```
    */
 export type CondNumberRequired =
@@ -399,33 +401,38 @@ export type CondNumberRequired =
     }
 
 /** 
- * # Условия для чисел (optional)
+ * # Условия для числовых значений (optional)
   
    Позволяет определять условия для опциональных числовых значений в контексте.
-   Поддерживает проверку на null и все условия для required чисел.
+   Поддерживает проверку на null.
   
    ## Параметры:
-   | Параметр | Тип     | Описание                           |
-   | -------- | ------- | ---------------------------------- |
-   | null     | boolean | Является ли значение null          |
-   | eq       | number  | Равно указанному числу             |
-   | gt       | number  | Больше указанного числа            |
-   | gte      | number  | Больше или равно указанному числу  |
-   | lt       | number  | Меньше указанного числа            |
-   | lte      | number  | Меньше или равно указанному числу  |
-   | notEq    | number  | Не равно указанному числу          |
-   | between  | [number, number] | Между двумя числами        |
+   | Параметр   | Тип     | Описание                           |
+   | ---------- | ------- | ---------------------------------- |
+   | null       | boolean | Является ли значение null          |
+   | eq         | number  | Равно указанному числу             |
+   | gt         | number  | Больше указанного числа            |
+   | gte        | number  | Больше или равно указанному числу  |
+   | lt         | number  | Меньше указанного числа            |
+   | lte        | number  | Меньше или равно указанному числу  |
+   | notEq      | number  | Не равно указанному числу          |
+   | notGt      | number  | Не больше указанного числа         |
+   | notGte     | number  | Не больше или равно указанному числу|
+   | notLt      | number  | Не меньше указанного числа         |
+   | notLte     | number  | Не меньше или равно указанному числу|
+   | between    | [number, number] | Должно быть между двумя числами |
    
    @example
    ```typescript
-   // Проверка на null
-   rating: null
+   // Простое условие
+   age: 18
    
-   // Проверка значения
-   priority: { 
-     gte: 1,
-     lte: 10
-   }
+   // Проверка на null
+   age: null
+   
+   // Сложное условие
+   age: { gte: 18, lte: 65 }
+   score: { between: [0, 100] }
    ```
    */
 export type CondNumberOptional =
@@ -462,35 +469,26 @@ export type CondNumberOptional =
  * # Условия для массивов (required)
   
    Позволяет определять условия для обязательных массивов в контексте.
-   Поддерживает проверки длины, содержимого и элементов.
+   Не поддерживает проверку на null, так как required поля всегда имеют значение.
   
    ## Параметры:
-   | Параметр   | Тип     | Описание                           |
-   | ---------- | ------- | ---------------------------------- |
-   | length     | number  | Длина массива                      |
-   | includes   | T       | Содержит указанный элемент         |
-   | notIncludes| T       | Не содержит указанный элемент      |
-   | isEmpty    | boolean | Является ли массив пустым          |
-   | every      | object  | Все элементы удовлетворяют условию |
-   | some       | object  | Хотя бы один элемент удовлетворяет |
-   
-   @template T - Тип элементов массива
+   | Параметр    | Тип     | Описание                           |
+   | ----------- | ------- | ---------------------------------- |
+   | length      | number \| { min?: number; max?: number } | Длина массива |
+   | includes    | T       | Содержит ли массив указанный элемент |
+   | notIncludes | T       | Не содержит ли массив указанный элемент |
+   | every       | Condition | Все элементы удовлетворяют условию |
+   | some        | Condition | Хотя бы один элемент удовлетворяет условию |
+   | isEmpty     | boolean | Является ли массив пустым          |
    
    @example
    ```typescript
-   // Простые условия
-   userIds: []
-   tags: { length: { min: 1 } }
+   // Простое условие
+   tags: ['admin', 'user']
    
-   // Сложные условия
-   userIds: { 
-     length: { min: 1, max: 100 },
-     includes: 1
-   }
-   tags: { 
-     every: { include: "valid" },
-     notIncludes: "spam"
-   }
+   // Сложное условие
+   tags: { length: { min: 1 } }
+   scores: { every: { gte: 0 } }
    ```
    */
 export type CondArrayRequired<T = any> =
@@ -522,31 +520,30 @@ export type CondArrayRequired<T = any> =
  * # Условия для массивов (optional)
   
    Позволяет определять условия для опциональных массивов в контексте.
-   Поддерживает проверку на null и все условия для required массивов.
+   Поддерживает проверку на null.
   
    ## Параметры:
-   | Параметр   | Тип     | Описание                           |
-   | ---------- | ------- | ---------------------------------- |
-   | null       | boolean | Является ли значение null          |
-   | length     | number  | Длина массива                      |
-   | includes   | T       | Содержит указанный элемент         |
-   | notIncludes| T       | Не содержит указанный элемент      |
-   | isEmpty    | boolean | Является ли массив пустым          |
-   | every      | object  | Все элементы удовлетворяют условию |
-   | some       | object  | Хотя бы один элемент удовлетворяет |
-   
-   @template T - Тип элементов массива
+   | Параметр    | Тип     | Описание                           |
+   | ----------- | ------- | ---------------------------------- |
+   | null        | boolean | Является ли значение null          |
+   | length      | number \| { min?: number; max?: number } | Длина массива |
+   | includes    | T       | Содержит ли массив указанный элемент |
+   | notIncludes | T       | Не содержит ли массив указанный элемент |
+   | every       | Condition | Все элементы удовлетворяют условию |
+   | some        | Condition | Хотя бы один элемент удовлетворяет условию |
+   | isEmpty     | boolean | Является ли массив пустым          |
    
    @example
    ```typescript
-   // Проверка на null
-   categories: null
+   // Простое условие
+   tags: ['admin', 'user']
    
-   // Проверка значения
-   tags: { 
-     length: { min: 1 },
-     notIncludes: "invalid"
-   }
+   // Проверка на null
+   tags: null
+   
+   // Сложное условие
+   tags: { length: { min: 1 } }
+   scores: { every: { gte: 0 } }
    ```
    */
 export type CondArrayOptional<T = any> =
@@ -578,8 +575,7 @@ export type CondArrayOptional<T = any> =
     }
 
 /**
- * Автоматически определяет тип условий на основе типа значения
- * @template T - Тип значения для которого определяются условия
+ * Условие для обязательного поля контекста
  */
 export type Condition<T> = T extends boolean
   ? CondBooleanRequired
@@ -596,8 +592,7 @@ export type Condition<T> = T extends boolean
   : never
 
 /**
- * Автоматически определяет тип условий для опциональных значений
- * @template T - Тип значения для которого определяются условия
+ * Условие для опционального поля контекста
  */
 export type ConditionOptional<T> = T extends boolean
   ? CondBooleanOptional
@@ -615,19 +610,6 @@ export type ConditionOptional<T> = T extends boolean
 
 /**
  * Условия переходов для всех полей контекста
- * Автоматически определяет правильный тип условий для каждого поля
- * @template T - Схема контекста
- * 
- * @example
- * ```typescript
- * const conditions: TransitionConditions<MyContext> = {
- *   name: { length: { min: 2 } },           // string
- *   age: { gte: 18 },                       // number
- *   isActive: true,                         // boolean
- *   userIds: { length: { min: 1 } },        // array
- *   status: "active"                        // enum
- * }
- * ```
  */
 export type TransitionConditions<T extends ContextSchema> = {
   [K in keyof T]?: T[K] extends
@@ -642,55 +624,17 @@ export type TransitionConditions<T extends ContextSchema> = {
 
 /**
  * Переходы из одного состояния в другие
- * @template T - Строковые ключи состояний
- * @template C - Схема контекста
- * 
- * @example
- * ```typescript
- * const transitions: StateTransitions<"idle" | "loading", MyContext> = {
- *   idle: {
- *     loading: { isLoading: true }
- *   },
- *   loading: {
- *     success: { count: { gt: 0 } },
- *     error: { isLoading: false }
- *   }
- * }
- * ```
  */
 export type StateTransitions<T extends string, C extends ContextSchema> = {
-      [K in T]?: TransitionConditions<C>
+  [K in T]?: TransitionConditions<C>
 }
 
 /**
- * Определение одного состояния с его переходами
- * @template T - Строковые ключи состояний
- * @template C - Схема контекста
+ * Определение состояния с возможными переходами
  */
 export type StateDefinition<T extends string, C extends ContextSchema> = StateTransitions<T, C>
 
 /**
- * Конфигурация всех состояний автомата
- * @template S - Строковые ключи состояний
- * @template C - Схема контекста
- * 
- * @example
- * ```typescript
- * const statesConfig: StatesConfig<"idle" | "loading" | "success" | "error", MyContext> = {
- *   idle: {
- *     loading: { isLoading: true }
- *   },
- *   loading: {
- *     success: { count: { gt: 0 } },
- *     error: { isLoading: false }
- *   },
- *   success: {
- *     idle: {}
- *   },
- *   error: {
- *     idle: {}
- *   }
- * }
- * ```
+ * Конфигурация всех состояний системы
  */
 export type StatesConfig<S extends string, C extends ContextSchema> = Record<S, StateDefinition<S, C>>

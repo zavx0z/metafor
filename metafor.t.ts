@@ -1,6 +1,6 @@
 import type { ContextSchema, ExtractValues, SerializedSchema, Update } from "./context"
 
-import type { StatesConfig } from "./transition.t.ts"
+import type { StatesConfig } from "./state/index.t.ts"
 import type { TemplateResult } from "./html/html.t.ts"
 import type { html } from "./html/html.ts"
 

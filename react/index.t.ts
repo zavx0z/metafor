@@ -1,18 +1,18 @@
 /**
  * Типы для реакций (Reactions)
  * @packageDocumentation
- * 
+ *
  * # Реакции (Reactions)
- * 
+ *
  * Реакции позволяют обрабатывать внешние события через декларативные фильтры.
  * Они группируются по состояниям и срабатывают только в определенных состояниях автомата.
- * 
+ *
  * ## Основные принципы:
  * - **Декларативные фильтры**: Используйте фильтры для выбора событий
  * - **Группировка по состояниям**: Реакции срабатывают только в указанных состояниях
  * - **Явное перечисление**: Всегда перечисляйте все состояния в массивах
  * - **Типобезопасность**: TypeScript проверяет корректность фильтров
- * 
+ *
  * ## Структура реакций:
  * ```typescript
  * .reactions((reaction) => [
@@ -24,7 +24,7 @@
  *   ]
  * ])
  * ```
- * 
+ *
  * @example
  * ```typescript
  * .reactions((reaction) => [
@@ -66,13 +66,13 @@ import type {
   CondArrayRequired,
   Condition,
   ConditionOptional,
-} from "../transition.t"
+} from "../state/index.t"
 
 /**
  * Аргументы для функции фильтрации
- * 
+ *
  * Содержит метаданные сообщения и патч для проверки условий фильтра.
- * 
+ *
  * @example
  * ```typescript
  * const filterFn = (args: ReactionFilterArgs) => {
@@ -93,14 +93,14 @@ export type ReactionFilterArgs = {
 
 /**
  * Функция обновления контекста
- * 
+ *
  * Вызывается когда реакция срабатывает и фильтр прошел успешно.
  * Получает все необходимые данные для обработки события.
- * 
+ *
  * @template C - схема контекста
  * @template S - строковые ключи состояний
  * @template Core - тип core объекта
- * 
+ *
  * @example
  * ```typescript
  * const updateFn: ReactionUpdate<MyContext, "idle" | "loading"> = ({
@@ -136,10 +136,10 @@ export type ReactionUpdate<C extends ContextSchema, S extends string, Core = Rec
 
 /**
  * Декларативные условия фильтрации реакций
- * 
+ *
  * Плоская структура с расширенными возможностями для meta и patch.
  * Позволяет фильтровать события по различным критериям.
- * 
+ *
  * @example
  * ```typescript
  * const conditions: ReactionFilterConditions = {
@@ -449,13 +449,13 @@ export type ReactionFilterConditions = {
 
 /**
  * Конфигурация одной реакции
- * 
+ *
  * Содержит название, описание, функцию фильтрации и функцию обновления.
- * 
+ *
  * @template C - схема контекста
  * @template S - строковые ключи состояний
  * @template Core - тип core объекта
- * 
+ *
  * @example
  * ```typescript
  * const reaction: Reaction<MyContext, "idle" | "loading"> = {
@@ -486,16 +486,16 @@ export type Reaction<C extends ContextSchema, S extends string, Core = Record<st
 
 /**
  * Chain API для создания реакции
- * 
+ *
  * Позволяет удобно создавать реакции с декларативными фильтрами.
- * 
+ *
  * @template C - схема контекста
  * @template S - строковые ключи состояний
  * @template Core - тип core объекта
- * 
+ *
  * @example
  * ```typescript
- * const chain = reaction({ 
+ * const chain = reaction({
  *   title: "Обработка сообщений",
  *   description: "Обрабатывает входящие сообщения"
  * })
@@ -536,13 +536,13 @@ export type ReactionChain<C extends ContextSchema, S extends string, Core = Reco
 
 /**
  * Цепочка для создания массива реакций
- * 
+ *
  * Позволяет создавать массив реакций с группировкой по состояниям.
- * 
+ *
  * @template C - схема контекста
  * @template S - строковые ключи состояний
  * @template Core - тип core объекта
- * 
+ *
  * @example
  * ```typescript
  * const reactions: ReactionsChain<MyContext, "idle" | "loading"> = (reaction) => [
@@ -575,9 +575,9 @@ export type ReactionsChain<C extends ContextSchema, S extends string, Core = Rec
 
 /**
  * Карта реакций по состояниям
- * 
+ *
  * Внутренний тип для хранения реакций, сгруппированных по состояниям.
- * 
+ *
  * @template C - схема контекста
  * @template S - строковые ключи состояний
  * @template Core - тип core объекта
@@ -589,11 +589,11 @@ export type ReactionsMap<C extends ContextSchema, S extends string, Core = Recor
 
 /**
  * Функция обновления контекста
- * 
+ *
  * Упрощенный тип для функции обновления контекста.
- * 
+ *
  * @template C - схема контекста
- * 
+ *
  * @example
  * ```typescript
  * const update: Update<MyContext> = (values) => {

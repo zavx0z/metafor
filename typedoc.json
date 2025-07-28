@@ -1,7 +1,12 @@
 {
     "tsconfig": "tsconfig.docs.json",
     "entryPoints": [
-        "metafor.ts"
+        "metafor.ts",
+        "context/types.t.ts",
+        "transition.t.ts",
+        "proc/index.t.ts",
+        "react/index.t.ts",
+        "metafor.t.ts"
     ],
     "out": "docs",
     "theme": "default",
@@ -9,13 +14,13 @@
     "excludePrivate": true,
     "excludeProtected": true,
     "excludeExternals": true,
-      "exclude": [
-    "**/node_modules/**",
-    "**/test/**",
-    "**/fixture/**",
-    "**/*.test.ts",
-    "**/*.spec.ts"
-  ],
+    "exclude": [
+        "**/node_modules/**",
+        "**/test/**",
+        "**/fixture/**",
+        "**/*.test.ts",
+        "**/*.spec.ts"
+    ],
     "includeVersion": true,
     "categorizeByGroup": true,
     "categoryOrder": [
@@ -28,7 +33,6 @@
         "*"
     ],
     "readme": "README.md",
-    
     "hideGenerator": true,
     "sort": [
         "source-order"

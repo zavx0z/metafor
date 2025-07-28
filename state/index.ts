@@ -1,7 +1,16 @@
-import type { ContextSchema, ExtractValues } from "./context"
-import type { Condition, StatesConfig } from "./transition.t"
+import type { ContextSchema, ExtractValues } from "../context"
+import type { Condition, StatesConfig } from "./index.t"
 export type { Condition, StatesConfig }
 
+// Экспортируем валидатор
+export { validateNoUnconditionalCycles } from "./validator.ts"
+
+/**
+ * Проверяет условия переходов между состояниями
+ * @param conditions - условия перехода
+ * @param context - текущий контекст
+ * @returns true если все условия выполнены
+ */
 export const checkTransitionConditions = <C extends ContextSchema>(
   conditions: any,
   context: Partial<ExtractValues<C>>
@@ -16,6 +25,10 @@ export const checkTransitionConditions = <C extends ContextSchema>(
   }
   return true
 }
+
+/**
+ * Оценивает одно условие
+ */
 const evaluateCondition = (condition: any, value: any): boolean => {
   // Простые значения
   if (typeof condition === "string" || typeof condition === "number" || typeof condition === "boolean") {
@@ -39,6 +52,10 @@ const evaluateCondition = (condition: any, value: any): boolean => {
 
   return false
 }
+
+/**
+ * Оценивает сложное условие с объектом параметров
+ */
 const evaluateComplexCondition = (condition: any, value: any): boolean => {
   // Проверка на null
   if ("null" in condition) {
@@ -159,6 +176,10 @@ const evaluateComplexCondition = (condition: any, value: any): boolean => {
 
   return true
 }
+
+/**
+ * Оценивает условие для элемента массива
+ */
 const evaluateArrayItemCondition = (condition: any, item: any): boolean => {
   // Числовые элементы
   if (typeof item === "number") {

@@ -1,6 +1,6 @@
 // Валидация конфигурации состояний конечного автомата на наличие циклов безусловных переходов
 import type { ContextSchema } from "../context"
-import type { StatesConfig } from "../transition.t.ts"
+import type { StatesConfig } from "./index.t.ts"
 
 /**
  * Проверяет, что в конфигурации состояний нет циклов безусловных переходов.
