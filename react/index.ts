@@ -2,7 +2,7 @@
  * Утилиты для работы с ReactionMap
  */
 import type { ContextSchema } from "../context"
-import type { Reaction, ReactionFilterArgs, ReactionsChain, ReactionFilterChain, ReactionUpdate } from "./index.t"
+import type { Reaction, ReactionFilterArgs, ReactionsChain, ReactionUpdate, ReactionChain } from "./index.t"
 import type { Update, ExtractValues } from "../context/index.t"
 import type { JsonPatch, MetaDataMessage } from "../message"
 
@@ -99,12 +99,12 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
   // Преобразуем chain результат в декларацию
   const declarations = chainResult.map(([states, reaction]) => [states, reaction]) as [
     S[],
-    { filter: (args: ReactionFilterArgs<C, S>) => boolean; update: ReactionUpdate<C, S, Core>; title?: string }
+    { filter: (args: ReactionFilterArgs<C, S>) => boolean; update: ReactionUpdate<C, S, Core>; title: string }
   ][]
 
   for (const [states, value] of declarations) {
     const { filter, update, title } = value
-    const reaction: Reaction<C, S, Core> = { title: title ?? `reaction_${reactionAutoId}`, filter, update }
+    const reaction: Reaction<C, S, Core> = { title, filter, update }
     let id = undefined
     for (const [existingId, existingReaction] of reactionsById.entries()) {
       if (
@@ -135,11 +135,15 @@ export function createReactionsChain<
   C extends ContextSchema,
   S extends string,
   Core = Record<string, any>
->(): ReactionFilterChain<C, S, Core> {
-  return (filter: (args: ReactionFilterArgs<C, S>) => boolean) => {
+>(): ReactionChain<C, S, Core> {
+  return (title: string) => {
     return {
-      equal: (update: ReactionUpdate<C, S, Core>, title?: string) => {
-        return { filter, update, title }
+      filter: (filterFn: (args: ReactionFilterArgs<C, S>) => boolean) => {
+        return {
+          equal: (updateFn: ReactionUpdate<C, S, Core>) => {
+            return { filter: filterFn, update: updateFn, title }
+          },
+        }
       },
     }
   }

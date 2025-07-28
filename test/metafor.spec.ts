@@ -56,10 +56,10 @@ test("MetaFor - интеграция с реакциями", async () => {
     .actions((action) => ({
       idle: action(({ context }) => ({ value: context.value })).success(({ update, data }) => update(data)),
     }))
-    .reactions((filter) => [
+    .reactions((reaction) => [
       [
         ["idle"],
-        filter(({ meta }) => meta.tag === "test").equal(({ context, update }) => {
+        reaction("reaction1").filter(({ meta }) => meta.tag === "test").equal(({ context, update }) => {
           called = true
           update({ value: context.value + 1 })
         }),
