@@ -192,17 +192,18 @@ export function MetaFor(tag: string) {
                             }
 
                             connectedCallback() {
+                              this.#updateView()
                               this.setAttribute("state", this.#state)
                               console.log("connected: ", tag)
-                              this.#sendEvent(initMessage(tag, this.getSnapshot()))
                               if (reactions) {
                                 this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
                                 this.addEventListener("channel", this.#reactionHandler)
                               }
-                              this.#updateView()
-                              this.#ctx.onUpdate((updated) => {
-                                this.#sendEvent(updateContextMessage(tag, updated))
-                              })
+                              requestAnimationFrame(this.#init.bind(this))
+                            }
+
+                            #init() {
+                              this.#sendEvent(initMessage(tag, this.getSnapshot()))
                               const transition = this.#transitions[this.#state]
                               if (transition) {
                                 const process = this.#actions[this.#state]
@@ -216,9 +217,12 @@ export function MetaFor(tag: string) {
                               }
                               if (view?.onMount) view.onMount()
                             }
+
                             disconnectedCallback() {
                               console.log("disconnected: ", tag)
+                              this.removeEventListener("channel", this.#reactionHandler)
                             }
+
                             #reactionHandler = (ev: Event) => {
                               const detail = (ev as CustomEvent).detail
                               if (detail?.meta?.tag === tag) return
@@ -241,10 +245,10 @@ export function MetaFor(tag: string) {
                                   this.#broadcastMessage(stateBeforeActionMessage(tag, this.#state))
                                   result
                                     .then((data) => {
-                                      if (process.success) process.success({ update: this.#ctx.update, data })
+                                      if (process.success) process.success({ update: this.update, data })
                                     })
                                     .catch((error) => {
-                                      if (process.error) process.error({ update: this.#ctx.update, error })
+                                      if (process.error) process.error({ update: this.update, error })
                                       else
                                         throw new Error(
                                           `Обработчик ошибки не найден для состояния: ${this.#state} \n ${error}`
@@ -255,12 +259,12 @@ export function MetaFor(tag: string) {
                                       this.#setProcess(false)
                                     })
                                 } else {
-                                  if (process.success) process.success({ update: this.#ctx.update, data: result })
+                                  if (process.success) process.success({ update: this.update, data: result })
                                   this.#broadcastMessage(stateAfterActionMessage(tag, this.#state))
                                   this.#setProcess(false)
                                 }
                               } catch (error) {
-                                if (error instanceof Error) process.error?.({ update: this.#ctx.update, error })
+                                if (error instanceof Error) process.error?.({ update: this.update, error })
                                 this.#broadcastMessage(stateAfterActionMessage(tag, this.#state))
                                 this.#setProcess(false)
                               }
@@ -271,7 +275,8 @@ export function MetaFor(tag: string) {
                             update = (context: Partial<ExtractValues<C>>) => {
                               const updated = this.#ctx.update(context)
                               if (Object.keys(updated).length > 0) {
-                                // this.#sendEvent(updateContextMessage(tag, updated))
+                                this.#sendEvent(updateContextMessage(tag, updated))
+                                this.#updateView()
                               }
                               return updated
                             }
@@ -314,16 +319,13 @@ export function MetaFor(tag: string) {
                                 })
                               )
                               if (window.debugMetaFor) log(message, {})
-                              if (message.patch.op === "add") 
-                                return
-                              this.#updateView()
                             }
                             #updateView = () => {
                               if (!view?.render) return
                               const template = view.render({
                                 state: this.#state,
                                 context: this.#ctx.getSnapshot(),
-                                update: this.#ctx.update,
+                                update: this.update,
                                 style: styleMap,
                                 html,
                                 ref,
@@ -356,7 +358,7 @@ export function MetaFor(tag: string) {
                                 meta,
                                 patch,
                                 state,
-                                update: this.#ctx.update,
+                                update: this.update,
                               })
                             }
                           }

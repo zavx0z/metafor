@@ -3,7 +3,8 @@ import { messagesFixture } from "../fixture/message.ts"
 
 describe("реакции", () => {
   test("MetaFor - базовый функционал", async () => {
-    const { waitForMessages } = messagesFixture()
+    const { waitForMessages } = messagesFixture({ meta: "parent" })
+    // const { waitForMessages } = messagesFixture()
 
     // document.addEventListener("channel", (ev) => console.log(ev.detail))
     // @ts-ignore
@@ -50,12 +51,12 @@ describe("реакции", () => {
           ["state_1"],
           {
             filter: ({ meta, patch }) => {
-              console.log(meta, patch)
-              return meta.tag === "child"
+              console.log(meta.tag, patch)
+              return meta.tag === "child" && patch.op === "add"
             },
-            update: ({ update, context }) => {
+            update: ({ update, context, patch }) => {
               update({ childAdded: true })
-              console.log("parent context childAdded: ", context.childAdded)
+              // console.log("parent context childAdded: ", context.childAdded, patch)
             },
           },
         ],
@@ -64,8 +65,7 @@ describe("реакции", () => {
         render: ({ html, context }) => html`<metafor-child>${context.childAdded}</metafor-child>`,
       })
 
-    const messages = await waitForMessages(1000)
-    await Bun.sleep(1500)
+    const messages = await waitForMessages(1500)
     // console.log(messages)
 
     expect(document.body.innerHTML).toContain("<metafor-parent")
