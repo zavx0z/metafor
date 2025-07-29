@@ -1,3 +1,9 @@
+/**
+ * Основные типы MetaFor
+ * @packageDocumentation
+ * @module Core
+ */
+
 import type { ContextSchema, ExtractValues, SerializedSchema } from "./context"
 
 import type { StatesConfig } from "./state/index.t.ts"
@@ -11,7 +17,6 @@ export interface Snapshot<C extends ContextSchema, S extends string> {
   states: StatesConfig<S, C>
   context: ExtractValues<C>
   schema: SerializedSchema<C>
-  // actions: ActionsConfig<C, S>
 }
 
 import { MetaFor as FrameWork } from "./metafor"

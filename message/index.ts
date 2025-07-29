@@ -1,3 +1,8 @@
+/**
+ * Реализация сообщений
+ * @module Messages
+ */
+
 import type { ContextSchema, ExtractValues } from "../context"
 import type { Snapshot } from "../metafor.t"
 import type { Message, JsonPatch, MetaDataMessage } from "./index.t"

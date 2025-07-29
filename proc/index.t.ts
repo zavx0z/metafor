@@ -1,102 +1,14 @@
 /**
- * Типы для процессов (Processes)
+ * Типы для процессов
  * @packageDocumentation
- * 
- * # Процессы (Processes)
- * 
- * Процессы — это действия с обработкой успеха и ошибок. Они могут быть как асинхронными, так и синхронными.
- * Процессы позволяют инкапсулировать бизнес-логику и обрабатывать результаты выполнения.
- * 
- * ## Основные принципы:
- * - **Асинхронность**: Процессы могут быть асинхронными (API вызовы) или синхронными (валидация)
- * - **Обработка результатов**: Всегда обрабатывайте успех и ошибки
- * - **Типобезопасность**: TypeScript проверяет типы входных и выходных данных
- * - **Цепочка методов**: Используйте chain API для удобного конфигурирования
- * 
- * ## Структура процесса:
- * ```typescript
- * .processes((process) => ({
- *   processName: process(config?)
- *     .action(fn)
- *     .success(handler)
- *     .error(handler)
- * }))
- * ```
- * 
- * @example
- * ```typescript
- * .processes((process) => ({
- *   // Асинхронный процесс
- *   login: process({
- *     title: "Авторизация",
- *     description: "Процесс входа пользователя"
- *   })
- *     .action(async ({ context }) => {
- *       const response = await fetch('/api/login', {
- *         method: 'POST',
- *         body: JSON.stringify({
- *           email: context.email,
- *           password: context.password
- *         })
- *       })
- *       
- *       if (!response.ok) {
- *         throw new Error('Ошибка авторизации')
- *       }
- *       
- *       return await response.json()
- *     })
- *     .success(({ update, data }) => {
- *       update({
- *         isAuthenticated: true,
- *         user: data.user,
- *         error: ""
- *       })
- *     })
- *     .error(({ update, error }) => {
- *       update({
- *         error: error.message,
- *         isAuthenticated: false
- *       })
- *     }),
- *   
- *   // Синхронный процесс
- *   validateForm: process()
- *     .action(({ context }) => {
- *       const errors = []
- *       
- *       if (!context.email) {
- *         errors.push('Email обязателен')
- *       }
- *       
- *       if (!context.password) {
- *         errors.push('Пароль обязателен')
- *       }
- *       
- *       if (errors.length > 0) {
- *         throw new Error(errors.join(', '))
- *       }
- *       
- *       return { isValid: true }
- *     })
- *     .success(({ update }) => {
- *       update({ isValid: true, errors: [] })
- *     })
- *     .error(({ update, error }) => {
- *       update({ 
- *         isValid: false, 
- *         errors: error.message.split(', ') 
- *       })
- *     })
- * }))
- * ```
+ * @module Processes
  */
 
 import type { ContextSchema, ExtractValues, UpdateValues } from "../context"
 
 /**
  * Тип билдера для декларации набора процессов автомата.
- * 
+ *
  * Позволяет создавать типизированные процессы с удобным API.
  *
  * @template C - схема контекста автомата
@@ -121,9 +33,9 @@ export type ActionsDeclaration<C extends ContextSchema, S extends string> = (
  *
  * @example
  * ```typescript
- * const chain = process({ 
- *   title: "my_process", 
- *   description: "Описание процесса" 
+ * const chain = process({
+ *   title: "my_process",
+ *   description: "Описание процесса"
  * })
  *   .action(({ context }) => ({ name: context.name }))
  *   .success(({ update, data }) => update({ name: data.name }))
@@ -135,14 +47,14 @@ export type ActionsDeclaration<C extends ContextSchema, S extends string> = (
 export type ProcessChain<C extends ContextSchema> = {
   /**
    * Добавляет основную функцию процесса.
-   * 
+   *
    * Функция может быть как синхронной, так и асинхронной.
    * При выбросе исключения вызывается обработчик error.
    * При успешном выполнении вызывается обработчик success.
-   * 
+   *
    * @param fn - функция процесса, вызываемая автоматом
    * @returns цепочку для дальнейшего конфигурирования
-   * 
+   *
    * @example
    * ```typescript
    * // Синхронная функция
@@ -152,7 +64,7 @@ export type ProcessChain<C extends ContextSchema> = {
    *   }
    *   return { isValid: true }
    * })
-   * 
+   *
    * // Асинхронная функция
    * .action(async ({ context }) => {
    *   const response = await fetch('/api/data', {
@@ -185,34 +97,34 @@ export type ProcessChain<C extends ContextSchema> = {
 export type ActionChain<C extends ContextSchema, Res> = {
   /**
    * Основная функция процесса, вызывается автоматом.
-   * 
+   *
    * Получает текущий контекст и должна вернуть результат или выбросить исключение.
-   * 
+   *
    * @param params - объект с текущим контекстом
    * @returns результат процесса (может быть промисом)
-   * 
+   *
    * @example
    * ```typescript
    * action: ({ context }) => {
    *   // Доступ к контексту
    *   console.log(context.email, context.password)
-   *   
+   *
    *   // Возврат результата
    *   return { userId: 123, token: "abc" }
    * }
    * ```
    */
   action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
-  
+
   /**
    * Добавляет обработчик успешного завершения процесса.
-   * 
+   *
    * Вызывается когда action завершился успешно (не выбросил исключение).
    * Получает функцию update для изменения контекста и данные от action.
-   * 
+   *
    * @param handler - функция, вызываемая при успехе (получает update и data)
    * @returns цепочку для дальнейшего конфигурирования
-   * 
+   *
    * @example
    * ```typescript
    * .success(({ update, data }) => {
@@ -229,16 +141,16 @@ export type ActionChain<C extends ContextSchema, Res> = {
   success: (
     handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void
   ) => ActionChain<C, Res>
-  
+
   /**
    * Добавляет обработчик ошибки выполнения процесса.
-   * 
+   *
    * Вызывается когда action выбросил исключение.
    * Получает функцию update для изменения контекста и объект ошибки.
-   * 
+   *
    * @param handler - функция, вызываемая при ошибке (получает update и error типа Error)
    * @returns цепочку для дальнейшего конфигурирования
-   * 
+   *
    * @example
    * ```typescript
    * .error(({ update, error }) => {
@@ -254,14 +166,14 @@ export type ActionChain<C extends ContextSchema, Res> = {
   error: (
     handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void
   ) => ActionChain<C, Res>
-  
+
   /**
    * Возвращает итоговый объект конфигурации процесса для автомата.
-   * 
+   *
    * Содержит все обработчики и метаданные процесса.
-   * 
+   *
    * @returns объект с action, success, error, title и description (если заданы)
-   * 
+   *
    * @example
    * ```typescript
    * const processConfig = chain.getResult()
@@ -279,13 +191,13 @@ export type ActionChain<C extends ContextSchema, Res> = {
 
 /**
  * Конфигурация одного процесса
- * 
+ *
  * Содержит основную функцию action и опциональные обработчики success/error.
  * Также может содержать метаданные title и description.
- * 
+ *
  * @template C - схема контекста автомата
  * @template Res - возвращаемый тип результата action
- * 
+ *
  * @example
  * ```typescript
  * const process: Process<MyContext, { userId: number }> = {
@@ -319,13 +231,13 @@ export type Process<C extends ContextSchema, Res = any> = {
 
 /**
  * Конфигурация процессов автомата.
- * 
+ *
  * Объект, где ключи - имена процессов, а значения - их конфигурации.
- * 
+ *
  * @template C - схема контекста автомата
  * @template S - строковые ключи процессов
  * @template Res - возвращаемый тип результата action
- * 
+ *
  * @example
  * ```typescript
  * const config: ActionsConfig<MyContext, "login" | "logout"> = {

@@ -1,6 +1,6 @@
 /**
- * Типы для directive.ts
- * @packageDocumentation
+ * Типы для директив HTML
+ * @module HTML
  */
 
 import type { Directive } from "./directive"

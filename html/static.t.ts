@@ -1,3 +1,8 @@
+/**
+ * Типы для статического HTML
+ * @module HTML
+ */
+
 export interface StaticValue {
   /** Значение, которое будет вставлено в шаблон как есть. */
   _$htmlStatic$: string

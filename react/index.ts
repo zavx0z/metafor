@@ -1,5 +1,6 @@
 /**
- * Утилиты для работы с ReactionMap
+ * Реализация реакций
+ * @module Reactions
  */
 import type { ContextSchema, ExtractValues } from "../context/index.t"
 import type { JsonPatch, MetaDataMessage } from "../message"

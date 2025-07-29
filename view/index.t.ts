@@ -1,3 +1,9 @@
+/**
+ * Типы для представления (View)
+ * @packageDocumentation
+ * @module View
+ */
+
 import type { ContextSchema, Update, ExtractValues } from "../context"
 import type { map } from "../html/directives/map"
 import type { ref } from "../html/directives/ref"

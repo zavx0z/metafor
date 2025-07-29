@@ -1,6 +1,11 @@
-import {nothing, type ElementPart} from '../html.js'
+/**
+ * Директива ref
+ * @module HTML
+ */
 
-import {directive, AsyncDirective} from '../async-directive.js'
+import { nothing, type ElementPart } from "../html.js"
+
+import { directive, AsyncDirective } from "../async-directive.js"
 
 /**
  * Создаёт новый объект Ref, который является контейнером для ссылки на элемент.
@@ -17,7 +22,7 @@ class Ref<T = Element> {
   readonly value?: T
 }
 
-export type {Ref}
+export type { Ref }
 
 interface RefInternal {
   value: Element | undefined
@@ -27,10 +32,7 @@ interface RefInternal {
 // чтобы гарантировать, что директива не очистит ref, если ref уже был отрисован в новом месте.
 // Используется двойное ключевание по context (`options.host`) и по колбэку, так как методы класса автоматически
 // привязываются к options.host.
-const lastElementForContextAndCallback = new WeakMap<
-  object,
-  WeakMap<Function, Element | undefined>
->()
+const lastElementForContextAndCallback = new WeakMap<object, WeakMap<Function, Element | undefined>>()
 
 export type RefOrCallback<T = Element> = Ref<T> | ((el: T | undefined) => void)
 
@@ -43,7 +45,7 @@ class RefDirective extends AsyncDirective {
     return nothing
   }
 
-  override update(part: ElementPart, [ref]: Parameters<this['render']>) {
+  override update(part: ElementPart, [ref]: Parameters<this["render"]>) {
     const refChanged = ref !== this._ref
     if (refChanged && this._ref !== undefined) {
       // Переданный в директиву ref изменился;
@@ -64,7 +66,7 @@ class RefDirective extends AsyncDirective {
     if (!this.isConnected) {
       element = undefined
     }
-    if (typeof this._ref === 'function') {
+    if (typeof this._ref === "function") {
       // Если текущий ref уже был вызван с предыдущим значением, вызываем с
       // `undefined`. Это делается для того, чтобы колбэки вызывались согласованно
       // независимо от того, перемещается ли ref вверх по дереву (в этом случае он
@@ -74,8 +76,7 @@ class RefDirective extends AsyncDirective {
       // передача непривязанных функций, которые вызываются на options.host, и такие
       // случаи считаются уникальными "экземплярами" функции.
       const context = this._context ?? globalThis
-      let lastElementForCallback =
-        lastElementForContextAndCallback.get(context)
+      let lastElementForCallback = lastElementForContextAndCallback.get(context)
       if (lastElementForCallback === undefined) {
         lastElementForCallback = new WeakMap()
         lastElementForContextAndCallback.set(context, lastElementForCallback)
@@ -89,15 +90,13 @@ class RefDirective extends AsyncDirective {
         this._ref.call(this._context, element)
       }
     } else {
-      (this._ref as RefInternal)!.value = element
+      ;(this._ref as RefInternal)!.value = element
     }
   }
 
   private get _lastElementForRef() {
-    return typeof this._ref === 'function'
-      ? lastElementForContextAndCallback
-          .get(this._context ?? globalThis)
-          ?.get(this._ref)
+    return typeof this._ref === "function"
+      ? lastElementForContextAndCallback.get(this._context ?? globalThis)?.get(this._ref)
       : this._ref?.value
   }
 
@@ -145,4 +144,4 @@ export const ref = directive(RefDirective)
 /**
  * Тип класса, реализующего эту директиву. Необходим для именования типа возвращаемого значения директивы.
  */
-export type {RefDirective}
+export type { RefDirective }

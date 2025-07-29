@@ -1,6 +1,7 @@
 /**
  * Типы для реализации контекста
  * @packageDocumentation
+ * @module Context
  */
 
 import type {
@@ -55,7 +56,7 @@ export type SerializedSchema<T extends ContextSchema> = {
   }
 }
 /**
- * Тип для обновления значений в контексте  
+ * Тип для обновления значений в контексте
  * @template C - Схема контекста
  * @param values - Значения для обновления
  * @returns Значения, которые были обновлены

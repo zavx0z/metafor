@@ -1,60 +1,7 @@
 /**
- * Типы для реакций (Reactions)
+ * Типы для реакций
  * @packageDocumentation
- *
- * # Реакции (Reactions)
- *
- * Реакции позволяют обрабатывать внешние события через декларативные фильтры.
- * Они группируются по состояниям и срабатывают только в определенных состояниях автомата.
- *
- * ## Основные принципы:
- * - **Декларативные фильтры**: Используйте фильтры для выбора событий
- * - **Группировка по состояниям**: Реакции срабатывают только в указанных состояниях
- * - **Явное перечисление**: Всегда перечисляйте все состояния в массивах
- * - **Типобезопасность**: TypeScript проверяет корректность фильтров
- *
- * ## Структура реакций:
- * ```typescript
- * .reactions((reaction) => [
- *   [
- *     ["state1", "state2"], // Состояния, в которых активна реакция
- *     reaction(config?)
- *       .filter(conditions)
- *       .equal(handler)
- *   ]
- * ])
- * ```
- *
- * @example
- * ```typescript
- * .reactions((reaction) => [
- *   [
- *     ["idle", "loading"], // Реакция активна в состояниях idle и loading
- *     reaction({ title: "Обработка сообщений" })
- *       .filter({
- *         tag: "user",           // Фильтр по тегу
- *         op: "replace",         // Фильтр по операции
- *         path: "/context",      // Фильтр по пути
- *         value: { gt: 0 }       // Фильтр по значению
- *       })
- *       .equal(({ update, context, meta, patch }) => {
- *         // Обработка события
- *         update({
- *           lastMessage: patch.value,
- *           messageCount: context.messageCount + 1
- *         })
- *       })
- *   ],
- *   [
- *     ["idle", "loading", "success", "error"], // Все состояния
- *     reaction()
- *       .filter({ tag: "system" })
- *       .equal(({ update }) => {
- *         update({ systemNotification: true })
- *       })
- *   ]
- * ])
- * ```
+ * @module Reactions
  */
 
 import type { ContextSchema, ExtractValues } from "../context/index.t"

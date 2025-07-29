@@ -1,6 +1,7 @@
 /**
- * Типы для html.ts
+ * Типы для HTML
  * @packageDocumentation
+ * @module HTML
  */
 
 import type { Template } from "./html"
@@ -165,7 +166,6 @@ declare global {
   // interface Window {
   //   MetaForDebug?: boolean
   // }
-
   // var global: {
   //   MetaForDebug?: boolean
   //   htmlIssuedWarnings?: Set<string>

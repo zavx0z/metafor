@@ -1,3 +1,8 @@
+/**
+ * Валидация состояний и переходов
+ * @module States
+ */
+
 // Валидация конфигурации состояний конечного автомата на наличие циклов безусловных переходов
 import type { ContextSchema } from "../context"
 import type { StatesConfig } from "./index.t.ts"

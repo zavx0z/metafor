@@ -7,8 +7,11 @@
         "context/index.ts",
         "state/index.t.ts",
         "state/index.ts",
+        "state/validator.ts",
         "proc/index.t.ts",
         "proc/index.ts",
+        "proc/parser.t.ts",
+        "proc/parser.ts",
         "react/index.t.ts",
         "react/index.ts",
         "html/html.t.ts",
@@ -30,7 +33,7 @@
     "entryPointStrategy": "expand",
     "out": "docs",
     "theme": "default",
-    "name": "MetaFor Documentation",
+    "name": "MetaFor",
     "excludePrivate": true,
     "excludeProtected": true,
     "excludeExternals": true,
@@ -52,19 +55,20 @@
         "*"
     ],
     "categoryOrder": [
+        "Core",
         "Context",
         "States",
         "Processes",
         "Reactions",
         "View",
-        "Core",
         "*"
     ],
     "defaultCategory": "Core",
     "readme": "README.md",
     "hideGenerator": true,
     "sort": [
-        "source-order"
+        "source-order",
+        "alphabetical"
     ],
     "searchInComments": true,
     "validation": {
@@ -72,6 +76,9 @@
         "notExported": true
     },
     "plugin": [
-        "typedoc-plugin-include-example"
-    ]
+        "typedoc-plugin-include-example",
+        "typedoc-plugin-merge-modules"
+    ],
+    "mergeModulesRenameDefaults": true,
+    "mergeModulesMergeMode": "module"
 }

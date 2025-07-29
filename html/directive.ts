@@ -1,3 +1,8 @@
+/**
+ * Директивы HTML
+ * @module HTML
+ */
+
 import type { Disconnectable, Part } from "./html.t"
 import type { DirectiveResult, PartInfo, DirectiveClass, DirectiveParameters } from "./directive.t"
 import { PartType } from "./directive.t"

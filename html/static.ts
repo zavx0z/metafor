@@ -1,3 +1,7 @@
+/**
+ * Статический HTML
+ * @module HTML
+ */
 import { html as coreHtml, svg as coreSvg, mathml as coreMathml } from "./html"
 import type { StaticValue } from "./static.t"
 import type { TemplateResult } from "./html.t"

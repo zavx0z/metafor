@@ -1,6 +1,10 @@
+/**
+ * Реализация процессов
+ * @module Processes
+ */
+
 import type { ContextSchema, ExtractValues } from "../context"
 import type { ActionChain, ActionsDeclaration, Process, ProcessChain } from "./index.t"
-export type { ActionsDeclaration, Process }
 
 /**
  * Вспомогательная функция для декларации actionsConfig автомата через builder и chain API.
@@ -81,5 +85,3 @@ export function createActionsConfig<C extends ContextSchema, S extends string>(
   // Возвращаем actionsConfig: ключи — имена процессов, значения — объекты с action, success, error, title, description
   return result
 }
-
-export { parseFunction, parseProcess } from "./parser"

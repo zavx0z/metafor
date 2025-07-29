@@ -26,7 +26,8 @@
     "dts-bundle-generator": "^9.5.1",
     "happy-dom": "^18.0.1",
     "typedoc": "^0.28.8",
-    "typedoc-plugin-include-example": "^2.1.2"
+    "typedoc-plugin-include-example": "^2.1.2",
+    "typedoc-plugin-merge-modules": "^7.0.0"
   },
   "peerDependencies": {
     "typescript": "^5.8.3"

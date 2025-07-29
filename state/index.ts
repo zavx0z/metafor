@@ -1,3 +1,8 @@
+/**
+ * Реализация состояний и переходов
+ * @module States
+ */
+
 import type { ContextSchema, ExtractValues } from "../context"
 import type { Condition, StatesConfig } from "./index.t"
 export type { Condition, StatesConfig }

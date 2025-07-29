@@ -1,3 +1,8 @@
+/**
+ * Реализация HTML
+ * @module HTML
+ */
+
 // ВАЖНО: эти импорты должны быть только для типов
 import type { Directive } from "./directive"
 import type { DirectiveResult, PartInfo } from "./directive.t"

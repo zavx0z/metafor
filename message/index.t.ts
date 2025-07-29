@@ -1,4 +1,9 @@
 /**
+ * Типы для сообщений
+ * @packageDocumentation
+ * @module Messages
+ */
+/**
  Сообщение для обмена данными между акторами
 
  @property meta - Метаданные сообщения

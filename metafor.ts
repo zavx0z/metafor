@@ -1,4 +1,9 @@
 /**
+ * Основная реализация MetaFor
+ * @module Core
+ */
+
+/**
  * MetaFor - фреймворк для создания актора конечного автомата
  *
  * MetaFor предоставляет декларативный способ создания web-компонентов с конечным автоматом.
@@ -50,7 +55,8 @@ window.MetaFor = MetaFor
 import { types, createContext } from "./context"
 import type { ContextSchema, ContextInstance, ExtractValues, Update } from "./context"
 import { checkTransitionConditions, type StatesConfig } from "./state"
-import { createActionsConfig, type ActionsDeclaration, type Process } from "./proc"
+import { createActionsConfig } from "./proc/index.ts"
+import type { ActionsDeclaration, Process } from "./proc/index.t.ts"
 import type { Snapshot } from "./metafor.t"
 import type { ViewConfig } from "./view/index.t.ts"
 import { initMessage, stateAfterActionMessage, stateBeforeActionMessage, updateContextMessage } from "./message"

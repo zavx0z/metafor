@@ -1,6 +1,6 @@
 /**
- * Модуль для создания типизированных контекстов и схем параметров
- * @packageDocumentation
+ * Реализация контекста
+ * @module Context
  */
 import { types } from "./types"
 
