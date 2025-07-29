@@ -162,36 +162,8 @@ export interface TrustedTypesWindow {
 
 // ==================== РАСШИРЕНИЕ WINDOW ====================
 
-declare global {
-  // interface Window {
-  //   MetaForDebug?: boolean
-  // }
-  // var global: {
-  //   MetaForDebug?: boolean
-  //   htmlIssuedWarnings?: Set<string>
-  //   emitLitDebugLogEvents?: boolean
-  //   ShadyDOM?: {
-  //     inUse?: boolean
-  //     noPatch?: boolean
-  //     wrap?: <T extends Node>(node: T) => T
-  //   }
-  //   dispatchEvent?: (event: Event) => void
-  // }
-}
+// Глобальные определения убраны - используйте импорты вместо глобальных переменных
 
 // ==================== ГЛОБАЛЬНЫЕ РАСШИРЕНИЯ ====================
 
-declare global {
-  var htmlIssuedWarnings: Set<string>
-  var ShadyDOM: {
-    inUse?: boolean
-    noPatch?: boolean
-    wrap?: <T extends Node>(node: T) => T
-  }
-  var MetaForDebug: boolean
-  var MetaForHtmlDebug: boolean
-  var htmlPolyfillSupport: ((Template: any, ChildPart: any) => void) | undefined
-  var htmlPolyfillSupportDevMode: ((Template: any, ChildPart: any) => void) | undefined
-  var htmlVersions: string[]
-  var emitHtmlDebugLogEvents: boolean
-}
+// Глобальные определения убраны - используйте импорты вместо глобальных переменных

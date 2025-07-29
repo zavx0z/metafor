@@ -48,9 +48,6 @@
  *
  * @packageDocumentation
  */
-// Экспортируем MetaFor в глобальную область
-;(globalThis as any).MetaFor = MetaFor
-window.MetaFor = MetaFor
 
 import { types, createContext } from "./context"
 import type { ContextSchema, ContextInstance, ExtractValues, Update } from "./context"
@@ -71,12 +68,13 @@ import { styleMap } from "./html/directives/style-map.ts"
 import { ReactionRegistry } from "./react/index"
 import type { ReactionsChain } from "./react/index.t.ts"
 import type { ContextTypes } from "./context/types.t.ts"
+import { isMetaForDebugEnabled } from "./debug/config"
 
 // Фабрика логгера с ленивой загрузкой
 type Logger = (message: Message, core: Record<string, any>) => void
 
 function createLogger(): Logger {
-  if (!window.debugMetaFor) {
+  if (!isMetaForDebugEnabled()) {
     return () => {} // Пустая функция для продакшена
   }
 
@@ -362,7 +360,7 @@ export function MetaFor(tag: string) {
                             #broadcastMessage = (message: Message) => {
                               this.#channel.postMessage(message)
                               this.#updateView()
-                              if (window.debugMetaFor) log(message, {})
+                              if (isMetaForDebugEnabled()) log(message, {})
                             }
                             #sendEvent = (message: Message) => {
                               this.#shadow.dispatchEvent(
@@ -373,7 +371,7 @@ export function MetaFor(tag: string) {
                                   composed: true,
                                 })
                               )
-                              if (window.debugMetaFor) log(message, {})
+                              if (isMetaForDebugEnabled()) log(message, {})
                             }
                             #updateView = () => {
                               if (!view?.render) return

@@ -665,7 +665,9 @@ MetaFor предоставляет встроенные инструменты �
 
 ```typescript
 // Включение отладки
-window.debugMetaFor = true
+import { enableMetaForDebug } from '@zavx0z/metafor/debug/config'
+
+enableMetaForDebug()
 
 // Получение снапшота состояния
 const element = document.querySelector("metafor-my-component")

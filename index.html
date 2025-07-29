@@ -11,7 +11,8 @@
     </style>
   </head>
   <script type="module">
-    window.debugMetaFor = true
+    import { enableMetaForDebug } from './debug/config.js'
+    enableMetaForDebug()
   </script>
   <script type="module" src="./dist/metafor.js"></script>
   <script type="module" src="index.js"></script>

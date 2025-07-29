@@ -12,9 +12,6 @@ async function build(dev: boolean, distDir: string, entrypoint: string) {
     minify: !dev,
     external: ["./debug/console.js"],
     naming: "[dir]/[name].[ext]",
-    define: {
-      "globalThis.MetaForHtmlDebug": dev ? "true" : "false",
-    },
   })
 
   console.log(result.success ? "Build success" : "Build failed")

@@ -9,8 +9,8 @@ type ChildPart = InstanceType<typeof ChildPart>
 const ENABLE_SHADYDOM_NOPATCH = true
 
 const wrap = (node: Node): Node => {
-  if (ENABLE_SHADYDOM_NOPATCH && window.ShadyDOM?.inUse && window.ShadyDOM?.noPatch === true && window.ShadyDOM?.wrap) {
-    return window.ShadyDOM.wrap(node)
+  if (ENABLE_SHADYDOM_NOPATCH && (window as any).ShadyDOM?.inUse && (window as any).ShadyDOM?.noPatch === true && (window as any).ShadyDOM?.wrap) {
+    return (window as any).ShadyDOM.wrap(node)
   }
   return node
 }

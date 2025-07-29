@@ -18,34 +18,54 @@ import {
   ELEMENT_PART,
   COMMENT_PART,
 } from "./html.t"
-import type {
-  Primitive,
-  ResultType,
-  UncompiledTemplateResult,
-  TemplateResult,
-  CompiledTemplateResult,
-  CompiledTemplate,
-  TemplatePart,
-  Part,
-  Disconnectable,
-  DirectiveParent,
-  HtmlUnstable,
-  DebugLoggingWindow,
-  SanitizerFactory,
-  ValueSanitizer,
-  RenderOptions,
-  EventListenerWithOptions,
-  RootPart,
-  TrustedHTML,
-  TrustedTypesWindow,
+import {
+  type TemplateResult,
+  type HTMLTemplateResult,
+  type SVGTemplateResult,
+  type MathMLTemplateResult,
+  type CompiledTemplateResult,
+  type CompiledTemplate,
+  type TemplatePart,
+  type ChildTemplatePart,
+  type AttributeTemplatePart,
+  type ElementTemplatePart,
+  type CommentTemplatePart,
+  type Part,
+  type Disconnectable,
+  type DirectiveParent,
+  type HtmlUnstable,
+  type DebugLoggingWindow,
+  type SanitizerFactory,
+  type ValueSanitizer,
+  type RenderOptions,
+  type EventListenerWithOptions,
+  type RootPart,
+  type TrustedHTML,
+  type TrustedTypesWindow,
+  type Primitive,
+  type ResultType,
+  type UncompiledTemplateResult,
 } from "./html.t"
+import {
+  isHtmlDebugEnabled,
+  addHtmlWarning,
+  hasHtmlWarning,
+  addHtmlVersion,
+  getHtmlVersions,
+  setHtmlPolyfillSupport,
+  setHtmlPolyfillSupportDevMode,
+  getHtmlPolyfillSupport,
+  enableHtmlDebugLogEvents,
+  isHtmlDebugLogEventsEnabled,
+  enableHtmlDebug,
+} from "../debug/config"
 
 const ENABLE_EXTRA_SECURITY_HOOKS = true
 const ENABLE_SHADYDOM_NOPATCH = true
 const NODE_MODE = false
 
-// Позволяет минификаторам переименовывать ссылки на globalThis
-globalThis.MetaForHtmlDebug = true
+// Включаем отладку HTML
+enableHtmlDebug()
 const global = globalThis
 
 /**
@@ -60,9 +80,9 @@ const global = globalThis
  *
  * Не включается в production-сборки.
  */
-const debugLogEvent = global.MetaForHtmlDebug
+const debugLogEvent = isHtmlDebugEnabled()
   ? (event: HtmlUnstable.DebugLog.Entry) => {
-      const shouldEmit = (global as unknown as DebugLoggingWindow).emitLitDebugLogEvents
+      const shouldEmit = isHtmlDebugLogEventsEnabled()
       if (!shouldEmit) {
         return
       }
@@ -79,9 +99,7 @@ let debugLogRenderId = 0
 
 let issueWarning: (code: string, warning: string) => void
 
-if (global.MetaForHtmlDebug) {
-  global.htmlIssuedWarnings ??= new Set()
-
+if (isHtmlDebugEnabled()) {
   /**
    * Выдает предупреждение, если мы еще не выдали его, на основе `code` или
    * `warning`. Предупреждения отключаются автоматически только по `warning`;
@@ -89,9 +107,9 @@ if (global.MetaForHtmlDebug) {
    */
   issueWarning = (code: string, warning: string) => {
     warning += code ? ` См. https://metafor.space/msg/${code} для получения дополнительной информации.` : ""
-    if (!global.htmlIssuedWarnings!.has(warning) && !global.htmlIssuedWarnings!.has(code)) {
+    if (!hasHtmlWarning(warning) && !hasHtmlWarning(code)) {
       console.warn(warning)
-      global.htmlIssuedWarnings!.add(warning)
+      addHtmlWarning(warning)
     }
   }
 
@@ -300,13 +318,13 @@ const tag =
     // кода в шаблонах
     // Мы делаем это здесь, а не в рендере, чтобы предупреждение было ближе к
     // определению шаблона.
-    if (global.MetaForHtmlDebug && strings.some((s) => s === undefined)) {
+    if (isHtmlDebugEnabled() && strings.some((s) => s === undefined)) {
       console.warn(
         "Некоторые строковые шаблоны undefined.\n" +
           "Это, вероятно, вызвано нелегальными последовательностями escape-последовательностей восьмеричного кода."
       )
     }
-    if (global.MetaForHtmlDebug) {
+    if (isHtmlDebugEnabled()) {
       // Импорт static-html.js вызывает циклическую зависимость, которую g3 не
       // обрабатывает. Вместо этого мы знаем, что статические значения должны
       // иметь поле `_$htmlStatic$`.
@@ -454,7 +472,7 @@ function trustFromTemplateString(tsa: TemplateStringsArray, stringFromTSA: strin
   // объектов TemplateStringArray.
   if (!isArray(tsa) || !tsa.hasOwnProperty("raw")) {
     let message = "invalid template strings array"
-    if (global.MetaForHtmlDebug) {
+    if (isHtmlDebugEnabled()) {
       message = `
           Internal Error: expected template strings to be an array
           with a 'raw' field. Faking a template strings array by
@@ -548,7 +566,7 @@ const getTemplateHtml = (strings: TemplateStringsArray, type: ResultType): [Trus
           }
           regex = tagEndRegex
         } else if (match[DYNAMIC_TAG_NAME] !== undefined) {
-          if (global.MetaForHtmlDebug) {
+          if (isHtmlDebugEnabled()) {
             throw new Error(
               "Связывания в именах тегов не поддерживаются. Пожалуйста, используйте статические шаблоны вместо этого. " +
                 "См. https://lit.dev/docs/templates/expressions/#static-expressions"
@@ -590,7 +608,7 @@ const getTemplateHtml = (strings: TemplateStringsArray, type: ResultType): [Trus
       }
     }
 
-    if (global.MetaForHtmlDebug) {
+    if (isHtmlDebugEnabled()) {
       // Если у нас есть attrNameEndIndex, который указывает на то, что
       // нам нужно переписать имя атрибута, утверждаем, что мы находимся
       // в допустимой позиции атрибута - либо в теге, либо в необученном
@@ -670,7 +688,7 @@ class Template {
     // Обходим шаблон, чтобы найти маркеры связывания и создать TemplateParts
     while ((node = walker.nextNode()) !== null && parts.length < partCount) {
       if (node.nodeType === 1) {
-        if (global.MetaForHtmlDebug) {
+        if (isHtmlDebugEnabled()) {
           const tag = (node as Element).localName
           // Предупреждаем, если `textarea` включает выражение и выбрасываем,
           // если `template` это делает, так как это не поддерживается.
@@ -762,7 +780,7 @@ class Template {
       nodeIndex++
     }
 
-    if (global.MetaForHtmlDebug) {
+    if (isHtmlDebugEnabled()) {
       // Если на теге был дублирующий атрибут, то когда тег парсится в
       // элемент, атрибут дедуплицируется. Мы можем обнаружить это
       // несоответствие, если мы не точно потребили все имена атрибутов при
@@ -1072,7 +1090,7 @@ class ChildPart implements Disconnectable {
   }
 
   _$setValue(value: unknown, directiveParent: DirectiveParent = this): void {
-    if (global.MetaForHtmlDebug && this.parentNode === null) {
+    if (isHtmlDebugEnabled() && this.parentNode === null) {
       throw new Error(
         `Этот \`ChildPart\` не имеет \`parentNode\` и поэтому не может принять значение. Это, вероятно, означает, что элемент, содержащий часть, был изменен неподдерживаемым способом вне контроля Lit, что привело к тому, что маркерные узлы части были выброшены из DOM. Например, установка \`innerHTML\` или \`textContent\` может сделать это.`
       )
@@ -1102,7 +1120,7 @@ class ChildPart implements Disconnectable {
     } else if ((value as TemplateResult)["_$htmlType$"] !== undefined) {
       this._commitTemplateResult(value as TemplateResult)
     } else if ((value as Node).nodeType !== undefined) {
-      if (global.MetaForHtmlDebug && this.options?.host === value) {
+      if (isHtmlDebugEnabled() && this.options?.host === value) {
         this._commitText(
           `[probable mistake: rendered a template's host in itself ` +
             `(commonly caused by writing \${this} in a template]`
@@ -1137,7 +1155,7 @@ class ChildPart implements Disconnectable {
         const parentNodeName = this._$startNode.parentNode?.nodeName
         if (parentNodeName === "STYLE" || parentNodeName === "SCRIPT") {
           let message = "Запрещено"
-          if (global.MetaForHtmlDebug) {
+          if (isHtmlDebugEnabled()) {
             if (parentNodeName === "STYLE") {
               message =
                 `Lit не поддерживает связывание внутри узлов стиля. ` +
@@ -1373,7 +1391,7 @@ class ChildPart implements Disconnectable {
     if (this._$parent === undefined) {
       this.__isConnected = isConnected
       this._$notifyConnectionChanged?.(isConnected)
-    } else if (global.MetaForHtmlDebug) {
+    } else if (isHtmlDebugEnabled()) {
       throw new Error("part.setConnected() может быть вызван только на RootPart, возвращаемом из render().")
     }
   }
@@ -1599,7 +1617,7 @@ class EventPart extends AttributePart {
   ) {
     super(element, name, strings, parent, options)
 
-    if (global.MetaForHtmlDebug && this.strings !== undefined) {
+    if (isHtmlDebugEnabled() && this.strings !== undefined) {
       throw new Error(
         `У \`<${element.localName}>\` есть \`@${name}=...\` слушатель с ` +
           "недопустимым содержимым. Слушатели событий в шаблонах должны иметь " +
@@ -1740,15 +1758,15 @@ export const _$LH = {
 }
 
 // Применяем полифилы, если они доступны
-const polyfillSupport = global.MetaForHtmlDebug ? global.htmlPolyfillSupportDevMode : global.htmlPolyfillSupport
+const polyfillSupport = getHtmlPolyfillSupport()
 if (polyfillSupport) {
   polyfillSupport(Template, ChildPart)
 }
 
 // ВАЖНО: не меняйте имя свойства или выражение присваивания.
 // Эта строка будет использоваться в регулярных выражениях для поиска использования @metafor/html.
-;(global.htmlVersions ??= []).push("3.3.0")
-if (global.MetaForHtmlDebug && global.htmlVersions.length > 1) {
+addHtmlVersion("3.3.0")
+if (isHtmlDebugEnabled() && getHtmlVersions().length > 1) {
   queueMicrotask(() => {
     issueWarning!(
       "multiple-versions",
@@ -1787,13 +1805,13 @@ export const render = (
   container: HTMLElement | DocumentFragment,
   options?: RenderOptions
 ): RootPart => {
-  if (global.MetaForHtmlDebug && container == null) {
+  if (isHtmlDebugEnabled() && container == null) {
     // Даем более понятное сообщение об ошибке, чем
     // Uncaught TypeError: Cannot read properties of null (reading '_$htmlPart$')
     // которое читается как внутренняя ошибка.
     throw new TypeError(`Контейнер для рендеринга не может быть ${container}`)
   }
-  const renderId = global.MetaForHtmlDebug ? debugLogRenderId++ : 0
+  const renderId = isHtmlDebugEnabled() ? debugLogRenderId++ : 0
   const partOwnerNode = options?.renderBefore ?? container
   // Это свойство должно оставаться неминифицированным.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -1817,6 +1835,6 @@ export const render = (
 if (ENABLE_EXTRA_SECURITY_HOOKS) {
   render.setSanitizer = setSanitizer
   render.createSanitizer = createSanitizer
-  if (global.MetaForHtmlDebug)
+  if (isHtmlDebugEnabled())
     render._testOnlyClearSanitizerFactoryDoNotCallOrElse = _testOnlyClearSanitizerFactoryDoNotCallOrElse
 }
