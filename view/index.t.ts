@@ -10,7 +10,7 @@ import type { ref } from "../html/directives/ref"
 import type { repeat } from "../html/directives/repeat"
 import type { styleMap } from "../html/directives/style-map"
 import type { when } from "../html/directives/when"
-import type { html } from "../html/html"
+import type { html, nothing } from "../html/html"
 import type { TemplateResult } from "../html/html.t"
 
 /**
@@ -141,6 +141,18 @@ export type ViewDefinitionParams<C extends ContextSchema, S extends string> = {
    * ```
    */
   style: typeof styleMap
+  /**
+   * Специальное значение для удаления контента.
+   *
+   * ```ts
+   * const button = html`${
+   *  user.isAdmin ? html`<button>DELETE</button>` : nothing
+   * }`;
+   * ```
+   *
+   * Удаляет узлы в child выражениях и атрибуты в атрибутных выражениях.
+   */
+  nothing: typeof nothing
 }
 
 /**
