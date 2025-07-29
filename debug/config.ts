@@ -15,8 +15,6 @@ export interface DebugConfig {
   debugEvents: boolean
   /** Предупреждения HTML */
   htmlWarnings: Set<string>
-  /** Версии HTML */
-  htmlVersions: string[]
   /** Поддержка полифиллов */
   htmlPolyfillSupport?: (Template: any, ChildPart: any) => void
   /** Поддержка полифиллов в режиме разработки */
@@ -33,7 +31,6 @@ export const debugConfig: DebugConfig = {
   debugHtml: false,
   debugEvents: false,
   htmlWarnings: new Set(),
-  htmlVersions: [],
   emitHtmlDebugLogEvents: false,
 }
 
@@ -91,22 +88,6 @@ export function addHtmlWarning(warning: string): void {
  */
 export function hasHtmlWarning(warning: string): boolean {
   return debugConfig.htmlWarnings.has(warning)
-}
-
-/**
- * Добавить версию HTML
- */
-export function addHtmlVersion(version: string): void {
-  if (!debugConfig.htmlVersions.includes(version)) {
-    debugConfig.htmlVersions.push(version)
-  }
-}
-
-/**
- * Получить версии HTML
- */
-export function getHtmlVersions(): string[] {
-  return debugConfig.htmlVersions
 }
 
 /**

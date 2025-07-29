@@ -50,8 +50,6 @@ import {
   isHtmlDebugEnabled,
   addHtmlWarning,
   hasHtmlWarning,
-  addHtmlVersion,
-  getHtmlVersions,
   setHtmlPolyfillSupport,
   setHtmlPolyfillSupportDevMode,
   getHtmlPolyfillSupport,
@@ -814,7 +812,7 @@ class Template {
       })
   }
 
-  // Переопределяется через `litHtmlPolyfillSupport` для поддержки платформы.
+  // Переопределяется через `htmlPolyfillSupport` для поддержки платформы.
   /** @nocollapse */
   static createElement(html: TrustedHTML, _options?: RenderOptions) {
     const el = d.createElement("template")
@@ -893,8 +891,7 @@ class TemplateInstance implements Disconnectable {
     return this._$parent.parentNode
   }
 
-  // См. комментарий в интерфейсе Disconnectable для объяснения, почему это
-  // геттер
+  // См. комментарий в интерфейсе Disconnectable для объяснения, почему это геттер
   get _$isConnected() {
     return this._$parent._$isConnected
   }
@@ -967,15 +964,12 @@ class TemplateInstance implements Disconnectable {
   }
 }
 
-/*
- * Части
- */
+/* Части */
 /**
  * TemplatePart представляет динамическую часть в шаблоне, перед его
  * инстанцированием. Когда шаблон инстанцируется, части создаются из
  * TemplateParts.
  */
-
 export type { ChildPart }
 
 class ChildPart implements Disconnectable {
@@ -1336,7 +1330,6 @@ class ChildPart implements Disconnectable {
         // TODO (justinfagnani): протестируйте влияние на производительность
         // всегда создания двух частей вместо совместного использования частей
         // между узлами
-        // https://github.com/lit/lit/issues/1266
         itemParts.push(
           (itemPart = new ChildPart(this._insert(createMarker()), this._insert(createMarker()), this, this.options))
         )
@@ -1425,8 +1418,7 @@ export class AttributePart implements Disconnectable {
     return this.element.tagName
   }
 
-  // См. комментарий в интерфейсе Disconnectable для объяснения, почему это
-  // геттер
+  // См. комментарий в интерфейсе Disconnectable для объяснения, почему это геттер
   get _$isConnected() {
     return this._$parent._$isConnected
   }
@@ -1502,8 +1494,7 @@ export class AttributePart implements Disconnectable {
         v = resolveDirective(this, values[valueIndex! + i], directiveParent, i)
 
         if (v === noChange) {
-          // Если предоставленное пользователем значение равно `noChange`,
-          // используем предыдущее значение
+          // Если предоставленное пользователем значение равно `noChange`, используем предыдущее значение
           v = (this._$committedValue as Array<unknown>)[i]
         }
         change ||= !isPrimitive(v) || v !== (this._$committedValue as Array<unknown>)[i]
@@ -1512,8 +1503,7 @@ export class AttributePart implements Disconnectable {
         } else if (value !== nothing) {
           value += (v ?? "") + strings[i + 1]!
         }
-        // Мы всегда записываем каждое значение, даже если одно из них равно
-        // `nothing`, для будущей проверки изменений.
+        // Мы всегда записываем каждое значение, даже если одно из них равно `nothing`, для будущей проверки изменений.
         ;(this._$committedValue as Array<unknown>)[i] = v
       }
     }
@@ -1567,7 +1557,6 @@ class PropertyPart extends AttributePart {
         value,
         options: this.options,
       })
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     ;(this.element as any)[this.name] = value === nothing ? undefined : value
   }
 }
@@ -1701,8 +1690,7 @@ class ElementPart implements Disconnectable {
     this.options = options
   }
 
-  // См. комментарий в интерфейсе Disconnectable для объяснения, почему это
-  // геттер
+  // См. комментарий в интерфейсе Disconnectable для объяснения, почему это геттер
   get _$isConnected() {
     return this._$parent._$isConnected
   }
@@ -1722,24 +1710,24 @@ class ElementPart implements Disconnectable {
 /**
  * ЭТОТ ОБЪЕКТ НЕ ДОЛЖЕН ЛИЧАТЬСЯ ПОЛЬЗОВАТЕЛЯМИ.
  *
- * Приватные экспорты для использования другими пакетами Lit, не предназначенными
+ * Приватные экспорты для использования другими пакетами, не предназначенными
  * для использования пользователями.
  *
- * Мы сейчас не делаем склеивание сборки lit-ssr. Чтобы сохранить несколько
+ * Мы сейчас не делаем склеивание сборки html-ssr. Чтобы сохранить несколько
  * (в противном случае приватных) верхнеуровневых экспортов, которые
  * замаскированы в клиентском коде, мы экспортируем объект _$LH, содержащий
  * эти члены (или вспомогательные методы для доступа к приватным полям этих
- * членов), и затем переэкспортируем их для использования в lit-ssr. Это
- * делает lit-ssr независимо от того, используется ли клиентский код в режиме
+ * членов), и затем переэкспортируем их для использования в html-ssr. Это
+ * делает html-ssr независимо от того, используется ли клиентский код в режиме
  * `dev` или `prod`.
  *
  * Это имеет уникальное имя, чтобы дистанцировать его от приватных экспортов
- * в lit-element, которые переэкспортируют все lit-html.
+ * в html-element, которые переэкспортируют все html.
  *
  * @private
  */
 export const _$LH = {
-  // Используется в lit-ssr
+  // Используется в html-ssr
   _boundAttributeSuffix: boundAttributeSuffix,
   _marker: marker,
   _markerMatch: markerMatch,
@@ -1763,18 +1751,6 @@ if (polyfillSupport) {
   polyfillSupport(Template, ChildPart)
 }
 
-// ВАЖНО: не меняйте имя свойства или выражение присваивания.
-// Эта строка будет использоваться в регулярных выражениях для поиска использования @metafor/html.
-addHtmlVersion("3.3.0")
-if (isHtmlDebugEnabled() && getHtmlVersions().length > 1) {
-  queueMicrotask(() => {
-    issueWarning!(
-      "multiple-versions",
-      `Загружены несколько версий @metafor/html. ` + `Загрузка нескольких версий не рекомендуется.`
-    )
-  })
-}
-
 /**
  * Рендерит значение, обычно TemplateResult, в контейнер.
  *
@@ -1788,17 +1764,13 @@ if (isHtmlDebugEnabled() && getHtmlVersions().length > 1) {
  * render(html`<p>Hello, ${name}!</p>`, document.body);
  * ```
  *
- * @param value Любое [рендеримое
- *   значение](https://lit.dev/docs/templates/expressions/#child-expressions),
- *   обычно TemplateResult, созданный путем оценки тега шаблона, такого как
- *   {@linkcode html} или {@linkcode svg}.
+ * @param value Любое рендеримое значение обычно TemplateResult, 
+ *   созданный путем оценки тега шаблона, такого как {@linkcode html} или {@linkcode svg}.
  * @param container DOM-контейнер для рендеринга. Первый рендер будет
  *   добавлять отрендеренное значение в контейнер, и последующие рендеры
  *   будут эффективно обновлять отрендеренное значение, если тот же тип
  *   результата был ранее отрендерен в этом месте.
  * @param options См. {@linkcode RenderOptions} для документации по опциям.
- * @see
- * {@link https://lit.dev/docs/libraries/standalone-templates/#rendering-lit-html-templates| Рендеринг Lit HTML шаблонов}
  */
 export const render = (
   value: unknown,
@@ -1813,8 +1785,6 @@ export const render = (
   }
   const renderId = isHtmlDebugEnabled() ? debugLogRenderId++ : 0
   const partOwnerNode = options?.renderBefore ?? container
-  // Это свойство должно оставаться неминифицированным.
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let part: ChildPart = (partOwnerNode as any)["_$htmlPart$"]
   debugLogEvent && debugLogEvent({ kind: "begin render", id: renderId, value, container, options, part })
 
