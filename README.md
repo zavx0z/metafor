@@ -1,16 +1,19 @@
 # MetaFor
 
-**MetaFor** — это современный TypeScript фреймворк для создания веб-компонентов на основе конечных автоматов с декларативным API, типобезопасностью и реактивностью.
+**MetaFor** — это современный VanillaJS фреймворк для создания real-time веб-приложений на основе контекстно-ориентированного конечного автомата с декларативным API, типобезопасностью и реактивностью. Работает как на клиенте, так и на сервере.
 
 ## 🚀 Основные возможности
 
-- **Конечные автоматы** — декларативное описание состояний и переходов
+- **Контекстно-ориентированный конечный автомат** — состояния и переходы зависят от контекста
+- **Universal JavaScript** — работает как на клиенте, так и на сервере
+- **Real-time обновления** — мгновенная реакция на изменения состояния без перезагрузки
 - **Типобезопасность** — полная типизация TypeScript для всех компонентов
 - **Реактивность** — автоматическое обновление UI при изменении состояния
 - **Процессы** — действия с обработкой успеха/ошибок (асинхронные и синхронные)
 - **Реакции** — декларативные фильтры для обработки внешних событий
 - **Шаблонизация** — современный HTML template API с директивами
 - **Веб-компоненты** — нативная поддержка Custom Elements
+- **Zero-build** — работает без сборщиков и компиляции
 
 ## 🎯 Быстрый старт
 
@@ -39,6 +42,7 @@ MetaFor("counter")
       .success(({ update, data }) => update({ count: data.count, isLoading: false }))
       .error(({ update }) => update({ isLoading: false })),
   }))
+  .reactions()
   .view({
     render: ({ context, html }) => html`
       <div>
@@ -263,7 +267,7 @@ tags: {
 
 ```typescript
 .view({
-  render: ({ context, html, update, ref }) => html`
+  render: ({ context, html, update }) => html`
     <div class="user-profile">
       <h1>${context.name}</h1>
 
@@ -469,6 +473,7 @@ MetaFor("async-counter")
         update({ error: error.message, isLoading: false })
       }),
   }))
+  .reactions()
   .view({
     render: ({ context, html, update }) => html`
       <div class="counter">
@@ -563,6 +568,7 @@ MetaFor("user-form")
         })
       }),
   }))
+  .reactions()
   .view({
     render: ({ context, html, update }) => html`
       <form
@@ -670,10 +676,6 @@ console.log(snapshot)
 ## 📚 Дополнительные ресурсы
 
 - [Примеры проектов](https://github.com/metafor/examples)
-- [API документация](https://metafor.dev/api)
-- [Руководство по миграции](https://metafor.dev/migration)
-- [Сообщество](https://github.com/metafor/metafor/discussions)
+- [API документация](https://api.metafor.space)
+- [Руководство по миграции](https://migration.metafor.space)
 
-## 🤝 Вклад в проект
-
-Мы приветствуем вклад в развитие MetaFor! Это закрытый репозиторий, поэтому для участия в разработке свяжитесь с командой проекта.
