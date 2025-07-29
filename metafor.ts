@@ -272,7 +272,6 @@ export function MetaFor(tag: string) {
                             }
 
                             disconnectedCallback() {
-                              console.log("disconnected: ", tag)
                               this.removeEventListener("channel", this.#reactionHandler)
                             }
 
@@ -333,7 +332,6 @@ export function MetaFor(tag: string) {
                               }
                               return updated
                             }
-
                             /**
                              * - выполняет переходы с установкой состояния
                              * - запускает процесс если есть

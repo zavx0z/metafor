@@ -710,21 +710,31 @@ class Template {
               const realName = attrNames[attrNameIndex++]
               const value = (node as Element).getAttribute(name)!
               const statics = value.split(marker)
-              const m = /([.?@])?(.*)/.exec(realName!)!
-              parts.push({
-                type: ATTRIBUTE_PART,
-                index: nodeIndex,
-                name: m[2]!,
-                strings: statics,
-                ctor:
-                  m[1] === "."
-                    ? PropertyPart
-                    : m[1] === "?"
-                    ? BooleanAttributePart
-                    : m[1] === "@"
-                    ? EventPart
-                    : AttributePart,
-              })
+              if (realName === "context") {
+                parts.push({
+                  type: ATTRIBUTE_PART,
+                  index: nodeIndex,
+                  name: realName,
+                  strings: statics,
+                  ctor: PropertyPart,
+                })
+              } else {
+                const m = /([.?@])?(.*)/.exec(realName!)!
+                parts.push({
+                  type: ATTRIBUTE_PART,
+                  index: nodeIndex,
+                  name: m[2]!,
+                  strings: statics,
+                  ctor:
+                    m[1] === "."
+                      ? PropertyPart
+                      : m[1] === "?"
+                      ? BooleanAttributePart
+                      : m[1] === "@"
+                      ? EventPart
+                      : AttributePart,
+                })
+              }
               ;(node as Element).removeAttribute(name)
             } else if (name.startsWith(marker)) {
               parts.push({
@@ -1544,9 +1554,7 @@ class PropertyPart extends AttributePart {
   /** @internal */
   override _commitValue(value: unknown) {
     if (ENABLE_EXTRA_SECURITY_HOOKS) {
-      if (this._sanitizer === undefined) {
-        this._sanitizer = sanitizerFactoryInternal(this.element, this.name, "property")
-      }
+      if (this._sanitizer === undefined) this._sanitizer = sanitizerFactoryInternal(this.element, this.name, "property")
       value = this._sanitizer(value)
     }
     debugLogEvent &&
@@ -1557,6 +1565,15 @@ class PropertyPart extends AttributePart {
         value,
         options: this.options,
       })
+    if (this.name === "context" && value) {
+      try {
+        // @ts-ignore при первой отрисовки без оповещения изменения контекста так как еще не привязаны обработчики
+        this.element.update(value)
+      } catch (e) {
+        const tag = this.element.tagName.toLowerCase()
+        throw new Error(`meta-компонент ${tag} не создан`)
+      }
+    } else;
     ;(this.element as any)[this.name] = value === nothing ? undefined : value
   }
 }
@@ -1764,7 +1781,7 @@ if (polyfillSupport) {
  * render(html`<p>Hello, ${name}!</p>`, document.body);
  * ```
  *
- * @param value Любое рендеримое значение обычно TemplateResult, 
+ * @param value Любое рендеримое значение обычно TemplateResult,
  *   созданный путем оценки тега шаблона, такого как {@linkcode html} или {@linkcode svg}.
  * @param container DOM-контейнер для рендеринга. Первый рендер будет
  *   добавлять отрендеренное значение в контейнер, и последующие рендеры
