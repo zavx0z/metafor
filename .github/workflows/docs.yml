@@ -25,7 +25,7 @@ jobs:
         run: bun install
 
       - name: Generate documentation
-        run: typedoc
+        run: bun run docs
 
       - name: Deploy to Firebase
         if: github.ref == 'refs/heads/doc'
