@@ -5,8 +5,8 @@
  * 
  * Поддерживает передачу контекста между компонентами через атрибут `context`.
  * 
- * @includeExample ../view/test/context.init.spec.ts
- * @includeExample ../view/test/context.update.spec.ts
+ * @includeExample view/test/context.init.spec.ts
+ * @includeExample view/test/context.update.spec.ts
  */
 
 import type { Template } from "./html"
@@ -77,8 +77,8 @@ export interface CompiledTemplate extends Omit<Template, "el"> {
  * Часть шаблона для атрибутов.
  * Поддерживает специальную обработку атрибута `context` для передачи данных между компонентами.
  * 
- * @includeExample ../view/test/context.init.spec.ts
- * @includeExample ../view/test/context.update.spec.ts
+ * @includeExample view/test/context.init.spec.ts
+ * @includeExample view/test/context.update.spec.ts
  */
 export type AttributeTemplatePart = {
   readonly type: typeof ATTRIBUTE_PART

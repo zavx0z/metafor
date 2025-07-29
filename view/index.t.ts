@@ -18,8 +18,8 @@ import type { TemplateResult } from "../html/html.t"
  *
  * В функцию render компонента MetaFor передаётся объект с полезными утилитами и данными для построения UI.
  *
- * @includeExample ./test/context.init.spec.ts
- * @includeExample ./test/context.update.spec.ts
+ * @includeExample view/test/context.init.spec.ts
+ * @includeExample view/test/context.update.spec.ts
  *
  * @example
  * ```ts
@@ -150,8 +150,8 @@ export type ViewDefinitionParams<C extends ContextSchema, S extends string> = {
  * При первой отрисовке контекст устанавливается без дополнительных сообщений,
  * при обновлении контекста родителя автоматически обновляется контекст ребенка.
  *
- * @includeExample ./test/context.init.spec.ts
- * @includeExample ./test/context.update.spec.ts
+ * @includeExample view/test/context.init.spec.ts
+ * @includeExample view/test/context.update.spec.ts
  */
 export interface ViewConfig<C extends ContextSchema, S extends string> {
   /**
