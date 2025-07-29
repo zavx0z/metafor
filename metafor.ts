@@ -53,7 +53,7 @@ import { types, createContext } from "./context"
 import type { ContextSchema, ContextInstance, ExtractValues, Update } from "./context"
 import { checkTransitionConditions, type StatesConfig } from "./state"
 import { createActionsConfig } from "./proc/index.ts"
-import type { ActionsDeclaration, Process } from "./proc/index.t.ts"
+import type { ProcessesDeclaration, Process } from "./proc/index.t.ts"
 import type { Core, Snapshot } from "./metafor.t"
 import type { ViewConfig } from "./view/index.t.ts"
 import {
@@ -63,7 +63,7 @@ import {
   updateContextMessage,
 } from "./message/index.ts"
 import type { Message } from "./message/index.ts"
-import { html, render } from "./html/html.ts"
+import { html, nothing, render } from "./html/html.ts"
 import { validateNoUnconditionalCycles } from "./state"
 import { ref } from "./html/directives/ref.ts"
 import { repeat } from "./html/directives/repeat.ts"
@@ -164,7 +164,7 @@ export function MetaFor(tag: string, config?: { description?: string }) {
           validateNoUnconditionalCycles(states)
           const initialState = Object.keys(states)[0] as S
           return {
-            core<I extends Core = Core>(core: I = {} as I) {
+            core<I extends Core>(core: I = {} as I) {
               return {
                 /**
                  * Регистрирует процессы автомата для нужных состояний.
@@ -185,7 +185,7 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                  *
                  * @returns Объект с процессами только для нужных состояний
                  */
-                processes(process: ActionsDeclaration<C, S, I> = () => ({})) {
+                processes(process: ProcessesDeclaration<C, S, I> = () => ({})) {
                   const processesRegistry = createActionsConfig<C, S, I>(process)
                   return {
                     /**
@@ -207,7 +207,7 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                             #transitions = states
                             #actions = processesRegistry
                             #reactions = reactionsRegistry
-                            #core: Record<string, any> = {}
+                            #core: I = {} as I
                             /** ------------state-------------------------------- */
                             #state: S = initialState
                             #setState(state: S) {
@@ -294,9 +294,13 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                              * @param process - конфигурация процесса состояния
                              * @throws {Error} - если обработчик ошибки не найден
                              */
-                            #executeAction = (process: Process<C>) => {
+                            #executeAction = (process: Process<C, I>) => {
                               try {
-                                const result = process.action({ context: this.#ctx.getSnapshot() })
+                                const result = process.action({
+                                  context: this.#ctx.getSnapshot(),
+                                  core: this.#core,
+                                  element: this,
+                                })
                                 if (result instanceof Promise) {
                                   this.#broadcastMessage(stateBeforeActionMessage(tag, this.#state))
                                   result
@@ -387,6 +391,7 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                                 repeat,
                                 when,
                                 map,
+                                nothing,
                               })
                               if (template) render(template, this.#shadow)
                             }

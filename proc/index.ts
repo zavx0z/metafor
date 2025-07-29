@@ -4,7 +4,7 @@
  */
 
 import type { ContextSchema, ExtractValues } from "../context"
-import type { ActionChain, ActionsDeclaration, Process, ProcessChain } from "./index.t"
+import type { ActionChain, ProcessesDeclaration, Process, ProcessChain } from "./index.t"
 import type { Core } from "../metafor.t"
 
 /**
@@ -28,7 +28,7 @@ import type { Core } from "../metafor.t"
  * }))
  */
 export function createActionsConfig<C extends ContextSchema, S extends string, I extends Core = {}>(
-  actions: ActionsDeclaration<C, S, I>
+  actions: ProcessesDeclaration<C, S, I>
 ): Partial<Record<S, Process<C, any>>> {
   /**
    * Фабрика для создания process chain-объекта для каждого процесса.
@@ -36,7 +36,9 @@ export function createActionsConfig<C extends ContextSchema, S extends string, I
    */
   function process(config?: { title?: string; description?: string }): ProcessChain<C, I> {
     return {
-      action: <Res>(fn: (params: { context: ExtractValues<C>; core: I }) => Res | Promise<Res>): ActionChain<C, I, Res> => {
+      action: <Res>(
+        fn: (params: { context: ExtractValues<C>; core: I; element: HTMLElement }) => Res | Promise<Res>
+      ): ActionChain<C, I, Res> => {
         // Храним текущие success/error handler'ы (последний вызов перезаписывает предыдущий)
         let successHandler:
           | ((params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void)
@@ -60,8 +62,8 @@ export function createActionsConfig<C extends ContextSchema, S extends string, I
           },
           // Собирает итоговый объект: только те обработчики, которые были явно заданы
           getResult() {
-            const result: Process<C, Res> = {
-              action: (params) => fn({ context: params.context, core: {} as I }),
+            const result: Process<C, I, Res> = {
+              action: (params) => fn({ context: params.context, core: params.core, element: params.element }),
             }
             if (successHandler) result.success = successHandler
             if (errorHandler) result.error = errorHandler

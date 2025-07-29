@@ -21,7 +21,7 @@ import type { Core } from "../metafor.t"
  * @includeExample ./proc/test/actions.types.spec.ts
  */
 
-export type ActionsDeclaration<C extends ContextSchema, S extends string, I extends Core> = (
+export type ProcessesDeclaration<C extends ContextSchema, S extends string, I extends Core> = (
   process: (config?: { title?: string; description?: string }) => ProcessChain<C, I>
 ) => Partial<Record<S, ActionChain<C, I, any>>>
 
@@ -76,9 +76,15 @@ export type ProcessChain<C extends ContextSchema, I extends Core> = {
    * })
    * ```
    */
-  action: <Res>(fn: (params: { context: ExtractValues<C>; core: I }) => Res | Promise<Res>) => ActionChain<C, I, Res>
+  action: <Res>(
+    fn: (params: ActionParams<C, I>) => Res | Promise<Res>
+  ) => ActionChain<C, I, Res>
 }
-
+type ActionParams<C extends ContextSchema, I extends Core> = {
+  context: ExtractValues<C>
+  core: I
+  element: HTMLElement
+}
 /**
  * Цепочка для декларации action с типобезопасной поддержкой success и error.
  * Позволяет удобно и строго типизировано описывать обработчики процессов автомата.
@@ -115,7 +121,7 @@ export type ActionChain<C extends ContextSchema, I extends Core, Res> = {
    * }
    * ```
    */
-  action: (params: { context: ExtractValues<C>; core: I }) => Res | Promise<Res>
+  action: (params: ActionParams<C, I>) => Res | Promise<Res>
 
   /**
    * Добавляет обработчик успешного завершения процесса.
@@ -187,7 +193,7 @@ export type ActionChain<C extends ContextSchema, I extends Core, Res> = {
    * // }
    * ```
    */
-  getResult: () => Process<C, Res>
+  getResult: () => Process<C, I, Res>
 }
 
 /**
@@ -217,9 +223,9 @@ export type ActionChain<C extends ContextSchema, I extends Core, Res> = {
  * }
  * ```
  */
-export type Process<C extends ContextSchema, Res = any> = {
+export type Process<C extends ContextSchema, I extends Core, Res = any> = {
   /** Основная функция процесса */
-  action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
+  action: (params: ActionParams<C, I>) => Res | Promise<Res>
   /** Обработчик успешного завершения */
   success?: (params: { update: (values: UpdateValues<ExtractValues<C>>) => void; data: Res }) => void
   /** Обработчик ошибки */
@@ -266,4 +272,6 @@ export type Process<C extends ContextSchema, Res = any> = {
  * }
  * ```
  */
-export type ActionsConfig<C extends ContextSchema, S extends string, Res = any> = Partial<Record<S, Process<C, Res>>>
+export type ActionsConfig<C extends ContextSchema, S extends string, I extends Core, Res = any> = Partial<
+  Record<S, Process<C, I, Res>>
+>

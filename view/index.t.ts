@@ -142,7 +142,7 @@ export type ViewDefinitionParams<C extends ContextSchema, S extends string> = {
    */
   style: typeof styleMap
   /**
-   * Специальное значение для удаления контента.
+   * Специальное значение для пустого контента.
    *
    * ```ts
    * const button = html`${
@@ -184,7 +184,7 @@ export interface ViewConfig<C extends ContextSchema, S extends string> {
    * `
    * ```
    */
-  render?: (params: ViewDefinitionParams<C, S>) => TemplateResult
+  render?: (params: ViewDefinitionParams<C, S>) => TemplateResult | typeof nothing
   /**
    * Функция, вызываемая после монтирования компонента в DOM.
    * Используется для инициализации после рендера.
