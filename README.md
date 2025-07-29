@@ -678,4 +678,3 @@ console.log(snapshot)
 - [Примеры проектов](https://github.com/metafor/examples)
 - [API документация](https://api.metafor.space)
 - [Руководство по миграции](https://migration.metafor.space)
-
