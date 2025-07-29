@@ -5,6 +5,7 @@
  */
 
 import type { ContextSchema, ExtractValues, UpdateValues } from "../context"
+import type { Core } from "../metafor.t"
 
 /**
  * Тип билдера для декларации набора процессов автомата.
@@ -20,9 +21,9 @@ import type { ContextSchema, ExtractValues, UpdateValues } from "../context"
  * @includeExample ./proc/test/actions.types.spec.ts
  */
 
-export type ActionsDeclaration<C extends ContextSchema, S extends string> = (
-  process: (config?: { title?: string; description?: string }) => ProcessChain<C>
-) => Partial<Record<S, ActionChain<C, any>>>
+export type ActionsDeclaration<C extends ContextSchema, S extends string, I extends Core> = (
+  process: (config?: { title?: string; description?: string }) => ProcessChain<C, I>
+) => Partial<Record<S, ActionChain<C, I, any>>>
 
 /**
  * Chain API для создания процесса с опциональными параметрами title и description.
@@ -44,7 +45,7 @@ export type ActionsDeclaration<C extends ContextSchema, S extends string> = (
  * chain.getResult() // { action, success, error, title?, description? }
  * ```
  */
-export type ProcessChain<C extends ContextSchema> = {
+export type ProcessChain<C extends ContextSchema, I extends Core> = {
   /**
    * Добавляет основную функцию процесса.
    *
@@ -75,7 +76,7 @@ export type ProcessChain<C extends ContextSchema> = {
    * })
    * ```
    */
-  action: <Res>(fn: (params: { context: ExtractValues<C> }) => Res | Promise<Res>) => ActionChain<C, Res>
+  action: <Res>(fn: (params: { context: ExtractValues<C>; core: I }) => Res | Promise<Res>) => ActionChain<C, I, Res>
 }
 
 /**
@@ -94,7 +95,7 @@ export type ProcessChain<C extends ContextSchema> = {
  * chain.getResult() // { action, success, error }
  * ```
  */
-export type ActionChain<C extends ContextSchema, Res> = {
+export type ActionChain<C extends ContextSchema, I extends Core, Res> = {
   /**
    * Основная функция процесса, вызывается автоматом.
    *
@@ -114,7 +115,7 @@ export type ActionChain<C extends ContextSchema, Res> = {
    * }
    * ```
    */
-  action: (params: { context: ExtractValues<C> }) => Res | Promise<Res>
+  action: (params: { context: ExtractValues<C>; core: I }) => Res | Promise<Res>
 
   /**
    * Добавляет обработчик успешного завершения процесса.
@@ -140,7 +141,7 @@ export type ActionChain<C extends ContextSchema, Res> = {
    */
   success: (
     handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void
-  ) => ActionChain<C, Res>
+  ) => ActionChain<C, I, Res>
 
   /**
    * Добавляет обработчик ошибки выполнения процесса.
@@ -165,7 +166,7 @@ export type ActionChain<C extends ContextSchema, Res> = {
    */
   error: (
     handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void
-  ) => ActionChain<C, Res>
+  ) => ActionChain<C, I, Res>
 
   /**
    * Возвращает итоговый объект конфигурации процесса для автомата.

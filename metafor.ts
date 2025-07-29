@@ -54,10 +54,15 @@ import type { ContextSchema, ContextInstance, ExtractValues, Update } from "./co
 import { checkTransitionConditions, type StatesConfig } from "./state"
 import { createActionsConfig } from "./proc/index.ts"
 import type { ActionsDeclaration, Process } from "./proc/index.t.ts"
-import type { Snapshot } from "./metafor.t"
+import type { Core, Snapshot } from "./metafor.t"
 import type { ViewConfig } from "./view/index.t.ts"
-import { initMessage, stateAfterActionMessage, stateBeforeActionMessage, updateContextMessage } from "./message"
-import type { Message } from "./message"
+import {
+  initMessage,
+  stateAfterActionMessage,
+  stateBeforeActionMessage,
+  updateContextMessage,
+} from "./message/index.ts"
+import type { Message } from "./message/index.ts"
 import { html, render } from "./html/html.ts"
 import { validateNoUnconditionalCycles } from "./state"
 import { ref } from "./html/directives/ref.ts"
@@ -112,13 +117,12 @@ function createLogger(): Logger {
 }
 
 const log = createLogger()
-
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
  * @param tag - уникальный тег web-компонента
  * @returns chain API: context() -> states() -> actions()
  */
-export function MetaFor(tag: string) {
+export function MetaFor(tag: string, config?: { description?: string }) {
   const tagName = `metafor-${tag}` as const
   return {
     /**
@@ -160,7 +164,7 @@ export function MetaFor(tag: string) {
           validateNoUnconditionalCycles(states)
           const initialState = Object.keys(states)[0] as S
           return {
-            core(core: Record<string, any> = {}) {
+            core<I extends Core = Core>(core: I = {} as I) {
               return {
                 /**
                  * Регистрирует процессы автомата для нужных состояний.
@@ -181,8 +185,8 @@ export function MetaFor(tag: string) {
                  *
                  * @returns Объект с процессами только для нужных состояний
                  */
-                processes(process: ActionsDeclaration<C, S> = () => ({})) {
-                  const processesRegistry = createActionsConfig<C, S>(process)
+                processes(process: ActionsDeclaration<C, S, I> = () => ({})) {
+                  const processesRegistry = createActionsConfig<C, S, I>(process)
                   return {
                     /**
                      * Регистрирует карту реакций для автомата.

@@ -36,4 +36,4 @@ test("Создание уникальных реакций", () => {
   expect(all?.length, "уникальные реакции").toBe(2)
   expect(all?.[0]?.title, "первая реакция").toBe("inc")
   expect(all?.[1]?.title, "вторая реакция").toBe("reset")
-}) 
+})

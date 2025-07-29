@@ -10,10 +10,18 @@
         "**/node_modules": true,
         "**/__pycache__": true,
         ".venv": true,
-        ".idea": true
+        ".idea": true,
+        ".cursor": true,
+        ".firebase": true,
+        ".github": true,
+        ".vscode": true
     },
     "hide-files.files": [
-        ".idea"
+        ".idea",
+        ".cursor",
+        ".firebase",
+        ".github",
+        ".vscode"
     ],
     "explorer.fileNesting.enabled": true,
     "explorer.fileNesting.expand": false,
@@ -131,7 +139,7 @@
         "./script"
     ],
     "markdownlint.lintWorkspaceGlobs": [
-        "!**/node_modules/**/*.md", // Exclude Markdown files within node_modules directories
-        "!**/docs/**/*.md" // Exclude Markdown files within a _build directory
+        "!**/node_modules/**/*.md",
+        "!**/docs/**/*.md"
     ]
 }

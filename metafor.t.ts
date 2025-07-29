@@ -18,3 +18,7 @@ export interface Snapshot<C extends ContextSchema, S extends string> {
   context: ExtractValues<C>
   schema: SerializedSchema<C>
 }
+/**
+ *  Ядро компонента
+ */
+export type Core = Record<string, any>

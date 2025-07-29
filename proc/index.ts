@@ -5,6 +5,7 @@
 
 import type { ContextSchema, ExtractValues } from "../context"
 import type { ActionChain, ActionsDeclaration, Process, ProcessChain } from "./index.t"
+import type { Core } from "../metafor.t"
 
 /**
  * Вспомогательная функция для декларации actionsConfig автомата через builder и chain API.
@@ -26,16 +27,16 @@ import type { ActionChain, ActionsDeclaration, Process, ProcessChain } from "./i
  *     .error(({ update, error }) => update({ name: error.message })),
  * }))
  */
-export function createActionsConfig<C extends ContextSchema, S extends string>(
-  actions: ActionsDeclaration<C, S>
+export function createActionsConfig<C extends ContextSchema, S extends string, I extends Core = {}>(
+  actions: ActionsDeclaration<C, S, I>
 ): Partial<Record<S, Process<C, any>>> {
   /**
    * Фабрика для создания process chain-объекта для каждого процесса.
    * Каждый вызов process возвращает chain API с методами action, success, error, getResult.
    */
-  function process(config?: { title?: string; description?: string }): ProcessChain<C> {
+  function process(config?: { title?: string; description?: string }): ProcessChain<C, I> {
     return {
-      action: <Res>(fn: (params: { context: ExtractValues<C> }) => Res | Promise<Res>): ActionChain<C, Res> => {
+      action: <Res>(fn: (params: { context: ExtractValues<C>; core: I }) => Res | Promise<Res>): ActionChain<C, I, Res> => {
         // Храним текущие success/error handler'ы (последний вызов перезаписывает предыдущий)
         let successHandler:
           | ((params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void)
@@ -44,23 +45,23 @@ export function createActionsConfig<C extends ContextSchema, S extends string>(
           | ((params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void)
           | undefined
         // Chain API: каждый метод возвращает тот же объект, чтобы можно было строить цепочку
-        const chain: ActionChain<C, Res> = {
+        const chain: ActionChain<C, I, Res> = {
           // Основная функция процесса
           action: fn,
           // Добавляет/перезаписывает success handler
-          success(handler) {
+          success(handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void) {
             successHandler = handler
             return chain
           },
           // Добавляет/перезаписывает error handler
-          error(handler) {
+          error(handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void) {
             errorHandler = handler
             return chain
           },
           // Собирает итоговый объект: только те обработчики, которые были явно заданы
           getResult() {
             const result: Process<C, Res> = {
-              action: fn,
+              action: (params) => fn({ context: params.context, core: {} as I }),
             }
             if (successHandler) result.success = successHandler
             if (errorHandler) result.error = errorHandler
