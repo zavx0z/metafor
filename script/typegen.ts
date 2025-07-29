@@ -12,14 +12,16 @@ export const typegen = async (entrypoint: string, destination: string) => {
       process.stdout.write(`\r${spinnerFrames[spinnerIndex++ % spinnerFrames.length]}  Генерация типов...`)
     }, 120)
 
-    await $`dts-bundle-generator --out-file ${destination} --export-referenced-types false ${entrypoint}`.quiet()
+    // Включаем глобальные типы из metafor.t.ts
+    await $`dts-bundle-generator --out-file ${destination} --export-referenced-types false --inline-declare-global true ${entrypoint}`.quiet()
 
     spinnerActive = false
     clearInterval(spinner)
     process.stdout.write("\r✅ Типы успешно сгенерированы!           \n")
   } else {
     console.log("🛠️  Генерация типов...")
-    await $`dts-bundle-generator --out-file ${destination} --export-referenced-types false ${entrypoint}`.quiet()
+    // Включаем глобальные типы из metafor.t.ts
+    await $`dts-bundle-generator --out-file ${destination} --export-referenced-types false --inline-declare-global true ${entrypoint}`.quiet()
     console.log("✅ Типы успешно сгенерированы!")
   }
 }
