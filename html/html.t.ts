@@ -2,6 +2,11 @@
  * Типы для HTML
  * @packageDocumentation
  * @module HTML
+ * 
+ * Поддерживает передачу контекста между компонентами через атрибут `context`.
+ * 
+ * @includeExample ../view/test/context.init.spec.ts
+ * @includeExample ../view/test/context.update.spec.ts
  */
 
 import type { Template } from "./html"
@@ -29,6 +34,15 @@ export const COMMENT_PART = 7
 
 // ==================== ТИПЫ РЕЗУЛЬТАТА ШАБЛОНА ====================
 
+/**
+ * Результат шаблона до компиляции.
+ * Содержит строки и значения для интерполяции.
+ * 
+ * Поддерживает специальный атрибут `context` для передачи данных между компонентами:
+ * ```ts
+ * html`<metafor-child context=${contextObject}></metafor-child>`
+ * ```
+ */
 export type UncompiledTemplateResult<T extends ResultType = ResultType> = {
   ["_$htmlType$"]: T
   strings: TemplateStringsArray
@@ -59,6 +73,13 @@ export interface CompiledTemplate extends Omit<Template, "el"> {
 
 // ==================== ТИПЫ ЧАСТЕЙ ШАБЛОНА ====================
 
+/**
+ * Часть шаблона для атрибутов.
+ * Поддерживает специальную обработку атрибута `context` для передачи данных между компонентами.
+ * 
+ * @includeExample ../view/test/context.init.spec.ts
+ * @includeExample ../view/test/context.update.spec.ts
+ */
 export type AttributeTemplatePart = {
   readonly type: typeof ATTRIBUTE_PART
   readonly index: number

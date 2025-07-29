@@ -348,6 +348,62 @@ tags: {
 - `${repeat(items, template)}` — циклы
 - `${map(items, fn)}` — преобразование массивов
 
+### 6. Передача контекста между компонентами
+
+MetaFor поддерживает передачу контекста от родительского компонента к дочернему через специальный атрибут `context`.
+
+```typescript
+// Родительский компонент
+MetaFor("parent")
+  .context((types) => ({
+    parentMessage: types.string.required("Hello from parent"),
+    parentCount: types.number.required(42),
+  }))
+  .states({ idle: {} })
+  .core()
+  .processes()
+  .reactions()
+  .view({
+    render: ({ context, html }) => html`
+      <div>
+        <h1>Родитель: ${context.parentMessage}</h1>
+        <metafor-child
+          context=${{
+            message: context.parentMessage,
+            count: context.parentCount,
+          }}></metafor-child>
+      </div>
+    `,
+  })
+
+// Дочерний компонент
+MetaFor("child")
+  .context((types) => ({
+    message: types.string.required("default message"),
+    count: types.number.required(0),
+  }))
+  .states({ idle: {} })
+  .core()
+  .processes()
+  .reactions()
+  .view({
+    render: ({ context, html }) => html`
+      <div>
+        <p>Сообщение: ${context.message}</p>
+        <p>Счетчик: ${context.count}</p>
+      </div>
+    `,
+  })
+```
+
+**Особенности передачи контекста:**
+
+- Контекст передается как объект через атрибут `context=${object}`
+- При первой отрисовке контекст устанавливается без дополнительных сообщений
+- При обновлении контекста родителя автоматически обновляется контекст ребенка
+- Компонент-ребенок должен быть уже зарегистрирован в MetaFor
+- Поддерживается реактивное обновление при изменении контекста родителя
+
 ## 🔧 API Reference
 
 ### MetaFor(tag: string)
@@ -659,13 +715,129 @@ MetaFor("user-form")
   })
 ```
 
+### Передача контекста между компонентами
+
+```typescript
+// Родительский компонент с динамическим обновлением
+MetaFor("parent-dashboard")
+  .context((types) => ({
+    userMessage: types.string.required("Привет от родителя"),
+    userCount: types.number.required(0),
+    isLoading: types.boolean.required(false),
+  }))
+  .states({
+    idle: { loading: {} },
+    loading: { idle: {} },
+  })
+  .core()
+  .processes((process) => ({
+    loading: process()
+      .action(async ({ context }) => {
+        await new Promise((resolve) => setTimeout(resolve, 1000))
+        return {
+          userMessage: "Обновленное сообщение от родителя",
+          userCount: context.userCount + 1,
+        }
+      })
+      .success(({ update, data }) => {
+        update({
+          userMessage: data.userMessage,
+          userCount: data.userCount,
+          isLoading: false,
+        })
+      }),
+  }))
+  .reactions()
+  .view({
+    render: ({ context, html, update }) => html`
+      <div class="dashboard">
+        <h1>Родительский компонент</h1>
+        <p>Сообщение: ${context.userMessage}</p>
+        <p>Счетчик: ${context.userCount}</p>
+
+        <button @click=${() => update({ isLoading: true })} ?disabled=${context.isLoading}>
+          ${context.isLoading ? "Обновление..." : "Обновить данные"}
+        </button>
+
+        <metafor-child-widget
+          context=${{
+            message: context.userMessage,
+            count: context.userCount,
+          }}></metafor-child-widget>
+      </div>
+    `,
+    style: ({ css }) => css`
+      .dashboard {
+        padding: 20px;
+        border: 2px solid #007bff;
+        border-radius: 8px;
+        margin: 20px;
+      }
+
+      button {
+        padding: 10px 20px;
+        background: #007bff;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        margin: 10px 0;
+      }
+
+      button:disabled {
+        background: #ccc;
+        cursor: not-allowed;
+      }
+    `,
+  })
+
+// Дочерний компонент, получающий контекст
+MetaFor("child-widget")
+  .context((types) => ({
+    message: types.string.required("Сообщение по умолчанию"),
+    count: types.number.required(0),
+  }))
+  .states({ idle: {} })
+  .core()
+  .processes()
+  .reactions()
+  .view({
+    render: ({ context, html }) => html`
+      <div class="widget">
+        <h3>Дочерний виджет</h3>
+        <p>Полученное сообщение: ${context.message}</p>
+        <p>Полученный счетчик: ${context.count}</p>
+        <div class="status">Статус: ${context.count > 0 ? "Активен" : "Неактивен"}</div>
+      </div>
+    `,
+    style: ({ css }) => css`
+      .widget {
+        padding: 15px;
+        border: 1px solid #28a745;
+        border-radius: 6px;
+        margin-top: 15px;
+        background: #f8f9fa;
+      }
+
+      .status {
+        margin-top: 10px;
+        padding: 5px 10px;
+        background: #28a745;
+        color: white;
+        border-radius: 4px;
+        text-align: center;
+      }
+    `,
+  })
+```
+
 ## 🔍 Отладка
 
 MetaFor предоставляет встроенные инструменты отладки:
 
 ```typescript
 // Включение отладки
-import { enableMetaForDebug } from '@zavx0z/metafor/debug/config'
+import { enableMetaForDebug } from "@zavx0z/metafor/debug/config"
 
 enableMetaForDebug()
 

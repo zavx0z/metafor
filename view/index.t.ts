@@ -18,6 +18,9 @@ import type { TemplateResult } from "../html/html.t"
  *
  * В функцию render компонента MetaFor передаётся объект с полезными утилитами и данными для построения UI.
  *
+ * @includeExample ./test/context.init.spec.ts
+ * @includeExample ./test/context.update.spec.ts
+ *
  * @example
  * ```ts
  * render({ context, update, state, html, ref, repeat, when, map, style }) {
@@ -139,13 +142,35 @@ export type ViewDefinitionParams<C extends ContextSchema, S extends string> = {
    */
   style: typeof styleMap
 }
+
 /**
  * Конфигурация для представления компонента.
+ *
+ * Поддерживает передачу контекста между компонентами через атрибут `context`.
+ * При первой отрисовке контекст устанавливается без дополнительных сообщений,
+ * при обновлении контекста родителя автоматически обновляется контекст ребенка.
+ *
+ * @includeExample ./test/context.init.spec.ts
+ * @includeExample ./test/context.update.spec.ts
  */
 export interface ViewConfig<C extends ContextSchema, S extends string> {
   /**
    * Функция рендеринга компонента.
    * Получает параметры с контекстом, состоянием и утилитами для построения UI.
+   *
+   * Поддерживает передачу контекста дочерним компонентам через атрибут `context`:
+   * ```ts
+   * render: ({ context, html }) => html`
+   *   <div>
+   *     <h1>Родитель: ${context.parentMessage}</h1>
+   *     <metafor-child
+   *       context=${{
+   *         message: context.parentMessage,
+   *         count: context.parentCount,
+   *       }}></metafor-child>
+   *   </div>
+   * `
+   * ```
    */
   render?: (params: ViewDefinitionParams<C, S>) => TemplateResult
   /**
