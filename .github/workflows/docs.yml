@@ -24,11 +24,8 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Run tests
-        run: bun test
-
       - name: Generate documentation
-        run: bun run docs
+        run: typedoc
 
       - name: Deploy to Firebase
         if: github.ref == 'refs/heads/doc'

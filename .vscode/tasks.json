@@ -2,9 +2,9 @@
     "version": "2.0.0",
     "tasks": [
         {
-            "label": "doc-update",
+            "label": "doc-push",
             "type": "shell",
-            "command": "bun script/merge.doc.ts",
+            "command": "bun script/doc.push.ts",
             "problemMatcher": [],
             "presentation": {
                 "reveal": "always"

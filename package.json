@@ -1,6 +1,6 @@
 {
   "name": "@zavx0z/metafor",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "type": "module",
   "private": false,
   "license": "MIT",
@@ -39,14 +39,9 @@
     "publish:npm": "bun run build:prod && bun publish --access public",
     "build:js": "bun run script/build.ts",
     "publish:dry": "bun run build:prod && bun publish --dry-run",
-    "CONTEXT:TEST": "bun test context",
-    "HTML:TEST": "bun test html",
     "docs": "typedoc",
-    "docs:watch": "typedoc --watch",
-    "merge:doc": "bun run script/merge.doc.ts",
-    "deploy:docs": "firebase deploy --only hosting:docs",
-    "deploy:docs:preview": "firebase hosting:channel:deploy preview",
-    "firebase:targets": "firebase target",
-    "firebase:sites": "firebase hosting:sites:list"
+    "doc:push": "bun run script/doc.push.ts",
+    "CONTEXT:TEST": "bun test context",
+    "HTML:TEST": "bun test html"
   }
 }
