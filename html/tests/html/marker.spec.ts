@@ -1,9 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import { render, html, nothing } from "../../html"
 import type { CompiledTemplateResult, RenderOptions, TemplateResult } from "../../html.t"
-
-// @ts-ignore У нас нет прямого доступа к DEV_MODE, но это достаточно хороший прокси.
-const DEV_MODE = render.setSanitizer != null
+import { isHtmlDebugEnabled } from "../../../debug/config"
 
 /**
  * Эти тесты проверяют возможность вставки корректного маркера выражения
@@ -474,7 +472,7 @@ describe("вставка маркера", () => {
 
   test('"динамическое" имя тега', () => {
     const template = html`<${"A"}></${"A"}>`
-    if (global.MetaForHtmlDebug) {
+    if (isHtmlDebugEnabled()) {
       expect(() => render(template, container)).toThrow()
     } else {
       render(template, container)
@@ -485,7 +483,7 @@ describe("вставка маркера", () => {
   test('некорректное "динамическое" имя тега', () => {
     // `</ ` starts a comment
     const template = html`<${"A"}></ ${"A"}>`
-    if (global.MetaForHtmlDebug) {
+    if (isHtmlDebugEnabled()) {
       expect(() => render(template, container)).toThrow()
     } else {
       render(template, container)
