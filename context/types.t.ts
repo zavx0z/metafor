@@ -307,56 +307,68 @@ export type ContextSchema = Record<string, AnyDefinition>
 
 /**
  * Фабрики типов для создания схем контекста
- *
- * ## Использование
- *
- * Фабрики типов предоставляют удобный API для создания определений типов:
- *
- * ```typescript
- * .context((types) => ({
- *   // Строки
- *   name: types.string.required("Anonymous"),
- *   email: types.string.optional(),
- *
- *   // Числа
- *   age: types.number.required(18),
- *   rating: types.number.optional(),
- *
- *   // Булевы значения
- *   isActive: types.boolean.required(false),
- *   isVerified: types.boolean.optional(),
- *
- *   // Массивы (рекомендуется хранить только ID)
- *   userIds: types.array.required([]),
- *   tags: types.array.optional(),
- *
- *   // Перечисления
- *   status: types.enum.required(["pending", "active", "blocked"]),
- *   role: types.enum.optional(["user", "admin"])
- * }))
- * ```
- *
- * ## Лучшие практики
- *
- * 1. **Используйте простые типы**: Контекст должен содержать только простые данные
- * 2. **Храните ID в массивах**: Вместо объектов храните их ID
- * 3. **Сложные объекты в Core**: Сложные данные размещайте в core
- * 4. **Осмысленные значения по умолчанию**: Задавайте разумные значения по умолчанию
- * 5. **Группируйте связанные поля**: Логически группируйте поля контекста
- *
  * @example
  * ```typescript
- * // ✅ Правильно - простые типы
- * .context((types) => ({
- *   userId: types.number.required(0),
- *   userName: types.string.required(""),
- *   userEmail: types.string.optional(),
- *   isLoggedIn: types.boolean.required(false)
- * }))
- *
- * // ❌ Неправильно - сложные объекты в контексте
- * .context((types) => ({
- *   user: types.object.required({ id: 1, name: "Admin" }) // Не делайте так!
- * }))
+ * types.string.required('Гость')
+ * types.number.optional()
+ * types.boolean.required()
+ * types.array().optional()
+ * types.enum('user', 'admin').required('user')
  * ```
  */
+export type ContextTypes = {
+  string: {
+    required: <T extends string = string>(
+      defaultValue?: T
+    ) => ((options?: { title?: string }) => RequiredStringDefinition) & RequiredStringDefinition
+    optional: <T extends string = string>(
+      defaultValue?: T
+    ) => ((options?: { title?: string }) => OptionalStringDefinition) & OptionalStringDefinition
+    <T extends string = string>(defaultValue?: T): ((options?: { title?: string }) => OptionalStringDefinition) &
+      OptionalStringDefinition
+  }
+  number: {
+    required: <T extends number = number>(
+      defaultValue?: T
+    ) => ((options?: { title?: string }) => RequiredNumberDefinition) & RequiredNumberDefinition
+    optional: <T extends number = number>(
+      defaultValue?: T
+    ) => ((options?: { title?: string }) => OptionalNumberDefinition) & OptionalNumberDefinition
+    <T extends number = number>(defaultValue?: T): ((options?: { title?: string }) => OptionalNumberDefinition) &
+      OptionalNumberDefinition
+  }
+  boolean: {
+    required: <T extends boolean = boolean>(
+      defaultValue?: T
+    ) => ((options?: { title?: string }) => RequiredBooleanDefinition) & RequiredBooleanDefinition
+    optional: <T extends boolean = boolean>(
+      defaultValue?: T
+    ) => ((options?: { title?: string }) => OptionalBooleanDefinition) & OptionalBooleanDefinition
+    <T extends boolean = boolean>(defaultValue?: T): ((options?: { title?: string }) => OptionalBooleanDefinition) &
+      OptionalBooleanDefinition
+  }
+  array: {
+    required: <T extends string | number | boolean = string>(
+      defaultValue?: T[]
+    ) => ((options?: { title?: string }) => RequiredArrayDefinition<T>) & RequiredArrayDefinition<T>
+    optional: <T extends string | number | boolean = string>(
+      defaultValue?: T[]
+    ) => ((options?: { title?: string }) => OptionalArrayDefinition<T>) & OptionalArrayDefinition<T>
+    <T extends string | number | boolean = string>(defaultValue?: T[]): ((options?: {
+      title?: string
+    }) => OptionalArrayDefinition<T>) &
+      OptionalArrayDefinition<T>
+  }
+  enum: <const T extends readonly (string | number)[]>(
+    ...values: T
+  ) => {
+    required: (
+      defaultValue?: T[number]
+    ) => ((options?: { title?: string }) => RequiredEnumDefinition<T>) & RequiredEnumDefinition<T>
+    optional: (
+      defaultValue?: T[number]
+    ) => ((options?: { title?: string }) => OptionalEnumDefinition<T>) & OptionalEnumDefinition<T>
+    (defaultValue?: T[number]): ((options?: { title?: string }) => OptionalEnumDefinition<T>) &
+      OptionalEnumDefinition<T>
+  }
+}

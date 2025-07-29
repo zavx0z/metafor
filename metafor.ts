@@ -70,6 +70,7 @@ import { map } from "./html/directives/map.ts"
 import { styleMap } from "./html/directives/style-map.ts"
 import { ReactionRegistry } from "./react/index"
 import type { ReactionsChain } from "./react/index.t.ts"
+import type { ContextTypes } from "./context/types.t.ts"
 
 // Фабрика логгера с ленивой загрузкой
 type Logger = (message: Message, core: Record<string, any>) => void
@@ -141,7 +142,7 @@ export function MetaFor(tag: string) {
      * }))
      * ```
      */
-    context<C extends ContextSchema>(schema: (types: any) => C) {
+    context<C extends ContextSchema>(schema: (types: ContextTypes) => C) {
       const contextSchema = schema(types)
       return {
         /**
