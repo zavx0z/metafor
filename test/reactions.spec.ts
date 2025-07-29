@@ -1,5 +1,6 @@
 import { test, expect, describe } from "bun:test"
 import type { Message } from "../message/index.t.ts"
+import { MetaFor } from "../metafor"
 
 describe("реакции", () => {
   test("MetaFor - базовый функционал", async () => {

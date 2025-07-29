@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { messagesFixture } from "../../fixture/message.ts"
+import { MetaFor } from "../../metafor"
 
 describe("MetaFor: инициализация с действиями", async () => {
   const tag = Bun.randomUUIDv7()

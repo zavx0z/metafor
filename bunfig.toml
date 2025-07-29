@@ -3,6 +3,5 @@ depth = 7
 [test]
 preload = [
     "./fixture/happydom.ts",
-    "./fixture/global.ts",
     "./fixture/expect.ts",
 ]
