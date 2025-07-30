@@ -1,13 +1,20 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import { html, nothing } from "../../html/html"
+import { html, nothing, render } from "../../html/html"
 import { ref } from "../../html/directives/ref"
 import { repeat } from "../../html/directives/repeat"
 import { when } from "../../html/directives/when"
 import { map } from "../../html/directives/map"
 import { styleMap } from "../../html/directives/style-map"
 import { choose } from "../../html/directives/choose"
-import { serializeView, deserializeView, serializeViewToString, deserializeViewFromString } from "../serialization"
-import type { SerializationContext } from "../serialization.t"
+import {
+  serializeView,
+  deserializeView,
+  serializeViewToString,
+  deserializeViewFromString,
+  deserializeViewWithParams,
+  deserializeViewFromStringWithParams,
+} from "../serialization"
+import type { SerializationContext, ViewParams } from "../serialization.t"
 import "../../fixture/expect"
 
 describe("десериализация view", () => {
@@ -26,6 +33,12 @@ describe("десериализация view", () => {
       utils: {
         html,
         nothing,
+      },
+      meta: {
+        update: (values) => values,
+        context: { name: "test", value: 42 },
+        core: { data: "core data" },
+        state: "active",
       },
     }
   })
@@ -255,5 +268,103 @@ describe("десериализация view", () => {
     const deserialized = deserializeView(serialized, context)
 
     expect(deserialized).toMatchRender(originalTemplate)
+  })
+
+  // Новые тесты для параметров view
+  test("десериализация с параметрами view", () => {
+    const originalTemplate = html`<div>Hello ${"World"}</div>`
+    const serialized = serializeView(originalTemplate)
+
+    const { template: deserializedTemplate, params: deserializedParams } = deserializeViewWithParams(
+      serialized,
+      context
+    )
+
+    expect(deserializedTemplate).toMatchRender(originalTemplate)
+    expect(deserializedParams.context, "контекст должен быть восстановлен").toEqual(context.meta.context)
+    expect(deserializedParams.core, "core должен быть восстановлен").toEqual(context.meta.core)
+    expect(deserializedParams.state, "состояние должно быть восстановлено").toBe(context.meta.state)
+    expect(typeof deserializedParams.update, "update должен быть функцией").toBe("function")
+  })
+
+  test("десериализация из JSON с параметрами view", () => {
+    const originalTemplate = html`<div>Hello ${"World"}</div>`
+    const jsonString = serializeViewToString(originalTemplate)
+
+    const { template: deserializedTemplate, params: deserializedParams } = deserializeViewFromStringWithParams(
+      jsonString,
+      context
+    )
+
+    expect(deserializedTemplate).toMatchRender(originalTemplate)
+    expect(deserializedParams.context, "контекст должен быть восстановлен").toEqual(context.meta.context)
+    expect(deserializedParams.core, "core должен быть восстановлен").toEqual(context.meta.core)
+    expect(deserializedParams.state, "состояние должно быть восстановлено").toBe(context.meta.state)
+  })
+
+  test("десериализация с параметрами view и использованием в шаблоне", () => {
+    const originalTemplate = html`<div>Hello ${"World"} - ${"test"} (${42})</div>`
+    const serialized = serializeView(originalTemplate)
+
+    const { template: deserializedTemplate, params: deserializedParams } = deserializeViewWithParams(
+      serialized,
+      context
+    )
+
+    // Проверяем, что шаблон рендерится корректно
+    expect(deserializedTemplate).toMatchRender(originalTemplate)
+
+    // Проверяем, что параметры восстановлены
+    expect(deserializedParams.context.name, "имя из контекста должно быть восстановлено").toBe("test")
+    expect(deserializedParams.context.value, "значение из контекста должно быть восстановлено").toBe(42)
+    expect(deserializedParams.core.data, "данные из core должны быть восстановлены").toBe("core data")
+    expect(deserializedParams.state, "состояние должно быть восстановлено").toBe("active")
+
+    // Проверяем, что update функция работает
+    const updatedContext = deserializedParams.update({ name: "updated" })
+    expect(updatedContext.name, "update должен обновлять контекст").toBe("updated")
+  })
+
+  test("десериализация с параметрами view и сложным контекстом", () => {
+    const originalTemplate = html`<div>Complex template</div>`
+
+    // Создаем контекст со сложными данными
+    const complexContext: SerializationContext = {
+      directives: context.directives,
+      utils: context.utils,
+      meta: {
+        update: (values) => values,
+        context: {
+          user: { id: 1, name: "John" },
+          settings: { theme: "dark", language: "ru" },
+          items: ["item1", "item2", "item3"],
+        },
+        core: {
+          api: { baseUrl: "https://api.example.com" },
+          cache: { enabled: true, ttl: 3600 },
+        },
+        state: "loading",
+      },
+    }
+
+    const serialized = serializeView(originalTemplate)
+
+    const { template: deserializedTemplate, params: deserializedParams } = deserializeViewWithParams(
+      serialized,
+      complexContext
+    )
+
+    expect(deserializedTemplate).toMatchRender(originalTemplate)
+    expect(deserializedParams.context.user.id, "ID пользователя должен быть восстановлен").toBe(1)
+    expect(deserializedParams.context.user.name, "имя пользователя должно быть восстановлено").toBe("John")
+    expect(deserializedParams.context.settings.theme, "тема должна быть восстановлена").toBe("dark")
+    expect(deserializedParams.context.items, "массив элементов должен быть восстановлен").toEqual([
+      "item1",
+      "item2",
+      "item3",
+    ])
+    expect(deserializedParams.core.api.baseUrl, "базовый URL должен быть восстановлен").toBe("https://api.example.com")
+    expect(deserializedParams.core.cache.enabled, "настройка кеша должна быть восстановлена").toBe(true)
+    expect(deserializedParams.state, "состояние должно быть восстановлено").toBe("loading")
   })
 })

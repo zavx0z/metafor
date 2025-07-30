@@ -26,6 +26,12 @@ describe("сериализация view", () => {
         html,
         nothing,
       },
+      meta: {
+        update: (values) => values,
+        context: { name: "test", value: 42 },
+        core: { data: "core data" },
+        state: "active",
+      },
     }
   })
 
@@ -33,19 +39,23 @@ describe("сериализация view", () => {
     const template = html`<div>Hello ${"World"}</div>`
     const serialized = serializeView(template)
 
-    expect(serialized.template.h, "шаблон должен содержать строки").toEqual(template.strings)
-    expect(serialized.values, "значения должны совпадать").toEqual(template.values)
-    expect(serialized.metadata.type, "тип должен совпадать").toBe(template["_$htmlType$"])
-    expect(serialized.metadata.version, "версия должна быть установлена").toBe("1.0.0")
+    expect(serialized.template.h, "шаблон должен содержать строки").toEqual(["<div>Hello ", "</div>"])
+    expect(serialized.values, "значения должны быть сериализовано").toEqual(["World"])
+    expect(serialized.metadata.version, "версия должна быть установлена").toBe("1.0")
+    expect(serialized.metadata.timestamp, "timestamp должен быть установлен").toBeGreaterThan(0)
   })
 
   test("сериализация шаблона с директивами", () => {
-    const inputRef = ref()
-    const template = html`<input ${ref(inputRef)} value=${"test"} />`
+    const items = ["a", "b", "c"]
+    const template = html`<ul>
+      ${repeat(items, (item) => html`<li>${item}</li>`)}
+    </ul>`
     const serialized = serializeView(template)
 
-    expect(serialized.template.parts, "части должны быть определены").toBeDefined()
-    expect(serialized.template.parts.length, "количество частей должно быть корректным").toBeGreaterThan(0)
+    expect(serialized.values.length, "должно быть значение").toBeGreaterThan(0)
+    expect(serialized.values[0], "первое значение должно быть директивой").toHaveProperty("_$htmlDirective$")
+    expect(serialized.values[0], "директива должна содержать значения").toHaveProperty("values")
+    expect((serialized.values[0] as any).values, "значения должны быть внутри директивы").toContain(items)
   })
 
   test("сериализация шаблона с repeat", () => {
@@ -55,9 +65,10 @@ describe("сериализация view", () => {
     </ul>`
     const serialized = serializeView(template)
 
-    // Теперь директивы сохраняются как есть
-    expect(serialized.values, "значения должны содержать директиву repeat").toBeDefined()
-    expect(serialized.values.length, "должна быть одна директива").toBe(1)
+    expect(serialized.values.length, "должно быть значение").toBeGreaterThan(0)
+    expect(serialized.values[0], "первое значение должно быть директивой").toHaveProperty("_$htmlDirective$")
+    expect(serialized.values[0], "директива должна содержать значения").toHaveProperty("values")
+    expect((serialized.values[0] as any).values, "массив items должен быть внутри директивы").toContain(items)
   })
 
   test("сериализация шаблона с when", () => {
@@ -71,9 +82,11 @@ describe("сериализация view", () => {
     </div>`
     const serialized = serializeView(template)
 
-    // when возвращает TemplateResult, поэтому condition не будет в values
-    expect(serialized.values, "значения должны содержать TemplateResult").toBeDefined()
-    expect(serialized.template.parts, "части должны быть определены").toBeDefined()
+    expect(serialized.values.length, "должно быть значение").toBeGreaterThan(0)
+    // when возвращает TemplateResult, а не директиву
+    expect(serialized.values[0], "первое значение должно быть TemplateResult").toHaveProperty("_$htmlType$")
+    expect(serialized.values[0], "TemplateResult должен содержать строки").toHaveProperty("strings")
+    expect(serialized.values[0], "TemplateResult должен содержать значения").toHaveProperty("values")
   })
 
   test("сериализация шаблона с styleMap", () => {
@@ -81,16 +94,17 @@ describe("сериализация view", () => {
     const template = html`<div style=${styleMap(styles)}>Styled content</div>`
     const serialized = serializeView(template)
 
-    // Теперь директивы сохраняются как есть
-    expect(serialized.values, "значения должны содержать директиву styleMap").toBeDefined()
-    expect(serialized.values.length, "должна быть одна директива").toBe(1)
+    expect(serialized.values.length, "должно быть значение").toBeGreaterThan(0)
+    expect(serialized.values[0], "первое значение должно быть директивой").toHaveProperty("_$htmlDirective$")
+    expect(serialized.values[0], "директива должна содержать значения").toHaveProperty("values")
+    expect((serialized.values[0] as any).values, "стили должны быть внутри директивы").toContain(styles)
   })
 
   test("сериализация в JSON строку", () => {
     const template = html`<div>Hello ${"World"}</div>`
     const jsonString = serializeViewToString(template)
 
-    expect(jsonString, "результат должен быть JSON строкой").toBeTypeOf("string")
+    expect(typeof jsonString, "результат должен быть строкой").toBe("string")
     expect(() => JSON.parse(jsonString), "JSON должен быть валидным").not.toThrow()
   })
 
@@ -99,10 +113,8 @@ describe("сериализация view", () => {
     const jsonString = serializeViewToString(originalTemplate)
     const deserialized = deserializeViewFromString(jsonString, context)
 
-    expect(deserialized["_$htmlType$"], "тип должен совпадать").toBe(originalTemplate["_$htmlType$"])
-    expect(deserialized.strings, "строки должны совпадать").toEqual(originalTemplate.strings)
-    // При сериализации количество значений может измениться из-за извлечения из директив
-    expect(deserialized.values, "значения должны быть определены").toBeDefined()
+    expect(deserialized.strings, "строки должны быть восстановлены").toEqual(originalTemplate.strings)
+    expect(deserialized.values, "значения должны быть восстановлены").toEqual(originalTemplate.values)
   })
 
   test("сериализация и десериализация с nothing", () => {
@@ -134,11 +146,35 @@ describe("сериализация view", () => {
     `
 
     const serialized = serializeView(template)
-    const deserialized = deserializeView(serialized, context)
 
-    expect(deserialized["_$htmlType$"], "тип должен совпадать").toBe(template["_$htmlType$"])
-    expect(deserialized.strings, "строки должны совпадать").toEqual(template.strings)
-    expect(deserialized.values, "значения должны быть определены").toBeDefined()
+    expect(serialized.values.length, "должно быть несколько значений").toBeGreaterThan(3)
+
+    // Проверяем, что есть директивы
+    const hasDirectives = serialized.values.some(
+      (value) => typeof value === "object" && value !== null && "_$htmlDirective$" in value
+    )
+    expect(hasDirectives, "должны быть директивы").toBe(true)
+
+    // Проверяем, что значения находятся внутри директив
+    const hasItemsInDirective = serialized.values.some(
+      (value) =>
+        typeof value === "object" &&
+        value !== null &&
+        "_$htmlDirective$" in value &&
+        (value as any).values &&
+        (value as any).values.includes(items)
+    )
+    expect(hasItemsInDirective, "items должны быть в директиве").toBe(true)
+
+    const hasStylesInDirective = serialized.values.some(
+      (value) =>
+        typeof value === "object" &&
+        value !== null &&
+        "_$htmlDirective$" in value &&
+        (value as any).values &&
+        (value as any).values.includes(styles)
+    )
+    expect(hasStylesInDirective, "styles должны быть в директиве").toBe(true)
   })
 
   test("сериализация с choose", () => {
@@ -153,24 +189,26 @@ describe("сериализация view", () => {
         () => html`<h1>Error</h1>`
       )}
     `
-
     const serialized = serializeView(template)
-    // choose возвращает TemplateResult, поэтому section не будет в values
-    expect(serialized.values, "значения должны содержать TemplateResult").toBeDefined()
-    expect(serialized.template.parts, "части должны быть определены").toBeDefined()
+
+    expect(serialized.values.length, "должно быть значение").toBeGreaterThan(0)
+    // choose возвращает TemplateResult, а не директиву
+    expect(serialized.values[0], "первое значение должно быть TemplateResult").toHaveProperty("_$htmlType$")
+    expect(serialized.values[0], "TemplateResult должен содержать строки").toHaveProperty("strings")
+    expect(serialized.values[0], "TemplateResult должен содержать значения").toHaveProperty("values")
   })
 
   test("обработка ошибок при десериализации", () => {
-    const invalidJson = "invalid json"
+    const invalidJson = '{"invalid": "json"}'
 
-    expect(() => deserializeViewFromString(invalidJson, context), "должна быть выброшена ошибка").toThrow()
+    expect(() => deserializeViewFromString(invalidJson, context), "должна быть ошибка при неверном JSON").toThrow()
   })
 
   test("сериализация с вложенными шаблонами", () => {
     const innerTemplate = html`<span>Inner</span>`
     const template = html`<div>${innerTemplate}</div>`
-
     const serialized = serializeView(template)
-    expect(serialized.template.parts, "части должны быть определены").toBeDefined()
+
+    expect(serialized.values, "вложенный шаблон должен быть сохранен").toContain(innerTemplate)
   })
 })

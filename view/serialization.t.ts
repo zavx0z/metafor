@@ -3,30 +3,33 @@
  * @module View.Serialization.Types
  */
 
-import type { CompiledTemplate } from "../html/html.t"
-import type { Directive } from "../html/directive"
+import type { TemplateResult, CompiledTemplateResult } from "../html/html.t"
 import type { ref } from "../html/directives/ref"
 import type { repeat } from "../html/directives/repeat"
 import type { when } from "../html/directives/when"
 import type { map } from "../html/directives/map"
 import type { styleMap } from "../html/directives/style-map"
 import type { choose } from "../html/directives/choose"
-import type { html, nothing } from "../html/html"
+import type { html } from "../html/html"
 
 /**
- * Сериализованный view
+ * Сериализованное представление view
  */
 export interface SerializedView {
-  /** Скомпилированный шаблон */
-  template: CompiledTemplate
-  /** Значения для шаблона */
+  /** Шаблон с частями */
+  template: {
+    h: string[]
+    parts: Array<{
+      type: number
+      index: number
+    }>
+  }
+  /** Значения для подстановки */
   values: SerializedValue[]
-  /** Метаданные для восстановления */
+  /** Метаданные */
   metadata: {
-    /** Тип view (html, svg, mathml) */
-    type: number
-    /** Версия сериализации */
     version: string
+    timestamp: number
   }
 }
 
@@ -48,27 +51,30 @@ export interface SerializationContext {
     html: typeof html
     nothing: unknown
   }
+  /** Метаданные для восстановления параметров view */
+  meta: {
+    update: (values: any) => any
+    context: any
+    core: any
+    state: any
+  }
 }
 
 /**
- * Маркер сериализованной директивы
+ * Сериализованная директива
  */
 export interface SerializedDirective {
-  /** Тип директивы */
-  _$serializedDirective$: string
-  /** Данные директивы */
-  [key: string]: unknown
+  type: "directive"
+  name: string
+  value: unknown
 }
 
 /**
- * Маркер функции для сериализации
+ * Маркер функции для JSON сериализации
  */
 export interface FunctionMarker {
-  /** Маркер функции */
-  _$functionMarker$: true
-  /** Имя функции */
+  type: "function"
   name: string
-  /** Строковое представление функции */
   toString: string
 }
 
@@ -78,19 +84,20 @@ export interface FunctionMarker {
 export type SerializedValue = unknown
 
 /**
- * Сериализованный view в JSON формате
+ * JSON структура для сериализации
  */
 export interface SerializedViewJSON {
-  /** Скомпилированный шаблон */
-  template: CompiledTemplate
-  /** Сериализованные значения */
-  values: (SerializedValue | FunctionMarker)[]
-  /** Метаданные для восстановления */
+  template: {
+    h: string[]
+    parts: Array<{
+      type: number
+      index: number
+    }>
+  }
+  values: SerializedValue[]
   metadata: {
-    /** Тип view (html, svg, mathml) */
-    type: number
-    /** Версия сериализации */
     version: string
+    timestamp: number
   }
 }
 
@@ -98,30 +105,37 @@ export interface SerializedViewJSON {
  * Конфигурация сериализации
  */
 export interface SerializationConfig {
-  /** Включить сериализацию директив */
-  serializeDirectives?: boolean
-  /** Включить сериализацию функций */
-  serializeFunctions?: boolean
-  /** Максимальная глубина сериализации */
-  maxDepth?: number
-  /** Исключить определенные типы значений */
-  excludeTypes?: string[]
+  /** Версия сериализации */
+  version?: string
+  /** Включить метаданные */
+  includeMetadata?: boolean
 }
 
 /**
- * Тип для проверки наличия свойства
+ * Параметры view для сериализации
  */
-export type HasProperty<T, K extends string> = T extends { [P in K]: unknown } ? T : never
-
-/**
- * Тип для проверки директивы
- */
-export type DirectiveValue = {
-  _$htmlDirective$: Directive & { name: string }
-  values: unknown[]
+export interface ViewParams {
+  update: (values: any) => any
+  context: any
+  core: any
+  state: any
 }
 
 /**
- * Тип для проверки, является ли значение директивой
+ * Восстановленные параметры view
  */
+export interface RestoredViewParams {
+  update: (values: any) => any
+  context: any
+  core: any
+  state: any
+}
+
+/**
+ * Типы для строгой типизации директив
+ */
+export type DirectiveValue = typeof ref | typeof repeat | typeof when | typeof map | typeof styleMap | typeof choose
+
+export type HasProperty<T, K extends string> = T extends { [P in K]: any } ? T : never
+
 export type IsDirective<T> = T extends DirectiveValue ? true : false
