@@ -11,17 +11,17 @@
         "**/__pycache__": true,
         ".venv": true,
         ".idea": true,
-        ".cursor": true,
         ".firebase": true,
+        ".vscode": true,
         ".github": true,
-        ".vscode": true
+        ".cursor": true
     },
     "hide-files.files": [
         ".idea",
-        ".cursor",
         ".firebase",
+        ".vscode",
         ".github",
-        ".vscode"
+        ".cursor"
     ],
     "explorer.fileNesting.enabled": true,
     "explorer.fileNesting.expand": false,

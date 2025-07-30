@@ -76,15 +76,23 @@ export type ProcessChain<C extends ContextSchema, I extends Core> = {
    * })
    * ```
    */
-  action: <Res>(
-    fn: (params: ActionParams<C, I>) => Res | Promise<Res>
-  ) => ActionChain<C, I, Res>
+  action: <Res>(fn: (params: ActionParams<C, I>) => Res | Promise<Res>) => ActionChain<C, I, Res>
 }
-type ActionParams<C extends ContextSchema, I extends Core> = {
+
+/**
+ * Параметры для action
+ * @template C - схема контекста автомата
+ * @template I - тип ядра автомата
+ */
+export type ActionParams<C extends ContextSchema, I extends Core> = {
+  /** Контекст */
   context: ExtractValues<C>
+  /** Ядро */
   core: I
+  /** Элемент */
   element: HTMLElement
 }
+
 /**
  * Цепочка для декларации action с типобезопасной поддержкой success и error.
  * Позволяет удобно и строго типизировано описывать обработчики процессов автомата.

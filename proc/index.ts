@@ -4,7 +4,7 @@
  */
 
 import type { ContextSchema, ExtractValues } from "../context"
-import type { ActionChain, ProcessesDeclaration, Process, ProcessChain } from "./index.t"
+import type { ActionChain, ProcessesDeclaration, Process, ProcessChain, ActionParams } from "./index.t"
 import type { Core } from "../metafor.t"
 
 /**
@@ -37,7 +37,7 @@ export function createActionsConfig<C extends ContextSchema, S extends string, I
   function process(config?: { title?: string; description?: string }): ProcessChain<C, I> {
     return {
       action: <Res>(
-        fn: (params: { context: ExtractValues<C>; core: I; element: HTMLElement }) => Res | Promise<Res>
+        fn: (params: ActionParams<C, I>) => Res | Promise<Res>
       ): ActionChain<C, I, Res> => {
         // Храним текущие success/error handler'ы (последний вызов перезаписывает предыдущий)
         let successHandler:

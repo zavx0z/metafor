@@ -74,6 +74,7 @@ import { ReactionRegistry } from "./react/index"
 import type { ReactionsChain } from "./react/index.t.ts"
 import type { ContextTypes } from "./context/types.t.ts"
 import { isMetaForDebugEnabled } from "./debug/config"
+import { choose } from "./html/directives/choose.ts"
 
 // Фабрика логгера с ленивой загрузкой
 type Logger = (message: Message, core: Record<string, any>) => void
@@ -392,6 +393,7 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                                 when,
                                 map,
                                 nothing,
+                                choose
                               })
                               if (template) render(template, this.#shadow)
                             }

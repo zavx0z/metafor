@@ -156,10 +156,10 @@ export type ViewDefinitionParams<C extends ContextSchema, S extends string> = {
   nothing: typeof nothing
   /**
    * Директива для условного выбора шаблона по значению.
-   * 
+   *
    * Выбирает и выполняет функцию шаблона из списка на основе соответствия
    * заданного значения к случаю. Случаи структурированы как `[caseValue, func]`.
-   * 
+   *
    * @example
    * ```ts
    * render: ({ context, html }) => html`
