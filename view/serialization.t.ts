@@ -63,6 +63,20 @@ export interface SerializationContext<C extends ContextSchema, I extends Core, S
 }
 
 /**
+ * Динамические ссылки на параметры view
+ */
+export interface ViewParamsRefs<C extends ContextSchema, I extends Core, S extends string> {
+  /** Ссылка на функцию обновления */
+  update: Update<C>
+  /** Ссылка на контекст */
+  context: ExtractValues<C>
+  /** Ссылка на core */
+  core: I
+  /** Ссылка на состояние */
+  state: S
+}
+
+/**
  * Сериализованная директива
  */
 export interface SerializedDirective {
@@ -78,6 +92,14 @@ export interface FunctionMarker {
   type: "function"
   name: string
   toString: string
+}
+
+/**
+ * Маркер ссылки на параметр view
+ */
+export interface ViewParamRef {
+  type: "viewParam"
+  param: "update" | "context" | "core" | "state"
 }
 
 /**

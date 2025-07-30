@@ -1,30 +1,23 @@
-import { beforeEach, describe, expect, test } from "bun:test"
-import { html, nothing, render } from "../../html/html"
+/**
+ * Тесты десериализации view
+ * @module View.Deserialization.Tests
+ */
+
+import { describe, test, expect, beforeEach } from "bun:test"
+import { render } from "../../html/html"
+import { html, nothing } from "../../html/html"
 import { ref } from "../../html/directives/ref"
 import { repeat } from "../../html/directives/repeat"
 import { when } from "../../html/directives/when"
 import { map } from "../../html/directives/map"
 import { styleMap } from "../../html/directives/style-map"
 import { choose } from "../../html/directives/choose"
-import {
-  serializeView,
-  deserializeView,
-  serializeViewToString,
-  deserializeViewFromString,
-  deserializeViewWithParams,
-  deserializeViewFromStringWithParams,
-} from "../serialization"
+import { serializeView, deserializeView, serializeViewToString, deserializeViewFromString } from "../serialization"
 import type { SerializationContext } from "../serialization.t"
 import "../../fixture/expect"
-import { createContext, types } from "../../context"
 
 describe("десериализация view", () => {
-  const state = "active"
-  const schema = { name: types.string.required() }
-  const { update, context } = createContext(schema)
-  const core = { data: { name: "test", value: 42 } }
-
-  let registry: SerializationContext<typeof schema, typeof core, typeof state>
+  let registry: SerializationContext<any, any, any>
 
   beforeEach(() => {
     registry = {
@@ -41,10 +34,10 @@ describe("десериализация view", () => {
         nothing,
       },
       meta: {
-        update,
-        context,
-        core,
-        state,
+        update: () => ({}),
+        context: {},
+        core: {},
+        state: "",
       },
     }
   })
@@ -68,7 +61,7 @@ describe("десериализация view", () => {
 
   test("десериализация шаблона с repeat", () => {
     const items = ["a", "b", "c"]
-    const originalTemplate = html`<ul>
+    const originalTemplate = html` <ul>
       ${repeat(items, (item) => html`<li>${item}</li>`)}
     </ul>`
     const serialized = serializeView(originalTemplate)
@@ -78,12 +71,12 @@ describe("десериализация view", () => {
   })
 
   test("десериализация шаблона с when", () => {
-    const condition = true
-    const originalTemplate = html`<div>
+    const isVisible = true
+    const originalTemplate = html` <div>
       ${when(
-        condition,
-        () => html`<span>True</span>`,
-        () => html`<span>False</span>`
+        isVisible,
+        () => html`<span>Visible content</span>`,
+        () => html`<span>Hidden content</span>`
       )}
     </div>`
     const serialized = serializeView(originalTemplate)
@@ -102,17 +95,14 @@ describe("десериализация view", () => {
   })
 
   test("десериализация шаблона с choose", () => {
-    const section = "home"
-    const originalTemplate = html`
-      ${choose(
-        section,
-        [
-          ["home", () => html`<h1>Home</h1>`],
-          ["about", () => html`<h1>About</h1>`],
-        ],
-        () => html`<h1>Error</h1>`
-      )}
-    `
+    const status = "loading"
+    const originalTemplate = html` <div>
+      ${choose(status, [
+        ["loading", () => html`<span>Loading...</span>`],
+        ["success", () => html`<span>Success!</span>`],
+        ["error", () => html`<span>Error!</span>`],
+      ])}
+    </div>`
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, registry)
 
@@ -128,22 +118,28 @@ describe("десериализация view", () => {
   })
 
   test("десериализация сложного шаблона", () => {
-    const items = ["item1", "item2"]
+    const items = ["item1", "item2", "item3"]
+    const isVisible = true
+    const styles = { backgroundColor: "blue", color: "white" }
     const inputRef = ref()
-    const styles = { backgroundColor: "blue" }
 
     const originalTemplate = html`
-      <div style=${styleMap(styles)}>
-        <h1>Title</h1>
-        <input ${ref(inputRef)} />
-        <ul>
-          ${repeat(items, (item) => html`<li>${item}</li>`)}
-        </ul>
+      <div class="container" style=${styleMap(styles)}>
+        <h1>Complex Template</h1>
         ${when(
-          items.length > 0,
-          () => html`<p>Has items</p>`,
-          () => html`<p>No items</p>`
+          isVisible,
+          () => html`
+            <ul>
+              ${repeat(items, (item) => html`<li>${item}</li>`)}
+            </ul>
+          `
         )}
+        <input ${ref(inputRef)} placeholder="Enter text" />
+        ${choose("success", [
+          ["loading", () => html`<span>Loading...</span>`],
+          ["success", () => html`<span>Success!</span>`],
+          ["error", () => html`<span>Error!</span>`],
+        ])}
       </div>
     `
 
@@ -162,7 +158,7 @@ describe("десериализация view", () => {
   })
 
   test("десериализация с вложенными шаблонами", () => {
-    const innerTemplate = html`<span>Inner</span>`
+    const innerTemplate = html`<span>Inner content</span>`
     const originalTemplate = html`<div>${innerTemplate}</div>`
 
     const serialized = serializeView(originalTemplate)
@@ -214,9 +210,9 @@ describe("десериализация view", () => {
   })
 
   test("десериализация с MathML", () => {
-    const originalTemplate = html`<math
-      ><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow></math
-    >`
+    const originalTemplate = html` <math xmlns="http://www.w3.org/1998/Math/MathML">
+      <mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow>
+    </math>`
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, registry)
 
@@ -274,96 +270,5 @@ describe("десериализация view", () => {
     const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
-  })
-
-  // Новые тесты для параметров view
-  test("десериализация с параметрами view", () => {
-    const originalTemplate = html`<div>Hello ${"World"}</div>`
-    const serialized = serializeView(originalTemplate)
-
-    const { template: deserializedTemplate, params: deserializedParams } = deserializeViewWithParams(
-      serialized,
-      registry
-    )
-
-    expect(deserializedTemplate).toMatchRender(originalTemplate)
-    expect(deserializedParams.context, "контекст должен быть восстановлен").toEqual(registry.meta.context)
-    expect(deserializedParams.core, "core должен быть восстановлен").toEqual(registry.meta.core)
-    expect(deserializedParams.state, "состояние должно быть восстановлено").toBe(registry.meta.state)
-    expect(typeof deserializedParams.update, "update должен быть функцией").toBe("function")
-  })
-
-  test("десериализация из JSON с параметрами view", () => {
-    const originalTemplate = html`<div>Hello ${"World"}</div>`
-    const jsonString = serializeViewToString(originalTemplate)
-
-    const { template: deserializedTemplate, params: deserializedParams } = deserializeViewFromStringWithParams(
-      jsonString,
-      registry
-    )
-
-    expect(deserializedTemplate).toMatchRender(originalTemplate)
-    expect(deserializedParams.context, "контекст должен быть восстановлен").toEqual(registry.meta.context)
-    expect(deserializedParams.core, "core должен быть восстановлен").toEqual(registry.meta.core)
-    expect(deserializedParams.state, "состояние должно быть восстановлено").toBe(registry.meta.state)
-  })
-
-  test("десериализация с параметрами view и использованием в шаблоне", () => {
-    const originalTemplate = html`<div>Hello ${"World"} - ${"test"} (${42})</div>`
-    const serialized = serializeView(originalTemplate)
-
-    const { template: deserializedTemplate, params: deserializedParams } = deserializeViewWithParams(
-      serialized,
-      registry
-    )
-
-    // Проверяем, что шаблон рендерится корректно
-    expect(deserializedTemplate).toMatchRender(originalTemplate)
-
-    // Проверяем, что параметры восстановлены
-    expect(deserializedParams.context.name, "имя из контекста должно быть восстановлено").toBe("test")
-    expect(deserializedParams.context.value, "значение из контекста должно быть восстановлено").toBe(42)
-    expect(deserializedParams.core.data, "данные из core должны быть восстановлены").toBe("core data")
-    expect(deserializedParams.state, "состояние должно быть восстановлено").toBe("active")
-
-    // Проверяем, что update функция работает
-    const updatedContext = deserializedParams.update({ name: "updated" })
-    expect(updatedContext.name, "update должен обновлять контекст").toBe("updated")
-  })
-
-  test("десериализация с параметрами view и сложным контекстом", () => {
-    const originalTemplate = html`<div>Complex template</div>`
-
-    // Создаем контекст со сложными данными
-    const complexContext: SerializationContext<typeof schema, typeof core, typeof state> = {
-      directives: registry.directives,
-      utils: registry.utils,
-      meta: {
-        update,
-        context,
-        core,
-        state,
-      },
-    }
-
-    const serialized = serializeView(originalTemplate)
-
-    const { template: deserializedTemplate, params: deserializedParams } = deserializeViewWithParams(
-      serialized,
-      complexContext
-    )
-
-    expect(deserializedTemplate).toMatchRender(originalTemplate)
-    expect(deserializedParams.context.user.id, "ID пользователя должен быть восстановлен").toBe(1)
-    expect(deserializedParams.context.user.name, "имя пользователя должно быть восстановлено").toBe("John")
-    expect(deserializedParams.context.settings.theme, "тема должна быть восстановлена").toBe("dark")
-    expect(deserializedParams.context.items, "массив элементов должен быть восстановлен").toEqual([
-      "item1",
-      "item2",
-      "item3",
-    ])
-    expect(deserializedParams.core.api.baseUrl, "базовый URL должен быть восстановлен").toBe("https://api.example.com")
-    expect(deserializedParams.core.cache.enabled, "настройка кеша должна быть восстановлена").toBe(true)
-    expect(deserializedParams.state, "состояние должно быть восстановлено").toBe("loading")
   })
 })

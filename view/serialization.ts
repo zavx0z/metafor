@@ -16,6 +16,8 @@ import type {
   SerializationConfig,
   RestoredViewParams,
   DirectiveValue,
+  ViewParamRef,
+  ViewParamsRefs,
 } from "./serialization.t"
 
 /**
@@ -84,6 +86,9 @@ export function deserializeView<C extends ContextSchema, I extends Core, S exten
     }
     if (isFunctionMarker(value)) {
       return restoreFunction(value, context)
+    }
+    if (isViewParamRef(value)) {
+      return restoreViewParamRef(value, context)
     }
     return value
   })
@@ -154,6 +159,9 @@ export function deserializeViewFromString<C extends ContextSchema, I extends Cor
     if (isFunctionMarker(value)) {
       return restoreFunction(value, context)
     }
+    if (isViewParamRef(value)) {
+      return restoreViewParamRef(value, context)
+    }
     return value
   })
 
@@ -165,15 +173,15 @@ export function deserializeViewFromString<C extends ContextSchema, I extends Cor
 }
 
 /**
- * Десериализует view с параметрами из SerializationContext.meta
+ * Десериализует view с динамическими ссылками на параметры
  */
 export function deserializeViewWithParams<C extends ContextSchema, I extends Core, S extends string>(
   serializedView: SerializedView,
   context: SerializationContext<C, I, S>
-): { template: TemplateResult; params: RestoredViewParams } {
+): { template: TemplateResult; params: ViewParamsRefs<C, I, S> } {
   const template = deserializeView(serializedView, context)
 
-  const params: RestoredViewParams = {
+  const params: ViewParamsRefs<C, I, S> = {
     update: context.meta.update,
     context: context.meta.context,
     core: context.meta.core,
@@ -184,15 +192,15 @@ export function deserializeViewWithParams<C extends ContextSchema, I extends Cor
 }
 
 /**
- * Десериализует view с параметрами из JSON строки
+ * Десериализует view с динамическими ссылками из JSON строки
  */
 export function deserializeViewFromStringWithParams<C extends ContextSchema, I extends Core, S extends string>(
   jsonString: string,
   context: SerializationContext<C, I, S>
-): { template: TemplateResult; params: RestoredViewParams } {
+): { template: TemplateResult; params: ViewParamsRefs<C, I, S> } {
   const template = deserializeViewFromString(jsonString, context)
 
-  const params: RestoredViewParams = {
+  const params: ViewParamsRefs<C, I, S> = {
     update: context.meta.update,
     context: context.meta.context,
     core: context.meta.core,
@@ -240,6 +248,24 @@ function restoreDirective<C extends ContextSchema, I extends Core, S extends str
   return serialized.value
 }
 
+function restoreViewParamRef<C extends ContextSchema, I extends Core, S extends string>(
+  ref: ViewParamRef,
+  context: SerializationContext<C, I, S>
+): unknown {
+  switch (ref.param) {
+    case "update":
+      return context.meta.update
+    case "context":
+      return context.meta.context
+    case "core":
+      return context.meta.core
+    case "state":
+      return context.meta.state
+    default:
+      return undefined
+  }
+}
+
 // Type guards
 
 function isDirective(value: unknown): value is DirectiveValue {
@@ -256,4 +282,8 @@ function isSerializedDirective(value: unknown): value is SerializedDirective {
 
 function isFunctionMarker(value: unknown): value is FunctionMarker {
   return typeof value === "object" && value !== null && (value as FunctionMarker).type === "function"
+}
+
+function isViewParamRef(value: unknown): value is ViewParamRef {
+  return typeof value === "object" && value !== null && (value as ViewParamRef).type === "viewParam"
 }
