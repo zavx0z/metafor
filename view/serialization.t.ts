@@ -3,8 +3,15 @@
  * @module View.Serialization.Types
  */
 
-import type { TemplateResult, CompiledTemplateResult, CompiledTemplate } from "../html/html.t"
-import type { TemplatePart } from "../html/html.t"
+import type { CompiledTemplate } from "../html/html.t"
+import type { Directive } from "../html/directive"
+import type { ref } from "../html/directives/ref"
+import type { repeat } from "../html/directives/repeat"
+import type { when } from "../html/directives/when"
+import type { map } from "../html/directives/map"
+import type { styleMap } from "../html/directives/style-map"
+import type { choose } from "../html/directives/choose"
+import type { html, nothing } from "../html/html"
 
 /**
  * Сериализованный view
@@ -13,7 +20,7 @@ export interface SerializedView {
   /** Скомпилированный шаблон */
   template: CompiledTemplate
   /** Значения для шаблона */
-  values: unknown[]
+  values: SerializedValue[]
   /** Метаданные для восстановления */
   metadata: {
     /** Тип view (html, svg, mathml) */
@@ -29,17 +36,17 @@ export interface SerializedView {
 export interface SerializationContext {
   /** Функции для восстановления директив */
   directives: {
-    ref: any
-    repeat: any
-    when: any
-    map: any
-    styleMap: any
-    choose: any
+    ref: typeof ref
+    repeat: typeof repeat
+    when: typeof when
+    map: typeof map
+    styleMap: typeof styleMap
+    choose: typeof choose
   }
   /** Утилиты для восстановления */
   utils: {
-    html: any
-    nothing: any
+    html: typeof html
+    nothing: unknown
   }
 }
 
@@ -66,13 +73,18 @@ export interface FunctionMarker {
 }
 
 /**
+ * Сериализованное значение
+ */
+export type SerializedValue = unknown
+
+/**
  * Сериализованный view в JSON формате
  */
 export interface SerializedViewJSON {
   /** Скомпилированный шаблон */
   template: CompiledTemplate
   /** Сериализованные значения */
-  values: (unknown | FunctionMarker)[]
+  values: (SerializedValue | FunctionMarker)[]
   /** Метаданные для восстановления */
   metadata: {
     /** Тип view (html, svg, mathml) */
@@ -95,3 +107,21 @@ export interface SerializationConfig {
   /** Исключить определенные типы значений */
   excludeTypes?: string[]
 }
+
+/**
+ * Тип для проверки наличия свойства
+ */
+export type HasProperty<T, K extends string> = T extends { [P in K]: unknown } ? T : never
+
+/**
+ * Тип для проверки директивы
+ */
+export type DirectiveValue = {
+  _$htmlDirective$: Directive & { name: string }
+  values: unknown[]
+}
+
+/**
+ * Тип для проверки, является ли значение директивой
+ */
+export type IsDirective<T> = T extends DirectiveValue ? true : false

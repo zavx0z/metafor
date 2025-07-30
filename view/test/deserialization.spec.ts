@@ -8,6 +8,7 @@ import { styleMap } from "../../html/directives/style-map"
 import { choose } from "../../html/directives/choose"
 import { serializeView, deserializeView, serializeViewToString, deserializeViewFromString } from "../serialization"
 import type { SerializationContext } from "../serialization.t"
+import type { TemplateResult } from "../../html/html.t"
 
 describe("десериализация view", () => {
   let context: SerializationContext
@@ -30,7 +31,7 @@ describe("десериализация view", () => {
   })
 
   // Вспомогательная функция для сравнения рендера
-  function compareRender(originalTemplate: any, deserializedTemplate: any) {
+  function compareRender(originalTemplate: TemplateResult, deserializedTemplate: TemplateResult) {
     const originalContainer = document.createElement("div")
     const deserializedContainer = document.createElement("div")
 
