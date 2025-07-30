@@ -11,6 +11,8 @@ import type { map } from "../html/directives/map"
 import type { styleMap } from "../html/directives/style-map"
 import type { choose } from "../html/directives/choose"
 import type { html } from "../html/html"
+import type { ContextSchema, ExtractValues, Update } from "../context"
+import type { Core } from "../metafor.t"
 
 /**
  * Сериализованное представление view
@@ -36,7 +38,7 @@ export interface SerializedView {
 /**
  * Контекст сериализации для восстановления директив
  */
-export interface SerializationContext {
+export interface SerializationContext<C extends ContextSchema, I extends Core, S extends string> {
   /** Функции для восстановления директив */
   directives: {
     ref: typeof ref
@@ -53,10 +55,10 @@ export interface SerializationContext {
   }
   /** Метаданные для восстановления параметров view */
   meta: {
-    update: (values: any) => any
-    context: any
-    core: any
-    state: any
+    update: Update<C>
+    context: ExtractValues<C>
+    core: I
+    state: S
   }
 }
 

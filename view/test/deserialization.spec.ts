@@ -14,14 +14,20 @@ import {
   deserializeViewWithParams,
   deserializeViewFromStringWithParams,
 } from "../serialization"
-import type { SerializationContext, ViewParams } from "../serialization.t"
+import type { SerializationContext } from "../serialization.t"
 import "../../fixture/expect"
+import { createContext, types } from "../../context"
 
 describe("десериализация view", () => {
-  let context: SerializationContext
+  const state = "active"
+  const schema = { name: types.string.required() }
+  const { update, context } = createContext(schema)
+  const core = { data: { name: "test", value: 42 } }
+
+  let registry: SerializationContext<typeof schema, typeof core, typeof state>
 
   beforeEach(() => {
-    context = {
+    registry = {
       directives: {
         ref,
         repeat,
@@ -35,10 +41,10 @@ describe("десериализация view", () => {
         nothing,
       },
       meta: {
-        update: (values) => values,
-        context: { name: "test", value: 42 },
-        core: { data: "core data" },
-        state: "active",
+        update,
+        context,
+        core,
+        state,
       },
     }
   })
@@ -46,7 +52,7 @@ describe("десериализация view", () => {
   test("десериализация простого шаблона", () => {
     const originalTemplate = html`<div>Hello ${"World"}</div>`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -55,7 +61,7 @@ describe("десериализация view", () => {
     const inputRef = ref()
     const originalTemplate = html`<input ${ref(inputRef)} value=${"test"} />`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -66,7 +72,7 @@ describe("десериализация view", () => {
       ${repeat(items, (item) => html`<li>${item}</li>`)}
     </ul>`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -81,7 +87,7 @@ describe("десериализация view", () => {
       )}
     </div>`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -90,7 +96,7 @@ describe("десериализация view", () => {
     const styles = { color: "red", fontSize: "16px" }
     const originalTemplate = html`<div style=${styleMap(styles)}>Styled content</div>`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -108,7 +114,7 @@ describe("десериализация view", () => {
       )}
     `
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -116,7 +122,7 @@ describe("десериализация view", () => {
   test("десериализация шаблона с nothing", () => {
     const originalTemplate = html`<div>${nothing}</div>`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -142,7 +148,7 @@ describe("десериализация view", () => {
     `
 
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -150,7 +156,7 @@ describe("десериализация view", () => {
   test("десериализация из JSON строки", () => {
     const originalTemplate = html`<div>Hello ${"World"}</div>`
     const jsonString = serializeViewToString(originalTemplate)
-    const deserialized = deserializeViewFromString(jsonString, context)
+    const deserialized = deserializeViewFromString(jsonString, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -160,7 +166,7 @@ describe("десериализация view", () => {
     const originalTemplate = html`<div>${innerTemplate}</div>`
 
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -168,7 +174,7 @@ describe("десериализация view", () => {
   test("десериализация с атрибутами", () => {
     const originalTemplate = html`<div class="test" data-value=${"123"}>Content</div>`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -177,7 +183,7 @@ describe("десериализация view", () => {
     const handler = () => console.log("clicked")
     const originalTemplate = html`<button @click=${handler}>Click me</button>`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -186,7 +192,7 @@ describe("десериализация view", () => {
     const isVisible = true
     const originalTemplate = html`<div ?hidden=${!isVisible}>Visible content</div>`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -194,7 +200,7 @@ describe("десериализация view", () => {
   test("десериализация с свойствами", () => {
     const originalTemplate = html`<input .value=${"test value"} />`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -202,7 +208,7 @@ describe("десериализация view", () => {
   test("десериализация с SVG", () => {
     const originalTemplate = html`<svg><circle cx="50" cy="50" r="40" /></svg>`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -212,7 +218,7 @@ describe("десериализация view", () => {
       ><mrow><mi>x</mi><mo>+</mo><mi>y</mi></mrow></math
     >`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -221,7 +227,7 @@ describe("десериализация view", () => {
     const dynamicValue = "dynamic"
     const originalTemplate = html`<div>${dynamicValue}</div>`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -230,7 +236,7 @@ describe("десериализация view", () => {
     const number = 42
     const originalTemplate = html`<div>Number: ${number}</div>`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -239,7 +245,7 @@ describe("десериализация view", () => {
     const bool = true
     const originalTemplate = html`<div>Boolean: ${bool}</div>`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -247,7 +253,7 @@ describe("десериализация view", () => {
   test("десериализация с null и undefined", () => {
     const originalTemplate = html`<div>${null} ${undefined}</div>`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -256,7 +262,7 @@ describe("десериализация view", () => {
     const obj = { name: "test", value: 123 }
     const originalTemplate = html`<div>${JSON.stringify(obj)}</div>`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -265,7 +271,7 @@ describe("десериализация view", () => {
     const arr = [1, 2, 3, "test"]
     const originalTemplate = html`<div>${arr.join(", ")}</div>`
     const serialized = serializeView(originalTemplate)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized).toMatchRender(originalTemplate)
   })
@@ -277,13 +283,13 @@ describe("десериализация view", () => {
 
     const { template: deserializedTemplate, params: deserializedParams } = deserializeViewWithParams(
       serialized,
-      context
+      registry
     )
 
     expect(deserializedTemplate).toMatchRender(originalTemplate)
-    expect(deserializedParams.context, "контекст должен быть восстановлен").toEqual(context.meta.context)
-    expect(deserializedParams.core, "core должен быть восстановлен").toEqual(context.meta.core)
-    expect(deserializedParams.state, "состояние должно быть восстановлено").toBe(context.meta.state)
+    expect(deserializedParams.context, "контекст должен быть восстановлен").toEqual(registry.meta.context)
+    expect(deserializedParams.core, "core должен быть восстановлен").toEqual(registry.meta.core)
+    expect(deserializedParams.state, "состояние должно быть восстановлено").toBe(registry.meta.state)
     expect(typeof deserializedParams.update, "update должен быть функцией").toBe("function")
   })
 
@@ -293,13 +299,13 @@ describe("десериализация view", () => {
 
     const { template: deserializedTemplate, params: deserializedParams } = deserializeViewFromStringWithParams(
       jsonString,
-      context
+      registry
     )
 
     expect(deserializedTemplate).toMatchRender(originalTemplate)
-    expect(deserializedParams.context, "контекст должен быть восстановлен").toEqual(context.meta.context)
-    expect(deserializedParams.core, "core должен быть восстановлен").toEqual(context.meta.core)
-    expect(deserializedParams.state, "состояние должно быть восстановлено").toBe(context.meta.state)
+    expect(deserializedParams.context, "контекст должен быть восстановлен").toEqual(registry.meta.context)
+    expect(deserializedParams.core, "core должен быть восстановлен").toEqual(registry.meta.core)
+    expect(deserializedParams.state, "состояние должно быть восстановлено").toBe(registry.meta.state)
   })
 
   test("десериализация с параметрами view и использованием в шаблоне", () => {
@@ -308,7 +314,7 @@ describe("десериализация view", () => {
 
     const { template: deserializedTemplate, params: deserializedParams } = deserializeViewWithParams(
       serialized,
-      context
+      registry
     )
 
     // Проверяем, что шаблон рендерится корректно
@@ -329,21 +335,14 @@ describe("десериализация view", () => {
     const originalTemplate = html`<div>Complex template</div>`
 
     // Создаем контекст со сложными данными
-    const complexContext: SerializationContext = {
-      directives: context.directives,
-      utils: context.utils,
+    const complexContext: SerializationContext<typeof schema, typeof core, typeof state> = {
+      directives: registry.directives,
+      utils: registry.utils,
       meta: {
-        update: (values) => values,
-        context: {
-          user: { id: 1, name: "John" },
-          settings: { theme: "dark", language: "ru" },
-          items: ["item1", "item2", "item3"],
-        },
-        core: {
-          api: { baseUrl: "https://api.example.com" },
-          cache: { enabled: true, ttl: 3600 },
-        },
-        state: "loading",
+        update,
+        context,
+        core,
+        state,
       },
     }
 

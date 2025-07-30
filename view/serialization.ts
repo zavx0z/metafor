@@ -3,21 +3,19 @@
  * @module View.Serialization
  */
 
+import type { ContextSchema } from "../context"
 import type { TemplateResult, CompiledTemplateResult } from "../html/html.t"
-import { CHILD_PART, ATTRIBUTE_PART, ELEMENT_PART, COMMENT_PART } from "../html/html.t"
+import { CHILD_PART } from "../html/html.t"
+import type { Core } from "../metafor.t"
 import type {
   SerializedView,
   SerializationContext,
   SerializedDirective,
   FunctionMarker,
-  SerializedValue,
   SerializedViewJSON,
   SerializationConfig,
-  ViewParams,
   RestoredViewParams,
   DirectiveValue,
-  HasProperty,
-  IsDirective,
 } from "./serialization.t"
 
 /**
@@ -70,7 +68,10 @@ export function serializeView(templateResult: TemplateResult, config: Serializat
 /**
  * Десериализует SerializedView в TemplateResult
  */
-export function deserializeView(serializedView: SerializedView, context: SerializationContext): TemplateResult {
+export function deserializeView<C extends ContextSchema, I extends Core, S extends string>(
+  serializedView: SerializedView,
+  context: SerializationContext<C, I, S>
+): TemplateResult {
   const { template, values } = serializedView
 
   // Восстанавливаем шаблон
@@ -139,7 +140,10 @@ export function serializeViewToString(templateResult: TemplateResult, config: Se
 /**
  * Десериализует TemplateResult из JSON строки
  */
-export function deserializeViewFromString(jsonString: string, context: SerializationContext): TemplateResult {
+export function deserializeViewFromString<C extends ContextSchema, I extends Core, S extends string>(
+  jsonString: string,
+  context: SerializationContext<C, I, S>
+): TemplateResult {
   const parsed: SerializedViewJSON = JSON.parse(jsonString)
 
   // Восстанавливаем TemplateStringsArray
@@ -163,9 +167,9 @@ export function deserializeViewFromString(jsonString: string, context: Serializa
 /**
  * Десериализует view с параметрами из SerializationContext.meta
  */
-export function deserializeViewWithParams(
+export function deserializeViewWithParams<C extends ContextSchema, I extends Core, S extends string>(
   serializedView: SerializedView,
-  context: SerializationContext
+  context: SerializationContext<C, I, S>
 ): { template: TemplateResult; params: RestoredViewParams } {
   const template = deserializeView(serializedView, context)
 
@@ -182,9 +186,9 @@ export function deserializeViewWithParams(
 /**
  * Десериализует view с параметрами из JSON строки
  */
-export function deserializeViewFromStringWithParams(
+export function deserializeViewFromStringWithParams<C extends ContextSchema, I extends Core, S extends string>(
   jsonString: string,
-  context: SerializationContext
+  context: SerializationContext<C, I, S>
 ): { template: TemplateResult; params: RestoredViewParams } {
   const template = deserializeViewFromString(jsonString, context)
 
@@ -208,7 +212,10 @@ function createFunctionMarker(func: Function): FunctionMarker {
   }
 }
 
-function restoreFunction(marker: FunctionMarker, context: SerializationContext): Function {
+function restoreFunction<C extends ContextSchema, I extends Core, S extends string>(
+  marker: FunctionMarker,
+  context: SerializationContext<C, I, S>
+): Function {
   // Пытаемся найти функцию в контексте
   const funcName = marker.name
   if (funcName in context.directives) {
@@ -222,7 +229,10 @@ function restoreFunction(marker: FunctionMarker, context: SerializationContext):
   return () => {}
 }
 
-function restoreDirective(serialized: SerializedDirective, context: SerializationContext): unknown {
+function restoreDirective<C extends ContextSchema, I extends Core, S extends string>(
+  serialized: SerializedDirective,
+  context: SerializationContext<C, I, S>
+): unknown {
   const directiveName = serialized.name
   if (directiveName in context.directives) {
     return context.directives[directiveName as keyof typeof context.directives]

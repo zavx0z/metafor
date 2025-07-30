@@ -8,12 +8,19 @@ import { styleMap } from "../../html/directives/style-map"
 import { choose } from "../../html/directives/choose"
 import { serializeView, deserializeView, serializeViewToString, deserializeViewFromString } from "../serialization"
 import type { SerializationContext } from "../serialization.t"
+import { createContext } from "../../context"
+import { types } from "../../context/types"
 
 describe("сериализация view", () => {
-  let context: SerializationContext
+  const state = "active"
+  const schema = { name: types.string.required() }
+  const { update, context } = createContext(schema)
+  const core = { data: { name: "test", value: 42 } }
+
+  let registry: SerializationContext<typeof schema, typeof core, typeof state>
 
   beforeEach(() => {
-    context = {
+    registry = {
       directives: {
         ref,
         repeat,
@@ -27,10 +34,10 @@ describe("сериализация view", () => {
         nothing,
       },
       meta: {
-        update: (values) => values,
-        context: { name: "test", value: 42 },
-        core: { data: "core data" },
-        state: "active",
+        update,
+        context,
+        core,
+        state,
       },
     }
   })
@@ -111,7 +118,7 @@ describe("сериализация view", () => {
   test("десериализация из JSON строки", () => {
     const originalTemplate = html`<div>Hello ${"World"}</div>`
     const jsonString = serializeViewToString(originalTemplate)
-    const deserialized = deserializeViewFromString(jsonString, context)
+    const deserialized = deserializeViewFromString(jsonString, registry)
 
     expect(deserialized.strings, "строки должны быть восстановлены").toEqual(originalTemplate.strings)
     expect(deserialized.values, "значения должны быть восстановлены").toEqual(originalTemplate.values)
@@ -120,7 +127,7 @@ describe("сериализация view", () => {
   test("сериализация и десериализация с nothing", () => {
     const template = html`<div>${nothing}</div>`
     const serialized = serializeView(template)
-    const deserialized = deserializeView(serialized, context)
+    const deserialized = deserializeView(serialized, registry)
 
     expect(deserialized.values, "nothing должен быть восстановлен").toContain(nothing)
   })
@@ -201,7 +208,7 @@ describe("сериализация view", () => {
   test("обработка ошибок при десериализации", () => {
     const invalidJson = '{"invalid": "json"}'
 
-    expect(() => deserializeViewFromString(invalidJson, context), "должна быть ошибка при неверном JSON").toThrow()
+    expect(() => deserializeViewFromString(invalidJson, registry), "должна быть ошибка при неверном JSON").toThrow()
   })
 
   test("сериализация с вложенными шаблонами", () => {
