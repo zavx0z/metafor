@@ -8,6 +8,7 @@ import { styleMap } from "../../html/directives/style-map"
 import { choose } from "../../html/directives/choose"
 import { serializeView, deserializeView, serializeViewToString, deserializeViewFromString } from "../serialization"
 import type { SerializationContext } from "../serialization.t"
+import "../../fixture/expect"
 
 describe("десериализация view", () => {
   let context: SerializationContext

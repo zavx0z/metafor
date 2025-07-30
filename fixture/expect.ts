@@ -49,22 +49,6 @@ function toPlainObject(proxy: any, schema: any): any {
   return result
 }
 
-/**
- * Сравнивает рендер двух шаблонов
- */
-const compareRender = (originalTemplate: TemplateResult, deserializedTemplate: TemplateResult) => {
-  const originalContainer = document.createElement("div")
-  const deserializedContainer = document.createElement("div")
-
-  render(originalTemplate, originalContainer)
-  render(deserializedTemplate, deserializedContainer)
-
-  return {
-    originalHTML: originalContainer.innerHTML,
-    deserializedHTML: deserializedContainer.innerHTML,
-  }
-}
-
 expect.extend({
   /** Проверяет, что строка соответствует ожидаемой строке, игнорируя пробельные символы. */
   toMatchStringHTML,
@@ -151,7 +135,15 @@ expect.extend({
   toMatchRender(received: unknown, expected: unknown) {
     const receivedTemplate = received as TemplateResult
     const expectedTemplate = expected as TemplateResult
-    const { originalHTML, deserializedHTML } = compareRender(receivedTemplate, expectedTemplate)
+
+    const originalContainer = document.createElement("div")
+    const deserializedContainer = document.createElement("div")
+
+    render(receivedTemplate, originalContainer)
+    render(expectedTemplate, deserializedContainer)
+
+    const originalHTML = originalContainer.innerHTML
+    const deserializedHTML = deserializedContainer.innerHTML
     const pass = originalHTML === deserializedHTML
 
     if (pass) {
