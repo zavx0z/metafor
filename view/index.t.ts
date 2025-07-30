@@ -5,6 +5,7 @@
  */
 
 import type { ContextSchema, Update, ExtractValues } from "../context"
+import type { choose } from "../html/directives/choose"
 import type { map } from "../html/directives/map"
 import type { ref } from "../html/directives/ref"
 import type { repeat } from "../html/directives/repeat"
@@ -153,6 +154,23 @@ export type ViewDefinitionParams<C extends ContextSchema, S extends string> = {
    * Удаляет узлы в child выражениях и атрибуты в атрибутных выражениях.
    */
   nothing: typeof nothing
+  /**
+   * Директива для условного выбора шаблона по значению.
+   * 
+   * Выбирает и выполняет функцию шаблона из списка на основе соответствия
+   * заданного значения к случаю. Случаи структурированы как `[caseValue, func]`.
+   * 
+   * @example
+   * ```ts
+   * render: ({ context, html }) => html`
+   *   ${choose(context.section, [
+   *     ['home', () => html`<h1>Главная</h1>`],
+   *     ['about', () => html`<h1>О нас</h1>`]
+   *   ], () => html`<h1>Ошибка</h1>`)}
+   * `
+   * ```
+   */
+  choose: typeof choose
 }
 
 /**
