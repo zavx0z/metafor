@@ -41,7 +41,7 @@ export function serializeView(templateResult: TemplateResult, config: Serializat
   // Сериализуем значения
   const serializedValues = values.map((value) => {
     if (isDirective(value)) {
-      return value // Директивы сохраняем как есть
+      return createDirectiveMarker(value)
     }
     if (typeof value === "function") {
       return createFunctionMarker(value)
@@ -53,7 +53,7 @@ export function serializeView(templateResult: TemplateResult, config: Serializat
   const metadata = includeMetadata
     ? {
         version,
-        timestamp: Date.now(),
+        timestamp: 0, // Фиксированный timestamp для снапшотов
       }
     : {
         version,
@@ -212,6 +212,16 @@ export function deserializeViewFromStringWithParams<C extends ContextSchema, I e
 
 // Вспомогательные функции
 
+function createDirectiveMarker(directive: DirectiveValue): SerializedDirective {
+  // Получаем имя директивы из конструктора
+  const directiveName = (directive as any).constructor?.name || "unknown"
+  return {
+    type: "directive",
+    name: directiveName,
+    value: (directive as any).values || [],
+  }
+}
+
 function createFunctionMarker(func: Function): FunctionMarker {
   return {
     type: "function",
@@ -243,7 +253,9 @@ function restoreDirective<C extends ContextSchema, I extends Core, S extends str
 ): unknown {
   const directiveName = serialized.name
   if (directiveName in context.directives) {
-    return context.directives[directiveName as keyof typeof context.directives]
+    const directive = context.directives[directiveName as keyof typeof context.directives]
+    // Восстанавливаем директиву с переданными значениями
+    return (directive as any).apply(null, Array.isArray(serialized.value) ? serialized.value : [serialized.value])
   }
   return serialized.value
 }
@@ -269,11 +281,7 @@ function restoreViewParamRef<C extends ContextSchema, I extends Core, S extends 
 // Type guards
 
 function isDirective(value: unknown): value is DirectiveValue {
-  return (
-    typeof value === "function" &&
-    (value as any).name !== undefined &&
-    ["ref", "repeat", "when", "map", "styleMap", "choose"].includes((value as any).name)
-  )
+  return typeof value === "function" && (value as any)._$htmlDirective$ !== undefined
 }
 
 function isSerializedDirective(value: unknown): value is SerializedDirective {

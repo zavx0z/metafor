@@ -20,10 +20,12 @@ import {
 } from "../serialization"
 import type { SerializationContext } from "../serialization.t"
 import { createContext, types } from "../../context"
+import type { ContextSchema, ExtractValues, Update } from "../../context"
+import type { Core } from "../../metafor.t"
 import "../../fixture/expect"
 
 describe("базовые параметры view", () => {
-  let registry: SerializationContext<any, any, any>
+  let registry: SerializationContext<any, Core, string>
 
   beforeEach(() => {
     const state = "active" as const
@@ -115,9 +117,12 @@ describe("базовые параметры view", () => {
   })
 
   test("десериализация из JSON с динамическими ссылками", () => {
-    const originalTemplate = html`<button @click=${registry.meta.update({ name: "updated" })}>
-      ${registry.meta.context.name}
+    // Создаем шаблон с естественным синтаксисом
+    const createTemplate = (update: Update<any>, context: ExtractValues<any>) => html`<button @click=${() => update({ name: "updated" })}>
+      ${context.name}
     </button>`
+
+    const originalTemplate = createTemplate(registry.meta.update, registry.meta.context)
     const jsonString = serializeViewToString(originalTemplate)
 
     // Проверяем структуру JSON строки с параметрами view

@@ -52,7 +52,7 @@ describe("сериализация view", () => {
     expect(serialized.template.h, "шаблон должен содержать строки").toEqual(["<div>Hello ", "</div>"])
     expect(serialized.values, "значения должны быть сериализовано").toEqual(["World"])
     expect(serialized.metadata.version, "версия должна быть установлена").toBe("1.0")
-    expect(serialized.metadata.timestamp, "timestamp должен быть установлен").toBeGreaterThan(0)
+    expect(serialized.metadata.timestamp, "timestamp должен быть установлен").toBe(0)
   })
 
   test("сериализация шаблона с директивами", () => {

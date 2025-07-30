@@ -21,9 +21,11 @@ import {
 import type { SerializationContext } from "../serialization.t"
 import { createContext, types } from "../../context"
 import "../../fixture/expect"
+import type { Core } from "../../metafor.t"
+import type { ContextSchema, ExtractValues } from "../../context"
 
 describe("динамическое обновление параметров view", () => {
-  let registry: SerializationContext<any, any, any>
+  let registry: SerializationContext<any, Core, string>
 
   beforeEach(() => {
     const state = "active" as const
@@ -57,7 +59,11 @@ describe("динамическое обновление параметров vie
   })
 
   test("динамическое обновление параметров через ссылки", () => {
-    const originalTemplate = html`<div>${registry.meta.context.name} - ${registry.meta.core.data.value}</div>`
+    // Создаем шаблон с естественным синтаксисом
+    const createTemplate = (context: ExtractValues<any>, core: Core) =>
+      html`<div>${context.name} - ${core.data.value}</div>`
+
+    const originalTemplate = createTemplate(registry.meta.context, registry.meta.core)
     const serialized = serializeView(originalTemplate)
 
     // Проверяем структуру сериализованных данных с динамическими ссылками
@@ -87,9 +93,12 @@ describe("динамическое обновление параметров vie
   })
 
   test("динамическое обновление параметров из JSON", () => {
-    const originalTemplate = html`<div>
-      ${registry.meta.context.name} - ${registry.meta.core.data.value} - ${registry.meta.state}
+    // Создаем шаблон с естественным синтаксисом
+    const createTemplate = (context: ExtractValues<any>, core: Core, state: string) => html`<div>
+      ${context.name} - ${core.data.value} - ${state}
     </div>`
+
+    const originalTemplate = createTemplate(registry.meta.context, registry.meta.core, registry.meta.state)
     const jsonString = serializeViewToString(originalTemplate)
 
     // Проверяем структуру JSON строки с динамическими параметрами

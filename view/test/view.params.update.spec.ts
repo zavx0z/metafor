@@ -20,10 +20,12 @@ import {
 } from "../serialization"
 import type { SerializationContext } from "../serialization.t"
 import { createContext, types } from "../../context"
+import type { ContextSchema, ExtractValues, Update } from "../../context"
+import type { Core } from "../../metafor.t"
 import "../../fixture/expect"
 
 describe("обновление параметров view", () => {
-  let registry: SerializationContext<any, any, any>
+  let registry: SerializationContext<any, Core, string>
 
   beforeEach(() => {
     const state = "active" as const
@@ -57,9 +59,12 @@ describe("обновление параметров view", () => {
   })
 
   test("десериализация с параметрами view и использованием в шаблоне", () => {
-    const originalTemplate = html`<button @click=${() => registry.meta.update({ name: "updated" })}>
-      ${registry.meta.context.name}
+    // Создаем шаблон с естественным синтаксисом
+    const createTemplate = (update: Update<any>, context: ExtractValues<any>) => html`<button @click=${() => update({ name: "updated" })}>
+      ${context.name}
     </button>`
+
+    const originalTemplate = createTemplate(registry.meta.update, registry.meta.context)
     const serialized = serializeView(originalTemplate)
 
     // Проверяем структуру сериализованных данных с update функцией
@@ -85,9 +90,12 @@ describe("обновление параметров view", () => {
   })
 
   test("динамическое обновление через функцию update", () => {
-    const originalTemplate = html`<button @click=${() => registry.meta.update({ name: "updated" })}>
-      ${registry.meta.context.name}
+    // Создаем шаблон с естественным синтаксисом
+    const createTemplate = (update: Update<any>, context: ExtractValues<any>) => html`<button @click=${() => update({ name: "updated" })}>
+      ${context.name}
     </button>`
+
+    const originalTemplate = createTemplate(registry.meta.update, registry.meta.context)
     const serialized = serializeView(originalTemplate)
 
     // Проверяем структуру сериализованных данных с динамическим обновлением
@@ -113,24 +121,30 @@ describe("обновление параметров view", () => {
   })
 
   test("реальное использование всех параметров view в шаблоне", () => {
-    const originalTemplate = html`
+    // Создаем шаблон с естественным синтаксисом
+    const createTemplate = (update: Update<any>, context: ExtractValues<any>, core: Core, state: string) => html`
       <div class="user-panel">
-        <h1>Привет, ${registry.meta.context.name}!</h1>
-        <p>Ваш счет: ${registry.meta.context.value}</p>
-        <p>Статус: ${registry.meta.state}</p>
-        <p>Данные: ${registry.meta.core.data.name}</p>
-        <button @click=${() => registry.meta.update({ name: "Новый пользователь", value: 1000 })}>
-          Обновить профиль
-        </button>
+        <h1>Привет, ${context.name}!</h1>
+        <p>Ваш счет: ${context.value}</p>
+        <p>Статус: ${state}</p>
+        <p>Данные: ${core.data.name}</p>
+        <button @click=${() => update({ name: "Новый пользователь", value: 1000 })}>Обновить профиль</button>
         <button
           @click=${() => {
-            registry.meta.core.data.name = "Обновленные данные"
-            registry.meta.core.data.value = 500
+            core.data.name = "Обновленные данные"
+            core.data.value = 500
           }}>
           Обновить данные
         </button>
       </div>
     `
+
+    const originalTemplate = createTemplate(
+      registry.meta.update,
+      registry.meta.context,
+      registry.meta.core,
+      registry.meta.state
+    )
     const serialized = serializeView(originalTemplate)
 
     // Проверяем структуру сериализованных данных с комплексным шаблоном
