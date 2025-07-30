@@ -60,6 +60,9 @@ describe("базовые параметры view", () => {
     const originalTemplate = html`<div>Hello ${"World"}</div>`
     const serialized = serializeView(originalTemplate)
 
+    // Проверяем структуру сериализованных данных
+    expect(serialized).toMatchSnapshot()
+
     const { template: deserializedTemplate, params: deserializedParams } = deserializeViewWithParams(
       serialized,
       registry
@@ -76,6 +79,9 @@ describe("базовые параметры view", () => {
     const originalTemplate = html`<div>Hello ${"World"}</div>`
     const jsonString = serializeViewToString(originalTemplate)
 
+    // Проверяем структуру JSON строки
+    expect(jsonString).toMatchSnapshot()
+
     const { template: deserializedTemplate, params: deserializedParams } = deserializeViewFromStringWithParams(
       jsonString,
       registry
@@ -90,6 +96,9 @@ describe("базовые параметры view", () => {
   test("десериализация с динамическими ссылками на параметры", () => {
     const originalTemplate = html`<div>Hello ${"World"}</div>`
     const serialized = serializeView(originalTemplate)
+
+    // Проверяем структуру сериализованных данных
+    expect(serialized).toMatchSnapshot()
 
     const { template: deserializedTemplate, params: deserializedParams } = deserializeViewWithParams(
       serialized,
@@ -110,6 +119,9 @@ describe("базовые параметры view", () => {
       ${registry.meta.context.name}
     </button>`
     const jsonString = serializeViewToString(originalTemplate)
+
+    // Проверяем структуру JSON строки с параметрами view
+    expect(jsonString).toMatchSnapshot()
 
     const { template: deserializedTemplate, params: deserializedParams } = deserializeViewFromStringWithParams(
       jsonString,

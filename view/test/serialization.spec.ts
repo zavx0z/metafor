@@ -46,6 +46,9 @@ describe("сериализация view", () => {
     const template = html`<div>Hello ${"World"}</div>`
     const serialized = serializeView(template)
 
+    // Проверяем структуру сериализованных данных
+    expect(serialized).toMatchSnapshot()
+
     expect(serialized.template.h, "шаблон должен содержать строки").toEqual(["<div>Hello ", "</div>"])
     expect(serialized.values, "значения должны быть сериализовано").toEqual(["World"])
     expect(serialized.metadata.version, "версия должна быть установлена").toBe("1.0")
@@ -58,6 +61,9 @@ describe("сериализация view", () => {
       ${repeat(items, (item) => html`<li>${item}</li>`)}
     </ul>`
     const serialized = serializeView(template)
+
+    // Проверяем структуру сериализованных данных с директивами
+    expect(serialized).toMatchSnapshot()
 
     expect(serialized.values.length, "должно быть значение").toBeGreaterThan(0)
     expect(serialized.values[0], "первое значение должно быть директивой").toHaveProperty("_$htmlDirective$")
@@ -111,6 +117,9 @@ describe("сериализация view", () => {
     const template = html`<div>Hello ${"World"}</div>`
     const jsonString = serializeViewToString(template)
 
+    // Проверяем структуру JSON строки
+    expect(jsonString).toMatchSnapshot()
+
     expect(typeof jsonString, "результат должен быть строкой").toBe("string")
     expect(() => JSON.parse(jsonString), "JSON должен быть валидным").not.toThrow()
   })
@@ -153,6 +162,9 @@ describe("сериализация view", () => {
     `
 
     const serialized = serializeView(template)
+
+    // Проверяем структуру сериализованных данных сложного шаблона
+    expect(serialized).toMatchSnapshot()
 
     expect(serialized.values.length, "должно быть несколько значений").toBeGreaterThan(3)
 
