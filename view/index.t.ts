@@ -13,6 +13,7 @@ import type { styleMap } from "../html/directives/style-map"
 import type { when } from "../html/directives/when"
 import type { html, nothing } from "../html/html"
 import type { TemplateResult } from "../html/html.t"
+import type { Core } from "../metafor.t"
 
 /**
  * Параметры функции рендеринга представления актора.
@@ -43,7 +44,7 @@ import type { TemplateResult } from "../html/html.t"
  * ```
  */
 
-export type ViewDefinitionParams<C extends ContextSchema, S extends string> = {
+export type ViewDefinitionParams<C extends ContextSchema, S extends string, I extends Core> = {
   /**
    * Функция для обновления контекста.
    * Вызывается с частичным объектом контекста для изменения состояния.
@@ -62,6 +63,7 @@ export type ViewDefinitionParams<C extends ContextSchema, S extends string> = {
    * ```
    */
   context: ExtractValues<C>
+  core: I
   /**
    * Текущее состояние автомата/актора.
    * Обычно строка, определённая в .states(...)
@@ -183,7 +185,7 @@ export type ViewDefinitionParams<C extends ContextSchema, S extends string> = {
  * @includeExample view/test/context.init.spec.ts
  * @includeExample view/test/context.update.spec.ts
  */
-export interface ViewConfig<C extends ContextSchema, S extends string> {
+export interface ViewConfig<C extends ContextSchema, S extends string, I extends Core> {
   /**
    * Функция рендеринга компонента.
    * Получает параметры с контекстом, состоянием и утилитами для построения UI.
@@ -202,7 +204,7 @@ export interface ViewConfig<C extends ContextSchema, S extends string> {
    * `
    * ```
    */
-  render?: (params: ViewDefinitionParams<C, S>) => TemplateResult | typeof nothing
+  render?: (params: ViewDefinitionParams<C, S, I>) => TemplateResult | typeof nothing
   /**
    * Функция, вызываемая после монтирования компонента в DOM.
    * Используется для инициализации после рендера.

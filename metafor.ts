@@ -75,6 +75,7 @@ import type { ReactionsChain } from "./react/index.t.ts"
 import type { ContextTypes } from "./context/types.t.ts"
 import { isMetaForDebugEnabled } from "./debug/config"
 import { choose } from "./html/directives/choose.ts"
+import { createRef } from "./html/directives/ref.ts"
 
 // Фабрика логгера с ленивой загрузкой
 type Logger = (message: Message, core: Record<string, any>) => void
@@ -165,7 +166,8 @@ export function MetaFor(tag: string, config?: { description?: string }) {
           validateNoUnconditionalCycles(states)
           const initialState = Object.keys(states)[0] as S
           return {
-            core<I extends Core>(core: I = {} as I) {
+            core<I extends Core>(coreBuilder: (ref: typeof createRef) => I = () => ({} as I)) {
+              const core = coreBuilder(createRef)
               return {
                 /**
                  * Регистрирует процессы автомата для нужных состояний.
@@ -197,14 +199,14 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                     reactions(reaction: ReactionsChain<C, S> = () => []) {
                       const reactionsRegistry = new ReactionRegistry(reaction)
                       return {
-                        view(view?: ViewConfig<C, S>) {
+                        view(view?: ViewConfig<C, S, I>) {
                           /**
                            * WebComponent - конечный автомат
                            */
                           class Actor extends HTMLElement {
                             #ctx: ContextInstance<C>
                             #shadow: ShadowRoot
-                            #channel: BroadcastChannel
+                            #channel: BroadcastChannel | null = null
                             #transitions = states
                             #actions = processesRegistry
                             #reactions = reactionsRegistry
@@ -236,7 +238,6 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                             constructor() {
                               super()
                               this.#shadow = this.attachShadow({ mode: "closed" })
-                              this.#channel = new BroadcastChannel("channel")
                               this.#ctx = createContext(contextSchema)
                               this.#core = core
                               view?.style?.({
@@ -253,14 +254,16 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                             connectedCallback() {
                               this.#updateView()
                               this.setAttribute("state", this.#state)
-                              if (this.#reactions.hasReactions()) {
-                                this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
-                                this.addEventListener("channel", this.#reactionHandler)
-                              }
+                              this.#channel = new BroadcastChannel("channel")
                               requestAnimationFrame(this.#init.bind(this))
                             }
 
                             #init() {
+                              if (this.#reactions.hasReactions()) {
+                                if (this.#channel)
+                                  this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
+                                this.addEventListener("channel", this.#reactionHandler)
+                              }
                               this.#sendEvent(initMessage(tag, this.getSnapshot()))
                               const transition = this.#transitions[this.#state]
                               if (transition) {
@@ -341,6 +344,7 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                               }
                               return updated
                             }
+
                             /**
                              * - выполняет переходы с установкой состояния
                              * - запускает процесс если есть
@@ -358,26 +362,29 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                                     this.#executeAction(process)
                                   } else {
                                     this.#setState(state as S)
-                                    this.#channel.postMessage(stateAfterActionMessage(tag, state as S))
+                                    this.#channel && this.#channel.postMessage(stateAfterActionMessage(tag, state as S))
                                   }
                                   break
                                 }
                               }
                             }
                             #broadcastMessage = (message: Message) => {
+                              if (!this.#channel) return
                               this.#channel.postMessage(message)
                               this.#updateView()
                               if (isMetaForDebugEnabled()) log(message, {})
                             }
                             #sendEvent = (message: Message) => {
-                              this.#shadow.dispatchEvent(
-                                new CustomEvent("channel", {
-                                  detail: message,
-                                  bubbles: true,
-                                  cancelable: false,
-                                  composed: true,
-                                })
-                              )
+                              if (!this.#channel) return
+                              this.#channel.postMessage(message)
+                              // this.#shadow.dispatchEvent(
+                              //   new CustomEvent("channel", {
+                              //     detail: message,
+                              //     bubbles: true,
+                              //     cancelable: false,
+                              //     composed: true,
+                              //   })
+                              // )
                               if (isMetaForDebugEnabled()) log(message, {})
                             }
                             #updateView = () => {
@@ -385,6 +392,7 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                               const template = view.render({
                                 state: this.#state,
                                 context: this.#ctx.getSnapshot(),
+                                core: this.#core,
                                 update: this.update,
                                 style: styleMap,
                                 html,
@@ -393,7 +401,7 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                                 when,
                                 map,
                                 nothing,
-                                choose
+                                choose,
                               })
                               if (template) render(template, this.#shadow)
                             }

@@ -1,3 +1,5 @@
+import { MetaFor } from "./dist/metafor.js"
+
 MetaFor("user")
   .context((types) => ({
     name: types.string.required("Anonymous"),
@@ -23,17 +25,17 @@ MetaFor("user")
         await new Promise((r) => setTimeout(r, 500))
         return { name: "User" }
       })
-      .success(({ update, data }) => update({ isRegistered: true, error: "" }))
+      .success(({ update, data }) => update({ isRegistered: true, error: "", name: data.name }))
       .error(({ update, error }) => {
         update({ error: error.message, isRegistered: false })
       }),
     success: process()
-      .action(({ context }) => null)
+      .action(() => null)
       .success(({ update }) => {
         update({ name: "", email: "", isRegistered: false })
       }),
     error: process()
-      .action(({ context }) => null)
+      .action(() => null)
       .success(({ update }) => {
         update({ error: "" })
       }),

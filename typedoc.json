@@ -24,6 +24,7 @@
         "html/directives/repeat.ts",
         "html/directives/when.ts",
         "html/directives/map.ts",
+        "html/directives/choose.ts",
         "html/directives/style-map.ts",
         "message/index.t.ts",
         "message/index.ts",
