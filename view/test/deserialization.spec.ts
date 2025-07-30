@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import { html, nothing, render } from "../../html/html"
+import { html, nothing } from "../../html/html"
 import { ref } from "../../html/directives/ref"
 import { repeat } from "../../html/directives/repeat"
 import { when } from "../../html/directives/when"
@@ -8,7 +8,6 @@ import { styleMap } from "../../html/directives/style-map"
 import { choose } from "../../html/directives/choose"
 import { serializeView, deserializeView, serializeViewToString, deserializeViewFromString } from "../serialization"
 import type { SerializationContext } from "../serialization.t"
-import type { TemplateResult } from "../../html/html.t"
 
 describe("десериализация view", () => {
   let context: SerializationContext
@@ -30,27 +29,12 @@ describe("десериализация view", () => {
     }
   })
 
-  // Вспомогательная функция для сравнения рендера
-  function compareRender(originalTemplate: TemplateResult, deserializedTemplate: TemplateResult) {
-    const originalContainer = document.createElement("div")
-    const deserializedContainer = document.createElement("div")
-
-    render(originalTemplate, originalContainer)
-    render(deserializedTemplate, deserializedContainer)
-
-    return {
-      originalHTML: originalContainer.innerHTML,
-      deserializedHTML: deserializedContainer.innerHTML,
-    }
-  }
-
   test("десериализация простого шаблона", () => {
     const originalTemplate = html`<div>Hello ${"World"}</div>`
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация шаблона с ref", () => {
@@ -59,8 +43,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация шаблона с repeat", () => {
@@ -71,8 +54,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация шаблона с when", () => {
@@ -87,8 +69,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация шаблона с styleMap", () => {
@@ -97,8 +78,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация шаблона с choose", () => {
@@ -116,8 +96,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация шаблона с nothing", () => {
@@ -125,8 +104,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация сложного шаблона", () => {
@@ -152,8 +130,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация из JSON строки", () => {
@@ -161,8 +138,7 @@ describe("десериализация view", () => {
     const jsonString = serializeViewToString(originalTemplate)
     const deserialized = deserializeViewFromString(jsonString, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация с вложенными шаблонами", () => {
@@ -172,8 +148,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация с атрибутами", () => {
@@ -181,8 +156,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация с событиями", () => {
@@ -191,8 +165,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация с условными атрибутами", () => {
@@ -201,8 +174,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация с свойствами", () => {
@@ -210,8 +182,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация с SVG", () => {
@@ -219,8 +190,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация с MathML", () => {
@@ -230,8 +200,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация с динамическими значениями", () => {
@@ -240,8 +209,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация с числовыми значениями", () => {
@@ -250,8 +218,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация с булевыми значениями", () => {
@@ -260,8 +227,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация с null и undefined", () => {
@@ -269,8 +235,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация с объектами", () => {
@@ -279,8 +244,7 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 
   test("десериализация с массивами", () => {
@@ -289,7 +253,6 @@ describe("десериализация view", () => {
     const serialized = serializeView(originalTemplate)
     const deserialized = deserializeView(serialized, context)
 
-    const { originalHTML, deserializedHTML } = compareRender(originalTemplate, deserialized)
-    expect(deserializedHTML, "HTML должен совпадать").toBe(originalHTML)
+    expect(deserialized).toMatchRender(originalTemplate)
   })
 })

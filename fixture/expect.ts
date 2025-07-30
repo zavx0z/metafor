@@ -1,5 +1,6 @@
 import { expect } from "bun:test"
 import { render } from "../html/html"
+import type { TemplateResult } from "../html/html.t"
 
 /** Удаляет комментарии выражений из предоставленной html-строки. */
 export const stripExpressionComments = (html: string) => html.replace(/<!--\?html\$[0-9]+\$-->|<!--\??-->/g, "")
@@ -46,6 +47,22 @@ function toPlainObject(proxy: any, schema: any): any {
     result[key] = proxy[key]
   }
   return result
+}
+
+/**
+ * Сравнивает рендер двух шаблонов
+ */
+const compareRender = (originalTemplate: TemplateResult, deserializedTemplate: TemplateResult) => {
+  const originalContainer = document.createElement("div")
+  const deserializedContainer = document.createElement("div")
+
+  render(originalTemplate, originalContainer)
+  render(deserializedTemplate, deserializedContainer)
+
+  return {
+    originalHTML: originalContainer.innerHTML,
+    deserializedHTML: deserializedContainer.innerHTML,
+  }
 }
 
 expect.extend({
@@ -126,6 +143,26 @@ expect.extend({
             null,
             2
           )}\nПолучено: ${JSON.stringify(plain, null, 2)}`,
+        pass: false,
+      }
+    }
+  },
+  /** Проверяет, что рендер десериализованного шаблона совпадает с оригинальным */
+  toMatchRender(received: unknown, expected: unknown) {
+    const receivedTemplate = received as TemplateResult
+    const expectedTemplate = expected as TemplateResult
+    const { originalHTML, deserializedHTML } = compareRender(receivedTemplate, expectedTemplate)
+    const pass = originalHTML === deserializedHTML
+
+    if (pass) {
+      return {
+        message: () => `expected рендеры не совпадать`,
+        pass: true,
+      }
+    } else {
+      return {
+        message: () =>
+          `рендеры не совпадают:${divider}Оригинал: ${originalHTML}${divider}Десериализованный: ${deserializedHTML}${divider}`,
         pass: false,
       }
     }
