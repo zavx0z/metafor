@@ -5,8 +5,8 @@
  */
 
 import type { ContextSchema, ExtractValues, SerializedSchema } from "./context"
-
 import type { StatesConfig } from "./state/index.t.ts"
+import type { SerializedView } from "./view/serialization.t"
 
 /**
  * @template C - схема контекста автомата
@@ -17,7 +17,10 @@ export interface Snapshot<C extends ContextSchema, S extends string> {
   states: StatesConfig<S, C>
   context: ExtractValues<C>
   schema: SerializedSchema<C>
+  /** Сериализованный view (опционально) */
+  view?: SerializedView
 }
+
 /**
  *  Ядро компонента
  */

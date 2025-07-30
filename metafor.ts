@@ -76,6 +76,8 @@ import type { ContextTypes } from "./context/types.t.ts"
 import { isMetaForDebugEnabled } from "./debug/config"
 import { choose } from "./html/directives/choose.ts"
 import { createRef } from "./html/directives/ref.ts"
+import { serializeView, deserializeView, createCompiledTemplateResult } from "./view/serialization"
+import type { SerializedView } from "./view/serialization.t"
 
 // Фабрика логгера с ленивой загрузкой
 type Logger = (message: Message, core: Record<string, any>) => void
@@ -406,12 +408,74 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                               if (template) render(template, this.#shadow)
                             }
                             getSnapshot(): Snapshot<C, S> {
-                              return {
+                              const snapshot: Snapshot<C, S> = {
                                 state: this.#state,
                                 states: this.#transitions,
                                 context: this.#ctx.getSnapshot(),
                                 schema: this.#ctx.schema,
-                                // actions: actionsConfig,
+                              }
+
+                              // Сериализуем view если он есть
+                              if (view?.render) {
+                                try {
+                                  const template = view.render({
+                                    state: this.#state,
+                                    context: this.#ctx.getSnapshot(),
+                                    core: this.#core,
+                                    update: this.update,
+                                    style: styleMap,
+                                    html,
+                                    ref,
+                                    repeat,
+                                    when,
+                                    map,
+                                    nothing,
+                                    choose,
+                                  })
+                                  if (template && template !== nothing) {
+                                    snapshot.view = serializeView(template)
+                                  }
+                                } catch (error) {
+                                  // Игнорируем ошибки сериализации
+                                  if (isMetaForDebugEnabled()) {
+                                    console.warn("Ошибка сериализации view:", error)
+                                  }
+                                }
+                              }
+
+                              return snapshot
+                            }
+
+                            /**
+                             * Восстанавливает view из сериализованных данных
+                             */
+                            restoreView(serializedView: SerializedView) {
+                              try {
+                                const context = {
+                                  directives: {
+                                    ref,
+                                    repeat,
+                                    when,
+                                    map,
+                                    styleMap: styleMap,
+                                    choose,
+                                  },
+                                  utils: {
+                                    html,
+                                    nothing,
+                                  },
+                                }
+
+                                const template = deserializeView(serializedView, context)
+                                if (template) {
+                                  render(template, this.#shadow)
+                                }
+                              } catch (error) {
+                                if (isMetaForDebugEnabled()) {
+                                  console.warn("Ошибка восстановления view:", error)
+                                }
+                                // Fallback к обычному рендеру
+                                this.#updateView()
                               }
                             }
 
