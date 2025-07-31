@@ -49,35 +49,77 @@
  * @packageDocumentation
  */
 
-import { types, createContext } from "../../core/context/index.ts"
-import type { ContextSchema, ContextInstance, ExtractValues, Update } from "../../core/context/index.ts"
-import { checkTransitionConditions, type StatesConfig } from "../../core/state/index.ts"
-import { createActionsConfig } from "../../core/proc/index.ts"
-import type { ProcessesDeclaration, Process } from "../../core/proc/index.t.ts"
-import type { Core, Snapshot } from "../../core/index.t.ts"
-import type { ViewConfig } from "../../core/view/index.t.ts"
+import { types, createContext } from "../core/context/index.ts"
+import type { ContextSchema, ContextInstance, ExtractValues, Update } from "../core/context/index.ts"
+import { checkTransitionConditions, type StatesConfig } from "../core/state/index.ts"
+import { createActionsConfig } from "../core/proc/index.ts"
+import type { ProcessesDeclaration, Process } from "../core/proc/index.t.ts"
+import type { Core, Snapshot } from "../core/index.t.ts"
+import type { ViewConfig } from "../core/view/index.t.ts"
 import {
   initMessage,
   stateAfterActionMessage,
   stateBeforeActionMessage,
   updateContextMessage,
-} from "../../core/message/index.ts"
-import type { Message } from "../../core/message/index.ts"
-import { html, nothing, render } from "../../core/html/html.ts"
-import { validateNoUnconditionalCycles } from "../../core/state/index.ts"
-import { ref } from "../../core/html/directives/ref.ts"
-import { repeat } from "../../core/html/directives/repeat.ts"
-import { when } from "../../core/html/directives/when.ts"
-import { map } from "../../core/html/directives/map.ts"
-import { styleMap } from "../../core/html/directives/style-map.ts"
-import { ReactionRegistry } from "../../core/react/index"
-import type { ReactionsChain } from "../../core/react/index.t.ts"
-import type { ContextTypes } from "../../core/context/types.t.ts"
-import { isMetaForDebugEnabled } from "../../core/debug/config.ts"
-import { choose } from "../../core/html/directives/choose.ts"
-import { createRef } from "../../core/html/directives/ref.ts"
-import { extractTemplateLiteral } from "../../core/view/index.ts"
+} from "../core/message/index.ts"
+import type { Message } from "../core/message/index.ts"
+import { html, nothing, render } from "../core/html/html.ts"
+import { validateNoUnconditionalCycles } from "../core/state/index.ts"
+import { ref } from "../core/html/directives/ref.ts"
+import { repeat } from "../core/html/directives/repeat.ts"
+import { when } from "../core/html/directives/when.ts"
+import { map } from "../core/html/directives/map.ts"
+import { styleMap } from "../core/html/directives/style-map.ts"
+import { ReactionRegistry } from "../core/react/index"
+import type { ReactionsChain } from "../core/react/index.t.ts"
+import type { ContextTypes } from "../core/context/types.t.ts"
+import { isMetaForDebugEnabled } from "./debug/config.ts"
+import { choose } from "../core/html/directives/choose.ts"
+import { createRef } from "../core/html/directives/ref.ts"
+import { extractTemplateLiteral } from "../core/view/index.ts"
 
+// Фабрика логгера с ленивой загрузкой
+type Logger = (message: Message, core: Record<string, any>) => void
+
+function createLogger(): Logger {
+  if (!isMetaForDebugEnabled()) {
+    return () => {} // Пустая функция для продакшена
+  }
+
+  let loggerModule: { log: Logger } | null = null
+  let loading = false
+  const messageQueue: Array<{ message: Message; core: Record<string, any> }> = []
+
+  const loadLogger = async () => {
+    if (loggerModule || loading) return
+
+    loading = true
+    try {
+      loggerModule = await import("./debug/console.js")
+
+      // Обрабатываем накопленные сообщения
+      for (const item of messageQueue) {
+        loggerModule.log(item.message, item.core)
+      }
+      messageQueue.length = 0
+    } catch (error) {
+      console.warn("Failed to load debug logger:", error)
+    } finally {
+      loading = false
+    }
+  }
+
+  return (message: Message, core: Record<string, any>) => {
+    if (loggerModule) {
+      loggerModule.log(message, core)
+    } else {
+      messageQueue.push({ message, core })
+      loadLogger()
+    }
+  }
+}
+
+const log = createLogger()
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
  * @param tag - уникальный тег web-компонента
@@ -338,10 +380,20 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                               if (!this.#channel) return
                               this.#channel.postMessage(message)
                               this.#updateView()
+                              if (isMetaForDebugEnabled()) log(message, {})
                             }
                             #sendEvent = (message: Message) => {
                               if (!this.#channel) return
                               this.#channel.postMessage(message)
+                              // this.#shadow.dispatchEvent(
+                              //   new CustomEvent("channel", {
+                              //     detail: message,
+                              //     bubbles: true,
+                              //     cancelable: false,
+                              //     composed: true,
+                              //   })
+                              // )
+                              if (isMetaForDebugEnabled()) log(message, {})
                             }
                             #updateView = () => {
                               if (!view?.render) return

@@ -107,7 +107,7 @@ import type { Disconnectable, Part } from "./html.t"
 import { isSingleExpression } from "./directive-helpers"
 import { Directive } from "./directive"
 import { type PartInfo, PartType } from "./directive.t"
-import { isHtmlDebugEnabled } from "../debug/config"
+import { isHtmlDebugEnabled } from "../../web/debug/config.js"
 export * from "./directive.js"
 
 /**

@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test"
 import { render, html, nothing } from "../../html"
 import type { CompiledTemplateResult, RenderOptions, TemplateResult } from "../../html.t"
-import { isHtmlDebugEnabled } from "../../../debug/config"
+import { isHtmlDebugEnabled } from "../../../../web/debug/config"
 
 /**
  * Эти тесты проверяют возможность вставки корректного маркера выражения

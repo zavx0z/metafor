@@ -12,14 +12,12 @@
         ".venv": true,
         ".idea": true,
         ".firebase": true,
-        ".vscode": true,
         ".github": true,
         ".cursor": true
     },
     "hide-files.files": [
         ".idea",
         ".firebase",
-        ".vscode",
         ".github",
         ".cursor"
     ],

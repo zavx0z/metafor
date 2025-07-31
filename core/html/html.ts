@@ -56,7 +56,7 @@ import {
   enableHtmlDebugLogEvents,
   isHtmlDebugLogEventsEnabled,
   enableHtmlDebug,
-} from "../debug/config"
+} from "../../web/debug/config"
 
 const ENABLE_EXTRA_SECURITY_HOOKS = true
 const ENABLE_SHADYDOM_NOPATCH = true
