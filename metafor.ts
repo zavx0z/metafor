@@ -122,7 +122,7 @@ const log = createLogger()
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
  * @param tag - уникальный тег web-компонента
- * @returns chain API: context() -> states() -> actions()
+ * @returns chain API: context() -> states() -> core() -> processes() -> reactions() -> view()
  */
 export function MetaFor(tag: string, config?: { description?: string }) {
   const tagName = `metafor-${tag}` as const
