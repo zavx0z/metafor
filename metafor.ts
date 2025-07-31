@@ -76,6 +76,7 @@ import type { ContextTypes } from "./context/types.t.ts"
 import { isMetaForDebugEnabled } from "./debug/config"
 import { choose } from "./html/directives/choose.ts"
 import { createRef } from "./html/directives/ref.ts"
+import { extractTemplateLiteral } from "./view/index.ts"
 
 // Фабрика логгера с ленивой загрузкой
 type Logger = (message: Message, core: Record<string, any>) => void
@@ -413,12 +414,14 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                               if (template) render(template, this.#shadow)
                             }
                             getSnapshot(): Snapshot<C, S> {
-                              return {
+                              const snapshot: Snapshot<C, S> = {
                                 state: this.#state,
                                 states: this.#transitions,
                                 context: this.#ctx.getSnapshot(),
                                 schema: this.#ctx.schema,
                               }
+                              if (view?.render) snapshot["view"] = extractTemplateLiteral(view.render)
+                              return snapshot
                             }
 
                             /**
