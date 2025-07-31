@@ -126,6 +126,7 @@ const log = createLogger()
  */
 export function MetaFor(tag: string, config?: { description?: string }) {
   const tagName = `metafor-${tag}` as const
+  const env = typeof process !== "undefined" && process.versions && process.versions.bun ? "server" : "browser"
   return {
     /**
      * Регистрирует схему контекста для автомата.
@@ -232,6 +233,12 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                               if (!process) {
                                 stateAfterActionMessage(tag, this.#state)
                                 this.#transition()
+                              }
+                            }
+                            get address() {
+                              return {
+                                tag,
+                                env,
                               }
                             }
                             /** ------------process-------------------------------- */
