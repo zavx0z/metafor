@@ -5,7 +5,7 @@
  */
 
 import type { ContextSchema, ExtractValues, UpdateValues } from "../context"
-import type { Core } from "../metafor.t"
+import type { Core } from "../../core/index.t"
 
 /**
  * Тип билдера для декларации набора процессов автомата.

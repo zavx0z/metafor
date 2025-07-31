@@ -4,7 +4,7 @@
  */
 
 import type { ContextSchema, ExtractValues } from "../context"
-import type { Snapshot } from "../metafor.t"
+import type { Snapshot } from "../../core/index.t"
 import type { Message, JsonPatch, MetaDataMessage } from "./index.t"
 export type { Message, JsonPatch, MetaDataMessage }
 

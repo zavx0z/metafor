@@ -13,7 +13,7 @@ import type { styleMap } from "../html/directives/style-map"
 import type { when } from "../html/directives/when"
 import type { html, nothing } from "../html/html"
 import type { TemplateResult } from "../html/html.t"
-import type { Core } from "../metafor.t"
+import type { Core } from "../index.t"
 
 /**
  * Параметры функции рендеринга представления актора.

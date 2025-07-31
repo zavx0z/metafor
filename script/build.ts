@@ -3,14 +3,14 @@ import { join } from "path"
 
 async function build(dev: boolean, distDir: string, entrypoint: string) {
   const result = await Bun.build({
-    entrypoints: [entrypoint, "./debug/console.js"],
+    entrypoints: [entrypoint, "./core/debug/console.js"],
     outdir: distDir,
     target: "browser",
     format: "esm",
     sourcemap: dev ? "inline" : "none",
     splitting: false,
     minify: !dev,
-    external: ["./debug/console.js"],
+    external: ["./core/debug/console.js"],
     naming: "[dir]/[name].[ext]",
   })
 

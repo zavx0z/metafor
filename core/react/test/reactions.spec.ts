@@ -1,6 +1,6 @@
 import { test, expect, describe } from "bun:test"
 import type { Message } from "../../message/index.t.ts"
-import { MetaFor } from "../../metafor.ts"
+import { MetaFor } from "../../../metafor.ts"
 
 describe("реакции", () => {
   test("MetaFor - базовый функционал", async () => {
@@ -96,6 +96,7 @@ describe("реакции", () => {
               },
               state_3: {},
             },
+            view: "<div></div>",
             context: {
               param: null,
             },

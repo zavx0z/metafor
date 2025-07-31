@@ -1,5 +1,5 @@
 import { afterAll } from "bun:test"
-import { type Message } from "../message/index.t"
+import { type Message } from "../core/message/index.t"
 
 export const messagesFixture = (options?: {
   meta: string

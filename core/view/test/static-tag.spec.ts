@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test"
-import { MetaFor } from "../../metafor"
-import { messagesFixture } from "../../fixture/message"
+import { MetaFor } from "../../../metafor.ts"
+import { messagesFixture } from "../../../fixture/message.ts"
 import { createStaticViewFunction } from "../index"
 
 describe("работа со статическими тегами", async () => {

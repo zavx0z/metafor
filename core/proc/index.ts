@@ -5,7 +5,7 @@
 
 import type { ContextSchema, ExtractValues } from "../context"
 import type { ActionChain, ProcessesDeclaration, Process, ProcessChain, ActionParams } from "./index.t"
-import type { Core } from "../metafor.t"
+import type { Core } from "../../core/index.t"
 
 /**
  * Вспомогательная функция для декларации actionsConfig автомата через builder и chain API.
@@ -36,9 +36,7 @@ export function createActionsConfig<C extends ContextSchema, S extends string, I
    */
   function process(config?: { title?: string; description?: string }): ProcessChain<C, I> {
     return {
-      action: <Res>(
-        fn: (params: ActionParams<C, I>) => Res | Promise<Res>
-      ): ActionChain<C, I, Res> => {
+      action: <Res>(fn: (params: ActionParams<C, I>) => Res | Promise<Res>): ActionChain<C, I, Res> => {
         // Храним текущие success/error handler'ы (последний вызов перезаписывает предыдущий)
         let successHandler:
           | ((params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void)

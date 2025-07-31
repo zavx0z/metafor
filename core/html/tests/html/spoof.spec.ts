@@ -1,6 +1,6 @@
-import { stripExpressionMarkers } from "../../../fixture/expect"
-import { render, html } from "../../html"
 import { beforeEach, describe, expect, test } from "bun:test"
+import { stripExpressionMarkers } from "../../../../fixture/expect"
+import { render, html } from "../../html"
 
 describe(`не рендерит простые поддельные результаты шаблонов`, () => {
   let container: HTMLDivElement

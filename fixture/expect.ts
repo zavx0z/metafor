@@ -1,6 +1,6 @@
 import { expect } from "bun:test"
-import { render } from "../html/html"
-import type { TemplateResult } from "../html/html.t"
+import { render } from "../core/html/html"
+import type { TemplateResult } from "../core/html/html.t"
 
 /** Удаляет комментарии выражений из предоставленной html-строки. */
 export const stripExpressionComments = (html: string) => html.replace(/<!--\?html\$[0-9]+\$-->|<!--\??-->/g, "")

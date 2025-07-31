@@ -1,6 +1,6 @@
 import { describe, test, expect } from "bun:test"
-import { MetaFor } from "../../metafor"
-import { messagesFixture } from "../../fixture/message"
+import { MetaFor } from "../../../metafor.ts"
+import { messagesFixture } from "../../../fixture/message.ts"
 
 describe("инициализация ребенка с переданным контекстом от родителя", async () => {
   document.body.innerHTML = `<metafor-parent-243234></metafor-parent-243234>`
