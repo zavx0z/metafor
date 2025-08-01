@@ -290,7 +290,6 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                               if (this.#process === process) return
                               this.#process = process
                               if (!process) {
-                                stateAfterActionMessage(tag, this.#state)
                                 this.#transition()
                               }
                             }
@@ -349,6 +348,16 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                               this.removeEventListener("channel", this.#reactionHandler)
                             }
 
+                            /** обновление контекста */
+                            update = (context: Partial<ExtractValues<C>>) => {
+                              const updated = this.#ctx.update(context)
+                              if (Object.keys(updated).length > 0) {
+                                this.#sendEvent(updateContextMessage(tag, updated))
+                                this.#updateView()
+                              }
+                              return updated
+                            }
+                            /** обработка сообщений из канала */
                             #reactionHandler = (ev: Event) => {
                               const detail = (ev as CustomEvent).detail
                               if (detail?.meta?.tag === tag) return
@@ -366,21 +375,30 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                              */
                             #executeAction = (process: Process<C, I>) => {
                               try {
+                                this.#broadcastMessage(stateBeforeActionMessage(tag, this.#state))
                                 const result = process.action({
                                   context: this.#ctx.getSnapshot(),
                                   core: this.#core,
                                   element: this,
                                 })
                                 if (result instanceof Promise) {
-                                  this.#broadcastMessage(stateBeforeActionMessage(tag, this.#state))
                                   result
                                     .then((data) => {
                                       if (process.success) process.success({ update: this.update, data })
                                     })
                                     .catch((error) => {
-                                      if (process.error) process.error({ update: this.update, error })
-                                      else
-                                        throw new Error(
+                                      if (process.error) {
+                                        if (error instanceof Error) {
+                                          process.error({ update: this.update, error })
+                                        } else if (typeof error === "string") {
+                                          process.error({ update: this.update, error: new Error(error) })
+                                        } else {
+                                          throw Error(
+                                            `Передан неизвестный тип ошибки в состоянии: ${this.#state} \n ${error}`
+                                          )
+                                        }
+                                      } else
+                                        throw Error(
                                           `Обработчик ошибки не найден для состояния: ${this.#state} \n ${error}`
                                         )
                                     })
@@ -399,17 +417,6 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                                 this.#setProcess(false)
                               }
                             }
-                            /**
-                             * - обновляет контекст
-                             */
-                            update = (context: Partial<ExtractValues<C>>) => {
-                              const updated = this.#ctx.update(context)
-                              if (Object.keys(updated).length > 0) {
-                                this.#sendEvent(updateContextMessage(tag, updated))
-                                this.#updateView()
-                              }
-                              return updated
-                            }
 
                             /**
                              * - выполняет переходы с установкой состояния
@@ -422,13 +429,15 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                               for (const [state, conditions] of Object.entries(transition)) {
                                 if (checkTransitionConditions(conditions, this.#ctx.getSnapshot())) {
                                   const process = this.#actions[state as S]
+                                  if (this.#process) return
                                   if (process) {
                                     this.#setProcess(true)
                                     this.#setState(state as S)
                                     this.#executeAction(process)
                                   } else {
                                     this.#setState(state as S)
-                                    this.#channel && this.#channel.postMessage(stateAfterActionMessage(tag, state as S))
+                                    this.#channel && this.#broadcastMessage(stateAfterActionMessage(tag, state as S))
+                                    if (!this.#process) this.#transition()
                                   }
                                   break
                                 }

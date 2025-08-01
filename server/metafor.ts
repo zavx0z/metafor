@@ -386,7 +386,8 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                                     this.#executeAction(process)
                                   } else {
                                     this.#setState(state as S)
-                                    this.#channel && this.#channel.postMessage(stateAfterActionMessage(tag, state as S))
+                                    this.#channel && this.#broadcastMessage(stateAfterActionMessage(tag, state as S))
+                                    this.#transition()
                                   }
                                   break
                                 }

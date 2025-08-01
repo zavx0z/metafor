@@ -1,6 +1,6 @@
 import { test, expect, describe } from "bun:test"
 import type { Message } from "../../message/index.t.ts"
-import { MetaFor } from "../../../metafor.ts"
+import { MetaFor } from "../../../web/metafor.ts"
 
 describe("реакции", () => {
   test("MetaFor - базовый функционал", async () => {
@@ -108,6 +108,18 @@ describe("реакции", () => {
               },
             },
           },
+        },
+      },
+      {
+        meta: {
+          tag: "child",
+          timestamp: expect.any(Number),
+          index: 0,
+        },
+        patch: {
+          op: "test",
+          path: "/state",
+          value: "state_1",
         },
       },
       {

@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test"
-import { MetaFor } from "../../../metafor.ts"
+import { MetaFor } from "../../../web/metafor.ts"
 import { messagesFixture } from "../../../fixture/message.ts"
 
 describe("обновление контекста ребенка", async () => {

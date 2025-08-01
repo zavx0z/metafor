@@ -1,4 +1,4 @@
-import { MetaFor } from "./dist/server/metafor.js"
+import { MetaFor } from "./dist/web/metafor.js"
 
 MetaFor("user")
   .context((types) => ({
