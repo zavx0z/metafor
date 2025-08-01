@@ -1,5 +1,21 @@
 /**
  * Типы для процессов
+ *
+ * **ВАЖНО: Все процессы должны иметь обработчики success и error**
+ * Используйте reject для ошибок, а не resolve({ success: false })
+ * Обработчики обеспечивают полную обработку всех результатов Promise
+ *
+ * **Предпочтительно передавать данные через action для обновления контекста:**
+ * ```typescript
+ * // Хорошо - данные передаются через action
+ * .action(({ core }) => Promise.resolve("connected"))
+ * .success(({ update, data }) => update({ status: data }))
+ *
+ * // Плохо - данные дублируются в success
+ * .action(({ core }) => Promise.resolve())
+ * .success(({ update }) => update({ status: "connected" }))
+ * ```
+ *
  * @packageDocumentation
  * @module Processes
  */
@@ -74,6 +90,12 @@ export type ProcessChain<C extends ContextSchema, I extends Core> = {
    *   })
    *   return await response.json()
    * })
+   *
+   * // Предпочтительный формат action с Promise
+   * .action(({ core }) => new Promise((resolve, reject) => {
+   *   // асинхронная логика
+   *   resolve({ success: true })
+   * }))
    * ```
    */
   action: <Res>(fn: (params: ActionParams<C, I>) => Res | Promise<Res>) => ActionChain<C, I, Res>
@@ -137,11 +159,20 @@ export type ActionChain<C extends ContextSchema, I extends Core, Res> = {
    * Вызывается когда action завершился успешно (не выбросил исключение).
    * Получает функцию update для изменения контекста и данные от action.
    *
+   * **ВАЖНО: success обработчик должен быть синхронным.**
+   * Асинхронные операции выполняйте только в action функциях.
+   * Для последовательных асинхронных операций создавайте отдельные процессы.
+   *
    * @param handler - функция, вызываемая при успехе (получает update и data)
    * @returns цепочку для дальнейшего конфигурирования
    *
    * @example
    * ```typescript
+   * // Предпочтительный формат success/error
+   * .success(({ update, data }) => update({ status: data.status }))
+   * .error(({ update, error }) => update({ status: "error", error: error.message }))
+   *
+   * // Расширенный формат
    * .success(({ update, data }) => {
    *   // Обновляем контекст данными от action
    *   update({
@@ -163,11 +194,20 @@ export type ActionChain<C extends ContextSchema, I extends Core, Res> = {
    * Вызывается когда action выбросил исключение.
    * Получает функцию update для изменения контекста и объект ошибки.
    *
+   * **ВАЖНО: error обработчик должен быть синхронным.**
+   * Асинхронные операции выполняйте только в action функциях.
+   * Для последовательных асинхронных операций создавайте отдельные процессы.
+   *
    * @param handler - функция, вызываемая при ошибке (получает update и error типа Error)
    * @returns цепочку для дальнейшего конфигурирования
    *
    * @example
    * ```typescript
+   * // Предпочтительный формат success/error
+   * .success(({ update, data }) => update({ status: data.status }))
+   * .error(({ update, error }) => update({ status: "error", error: error.message }))
+   *
+   * // Расширенный формат
    * .error(({ update, error }) => {
    *   // Обрабатываем ошибку
    *   update({

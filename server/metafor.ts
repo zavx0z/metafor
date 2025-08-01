@@ -9,6 +9,12 @@
  * MetaFor предоставляет декларативный способ создания web-компонентов с конечным автоматом.
  * Каждый компонент имеет типизированный контекст, состояния, процессы, реакции и представление.
  *
+ * **ВАЖНО: Акторы MetaFor имеют полную изоляцию и используют shadow-dom closed**
+ * Прямой доступ к акторам через экспорты не нужен и не рекомендуется
+ * Все взаимодействия между акторами происходят через патчи в сообщениях
+ * Акторы регистрируются автоматически при импорте файла, экспорт не требуется
+ * Используйте систему сообщений и реакций для связи между компонентами
+ *
  * @example
  * ```typescript
  * MetaFor("user-profile")
@@ -73,7 +79,6 @@ import { styleMap } from "../core/html/directives/style-map.ts"
 import { ReactionRegistry } from "../core/react/index"
 import type { ReactionsChain } from "../core/react/index.t.ts"
 import type { ContextTypes } from "../core/context/types.t.ts"
-import { isMetaForDebugEnabled } from "../web/debug/config.ts"
 import { choose } from "../core/html/directives/choose.ts"
 import { createRef } from "../core/html/directives/ref.ts"
 import { extractTemplateLiteral } from "../core/view/index.ts"
@@ -126,8 +131,35 @@ export function MetaFor(tag: string, config?: { description?: string }) {
           validateNoUnconditionalCycles(states)
           const initialState = Object.keys(states)[0] as S
           return {
-            core<I extends Core>(coreBuilder: (ref: typeof createRef) => I = () => ({} as I)) {
-              const core = coreBuilder(createRef)
+            /**
+             * Регистрирует core объект для автомата.
+             *
+             * Core - это простой объект с данными, используемыми во всех состояниях.
+             * Сложные объекты и структуры данных храните в core.
+             * Core доступен во всех процессах и реакциях.
+             *
+             * @param coreBuilder - функция, принимающая ref и возвращающая core объект, или сам core объект
+             * @returns chain API для вызова .processes(...)
+             *
+             * @example
+             * ```typescript
+             * // Вариант 1: Функция с ref
+             * .core((ref) => ({
+             *   users: [],
+             *   api: ref('api'),
+             *   logger: ref('logger')
+             * }))
+             *
+             * // Вариант 2: Простой объект
+             * .core({
+             *   users: [],
+             *   settings: { theme: 'dark' },
+             *   cache: new Map()
+             * })
+             * ```
+             */
+            core<I extends Core>(coreBuilder: ((ref: typeof createRef) => I) | I = () => ({} as I)) {
+              const core = typeof coreBuilder === "function" ? coreBuilder(createRef) : coreBuilder
               return {
                 /**
                  * Регистрирует процессы автомата для нужных состояний.
@@ -153,8 +185,34 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                   return {
                     /**
                      * Регистрирует карту реакций для автомата.
+                     *
+                     * **ВАЖНО: Реакции предназначены для реагирования на события других акторов, а не на собственные изменения состояния.**
+                     * Для управления собственными переходами состояний используйте процессы и их success/error обработчики.
+                     * Реакции связывают разные акторы в событийной архитектуре.
+                     *
                      * @param reaction Функция (filter => декларация), где декларация — массив кортежей [string[], { update, filter, title }]
                      * @returns chain API для вызова .view(...)
+                     *
+                     * @example
+                     * ```typescript
+                     * // Правильно: реакция на события другого актора
+                     * .reactions(reaction => [
+                     *   ["idle", "loading"], // Состояния, в которых активна реакция
+                     *   {
+                     *     filter: (args) => args.meta.tag === "roadmap" && args.patch.op === "replace",
+                     *     update: ({ update, context, patch }) => {
+                     *       update({
+                     *         lastMessage: patch.value,
+                     *         messageCount: context.messageCount + 1
+                     *       })
+                     *     },
+                     *     title: "Обработка сообщений от roadmap актора"
+                     *   }
+                     * ])
+                     *
+                     * // Неправильно: реакция на собственные изменения
+                     * // Вместо этого используйте процессы и их success/error обработчики
+                     * ```
                      */
                     reactions(reaction: ReactionsChain<C, S> = () => []) {
                       const reactionsRegistry = new ReactionRegistry(reaction)
@@ -403,3 +461,6 @@ export function MetaFor(tag: string, config?: { description?: string }) {
     },
   }
 }
+
+// Экспортируем тип Message для включения в сборку типов
+export type { Message } from "../core/message/index.ts"

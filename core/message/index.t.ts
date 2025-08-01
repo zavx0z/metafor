@@ -3,6 +3,7 @@
  * @packageDocumentation
  * @module Messages
  */
+
 /**
  Сообщение для обмена данными между акторами
 
