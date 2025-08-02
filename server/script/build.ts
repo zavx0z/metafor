@@ -3,12 +3,13 @@ const rootPath = join(import.meta.dirname, "..", "..")
 
 async function build(dev: boolean, distDir: string, entrypoint: string) {
   const result = await Bun.build({
-    entrypoints: [entrypoint],
+    entrypoints: [entrypoint, join(rootPath, "server", "console.ts")],
     outdir: distDir,
     target: "bun",
     sourcemap: "none",
     splitting: false,
     minify: !dev,
+    external: ["happy-dom"],
     naming: "[dir]/[name].[ext]",
   })
 

@@ -3,14 +3,14 @@ const rootPath = join(import.meta.dirname, "..", "..")
 
 async function build(dev: boolean, distDir: string, entrypoint: string) {
   const result = await Bun.build({
-    entrypoints: [entrypoint, join(rootPath, "web", "debug", "console.js")],
+    entrypoints: [entrypoint, join(rootPath, "web", "console.js")],
     outdir: distDir,
     target: "browser",
     format: "esm",
     sourcemap: dev ? "inline" : "none",
     splitting: false,
     minify: !dev,
-    external: [join(rootPath, "web", "debug", "console.js")],
+    // external: [join(rootPath, "web", "console.js")],
     naming: "[dir]/[name].[ext]",
   })
 

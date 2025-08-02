@@ -56,19 +56,19 @@
  */
 
 import { types, createContext } from "./context/index.ts"
-import type { ContextSchema, ContextInstance, ExtractValues, Update } from "./context/index.ts"
+import type { ContextSchema, ContextInstance, ExtractValues } from "./context/index.ts"
 import { checkTransitionConditions, type StatesConfig } from "./state/index.ts"
 import { createActionsConfig } from "./proc/index.ts"
-import type { ProcessesDeclaration, Process, ProcessesConfig } from "./proc/index.t.ts"
-import type { Core, Snapshot } from "./index.t.ts"
+import type { ProcessesDeclaration, Process } from "./proc/index.t.ts"
+import type { Core, CreateMetaForParams, Snapshot } from "./index.t.ts"
 import type { ViewConfig } from "./view/index.t.ts"
 import {
   initMessage,
   stateAfterActionMessage,
   stateBeforeActionMessage,
   updateContextMessage,
+  type Message,
 } from "./message/index.ts"
-import type { Message } from "./message/index.ts"
 import { html, nothing, render } from "./html/html.ts"
 import { validateNoUnconditionalCycles } from "./state/index.ts"
 import { ref } from "./html/directives/ref.ts"
@@ -246,18 +246,7 @@ export function MetaFor(tag: string, config?: { description?: string }) {
   }
 }
 
-export type { Message } from "../core/message/index.ts"
-
-type CreateMetaForParams<C extends ContextSchema, S extends string, I extends Core> = {
-  tag: string
-  env: "server" | "browser"
-  schema: C
-  states: StatesConfig<S, C>
-  core: I
-  processes: ProcessesConfig<C, S, I>
-  reactions: ReactionRegistry<C, S>
-  view: ViewConfig<C, S, I> | undefined
-}
+/** @internal */
 const createMetaFor = <C extends ContextSchema, S extends string, I extends Core>({
   tag,
   env,
@@ -268,10 +257,8 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
   reactions,
   view,
 }: CreateMetaForParams<C, S, I>) => {
-  /**
-   * WebComponent - конечный автомат
-   */
-  class Actor extends HTMLElement {
+  /** WebComponent - конечный автомат */
+  return class extends HTMLElement {
     #ctx: ContextInstance<C>
     #shadow: ShadowRoot
     #channel: BroadcastChannel | null = null
@@ -508,5 +495,4 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
       })
     }
   }
-  return Actor
 }
