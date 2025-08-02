@@ -98,13 +98,11 @@ describe("реакции", () => {
             },
             view: "<div></div>",
             context: {
-              param: null,
-            },
-            schema: {
               param: {
                 type: "string",
                 required: false,
                 default: undefined,
+                value: null,
               },
             },
           },

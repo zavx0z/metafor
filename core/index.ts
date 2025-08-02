@@ -82,6 +82,7 @@ import type { ContextTypes } from "./context/types.t.ts"
 import { choose } from "./html/directives/choose.ts"
 import { createRef } from "./html/directives/ref.ts"
 import { extractTemplateLiteral } from "./view/index.ts"
+import type { ContextSnapshot } from "./context/index.t.ts"
 
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
@@ -468,11 +469,22 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
       if (template) render(template, this.#shadow)
     }
     getSnapshot(): Snapshot<C, S> {
+      const context: ContextSnapshot<C> = {} as ContextSnapshot<C>
+      const contextCurrentValues = this.#ctx.getSnapshot()
+      for (const [key, value] of Object.entries(this.#ctx.schema)) {
+        context[key as keyof C] = {
+          type: value.type,
+          required: value.required,
+          default: value.default,
+          ...(value.title ? { title: value.title } : {}),
+          ...(value.values ? { values: value.values } : {}),
+          value: contextCurrentValues[key as keyof C],
+        }
+      }
       const snapshot: Snapshot<C, S> = {
         state: this.#state,
         states: this.#transitions,
-        context: this.#ctx.getSnapshot(),
-        schema: this.#ctx.schema,
+        context,
       }
       if (view?.render) snapshot["view"] = extractTemplateLiteral(view.render)
       return snapshot

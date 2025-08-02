@@ -71,8 +71,18 @@ describe("инициализация ребенка с переданным ко
 
   test("в реакции родителя при добавлении ребенка получаем переданный контекст", async () => {
     expect(childContext, "контекст ребенка должен соответствовать переданному от родителя").toEqual({
-      message: "message",
-      count: 0,
+      count: {
+        default: 1,
+        required: true,
+        type: "number",
+        value: 0,
+      },
+      message: {
+        default: "child message",
+        required: true,
+        type: "string",
+        value: "message",
+      },
     })
   })
   test("не должно быть сообщения с патчем обновления контекста ребенка", async () => {

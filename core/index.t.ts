@@ -3,24 +3,29 @@
  * @packageDocumentation
  * @module Core
  */
-import type { ContextSchema, ExtractValues, SerializedSchema } from "./context"
+import type { ContextSchema } from "./context"
+import type { ContextSnapshot } from "./context/index.t"
 import type { ProcessesConfig } from "./proc/index.t"
 import type { ReactionRegistry } from "./react"
 import type { StatesConfig } from "./state"
 import type { ViewConfig } from "./view/index.t"
 
 /**
+ * Интерфейс снимка состояния компонента
  * @template C - схема контекста автомата
  * @template S - строковые ключи состояний
  */
-
 export interface Snapshot<C extends ContextSchema, S extends string> {
+  /** Текущее состояние */
   state: S
+  /** Карта состояний и переходов */
   states: StatesConfig<S, C>
-  context: ExtractValues<C>
-  schema: SerializedSchema<C>
+  /** Снимок контекста с текущими значениями и метаданными */
+  context: ContextSnapshot<C>
   /** Сериализованный view как строка template literal */
   view?: string
+  /** Стили компонента */
+  style?: string
 }
 
 /**

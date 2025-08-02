@@ -60,13 +60,13 @@ describe("MetaFor: инициализация с действиями", async ()
             state_2: { state_3: { value: "ctx_3" } },
             state_3: {},
           },
-          context: { value: "ctx_1" },
-          schema: {
+          context: {
             value: {
-              default: "ctx_1",
+              type: "string",
               required: false,
               title: "Value",
-              type: "string",
+              default: "ctx_1",
+              value: "ctx_1",
             },
           },
           // actions: {

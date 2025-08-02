@@ -83,8 +83,18 @@ describe("работа со статическими тегами", async () => 
 
   test("статический тег работает корректно - контекст передается", async () => {
     expect(childContext, "контекст ребенка должен соответствовать переданному от родителя").toEqual({
-      message: "message",
-      count: 0,
+      count: {
+        default: 1,
+        required: true,
+        type: "number",
+        value: 0,
+      },
+      message: {
+        default: "child message",
+        required: true,
+        type: "string",
+        value: "message",
+      },
     })
   })
 

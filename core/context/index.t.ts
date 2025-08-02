@@ -45,6 +45,21 @@ export type ExtractValue<T> = T extends RequiredStringDefinition
 export type ExtractValues<C extends ContextSchema> = { [K in keyof C]: ExtractValue<C[K]> }
 export type UpdateValues<T> = { [K in keyof T]?: T[K] }
 
+/**
+ * Тип для снимка контекста
+ * @template C - Схема контекста
+ * @returns Снимок контекста
+ */
+export type ContextSnapshot<C extends ContextSchema> = {
+  [K in keyof C]: {
+    type: C[K]["type"]
+    required: C[K]["required"]
+    default: C[K]["default"]
+    title?: C[K]["title"]
+    values?: C[K] extends { values: any } ? C[K]["values"] : never
+    value: ExtractValue<C[K]>
+  }
+}
 // Тип для сериализованной схемы
 export type SerializedSchema<T extends ContextSchema> = {
   [K in keyof T]: {

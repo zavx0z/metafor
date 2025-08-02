@@ -41,9 +41,13 @@ describe("MetaFor: инициализация без действия", async ()
             state_2: { state_3: { value: "ctx_1" } },
             state_3: {},
           },
-          context: { value: "ctx_1" },
-          schema: {
-            value: { type: "string", required: false, default: "ctx_1" },
+          context: {
+            value: {
+              type: "string",
+              required: false,
+              default: "ctx_1",
+              value: "ctx_1",
+            },
           },
         },
       },

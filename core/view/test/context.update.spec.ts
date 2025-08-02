@@ -94,8 +94,18 @@ describe("обновление контекста ребенка", async () => {
       childInitContext,
       "контекст ребенка должен соответствовать переданному от родителя при инициализации"
     ).toEqual({
-      message: "message",
-      count: 0,
+      count: {
+        default: 1,
+        required: true,
+        type: "number",
+        value: 0,
+      },
+      message: {
+        default: "child message",
+        required: true,
+        type: "string",
+        value: "message",
+      },
     })
   })
   test("контекст ребенка должен быть обновлен", () => {
