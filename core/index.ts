@@ -59,7 +59,7 @@ import { types, createContext } from "./context/index.ts"
 import type { ContextSchema, ContextInstance, ExtractValues } from "./context/index.ts"
 import { checkTransitionConditions, type StatesConfig } from "./state/index.ts"
 import { createActionsConfig } from "./proc/index.ts"
-import type { ProcessesDeclaration, Process } from "./proc/index.t.ts"
+import type { ProcessesDeclaration, Process, ProcessesConfig } from "./proc/index.t.ts"
 import type { Core, CreateMetaForParams, Snapshot } from "./index.t.ts"
 import type { ViewConfig } from "./view/index.t.ts"
 import {
@@ -83,6 +83,7 @@ import { choose } from "./html/directives/choose.ts"
 import { createRef } from "./html/directives/ref.ts"
 import { extractTemplateLiteral, extractCSSTemplateLiteral } from "./view/index.ts"
 import type { ContextSnapshot } from "./context/index.t.ts"
+import { getSnapshotProcesses, parseProcess } from "./proc/parser.ts"
 
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
@@ -130,7 +131,6 @@ export function MetaFor(tag: string, config?: { description?: string }) {
          */
         states<S extends string>(states: StatesConfig<S, C>) {
           validateNoUnconditionalCycles(states)
-          const initialState = Object.keys(states)[0] as S
           return {
             /**
              * Регистрирует core объект для автомата.
@@ -182,7 +182,6 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                  * @returns Объект с процессами только для нужных состояний
                  */
                 processes(process: ProcessesDeclaration<C, S, I> = () => ({})) {
-                  const processesRegistry = createActionsConfig<C, S, I>(process)
                   return {
                     /**
                      * Регистрирует карту реакций для автомата.
@@ -228,7 +227,7 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                                 schema: contextSchema,
                                 states,
                                 core,
-                                processes: processesRegistry,
+                                processesDeclaration: process,
                                 reactions: reactionsRegistry,
                                 view,
                               })
@@ -254,17 +253,19 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
   schema,
   states,
   core,
-  processes,
+  processesDeclaration,
   reactions,
   view,
 }: CreateMetaForParams<C, S, I>) => {
+  const processesRegistry = createActionsConfig<C, S, I>(processesDeclaration)
+
   /** WebComponent - конечный автомат */
   return class extends HTMLElement {
     #ctx: ContextInstance<C>
     #shadow: ShadowRoot
     #channel: BroadcastChannel | null = null
     #transitions = states
-    #actions = processes
+    #actions: ProcessesConfig<C, S, I>
     #reactions = reactions
     #core: I = {} as I
     /** ------------state-------------------------------- */
@@ -300,6 +301,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
       super()
       this.#shadow = this.attachShadow({ mode: "closed" })
       this.#ctx = createContext(schema)
+      this.#actions = processesRegistry
       this.#core = core
       view?.style?.({
         css: (strings, ...values) => {
@@ -486,6 +488,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
         states: this.#transitions,
         context,
       }
+      if (Object.keys(this.#process)) snapshot["processes"] = getSnapshotProcesses(processesDeclaration)
       if (view?.render) snapshot["view"] = extractTemplateLiteral(view.render)
       if (view?.style) snapshot["style"] = extractCSSTemplateLiteral(view.style)
       return snapshot

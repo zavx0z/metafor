@@ -2,7 +2,7 @@ import { test, expect, describe } from "bun:test"
 import { MetaFor } from "../../web/metafor.ts"
 
 describe("полный снимок компонента", () => {
-  test("снимок содержит все поля: state, states, context, view, style", async () => {
+  describe("структура снимка", async () => {
     document.body.innerHTML = `<metafor-test></metafor-test>`
 
     MetaFor("test")
@@ -40,8 +40,8 @@ describe("полный снимок компонента", () => {
         },
       }))
       .processes((process) => ({
-        loading: process()
-          .action(() => new Promise((resolve) => setTimeout(resolve, 100)))
+        loading: process({ title: "loading", description: "loading description" })
+          .action(({ context }) => new Promise((resolve) => setTimeout(() => resolve(context.count + 1), 100)))
           .success(({ update }) => update({ count: 1, isActive: true }))
           .error(({ update }) => update({ isActive: false })),
         active: process()
@@ -102,86 +102,105 @@ describe("полный снимок компонента", () => {
     await Bun.sleep(200)
 
     const snapshot = element.getSnapshot()
-
-    // Проверяем структуру снимка
-    expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("state")
-    expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("states")
-    expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("context")
-    expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("view")
-    expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("style")
-
-    // Проверяем состояние (процессы могут изменить начальное состояние)
-    expect(["idle", "loading", "active", "completed"], "состояние должно быть одним из ожидаемых").toContain(
-      snapshot.state
-    )
-
-    // Проверяем конфигурацию состояний
-    expect(snapshot.states, "должна содержать все состояния").toEqual({
-      idle: {
-        loading: { count: 0 },
-        error: { count: 0, isActive: false },
-      },
-      loading: {
-        idle: { count: 0 },
-        active: { count: 1, isActive: true },
-      },
-      active: {
-        idle: { count: 0 },
-        completed: { count: 10, status: "completed" },
-      },
-      completed: {},
-      error: {
-        idle: { count: 0, isActive: false },
-      },
+    test("снимок содержит все поля: state, states, context, view, style, processes", async () => {
+      // Проверяем структуру снимка
+      expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("state")
+      expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("states")
+      expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("context")
+      expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("view")
+      expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("style")
+      expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("processes")
     })
 
-    // Проверяем контекст с метаданными (процессы могут изменить значения)
-    expect(snapshot.context, "контекст должен содержать все поля с метаданными").toMatchObject({
-      title: {
-        type: "string",
-        required: true,
-        title: "Заголовок",
-        default: "Default Title",
-      },
-      count: {
-        type: "number",
-        required: true,
-        title: "Счетчик",
-        default: 0,
-      },
-      isActive: {
-        type: "boolean",
-        required: false,
-      },
-      tags: {
-        type: "array",
-        required: true,
-        title: "Теги",
-        default: ["tag1", "tag2"],
-      },
-      status: {
-        type: "enum",
-        required: true,
-        title: "Статус",
-        values: ["pending", "active", "completed"],
-        default: "pending",
-      },
+    test("состояние", async () => {
+      // Проверяем состояние (процессы могут изменить начальное состояние)
+      expect(["idle", "loading", "active", "completed"], "состояние должно быть одним из ожидаемых").toContain(
+        snapshot.state
+      )
+
+      // Проверяем конфигурацию состояний
+      expect(snapshot.states, "должна содержать все состояния").toEqual({
+        idle: {
+          loading: { count: 0 },
+          error: { count: 0, isActive: false },
+        },
+        loading: {
+          idle: { count: 0 },
+          active: { count: 1, isActive: true },
+        },
+        active: {
+          idle: { count: 0 },
+          completed: { count: 10, status: "completed" },
+        },
+        completed: {},
+        error: {
+          idle: { count: 0, isActive: false },
+        },
+      })
+    })
+    test("контекст", async () => {
+      expect(snapshot.context, "контекст должен содержать все поля с метаданными").toMatchObject({
+        title: {
+          type: "string",
+          required: true,
+          title: "Заголовок",
+          default: "Default Title",
+        },
+        count: {
+          type: "number",
+          required: true,
+          title: "Счетчик",
+          default: 0,
+        },
+        isActive: {
+          type: "boolean",
+          required: false,
+        },
+        tags: {
+          type: "array",
+          required: true,
+          title: "Теги",
+          default: ["tag1", "tag2"],
+        },
+        status: {
+          type: "enum",
+          required: true,
+          title: "Статус",
+          values: ["pending", "active", "completed"],
+          default: "pending",
+        },
+      })
+    })
+    test("view", async () => {
+      expect(snapshot.view, "view должен содержать извлеченный HTML template").toContain('<div class="container">')
+      expect(snapshot.view, "view должен содержать извлеченный HTML template").toContain("<h1>")
+      expect(snapshot.view, "view должен содержать извлеченный HTML template").toContain("${context.title}")
+      expect(snapshot.view, "view должен содержать извлеченный HTML template").toContain("${context.count}")
     })
 
-    // Проверяем HTML template
-    expect(snapshot.view, "view должен содержать извлеченный HTML template").toContain('<div class="container">')
-    expect(snapshot.view, "view должен содержать извлеченный HTML template").toContain("<h1>")
-    expect(snapshot.view, "view должен содержать извлеченный HTML template").toContain("${context.title}")
-    expect(snapshot.view, "view должен содержать извлеченный HTML template").toContain("${context.count}")
+    test("style", async () => {
+      expect(snapshot.style, "style должен содержать извлеченный CSS template").toContain(".container {")
+      expect(snapshot.style, "style должен содержать извлеченный CSS template").toContain("padding: 20px;")
+      expect(snapshot.style, "style должен содержать извлеченный CSS template").toContain("background-color: #f9f9f9;")
+      expect(snapshot.style, "style должен содержать извлеченный CSS template").toContain("button:hover {")
+    })
 
-    // Проверяем CSS template
-    expect(snapshot.style, "style должен содержать извлеченный CSS template").toContain(".container {")
-    expect(snapshot.style, "style должен содержать извлеченный CSS template").toContain("padding: 20px;")
-    expect(snapshot.style, "style должен содержать извлеченный CSS template").toContain("background-color: #f9f9f9;")
-    expect(snapshot.style, "style должен содержать извлеченный CSS template").toContain("button:hover {")
+    test("processes", async () => {
+      expect(snapshot.processes, "processes должен содержать все процессы").toMatchObject({
+        loading: {
+          title: "loading",
+          description: "loading description",
+          action: { read: ["count"] },
+          success: { read: [], write: ["count", "isActive"] },
+        },
+        active: {
+          action: { read: [] },
+          success: { read: [], write: ["count", "status"] },
+        },
+      })
+    })
   })
-
-  test("снимок обновляется при изменении контекста", async () => {
+  describe("обновление снимка", async () => {
     document.body.innerHTML = `<metafor-context-test></metafor-context-test>`
 
     MetaFor("context-test")
@@ -207,20 +226,17 @@ describe("полный снимок компонента", () => {
     const element = document.querySelector("metafor-context-test") as any
     await Bun.sleep(100)
 
-    // Получаем начальный снимок
     const initialSnapshot = element.getSnapshot()
     expect(initialSnapshot.context.value.value, "начальное значение должно быть initial").toBe("initial")
 
-    // Обновляем контекст
     element.update({ value: "updated" })
     await Bun.sleep(100)
 
-    // Получаем обновленный снимок
     const updatedSnapshot = element.getSnapshot()
     expect(updatedSnapshot.context.value.value, "значение должно быть обновлено").toBe("updated")
   })
 
-  test("снимок обновляется при изменении состояния", async () => {
+  describe("обновление состояния", async () => {
     document.body.innerHTML = `<metafor-state-test></metafor-state-test>`
 
     MetaFor("state-test")
@@ -247,17 +263,16 @@ describe("полный снимок компонента", () => {
     const element = document.querySelector("metafor-state-test") as any
     await Bun.sleep(100)
 
-    // Получаем начальный снимок
     const initialSnapshot = element.getSnapshot()
     expect(initialSnapshot.state, "начальное состояние должно быть state_1").toBe("state_1")
 
-    // Обновляем контекст
     element.update({ value: "state2" })
     await Bun.sleep(100)
 
-    // Получаем обновленный снимок
-    const updatedSnapshot = element.getSnapshot()
-    expect(updatedSnapshot.state, "состояние должно остаться state_1").toBe("state_1")
-    expect(updatedSnapshot.context.value.value, "значение должно быть обновлено").toBe("state2")
+    test("снимок обновляется при изменении состояния", async () => {
+      const updatedSnapshot = element.getSnapshot()
+      expect(updatedSnapshot.state, "состояние должно остаться state_1").toBe("state_1")
+      expect(updatedSnapshot.context.value.value, "значение должно быть обновлено").toBe("state2")
+    })
   })
 })

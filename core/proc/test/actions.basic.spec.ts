@@ -1,7 +1,6 @@
 import { test, expect } from "bun:test"
 import { createActionsConfig } from "../index.ts"
 import { types } from "../../context"
-import type { ExtractValues } from "../../context"
 
 test("Базовый chain API для действий", () => {
   const ctxSchema = {

@@ -5,7 +5,8 @@
  */
 import type { ContextSchema } from "./context"
 import type { ContextSnapshot } from "./context/index.t"
-import type { ProcessesConfig } from "./proc/index.t"
+import type { ProcessesConfig, ProcessesDeclaration } from "./proc/index.t"
+import type { SnapshotProcesses } from "./proc/parser.t"
 import type { ReactionRegistry } from "./react"
 import type { StatesConfig } from "./state"
 import type { ViewConfig } from "./view/index.t"
@@ -26,6 +27,8 @@ export interface Snapshot<C extends ContextSchema, S extends string> {
   view?: string
   /** Стили компонента */
   style?: string
+  /** Снимок процессов */
+  processes?: SnapshotProcesses
 }
 
 /**
@@ -44,7 +47,7 @@ export type CreateMetaForParams<C extends ContextSchema, S extends string, I ext
   schema: C
   states: StatesConfig<S, C>
   core: I
-  processes: ProcessesConfig<C, S, I>
+  processesDeclaration: ProcessesDeclaration<C, S, I>
   reactions: ReactionRegistry<C, S>
   view: ViewConfig<C, S, I> | undefined
 }

@@ -23,6 +23,13 @@
 import type { ContextSchema, ExtractValues, UpdateValues } from "../context"
 import type { Core } from "../../core/index.t"
 
+export type ProcessConfig = {
+  /** Название*/
+  title?: string
+  /** Описание */
+  description?: string
+}
+
 /**
  * Тип билдера для декларации набора процессов автомата.
  *
@@ -36,9 +43,8 @@ import type { Core } from "../../core/index.t"
  * @includeExample ./proc/test/actions.basic.spec.ts
  * @includeExample ./proc/test/actions.types.spec.ts
  */
-
 export type ProcessesDeclaration<C extends ContextSchema, S extends string, I extends Core> = (
-  process: (config?: { title?: string; description?: string }) => ProcessChain<C, I>
+  process: (config?: ProcessConfig) => ProcessChain<C, I>
 ) => Partial<Record<S, ActionChain<C, I, any>>>
 
 /**

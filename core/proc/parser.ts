@@ -3,9 +3,10 @@
  * @module Processes
  */
 
-import type { ParsedProcess } from "./parser.t"
-import type { ActionChain } from "./index.t"
+import type { ParsedProcess, SnapshotProcesses } from "./parser.t"
+import type { Process, ProcessConfig, ProcessesDeclaration } from "./index.t"
 import type { ContextSchema } from "../context"
+import type { Core } from "../index.t"
 
 const pattern = {
   dot: /context\.(\w+)/g,
@@ -101,80 +102,92 @@ export function parseFunction(fn: Function, allowWrite: boolean = true) {
  * }
  * const result = parseProcess(process)
  * // => {
- * //   action: { fn: ..., read: ['data'] },
- * //   success: { fn: ..., read: [], write: ['result'] },
- * //   error: { fn: ..., read: [], write: ['error'] }
+ * //   action: { read: ['data'] },
+ * //   success: { read: [], write: ['result'] },
+ * //   error: { read: [], write: ['error'] }
  * // }
  * ```
  */
-export function parseProcess(process: any): ParsedProcess {
-  const result: ParsedProcess = {}
-  if (process.action) {
-    const parsed = parseFunction(process.action, false)
-    result.action = { fn: process.action, read: parsed.read }
+export function parseProcess<C extends ContextSchema, I extends Core, Res = any>(
+  process: Process<C, I, Res>
+): ParsedProcess {
+  const parsed = parseFunction(process.action, false)
+  const result: ParsedProcess = {
+    action: { read: parsed.read },
   }
-  if (typeof process.success === "function") {
-    const parsed = parseFunction(process.success)
-    result.success = { fn: process.success, ...parsed }
+  if (process.title) result.title = process.title
+  if (process.description) result.description = process.description
+
+  if (process.success) {
+    const parsed = parseFunction(process.success, true)
+    result.success = { read: parsed.read, write: parsed.write }
   }
-  if (typeof process.error === "function") {
+  if (process.error) {
     const parsed = parseFunction(process.error)
-    result.error = { fn: process.error, ...parsed }
+    result.error = { read: parsed.read, write: parsed.write }
   }
   return result
 }
 
 /**
- * Парсит цепочку действий и извлекает информацию о процессе.
+ * Парсит конфигурацию процессов и извлекает информацию о всех процессах.
  *
- * Получает результат из цепочки действий и парсит его как процесс.
- *
- * @template C - схема контекста
- * @template Res - тип результата
- * @param chain - цепочка действий
- * @returns распарсенный процесс
- *
- * @example
- * ```ts
- * const chain = process()
- *   .action(({ context }) => fetch(context.url))
- *   .success(({ update, data }) => update({ items: data }))
- * const result = parseChain(chain)
- * // => { action: { fn: ..., read: ['url'] }, success: { fn: ..., write: ['items'] } }
- * ```
- */
-export function parseChain<C extends ContextSchema, Res>(chain: ActionChain<C, Res>): ParsedProcess {
-  return parseProcess(chain.getResult())
-}
-
-/**
- * Парсит объект с цепочками действий и извлекает информацию о всех процессах.
- *
- * Анализирует объект, где каждое свойство содержит цепочку действий,
+ * Анализирует конфигурацию, где каждое свойство содержит цепочку действий,
  * и возвращает объект с распарсенными процессами.
  *
- * @param obj - объект с цепочками действий
+ * @template C - схема контекста
+ * @template S - строковые ключи процессов
+ * @template I - тип ядра
+ * @param processes - конфигурация процессов
  * @returns объект с распарсенными процессами
  *
  * @example
  * ```ts
- * const chains = {
- *   loadUser: process().action(({ context }) => fetch(`/users/${context.id}`)),
+ * const processes: ProcessesDeclaration<C, S, I> = (process) => ({
+ *   loadUser: process({ title: "loadUser" }).action(({ context }) => fetch(`/users/${context.id}`)),
  *   saveData: process().action(({ context, update }) => update({ saved: true }))
  * }
- * const result = parseChainsObject(chains)
+ * const result = getSnapshotProcesses(processes)
  * // => {
- * //   loadUser: { action: { fn: ..., read: ['id'] } },
- * //   saveData: { action: { fn: ..., write: ['saved'] } }
+ * //   loadUser: { title: "loadUser", action: { read: ['id'] } },
+ * //   saveData: { action: { read: [], write: ['saved'] } }
  * // }
  * ```
+ * @param processes - конфигурация процессов
+ * @returns объект с распарсенными процессами
  */
-export function parseChainsObject(obj: Record<string, any>): Record<string, ParsedProcess> {
+export const getSnapshotProcesses = <C extends ContextSchema, S extends string, I extends Core>(
+  processes: ProcessesDeclaration<C, S, I>
+): SnapshotProcesses => {
+  // Вызываем processesDeclaration с mock process
+  const chains = processes((config?: ProcessConfig) => {
+    const chain = {
+      title: config?.title,
+      description: config?.description,
+      action: (fn: any) => {
+        chain.action = fn
+        return chain as any
+      },
+      success: (handler: any) => {
+        chain.success = handler
+        return chain
+      },
+      error: (handler: any) => {
+        chain.error = handler
+        return chain
+      },
+      getResult: () => chain,
+    }
+    return chain
+  })
+
+  // Парсим каждый chain
   const result: Record<string, ParsedProcess> = {}
-  for (const key in obj) {
-    if (obj[key]) {
-      result[key] = parseProcess(obj[key])
+  for (const key in chains) {
+    if (chains[key]) {
+      result[key] = parseProcess(chains[key].getResult())
     }
   }
+
   return result
 }

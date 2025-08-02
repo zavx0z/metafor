@@ -8,8 +8,6 @@
  * Содержит функцию и список полей контекста, которые читаются.
  */
 export type ParsedActionHandler = {
-  /** Функция обработчика действия */
-  fn: Function
   /** Список полей контекста, которые читаются в обработчике */
   read: string[]
 }
@@ -19,8 +17,6 @@ export type ParsedActionHandler = {
  * Содержит функцию, список полей для чтения и записи.
  */
 export type ParsedHandler = {
-  /** Функция обработчика */
-  fn: Function
   /** Список полей контекста, которые читаются в обработчике */
   read: string[]
   /** Список полей контекста, которые записываются в обработчике */
@@ -32,10 +28,21 @@ export type ParsedHandler = {
  * Содержит обработчики для действия, успеха и ошибки.
  */
 export type ParsedProcess = {
+  /** Название процесса */
+  title?: string
+  /** Описание процесса */
+  description?: string
   /** Обработчик основного действия процесса */
-  action?: ParsedActionHandler
+  action: ParsedActionHandler
   /** Обработчик успешного завершения процесса */
   success?: ParsedHandler
   /** Обработчик ошибки процесса */
   error?: ParsedHandler
 }
+
+/**
+ * Снимок процессов
+ * @description
+ * Объект с распарсенными процессами
+ */
+export type SnapshotProcesses = Record<string, ParsedProcess>
