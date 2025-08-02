@@ -214,7 +214,7 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                      * // Вместо этого используйте процессы и их success/error обработчики
                      * ```
                      */
-                    reactions(reaction: ReactionsChain<C, S> = () => []) {
+                    reactions(reaction: ReactionsChain<C, S, I> = () => []) {
                       const reactionsRegistry = new ReactionRegistry(reaction)
                       return {
                         view(view?: ViewConfig<C, S, I>) {

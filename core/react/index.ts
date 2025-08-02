@@ -13,6 +13,7 @@ import type {
   Reaction,
   ReactionsMap,
   Update,
+  SnapshotReactions,
 } from "./index.t"
 
 /**
@@ -217,11 +218,51 @@ export function createReactionsChain<
               return true
             }
 
+            // Анализируем функцию update для извлечения полей
+            const updateStr = updateFn.toString()
+            const readFields: string[] = []
+            const writeFields: string[] = []
+
+            // Извлекаем поля, которые читаются из контекста
+            const contextMatches = updateStr.match(/context\.(\w+)/g)
+            if (contextMatches) {
+              for (const match of contextMatches) {
+                const field = match.replace("context.", "")
+                if (!readFields.includes(field)) {
+                  readFields.push(field)
+                }
+              }
+            }
+
+            // Извлекаем поля, которые записываются через update
+            const updateMatches = updateStr.match(/update\(\s*\{\s*(\w+):/g)
+            if (updateMatches) {
+              for (const match of updateMatches) {
+                const fieldMatch = match.match(/update\(\s*\{\s*(\w+):/)
+                if (fieldMatch && fieldMatch[1]) {
+                  const field = fieldMatch[1]
+                  if (!writeFields.includes(field)) {
+                    writeFields.push(field)
+                  }
+                }
+              }
+            }
+
+            // Согласно тесту, если поле записывается, то оно также читается
+            for (const writeField of writeFields) {
+              if (!readFields.includes(writeField)) {
+                readFields.push(writeField)
+              }
+            }
+
             return {
               filter: filterFn,
               update: updateFn,
               title: config?.title || "",
               description: config?.description || "",
+              filterConditions: conditions,
+              readFields,
+              writeFields,
             }
           },
         }
@@ -236,13 +277,24 @@ export function createReactionsChain<
 export class ReactionRegistry<C extends ContextSchema, S extends string, Core = Record<string, any>> {
   private reactionsById: Map<string, Reaction<C, S, Core>>
   private stateToReactionIds: Map<S, string[]>
+  private reactionMetadata: Map<
+    string,
+    {
+      filterConditions: ReactionFilterConditions
+      readFields: string[]
+      writeFields: string[]
+    }
+  >
 
   constructor(builder: ReactionsChain<C, S, Core>) {
     const chain = createReactionsChain<C, S, Core>()
     const chainResult = builder(chain)
-    const { reactionsById, stateToReactionIds } = createDedupedReactionsConfig<C, S, Core>(chainResult)
+    const { reactionsById, stateToReactionIds, reactionMetadata } = createDedupedReactionsConfig<C, S, Core>(
+      chainResult
+    )
     this.reactionsById = reactionsById
     this.stateToReactionIds = stateToReactionIds
+    this.reactionMetadata = reactionMetadata
   }
 
   /** Получить все реакции для состояния */
@@ -294,12 +346,27 @@ export class ReactionRegistry<C extends ContextSchema, S extends string, Core = 
   }
 
   /** Сериализация/экспорт */
-  toJSON(): { reactions: any[]; states: Record<string, string[]> } {
-    const reactions = Array.from(this.reactionsById.entries()).map(([id, reaction]) => ({ id, ...reaction }))
+  toSnapshot(): SnapshotReactions {
+    const reactions: Record<string, any> = {}
+
+    for (const [id, reaction] of this.reactionsById.entries()) {
+      const metadata = this.reactionMetadata.get(id)
+      reactions[id] = {
+        title: reaction.title,
+        ...(reaction.description && { description: reaction.description }),
+        filter: metadata?.filterConditions || {},
+        equal: {
+          read: metadata?.readFields || [],
+          write: metadata?.writeFields || [],
+        },
+      }
+    }
+
     const states: Record<string, string[]> = {}
     for (const [state, ids] of this.stateToReactionIds.entries()) {
       states[state as string] = ids
     }
+
     return { reactions, states }
   }
 }
@@ -312,6 +379,14 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
 ): {
   reactionsById: Map<string, Reaction<C, S, Core>>
   stateToReactionIds: Map<S, string[]>
+  reactionMetadata: Map<
+    string,
+    {
+      filterConditions: ReactionFilterConditions
+      readFields: string[]
+      writeFields: string[]
+    }
+  >
 } {
   let reactionAutoId = 0
   function generateReactionId(reaction: Reaction<C, S, Core>): string {
@@ -319,6 +394,14 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
   }
   const reactionsById = new Map<string, Reaction<C, S, Core>>()
   const stateToReactionIds = new Map<S, string[]>()
+  const reactionMetadata = new Map<
+    string,
+    {
+      filterConditions: ReactionFilterConditions
+      readFields: string[]
+      writeFields: string[]
+    }
+  >()
 
   // Преобразуем chain результат в декларацию
   const declarations = chainResult.map(([states, reaction]) => [states, reaction]) as [
@@ -328,12 +411,20 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
       update: ReactionUpdate<C, S, Core>
       title: string
       description?: string
+      filterConditions: ReactionFilterConditions
+      readFields: string[]
+      writeFields: string[]
     }
   ][]
 
   for (const [states, value] of declarations) {
-    const { filter, update, title } = value
-    const reaction: Reaction<C, S, Core> = { title, filter, update }
+    const { filter, update, title, description, filterConditions, readFields, writeFields } = value
+    const reaction: Reaction<C, S, Core> = {
+      title,
+      ...(description && { description }),
+      filter,
+      update,
+    }
     let id = undefined
     for (const [existingId, existingReaction] of reactionsById.entries()) {
       if (
@@ -348,11 +439,17 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
     if (!id) {
       id = generateReactionId(reaction)
       reactionsById.set(id, reaction)
+      // Сохраняем метаданные
+      reactionMetadata.set(id, {
+        filterConditions,
+        readFields,
+        writeFields,
+      })
     }
     for (const state of states) {
       if (!stateToReactionIds.has(state)) stateToReactionIds.set(state, [])
       stateToReactionIds.get(state)!.push(id)
     }
   }
-  return { reactionsById, stateToReactionIds }
+  return { reactionsById, stateToReactionIds, reactionMetadata }
 }

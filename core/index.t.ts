@@ -8,6 +8,7 @@ import type { ContextSnapshot } from "./context/index.t"
 import type { ProcessesConfig, ProcessesDeclaration } from "./proc/index.t"
 import type { SnapshotProcesses } from "./proc/parser.t"
 import type { ReactionRegistry } from "./react"
+import type { SnapshotReactions } from "./react/index.t"
 import type { StatesConfig } from "./state"
 import type { ViewConfig } from "./view/index.t"
 
@@ -29,6 +30,8 @@ export interface Snapshot<C extends ContextSchema, S extends string> {
   style?: string
   /** Снимок процессов */
   processes?: SnapshotProcesses
+  /** Снимок реакций */
+  reactions?: SnapshotReactions
 }
 
 /**

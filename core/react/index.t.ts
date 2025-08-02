@@ -545,3 +545,20 @@ export type ReactionsMap<C extends ContextSchema, S extends string, Core = Recor
  * ```
  */
 export type Update<C extends ContextSchema> = (values: Partial<ExtractValues<C>>) => void
+
+/** Снимок реакций */
+export type SnapshotReactions = {
+  reactions: Record<
+    string,
+    {
+      title: string
+      description?: string
+      filter: ReactionFilterConditions
+      equal: {
+        read?: string[]
+        write?: string[]
+      }
+    }
+  >
+  states: Record<string, string[]>
+}
