@@ -51,6 +51,6 @@ export type CreateMetaForParams<C extends ContextSchema, S extends string, I ext
   states: StatesConfig<S, C>
   core: I
   processesDeclaration: ProcessesDeclaration<C, S, I>
-  reactions: ReactionRegistry<C, S>
+  reactions: ReactionRegistry<C, S, I>
   view: ViewConfig<C, S, I> | undefined
 }

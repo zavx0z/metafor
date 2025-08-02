@@ -3,6 +3,7 @@
  * @module Reactions
  */
 import type { ContextSchema, ExtractValues } from "../context/index.t"
+import type { Core } from "../index.t"
 import type { JsonPatch, MetaDataMessage } from "../message"
 import type {
   ReactionChain,
@@ -274,8 +275,8 @@ export function createReactionsChain<
 /**
  * Реестр реакций с deduped-структурой для экономии памяти и удобного API.
  */
-export class ReactionRegistry<C extends ContextSchema, S extends string, Core = Record<string, any>> {
-  private reactionsById: Map<string, Reaction<C, S, Core>>
+export class ReactionRegistry<C extends ContextSchema, S extends string, I extends Core> {
+  private reactionsById: Map<string, Reaction<C, S, I>>
   private stateToReactionIds: Map<S, string[]>
   private reactionMetadata: Map<
     string,
@@ -286,19 +287,17 @@ export class ReactionRegistry<C extends ContextSchema, S extends string, Core = 
     }
   >
 
-  constructor(builder: ReactionsChain<C, S, Core>) {
-    const chain = createReactionsChain<C, S, Core>()
+  constructor(builder: ReactionsChain<C, S, I>) {
+    const chain = createReactionsChain<C, S, I>()
     const chainResult = builder(chain)
-    const { reactionsById, stateToReactionIds, reactionMetadata } = createDedupedReactionsConfig<C, S, Core>(
-      chainResult
-    )
+    const { reactionsById, stateToReactionIds, reactionMetadata } = createDedupedReactionsConfig<C, S, I>(chainResult)
     this.reactionsById = reactionsById
     this.stateToReactionIds = stateToReactionIds
     this.reactionMetadata = reactionMetadata
   }
 
   /** Получить все реакции для состояния */
-  getReactions(state: S): Reaction<C, S, Core>[] {
+  getReactions(state: S): Reaction<C, S, I>[] {
     const ids = this.stateToReactionIds.get(state) || []
     return ids.map((id) => this.reactionsById.get(id)!).filter(Boolean)
   }
@@ -314,7 +313,7 @@ export class ReactionRegistry<C extends ContextSchema, S extends string, Core = 
   }: {
     state: S
     context: ExtractValues<C>
-    core: Core
+    core: I
     meta: MetaDataMessage
     patch: JsonPatch
     update: Update<C>
@@ -327,7 +326,7 @@ export class ReactionRegistry<C extends ContextSchema, S extends string, Core = 
   }
 
   /** Получить все уникальные реакции */
-  getAllReactions(): Reaction<C, S, Core>[] {
+  getAllReactions(): Reaction<C, S, I>[] {
     return Array.from(this.reactionsById.values())
   }
 
@@ -374,10 +373,10 @@ export class ReactionRegistry<C extends ContextSchema, S extends string, Core = 
 /**
  * Вспомогательная функция для создания deduped-структуры реакций.
  */
-function createDedupedReactionsConfig<C extends ContextSchema, S extends string, Core = Record<string, any>>(
+function createDedupedReactionsConfig<C extends ContextSchema, S extends string, I extends Core>(
   chainResult: any[]
 ): {
-  reactionsById: Map<string, Reaction<C, S, Core>>
+  reactionsById: Map<string, Reaction<C, S, I>>
   stateToReactionIds: Map<S, string[]>
   reactionMetadata: Map<
     string,
@@ -389,10 +388,10 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
   >
 } {
   let reactionAutoId = 0
-  function generateReactionId(reaction: Reaction<C, S, Core>): string {
+  function generateReactionId(reaction: Reaction<C, S, I>): string {
     return `${reaction.title}_${reactionAutoId++}`
   }
-  const reactionsById = new Map<string, Reaction<C, S, Core>>()
+  const reactionsById = new Map<string, Reaction<C, S, I>>()
   const stateToReactionIds = new Map<S, string[]>()
   const reactionMetadata = new Map<
     string,
@@ -408,7 +407,7 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
     S[],
     {
       filter: (args: ReactionFilterArgs) => boolean
-      update: ReactionUpdate<C, S, Core>
+      update: ReactionUpdate<C, S, I>
       title: string
       description?: string
       filterConditions: ReactionFilterConditions
@@ -419,7 +418,7 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
 
   for (const [states, value] of declarations) {
     const { filter, update, title, description, filterConditions, readFields, writeFields } = value
-    const reaction: Reaction<C, S, Core> = {
+    const reaction: Reaction<C, S, I> = {
       title,
       ...(description && { description }),
       filter,

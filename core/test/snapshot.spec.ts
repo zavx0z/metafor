@@ -53,7 +53,7 @@ describe("полный снимок компонента", () => {
           ["idle"],
           reaction({ title: "log_state_changes" })
             .filter({ op: "replace", path: "/state" })
-            .equal(({ meta, patch }) => console.log("State changed:", patch.value)),
+            .equal(({ update, context }) => update({ count: context.count + 1 })),
         ],
       ])
       .view({
@@ -102,7 +102,7 @@ describe("полный снимок компонента", () => {
     await Bun.sleep(200)
 
     const snapshot = element.getSnapshot()
-    test("снимок содержит все поля: state, states, context, view, style, processes", async () => {
+    test("снимок содержит все поля: state, states, context, view, style, processes, reactions", async () => {
       // Проверяем структуру снимка
       expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("state")
       expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("states")
@@ -110,6 +110,7 @@ describe("полный снимок компонента", () => {
       expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("view")
       expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("style")
       expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("processes")
+      expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("reactions")
     })
 
     test("состояние", async () => {
@@ -168,6 +169,26 @@ describe("полный снимок компонента", () => {
           title: "Статус",
           values: ["pending", "active", "completed"],
           default: "pending",
+        },
+      })
+    })
+    test("реакции", async () => {
+      expect(snapshot.reactions, "реакции должны содержать все поля").toMatchObject({
+        reactions: {
+          log_state_changes_0: {
+            equal: {
+              read: ["count"],
+              write: ["count"],
+            },
+            filter: {
+              op: "replace",
+              path: "/state",
+            },
+            title: "log_state_changes",
+          },
+        },
+        states: {
+          idle: ["log_state_changes_0"],
         },
       })
     })

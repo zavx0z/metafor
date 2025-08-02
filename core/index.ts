@@ -489,6 +489,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
         context,
       }
       if (Object.keys(this.#actions).length > 0) snapshot["processes"] = getSnapshotProcesses(processesDeclaration)
+      if (this.#reactions.hasReactions()) snapshot["reactions"] = this.#reactions.toSnapshot()
       if (view?.render) snapshot["view"] = extractTemplateLiteral(view.render)
       if (view?.style) snapshot["style"] = extractCSSTemplateLiteral(view.style)
       return snapshot

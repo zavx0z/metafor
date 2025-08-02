@@ -11,7 +11,7 @@ describe("снимок реакций", () => {
   type State = "idle" | "active" | "error"
 
   test("Создание уникальных реакций", () => {
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle", "active"],
         reaction({ title: "inc", description: "increment value" })
@@ -68,7 +68,7 @@ describe("снимок реакций", () => {
   })
 
   test("Проверка структуры данных toSnapshot", () => {
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })

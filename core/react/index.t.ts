@@ -5,6 +5,7 @@
  */
 
 import type { ContextSchema, ExtractValues } from "../context/index.t"
+import type { Core } from "../index.t"
 import type { JsonPatch, MetaDataMessage } from "../message"
 import type {
   CondStringRequired,
@@ -415,7 +416,7 @@ export type ReactionFilterConditions = {
  * }
  * ```
  */
-export type Reaction<C extends ContextSchema, S extends string, Core = Record<string, any>> = {
+export type Reaction<C extends ContextSchema, S extends string, I extends Core> = {
   /** Название реакции для документации */
   title: string
   /** Описание реакции для документации */
@@ -423,7 +424,7 @@ export type Reaction<C extends ContextSchema, S extends string, Core = Record<st
   /** Функция фильтрации событий */
   filter: (args: ReactionFilterArgs) => boolean
   /** Функция обработки события */
-  update: ReactionUpdate<C, S, Core>
+  update: ReactionUpdate<C, S, I>
 }
 
 /**
@@ -524,9 +525,9 @@ export type ReactionsChain<C extends ContextSchema, S extends string, Core = Rec
  * @template S - строковые ключи состояний
  * @template Core - тип core объекта
  */
-export type ReactionsMap<C extends ContextSchema, S extends string, Core = Record<string, any>> = Map<
+export type ReactionsMap<C extends ContextSchema, S extends string, I extends Core> = Map<
   S,
-  Reaction<C, S, Core>[]
+  Reaction<C, S, I>[]
 >
 
 /**
