@@ -19,8 +19,8 @@ export interface Snapshot<C extends ContextSchema, S extends string> {
   /** Сериализованный view как строка template literal */
   view?: string
 }
+
 /**
  *  Ядро компонента
  */
-
 export type Core = Record<string, any>
