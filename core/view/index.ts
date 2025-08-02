@@ -43,6 +43,15 @@ export function restoreViewFunction(template: string) {
 }
 
 /**
+ * Восстанавливает CSS функцию из template literal
+ */
+export function restoreCSSFunction(template: string) {
+  // Создаем функцию через eval с фиксированными параметрами
+  const functionString = `({ css }) => css\`${template}\``
+  return eval(functionString)
+}
+
+/**
  * Создает статическую view функцию с заменой динамических тегов
  *
  * @param originalView - оригинальная view функция с динамическими тегами

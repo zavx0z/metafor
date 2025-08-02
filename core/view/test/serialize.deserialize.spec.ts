@@ -8,7 +8,7 @@ import { styleMap } from "../../html/directives/style-map"
 import { choose } from "../../html/directives/choose"
 import { createContext, types } from "../../context"
 import type { ViewDefinitionParams } from "../index.t"
-import { restoreViewFunction } from ".."
+import { restoreViewFunction, restoreCSSFunction } from ".."
 import { extractTemplateLiteral, extractCSSTemplateLiteral } from ".."
 
 describe("serialize and deserialize", () => {
@@ -134,5 +134,49 @@ test("extractCSSTemplateLiteral: извлечение CSS template literal", () 
 
 test("extractCSSTemplateLiteral: ошибка при отсутствии CSS template literal", () => {
   const createTemplate = ({ css }: { css: any }) => css("invalid")
-  expect(() => extractCSSTemplateLiteral(createTemplate), "должна быть выброшена ошибка").toThrow("Не удалось найти CSS template literal в функции")
+  expect(() => extractCSSTemplateLiteral(createTemplate), "должна быть выброшена ошибка").toThrow(
+    "Не удалось найти CSS template literal в функции"
+  )
+})
+
+test("restoreCSSFunction: восстановление CSS функции", () => {
+  const originalTemplate = `
+    .container {
+      color: red;
+      font-size: 16px;
+    }
+  `
+
+  const restoredFunction = restoreCSSFunction(originalTemplate)
+  expect(restoredFunction, "функция должна быть восстановлена").toBeInstanceOf(Function)
+
+  // Проверяем, что функция работает
+  const mockCss = (strings: any, ...values: any[]) => ({ strings, values })
+  const result = restoredFunction({ css: mockCss })
+
+  expect(result.strings[0], "первая строка должна совпадать").toBe(originalTemplate)
+  expect(result.values.length, "количество значений должно быть 0").toBe(0)
+})
+
+test("полный цикл извлечения и восстановления CSS функции", () => {
+  const originalFunction = ({ css }: { css: any }) => css`
+    .container {
+      color: ${"red"};
+      font-size: ${16}px;
+    }
+  `
+
+  // Извлекаем template literal
+  const extractedTemplate = extractCSSTemplateLiteral(originalFunction)
+
+  // Восстанавливаем функцию
+  const restoredFunction = restoreCSSFunction(extractedTemplate)
+
+  // Проверяем, что восстановленная функция работает
+  const mockCss = (strings: any, ...values: any[]) => ({ strings, values })
+  const originalResult = originalFunction({ css: mockCss })
+  const restoredResult = restoredFunction({ css: mockCss })
+
+  expect(restoredResult.strings[0], "шаблон должен совпадать").toBe(originalResult.strings[0])
+  expect(restoredResult.values.length, "количество значений должно совпадать").toBe(originalResult.values.length)
 })
