@@ -1,7 +1,7 @@
-import { ReactionRegistry, createReactionsChain } from "../index"
+import { ReactionRegistry } from "../index"
 import type { Update, ExtractValues } from "../../context/index.t"
 import { describe, it, expect } from "bun:test"
-import type { JsonPatch, MetaDataMessage } from "../../message"
+import type { JsonPatch } from "../../message"
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"

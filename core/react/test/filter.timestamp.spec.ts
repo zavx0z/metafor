@@ -1,7 +1,7 @@
-import { ReactionRegistry, createReactionsChain } from "../index"
+import { ReactionRegistry } from "../index"
 import type { Update, ExtractValues } from "../../context/index.t"
 import { describe, it, expect } from "bun:test"
-import type { JsonPatch, MetaDataMessage } from "../../message"
+import type { JsonPatch } from "../../message"
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"
@@ -14,7 +14,7 @@ describe("Фильтрация по временной метке (timestamp)", 
   it("простое сравнение числа", () => {
     let called = false
     const timestamp = Date.now()
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -37,7 +37,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("не срабатывает при несовпадении", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -61,7 +61,7 @@ describe("Фильтрация по временной метке (timestamp)", 
   it("условие eq", () => {
     let called = false
     const timestamp = Date.now()
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -84,7 +84,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие notEq", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -107,7 +107,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие gt (больше)", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -131,7 +131,7 @@ describe("Фильтрация по временной метке (timestamp)", 
   it("условие gte (больше или равно)", () => {
     let called = false
     const timestamp = 2000
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -154,7 +154,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие lt (меньше)", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -178,7 +178,7 @@ describe("Фильтрация по временной метке (timestamp)", 
   it("условие lte (меньше или равно)", () => {
     let called = false
     const timestamp = 2000
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -201,7 +201,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие notGt (не больше)", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -224,7 +224,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие notGte (не больше или равно)", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -247,7 +247,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие notLt (не меньше)", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -293,7 +293,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие between", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })

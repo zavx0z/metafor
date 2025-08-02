@@ -1,7 +1,7 @@
-import { ReactionRegistry, createReactionsChain } from "../index"
+import { ReactionRegistry } from "../index"
 import type { Update, ExtractValues } from "../../context/index.t"
 import { describe, it, expect } from "bun:test"
-import type { JsonPatch, MetaDataMessage } from "../../message"
+import type { MetaDataMessage } from "../../message"
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"
@@ -13,7 +13,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("фильтрация по replace", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -36,7 +36,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("фильтрация по add", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -59,7 +59,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("фильтрация по remove", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -82,7 +82,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("фильтрация по test", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -105,7 +105,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("не срабатывает при несовпадении операции", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -128,7 +128,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("комбинированная фильтрация с другими условиями", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -155,7 +155,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("фильтрация по replace с path", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -181,7 +181,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("фильтрация по add с path", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -207,7 +207,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("фильтрация по remove с path", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -233,7 +233,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("фильтрация по test с path", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })

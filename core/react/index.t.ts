@@ -93,47 +93,6 @@ export type Reaction<C extends ContextSchema, S extends string, I extends Core> 
 }
 
 /**
- * Chain API для создания реакции
- *
- * Позволяет удобно создавать реакции с декларативными фильтрами.
- *
- * @template C - схема контекста
- * @template S - строковые ключи состояний
- * @template Core - тип core объекта
- *
- * @example
- * ```typescript
- * const chain = reaction({
- *   title: "Обработка сообщений",
- *   description: "Обрабатывает входящие сообщения"
- * })
- *   .filter({
- *     tag: "user",
- *     op: "replace",
- *     path: "/context"
- *   })
- *   .equal(({ update, context, patch }) => {
- *     update({
- *       lastMessage: patch.value,
- *       messageCount: context.messageCount + 1
- *     })
- *   })
- * ```
- */
-export type ReactionChain<C extends ContextSchema, S extends string, I extends Core> = (config?: {
-  /** Название реакции */
-  title?: string
-  /** Описание реакции */
-  description?: string
-}) => {
-  /** Добавляет декларативные фильтры */
-  filter: (conditions: ReactionFilterConditions) => {
-    /** Добавляет функцию обработки события */
-    equal: (updateFn: ReactionUpdate<C, S, I>) => Reaction<C, S, I>
-  }
-}
-
-/**
  * Цепочка для создания массива реакций
  *
  * Позволяет создавать массив реакций с группировкой по состояниям.
@@ -157,8 +116,22 @@ export type ReactionChain<C extends ContextSchema, S extends string, I extends C
  * ```
  */
 export type ReactionsChain<C extends ContextSchema, S extends string, I extends Core> = (
-  reaction: ReactionChain<C, S, I>
-) => [S[], Reaction<C, S, I>][]
+  reaction: (config?: {
+    /** Название реакции */
+    title?: string
+    /** Описание реакции */
+    description?: string
+  }) => {
+    /** Добавляет декларативные фильтры */
+    filter: (conditions: ReactionFilterConditions) => {
+      /** Добавляет функцию обработки события */
+      equal: (updateFn: ReactionUpdate<C, S, I>) => Reaction<C, S, I>
+    }
+  }
+) => ReactionsChainResult<C, S, I>
+
+/** Результат цепочки реакций */
+export type ReactionsChainResult<C extends ContextSchema, S extends string, I extends Core> = [S[], Reaction<C, S, I>][]
 
 /**
  * Карта реакций по состояниям
