@@ -24,13 +24,21 @@ describe("parseChainsObject — разные варианты chain", () => {
     })
     const snapshot = getSnapshotProcesses(actions)
     expect(snapshot).toMatchObject({
-      onlyAction: { action: { read: ["foo"] } },
-      onlySuccess: { action: { read: ["foo"] }, success: { read: [], write: ["foo"] } },
-      onlyError: { action: { read: ["foo"] }, error: { read: [], write: ["bar"] } },
+      onlyAction: {
+        action: { read: ["foo"] },
+      },
+      onlySuccess: {
+        action: { read: ["foo"] },
+        success: { write: ["foo"] },
+      },
+      onlyError: {
+        action: { read: ["foo"] },
+        error: { write: ["bar"] },
+      },
       allHandlers: {
         action: { read: ["foo"] },
-        success: { read: [], write: ["foo"] },
-        error: { read: [], write: ["bar"] },
+        success: { write: ["foo"] },
+        error: { write: ["bar"] },
       },
     })
   })
@@ -119,8 +127,8 @@ describe("parseChainsObject — разные варианты chain", () => {
     expect(snapshot).toMatchObject({
       withHandlers: {
         action: { read: ["foo"] },
-        success: { read: [], write: ["foo"] },
-        error: { read: [], write: ["bar"] },
+        success: { write: ["foo"] },
+        error: { write: ["bar"] },
       },
     })
   })
@@ -161,8 +169,14 @@ describe("parseChain — несколько chain", () => {
     const snapshot = getSnapshotProcesses(actions)
 
     expect(snapshot).toMatchObject({
-      first: { action: { read: ["foo"] }, success: { read: [], write: ["foo"] }, error: { read: [], write: ["bar"] } },
-      second: { action: { read: ["bar"] }, error: { read: [], write: ["bar"] } },
+      first: {
+        action: { read: ["foo"] },
+        success: { write: ["foo"] },
+      },
+      second: {
+        action: { read: ["bar"] },
+        error: { write: ["bar"] },
+      },
     })
   })
 
@@ -186,8 +200,8 @@ describe("parseChain — несколько chain", () => {
       simple: { action: { read: ["foo"] } },
       complex: {
         action: { read: ["foo", "bar"] },
-        success: { read: [], write: ["foo"] },
-        error: { read: [], write: ["bar"] },
+        success: { write: ["foo"] },
+        error: { write: ["bar"] },
       },
       async: { action: { read: ["foo"] } },
     })

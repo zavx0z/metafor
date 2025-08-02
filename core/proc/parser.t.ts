@@ -9,7 +9,7 @@
  */
 export type ParsedActionHandler = {
   /** Список полей контекста, которые читаются в обработчике */
-  read: string[]
+  read?: string[]
 }
 
 /**
@@ -18,9 +18,9 @@ export type ParsedActionHandler = {
  */
 export type ParsedHandler = {
   /** Список полей контекста, которые читаются в обработчике */
-  read: string[]
+  read?: string[]
   /** Список полей контекста, которые записываются в обработчике */
-  write: string[]
+  write?: string[]
 }
 
 /**
@@ -33,7 +33,7 @@ export type ParsedProcess = {
   /** Описание процесса */
   description?: string
   /** Обработчик основного действия процесса */
-  action: ParsedActionHandler
+  action?: ParsedActionHandler
   /** Обработчик успешного завершения процесса */
   success?: ParsedHandler
   /** Обработчик ошибки процесса */

@@ -105,6 +105,18 @@ describe("реакции", () => {
                 value: null,
               },
             },
+            processes: {
+              state_1: {
+                success: {
+                  write: ["param"],
+                },
+              },
+              state_2: {
+                success: {
+                  write: ["param"],
+                },
+              },
+            },
           },
         },
       },

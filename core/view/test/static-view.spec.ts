@@ -94,9 +94,10 @@ describe("создание статических view функций", () => {
 })
 
 test("стили сохраняются в снимке компонента", async () => {
-  document.body.innerHTML = `<metafor-test></metafor-test>`
+  const tag = Bun.randomUUIDv7()
+  document.body.innerHTML = `<metafor-${tag}></metafor-${tag}>`
 
-  MetaFor("test")
+  MetaFor(tag)
     .context((types) => ({
       value: types.string.optional(),
     }))
@@ -116,7 +117,7 @@ test("стили сохраняются в снимке компонента", a
       `,
     })
 
-  const element = document.querySelector("metafor-test") as any
+  const element = document.querySelector(`metafor-${tag}`) as any
   await Bun.sleep(100)
 
   const snapshot = element.getSnapshot()

@@ -31,14 +31,14 @@ describe("полный снимок компонента", () => {
           idle: { count: 0, isActive: false },
         },
       })
-      .core((ref) => ({
+      .core({
         apiUrl: "https://api.example.com",
         version: "1.0.0",
         config: {
           timeout: 5000,
           retries: 3,
         },
-      }))
+      })
       .processes((process) => ({
         loading: process({ title: "loading", description: "loading description" })
           .action(({ context }) => new Promise((resolve) => setTimeout(() => resolve(context.count + 1), 100)))
@@ -191,11 +191,10 @@ describe("полный снимок компонента", () => {
           title: "loading",
           description: "loading description",
           action: { read: ["count"] },
-          success: { read: [], write: ["count", "isActive"] },
+          success: { write: ["count", "isActive"] },
         },
         active: {
-          action: { read: [] },
-          success: { read: [], write: ["count", "status"] },
+          success: { write: ["count", "status"] },
         },
       })
     })

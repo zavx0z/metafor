@@ -111,20 +111,28 @@ export function parseFunction(fn: Function, allowWrite: boolean = true) {
 export function parseProcess<C extends ContextSchema, I extends Core, Res = any>(
   process: Process<C, I, Res>
 ): ParsedProcess {
-  const parsed = parseFunction(process.action, false)
-  const result: ParsedProcess = {
-    action: { read: parsed.read },
-  }
+  const result: ParsedProcess = {}
   if (process.title) result.title = process.title
   if (process.description) result.description = process.description
 
+  const parsed = parseFunction(process.action, false)
+  if (parsed.read.length > 0) result.action = { read: parsed.read }
+
   if (process.success) {
     const parsed = parseFunction(process.success, true)
-    result.success = { read: parsed.read, write: parsed.write }
+    if (parsed.read.length > 0 || parsed.write.length > 0)
+      result.success = {
+        ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
+        ...(parsed.write.length > 0 ? { write: parsed.write } : {}),
+      }
   }
   if (process.error) {
     const parsed = parseFunction(process.error)
-    result.error = { read: parsed.read, write: parsed.write }
+    if (parsed.read.length > 0 || parsed.write.length > 0)
+      result.error = {
+        ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
+        ...(parsed.write.length > 0 ? { write: parsed.write } : {}),
+      }
   }
   return result
 }

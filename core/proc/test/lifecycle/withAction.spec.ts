@@ -69,13 +69,23 @@ describe("MetaFor: инициализация с действиями", async ()
               value: "ctx_1",
             },
           },
-          // actions: {
-          //   one: {
-          //     action: expect.any(Function),
-          //     success: expect.any(Function),
-          //     error: expect.any(Function),
-          //   },
-          // },
+          processes: {
+            state_1: {
+              success: {
+                write: ["value"],
+              },
+            },
+            state_2: {
+              success: {
+                write: ["value"],
+              },
+            },
+            state_3: {
+              success: {
+                write: ["value"],
+              },
+            },
+          },
         },
       },
     })
