@@ -59,7 +59,7 @@ import { types, createContext } from "./context/index.ts"
 import type { ContextSchema, ContextInstance, ExtractValues, Update } from "./context/index.ts"
 import { checkTransitionConditions, type StatesConfig } from "./state/index.ts"
 import { createActionsConfig } from "./proc/index.ts"
-import type { ProcessesDeclaration, Process } from "./proc/index.t.ts"
+import type { ProcessesDeclaration, Process, ProcessesConfig } from "./proc/index.t.ts"
 import type { Core, Snapshot } from "./index.t.ts"
 import type { ViewConfig } from "./view/index.t.ts"
 import {
@@ -218,254 +218,20 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                       const reactionsRegistry = new ReactionRegistry(reaction)
                       return {
                         view(view?: ViewConfig<C, S, I>) {
-                          /**
-                           * WebComponent - конечный автомат
-                           */
-                          class Actor extends HTMLElement {
-                            #ctx: ContextInstance<C>
-                            #shadow: ShadowRoot
-                            #channel: BroadcastChannel | null = null
-                            #transitions = states
-                            #actions = processesRegistry
-                            #reactions = reactionsRegistry
-                            #core: I = {} as I
-                            /** ------------state-------------------------------- */
-                            #state: S = initialState
-                            #setState(state: S) {
-                              this.setAttribute("state", state)
-                              this.#state = state
-                            }
-                            /** ------------process-------------------------------- */
-                            /** индикатор выполнения процесса */
-                            #process: boolean = false
-                            /**
-                             * 1. устанавливает состояние процесса
-                             * 2. при отключении процесса (после завершения действия)
-                             *  - обновляет контекст
-                             *  - выполняет переходы
-                             */
-                            #setProcess(process: boolean) {
-                              if (this.#process === process) return
-                              this.#process = process
-                              if (!process) {
-                                this.#transition()
-                              }
-                            }
-                            get address() {
-                              return {
+                          if (!customElements.get(tagName))
+                            customElements.define(
+                              tagName,
+                              createMetaFor({
                                 tag,
                                 env,
-                              }
-                            }
-                            /** ------------process-------------------------------- */
-                            constructor() {
-                              super()
-                              this.#shadow = this.attachShadow({ mode: "closed" })
-                              this.#ctx = createContext(contextSchema)
-                              this.#core = core
-                              view?.style?.({
-                                css: (strings, ...values) => {
-                                  const sheet = new CSSStyleSheet()
-                                  const result = strings.reduce((acc, str, i) => acc + str + (values[i] || ""), "")
-                                  sheet.replaceSync(result)
-                                  this.#shadow.adoptedStyleSheets.push(sheet)
-                                  return sheet
-                                },
+                                schema: contextSchema,
+                                states,
+                                core,
+                                processes: processesRegistry,
+                                reactions: reactionsRegistry,
+                                view,
                               })
-                            }
-
-                            connectedCallback() {
-                              this.#updateView()
-                              this.setAttribute("state", this.#state)
-                              this.#channel = new BroadcastChannel("channel")
-                              requestAnimationFrame(this.#init.bind(this))
-                            }
-
-                            #init() {
-                              if (this.#reactions.hasReactions()) {
-                                if (this.#channel)
-                                  this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
-                                this.addEventListener("channel", this.#reactionHandler)
-                              }
-                              this.#sendEvent(initMessage(tag, this.getSnapshot()))
-                              const transition = this.#transitions[this.#state]
-                              if (transition) {
-                                const process = this.#actions[this.#state]
-                                if (process) {
-                                  this.#setProcess(true)
-                                  this.#executeAction(process)
-                                  this.#transition()
-                                } else {
-                                  this.#transition()
-                                }
-                              }
-                              if (view?.onMount) view.onMount()
-                            }
-
-                            disconnectedCallback() {
-                              this.removeEventListener("channel", this.#reactionHandler)
-                            }
-
-                            /** обновление контекста */
-                            update = (context: Partial<ExtractValues<C>>) => {
-                              const updated = this.#ctx.update(context)
-                              if (Object.keys(updated).length > 0) {
-                                this.#sendEvent(updateContextMessage(tag, updated))
-                                this.#updateView()
-                              }
-                              return updated
-                            }
-                            /** обработка сообщений из канала */
-                            #reactionHandler = (ev: Event) => {
-                              const detail = (ev as CustomEvent).detail
-                              if (detail?.meta?.tag === tag) return
-                              this.#handleReactionMessage(detail)
-                            }
-                            /**
-                             * - выполняет действие, устанавливая состояние процесса в true
-                             * - после успешной обработки действия, если есть success, то обновляет контекст
-                             * - после ошибки в обработке действия, если есть error, то обновляет контекст
-                             * - после завершения действия, устанавливает состояние процесса в false
-                             * - отправляет сообщение о состоянии процесса в канал (MSG)
-                             *
-                             * @param process - конфигурация процесса состояния
-                             * @throws {Error} - если обработчик ошибки не найден
-                             */
-                            #executeAction = (process: Process<C, I>) => {
-                              try {
-                                this.#broadcastMessage(stateBeforeActionMessage(tag, this.#state))
-                                const result = process.action({
-                                  context: this.#ctx.getSnapshot(),
-                                  core: this.#core,
-                                  element: this,
-                                })
-                                if (result instanceof Promise) {
-                                  result
-                                    .then((data) => {
-                                      if (process.success) process.success({ update: this.update, data })
-                                    })
-                                    .catch((error) => {
-                                      if (process.error) {
-                                        if (error instanceof Error) {
-                                          process.error({ update: this.update, error })
-                                        } else if (typeof error === "string") {
-                                          process.error({ update: this.update, error: new Error(error) })
-                                        } else {
-                                          throw Error(
-                                            `Передан неизвестный тип ошибки в состоянии: ${this.#state}`,
-                                            error
-                                          )
-                                        }
-                                      } else
-                                        throw Error(
-                                          `Обработчик ошибки не найден для состояния: ${this.#state} \n ${error}`
-                                        )
-                                    })
-                                    .finally(() => {
-                                      this.#broadcastMessage(stateAfterActionMessage(tag, this.#state))
-                                      this.#setProcess(false)
-                                    })
-                                } else {
-                                  if (process.success) process.success({ update: this.update, data: result })
-                                  this.#broadcastMessage(stateAfterActionMessage(tag, this.#state))
-                                  this.#setProcess(false)
-                                }
-                              } catch (error) {
-                                if (error instanceof Error) process.error?.({ update: this.update, error })
-                                this.#broadcastMessage(stateAfterActionMessage(tag, this.#state))
-                                this.#setProcess(false)
-                              }
-                            }
-
-                            /**
-                             * - выполняет переходы с установкой состояния
-                             * - запускает процесс если есть
-                             * - отправляет сообщение состояния если нет процесса (MSG)
-                             */
-                            #transition = () => {
-                              const transition = this.#transitions[this.#state]
-                              if (!transition) return
-                              for (const [state, conditions] of Object.entries(transition)) {
-                                if (checkTransitionConditions(conditions, this.#ctx.getSnapshot())) {
-                                  const process = this.#actions[state as S]
-                                  if (this.#process) return
-                                  if (process) {
-                                    this.#setProcess(true)
-                                    this.#setState(state as S)
-                                    this.#executeAction(process)
-                                  } else {
-                                    this.#setState(state as S)
-                                    this.#channel && this.#broadcastMessage(stateAfterActionMessage(tag, state as S))
-                                    if (!this.#process) this.#transition()
-                                  }
-                                  break
-                                }
-                              }
-                            }
-                            #broadcastMessage = (message: Message) => {
-                              if (!this.#channel) return
-                              this.#channel.postMessage(message)
-                              this.#updateView()
-                            }
-                            #sendEvent = (message: Message) => {
-                              if (!this.#channel) return
-                              this.#channel.postMessage(message)
-                              // this.#shadow.dispatchEvent(
-                              //   new CustomEvent("channel", {
-                              //     detail: message,
-                              //     bubbles: true,
-                              //     cancelable: false,
-                              //     composed: true,
-                              //   })
-                              // )
-                            }
-                            #updateView = () => {
-                              if (!view?.render) return
-                              const template = view.render({
-                                state: this.#state,
-                                context: this.#ctx.getSnapshot(),
-                                core: this.#core,
-                                update: this.update,
-                                style: styleMap,
-                                html,
-                                ref,
-                                repeat,
-                                when,
-                                map,
-                                nothing,
-                                choose,
-                              })
-                              if (template) render(template, this.#shadow)
-                            }
-                            getSnapshot(): Snapshot<C, S> {
-                              const snapshot: Snapshot<C, S> = {
-                                state: this.#state,
-                                states: this.#transitions,
-                                context: this.#ctx.getSnapshot(),
-                                schema: this.#ctx.schema,
-                              }
-                              if (view?.render) snapshot["view"] = extractTemplateLiteral(view.render)
-                              return snapshot
-                            }
-
-                            /**
-                             * Обработка входящих сообщений для реакций
-                             */
-                            #handleReactionMessage = (message: Message) => {
-                              if (!this.#reactions.hasReactions()) return
-                              const { meta, patch } = message
-                              const state = this.#state as S
-                              this.#reactions.run({
-                                context: this.#ctx.getSnapshot(),
-                                core: this.#core,
-                                meta,
-                                patch,
-                                state,
-                                update: this.update,
-                              })
-                            }
-                          }
-                          if (!customElements.get(tagName)) customElements.define(tagName, Actor)
+                            )
                         },
                       }
                     },
@@ -481,3 +247,266 @@ export function MetaFor(tag: string, config?: { description?: string }) {
 }
 
 export type { Message } from "../core/message/index.ts"
+
+type CreateMetaForParams<C extends ContextSchema, S extends string, I extends Core> = {
+  tag: string
+  env: "server" | "browser"
+  schema: C
+  states: StatesConfig<S, C>
+  core: I
+  processes: ProcessesConfig<C, S, I>
+  reactions: ReactionRegistry<C, S>
+  view: ViewConfig<C, S, I> | undefined
+}
+const createMetaFor = <C extends ContextSchema, S extends string, I extends Core>({
+  tag,
+  env,
+  schema,
+  states,
+  core,
+  processes,
+  reactions,
+  view,
+}: CreateMetaForParams<C, S, I>) => {
+  /**
+   * WebComponent - конечный автомат
+   */
+  class Actor extends HTMLElement {
+    #ctx: ContextInstance<C>
+    #shadow: ShadowRoot
+    #channel: BroadcastChannel | null = null
+    #transitions = states
+    #actions = processes
+    #reactions = reactions
+    #core: I = {} as I
+    /** ------------state-------------------------------- */
+    #state: S = Object.keys(states)[0] as S
+    #setState(state: S) {
+      this.setAttribute("state", state)
+      this.#state = state
+    }
+    /** ------------process-------------------------------- */
+    /** индикатор выполнения процесса */
+    #process: boolean = false
+    /**
+     * 1. устанавливает состояние процесса
+     * 2. при отключении процесса (после завершения действия)
+     *  - обновляет контекст
+     *  - выполняет переходы
+     */
+    #setProcess(process: boolean) {
+      if (this.#process === process) return
+      this.#process = process
+      if (!process) {
+        this.#transition()
+      }
+    }
+    get address() {
+      return {
+        tag,
+        env,
+      }
+    }
+    /** ------------process-------------------------------- */
+    constructor() {
+      super()
+      this.#shadow = this.attachShadow({ mode: "closed" })
+      this.#ctx = createContext(schema)
+      this.#core = core
+      view?.style?.({
+        css: (strings, ...values) => {
+          const sheet = new CSSStyleSheet()
+          const result = strings.reduce((acc, str, i) => acc + str + (values[i] || ""), "")
+          sheet.replaceSync(result)
+          this.#shadow.adoptedStyleSheets.push(sheet)
+          return sheet
+        },
+      })
+    }
+
+    connectedCallback() {
+      this.#updateView()
+      this.setAttribute("state", this.#state)
+      this.#channel = new BroadcastChannel("channel")
+      requestAnimationFrame(this.#init.bind(this))
+    }
+
+    #init() {
+      if (this.#reactions.hasReactions()) {
+        if (this.#channel) this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
+        this.addEventListener("channel", this.#reactionHandler)
+      }
+      this.#sendEvent(initMessage(tag, this.getSnapshot()))
+      const transition = this.#transitions[this.#state]
+      if (transition) {
+        const process = this.#actions[this.#state]
+        if (process) {
+          this.#setProcess(true)
+          this.#executeAction(process)
+          this.#transition()
+        } else {
+          this.#transition()
+        }
+      }
+      if (view?.onMount) view.onMount()
+    }
+
+    disconnectedCallback() {
+      this.removeEventListener("channel", this.#reactionHandler)
+    }
+
+    /** обновление контекста */
+    update = (context: Partial<ExtractValues<C>>) => {
+      const updated = this.#ctx.update(context)
+      if (Object.keys(updated).length > 0) {
+        this.#sendEvent(updateContextMessage(tag, updated))
+        this.#updateView()
+      }
+      return updated
+    }
+    /** обработка сообщений из канала */
+    #reactionHandler = (ev: Event) => {
+      const detail = (ev as CustomEvent).detail
+      if (detail?.meta?.tag === tag) return
+      this.#handleReactionMessage(detail)
+    }
+    /**
+     * - выполняет действие, устанавливая состояние процесса в true
+     * - после успешной обработки действия, если есть success, то обновляет контекст
+     * - после ошибки в обработке действия, если есть error, то обновляет контекст
+     * - после завершения действия, устанавливает состояние процесса в false
+     * - отправляет сообщение о состоянии процесса в канал (MSG)
+     *
+     * @param process - конфигурация процесса состояния
+     * @throws {Error} - если обработчик ошибки не найден
+     */
+    #executeAction = (process: Process<C, I>) => {
+      try {
+        this.#broadcastMessage(stateBeforeActionMessage(tag, this.#state))
+        const result = process.action({
+          context: this.#ctx.getSnapshot(),
+          core: this.#core,
+          element: this,
+        })
+        if (result instanceof Promise) {
+          result
+            .then((data) => {
+              if (process.success) process.success({ update: this.update, data })
+            })
+            .catch((error) => {
+              if (process.error) {
+                if (error instanceof Error) {
+                  process.error({ update: this.update, error })
+                } else if (typeof error === "string") {
+                  process.error({ update: this.update, error: new Error(error) })
+                } else {
+                  throw Error(`Передан неизвестный тип ошибки в состоянии: ${this.#state}`, error)
+                }
+              } else throw Error(`Обработчик ошибки не найден для состояния: ${this.#state} \n ${error}`)
+            })
+            .finally(() => {
+              this.#broadcastMessage(stateAfterActionMessage(tag, this.#state))
+              this.#setProcess(false)
+            })
+        } else {
+          if (process.success) process.success({ update: this.update, data: result })
+          this.#broadcastMessage(stateAfterActionMessage(tag, this.#state))
+          this.#setProcess(false)
+        }
+      } catch (error) {
+        if (error instanceof Error) process.error?.({ update: this.update, error })
+        this.#broadcastMessage(stateAfterActionMessage(tag, this.#state))
+        this.#setProcess(false)
+      }
+    }
+
+    /**
+     * - выполняет переходы с установкой состояния
+     * - запускает процесс если есть
+     * - отправляет сообщение состояния если нет процесса (MSG)
+     */
+    #transition = () => {
+      const transition = this.#transitions[this.#state]
+      if (!transition) return
+      for (const [state, conditions] of Object.entries(transition)) {
+        if (checkTransitionConditions(conditions, this.#ctx.getSnapshot())) {
+          const process = this.#actions[state as S]
+          if (this.#process) return
+          if (process) {
+            this.#setProcess(true)
+            this.#setState(state as S)
+            this.#executeAction(process)
+          } else {
+            this.#setState(state as S)
+            this.#channel && this.#broadcastMessage(stateAfterActionMessage(tag, state as S))
+            if (!this.#process) this.#transition()
+          }
+          break
+        }
+      }
+    }
+    #broadcastMessage = (message: Message) => {
+      if (!this.#channel) return
+      this.#channel.postMessage(message)
+      this.#updateView()
+    }
+    #sendEvent = (message: Message) => {
+      if (!this.#channel) return
+      this.#channel.postMessage(message)
+      // this.#shadow.dispatchEvent(
+      //   new CustomEvent("channel", {
+      //     detail: message,
+      //     bubbles: true,
+      //     cancelable: false,
+      //     composed: true,
+      //   })
+      // )
+    }
+    #updateView = () => {
+      if (!view?.render) return
+      const template = view.render({
+        state: this.#state,
+        context: this.#ctx.getSnapshot(),
+        core: this.#core,
+        update: this.update,
+        style: styleMap,
+        html,
+        ref,
+        repeat,
+        when,
+        map,
+        nothing,
+        choose,
+      })
+      if (template) render(template, this.#shadow)
+    }
+    getSnapshot(): Snapshot<C, S> {
+      const snapshot: Snapshot<C, S> = {
+        state: this.#state,
+        states: this.#transitions,
+        context: this.#ctx.getSnapshot(),
+        schema: this.#ctx.schema,
+      }
+      if (view?.render) snapshot["view"] = extractTemplateLiteral(view.render)
+      return snapshot
+    }
+
+    /**
+     * Обработка входящих сообщений для реакций
+     */
+    #handleReactionMessage = (message: Message) => {
+      if (!this.#reactions.hasReactions()) return
+      const { meta, patch } = message
+      const state = this.#state as S
+      this.#reactions.run({
+        context: this.#ctx.getSnapshot(),
+        core: this.#core,
+        meta,
+        patch,
+        state,
+        update: this.update,
+      })
+    }
+  }
+  return Actor
+}

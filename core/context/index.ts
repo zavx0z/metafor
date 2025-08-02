@@ -212,7 +212,7 @@ export class Context<C extends ContextSchema> implements ContextInstance<C> {
  * Фабричная функция для создания типизированного контекста.
  * Позволяет создавать контекст на основе схемы или функции, принимающей types.
  *
- * @typeParam T - Схема контекста (ContextSchema)
+ * @typeParam C - Схема контекста (ContextSchema)
  * @param schema - Схема контекста или функция, принимающая types и возвращающая схему
  * @returns Объект с иммутабельным контекстом и методом update
  *
@@ -221,7 +221,7 @@ export class Context<C extends ContextSchema> implements ContextInstance<C> {
  * ctx.context // доступ к значениям
  * ctx.update({name: 'Новое имя'})
  */
-export function createContext<const T extends ContextSchema>(schema: T): ContextInstance<T> {
+export function createContext<const C extends ContextSchema>(schema: C): ContextInstance<C> {
   const contextInstance = new Context(schema)
   return {
     context: contextInstance.context,

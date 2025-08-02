@@ -4,7 +4,7 @@
  */
 
 import type { ContextSchema, ExtractValues } from "../context"
-import type { ActionChain, ProcessesDeclaration, Process, ProcessChain, ActionParams } from "./index.t"
+import type { ActionChain, ProcessesDeclaration, Process, ProcessChain, ActionParams, ProcessesConfig } from "./index.t"
 import type { Core } from "../../core/index.t"
 
 /**
@@ -29,7 +29,7 @@ import type { Core } from "../../core/index.t"
  */
 export function createActionsConfig<C extends ContextSchema, S extends string, I extends Core = {}>(
   actions: ProcessesDeclaration<C, S, I>
-): Partial<Record<S, Process<C, any>>> {
+): ProcessesConfig<C, S, I> {
   /**
    * Фабрика для создания process chain-объекта для каждого процесса.
    * Каждый вызов process возвращает chain API с методами action, success, error, getResult.
@@ -77,7 +77,7 @@ export function createActionsConfig<C extends ContextSchema, S extends string, I
   // Вызываем builder, передавая фабрику process. На выходе получаем объект, где значения — chain-объекты.
   const raw = actions(process)
   // Для каждого ключа вызываем getResult, чтобы получить финальный объект с action, success, error, title, description.
-  const result: Partial<Record<S, Process<C, any>>> = {} as any
+  const result: ProcessesConfig<C, S, I> = {} as ProcessesConfig<C, S, I>
   for (const key in raw) {
     if (raw[key]) {
       result[key] = raw[key]!.getResult()
