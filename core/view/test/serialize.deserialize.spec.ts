@@ -9,7 +9,7 @@ import { choose } from "../../html/directives/choose"
 import { createContext, types } from "../../context"
 import type { ViewDefinitionParams } from "../index.t"
 import { restoreViewFunction } from ".."
-import { extractTemplateLiteral } from ".."
+import { extractTemplateLiteral, extractCSSTemplateLiteral } from ".."
 
 describe("serialize and deserialize", () => {
   type State = "active" | "inactive"
@@ -114,4 +114,25 @@ describe("serialize and deserialize", () => {
     expect(restoredResult.strings, "строки должны совпадать").toEqual(original.strings)
     expect(restoredResult.values.length, "количество значений должно совпадать").toBe(original.values.length)
   })
+})
+
+test("extractCSSTemplateLiteral: извлечение CSS template literal", () => {
+  const createTemplate = ({ css }: { css: any }) => css`
+    .container {
+      color: red;
+      font-size: 16px;
+    }
+  `
+  const template = extractCSSTemplateLiteral(createTemplate)
+  expect(template, "CSS template должен быть извлечен").toBe(`
+    .container {
+      color: red;
+      font-size: 16px;
+    }
+  `)
+})
+
+test("extractCSSTemplateLiteral: ошибка при отсутствии CSS template literal", () => {
+  const createTemplate = ({ css }: { css: any }) => css("invalid")
+  expect(() => extractCSSTemplateLiteral(createTemplate), "должна быть выброшена ошибка").toThrow("Не удалось найти CSS template literal в функции")
 })

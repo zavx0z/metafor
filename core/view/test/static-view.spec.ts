@@ -1,5 +1,6 @@
 import { describe, test, expect } from "bun:test"
 import { createStaticViewFunction, createStaticViewFunctionWithReplacements } from "../index"
+import { MetaFor } from "../../../web/metafor.ts"
 
 describe("создание статических view функций", () => {
   test("заменяет один динамический тег на статический", () => {
@@ -90,4 +91,39 @@ describe("создание статических view функций", () => {
     expect(result.values, "должны сохраниться остальные значения").toContain("Test")
     expect(result.values, "должны сохраниться остальные значения").toContain("Description")
   })
+})
+
+test("стили сохраняются в снимке компонента", async () => {
+  document.body.innerHTML = `<metafor-test></metafor-test>`
+
+  MetaFor("test")
+    .context((types) => ({
+      value: types.string.optional(),
+    }))
+    .states({
+      state_1: {},
+    })
+    .core()
+    .processes()
+    .reactions()
+    .view({
+      render: ({ html }) => html`<div>test</div>`,
+      style: ({ css }) => css`
+        .container {
+          color: red;
+          font-size: 16px;
+        }
+      `,
+    })
+
+  const element = document.querySelector("metafor-test") as any
+  await Bun.sleep(100)
+
+  const snapshot = element.getSnapshot()
+  expect(snapshot.style, "стили должны быть сохранены в снимке").toBe(`
+        .container {
+          color: red;
+          font-size: 16px;
+        }
+      `)
 })

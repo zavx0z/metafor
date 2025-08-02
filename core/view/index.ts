@@ -19,6 +19,21 @@ export function extractTemplateLiteral(fn: Function): string {
 }
 
 /**
+ * Извлекает CSS template literal из style функции
+ */
+export function extractCSSTemplateLiteral(fn: Function): string {
+  const fnString = fn.toString()
+
+  // Извлекаем CSS template literal через regex
+  const match = fnString.match(/css`([\s\S]*)`/)
+  if (!match) {
+    throw new Error("Не удалось найти CSS template literal в функции")
+  }
+
+  return match[1]!
+}
+
+/**
  * Восстанавливает view функцию из template literal
  */
 export function restoreViewFunction(template: string) {

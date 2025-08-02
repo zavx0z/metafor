@@ -81,7 +81,7 @@ import type { ReactionsChain } from "./react/index.t.ts"
 import type { ContextTypes } from "./context/types.t.ts"
 import { choose } from "./html/directives/choose.ts"
 import { createRef } from "./html/directives/ref.ts"
-import { extractTemplateLiteral } from "./view/index.ts"
+import { extractTemplateLiteral, extractCSSTemplateLiteral } from "./view/index.ts"
 import type { ContextSnapshot } from "./context/index.t.ts"
 
 /**
@@ -487,6 +487,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
         context,
       }
       if (view?.render) snapshot["view"] = extractTemplateLiteral(view.render)
+      if (view?.style) snapshot["style"] = extractCSSTemplateLiteral(view.style)
       return snapshot
     }
 
