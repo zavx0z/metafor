@@ -7,7 +7,7 @@
 import type { ContextSchema, ExtractValues } from "../context/index.t"
 import type { Core } from "../index.t"
 import type { JsonPatch, Message, MetaDataMessage } from "../message"
-import type { ReactionFilterConditions } from "./condition.t"
+import type { ReactionFilterConditions as ReactionConditions } from "./condition.t"
 
 /**
  * Функция обновления контекста
@@ -123,15 +123,24 @@ export type ReactionsChain<C extends ContextSchema, S extends string, I extends 
     description?: string
   }) => {
     /** Добавляет декларативные фильтры */
-    filter: (conditions: ReactionFilterConditions) => {
+    filter: (conditions: ReactionConditions) => {
       /** Добавляет функцию обработки события */
-      equal: (updateFn: ReactionUpdate<C, S, I>) => Reaction<C, S, I>
+      equal: (updateFn: ReactionUpdate<C, S, I>) => Reaction<C, S, I> & {
+        /** Метод для регистрации состояний */
+        registerStates: (states: S[]) => void
+      }
     }
   }
 ) => ReactionsChainResult<C, S, I>
 
 /** Результат цепочки реакций */
-export type ReactionsChainResult<C extends ContextSchema, S extends string, I extends Core> = [S[], Reaction<C, S, I>][]
+export type ReactionsChainResult<C extends ContextSchema, S extends string, I extends Core> = [
+  S[],
+  Reaction<C, S, I> & {
+    /** Метод для регистрации состояний */
+    registerStates: (states: S[]) => void
+  }
+][]
 
 /**
  * Карта реакций по состояниям
@@ -151,7 +160,7 @@ export type SnapshotReactions = {
     {
       title: string
       description?: string
-      filter: ReactionFilterConditions
+      filter: ReactionConditions
       equal: {
         read?: string[]
         write?: string[]
@@ -164,7 +173,7 @@ export type SnapshotReactions = {
  * Метаданные реакции
  */
 export type ReactionMetadata = {
-  filterConditions: ReactionFilterConditions
-  readFields: string[]
-  writeFields: string[]
+  conditions: ReactionConditions
+  read: string[]
+  write: string[]
 }
