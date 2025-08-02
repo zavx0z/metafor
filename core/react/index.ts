@@ -2,203 +2,35 @@
  * Реализация реакций
  * @module Reactions
  */
-import type { ContextSchema, ExtractValues } from "../context/index.t"
+import type { ContextSchema, ExtractValues, Update } from "../context/index.t"
 import type { Core } from "../index.t"
-import type { JsonPatch, MetaDataMessage } from "../message"
+import type { JsonPatch, Message, MetaDataMessage } from "../message"
 import type {
   ReactionChain,
   ReactionsChain,
-  ReactionFilterArgs,
   ReactionUpdate,
-  ReactionFilterConditions,
   Reaction,
-  ReactionsMap,
-  Update,
   SnapshotReactions,
+  ReactionMetadata,
 } from "./index.t"
-
-/**
- * Проверяет условие для строкового значения
- */
-function checkStringCondition(value: string, condition: any): boolean {
-  if (typeof condition === "string") {
-    return value === condition
-  }
-  if (condition instanceof RegExp) {
-    return condition.test(value)
-  }
-  if (typeof condition === "object" && condition !== null) {
-    if (condition.eq !== undefined && value !== condition.eq) return false
-    if (condition.notEq !== undefined && value === condition.notEq) return false
-    if (condition.startsWith !== undefined && !value.startsWith(condition.startsWith)) return false
-    if (condition.endsWith !== undefined && !value.endsWith(condition.endsWith)) return false
-    if (condition.include !== undefined && !value.includes(condition.include)) return false
-    if (condition.notInclude !== undefined && value.includes(condition.notInclude)) return false
-    if (condition.notStartsWith !== undefined && value.startsWith(condition.notStartsWith)) return false
-    if (condition.notEndsWith !== undefined && value.endsWith(condition.notEndsWith)) return false
-    if (condition.pattern !== undefined && !condition.pattern.test(value)) return false
-    if (condition.length !== undefined) {
-      if (typeof condition.length === "number") {
-        if (value.length !== condition.length) return false
-      } else {
-        if (condition.length.min !== undefined && value.length < condition.length.min) return false
-        if (condition.length.max !== undefined && value.length > condition.length.max) return false
-      }
-    }
-    if (condition.between !== undefined) {
-      const [min, max] = condition.between
-      if (value < min || value > max) return false
-    }
-  }
-  return true
-}
-
-/**
- * Проверяет условие для числового значения
- */
-function checkNumberCondition(value: number, condition: any): boolean {
-  if (typeof condition === "number") {
-    return value === condition
-  }
-  if (typeof condition === "object" && condition !== null) {
-    if (condition.eq !== undefined && value !== condition.eq) return false
-    if (condition.notEq !== undefined && value === condition.notEq) return false
-    if (condition.gt !== undefined && value <= condition.gt) return false
-    if (condition.gte !== undefined && value < condition.gte) return false
-    if (condition.lt !== undefined && value >= condition.lt) return false
-    if (condition.lte !== undefined && value > condition.lte) return false
-    if (condition.notGt !== undefined && value > condition.notGt) return false
-    if (condition.notGte !== undefined && value >= condition.notGte) return false
-    if (condition.notLt !== undefined && value < condition.notLt) return false
-    if (condition.notLte !== undefined && value <= condition.notLte) return false
-    if (condition.between !== undefined) {
-      const [min, max] = condition.between
-      if (value < min || value > max) return false
-    }
-  }
-  return true
-}
-
-/**
- * Проверяет условие для булевого значения
- */
-function checkBooleanCondition(value: boolean, condition: any): boolean {
-  if (typeof condition === "boolean") {
-    return value === condition
-  }
-  if (typeof condition === "object" && condition !== null) {
-    if (condition.eq !== undefined && value !== condition.eq) return false
-    if (condition.notEq !== undefined && value === condition.notEq) return false
-    if (condition.logicalEq !== undefined && Boolean(value) !== condition.logicalEq) return false
-  }
-  return true
-}
-
-/**
- * Проверяет условие для массива
- */
-function checkArrayCondition(value: any[], condition: any): boolean {
-  if (Array.isArray(condition)) {
-    return JSON.stringify(value) === JSON.stringify(condition)
-  }
-  if (typeof condition === "object" && condition !== null) {
-    if (condition.length !== undefined) {
-      if (typeof condition.length === "number") {
-        if (value.length !== condition.length) return false
-      } else {
-        if (condition.length.min !== undefined && value.length < condition.length.min) return false
-        if (condition.length.max !== undefined && value.length > condition.length.max) return false
-      }
-    }
-    if (condition.includes !== undefined && !value.includes(condition.includes)) return false
-    if (condition.notIncludes !== undefined && value.includes(condition.notIncludes)) return false
-    if (condition.isEmpty !== undefined && (condition.isEmpty ? value.length !== 0 : value.length === 0)) return false
-    if (condition.every !== undefined) {
-      if (
-        !value.every((item) => {
-          if (typeof item === "number") return checkNumberCondition(item, condition.every)
-          if (typeof item === "string") return checkStringCondition(item, condition.every)
-          return false
-        })
-      )
-        return false
-    }
-    if (condition.some !== undefined) {
-      if (
-        !value.some((item) => {
-          if (typeof item === "number") return checkNumberCondition(item, condition.some)
-          if (typeof item === "string") return checkStringCondition(item, condition.some)
-          return false
-        })
-      )
-        return false
-    }
-  }
-  return true
-}
-
-/**
- * Проверяет условие для любого значения
- */
-function checkValueCondition(value: any, condition: any): boolean {
-  // Проверка на null
-  if (condition === null) {
-    return value === null
-  }
-
-  // Проверка на undefined
-  if (condition === undefined) {
-    return value === undefined
-  }
-
-  // Проверка на null в объекте условий
-  if (typeof condition === "object" && condition !== null && condition.null !== undefined) {
-    if (condition.null && value !== null) return false
-    if (!condition.null && value === null) return false
-    return true // Если проверка null прошла успешно, возвращаем true
-  }
-
-  // Проверка по типу значения
-  if (typeof value === "string") {
-    return checkStringCondition(value, condition)
-  }
-  if (typeof value === "number") {
-    return checkNumberCondition(value, condition)
-  }
-  if (typeof value === "boolean") {
-    return checkBooleanCondition(value, condition)
-  }
-  if (Array.isArray(value)) {
-    return checkArrayCondition(value, condition)
-  }
-
-  // Для объектов и других типов - прямое сравнение
-  if (typeof condition === "object" && condition !== null) {
-    // Если это объект условий, но не подходящий тип - возвращаем false
-    if (condition.eq !== undefined || condition.gt !== undefined || condition.startsWith !== undefined) {
-      return false
-    }
-  }
-
-  // Прямое сравнение для объектов и других типов
-  return JSON.stringify(value) === JSON.stringify(condition)
-}
+import type { ReactionFilterConditions } from "./condition.t"
+import { checkStringCondition, checkNumberCondition, checkValueCondition } from "./condition"
 
 /**
  * Создает chain API для реакций
  */
-export function createReactionsChain<
-  C extends ContextSchema,
-  S extends string,
-  Core = Record<string, any>
->(): ReactionChain<C, S, Core> {
+export function createReactionsChain<C extends ContextSchema, S extends string, I extends Core>(): ReactionChain<
+  C,
+  S,
+  I
+> {
   return ((config?: { title?: string; description?: string }) => {
     return {
       filter: (conditions: ReactionFilterConditions) => {
         return {
-          equal: (updateFn: ReactionUpdate<C, S, Core>) => {
+          equal: (updateFn: ReactionUpdate<C, S, I>) => {
             // Создаем функцию фильтрации на основе декларативных условий
-            const filterFn = (args: ReactionFilterArgs): boolean => {
+            const filterFn = (args: Message): boolean => {
               const { meta, patch } = args
 
               // Проверяем условия для метаданных
@@ -269,7 +101,7 @@ export function createReactionsChain<
         }
       },
     }
-  }) as ReactionChain<C, S, Core>
+  }) as ReactionChain<C, S, I>
 }
 
 /**
@@ -278,14 +110,7 @@ export function createReactionsChain<
 export class ReactionRegistry<C extends ContextSchema, S extends string, I extends Core> {
   private reactionsById: Map<string, Reaction<C, S, I>>
   private stateToReactionIds: Map<S, string[]>
-  private reactionMetadata: Map<
-    string,
-    {
-      filterConditions: ReactionFilterConditions
-      readFields: string[]
-      writeFields: string[]
-    }
-  >
+  private reactionMetadata: Map<string, ReactionMetadata>
 
   constructor(builder: ReactionsChain<C, S, I>) {
     const chain = createReactionsChain<C, S, I>()
@@ -378,14 +203,7 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
 ): {
   reactionsById: Map<string, Reaction<C, S, I>>
   stateToReactionIds: Map<S, string[]>
-  reactionMetadata: Map<
-    string,
-    {
-      filterConditions: ReactionFilterConditions
-      readFields: string[]
-      writeFields: string[]
-    }
-  >
+  reactionMetadata: Map<string, ReactionMetadata>
 } {
   let reactionAutoId = 0
   function generateReactionId(reaction: Reaction<C, S, I>): string {
@@ -393,20 +211,13 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
   }
   const reactionsById = new Map<string, Reaction<C, S, I>>()
   const stateToReactionIds = new Map<S, string[]>()
-  const reactionMetadata = new Map<
-    string,
-    {
-      filterConditions: ReactionFilterConditions
-      readFields: string[]
-      writeFields: string[]
-    }
-  >()
+  const reactionMetadata = new Map<string, ReactionMetadata>()
 
   // Преобразуем chain результат в декларацию
   const declarations = chainResult.map(([states, reaction]) => [states, reaction]) as [
     S[],
     {
-      filter: (args: ReactionFilterArgs) => boolean
+      filter: (args: Message) => boolean
       update: ReactionUpdate<C, S, I>
       title: string
       description?: string
@@ -418,12 +229,7 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
 
   for (const [states, value] of declarations) {
     const { filter, update, title, description, filterConditions, readFields, writeFields } = value
-    const reaction: Reaction<C, S, I> = {
-      title,
-      ...(description && { description }),
-      filter,
-      update,
-    }
+    const reaction: Reaction<C, S, I> = { title, filter, update, ...(description && { description }) }
     let id = undefined
     for (const [existingId, existingReaction] of reactionsById.entries()) {
       if (
@@ -439,11 +245,7 @@ function createDedupedReactionsConfig<C extends ContextSchema, S extends string,
       id = generateReactionId(reaction)
       reactionsById.set(id, reaction)
       // Сохраняем метаданные
-      reactionMetadata.set(id, {
-        filterConditions,
-        readFields,
-        writeFields,
-      })
+      reactionMetadata.set(id, { filterConditions, readFields, writeFields })
     }
     for (const state of states) {
       if (!stateToReactionIds.has(state)) stateToReactionIds.set(state, [])
