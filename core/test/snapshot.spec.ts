@@ -55,6 +55,12 @@ describe("полный снимок компонента", () => {
             .filter({ op: "replace", path: "/state" })
             .equal(({ update, context }) => update({ count: context.count + 1 })),
         ],
+        [
+          ["loading", "active", "idle"],
+          reaction({ title: "set_count_10" })
+            .filter({ op: "replace", path: "/state" })
+            .equal(({ update }) => update({ count: 10 })),
+        ],
       ])
       .view({
         render: ({ html, context, state, update }) => html`
@@ -176,19 +182,27 @@ describe("полный снимок компонента", () => {
       expect(snapshot.reactions, "реакции должны содержать все поля").toMatchObject({
         reactions: {
           log_state_changes_0: {
-            equal: {
-              read: ["count"],
-              write: ["count"],
-            },
-            filter: {
+            cond: {
               op: "replace",
               path: "/state",
             },
+            read: ["count"],
+            write: ["count"],
             title: "log_state_changes",
+          },
+          set_count_10_1: {
+            write: ["count"],
+            cond: {
+              op: "replace",
+              path: "/state",
+            },
+            title: "set_count_10",
           },
         },
         states: {
-          idle: ["log_state_changes_0"],
+          idle: ["log_state_changes_0", "set_count_10_1"],
+          loading: ["set_count_10_1"],
+          active: ["set_count_10_1"],
         },
       })
     })

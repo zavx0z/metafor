@@ -95,7 +95,7 @@ export class ReactionRegistry<C extends ContextSchema, S extends string, I exten
             id = generateReactionId(reaction)
             this.reactionsById.set(id, reaction)
             // Сохраняем метаданные
-            this.reactionMetadata.set(id, { conditions, read, write })
+            this.reactionMetadata.set(id, { cond: conditions, read, write })
           }
 
           // Возвращаем реакцию с методом для регистрации состояний
@@ -163,12 +163,10 @@ export class ReactionRegistry<C extends ContextSchema, S extends string, I exten
       const metadata = this.reactionMetadata.get(id)
       reactions[id] = {
         title: reaction.title,
-        ...(reaction.description && { description: reaction.description }),
-        filter: metadata?.conditions || {},
-        equal: {
-          read: metadata?.read || [],
-          write: metadata?.write || [],
-        },
+        ...(reaction.description && { desc: reaction.description }),
+        cond: metadata?.cond || {},
+        read: metadata?.read || [],
+        write: metadata?.write || [],
       }
     }
 

@@ -159,12 +159,10 @@ export type SnapshotReactions = {
     string,
     {
       title: string
-      description?: string
-      filter: ReactionConditions
-      equal: {
-        read?: string[]
-        write?: string[]
-      }
+      desc?: string
+      cond: ReactionConditions
+      read?: string[]
+      write?: string[]
     }
   >
   states: Record<string, string[]>
@@ -173,7 +171,7 @@ export type SnapshotReactions = {
  * Метаданные реакции
  */
 export type ReactionMetadata = {
-  conditions: ReactionConditions
+  cond: ReactionConditions
   read: string[]
   write: string[]
 }

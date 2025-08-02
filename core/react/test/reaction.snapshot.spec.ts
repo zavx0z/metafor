@@ -36,27 +36,23 @@ describe("снимок реакций", () => {
       reactions: {
         inc_0: {
           title: "inc",
-          description: "increment value",
-          filter: {
+          desc: "increment value",
+          cond: {
             tag: "test",
             op: "replace",
             path: "/context",
             value: 1,
           },
-          equal: {
-            read: ["value"],
-            write: ["value"],
-          },
+          read: ["value"],
+          write: ["value"],
         },
         reset_1: {
           title: "reset",
-          filter: {
+          cond: {
             tag: "any",
           },
-          equal: {
-            read: ["value"],
-            write: ["value"],
-          },
+          read: ["value"],
+          write: ["value"],
         },
       },
       states: {
@@ -90,11 +86,9 @@ describe("снимок реакций", () => {
     const reaction = snapshot.reactions[reactionId]!
 
     expect(reaction.title, "реакция должна иметь title").toBe("test")
-    expect(reaction.filter, "реакция должна иметь filter").toEqual({ tag: "test" })
-    expect(reaction.equal, "реакция должна иметь equal").toEqual({
-      read: ["value"],
-      write: ["value"],
-    })
+    expect(reaction.cond, "реакция должна иметь filter").toEqual({ tag: "test" })
+    expect(reaction.read, "реакция должна иметь read").toEqual(["value"])
+    expect(reaction.write, "реакция должна иметь write").toEqual(["value"])
 
     // Проверяем структуру states
     expect(snapshot.states, "states должен быть объектом").toEqual({
