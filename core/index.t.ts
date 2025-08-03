@@ -5,7 +5,7 @@
  */
 import type { ContextSchema } from "./context"
 import type { ContextSnapshot, ContextTypes } from "./context/index.t"
-import type { ProcessesConfig, ProcessesDeclaration } from "./proc/index.t"
+import type { Processes, ProcessesDeclaration } from "./proc/index.t"
 import type { SnapshotProcesses } from "./proc/parser.t"
 import type { Reactions } from "./react"
 import type { ReactionsDeclaration, SnapshotReactions } from "./react/index.t"

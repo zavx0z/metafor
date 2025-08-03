@@ -291,7 +291,7 @@ export type Process<C extends ContextSchema, I extends Core, Res = any> = {
 }
 
 /**
- * Конфигурация процессов автомата.
+ * Процессы.
  *
  * Объект, где ключи - имена процессов, а значения - их конфигурации.
  *
@@ -326,6 +326,6 @@ export type Process<C extends ContextSchema, I extends Core, Res = any> = {
  * }
  * ```
  */
-export type ProcessesConfig<C extends ContextSchema, S extends string, I extends Core, Res = any> = Partial<
+export type Processes<C extends ContextSchema, S extends string, I extends Core, Res = any> = Partial<
   Record<S, Process<C, I, Res>>
 >

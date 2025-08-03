@@ -59,7 +59,7 @@ import { Context } from "./context/index.ts"
 import type { ContextSchema, ContextInstance, ExtractValues } from "./context/index.ts"
 import { checkTransitionConditions, type StatesConfig } from "./state/index.ts"
 import { createActionsConfig } from "./proc/index.ts"
-import type { ProcessesDeclaration, Process, ProcessesConfig } from "./proc/index.t.ts"
+import type { ProcessesDeclaration, Process, Processes } from "./proc/index.t.ts"
 import type { Core, CreateMetaForParams, Snapshot } from "./index.t.ts"
 import type { ViewConfig } from "./view/index.t.ts"
 import {
@@ -248,12 +248,13 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
 }: CreateMetaForParams<C, S, I>) =>
   class extends HTMLElement {
     #context: ContextInstance<C>
+    #states: StatesConfig<S, C>
+    #core: I
+    #processes: Processes<C, S, I>
+    #reactions: Reactions<C, S, I>
+
     #shadow: ShadowRoot
     #channel: BroadcastChannel | null = null
-    #transitions = states
-    #actions: ProcessesConfig<C, S, I>
-    #reactions: Reactions<C, S, I>
-    #core: I = {} as I
     /** ------------state-------------------------------- */
     #state: S = Object.keys(states)[0] as S
     #setState(state: S) {
@@ -286,10 +287,13 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
     constructor() {
       super()
       this.#shadow = this.attachShadow({ mode: "closed" })
+      
       this.#context = new Context(schema)
-      this.#actions = createActionsConfig(processes)
-      this.#reactions = new Reactions(reactions)
+      this.#states = states
       this.#core = core
+      this.#processes = createActionsConfig(processes)
+      this.#reactions = new Reactions(reactions)
+
       view?.style?.({
         css: (strings, ...values) => {
           const sheet = new CSSStyleSheet()
@@ -314,9 +318,9 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
         this.addEventListener("channel", this.#reactionHandler)
       }
       this.#sendEvent(initMessage(tag, this.getSnapshot()))
-      const transition = this.#transitions[this.#state]
+      const transition = this.#states[this.#state]
       if (transition) {
-        const process = this.#actions[this.#state]
+        const process = this.#processes[this.#state]
         if (process) {
           this.#setProcess(true)
           this.#executeAction(process)
@@ -403,11 +407,11 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
      * - отправляет сообщение состояния если нет процесса (MSG)
      */
     #transition = () => {
-      const transition = this.#transitions[this.#state]
+      const transition = this.#states[this.#state]
       if (!transition) return
       for (const [state, conditions] of Object.entries(transition)) {
         if (checkTransitionConditions(conditions, this.#context.getSnapshot())) {
-          const process = this.#actions[state as S]
+          const process = this.#processes[state as S]
           if (this.#process) return
           if (process) {
             this.#setProcess(true)
@@ -472,10 +476,10 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
       }
       const snapshot: Snapshot<C, S> = {
         state: this.#state,
-        states: this.#transitions,
+        states: this.#states,
         context,
       }
-      if (Object.keys(this.#actions).length > 0) snapshot["processes"] = getSnapshotProcesses(processes)
+      if (Object.keys(this.#processes).length > 0) snapshot["processes"] = getSnapshotProcesses(processes)
       if (this.#reactions.hasReactions()) snapshot["reactions"] = this.#reactions.toSnapshot()
       if (view?.render) snapshot["view"] = extractTemplateLiteral(view.render)
       if (view?.style) snapshot["style"] = extractCSSTemplateLiteral(view.style)

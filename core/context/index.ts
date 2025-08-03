@@ -10,44 +10,49 @@ import type { ExtractValues, UpdateValues, ContextInstance, SerializedSchema, Up
 export { types }
 export type { ContextSchema, SerializedSchema, ExtractValues, UpdateValues, ContextInstance, Update, OnUpdate }
 
-/**
- * Класс для работы с типизированными контекстами.
- * Позволяет создавать, читать, обновлять и клонировать контекст на основе схемы.
- *
- * @typeParam T - Схема контекста (ContextSchema)
- *
- * @example
- * const schema = {name: types.string.required()}
- * const ctx = new Context(schema)
- * ctx.context // доступ к значениям
- * ctx.update({name: 'Новое имя'})
- */
-export class Context<C extends ContextSchema> implements ContextInstance<C> {
+/** Базовый класс контекста */
+export abstract class ContextBase<C extends ContextSchema> implements ContextInstance<C> {
   /** @internal */
-  private contextData: ExtractValues<C>
+  protected contextData!: ExtractValues<C>
   /** @internal */
-  private immutableContext: ExtractValues<C> & { _title: Record<keyof C, string> }
+  protected immutableContext!: ExtractValues<C> & { _title: Record<keyof C, string> }
   /** @internal */
-  private schemaDefinition: C
-  private updateSubscribers: Array<(updated: Partial<ExtractValues<C>>) => void> = []
+  protected schemaDefinition!: C
+  protected updateSubscribers: Array<(updated: Partial<ExtractValues<C>>) => void> = []
 
   /**
-   * Создает новый экземпляр контекста на основе схемы.
-   * @param schema - Схема контекста
+   * Создает иммутабельный (только для чтения) прокси-объект для доступа к значениям контекста.
+   * @returns Иммутабельный объект контекста
    */
-  constructor(schemaDefinition: (types: ContextTypes) => C) {
-    const schema = schemaDefinition(types)
-    this.schemaDefinition = schema
-    this.contextData = {} as ExtractValues<C>
-    this.initializeContext(this.schemaDefinition)
-    this.immutableContext = this.createImmutableContext()
+  protected createImmutableContext(): ExtractValues<C> & { _title: Record<keyof C, string> } {
+    const titleData: Record<keyof C, string> = {} as Record<keyof C, string>
+
+    // Инициализируем метаданные: если title не указан — всегда пустая строка
+    for (const key in this.schema) {
+      const definition = this.schema[key]
+      titleData[key] = definition && "title" in definition && definition.title ? definition.title : ""
+    }
+
+    const immutableContext = new Proxy({} as ExtractValues<C> & { _title: Record<keyof C, string> }, {
+      get: (_, prop) => {
+        if (prop === "_title") {
+          return titleData
+        }
+        return (this.contextData as any)[prop]
+      },
+      set: (_, prop) => {
+        throw new Error("Прямое изменение контекста запрещено")
+      },
+    })
+
+    return immutableContext
   }
 
   /**
    * Инициализирует значения контекста по умолчанию согласно схеме.
    * @param schema - Схема контекста
    */
-  private initializeContext(schema: C): void {
+  protected initializeContext(schema: C): void {
     for (const key in schema) {
       const definition = schema[key]
       if (!definition) continue
@@ -78,88 +83,50 @@ export class Context<C extends ContextSchema> implements ContextInstance<C> {
   }
 
   /**
-   * Создает иммутабельный (только для чтения) прокси-объект для доступа к значениям контекста.
+   * Геттер для доступа к иммутабельному контексту.
    * @returns Иммутабельный объект контекста
-   */
-  private createImmutableContext(): ExtractValues<C> & { _title: Record<keyof C, string> } {
-    const titleData: Record<keyof C, string> = {} as Record<keyof C, string>
-
-    // Инициализируем метаданные: если title не указан — всегда пустая строка
-    for (const key in this.schema) {
-      const definition = this.schema[key]
-      titleData[key] = definition && "title" in definition && definition.title ? definition.title : ""
-    }
-
-    const immutableContext = new Proxy({} as ExtractValues<C> & { _title: Record<keyof C, string> }, {
-      get: (_, prop) => {
-        if (prop === "_title") {
-          return titleData
-        }
-        return (this.contextData as any)[prop]
-      },
-      set: (_, prop) => {
-        throw new Error(
-          `Прямое изменение контекста запрещено. Используйте метод update() для изменения значений. Попытка изменить: ${String(
-            prop
-          )}`
-        )
-      },
-      deleteProperty: (_, prop) => {
-        throw new Error(`Удаление свойств контекста запрещено. Попытка удалить: ${String(prop)}`)
-      },
-    })
-
-    Object.freeze(immutableContext)
-    return immutableContext
-  }
-
-  /**
-   * Текущее состояние контекста (только для чтения).
-   * @readonly
    */
   get context(): ExtractValues<C> & { _title: Record<keyof C, string> } {
     return this.immutableContext
   }
 
   /**
-   * Схема контекста (только для чтения).
-   * @readonly
+   * Геттер для доступа к схеме контекста.
+   * @returns Схема контекста
    */
   get schema(): Record<keyof C, any> {
-    const result: Record<keyof C, any> = {} as Record<keyof C, any>
+    const serializedSchema: Record<keyof C, any> = {} as Record<keyof C, any>
 
-    for (const key in this.schemaDefinition) {
-      const definition = this.schemaDefinition[key]
-      if (!definition) continue
-
-      // Извлекаем базовые свойства из определения типа
-      const baseProps = {
+    for (const [key, definition] of Object.entries(this.schemaDefinition)) {
+      const serializedDefinition: any = {
         type: definition.type,
         required: definition.required,
-        default: definition.default,
       }
 
-      // Добавляем дополнительные свойства если они есть
+      if ("default" in definition && definition.default !== undefined) {
+        serializedDefinition.default = definition.default
+      }
+
       if ("title" in definition && definition.title) {
-        ;(baseProps as any).title = definition.title
+        serializedDefinition.title = definition.title
       }
 
       if ("values" in definition && definition.values) {
-        ;(baseProps as any).values = definition.values
+        serializedDefinition.values = definition.values
       }
 
-      result[key] = baseProps
+      ;(serializedSchema as any)[key] = serializedDefinition
     }
 
-    return result
+    return serializedSchema
   }
 
   /**
-   * Обновляет значения в контексте.
-   * Только переданные значения будут обновлены, остальные останутся без изменений.
+   * Обновляет значения контекста.
+   * Игнорирует undefined значения и возвращает только обновленные поля.
    *
    * @param values - Объект с новыми значениями
-   * @returns Объект только с обновленными параметрами
+   * @returns Объект с обновленными полями
    *
    * @example
    * context.update({name: 'Новое имя', age: 30})
@@ -169,42 +136,137 @@ export class Context<C extends ContextSchema> implements ContextInstance<C> {
       Object.entries(values).filter(([_, value]) => value !== undefined)
     ) as Partial<ExtractValues<C>>
 
-    const updatedValues: Partial<ExtractValues<C>> = {}
+    const updated: Partial<ExtractValues<C>> = {}
 
     for (const [key, value] of Object.entries(filteredValues)) {
-      const currentValue = (this.contextData as any)[key]
-      if (value === null) {
-        if (currentValue !== null) {
-          updatedValues[key as keyof ExtractValues<C>] = value
-        }
-      } else {
-        if (currentValue !== value) {
-          updatedValues[key as keyof ExtractValues<C>] = value
+      if (key in this.contextData) {
+        // Проверяем, изменилось ли значение
+        if (this.contextData[key as keyof ExtractValues<C>] !== value) {
+          ;(this.contextData as any)[key] = value
+          ;(updated as any)[key] = value
         }
       }
     }
 
-    if (Object.keys(updatedValues).length > 0) {
-      Object.assign(this.contextData, updatedValues)
-      for (const cb of this.updateSubscribers) {
-        try {
-          cb(updatedValues)
-        } catch {}
-      }
-    }
+    // Уведомляем подписчиков об изменениях
+    this.updateSubscribers.forEach((callback) => callback(updated))
 
-    return updatedValues
+    return updated
   }
 
+  /**
+   * Подписывается на обновления контекста.
+   * @param callback - Функция обратного вызова
+   * @returns Функция для отписки
+   */
   onUpdate(callback: (updated: Partial<ExtractValues<C>>) => void): () => void {
     this.updateSubscribers.push(callback)
     return () => {
-      const idx = this.updateSubscribers.indexOf(callback)
-      if (idx !== -1) this.updateSubscribers.splice(idx, 1)
+      const index = this.updateSubscribers.indexOf(callback)
+      if (index > -1) {
+        this.updateSubscribers.splice(index, 1)
+      }
     }
   }
 
+  /**
+   * Возвращает снимок текущего состояния контекста.
+   * @returns Снимок контекста
+   */
   getSnapshot(): ExtractValues<C> {
     return Object.freeze({ ...this.contextData })
+  }
+}
+
+/**
+ * Класс для работы с типизированными контекстами.
+ * Позволяет создавать, читать, обновлять и клонировать контекст на основе схемы.
+ *
+ * @typeParam T - Схема контекста (ContextSchema)
+ *
+ * @example
+ * const ctx = new Context(types => ({name: types.string.required()}))
+ * ctx.context // доступ к значениям
+ * ctx.update({name: 'Новое имя'})
+ */
+export class Context<C extends ContextSchema> extends ContextBase<C> {
+  constructor(schemaDefinition: (types: ContextTypes) => C) {
+    super()
+    const schema = schemaDefinition(types)
+    this.schemaDefinition = schema
+    this.contextData = {} as ExtractValues<C>
+    this.initializeContext(this.schemaDefinition)
+    this.immutableContext = this.createImmutableContext()
+  }
+
+  /**
+   * Создает снимок контекста для сериализации.
+   * @returns Сериализованный снимок контекста
+   */
+  toSnapshot(): SerializedSchema<C> {
+    const serializedSchema: SerializedSchema<C> = {} as SerializedSchema<C>
+
+    for (const [key, definition] of Object.entries(this.schemaDefinition)) {
+      const serializedDefinition: any = {
+        type: definition.type,
+        required: definition.required,
+      }
+
+      if ("default" in definition && definition.default !== undefined) {
+        serializedDefinition.default = definition.default
+      }
+
+      if ("title" in definition && definition.title) {
+        serializedDefinition.title = definition.title
+      }
+
+      if ("values" in definition && definition.values) {
+        serializedDefinition.values = definition.values
+      }
+
+      ;(serializedSchema as any)[key] = serializedDefinition
+    }
+
+    return serializedSchema
+  }
+}
+
+/**
+ * Клонированный контекст, созданный из снимка.
+ * Позволяет восстанавливать контекст из сериализованного состояния.
+ *
+ * @typeParam C - Схема контекста (ContextSchema)
+ */
+export class ContextClone<C extends ContextSchema> extends ContextBase<C> {
+  constructor() {
+    super()
+  }
+
+  /**
+   * Создает контекст из снимка.
+   * @param snapshot - Сериализованный снимок контекста
+   * @returns Экземпляр ContextClone
+   */
+  static fromSnapshot<C extends ContextSchema>(snapshot: SerializedSchema<C>): ContextClone<C> {
+    const contextClone = new ContextClone<C>()
+
+    // Восстанавливаем схему из снимка
+    contextClone.schemaDefinition = snapshot as C
+
+    // Инициализируем пустые данные
+    contextClone.contextData = {} as ExtractValues<C>
+    contextClone.initializeContext(contextClone.schemaDefinition)
+    contextClone.immutableContext = contextClone.createImmutableContext()
+
+    return contextClone
+  }
+
+  /**
+   * Восстанавливает данные контекста из снимка значений.
+   * @param values - Снимок значений контекста
+   */
+  restoreValues(values: ExtractValues<C>): void {
+    this.contextData = { ...values }
+    this.immutableContext = this.createImmutableContext()
   }
 }
