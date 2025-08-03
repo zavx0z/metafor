@@ -1,4 +1,4 @@
-import { ReactionRegistryOrigin } from "../index"
+import { Reactions } from "../index"
 import type { Update, ExtractValues } from "../../context/index.t"
 import { describe, it, expect } from "bun:test"
 import type { JsonPatch } from "../../message"
@@ -13,7 +13,7 @@ describe("Фильтрация по тегу (tag)", () => {
 
   it("простое сравнение строки", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+    const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -36,7 +36,7 @@ describe("Фильтрация по тегу (tag)", () => {
 
   it("не срабатывает при несовпадении", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+    const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -59,7 +59,7 @@ describe("Фильтрация по тегу (tag)", () => {
 
   it("регулярное выражение", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+    const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -82,7 +82,7 @@ describe("Фильтрация по тегу (tag)", () => {
 
   it("условие eq", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+    const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -105,7 +105,7 @@ describe("Фильтрация по тегу (tag)", () => {
 
   it("условие notEq", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+    const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -128,7 +128,7 @@ describe("Фильтрация по тегу (tag)", () => {
 
   it("условие startsWith", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+    const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -151,7 +151,7 @@ describe("Фильтрация по тегу (tag)", () => {
 
   it("условие endsWith", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+    const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -174,7 +174,7 @@ describe("Фильтрация по тегу (tag)", () => {
 
   it("условие include", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+    const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -197,7 +197,7 @@ describe("Фильтрация по тегу (tag)", () => {
 
   it("условие notInclude", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+    const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -220,7 +220,7 @@ describe("Фильтрация по тегу (tag)", () => {
 
   it("условие notStartsWith", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+    const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -243,7 +243,7 @@ describe("Фильтрация по тегу (tag)", () => {
 
   it("условие notEndsWith", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+    const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -266,7 +266,7 @@ describe("Фильтрация по тегу (tag)", () => {
 
   it("условие pattern (regex)", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+    const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -289,7 +289,7 @@ describe("Фильтрация по тегу (tag)", () => {
 
   it("условие length (число)", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+    const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -312,7 +312,7 @@ describe("Фильтрация по тегу (tag)", () => {
 
   it("условие length (объект с min/max)", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+    const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -335,7 +335,7 @@ describe("Фильтрация по тегу (tag)", () => {
 
   it("условие between", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+    const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -358,7 +358,7 @@ describe("Фильтрация по тегу (tag)", () => {
 
   it("комбинированные условия", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+    const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })

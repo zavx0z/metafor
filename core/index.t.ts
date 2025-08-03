@@ -7,8 +7,8 @@ import type { ContextSchema } from "./context"
 import type { ContextSnapshot } from "./context/index.t"
 import type { ProcessesConfig, ProcessesDeclaration } from "./proc/index.t"
 import type { SnapshotProcesses } from "./proc/parser.t"
-import type { ReactionRegistryOrigin } from "./react"
-import type { SnapshotReactions } from "./react/index.t"
+import type { Reactions } from "./react"
+import type { ReactionsDeclaration, SnapshotReactions } from "./react/index.t"
 import type { StatesConfig } from "./state"
 import type { ViewConfig } from "./view/index.t"
 
@@ -50,7 +50,7 @@ export type CreateMetaForParams<C extends ContextSchema, S extends string, I ext
   schema: C
   states: StatesConfig<S, C>
   core: I
-  processesDeclaration: ProcessesDeclaration<C, S, I>
-  reactions: ReactionRegistryOrigin<C, S, I>
+  processes: ProcessesDeclaration<C, S, I>
+  reactions: ReactionsDeclaration<C, S, I>
   view: ViewConfig<C, S, I> | undefined
 }

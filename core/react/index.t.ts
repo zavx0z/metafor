@@ -115,7 +115,7 @@ export type Reaction<C extends ContextSchema, S extends string, I extends Core> 
  * ]
  * ```
  */
-export type ReactionsChain<C extends ContextSchema, S extends string, I extends Core> = (
+export type ReactionsDeclaration<C extends ContextSchema, S extends string, I extends Core> = (
   reaction: (config?: {
     /** Название реакции */
     title?: string

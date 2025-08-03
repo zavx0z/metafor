@@ -5,7 +5,7 @@
 import type { ContextSchema, ExtractValues, Update } from "../context/index.t"
 import type { Core } from "../index.t"
 import type { JsonPatch, MetaDataMessage } from "../message"
-import type { ReactionsChain, ReactionUpdate, Reaction, SnapshotReactions, ReactionMetadata } from "./index.t"
+import type { ReactionsDeclaration, ReactionUpdate, Reaction, SnapshotReactions, ReactionMetadata } from "./index.t"
 import type { ReactionFilterConditions } from "./condition.t"
 import { createFilterFn } from "./condition"
 
@@ -53,7 +53,7 @@ function extractFields<C extends ContextSchema, S extends string, I extends Core
 }
 
 /** Базовый класс реестра реакций */
-export abstract class ReactionRegistry<C extends ContextSchema, S extends string, I extends Core = {}> {
+export abstract class ReactionsBase<C extends ContextSchema, S extends string, I extends Core = {}> {
   protected reactionsById: Map<string, Reaction<C, S, I>> = new Map()
   protected stateToReactionIds: Map<S, string[]> = new Map()
   protected reactionMetadata: Map<string, ReactionMetadata> = new Map()
@@ -94,14 +94,10 @@ export abstract class ReactionRegistry<C extends ContextSchema, S extends string
 }
 
 /** Оригинальный реестр реакций с методом toSnapshot */
-export class ReactionRegistryOrigin<
-  C extends ContextSchema,
-  S extends string,
-  I extends Core = {}
-> extends ReactionRegistry<C, S, I> {
+export class Reactions<C extends ContextSchema, S extends string, I extends Core = {}> extends ReactionsBase<C, S, I> {
   private reactionAutoId = 0
 
-  constructor(builder: ReactionsChain<C, S, I>) {
+  constructor(builder: ReactionsDeclaration<C, S, I>) {
     super()
 
     const chainResult = builder((config?: { title?: string; description?: string }) => ({
@@ -188,11 +184,11 @@ export class ReactionRegistryOrigin<
 }
 
 /** Клонированный реестр реакций с методом fromSnapshot */
-export class ReactionRegistryClone<
-  C extends ContextSchema,
-  S extends string,
-  I extends Core = {}
-> extends ReactionRegistry<C, S, I> {
+export class ReactionsClone<C extends ContextSchema, S extends string, I extends Core = {}> extends ReactionsBase<
+  C,
+  S,
+  I
+> {
   constructor() {
     super()
   }
@@ -200,8 +196,8 @@ export class ReactionRegistryClone<
   /** Создание из снимка */
   static fromSnapshot<C extends ContextSchema, S extends string, I extends Core = {}>(
     snapshot: SnapshotReactions
-  ): ReactionRegistryClone<C, S, I> {
-    const registry = new ReactionRegistryClone<C, S, I>()
+  ): ReactionsClone<C, S, I> {
+    const registry = new ReactionsClone<C, S, I>()
 
     // Восстанавливаем реакции из снимка
     for (const [id, reactionData] of Object.entries(snapshot.reactions)) {

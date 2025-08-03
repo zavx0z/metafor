@@ -1,4 +1,4 @@
-import { ReactionRegistryOrigin } from "../index"
+import { Reactions } from "../index"
 import { test, expect } from "bun:test"
 
 type Ctx = {
@@ -10,7 +10,7 @@ type Ctx = {
 type State = "idle" | "active" | "error"
 
 test("Создание уникальных реакций", () => {
-  const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
+  const registry = new Reactions<Ctx, State>((reaction) => [
     [
       ["idle", "active"],
       reaction({ title: "inc" })

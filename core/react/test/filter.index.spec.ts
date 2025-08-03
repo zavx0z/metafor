@@ -1,4 +1,4 @@
-import { ReactionRegistryOrigin } from "../index"
+import { Reactions } from "../index"
 import type { Update, ExtractValues } from "../../context/index.t"
 import { describe, it, expect } from "bun:test"
 import type { JsonPatch } from "../../message"
@@ -13,7 +13,7 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("простое сравнение числа", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -36,7 +36,7 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("не срабатывает при несовпадении", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -59,7 +59,7 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие eq", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -82,7 +82,7 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие notEq", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -105,7 +105,7 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие gt (больше)", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -128,7 +128,7 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие gte (больше или равно)", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -151,7 +151,7 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие lt (меньше)", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -174,7 +174,7 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие lte (меньше или равно)", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -197,7 +197,7 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие notGt (не больше)", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -220,7 +220,7 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие notGte (не больше или равно)", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -243,7 +243,7 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие notLt (не меньше)", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -266,7 +266,7 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие notLte (не меньше или равно)", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -289,7 +289,7 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие between", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -312,7 +312,7 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("комбинированные условия", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -341,7 +341,7 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("обработка undefined значения", () => {
     let called = false
-    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })

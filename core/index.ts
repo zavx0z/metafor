@@ -76,8 +76,8 @@ import { repeat } from "./html/directives/repeat.ts"
 import { when } from "./html/directives/when.ts"
 import { map } from "./html/directives/map.ts"
 import { styleMap } from "./html/directives/style-map.ts"
-import { ReactionRegistryOrigin } from "./react/index"
-import type { ReactionsChain } from "./react/index.t.ts"
+import { Reactions } from "./react/index"
+import type { ReactionsDeclaration } from "./react/index.t.ts"
 import type { ContextTypes } from "./context/types.t.ts"
 import { choose } from "./html/directives/choose.ts"
 import { createRef } from "./html/directives/ref.ts"
@@ -214,8 +214,7 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                      * // Вместо этого используйте процессы и их success/error обработчики
                      * ```
                      */
-                    reactions(reaction: ReactionsChain<C, S, I> = () => []) {
-                      const reactionsRegistry: ReactionRegistryOrigin<C, S, I> = new ReactionRegistryOrigin(reaction)
+                    reactions(reaction: ReactionsDeclaration<C, S, I> = () => []) {
                       return {
                         view(view?: ViewConfig<C, S, I>) {
                           if (!customElements.get(tagName))
@@ -227,8 +226,8 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                                 schema: contextSchema,
                                 states,
                                 core,
-                                processesDeclaration: process,
-                                reactions: reactionsRegistry,
+                                processes: process,
+                                reactions: reaction,
                                 view,
                               })
                             )
@@ -253,12 +252,10 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
   schema,
   states,
   core,
-  processesDeclaration,
+  processes,
   reactions,
   view,
 }: CreateMetaForParams<C, S, I>) => {
-  const processesRegistry = createActionsConfig<C, S, I>(processesDeclaration)
-
   /** WebComponent - конечный автомат */
   return class extends HTMLElement {
     #ctx: ContextInstance<C>
@@ -266,7 +263,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
     #channel: BroadcastChannel | null = null
     #transitions = states
     #actions: ProcessesConfig<C, S, I>
-    #reactions: ReactionRegistryOrigin<C, S, I>
+    #reactions: Reactions<C, S, I>
     #core: I = {} as I
     /** ------------state-------------------------------- */
     #state: S = Object.keys(states)[0] as S
@@ -301,8 +298,8 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
       super()
       this.#shadow = this.attachShadow({ mode: "closed" })
       this.#ctx = createContext(schema)
-      this.#actions = processesRegistry
-      this.#reactions = reactions
+      this.#actions = createActionsConfig(processes)
+      this.#reactions = new Reactions(reactions)
       this.#core = core
       view?.style?.({
         css: (strings, ...values) => {
@@ -489,7 +486,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
         states: this.#transitions,
         context,
       }
-      if (Object.keys(this.#actions).length > 0) snapshot["processes"] = getSnapshotProcesses(processesDeclaration)
+      if (Object.keys(this.#actions).length > 0) snapshot["processes"] = getSnapshotProcesses(processes)
       if (this.#reactions.hasReactions()) snapshot["reactions"] = this.#reactions.toSnapshot()
       if (view?.render) snapshot["view"] = extractTemplateLiteral(view.render)
       if (view?.style) snapshot["style"] = extractCSSTemplateLiteral(view.style)

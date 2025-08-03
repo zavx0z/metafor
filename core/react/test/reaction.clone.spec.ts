@@ -1,4 +1,4 @@
-import { ReactionRegistryOrigin, ReactionRegistryClone } from "../index"
+import { Reactions, ReactionsClone } from "../index"
 import type { Update, ExtractValues } from "../../context/index.t"
 import { describe, it, expect } from "bun:test"
 import type { JsonPatch } from "../../message"
@@ -13,7 +13,7 @@ describe("ReactionRegistryClone", () => {
 
   it("создание из снимка", () => {
     // Создаем оригинальный реестр
-    const originalRegistry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
+    const originalRegistry = new Reactions<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test_reaction" })
@@ -32,7 +32,7 @@ describe("ReactionRegistryClone", () => {
     const snapshot = originalRegistry.toSnapshot()
 
     // Создаем клон из снимка
-    const clonedRegistry = ReactionRegistryClone.fromSnapshot<Ctx, State, {}>(snapshot)
+    const clonedRegistry = ReactionsClone.fromSnapshot<Ctx, State, {}>(snapshot)
 
     // Проверяем, что структура сохранена
     expect(clonedRegistry.hasReactions(), "клон должен содержать реакции").toBe(true)
@@ -55,10 +55,10 @@ describe("ReactionRegistryClone", () => {
     // Проверяем, что реакции не выполняются (заглушки)
     let called = false
     const testUpdate = () => (called = true)
-    
+
     // Заменяем заглушку на реальную функцию для тестирования
     reactions[0]!.update = testUpdate
-    
+
     clonedRegistry.run({
       state: "idle",
       context: fakeContext,
@@ -74,7 +74,7 @@ describe("ReactionRegistryClone", () => {
 
   it("пустой снимок", () => {
     const emptySnapshot = { reactions: {}, states: {} }
-    const clonedRegistry = ReactionRegistryClone.fromSnapshot<Ctx, State, {}>(emptySnapshot)
+    const clonedRegistry = ReactionsClone.fromSnapshot<Ctx, State, {}>(emptySnapshot)
 
     expect(clonedRegistry.hasReactions(), "пустой клон не должен содержать реакции").toBe(false)
     expect(clonedRegistry.getAllReactions().length, "количество реакций должно быть 0").toBe(0)
@@ -83,7 +83,7 @@ describe("ReactionRegistryClone", () => {
   it("снимок с метаданными", () => {
     const snapshotWithMetadata = {
       reactions: {
-        "reaction_1": {
+        reaction_1: {
           title: "test",
           desc: "description",
           cond: { tag: "test" },
@@ -92,14 +92,14 @@ describe("ReactionRegistryClone", () => {
         },
       },
       states: {
-        "idle": ["reaction_1"],
+        idle: ["reaction_1"],
       },
     }
 
-    const clonedRegistry = ReactionRegistryClone.fromSnapshot<Ctx, State, {}>(snapshotWithMetadata)
+    const clonedRegistry = ReactionsClone.fromSnapshot<Ctx, State, {}>(snapshotWithMetadata)
 
     expect(clonedRegistry.hasReactions(), "клон должен содержать реакции").toBe(true)
-    
+
     const reactions = clonedRegistry.getAllReactions()
     expect(reactions[0]!.title, "название должно сохраниться").toBe("test")
     expect(reactions[0]!.description, "описание должно сохраниться").toBe("description")
@@ -109,4 +109,4 @@ describe("ReactionRegistryClone", () => {
     expect(idleReactions.length, "должна быть одна реакция для idle").toBe(1)
     expect(idleReactions[0]!.title, "реакция должна быть правильной").toBe("test")
   })
-}) 
+})
