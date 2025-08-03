@@ -4,85 +4,141 @@
  */
 
 import type { ContextSchema, ExtractValues } from "../context"
-import type { ActionChain, ProcessesDeclaration, Process, ProcessChain, ActionParams, Processes } from "./index.t"
+import type {
+  ActionChain,
+  ProcessesDeclaration,
+  Process,
+  ProcessChain,
+  ActionParams,
+  Processes as ProcessesType,
+} from "./index.t"
 import type { Core } from "../../core/index.t"
+import { getSnapshotProcesses } from "./parser.ts"
 
 /**
- * Вспомогательная функция для декларации actionsConfig автомата через builder и chain API.
- * Гарантирует строгую типизацию и удобный API.
+ * Класс для работы с процессами.
+ * Позволяет создавать, управлять и выполнять процессы на основе схемы.
  *
- * @template C - схема контекста автомата
- * @template S - строковые ключи состояний/процессов
- * @param actions - функция, принимающая process chain API и возвращающая объект процессов
- * @returns объект actionsConfig для автомата (ключи — имена процессов, значения — объекты с action, success, error, title, description)
+ * @typeParam C - Схема контекста
+ * @typeParam S - Строковые ключи состояний/процессов
+ * @typeParam I - Тип ядра
  *
  * @example
- * const config = createActionsConfig((process) => ({
- *   anonymous: process({ title: "anonymous_process", description: "Процесс для анонимного пользователя" })
- *     .action(({ context }) => ({ name: "User", age: 18 }))
- *     .success(({ update, data }) => update({ name: data.name }))
- *     .error(({ update, error }) => update({ name: error.message })),
- *   loading: process()
- *     .action(({ context }) => ({ name: context.name }))
- *     .error(({ update, error }) => update({ name: error.message })),
- * }))
+ * const processes = new Processes(processesDeclaration)
+ * processes.getProcess("login") // получение процесса
+ * processes.hasProcess("login") // проверка наличия процесса
  */
-export function createActionsConfig<C extends ContextSchema, S extends string, I extends Core = {}>(
-  actions: ProcessesDeclaration<C, S, I>
-): Processes<C, S, I> {
+export class Processes<C extends ContextSchema, S extends string, I extends Core = {}> {
+  private processes: ProcessesType<C, S, I>
+  private processesDeclaration: ProcessesDeclaration<C, S, I>
+
+  constructor(processesDeclaration: ProcessesDeclaration<C, S, I>) {
+    this.processesDeclaration = processesDeclaration
+    /**
+     * Фабрика для создания process chain-объекта для каждого процесса.
+     * Каждый вызов process возвращает chain API с методами action, success, error, getResult.
+     */
+    function process(config?: { title?: string; description?: string }): ProcessChain<C, I> {
+      return {
+        action: <Res>(fn: (params: ActionParams<C, I>) => Res | Promise<Res>): ActionChain<C, I, Res> => {
+          // Храним текущие success/error handler'ы (последний вызов перезаписывает предыдущий)
+          let successHandler:
+            | ((params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void)
+            | undefined
+          let errorHandler:
+            | ((params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void)
+            | undefined
+          // Chain API: каждый метод возвращает тот же объект, чтобы можно было строить цепочку
+          const chain: ActionChain<C, I, Res> = {
+            // Основная функция процесса
+            action: fn,
+            // Добавляет/перезаписывает success handler
+            success(handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void) {
+              successHandler = handler
+              return chain
+            },
+            // Добавляет/перезаписывает error handler
+            error(handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void) {
+              errorHandler = handler
+              return chain
+            },
+            // Собирает итоговый объект: только те обработчики, которые были явно заданы
+            getResult() {
+              const result: Process<C, I, Res> = {
+                action: (params) => fn({ context: params.context, core: params.core, element: params.element }),
+              }
+              if (successHandler) result.success = successHandler
+              if (errorHandler) result.error = errorHandler
+              if (config?.title) result.title = config.title
+              if (config?.description) result.description = config.description
+              return result
+            },
+          }
+          return chain
+        },
+      }
+    }
+
+    // Вызываем builder, передавая фабрику process. На выходе получаем объект, где значения — chain-объекты.
+    const raw = processesDeclaration(process)
+    // Для каждого ключа вызываем getResult, чтобы получить финальный объект с action, success, error, title, description.
+    const result: ProcessesType<C, S, I> = {} as ProcessesType<C, S, I>
+    for (const key in raw) {
+      if (raw[key]) {
+        result[key] = raw[key]!.getResult()
+      }
+    }
+    // Возвращаем actionsConfig: ключи — имена процессов, значения — объекты с action, success, error, title, description
+    this.processes = result
+  }
+
   /**
-   * Фабрика для создания process chain-объекта для каждого процесса.
-   * Каждый вызов process возвращает chain API с методами action, success, error, getResult.
+   * Получает процесс по имени
+   * @param name - имя процесса
+   * @returns процесс или undefined
    */
-  function process(config?: { title?: string; description?: string }): ProcessChain<C, I> {
-    return {
-      action: <Res>(fn: (params: ActionParams<C, I>) => Res | Promise<Res>): ActionChain<C, I, Res> => {
-        // Храним текущие success/error handler'ы (последний вызов перезаписывает предыдущий)
-        let successHandler:
-          | ((params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void)
-          | undefined
-        let errorHandler:
-          | ((params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void)
-          | undefined
-        // Chain API: каждый метод возвращает тот же объект, чтобы можно было строить цепочку
-        const chain: ActionChain<C, I, Res> = {
-          // Основная функция процесса
-          action: fn,
-          // Добавляет/перезаписывает success handler
-          success(handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void) {
-            successHandler = handler
-            return chain
-          },
-          // Добавляет/перезаписывает error handler
-          error(handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void) {
-            errorHandler = handler
-            return chain
-          },
-          // Собирает итоговый объект: только те обработчики, которые были явно заданы
-          getResult() {
-            const result: Process<C, I, Res> = {
-              action: (params) => fn({ context: params.context, core: params.core, element: params.element }),
-            }
-            if (successHandler) result.success = successHandler
-            if (errorHandler) result.error = errorHandler
-            if (config?.title) result.title = config.title
-            if (config?.description) result.description = config.description
-            return result
-          },
-        }
-        return chain
-      },
-    }
+  getProcess(name: S): Process<C, I> | undefined {
+    return this.processes[name]
   }
-  // Вызываем builder, передавая фабрику process. На выходе получаем объект, где значения — chain-объекты.
-  const raw = actions(process)
-  // Для каждого ключа вызываем getResult, чтобы получить финальный объект с action, success, error, title, description.
-  const result: Processes<C, S, I> = {} as Processes<C, S, I>
-  for (const key in raw) {
-    if (raw[key]) {
-      result[key] = raw[key]!.getResult()
-    }
+
+  /**
+   * Проверяет наличие процесса
+   * @param name - имя процесса
+   * @returns true если процесс существует
+   */
+  hasProcess(name: S): boolean {
+    return name in this.processes
   }
-  // Возвращаем actionsConfig: ключи — имена процессов, значения — объекты с action, success, error, title, description
-  return result
+
+  /**
+   * Возвращает все процессы
+   * @returns объект со всеми процессами
+   */
+  getAllProcesses(): ProcessesType<C, S, I> {
+    return { ...this.processes }
+  }
+
+  /**
+   * Возвращает имена всех процессов
+   * @returns массив имен процессов
+   */
+  getProcessNames(): S[] {
+    return Object.keys(this.processes) as S[]
+  }
+
+  /**
+   * Создает снимок процессов для сериализации
+   * @returns сериализованный снимок процессов
+   */
+  toSnapshot(): Record<string, any> {
+    return getSnapshotProcesses(this.processesDeclaration)
+  }
+
+  /**
+   * Возвращает количество процессов
+   * @returns количество процессов
+   */
+  get size(): number {
+    return Object.keys(this.processes).length
+  }
 }

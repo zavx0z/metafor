@@ -58,8 +58,8 @@
 import { Context } from "./context/index.ts"
 import type { ContextSchema, ContextInstance, ExtractValues } from "./context/index.ts"
 import { checkTransitionConditions, type StatesConfig } from "./state/index.ts"
-import { createActionsConfig } from "./proc/index.ts"
-import type { ProcessesDeclaration, Process, Processes } from "./proc/index.t.ts"
+import { Processes } from "./proc/index.ts"
+import type { ProcessesDeclaration, Process, Processes as ProcessesType } from "./proc/index.t.ts"
 import type { Core, CreateMetaForParams, Snapshot } from "./index.t.ts"
 import type { ViewConfig } from "./view/index.t.ts"
 import {
@@ -287,11 +287,11 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
     constructor() {
       super()
       this.#shadow = this.attachShadow({ mode: "closed" })
-      
+
       this.#context = new Context(schema)
       this.#states = states
       this.#core = core
-      this.#processes = createActionsConfig(processes)
+      this.#processes = new Processes(processes)
       this.#reactions = new Reactions(reactions)
 
       view?.style?.({
@@ -320,7 +320,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
       this.#sendEvent(initMessage(tag, this.getSnapshot()))
       const transition = this.#states[this.#state]
       if (transition) {
-        const process = this.#processes[this.#state]
+        const process = this.#processes.getProcess(this.#state)
         if (process) {
           this.#setProcess(true)
           this.#executeAction(process)
@@ -411,7 +411,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
       if (!transition) return
       for (const [state, conditions] of Object.entries(transition)) {
         if (checkTransitionConditions(conditions, this.#context.getSnapshot())) {
-          const process = this.#processes[state as S]
+          const process = this.#processes.getProcess(state as S)
           if (this.#process) return
           if (process) {
             this.#setProcess(true)
@@ -479,7 +479,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
         states: this.#states,
         context,
       }
-      if (Object.keys(this.#processes).length > 0) snapshot["processes"] = getSnapshotProcesses(processes)
+      if (this.#processes.size > 0) snapshot["processes"] = this.#processes.toSnapshot()
       if (this.#reactions.hasReactions()) snapshot["reactions"] = this.#reactions.toSnapshot()
       if (view?.render) snapshot["view"] = extractTemplateLiteral(view.render)
       if (view?.style) snapshot["style"] = extractCSSTemplateLiteral(view.style)

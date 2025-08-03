@@ -1,11 +1,11 @@
 import { test, expect } from "bun:test"
-import { createActionsConfig } from "../index.ts"
+import { Processes } from "../index.ts"
 import { types } from "../../context"
 
 test("Строгая типизация действий", () => {
   const schema = { name: types.string.required("anon") }
   type S = typeof schema
-  const actions = createActionsConfig<S, "guest">((process) => ({
+  const processes = new Processes<S, "guest">((process) => ({
     guest: process()
       .action(({ context }) => context.name)
       .success(({ update, data }) => {
@@ -19,5 +19,7 @@ test("Строгая типизация действий", () => {
         update({ age: 42 })
       }),
   }))
-  expect(typeof actions.guest?.success).toBe("function")
-}) 
+
+  const guestProcess = processes.getProcess("guest")
+  expect(typeof guestProcess?.success).toBe("function")
+})

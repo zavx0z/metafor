@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import { createActionsConfig } from "../index.ts"
+import { Processes } from "../index.ts"
 import { types } from "../../context"
 
 test("Базовый chain API для действий", () => {
@@ -9,7 +9,7 @@ test("Базовый chain API для действий", () => {
   }
   type CtxSchema = typeof ctxSchema
 
-  const actions = createActionsConfig<CtxSchema, "guest" | "user">((process) => ({
+  const processes = new Processes<CtxSchema, "guest" | "user">((process) => ({
     guest: process()
       .action(({ context }) => ({ name: context.name, age: context.age + 1 }))
       .success(({ update, data }) => {
@@ -24,7 +24,10 @@ test("Базовый chain API для действий", () => {
     user: process().action(({ context }) => ({ name: context.name, age: context.age })),
   }))
 
-  expect(typeof actions.guest?.success, "Метод success должен быть функцией").toBe("function")
-  expect(typeof actions.guest?.error, "Метод error должен быть функцией").toBe("function")
-  expect(typeof actions.user?.action, "Метод action должен быть функцией").toBe("function")
-}) 
+  const guestProcess = processes.getProcess("guest")
+  const userProcess = processes.getProcess("user")
+
+  expect(typeof guestProcess?.success, "Метод success должен быть функцией").toBe("function")
+  expect(typeof guestProcess?.error, "Метод error должен быть функцией").toBe("function")
+  expect(typeof userProcess?.action, "Метод action должен быть функцией").toBe("function")
+})

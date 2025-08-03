@@ -1,12 +1,12 @@
 import { test, expect } from "bun:test"
-import { createActionsConfig } from "../index.ts"
+import { Processes } from "../index.ts"
 import { types } from "../../context"
 
 test("chain API — поддержка async action", async () => {
   const schema = { name: types.string.required("anon") }
   type S = typeof schema
 
-  const actions = createActionsConfig<S, "guest">((process) => ({
+  const processes = new Processes<S, "guest">((process) => ({
     guest: process()
       .action(async ({ context }) => {
         return context.name + "!async"
@@ -16,5 +16,7 @@ test("chain API — поддержка async action", async () => {
         update({ name: data })
       }),
   }))
-  expect(typeof actions.guest?.success, "Метод success должен быть функцией").toBe("function")
+
+  const guestProcess = processes.getProcess("guest")
+  expect(typeof guestProcess?.success, "Метод success должен быть функцией").toBe("function")
 })
