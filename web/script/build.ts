@@ -7,10 +7,12 @@ async function build(dev: boolean, distDir: string, entrypoint: string) {
     outdir: distDir,
     target: "browser",
     format: "esm",
-    sourcemap: dev ? "inline" : "none",
+    // sourcemap: dev ? "inline" : "none",
+    sourcemap: "none",
     splitting: false,
     minify: !dev,
     // external: [join(rootPath, "web", "console.js")],
+    external: ["spark-md5"],
     naming: "[dir]/[name].[ext]",
   })
 
