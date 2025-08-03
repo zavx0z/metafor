@@ -12,14 +12,12 @@
         ".venv": true,
         ".idea": true,
         ".firebase": true,
-        ".github": true,
-        ".vscode": true
+        ".github": true
     },
     "hide-files.files": [
         ".idea",
         ".firebase",
-        ".github",
-        ".vscode"
+        ".github"
     ],
     "explorer.fileNesting.enabled": true,
     "explorer.fileNesting.expand": false,
@@ -149,10 +147,12 @@
         ".github",
         "./html/tests/*",
         "./docs",
-        "./script"
+        "./script",
+        ".windsurf"
     ],
     "markdownlint.lintWorkspaceGlobs": [
         "!**/node_modules/**/*.md",
-        "!**/docs/**/*.md"
+        "!**/docs/**/*.md",
+        "!.windsurf/**/*.md"
     ]
 }

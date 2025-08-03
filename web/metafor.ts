@@ -42,25 +42,26 @@ export { ProcessesClone as Processes } from "../core/proc"
 export const MetaFor = MetaForFabric(
   <C extends ContextSchema, S extends string, I extends Core>(params: FabricParams<C, S, I>) =>
     class extends HTMLElement {
-      #_tag: string | undefined
-      get #tag() {
-        if (this.#_tag) return this.#_tag
-        this.#_tag = this.tagName.split("-")[1]!.toLowerCase() as string
-        return this.#_tag
-      }
-      #name = params.name
-      #description = params.description
-      #env = "browser"
-
       #context: ContextInstance<C>
       #states: StatesConfig<S, C>
       #core: I
       #processes: Processes<C, S, I>
       #reactions: Reactions<C, S, I>
       #view: ViewConfig<C, S, I> | undefined
+ 
+      #env = "browser"
+      #name = params.name
+      #description = params.description
 
       #shadow: ShadowRoot
       #channel: BroadcastChannel | null = null
+      /** ------------tag---------------------------------- */
+      #_tag: string | undefined
+      get #tag() {
+        if (this.#_tag) return this.#_tag
+        this.#_tag = this.tagName.split("-")[1]!.toLowerCase() as string
+        return this.#_tag
+      }
       static hash = (fingerPrint: string) => SparkMD5.hash(fingerPrint)
       /** ------------state-------------------------------- */
       #state: S = Object.keys(params.states)[0] as S

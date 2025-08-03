@@ -12,7 +12,7 @@ async function build(dev: boolean, distDir: string, entrypoint: string) {
     splitting: false,
     minify: !dev,
     // external: [join(rootPath, "web", "console.js")],
-    external: ["spark-md5"],
+    // external: ["spark-md5"],
     naming: "[dir]/[name].[ext]",
   })
 

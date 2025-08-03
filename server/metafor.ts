@@ -16,15 +16,6 @@ const hasher = new Bun.CryptoHasher("md5")
 export const MetaFor = MetaForFabric(
   <C extends ContextSchema, S extends string, I extends Core>(params: FabricParams<C, S, I>) =>
     class extends HTMLElement {
-      #_tag: string | undefined
-      get #tag() {
-        if (this.#_tag) return this.#_tag
-        this.#_tag = this.tagName.split("-")[1]!.toLowerCase() as string
-        return this.#_tag
-      }
-      
-      #env = "server"
-
       #context: ContextInstance<C>
       #states: StatesConfig<S, C>
       #core: I
@@ -32,8 +23,19 @@ export const MetaFor = MetaForFabric(
       #reactions: Reactions<C, S, I>
       #view: ViewConfig<C, S, I> | undefined
 
+      #env = "server"
+      #name = params.name
+      #description = params.description
+
       #shadow: ShadowRoot
       #channel: BroadcastChannel | null = null
+      /** ------------tag---------------------------------- */
+      #_tag: string | undefined
+      get #tag() {
+        if (this.#_tag) return this.#_tag
+        this.#_tag = this.tagName.split("-")[1]!.toLowerCase() as string
+        return this.#_tag
+      }
       static hash = (fingerPrint: string) => {
         const hash = hasher.update(fingerPrint)
         return hash.digest("hex")

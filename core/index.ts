@@ -78,8 +78,8 @@ export function MetaForFabric(
    * MetaFor — фабрика для создания web-компонента-актора конечного автомата
    * @param name - имя актора (участвует в формировании хеша, но не является итоговым тегом)
    * @returns chain API: context() -> states() -> core() -> processes() -> reactions() -> view()
-   * 
-   * **Важно:** Итоговый тег компонента формируется автоматически как `meta-<hash>`, 
+   *
+   * **Важно:** Итоговый тег компонента формируется автоматически как `meta-<hash>`,
    * где hash — это MD5 хеш от всей конфигурации компонента.
    */
   return function MetaFor(name: string, config?: { description?: string; dev?: boolean }) {
@@ -208,10 +208,10 @@ export function MetaForFabric(
                         return {
                           /**
                            * Регистрирует представление компонента и завершает конфигурацию.
-                           * 
+                           *
                            * @param view Конфигурация представления с render и style функциями
                            * @returns Хеш компонента для создания элемента с тегом `meta-<hash>`
-                           * 
+                           *
                            * @example
                            * ```typescript
                            * const hash = MetaFor("my-component")
@@ -224,7 +224,7 @@ export function MetaForFabric(
                            *     render: ({ context, html }) => html`<div>${context.title}</div>`,
                            *     style: ({ css }) => css`.container { color: blue; }`
                            *   })
-                           * 
+                           *
                            * // Создание элемента с полученным хешем
                            * document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
                            * ```
@@ -245,7 +245,11 @@ export function MetaForFabric(
                             const hash = (actor as any).hash(fingerPrint)
                             const tag: string = `meta-${hash}`
                             if (!customElements.get(tag)) customElements.define(tag, constructor(params))
-                            config?.dev && console.log(`${name}: ${hash}`)
+                            if (config?.dev) {
+                              const tag = `meta-${name}`
+                              if (!customElements.get(tag)) customElements.define(tag, constructor(params))
+                              console.log(`${name}: ${hash}`)
+                            }
                             return hash
                           },
                         }
