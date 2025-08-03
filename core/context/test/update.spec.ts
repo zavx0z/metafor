@@ -1,13 +1,13 @@
 import { describe, it, expect } from "bun:test"
-import { types, createContext } from "../index"
+import { Context } from "../index"
 
 describe("update", () => {
   it("обновляет только переданные значения", () => {
-    const { context, update } = createContext({
+    const { context, update } = new Context((types) => ({
       name: types.string.required("Гость"),
       nickname: types.string(),
       age: types.number.optional(),
-    })
+    }))
 
     update({ name: "Иван" })
     expect(context.name, 'Поле name должно обновиться на "Иван"').toBe("Иван")
@@ -21,10 +21,10 @@ describe("update", () => {
   })
 
   it("игнорирует undefined значения", () => {
-    const { context, update } = createContext({
+    const { context, update } = new Context((types) => ({
       name: types.string.required("Гость"),
       nickname: types.string(),
-    })
+    }))
 
     // @ts-expect-error - TypeScript должен запрещать undefined
     update({ name: undefined })
@@ -33,10 +33,10 @@ describe("update", () => {
   })
 
   it("позволяет устанавливать null для optional полей", () => {
-    const { context, update } = createContext({
+    const { context, update } = new Context((types) => ({
       nickname: types.string(),
       age: types.number.optional(),
-    })
+    }))
 
     update({ nickname: "test" })
     expect(context.nickname, 'Поле nickname должно обновиться на "test"').toBe("test")
@@ -52,7 +52,7 @@ describe("update", () => {
   })
 
   it("работает со всеми типами данных", () => {
-    const { context, update } = createContext({
+    const { context, update } = new Context((types) => ({
       title: types.string.required("Заголовок"),
       description: types.string(),
       age: types.number.required(18),
@@ -61,10 +61,10 @@ describe("update", () => {
       isVerified: types.boolean(),
       status: types.enum("draft", "published", "archived").required("draft"),
       category: types.enum("tech", "design", "business")(),
-      tags: types.array.required([]),
+      tags: types.array.required<string>([]),
       permissions: types.array(),
       flags: types.array(),
-    })
+    }))
 
     update({
       title: "Новый заголовок",
@@ -94,11 +94,11 @@ describe("update", () => {
   })
 
   it("возвращает обновленный контекст", () => {
-    const { context, update } = createContext({
+    const { update } = new Context((types) => ({
       name: types.string.required("Гость"),
       status: types.enum("start", "process", "end").required("start"),
       age: types.number.optional(),
-    })
+    }))
 
     const updated = update({ name: "Иван", age: 25, status: "start" })
 
@@ -112,10 +112,10 @@ describe("update", () => {
   })
 
   it("сохраняет иммутабельность после обновления", () => {
-    const { context, update } = createContext({
+    const { context, update } = new Context((types) => ({
       name: types.string.required("Гость"),
       status: types.enum("start", "process", "end").required("start"),
-    })
+    }))
 
     update({ name: "Новое имя" })
 

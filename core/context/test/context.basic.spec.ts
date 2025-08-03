@@ -1,15 +1,15 @@
 import { test, expect } from "bun:test"
-import { types, createContext } from "../index"
+import { Context } from "../index"
 
 test("Создание контекста с базовыми типами", () => {
-  const { context } = createContext({
+  const { context } = new Context((types) => ({
     name: types.string.required("Гость")({ title: "Имя пользователя" }),
     age: types.number.optional()({ title: "Возраст" }),
     isActive: types.boolean.required(true)({ title: "Активен" }),
     role: types.enum("user", "admin", "moderator").required("user")({ title: "Роль" }),
     tags: types.array.optional()({ title: "Теги" }),
     description: types.string.optional(), // без title
-  })
+  }))
 
   // Проверяем значения
   expect(context.name, "Поле name должно быть 'Гость'").toBe("Гость")
@@ -26,4 +26,4 @@ test("Создание контекста с базовыми типами", () 
   expect(context._title.role, "Метаданные role должны быть доступны").toBe("Роль")
   expect(context._title.tags, "Метаданные tags должны быть доступны").toBe("Теги")
   expect(context._title.description, "Метаданные description должны быть пустой строкой").toBe("")
-}) 
+})

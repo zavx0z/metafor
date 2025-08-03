@@ -1,9 +1,9 @@
 import { describe, it, expect } from "bun:test"
-import { createContext, types } from "../index"
+import { Context } from "../index"
 
 describe("Схема", () => {
   it("должен возвращать оригинальную схему через геттер", () => {
-    const ctx = createContext({
+    const ctx = new Context((types) => ({
       name: types.string.required("Иван")({ title: "Имя пользователя" }),
       age: types.number.optional(),
       isActive: types.boolean.required(true)({ title: "Активен" }),
@@ -12,7 +12,7 @@ describe("Схема", () => {
       priority: types.enum("low", "medium", "high").optional()({ title: "Приоритет" }),
       description: types.string.optional()({ title: "Описание" }),
       metadata: types.array.optional()({ title: "Метаданные" }),
-    })
+    }))
 
     // Получаем схему через геттер
     const result = ctx.schema
@@ -73,7 +73,7 @@ describe("Схема", () => {
   })
 
   it("должен сохранять типизацию схемы", () => {
-    const ctx = createContext({
+    const ctx = new Context((types) => ({
       name: types.string.required("Иван")({ title: "Имя пользователя" }),
       age: types.number.optional(),
       role: types.enum("user", "admin", "moderator").required("user")({ title: "Роль" }),
@@ -81,7 +81,7 @@ describe("Схема", () => {
       description: types.string.optional()({ title: "Описание" }),
       priority: types.enum("low", "medium", "high").optional()({ title: "Приоритет" }),
       tags: types.array.optional()({ title: "Теги" }),
-    })
+    }))
 
     // Проверяем типизацию - TypeScript должен знать точные типы
     const schema = ctx.schema

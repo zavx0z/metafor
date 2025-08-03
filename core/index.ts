@@ -55,7 +55,7 @@
  * @packageDocumentation
  */
 
-import { types, createContext } from "./context/index.ts"
+import { Context } from "./context/index.ts"
 import type { ContextSchema, ContextInstance, ExtractValues } from "./context/index.ts"
 import { checkTransitionConditions, type StatesConfig } from "./state/index.ts"
 import { createActionsConfig } from "./proc/index.ts"
@@ -114,7 +114,6 @@ export function MetaFor(tag: string, config?: { description?: string }) {
      * ```
      */
     context<C extends ContextSchema>(schema: (types: ContextTypes) => C) {
-      const contextSchema = schema(types)
       return {
         /**
          * Регистрирует переходы автомата между состояниями.
@@ -220,16 +219,7 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                           if (!customElements.get(tagName))
                             customElements.define(
                               tagName,
-                              createMetaFor({
-                                tag,
-                                env,
-                                schema: contextSchema,
-                                states,
-                                core,
-                                processes: process,
-                                reactions: reaction,
-                                view,
-                              })
+                              createMetaFor({ tag, env, schema, states, core, process, reaction, view })
                             )
                         },
                       }
@@ -252,13 +242,12 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
   schema,
   states,
   core,
-  processes,
-  reactions,
+  process: processes,
+  reaction: reactions,
   view,
-}: CreateMetaForParams<C, S, I>) => {
-  /** WebComponent - конечный автомат */
-  return class extends HTMLElement {
-    #ctx: ContextInstance<C>
+}: CreateMetaForParams<C, S, I>) =>
+  class extends HTMLElement {
+    #context: ContextInstance<C>
     #shadow: ShadowRoot
     #channel: BroadcastChannel | null = null
     #transitions = states
@@ -297,7 +286,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
     constructor() {
       super()
       this.#shadow = this.attachShadow({ mode: "closed" })
-      this.#ctx = createContext(schema)
+      this.#context = new Context(schema)
       this.#actions = createActionsConfig(processes)
       this.#reactions = new Reactions(reactions)
       this.#core = core
@@ -345,7 +334,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
 
     /** обновление контекста */
     update = (context: Partial<ExtractValues<C>>) => {
-      const updated = this.#ctx.update(context)
+      const updated = this.#context.update(context)
       if (Object.keys(updated).length > 0) {
         this.#sendEvent(updateContextMessage(tag, updated))
         this.#updateView()
@@ -372,7 +361,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
       try {
         this.#broadcastMessage(stateBeforeActionMessage(tag, this.#state))
         const result = process.action({
-          context: this.#ctx.getSnapshot(),
+          context: this.#context.getSnapshot(),
           core: this.#core,
           element: this,
         })
@@ -417,7 +406,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
       const transition = this.#transitions[this.#state]
       if (!transition) return
       for (const [state, conditions] of Object.entries(transition)) {
-        if (checkTransitionConditions(conditions, this.#ctx.getSnapshot())) {
+        if (checkTransitionConditions(conditions, this.#context.getSnapshot())) {
           const process = this.#actions[state as S]
           if (this.#process) return
           if (process) {
@@ -454,7 +443,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
       if (!view?.render) return
       const template = view.render({
         state: this.#state,
-        context: this.#ctx.getSnapshot(),
+        context: this.#context.getSnapshot(),
         core: this.#core,
         update: this.update,
         style: styleMap,
@@ -470,8 +459,8 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
     }
     getSnapshot(): Snapshot<C, S> {
       const context: ContextSnapshot<C> = {} as ContextSnapshot<C>
-      const contextCurrentValues = this.#ctx.getSnapshot()
-      for (const [key, value] of Object.entries(this.#ctx.schema)) {
+      const contextCurrentValues = this.#context.getSnapshot()
+      for (const [key, value] of Object.entries(this.#context.schema)) {
         context[key as keyof C] = {
           type: value.type,
           required: value.required,
@@ -501,7 +490,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
       const { meta, patch } = message
       const state = this.#state as S
       this.#reactions.run({
-        context: this.#ctx.getSnapshot(),
+        context: this.#context.getSnapshot(),
         core: this.#core,
         meta,
         patch,
@@ -510,4 +499,3 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
       })
     }
   }
-}

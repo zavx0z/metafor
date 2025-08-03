@@ -6,7 +6,7 @@ import { when } from "../../html/directives/when"
 import { map } from "../../html/directives/map"
 import { styleMap } from "../../html/directives/style-map"
 import { choose } from "../../html/directives/choose"
-import { createContext, types } from "../../context"
+import { Context } from "../../context"
 import type { ViewDefinitionParams } from "../index.t"
 import { restoreViewFunction, restoreCSSFunction } from ".."
 import { extractTemplateLiteral, extractCSSTemplateLiteral } from ".."
@@ -15,11 +15,10 @@ describe("serialize and deserialize", () => {
   type State = "active" | "inactive"
   const state = "active" as const
 
-  const schema = {
+  const { update, context, schema } = new Context((types) => ({
     name: types.string.required("test"),
     value: types.number.required(42),
-  }
-  const { update, context } = createContext(schema)
+  }))
 
   type Core = { data: { name: string; value: number }; data2: number[]; color: string; buttonRef: any }
   const core = {

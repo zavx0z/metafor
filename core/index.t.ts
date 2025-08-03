@@ -4,7 +4,7 @@
  * @module Core
  */
 import type { ContextSchema } from "./context"
-import type { ContextSnapshot } from "./context/index.t"
+import type { ContextSnapshot, ContextTypes } from "./context/index.t"
 import type { ProcessesConfig, ProcessesDeclaration } from "./proc/index.t"
 import type { SnapshotProcesses } from "./proc/parser.t"
 import type { Reactions } from "./react"
@@ -47,10 +47,10 @@ export type Core = Record<string, any>
 export type CreateMetaForParams<C extends ContextSchema, S extends string, I extends Core> = {
   tag: string
   env: "server" | "browser"
-  schema: C
+  schema: (types: ContextTypes) => C
   states: StatesConfig<S, C>
   core: I
-  processes: ProcessesDeclaration<C, S, I>
-  reactions: ReactionsDeclaration<C, S, I>
+  process: ProcessesDeclaration<C, S, I>
+  reaction: ReactionsDeclaration<C, S, I>
   view: ViewConfig<C, S, I> | undefined
 }

@@ -4,7 +4,7 @@
  */
 import { types } from "./types"
 
-import type { ContextSchema } from "./types.t"
+import type { ContextSchema, ContextTypes } from "./types.t"
 import type { ExtractValues, UpdateValues, ContextInstance, SerializedSchema, Update, OnUpdate } from "./index.t"
 
 export { types }
@@ -35,10 +35,11 @@ export class Context<C extends ContextSchema> implements ContextInstance<C> {
    * Создает новый экземпляр контекста на основе схемы.
    * @param schema - Схема контекста
    */
-  constructor(schema: C) {
+  constructor(schemaDefinition: (types: ContextTypes) => C) {
+    const schema = schemaDefinition(types)
     this.schemaDefinition = schema
     this.contextData = {} as ExtractValues<C>
-    this.initializeContext(schema)
+    this.initializeContext(this.schemaDefinition)
     this.immutableContext = this.createImmutableContext()
   }
 
@@ -163,7 +164,7 @@ export class Context<C extends ContextSchema> implements ContextInstance<C> {
    * @example
    * context.update({name: 'Новое имя', age: 30})
    */
-  update(values: UpdateValues<ExtractValues<C>>): Partial<ExtractValues<C>> {
+  update = (values: UpdateValues<ExtractValues<C>>): Partial<ExtractValues<C>> => {
     const filteredValues = Object.fromEntries(
       Object.entries(values).filter(([_, value]) => value !== undefined)
     ) as Partial<ExtractValues<C>>
@@ -205,29 +206,5 @@ export class Context<C extends ContextSchema> implements ContextInstance<C> {
 
   getSnapshot(): ExtractValues<C> {
     return Object.freeze({ ...this.contextData })
-  }
-}
-
-/**
- * Фабричная функция для создания типизированного контекста.
- * Позволяет создавать контекст на основе схемы или функции, принимающей types.
- *
- * @typeParam C - Схема контекста (ContextSchema)
- * @param schema - Схема контекста или функция, принимающая types и возвращающая схему
- * @returns Объект с иммутабельным контекстом и методом update
- *
- * @example
- * const ctx = createContext(types => ({name: types.string.required()}))
- * ctx.context // доступ к значениям
- * ctx.update({name: 'Новое имя'})
- */
-export function createContext<const C extends ContextSchema>(schema: C): ContextInstance<C> {
-  const contextInstance = new Context(schema)
-  return {
-    context: contextInstance.context,
-    update: contextInstance.update.bind(contextInstance),
-    onUpdate: contextInstance.onUpdate.bind(contextInstance),
-    schema: contextInstance.schema,
-    getSnapshot: contextInstance.getSnapshot.bind(contextInstance),
   }
 }

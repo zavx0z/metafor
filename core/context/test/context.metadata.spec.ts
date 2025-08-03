@@ -1,12 +1,12 @@
 import { test, expect } from "bun:test"
-import { types, createContext } from "../index"
+import { Context } from "../index"
 
 test("Работа с метаданными контекста", () => {
-  const { context } = createContext({
+  const { context } = new Context((types) => ({
     name: types.string.required("Гость")({ title: "Имя пользователя" }),
     age: types.number.optional(),
     isActive: types.boolean.required(true),
-  })
+  }))
 
   // Проверяем начальные значения
   expect(context._title.name, "Начальный заголовок name").toBe("Имя пользователя")

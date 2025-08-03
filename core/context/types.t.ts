@@ -177,7 +177,7 @@ export interface RequiredArrayDefinition<T extends string | number | boolean> ex
  * Обязательное поле перечисления
  * @template T - Массив допустимых значений
  * @example
- * ```typescript
+ * ```typescript-
  * status: types.enum.required(["pending", "active", "blocked"])
  * role: types.enum.required(["user", "admin"])
  * ```

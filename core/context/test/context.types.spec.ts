@@ -1,8 +1,8 @@
 import { test, expect } from "bun:test"
-import { types, createContext } from "../index"
+import { Context } from "../index"
 
 test("Работа со всеми типами данных", () => {
-  const { context } = createContext({
+  const { context } = new Context((types) => ({
     title: types.string.required("Заголовок"),
     description: types.string(),
     age: types.number.required(18),
@@ -13,7 +13,7 @@ test("Работа со всеми типами данных", () => {
     status: types.enum("pending", "approved", "rejected")(),
     tags: types.array.required(["default"]),
     categories: types.array(),
-  })
+  }))
 
   // Проверяем строковые типы
   expect(context.title, "Поле title должно быть 'Заголовок'").toBe("Заголовок")
@@ -34,4 +34,4 @@ test("Работа со всеми типами данных", () => {
   // Проверяем массивные типы
   expect(context.tags, "Поле tags должно быть ['default']").toEqual(["default"])
   expect(context.categories, "Поле categories должно быть null").toBe(null)
-}) 
+})
