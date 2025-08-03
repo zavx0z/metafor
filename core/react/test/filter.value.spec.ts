@@ -1,4 +1,4 @@
-import { ReactionRegistry } from "../index"
+import { ReactionRegistryOrigin } from "../index"
 import type { Update, ExtractValues } from "../../context/index.t"
 import { describe, it, expect } from "bun:test"
 import type {  MetaDataMessage } from "../../message"
@@ -14,7 +14,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Строковые значения", () => {
     it("прямое сравнение строки", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -37,7 +37,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("регулярное выражение", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -60,7 +60,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие eq", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -83,7 +83,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие notEq", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -106,7 +106,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие startsWith", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -129,7 +129,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие endsWith", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -152,7 +152,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие include", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -175,7 +175,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие notInclude", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -198,7 +198,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие pattern", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -221,7 +221,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие length (число)", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -244,7 +244,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие length (объект с min/max)", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -267,7 +267,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие between", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -292,7 +292,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Числовые значения", () => {
     it("прямое сравнение числа", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -315,7 +315,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие eq", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -338,7 +338,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие gt", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -361,7 +361,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие gte", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -384,7 +384,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие lt", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -407,7 +407,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие lte", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -430,7 +430,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие between", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -455,7 +455,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Булевы значения", () => {
     it("прямое сравнение булева значения", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -478,7 +478,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие eq", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -501,7 +501,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие logicalEq", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -527,7 +527,7 @@ describe("Фильтрация по значению патча (value) - рас
     it("прямое сравнение массива", () => {
       let called = false
       const testArray = [1, 2, 3]
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -550,7 +550,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие length (число)", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -573,7 +573,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие includes", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -596,7 +596,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие isEmpty", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -619,7 +619,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие every для чисел", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -642,7 +642,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие some для строк", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -667,7 +667,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Null и undefined", () => {
     it("прямое сравнение null", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -690,7 +690,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("прямое сравнение undefined", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -713,7 +713,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие null в объекте", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -739,7 +739,7 @@ describe("Фильтрация по значению патча (value) - рас
     it("прямое сравнение объекта", () => {
       let called = false
       const testObject = { name: "test", value: 42 }
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -772,7 +772,7 @@ describe("Фильтрация по значению патча (value) - рас
           },
         },
       }
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -797,7 +797,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Комбинированные условия", () => {
     it("комбинация с операцией и путем", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -824,7 +824,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("комбинация строковых условий", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -851,7 +851,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Отрицательные тесты", () => {
     it("не срабатывает при несовпадении строки", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -874,7 +874,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("не срабатывает при несовпадении числа", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -897,7 +897,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("не срабатывает при несовпадении массива", () => {
       let called = false
-      const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+      const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })

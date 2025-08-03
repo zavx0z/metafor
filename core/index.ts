@@ -76,7 +76,7 @@ import { repeat } from "./html/directives/repeat.ts"
 import { when } from "./html/directives/when.ts"
 import { map } from "./html/directives/map.ts"
 import { styleMap } from "./html/directives/style-map.ts"
-import { ReactionRegistry } from "./react/index"
+import { ReactionRegistryOrigin } from "./react/index"
 import type { ReactionsChain } from "./react/index.t.ts"
 import type { ContextTypes } from "./context/types.t.ts"
 import { choose } from "./html/directives/choose.ts"
@@ -215,7 +215,7 @@ export function MetaFor(tag: string, config?: { description?: string }) {
                      * ```
                      */
                     reactions(reaction: ReactionsChain<C, S, I> = () => []) {
-                      const reactionsRegistry = new ReactionRegistry(reaction)
+                      const reactionsRegistry: ReactionRegistryOrigin<C, S, I> = new ReactionRegistryOrigin(reaction)
                       return {
                         view(view?: ViewConfig<C, S, I>) {
                           if (!customElements.get(tagName))
@@ -266,7 +266,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
     #channel: BroadcastChannel | null = null
     #transitions = states
     #actions: ProcessesConfig<C, S, I>
-    #reactions = reactions
+    #reactions: ReactionRegistryOrigin<C, S, I>
     #core: I = {} as I
     /** ------------state-------------------------------- */
     #state: S = Object.keys(states)[0] as S
@@ -302,6 +302,7 @@ const createMetaFor = <C extends ContextSchema, S extends string, I extends Core
       this.#shadow = this.attachShadow({ mode: "closed" })
       this.#ctx = createContext(schema)
       this.#actions = processesRegistry
+      this.#reactions = reactions
       this.#core = core
       view?.style?.({
         css: (strings, ...values) => {

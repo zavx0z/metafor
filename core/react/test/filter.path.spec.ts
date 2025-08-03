@@ -1,4 +1,4 @@
-import { ReactionRegistry } from "../index"
+import { ReactionRegistryOrigin } from "../index"
 import type { Update, ExtractValues } from "../../context/index.t"
 import { describe, it, expect } from "bun:test"
 import type {  MetaDataMessage } from "../../message"
@@ -13,7 +13,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по /context", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -36,7 +36,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по /state", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -59,7 +59,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по /", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -82,7 +82,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("не срабатывает при несовпадении пути", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -105,7 +105,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("комбинированная фильтрация с операцией", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -131,7 +131,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("комбинированная фильтрация с тегом", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -157,7 +157,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по /context с replace", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -183,7 +183,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по /context с add", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -209,7 +209,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по /context с remove", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -235,7 +235,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по /context с test", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -261,7 +261,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по /state с replace", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -287,7 +287,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по / с add", () => {
     let called = false
-    const registry = new ReactionRegistry<Ctx, State, {}>((reaction) => [
+    const registry = new ReactionRegistryOrigin<Ctx, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })

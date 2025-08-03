@@ -52,14 +52,58 @@ function extractFields<C extends ContextSchema, S extends string, I extends Core
   return { read, write }
 }
 
-/** Реестр реакций с deduped-структурой для экономии памяти и удобного API. */
-export class ReactionRegistry<C extends ContextSchema, S extends string, I extends Core = {}> {
-  private reactionsById: Map<string, Reaction<C, S, I>> = new Map()
-  private stateToReactionIds: Map<S, string[]> = new Map()
-  private reactionMetadata: Map<string, ReactionMetadata> = new Map()
+/** Базовый класс реестра реакций */
+export abstract class ReactionRegistry<C extends ContextSchema, S extends string, I extends Core = {}> {
+  protected reactionsById: Map<string, Reaction<C, S, I>> = new Map()
+  protected stateToReactionIds: Map<S, string[]> = new Map()
+  protected reactionMetadata: Map<string, ReactionMetadata> = new Map()
+
+  /** Получить все реакции для состояния */
+  getReactions(state: S): Reaction<C, S, I>[] {
+    const ids = this.stateToReactionIds.get(state) || []
+    return ids.map((id) => this.reactionsById.get(id)!).filter(Boolean)
+  }
+
+  /** Исполнить все реакции для состояния */
+  run(params: {
+    state: S
+    context: ExtractValues<C>
+    core: I
+    meta: MetaDataMessage
+    patch: JsonPatch
+    update: Update<C>
+  }) {
+    for (const reaction of this.getReactions(params.state))
+      if (reaction.filter({ meta: params.meta, patch: params.patch })) reaction.update(params)
+  }
+
+  /** Получить все уникальные реакции */
+  getAllReactions(): Reaction<C, S, I>[] {
+    return Array.from(this.reactionsById.values())
+  }
+
+  /** Получить все состояния, где используется реакция по id */
+  getStatesForReaction(id: string): S[] {
+    const result: S[] = []
+    for (const [state, ids] of this.stateToReactionIds.entries()) if (ids.includes(id)) result.push(state)
+    return result
+  }
+
+  /** Проверить, есть ли реакции */
+  hasReactions = () => this.reactionsById.size > 0
+}
+
+/** Оригинальный реестр реакций с методом toSnapshot */
+export class ReactionRegistryOrigin<
+  C extends ContextSchema,
+  S extends string,
+  I extends Core = {}
+> extends ReactionRegistry<C, S, I> {
   private reactionAutoId = 0
 
   constructor(builder: ReactionsChain<C, S, I>) {
+    super()
+
     const chainResult = builder((config?: { title?: string; description?: string }) => ({
       filter: (conditions: ReactionFilterConditions) => ({
         equal: (update: ReactionUpdate<C, S, I>) => {
@@ -121,40 +165,6 @@ export class ReactionRegistry<C extends ContextSchema, S extends string, I exten
     }
   }
 
-  /** Получить все реакции для состояния */
-  getReactions(state: S): Reaction<C, S, I>[] {
-    const ids = this.stateToReactionIds.get(state) || []
-    return ids.map((id) => this.reactionsById.get(id)!).filter(Boolean)
-  }
-
-  /** Исполнить все реакции для состояния */
-  run(params: {
-    state: S
-    context: ExtractValues<C>
-    core: I
-    meta: MetaDataMessage
-    patch: JsonPatch
-    update: Update<C>
-  }) {
-    for (const reaction of this.getReactions(params.state))
-      if (reaction.filter({ meta: params.meta, patch: params.patch })) reaction.update(params)
-  }
-
-  /** Получить все уникальные реакции */
-  getAllReactions(): Reaction<C, S, I>[] {
-    return Array.from(this.reactionsById.values())
-  }
-
-  /** Получить все состояния, где используется реакция по id */
-  getStatesForReaction(id: string): S[] {
-    const result: S[] = []
-    for (const [state, ids] of this.stateToReactionIds.entries()) if (ids.includes(id)) result.push(state)
-    return result
-  }
-
-  /** Проверить, есть ли реакции */
-  hasReactions = () => this.reactionsById.size > 0
-
   /** Сериализация/экспорт */
   toSnapshot(): SnapshotReactions {
     const reactions: Record<string, any> = {}
@@ -174,5 +184,48 @@ export class ReactionRegistry<C extends ContextSchema, S extends string, I exten
     for (const [state, ids] of this.stateToReactionIds.entries()) states[state as string] = ids
 
     return { reactions, states }
+  }
+}
+
+/** Клонированный реестр реакций с методом fromSnapshot */
+export class ReactionRegistryClone<
+  C extends ContextSchema,
+  S extends string,
+  I extends Core = {}
+> extends ReactionRegistry<C, S, I> {
+  constructor() {
+    super()
+  }
+
+  /** Создание из снимка */
+  static fromSnapshot<C extends ContextSchema, S extends string, I extends Core = {}>(
+    snapshot: SnapshotReactions
+  ): ReactionRegistryClone<C, S, I> {
+    const registry = new ReactionRegistryClone<C, S, I>()
+
+    // Восстанавливаем реакции из снимка
+    for (const [id, reactionData] of Object.entries(snapshot.reactions)) {
+      // Создаем заглушку для реакции (без реальной функции update)
+      const reaction: Reaction<C, S, I> = {
+        title: reactionData.title,
+        filter: () => false, // Заглушка - не будет выполняться
+        update: () => {}, // Заглушка - не будет выполняться
+        ...(reactionData.desc && { description: reactionData.desc }),
+      }
+
+      registry.reactionsById.set(id, reaction)
+      registry.reactionMetadata.set(id, {
+        cond: reactionData.cond,
+        read: reactionData.read || [],
+        write: reactionData.write || [],
+      })
+    }
+
+    // Восстанавливаем состояния
+    for (const [state, ids] of Object.entries(snapshot.states)) {
+      registry.stateToReactionIds.set(state as S, ids)
+    }
+
+    return registry
   }
 }

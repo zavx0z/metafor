@@ -1,4 +1,4 @@
-import { ReactionRegistry } from "../index"
+import { ReactionRegistryOrigin } from "../index"
 import type { Update, ExtractValues } from "../../context/index.t"
 import { test, expect } from "bun:test"
 import type { JsonPatch, MetaDataMessage } from "../../message"
@@ -18,7 +18,7 @@ test("Выполнение реакций через run", () => {
   const fakeMeta: MetaDataMessage = { tag: "test", index: 0 }
   const fakePatch: JsonPatch = { op: "replace", path: "/context", value: 1 }
 
-  const registry = new ReactionRegistry<Ctx, State>((reaction) => [
+  const registry = new ReactionRegistryOrigin<Ctx, State>((reaction) => [
     [
       ["active"],
       reaction({ title: "test" })
