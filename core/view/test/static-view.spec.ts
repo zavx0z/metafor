@@ -7,7 +7,7 @@ describe("создание статических view функций", () => {
     const originalView = ({ context, html }: any) => html`
       <div>
         <h1>Родитель: ${context.message}</h1>
-        <metafor-${"childTag"} context=${context}></metafor-${"childTag"}>
+        <meta-${"childTag"} context=${context}></meta-${"childTag"}>
       </div>
     `
 
@@ -28,7 +28,7 @@ describe("создание статических view функций", () => {
     // Проверяем, что в результате нет динамических тегов
     const templateString = result.strings.join("")
     expect(templateString, "шаблон не должен содержать динамические теги").not.toContain("${childTag}")
-    expect(templateString, "шаблон должен содержать статический тег").toContain("metafor-child-123")
+    expect(templateString, "шаблон должен содержать статический тег").toContain("meta-child-123")
   })
 
   test("заменяет несколько динамических тегов на статические", () => {
@@ -36,10 +36,10 @@ describe("создание статических view функций", () => {
     const childTag = "child-789"
     const originalView = ({ context, html }: any) => html`
       <div>
-        <metafor-${parentTag}>
+        <meta-${parentTag}>
           <h1>Родитель: ${context.message}</h1>
-          <metafor-${childTag} context=${context}></metafor-${childTag}>
-        </metafor-${parentTag}>
+          <meta-${childTag} context=${context}></meta-${childTag}>
+        </meta-${parentTag}>
       </div>
     `
 
@@ -64,15 +64,15 @@ describe("создание статических view функций", () => {
     const templateString = result.strings.join("")
     expect(templateString, "шаблон не должен содержать динамические теги").not.toContain("${parentTag}")
     expect(templateString, "шаблон не должен содержать динамические теги").not.toContain("${childTag}")
-    expect(templateString, "шаблон должен содержать статические теги").toContain("metafor-parent-456")
-    expect(templateString, "шаблон должен содержать статические теги").toContain("metafor-child-789")
+    expect(templateString, "шаблон должен содержать статические теги").toContain("meta-parent-456")
+    expect(templateString, "шаблон должен содержать статические теги").toContain("meta-child-789")
   })
 
   test("сохраняет остальные переменные в шаблоне", () => {
     const originalView = ({ context, html }: any) => html`
       <div>
         <h1>${context.title}</h1>
-        <metafor-${"childTag"} context=${context}></metafor-${"childTag"}>
+        <meta-${"childTag"} context=${context}></meta-${"childTag"}>
         <p>${context.description}</p>
       </div>
     `
@@ -94,10 +94,7 @@ describe("создание статических view функций", () => {
 })
 
 test("стили сохраняются в снимке компонента", async () => {
-  const tag = Bun.randomUUIDv7()
-  document.body.innerHTML = `<metafor-${tag}></metafor-${tag}>`
-
-  MetaFor(tag)
+  const hash = MetaFor("test-styles")
     .context((types) => ({
       value: types.string.optional(),
     }))
@@ -117,7 +114,8 @@ test("стили сохраняются в снимке компонента", a
       `,
     })
 
-  const element = document.querySelector(`metafor-${tag}`) as any
+  document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
+  const element = document.querySelector(`meta-${hash}`) as any
   await Bun.sleep(100)
 
   const snapshot = element.getSnapshot()

@@ -4,16 +4,11 @@ import { messagesFixture } from "../../../fixture/message.ts"
 import { createStaticViewFunction } from "../index"
 
 describe("работа со статическими тегами", async () => {
-  const parentTag = "parent-static"
-  const childTag = "child-static"
-  document.body.innerHTML = `<metafor-${parentTag}></metafor-${parentTag}>`
-
-  const { waitForMessages } = messagesFixture({ meta: childTag })
-
   let childContext: any
   let countChildMount = 0
   let countParentMount = 0
-  MetaFor(childTag)
+
+  const childHash = MetaFor(Bun.randomUUIDv7(), { dev: false })
     .context((types) => ({
       message: types.string.required("child message"),
       count: types.number.required(1),
@@ -40,17 +35,17 @@ describe("работа со статическими тегами", async () => 
   const originalParentView = ({ context, html }: any) => html`
     <div>
       <h1>Родитель: ${context.parentMessage}</h1>
-      <metafor-${childTag}
+      <meta-${childHash}
         context=${{
           message: context.parentMessage,
           count: context.parentCount,
-        }}></metafor-${childTag}>
+        }}></meta-${childHash}>
     </div>
   `
 
-  const staticParentView = createStaticViewFunction(originalParentView, childTag)
+  const staticParentView = createStaticViewFunction(originalParentView, childHash)
 
-  MetaFor(parentTag)
+  const parentTag = MetaFor(Bun.randomUUIDv7(), { dev: false })
     .context((types) => ({
       parentMessage: types.string.required("message"),
       parentCount: types.number.required(0),
@@ -78,8 +73,11 @@ describe("работа со статическими тегами", async () => 
       },
       render: staticParentView,
     })
+  const { waitForMessages } = messagesFixture({ meta: parentTag })
 
-  const childMessages = await waitForMessages(400)
+  document.body.innerHTML = `<meta-${parentTag}></meta-${parentTag}>`
+
+  const childMessages = await waitForMessages(500)
 
   test("статический тег работает корректно - контекст передается", async () => {
     expect(childContext, "контекст ребенка должен соответствовать переданному от родителя").toEqual({
@@ -97,7 +95,6 @@ describe("работа со статическими тегами", async () => 
       },
     })
   })
-
   test("статический тег работает корректно - нет лишних патчей", async () => {
     expect(childMessages, "патч обновления контекста ребенка не должен быть").toHaveLength(1)
     expect(childMessages[0]!.patch.op, "патч обновления контекста ребенка должен быть add").toEqual("add")
@@ -125,7 +122,7 @@ describe("работа со статическими тегами", async () => 
 
     // Проверяем, что в результате нет динамических тегов
     const templateString = result.strings.join("")
-    expect(templateString, "шаблон не должен содержать динамические теги").not.toContain("${childTag}")
-    expect(templateString, "шаблон должен содержать статический тег").toContain("metafor-child-static")
+    expect(templateString, "шаблон не должен содержать динамические теги").not.toContain("${childHash}")
+    expect(templateString, "шаблон должен содержать статический тег").toContain(`meta-${childHash}`)
   })
 })

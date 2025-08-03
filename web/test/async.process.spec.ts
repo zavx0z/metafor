@@ -2,9 +2,7 @@ import { test, describe, expect } from "bun:test"
 import { MetaFor } from "../metafor.ts"
 import { messagesFixture } from "../../fixture/message.ts"
 describe("async process", async () => {
-  const { waitForMessages } = messagesFixture({ meta: "websocket" })
-  document.body.innerHTML = `<metafor-websocket></metafor-websocket>`
-  MetaFor("websocket")
+  const hex = MetaFor("websocket")
     .context((t) => ({
       timeStampConnecting: t.number.optional()({ title: "Время начала подключения" }),
       timeStampConnected: t.number.optional()({ title: "Время подключения" }),
@@ -88,6 +86,8 @@ describe("async process", async () => {
     .view({
       render: ({ html }) => html` <div class="websocket-status"></div> `,
     })
+  const { waitForMessages } = messagesFixture({ meta: hex })
+  document.body.innerHTML = `<meta-${hex}></meta-${hex}>`
   const message = await waitForMessages(600)
 
   test("сообщение добавления мета", () => {

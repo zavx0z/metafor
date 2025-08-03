@@ -40,7 +40,7 @@ export const COMMENT_PART = 7
  *
  * Поддерживает специальный атрибут `context` для передачи данных между компонентами:
  * ```ts
- * html`<metafor-child context=${contextObject}></metafor-child>`
+ * html`<meta-child context=${contextObject}></meta-child>`
  * ```
  */
 export type UncompiledTemplateResult<T extends ResultType = ResultType> = {

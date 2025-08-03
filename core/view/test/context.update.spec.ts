@@ -1,16 +1,13 @@
 import { describe, test, expect } from "bun:test"
 import { MetaFor } from "../../../web/metafor.ts"
 import { messagesFixture } from "../../../fixture/message.ts"
+import { createStaticViewFunction } from "../index.ts"
 
 describe("обновление контекста ребенка", async () => {
-  document.body.innerHTML = `<metafor-parent-2432222></metafor-parent-2432222>`
-
-  const { waitForMessages } = messagesFixture({ meta: "child-2431231" })
-
   let childInitContext: any
   let childUpdateContext: any
   let countChildMount = 0
-  MetaFor("child-2431231")
+  const childTag = MetaFor("child")
     .context((types) => ({
       message: types.string.required("child message"),
       count: types.number.required(1),
@@ -33,7 +30,7 @@ describe("обновление контекста ребенка", async () => {
       `,
     })
 
-  MetaFor("parent-2432222")
+  const parentTag = MetaFor("parent")
     .context((types) => ({
       parentMessage: types.string.required("message"),
       parentCount: types.number.required(0),
@@ -74,18 +71,23 @@ describe("обновление контекста ребенка", async () => {
       ],
     ])
     .view({
-      render: ({ context, html }) => html`
-        <div>
-          <h1>Родитель: ${context.parentMessage}</h1>
-          <metafor-child-2431231
-            context=${{
-              message: context.parentMessage,
-              count: context.parentCount,
-            }}></metafor-child-2431231>
-        </div>
-      `,
+      render: createStaticViewFunction(
+        ({ context, html }) => html`
+          <div>
+            <h1>Родитель: ${context.parentMessage}</h1>
+            <meta-${childTag}
+              context=${{
+                message: context.parentMessage,
+                count: context.parentCount,
+              }}></meta-${childTag}>
+          </div>
+        `,
+        childTag
+      ),
     })
+  document.body.innerHTML = `<meta-${parentTag}></meta-${parentTag}>`
 
+  const { waitForMessages } = messagesFixture({ meta: childTag })
   const childMessages = await waitForMessages(400)
   // console.log(childMessages)
 

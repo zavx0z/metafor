@@ -3,12 +3,7 @@ import { messagesFixture } from "../../../../fixture/message.ts"
 import { MetaFor } from "../../../../web/metafor.ts"
 
 describe("MetaFor: инициализация с действиями", async () => {
-  const tag = Bun.randomUUIDv7()
-  const { waitForMessages } = messagesFixture({ meta: tag })
-
-  document.body.innerHTML = `<metafor-${tag}></metafor-${tag}>`
-
-  MetaFor(tag)
+  const hex = MetaFor("")
     .context((t) => ({
       value: t.string.optional("ctx_1")({ title: "Value" }),
     }))
@@ -40,6 +35,9 @@ describe("MetaFor: инициализация с действиями", async ()
     }))
     .reactions()
     .view()
+  const { waitForMessages } = messagesFixture({ meta: hex })
+
+  document.body.innerHTML = `<meta-${hex}></meta-${hex}>`
   const messages = await waitForMessages(500)
 
   test("сообщение 1", () => {
@@ -49,7 +47,7 @@ describe("MetaFor: инициализация с действиями", async ()
     expect(patch.op, "patch.op должен быть 'add'").toBe("add")
     expect(patch.path, "patch.path должен быть '/' ").toBe("/")
     expect(message, "message должен содержать snapshot").toEqual({
-      meta: { tag, index: 0, timestamp: expect.any(Number) },
+      meta: { tag: hex, index: 0, timestamp: expect.any(Number) },
       patch: {
         op: "add",
         path: "/",

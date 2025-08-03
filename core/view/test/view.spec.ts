@@ -5,10 +5,8 @@ import { MetaFor } from "../../../web/metafor.ts"
 describe("MetaFor view", () => {
   test("Рендерит правильный текст через внутренний snapshot", async () => {
     let snapshot = ""
-    const tag = Bun.randomUUIDv7()
-    document.body.innerHTML = `<metafor-${tag}></metafor-${tag}>`
     const buttonRef = createRef()
-    MetaFor(tag)
+    const hash = MetaFor("test-view")
       .context((t) => ({
         param: t.boolean.required(false),
       }))
@@ -30,16 +28,15 @@ describe("MetaFor view", () => {
           if (btn) btn.click()
         },
       })
+    document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
     await Bun.sleep(10)
     expect(snapshot).toBe("true") // после клика
   })
 
   test("Обновляет snapshot при изменении контекста", async () => {
     let snapshot = ""
-    const tag = Bun.randomUUIDv7()
-    document.body.innerHTML = `<metafor-${tag}></metafor-${tag}>`
     const buttonRef = createRef()
-    MetaFor(tag)
+    const hash = MetaFor("test-view-update")
       .context((t) => ({
         param: t.boolean.required(false),
       }))
@@ -61,6 +58,7 @@ describe("MetaFor view", () => {
           if (btn) btn.click()
         },
       })
+    document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
     await Bun.sleep(10)
     expect(snapshot).toBe("true")
     const btn = buttonRef.value as HTMLButtonElement | undefined
@@ -72,10 +70,8 @@ describe("MetaFor view", () => {
   test("onMount не вызывается повторно при update (API)", async () => {
     let mountCount = 0
     let snapshot = ""
-    const tag = Bun.randomUUIDv7()
-    document.body.innerHTML = `<metafor-${tag}></metafor-${tag}>`
     const buttonRef = createRef()
-    MetaFor(tag)
+    const hash = MetaFor("test-view-api")
       .context((t) => ({
         param: t.boolean.required(false),
       }))
@@ -98,9 +94,10 @@ describe("MetaFor view", () => {
           if (btn) btn.click()
         },
       })
+    document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
     await Bun.sleep(10)
     // update через API
-    const meta = document.querySelector(`metafor-${tag}`) as any
+    const meta = document.querySelector(`meta-${hash}`) as any
     meta.update({ param: false })
     await Bun.sleep(10)
     expect(mountCount).toBe(1)

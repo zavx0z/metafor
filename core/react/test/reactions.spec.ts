@@ -1,12 +1,11 @@
 import { test, expect, describe } from "bun:test"
 import type { Message } from "../../message/index.t.ts"
 import { MetaFor } from "../../../web/metafor.ts"
+import { createStaticViewFunction } from "../../view/index.ts"
 
 describe("реакции", () => {
   test("MetaFor - базовый функционал", async () => {
-    document.body.innerHTML = `<metafor-parent></metafor-parent>`
-
-    MetaFor("child")
+    const childHash = MetaFor(Bun.randomUUIDv7())
       .context((types) => ({
         param: types.string.optional(),
       }))
@@ -42,7 +41,7 @@ describe("реакции", () => {
       reactionMessages.push(message)
     }
 
-    MetaFor("parent")
+    const parentHash = MetaFor(Bun.randomUUIDv7())
       .context((types) => ({
         childAdded: types.boolean.optional(),
       }))
@@ -55,26 +54,30 @@ describe("реакции", () => {
         [
           ["state_1"],
           reaction({ title: "record_all_messages" })
-            .filter({ tag: "child" })
+            .filter({ tag: childHash })
             .equal(({ meta, patch }) => recordMessage({ meta, patch })),
         ],
         [
           ["state_1"],
           reaction()
-            .filter({ tag: "child", op: "add" })
+            .filter({ tag: childHash, op: "add" })
             .equal(({ update }) => update({ childAdded: true })),
         ],
       ])
       .view({
-        render: ({ html, context }) => html`<metafor-child>${context.childAdded}</metafor-child>`,
+        render: createStaticViewFunction(
+          ({ html, context }) => html`<meta-${childHash}>${context.childAdded}</meta-${childHash}>`,
+          childHash
+        ),
       })
 
+    document.body.innerHTML = `<meta-${parentHash}></meta-${parentHash}>`
     await Bun.sleep(500)
 
     expect(reactionMessages).toEqual([
       {
         meta: {
-          tag: "child",
+          tag: childHash,
           timestamp: expect.any(Number),
           index: 0,
         },
@@ -122,7 +125,7 @@ describe("реакции", () => {
       },
       {
         meta: {
-          tag: "child",
+          tag: childHash,
           timestamp: expect.any(Number),
           index: 0,
         },
@@ -134,7 +137,7 @@ describe("реакции", () => {
       },
       {
         meta: {
-          tag: "child",
+          tag: childHash,
           timestamp: expect.any(Number),
           index: 0,
         },
@@ -148,7 +151,7 @@ describe("реакции", () => {
       },
       {
         meta: {
-          tag: "child",
+          tag: childHash,
           timestamp: expect.any(Number),
           index: 0,
         },
@@ -160,7 +163,7 @@ describe("реакции", () => {
       },
       {
         meta: {
-          tag: "child",
+          tag: childHash,
           timestamp: expect.any(Number),
           index: 0,
         },
@@ -172,7 +175,7 @@ describe("реакции", () => {
       },
       {
         meta: {
-          tag: "child",
+          tag: childHash,
           timestamp: expect.any(Number),
           index: 0,
         },
@@ -186,7 +189,7 @@ describe("реакции", () => {
       },
       {
         meta: {
-          tag: "child",
+          tag: childHash,
           timestamp: expect.any(Number),
           index: 0,
         },
@@ -198,7 +201,7 @@ describe("реакции", () => {
       },
       {
         meta: {
-          tag: "child",
+          tag: childHash,
           timestamp: expect.any(Number),
           index: 0,
         },

@@ -3,9 +3,7 @@ import { MetaFor } from "../../web/metafor.ts"
 
 describe("полный снимок компонента", () => {
   describe("структура снимка", async () => {
-    document.body.innerHTML = `<metafor-test></metafor-test>`
-
-    MetaFor("test")
+    const hash = MetaFor("test")
       .context((types) => ({
         title: types.string.required("Default Title")({ title: "Заголовок" }),
         count: types.number.required(0)({ title: "Счетчик" }),
@@ -104,7 +102,8 @@ describe("полный снимок компонента", () => {
         `,
       })
 
-    const element = document.querySelector("metafor-test") as any
+    document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
+    const element = document.querySelector(`meta-${hash}`) as any
     await Bun.sleep(200)
 
     const snapshot = element.getSnapshot()
@@ -235,9 +234,7 @@ describe("полный снимок компонента", () => {
     })
   })
   describe("обновление снимка", async () => {
-    document.body.innerHTML = `<metafor-context-test></metafor-context-test>`
-
-    MetaFor("context-test")
+    const contextTestHash = MetaFor("context-test")
       .context((types) => ({
         value: types.string.required("initial"),
       }))
@@ -257,7 +254,8 @@ describe("полный снимок компонента", () => {
           `,
       })
 
-    const element = document.querySelector("metafor-context-test") as any
+    document.body.innerHTML = `<meta-${contextTestHash}></meta-${contextTestHash}>`
+    const element = document.querySelector(`meta-${contextTestHash}`) as any
     await Bun.sleep(100)
 
     const initialSnapshot = element.getSnapshot()
@@ -271,9 +269,7 @@ describe("полный снимок компонента", () => {
   })
 
   describe("обновление состояния", async () => {
-    document.body.innerHTML = `<metafor-state-test></metafor-state-test>`
-
-    MetaFor("state-test")
+    const stateTestHash = MetaFor("state-test")
       .context((types) => ({
         value: types.string.required("initial"),
       }))
@@ -294,7 +290,8 @@ describe("полный снимок компонента", () => {
           `,
       })
 
-    const element = document.querySelector("metafor-state-test") as any
+    document.body.innerHTML = `<meta-${stateTestHash}></meta-${stateTestHash}>`
+    const element = document.querySelector(`meta-${stateTestHash}`) as any
     await Bun.sleep(100)
 
     const initialSnapshot = element.getSnapshot()

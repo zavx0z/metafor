@@ -55,7 +55,7 @@
  * @packageDocumentation
  */
 
-import type { ContextSchema } from "./context"
+import { Context, type ContextSchema } from "./context"
 import { type StatesConfig, validateNoUnconditionalCycles } from "./state"
 import type { ProcessesDeclaration } from "./proc/index.t.ts"
 import type { Core, FabricParams, Snapshot } from "./index.t.ts"
@@ -63,6 +63,10 @@ import type { ViewConfig } from "./view/index.t.ts"
 import type { ReactionsDeclaration } from "./react/index.t.ts"
 import type { ContextTypes } from "./context/types.t.ts"
 import { createRef } from "./html/directives"
+import { Processes } from "./proc/index.ts"
+import { Reactions } from "./react/index.ts"
+import { extractTemplateLiteral, extractCSSTemplateLiteral } from "./view/index.ts"
+
 export type { Core, FabricParams, Snapshot }
 
 export function MetaForFabric(
@@ -72,12 +76,14 @@ export function MetaForFabric(
 ) {
   /**
    * MetaFor — фабрика для создания web-компонента-актора конечного автомата
-   * @param tag - уникальный тег web-компонента
+   * @param name - имя актора (участвует в формировании хеша, но не является итоговым тегом)
    * @returns chain API: context() -> states() -> core() -> processes() -> reactions() -> view()
+   * 
+   * **Важно:** Итоговый тег компонента формируется автоматически как `meta-<hash>`, 
+   * где hash — это MD5 хеш от всей конфигурации компонента.
    */
-  return function MetaFor(tag: string, config?: { description?: string }) {
-    const tagName = `metafor-${tag}` as const
-    const env = typeof process !== "undefined" && process.versions && process.versions.bun ? "server" : "browser"
+  return function MetaFor(name: string, config?: { description?: string; dev?: boolean }) {
+    const description = config?.description
     return {
       /**
        * Регистрирует схему контекста для автомата.
@@ -200,12 +206,47 @@ export function MetaForFabric(
                        */
                       reactions(reaction: ReactionsDeclaration<C, S, I> = () => []) {
                         return {
-                          view(view?: ViewConfig<C, S, I>) {
-                            if (!customElements.get(tagName))
-                              customElements.define(
-                                tagName,
-                                constructor({ tag, env, schema, states, core, process, reaction, view })
-                              )
+                          /**
+                           * Регистрирует представление компонента и завершает конфигурацию.
+                           * 
+                           * @param view Конфигурация представления с render и style функциями
+                           * @returns Хеш компонента для создания элемента с тегом `meta-<hash>`
+                           * 
+                           * @example
+                           * ```typescript
+                           * const hash = MetaFor("my-component")
+                           *   .context(...)
+                           *   .states(...)
+                           *   .core(...)
+                           *   .processes(...)
+                           *   .reactions(...)
+                           *   .view({
+                           *     render: ({ context, html }) => html`<div>${context.title}</div>`,
+                           *     style: ({ css }) => css`.container { color: blue; }`
+                           *   })
+                           * 
+                           * // Создание элемента с полученным хешем
+                           * document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
+                           * ```
+                           */
+                          view(view?: ViewConfig<C, S, I>): string {
+                            const params = { name, description, schema, states, core, process, reaction, view }
+                            const fingerPrint = JSON.stringify({
+                              ...(params.name ? { name: params.name } : {}),
+                              ...(params.description ? { desc: params.description } : {}),
+                              states: params.states,
+                              processes: new Processes(params.process).toSnapshot(),
+                              reactions: new Reactions(params.reaction).toSnapshot(),
+                              context: new Context(params.schema).schema,
+                              ...(params.view?.render ? { view: extractTemplateLiteral(params.view.render) } : {}),
+                              ...(params.view?.style ? { style: extractCSSTemplateLiteral(params.view.style) } : {}),
+                            })
+                            const actor = constructor(params)
+                            const hash = (actor as any).hash(fingerPrint)
+                            const tag: string = `meta-${hash}`
+                            if (!customElements.get(tag)) customElements.define(tag, constructor(params))
+                            config?.dev && console.log(`${name}: ${hash}`)
+                            return hash
                           },
                         }
                       },

@@ -367,11 +367,11 @@ MetaFor("parent")
     render: ({ context, html }) => html`
       <div>
         <h1>Родитель: ${context.parentMessage}</h1>
-        <metafor-child
+        <meta-child
           context=${{
             message: context.parentMessage,
             count: context.parentCount,
-          }}></metafor-child>
+          }}></meta-child>
       </div>
     `,
   })
@@ -404,28 +404,84 @@ MetaFor("child")
 - Компонент-ребенок должен быть уже зарегистрирован в MetaFor
 - Поддерживается реактивное обновление при изменении контекста родителя
 
-## 🔧 API Reference
+## 🏷️ Система тегов компонентов
 
-### MetaFor(tag: string)
+MetaFor использует автоматическую систему генерации тегов для обеспечения уникальности и изоляции компонентов:
 
-Создает новый экземпляр MetaFor с указанным тегом компонента.
+### Как работают теги
+
+1. **Имя компонента** — это только часть конфигурации, участвующая в формировании хеша
+2. **Хеш генерируется** на основе всей конфигурации компонента (имя, описание, схема, состояния, процессы, реакции, view)
+3. **Итоговый тег** всегда имеет вид `meta-<hash>`, где `<hash>` — это MD5 хеш
+4. **Регистрация происходит автоматически** при первом вызове MetaFor с данной конфигурацией
+
+### Пример использования
 
 ```typescript
-const component = MetaFor("my-component")
+// Создание компонента и получение хеша
+const hash = MetaFor("user-profile")
+  .context((types) => ({
+    name: types.string.required(""),
+    email: types.string.required("")
+  }))
+  .states({ idle: {} })
+  .core()
+  .processes()
+  .reactions()
+  .view({
+    render: ({ context, html }) => html`<div>${context.name}</div>`
+  })
+
+// Создание элемента с правильным тегом
+document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
+
+// Получение элемента для работы
+const element = document.querySelector(`meta-${hash}`)
+```
+
+### Преимущества системы
+
+- **Уникальность**: Каждая конфигурация получает уникальный тег
+- **Изоляция**: Компоненты с разной конфигурацией не конфликтуют
+- **Автоматичность**: Не нужно придумывать уникальные имена тегов
+- **Безопасность**: Исключены конфликты имен между компонентами
+
+## 🔧 API Reference
+
+### MetaFor(name: string, config?: { description?: string; dev?: boolean })
+
+Создает новый экземпляр MetaFor с указанным именем компонента.
+
+**Важно:** Имя компонента не является итоговым тегом! Тег компонента формируется автоматически на основе хеша всей конфигурации и всегда имеет вид `meta-<hash>`.
+
+```typescript
+const hash = MetaFor("my-component")
+  .context(...)
+  .states(...)
+  .core(...)
+  .processes(...)
+  .reactions(...)
+  .view(...)
+
+// Тег компонента: meta-<hash>
+document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
 ```
 
 ### Chain API
 
-MetaFor использует цепочку методов для конфигурации:
+MetaFor использует цепочку методов для конфигурации. Метод `.view()` возвращает хеш компонента, который используется для создания элемента:
 
 ```typescript
-MetaFor("example")
+const hash = MetaFor("example")
   .context(schema) // Схема контекста
   .states(config) // Конфигурация состояний
   .core({}) // Инициализация ядра
   .processes(config) // Конфигурация процессов
   .reactions(config) // Конфигурация реакций
-  .view(config) // Конфигурация представления
+  .view(config) // Конфигурация представления и возврат хеша
+
+// Создание элемента с полученным хешем
+document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
 ```
 
 ### Контекст
@@ -497,7 +553,7 @@ MetaFor("example")
 ### Счетчик с асинхронной загрузкой
 
 ```typescript
-MetaFor("async-counter")
+const asyncCounterHash = MetaFor("async-counter")
   .context((types) => ({
     count: types.number.required(0),
     isLoading: types.boolean.required(false),
@@ -554,12 +610,15 @@ MetaFor("async-counter")
       }
     `,
   })
+
+// Создание элемента
+document.body.innerHTML = `<meta-${asyncCounterHash}></meta-${asyncCounterHash}>`
 ```
 
 ### Форма с валидацией
 
 ```typescript
-MetaFor("user-form")
+const userFormHash = MetaFor("user-form")
   .context((types) => ({
     name: types.string.required(""),
     email: types.string.required(""),
@@ -713,13 +772,16 @@ MetaFor("user-form")
       }
     `,
   })
+
+// Создание элемента
+document.body.innerHTML = `<meta-${userFormHash}></meta-${userFormHash}>`
 ```
 
 ### Передача контекста между компонентами
 
 ```typescript
 // Родительский компонент с динамическим обновлением
-MetaFor("parent-dashboard")
+const parentHash = MetaFor("parent-dashboard")
   .context((types) => ({
     userMessage: types.string.required("Привет от родителя"),
     userCount: types.number.required(0),
@@ -759,11 +821,11 @@ MetaFor("parent-dashboard")
           ${context.isLoading ? "Обновление..." : "Обновить данные"}
         </button>
 
-        <metafor-child-widget
+        <meta-child-widget
           context=${{
             message: context.userMessage,
             count: context.userCount,
-          }}></metafor-child-widget>
+          }}></meta-child-widget>
       </div>
     `,
     style: ({ css }) => css`
@@ -791,8 +853,11 @@ MetaFor("parent-dashboard")
     `,
   })
 
+// Создание родительского элемента
+document.body.innerHTML = `<meta-${parentHash}></meta-${parentHash}>`
+
 // Дочерний компонент, получающий контекст
-MetaFor("child-widget")
+const childHash = MetaFor("child-widget")
   .context((types) => ({
     message: types.string.required("Сообщение по умолчанию"),
     count: types.number.required(0),
@@ -829,6 +894,9 @@ MetaFor("child-widget")
       }
     `,
   })
+
+// Дочерний компонент автоматически создается внутри родительского
+// через meta-child-widget в шаблоне родителя
 ```
 
 ## 🔍 Отладка
@@ -842,7 +910,9 @@ import { enableMetaForDebug } from "@zavx0z/metafor/debug/config"
 enableMetaForDebug()
 
 // Получение снапшота состояния
-const element = document.querySelector("metafor-my-component")
+// Важно: используйте правильный тег с хешем
+const hash = MetaFor("my-component").context(...).states(...).core(...).processes(...).reactions(...).view(...)
+const element = document.querySelector(`meta-${hash}`)
 const snapshot = element.getSnapshot()
 console.log(snapshot)
 ```

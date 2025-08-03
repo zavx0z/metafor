@@ -1,15 +1,13 @@
 import { describe, test, expect } from "bun:test"
 import { MetaFor } from "../../../web/metafor.ts"
 import { messagesFixture } from "../../../fixture/message.ts"
+import { createStaticViewFunction } from "../index.ts"
 
 describe("инициализация ребенка с переданным контекстом от родителя", async () => {
-  document.body.innerHTML = `<metafor-parent-243234></metafor-parent-243234>`
-
-  const { waitForMessages } = messagesFixture({ meta: "child-243232" })
-
   let childContext: any
   let countChildMount = 0
-  MetaFor("child-243232")
+
+  const childHash = MetaFor("child-243232")
     .context((types) => ({
       message: types.string.required("child message"),
       count: types.number.required(1),
@@ -32,7 +30,7 @@ describe("инициализация ребенка с переданным ко
       `,
     })
 
-  MetaFor("parent-243234")
+  const parentHash = MetaFor("parent-243234")
     .context((types) => ({
       parentMessage: types.string.required("message"),
       parentCount: types.number.required(0),
@@ -55,18 +53,23 @@ describe("инициализация ребенка с переданным ко
       ],
     ])
     .view({
-      render: ({ context, html }) => html`
-        <div>
-          <h1>Родитель: ${context.parentMessage}</h1>
-          <metafor-child-243232
-            context=${{
-              message: context.parentMessage,
-              count: context.parentCount,
-            }}></metafor-child-243232>
-        </div>
-      `,
+      render: createStaticViewFunction(
+        ({ context, html }) => html`
+          <div>
+            <h1>Родитель: ${context.parentMessage}</h1>
+            <meta-${childHash}
+              context=${{
+                message: context.parentMessage,
+                count: context.parentCount,
+              }}></meta-${childHash}>
+          </div>
+        `,
+        childHash
+      ),
     })
 
+  const { waitForMessages } = messagesFixture({ meta: childHash })
+  document.body.innerHTML = `<meta-${parentHash}></meta-${parentHash}>`
   const childMessages = await waitForMessages(400)
 
   test("в реакции родителя при добавлении ребенка получаем переданный контекст", async () => {

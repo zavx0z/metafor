@@ -5,9 +5,8 @@
  */
 import type { ContextSchema } from "./context"
 import type { ContextSnapshot, ContextTypes } from "./context/index.t"
-import type { ProcessesType, ProcessesDeclaration } from "./proc/index.t"
+import type { ProcessesDeclaration } from "./proc/index.t"
 import type { SnapshotProcesses } from "./proc/parser.t"
-import type { Reactions } from "./react"
 import type { ReactionsDeclaration, SnapshotReactions } from "./react/index.t"
 import type { StatesConfig } from "./state"
 import type { ViewConfig } from "./view/index.t"
@@ -45,12 +44,20 @@ export type Core = Record<string, any>
  * Тип параметров для создания web-компонента-актора конечного автомата (Actor)
  */
 export type FabricParams<C extends ContextSchema, S extends string, I extends Core> = {
-  tag: string
-  env: "server" | "browser"
+  /** Название компонента */
+  name: string
+  /** Описание компонента */
+  description: string | undefined
+  /** Схема контекста */
   schema: (types: ContextTypes) => C
+  /** Конфигурация состояний */
   states: StatesConfig<S, C>
+  /** Ядро компонента */
   core: I
+  /** Процессы */
   process: ProcessesDeclaration<C, S, I>
+  /** Реакции */
   reaction: ReactionsDeclaration<C, S, I>
+  /** Конфигурация view */
   view: ViewConfig<C, S, I> | undefined
 }

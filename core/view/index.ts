@@ -1,3 +1,7 @@
+import type { ContextSchema } from "../context/types.t.ts"
+import type { Core } from "../index.t.ts"
+import type { RenderFunc } from "./index.t.ts"
+
 export type { ViewConfig } from "./index.t.ts"
 /**
  * Реализация представления (View)
@@ -63,20 +67,23 @@ export function restoreCSSFunction(template: string) {
  * ```typescript
  * const originalView = ({ context, html }) => html`
  *   <div>
- *     <metafor-${childTag} context=${context}></metafor-${childTag}>
+ *     <meta-${childTag} context=${context}></meta-${childTag}>
  *   </div>
  * `
  *
  * const staticView = createStaticViewFunction(originalView, 'child-243232')
  * ```
  */
-export function createStaticViewFunction(originalView: Function, tagName: string): any {
+export function createStaticViewFunction<C extends ContextSchema, S extends string, I extends Core>(
+  originalView: RenderFunc<C, S, I>,
+  tagName: string
+): any {
   // 1. Извлекаем template literal из оригинальной функции
   const template = extractTemplateLiteral(originalView)
 
   // 2. Заменяем динамический тег на статический
-  // Ищем любые переменные в metafor- тегах и заменяем на реальное значение
-  const staticTemplate = template.replace(/metafor-\$\{([^}]+)\}/g, `metafor-${tagName}`)
+  // Ищем любые переменные в meta- тегах и заменяем на реальное значение
+  const staticTemplate = template.replace(/meta-\$\{([^}]+)\}/g, `meta-${tagName}`)
 
   // 3. Создаем новую функцию с замененным шаблоном
   return restoreViewFunction(staticTemplate)
@@ -93,9 +100,9 @@ export function createStaticViewFunction(originalView: Function, tagName: string
  * ```typescript
  * const originalView = ({ context, html }) => html`
  *   <div>
- *     <metafor-${parentTag}>
- *       <metafor-${childTag} context=${context}></metafor-${childTag}>
- *     </metafor-${parentTag}>
+ *     <meta-${parentTag}>
+ *       <meta-${childTag} context=${context}></meta-${childTag}>
+ *     </meta-${parentTag}>
  *   </div>
  * `
  *
@@ -115,12 +122,12 @@ export function createStaticViewFunctionWithReplacements(
   // 2. Заменяем все динамические теги на статические
   let staticTemplate = template
   for (const [variableName, tagName] of Object.entries(replacements)) {
-    // Заменяем переменные в metafor- тегах
+    // Заменяем переменные в meta- тегах
     // Ищем как переменные, так и их значения в кавычках
-    const regex1 = new RegExp(`metafor-\\$\\{${variableName}\\}`, "g")
-    const regex2 = new RegExp(`metafor-\\$\\{"${tagName}"\\}`, "g")
-    staticTemplate = staticTemplate.replace(regex1, `metafor-${tagName}`)
-    staticTemplate = staticTemplate.replace(regex2, `metafor-${tagName}`)
+    const regex1 = new RegExp(`meta-\\$\\{${variableName}\\}`, "g")
+    const regex2 = new RegExp(`meta-\\$\\{"${tagName}"\\}`, "g")
+    staticTemplate = staticTemplate.replace(regex1, `meta-${tagName}`)
+    staticTemplate = staticTemplate.replace(regex2, `meta-${tagName}`)
   }
 
   // 3. Создаем новую функцию с замененным шаблоном

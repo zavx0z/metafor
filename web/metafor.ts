@@ -1,3 +1,26 @@
+/**
+ * Web-реализация MetaFor фреймворка
+ * 
+ * Этот модуль экспортирует MetaFor для использования в браузере.
+ * Компоненты автоматически регистрируются с тегами вида `meta-<hash>`.
+ * 
+ * @example
+ * ```typescript
+ * import { MetaFor } from "./web/metafor.ts"
+ * 
+ * const hash = MetaFor("my-component")
+ *   .context(...)
+ *   .states(...)
+ *   .core(...)
+ *   .processes(...)
+ *   .reactions(...)
+ *   .view(...)
+ * 
+ * // Создание элемента
+ * document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
+ * ```
+ */
+
 import { Context } from "../core/context"
 import type { ContextInstance, ContextSnapshot, ExtractValues, ContextSchema } from "../core/context"
 import { html, nothing, render } from "../core/html"
@@ -9,6 +32,7 @@ import type { Message } from "../core/message"
 import { Processes, type Process } from "../core/proc"
 import { Reactions } from "../core/react"
 import { checkTransitionConditions, type StatesConfig } from "../core/state"
+import SparkMD5 from "spark-md5"
 
 export type { Message } from "../core/message"
 export { ReactionsClone as Reactions } from "../core/react"
@@ -18,8 +42,15 @@ export { ProcessesClone as Processes } from "../core/proc"
 export const MetaFor = MetaForFabric(
   <C extends ContextSchema, S extends string, I extends Core>(params: FabricParams<C, S, I>) =>
     class extends HTMLElement {
-      #tag = params.tag
-      #env = params.env
+      #_tag: string | undefined
+      get #tag() {
+        if (this.#_tag) return this.#_tag
+        this.#_tag = this.tagName.split("-")[1]!.toLowerCase() as string
+        return this.#_tag
+      }
+      #name = params.name
+      #description = params.description
+      #env = "browser"
 
       #context: ContextInstance<C>
       #states: StatesConfig<S, C>
@@ -30,6 +61,7 @@ export const MetaFor = MetaForFabric(
 
       #shadow: ShadowRoot
       #channel: BroadcastChannel | null = null
+      static hash = (fingerPrint: string) => SparkMD5.hash(fingerPrint)
       /** ------------state-------------------------------- */
       #state: S = Object.keys(params.states)[0] as S
       #setState(state: S) {

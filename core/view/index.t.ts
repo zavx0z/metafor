@@ -195,16 +195,16 @@ export interface ViewConfig<C extends ContextSchema, S extends string, I extends
    * render: ({ context, html }) => html`
    *   <div>
    *     <h1>Родитель: ${context.parentMessage}</h1>
-   *     <metafor-child
+   *     <meta-child
    *       context=${{
    *         message: context.parentMessage,
    *         count: context.parentCount,
-   *       }}></metafor-child>
+   *       }}></meta-child>
    *   </div>
    * `
    * ```
    */
-  render?: (params: ViewDefinitionParams<C, S, I>) => TemplateResult | typeof nothing
+  render?: RenderFunc<C, S, I>
   /**
    * Функция, вызываемая после монтирования компонента в DOM.
    * Используется для инициализации после рендера.
@@ -221,3 +221,7 @@ export interface ViewConfig<C extends ContextSchema, S extends string, I extends
    */
   style?: ({ css }: { css: (strings: TemplateStringsArray, ...values: any[]) => CSSStyleSheet }) => void
 }
+
+export type RenderFunc<C extends ContextSchema, S extends string, I extends Core> = (
+  params: ViewDefinitionParams<C, S, I>
+) => TemplateResult | typeof nothing

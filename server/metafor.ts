@@ -12,12 +12,18 @@ import { Reactions } from "../core/react"
 import { checkTransitionConditions, type StatesConfig } from "../core/state"
 
 export type { Message } from "../core/message/index"
-
+const hasher = new Bun.CryptoHasher("md5")
 export const MetaFor = MetaForFabric(
   <C extends ContextSchema, S extends string, I extends Core>(params: FabricParams<C, S, I>) =>
     class extends HTMLElement {
-      #tag = params.tag
-      #env = params.env
+      #_tag: string | undefined
+      get #tag() {
+        if (this.#_tag) return this.#_tag
+        this.#_tag = this.tagName.split("-")[1]!.toLowerCase() as string
+        return this.#_tag
+      }
+      
+      #env = "server"
 
       #context: ContextInstance<C>
       #states: StatesConfig<S, C>
@@ -28,7 +34,11 @@ export const MetaFor = MetaForFabric(
 
       #shadow: ShadowRoot
       #channel: BroadcastChannel | null = null
-      /** ------------state-------------------------------- */
+      static hash = (fingerPrint: string) => {
+        const hash = hasher.update(fingerPrint)
+        return hash.digest("hex")
+      }
+      /** ------------state---------------------------------- */
       #state: S = Object.keys(params.states)[0] as S
       #setState(state: S) {
         this.setAttribute("state", state)
