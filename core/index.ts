@@ -59,7 +59,7 @@ import { Context } from "./context/index.ts"
 import type { ContextSchema, ContextInstance, ExtractValues } from "./context/index.ts"
 import { checkTransitionConditions, type StatesConfig } from "./state/index.ts"
 import { Processes } from "./proc/index.ts"
-import type { ProcessesDeclaration, Process, Processes as ProcessesType } from "./proc/index.t.ts"
+import type { ProcessesDeclaration, Process, ProcessesType as ProcessesType } from "./proc/index.t.ts"
 import type { Core, CreateMetaForParams, Snapshot } from "./index.t.ts"
 import type { ViewConfig } from "./view/index.t.ts"
 import {

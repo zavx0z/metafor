@@ -10,13 +10,67 @@ import type {
   Process,
   ProcessChain,
   ActionParams,
-  Processes as ProcessesType,
+  ProcessesType,
 } from "./index.t"
 import type { Core } from "../../core/index.t"
 import { getSnapshotProcesses } from "./parser.ts"
 
 /**
- * Класс для работы с процессами.
+ * Базовый класс для работы с процессами.
+ * Содержит общую логику для управления процессами.
+ *
+ * @typeParam C - Схема контекста
+ * @typeParam S - Строковые ключи состояний/процессов
+ * @typeParam I - Тип ядра
+ */
+export abstract class ProcessesBase<C extends ContextSchema, S extends string, I extends Core = {}> {
+  protected processes: ProcessesType<C, S, I> = {} as ProcessesType<C, S, I>
+
+  /**
+   * Получает процесс по имени
+   * @param name - имя процесса
+   * @returns процесс или undefined
+   */
+  getProcess(name: S): Process<C, I> | undefined {
+    return this.processes[name]
+  }
+
+  /**
+   * Проверяет наличие процесса
+   * @param name - имя процесса
+   * @returns true если процесс существует
+   */
+  hasProcess(name: S): boolean {
+    return name in this.processes
+  }
+
+  /**
+   * Возвращает все процессы
+   * @returns объект со всеми процессами
+   */
+  getAllProcesses(): ProcessesType<C, S, I> {
+    return { ...this.processes }
+  }
+
+  /**
+   * Возвращает имена всех процессов
+   * @returns массив имен процессов
+   */
+  getProcessNames(): S[] {
+    return Object.keys(this.processes) as S[]
+  }
+
+  /**
+   * Возвращает количество процессов
+   * @returns количество процессов
+   */
+  get size(): number {
+    return Object.keys(this.processes).length
+  }
+}
+
+/**
+ * Основной класс для работы с процессами.
  * Позволяет создавать, управлять и выполнять процессы на основе схемы.
  *
  * @typeParam C - Схема контекста
@@ -28,12 +82,19 @@ import { getSnapshotProcesses } from "./parser.ts"
  * processes.getProcess("login") // получение процесса
  * processes.hasProcess("login") // проверка наличия процесса
  */
-export class Processes<C extends ContextSchema, S extends string, I extends Core = {}> {
-  private processes: ProcessesType<C, S, I>
+export class Processes<C extends ContextSchema, S extends string, I extends Core = {}> extends ProcessesBase<C, S, I> {
   private processesDeclaration: ProcessesDeclaration<C, S, I>
 
   constructor(processesDeclaration: ProcessesDeclaration<C, S, I>) {
+    super()
     this.processesDeclaration = processesDeclaration
+    this.createProcesses()
+  }
+
+  /**
+   * Создает конфигурацию процессов из декларации
+   */
+  private createProcesses(): void {
     /**
      * Фабрика для создания process chain-объекта для каждого процесса.
      * Каждый вызов process возвращает chain API с методами action, success, error, getResult.
@@ -80,7 +141,7 @@ export class Processes<C extends ContextSchema, S extends string, I extends Core
     }
 
     // Вызываем builder, передавая фабрику process. На выходе получаем объект, где значения — chain-объекты.
-    const raw = processesDeclaration(process)
+    const raw = this.processesDeclaration(process)
     // Для каждого ключа вызываем getResult, чтобы получить финальный объект с action, success, error, title, description.
     const result: ProcessesType<C, S, I> = {} as ProcessesType<C, S, I>
     for (const key in raw) {
@@ -93,52 +154,42 @@ export class Processes<C extends ContextSchema, S extends string, I extends Core
   }
 
   /**
-   * Получает процесс по имени
-   * @param name - имя процесса
-   * @returns процесс или undefined
-   */
-  getProcess(name: S): Process<C, I> | undefined {
-    return this.processes[name]
-  }
-
-  /**
-   * Проверяет наличие процесса
-   * @param name - имя процесса
-   * @returns true если процесс существует
-   */
-  hasProcess(name: S): boolean {
-    return name in this.processes
-  }
-
-  /**
-   * Возвращает все процессы
-   * @returns объект со всеми процессами
-   */
-  getAllProcesses(): ProcessesType<C, S, I> {
-    return { ...this.processes }
-  }
-
-  /**
-   * Возвращает имена всех процессов
-   * @returns массив имен процессов
-   */
-  getProcessNames(): S[] {
-    return Object.keys(this.processes) as S[]
-  }
-
-  /**
    * Создает снимок процессов для сериализации
    * @returns сериализованный снимок процессов
    */
   toSnapshot(): Record<string, any> {
     return getSnapshotProcesses(this.processesDeclaration)
   }
+}
+
+/**
+ * Класс для восстановления процессов из snapshot.
+ * Используется для десериализации процессов.
+ *
+ * @typeParam C - Схема контекста
+ * @typeParam S - Строковые ключи состояний/процессов
+ * @typeParam I - Тип ядра
+ */
+export class ProcessesClone<C extends ContextSchema, S extends string, I extends Core = {}> extends ProcessesBase<
+  C,
+  S,
+  I
+> {
+  constructor() {
+    super()
+  }
 
   /**
-   * Возвращает количество процессов
-   * @returns количество процессов
+   * Создает экземпляр ProcessesClone из snapshot
+   * @param snapshot - снимок процессов
+   * @returns экземпляр ProcessesClone
    */
-  get size(): number {
-    return Object.keys(this.processes).length
+  static fromSnapshot<C extends ContextSchema, S extends string, I extends Core = {}>(
+    snapshot: Record<string, any>
+  ): ProcessesClone<C, S, I> {
+    const clone = new ProcessesClone<C, S, I>()
+    // Здесь можно добавить логику восстановления процессов из snapshot
+    // Пока что просто возвращаем пустой clone
+    return clone
   }
 }

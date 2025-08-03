@@ -326,6 +326,6 @@ export type Process<C extends ContextSchema, I extends Core, Res = any> = {
  * }
  * ```
  */
-export type Processes<C extends ContextSchema, S extends string, I extends Core, Res = any> = Partial<
+export type ProcessesType<C extends ContextSchema, S extends string, I extends Core, Res = any> = Partial<
   Record<S, Process<C, I, Res>>
 >
