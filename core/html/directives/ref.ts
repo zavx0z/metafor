@@ -3,7 +3,7 @@
  * @module HTML
  */
 
-import { nothing, type ElementPart } from "../html.js"
+import { nothing, type ElementPart } from "../index.js"
 
 import { directive, AsyncDirective } from "../async-directive.js"
 

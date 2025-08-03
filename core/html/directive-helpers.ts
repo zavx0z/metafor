@@ -1,5 +1,5 @@
-import type { Part, DirectiveParent, CompiledTemplateResult, UncompiledTemplateResult } from "./html.t"
-import { _$LH } from "./html"
+import type { Part, DirectiveParent, CompiledTemplateResult, UncompiledTemplateResult } from "./index.t"
+import { _$LH } from "."
 import type { DirectiveResult, DirectiveClass, PartInfo, AttributePartInfo } from "./directive.t"
 
 const { _ChildPart: ChildPart } = _$LH
@@ -9,7 +9,12 @@ type ChildPart = InstanceType<typeof ChildPart>
 const ENABLE_SHADYDOM_NOPATCH = true
 
 const wrap = (node: Node): Node => {
-  if (ENABLE_SHADYDOM_NOPATCH && (window as any).ShadyDOM?.inUse && (window as any).ShadyDOM?.noPatch === true && (window as any).ShadyDOM?.wrap) {
+  if (
+    ENABLE_SHADYDOM_NOPATCH &&
+    (window as any).ShadyDOM?.inUse &&
+    (window as any).ShadyDOM?.noPatch === true &&
+    (window as any).ShadyDOM?.wrap
+  ) {
     return (window as any).ShadyDOM.wrap(node)
   }
   return node

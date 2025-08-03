@@ -44,7 +44,7 @@ export type Core = Record<string, any>
  * @description
  * Тип параметров для создания web-компонента-актора конечного автомата (Actor)
  */
-export type CreateMetaForParams<C extends ContextSchema, S extends string, I extends Core> = {
+export type FabricParams<C extends ContextSchema, S extends string, I extends Core> = {
   tag: string
   env: "server" | "browser"
   schema: (types: ContextTypes) => C

@@ -3,7 +3,7 @@
  * @module HTML
  */
 
-import { AttributePart, noChange } from "../html"
+import { AttributePart, noChange } from ".."
 import { directive, Directive, type DirectiveParameters, type PartInfo, PartType } from "../directive"
 
 /**

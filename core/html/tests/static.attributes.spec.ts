@@ -1,4 +1,4 @@
-import { render } from "../html"
+import { render } from ".."
 import { html, literal } from "../static"
 import { test, expect, beforeEach } from "bun:test"
 
@@ -25,4 +25,4 @@ test("Статическое имя и значение атрибута", () =>
   expect(container.innerHTML, 'innerHTML должен содержать foo="bar"').toMatchStringHTMLStripComments(
     '<div foo="bar"></div>'
   )
-}) 
+})

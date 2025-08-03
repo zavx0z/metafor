@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { html, render } from "../../html.js"
+import { html, render } from "../../index.js"
 
 describe("события", () => {
   let container: HTMLDivElement

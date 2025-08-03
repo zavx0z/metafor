@@ -3,7 +3,7 @@
  * @module HTML
  */
 
-import type { Disconnectable, Part } from "./html.t"
+import type { Disconnectable, Part } from "./index.t"
 import type { DirectiveResult, PartInfo, DirectiveClass, DirectiveParameters } from "./directive.t"
 import { PartType } from "./directive.t"
 export type { PartInfo, DirectiveParameters }

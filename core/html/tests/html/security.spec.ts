@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
-import { html, render } from "../../html"
-import type { SanitizerFactory } from "../../html.t"
+import { html, render } from "../.."
+import type { SanitizerFactory } from "../../index.t"
 
 describe("расширенные хуки безопасности", () => {
   let container: HTMLDivElement

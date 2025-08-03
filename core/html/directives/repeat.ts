@@ -2,7 +2,7 @@
  * Директива repeat
  * @module HTML
  */
-import { type ChildPart, noChange } from "../html"
+import { type ChildPart, noChange } from "../index.ts"
 import { directive, Directive, type PartInfo, PartType } from "../directive.ts"
 import {
   insertPart,

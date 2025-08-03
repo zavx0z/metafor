@@ -1,4 +1,4 @@
-import { html, render } from "../../html.js"
+import { html, render } from "../../index.js"
 import { beforeEach, describe, expect, test } from "bun:test"
 
 describe("arrays & iterables", () => {

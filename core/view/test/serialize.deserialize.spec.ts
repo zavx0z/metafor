@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test"
-import { html, nothing, render } from "../../html/html"
+import { html, nothing, render } from "../../html"
 import { createRef, ref } from "../../html/directives/ref"
 import { repeat } from "../../html/directives/repeat"
 import { when } from "../../html/directives/when"

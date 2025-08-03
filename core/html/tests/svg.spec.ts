@@ -1,6 +1,6 @@
-import {describe, expect, test} from "bun:test"
-import {render, svg} from "../html"
-import type { SVGTemplateResult, TemplateResult } from "../html.t"
+import { describe, expect, test } from "bun:test"
+import { render, svg } from ".."
+import type { SVGTemplateResult, TemplateResult } from "../index.t"
 
 describe("svg", () => {
   test("рендерит SVG", () => {
@@ -12,8 +12,7 @@ describe("svg", () => {
     expect(line.namespaceURI).toBe("http://www.w3.org/2000/svg")
   })
 
-  const staticAssertExtends = <T, U extends T>(_?: [T, U]) => {
-  }
+  const staticAssertExtends = <T, U extends T>(_?: [T, U]) => {}
 
   test("`SVGTemplateResult` является подтипом `TemplateResult`", () => {
     staticAssertExtends<TemplateResult, SVGTemplateResult>()

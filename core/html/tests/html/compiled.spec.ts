@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import type { CompiledTemplate, CompiledTemplateResult, RenderOptions, TemplateResult } from "../../html.t"
+import type { CompiledTemplate, CompiledTemplateResult, RenderOptions, TemplateResult } from "../../index.t"
 import { createRef, ref } from "../../directives/ref"
-import { AttributePart, render } from "../../html"
+import { AttributePart, render } from "../.."
 describe("скомпилированные шаблоны", () => {
   let container: HTMLDivElement
   beforeEach(() => {

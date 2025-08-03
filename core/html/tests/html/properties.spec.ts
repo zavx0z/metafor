@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import { html, noChange, nothing, render } from "../../html"
+import { html, noChange, nothing, render } from "../.."
 
 describe("свойства", () => {
   let container: HTMLDivElement

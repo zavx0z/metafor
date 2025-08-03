@@ -1,5 +1,5 @@
-import { _$LH } from "./html"
-import type { MaybeCompiledTemplateResult, UncompiledTemplateResult } from "./html.t"
+import { _$LH } from "."
+import type { MaybeCompiledTemplateResult, UncompiledTemplateResult } from "./index.t"
 
 export type Primitive = null | undefined | boolean | number | string | symbol | bigint
 

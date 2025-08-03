@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { mathml, render } from "../html"
-import type { MathMLTemplateResult, TemplateResult } from "../html.t"
+import { mathml, render } from ".."
+import type { MathMLTemplateResult, TemplateResult } from "../index.t"
 
 describe("MathML", () => {
   test("рендерит MathML", () => {

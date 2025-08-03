@@ -1,3 +1,4 @@
+export type { ViewConfig } from "./index.t.ts"
 /**
  * Реализация представления (View)
  * @module View

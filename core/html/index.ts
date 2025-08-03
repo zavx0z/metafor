@@ -17,7 +17,7 @@ import {
   EVENT_PART,
   ELEMENT_PART,
   COMMENT_PART,
-} from "./html.t"
+} from "./index.t"
 import {
   type TemplateResult,
   type HTMLTemplateResult,
@@ -45,7 +45,7 @@ import {
   type Primitive,
   type ResultType,
   type UncompiledTemplateResult,
-} from "./html.t"
+} from "./index.t"
 import {
   isHtmlDebugEnabled,
   addHtmlWarning,

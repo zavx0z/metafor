@@ -102,8 +102,8 @@
  * ту же операцию, просто передавая isConnected: true вниз по дереву, сигнализируя какой колбэк вызывать.
  */
 
-import type { AttributePart, ChildPart } from "./html"
-import type { Disconnectable, Part } from "./html.t"
+import type { AttributePart, ChildPart } from "./index.js"
+import type { Disconnectable, Part } from "./index.t.js"
 import { isSingleExpression } from "./directive-helpers"
 import { Directive } from "./directive"
 import { type PartInfo, PartType } from "./directive.t"

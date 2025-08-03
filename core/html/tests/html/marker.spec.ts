@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import { render, html, nothing } from "../../html"
-import type { CompiledTemplateResult, RenderOptions, TemplateResult } from "../../html.t"
+import { render, html, nothing } from "../.."
+import type { CompiledTemplateResult, RenderOptions, TemplateResult } from "../../index.t"
 import { isHtmlDebugEnabled } from "../../../../web/debug/config"
 
 /**

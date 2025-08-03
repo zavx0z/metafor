@@ -14,6 +14,6 @@ declare module "bun:test" {
     oneOfMatchStringHTMLStripComments(expected: string[]): any
     /** Проверяет, что Proxy-контекст эквивалентен plain-объекту по схеме */
     toPlainObjectEqual(schema: object, value: object): any
-    toMatchRender(expected: import("../core/html/html.t").TemplateResult): any
+    toMatchRender(expected: import("../core/html/index.t").TemplateResult): any
   }
 }

@@ -2,9 +2,9 @@
  * Статический HTML
  * @module HTML
  */
-import { html as coreHtml, svg as coreSvg, mathml as coreMathml } from "./html"
+import { html as coreHtml, svg as coreSvg, mathml as coreMathml } from "."
 import type { StaticValue } from "./static.t"
-import type { TemplateResult } from "./html.t"
+import type { TemplateResult } from "./index.t"
 
 /**
  * Символ-бренд для защиты от подделки статических значений.
