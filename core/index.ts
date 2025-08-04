@@ -231,18 +231,8 @@ export function MetaForFabric(
                            */
                           view(view?: ViewConfig<C, S, I>): string {
                             const params = { name, description, schema, states, core, process, reaction, view }
-                            const fingerPrint = JSON.stringify({
-                              ...(params.name ? { name: params.name } : {}),
-                              ...(params.description ? { desc: params.description } : {}),
-                              states: params.states,
-                              processes: new Processes(params.process).toSnapshot(),
-                              reactions: new Reactions(params.reaction).toSnapshot(),
-                              context: new Context(params.schema).schema,
-                              ...(params.view?.render ? { view: extractTemplateLiteral(params.view.render) } : {}),
-                              ...(params.view?.style ? { style: extractCSSTemplateLiteral(params.view.style) } : {}),
-                            })
                             const actor = constructor(params)
-                            const hash = (actor as any).hash(fingerPrint)
+                            const hash = (actor as any).hash()
                             const tag: string = `meta-${hash}`
                             if (!customElements.get(tag)) customElements.define(tag, constructor(params))
                             if (config?.dev) {

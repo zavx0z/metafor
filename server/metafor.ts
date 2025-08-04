@@ -39,9 +39,21 @@ export const MetaFor = MetaForFabric(
         this.#_tag = this.tagName.split("-")[1]!.toLowerCase() as string
         return this.#_tag
       }
-      static hash = (fingerPrint: string) => {
-        const hash = hasher.update(fingerPrint)
-        return hash.digest("hex")
+      static hash = () => {
+        const fingerPrint = JSON.stringify({
+          ...(params.name ? { name: params.name } : {}),
+          ...(params.description ? { desc: params.description } : {}),
+          states: params.states,
+          processes: new Processes(params.process).toSnapshot(),
+          reactions: new Reactions(params.reaction).toSnapshot(),
+          context: new Context(params.schema).schema,
+          ...(params.view?.render ? { view: extractTemplateLiteral(params.view.render) } : {}),
+          ...(params.view?.style ? { style: extractCSSTemplateLiteral(params.view.style) } : {}),
+        })
+        const hash = hasher.update(fingerPrint).digest("hex")
+        if (store.getMeta(hash)) return hash
+        store.setMeta({ tag: hash, fingerprint: fingerPrint })
+        return hash
       }
       /** ------------state---------------------------------- */
       #state: S = Object.keys(params.states)[0] as S

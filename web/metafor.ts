@@ -1,13 +1,13 @@
 /**
  * Web-реализация MetaFor фреймворка
- * 
+ *
  * Этот модуль экспортирует MetaFor для использования в браузере.
  * Компоненты автоматически регистрируются с тегами вида `meta-<hash>`.
- * 
+ *
  * @example
  * ```typescript
  * import { MetaFor } from "./web/metafor.ts"
- * 
+ *
  * const hash = MetaFor("my-component")
  *   .context(...)
  *   .states(...)
@@ -15,7 +15,7 @@
  *   .processes(...)
  *   .reactions(...)
  *   .view(...)
- * 
+ *
  * // Создание элемента
  * document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
  * ```
@@ -48,7 +48,7 @@ export const MetaFor = MetaForFabric(
       #processes: Processes<C, S, I>
       #reactions: Reactions<C, S, I>
       #view: ViewConfig<C, S, I> | undefined
- 
+
       #env = "browser"
       #name = params.name
       #description = params.description
@@ -62,7 +62,20 @@ export const MetaFor = MetaForFabric(
         this.#_tag = this.tagName.split("-")[1]!.toLowerCase() as string
         return this.#_tag
       }
-      static hash = (fingerPrint: string) => SparkMD5.hash(fingerPrint)
+      static hash = () => {
+        const fingerPrint = JSON.stringify({
+          ...(params.name ? { name: params.name } : {}),
+          ...(params.description ? { desc: params.description } : {}),
+          states: params.states,
+          processes: new Processes(params.process).toSnapshot(),
+          reactions: new Reactions(params.reaction).toSnapshot(),
+          context: new Context(params.schema).schema,
+          ...(params.view?.render ? { view: extractTemplateLiteral(params.view.render) } : {}),
+          ...(params.view?.style ? { style: extractCSSTemplateLiteral(params.view.style) } : {}),
+        })
+        const hash = SparkMD5.hash(fingerPrint)
+        return hash
+      }
       /** ------------state-------------------------------- */
       #state: S = Object.keys(params.states)[0] as S
       #setState(state: S) {
