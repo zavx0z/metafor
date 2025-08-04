@@ -2,30 +2,116 @@ import { Database } from 'bun:sqlite';
 import type { MetaRecord, ActorRecord, PatchRecord, TransactionCallback, ActorTreeNode } from "./index.t"
 import type { Message } from "../../core/message"
 
-// Импортируем SQL-запросы
-import createTablesQuery from "./queries/create.sql" with { type: "text" }
+// SQL-запросы для создания таблиц
+const createTablesQuery = `
+CREATE TABLE
+    IF NOT EXISTS meta (
+        tag TEXT PRIMARY KEY,
+        fingerprint TEXT NOT NULL,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
 
-// Импортируем SQL-запросы для работы с meta
-import setMetaQuery from "./queries/meta/setMeta.sql" with { type: "text" }
-import getMetaQuery from "./queries/meta/getMeta.sql" with { type: "text" }
-import deleteMetaQuery from "./queries/meta/deleteMeta.sql" with { type: "text" }
+CREATE TABLE
+    IF NOT EXISTS actor (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        meta_tag TEXT NOT NULL,
+        parent_id INTEGER,
+        idx INTEGER NOT NULL,
+        snapshot TEXT NOT NULL,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (parent_id) REFERENCES actor (id) ON DELETE CASCADE,
+        FOREIGN KEY (meta_tag) REFERENCES meta (tag) ON DELETE CASCADE,
+        UNIQUE (meta_tag, parent_id)
+    );
 
-// Импортируем SQL-запросы для работы с акторами
-import createActorQuery from "./queries/actor/createActor.sql" with { type: "text" }
-import getActorQuery from "./queries/actor/getActor.sql" with { type: "text" }
-import updateActorSnapshotQuery from "./queries/actor/updateActorSnapshot.sql" with { type: "text" }
-import getChildActorsQuery from "./queries/actor/getChildActors.sql" with { type: "text" }
-import deleteActorQuery from "./queries/actor/deleteActor.sql" with { type: "text" }
+CREATE TABLE
+    IF NOT EXISTS patch (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        actor_id INTEGER NOT NULL,
+        op TEXT NOT NULL,
+        path TEXT NOT NULL,
+        value TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (actor_id) REFERENCES actor (id) ON DELETE CASCADE
+    );
 
-// Импортируем SQL-запросы для работы с патчами
-import addPatchQuery from "./queries/patch/addPatch.sql" with { type: "text" }
-import getPatchesByActorQuery from "./queries/patch/getPatchesByActor.sql" with { type: "text" }
-import getPatchQuery from "./queries/patch/getPatch.sql" with { type: "text" }
-import deletePatchQuery from "./queries/patch/deletePatch.sql" with { type: "text" }
+-- Создаем индексы для ускорения поиска
+CREATE INDEX IF NOT EXISTS idx_actor_tag ON actor (meta_tag);
 
-// Импортируем SQL-запросы для бэкапа
-import getTablesQuery from "./queries/backup/getTables.sql" with { type: "text" }
-import getOtherObjectsQuery from "./queries/backup/getOtherObjects.sql" with { type: "text" }
+CREATE INDEX IF NOT EXISTS idx_actor_parent ON actor (parent_id);
+
+CREATE INDEX IF NOT EXISTS idx_patch_actor ON patch (actor_id);
+`;
+
+// SQL-запросы для работы с meta
+const setMetaQuery = `
+INSERT INTO meta (tag, fingerprint) 
+VALUES (?, ?)
+ON CONFLICT(tag) DO UPDATE SET 
+  fingerprint = excluded.fingerprint,
+  timestamp = CURRENT_TIMESTAMP;
+`;
+
+const getMetaQuery = `
+SELECT * FROM meta WHERE tag = ?;
+`;
+
+const deleteMetaQuery = `
+DELETE FROM meta WHERE tag = ?;
+`;
+
+// SQL-запросы для работы с акторами
+const createActorQuery = `
+INSERT INTO actor (meta_tag, parent_id, idx, snapshot)
+VALUES (?, ?, ?, ?);
+`;
+
+const getActorQuery = `
+SELECT * FROM actor WHERE id = ?;
+`;
+
+const updateActorSnapshotQuery = `
+UPDATE actor 
+SET snapshot = ?, timestamp = CURRENT_TIMESTAMP
+WHERE id = ?;
+`;
+
+const getChildActorsQuery = `
+SELECT * FROM actor WHERE parent_id = ? ORDER BY idx;
+`;
+
+const deleteActorQuery = `
+DELETE FROM actor WHERE id = ?;
+`;
+
+// SQL-запросы для работы с патчами
+const addPatchQuery = `
+INSERT INTO patch (actor_id, op, path, value)
+VALUES (?, ?, ?, ?);
+`;
+
+const getPatchesByActorQuery = `
+SELECT * FROM patch WHERE actor_id = ? ORDER BY id;
+`;
+
+const getPatchQuery = `
+SELECT * FROM patch WHERE id = ?;
+`;
+
+const deletePatchQuery = `
+DELETE FROM patch WHERE id = ?;
+`;
+
+// SQL-запросы для бэкапа
+const getTablesQuery = `
+SELECT name, sql FROM sqlite_master 
+WHERE type='table' AND name NOT LIKE 'sqlite_%'
+`;
+
+const getOtherObjectsQuery = `
+SELECT sql FROM sqlite_master 
+WHERE type IN ('index', 'view', 'trigger') AND sql IS NOT NULL
+`;
 
 export class Store {
   #db: Database
