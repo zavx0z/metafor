@@ -11,6 +11,11 @@ import type { ReactionsDeclaration, SnapshotReactions } from "./react/index.t"
 import type { StatesConfig } from "./state"
 import type { ViewConfig } from "./view/index.t"
 
+declare global {
+  var DEV: boolean
+}
+export {}
+
 /**
  * Интерфейс снимка состояния компонента
  * @template C - схема контекста автомата

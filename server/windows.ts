@@ -1,5 +1,5 @@
 import { Window } from "happy-dom"
-
+globalThis.DEV = process.env.DEV === "true"
 // Создаём экземпляр happy-dom
 export const window = new Window({
   innerWidth: 1024,

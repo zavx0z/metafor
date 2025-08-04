@@ -55,6 +55,8 @@ export const MetaFor = MetaForFabric(
         store.setMeta({ tag: hash, fingerprint: fingerPrint })
         return hash
       }
+      /** ------------idx------------------------------------- */
+      #idx = 0
       /** ------------state---------------------------------- */
       #state: S = Object.keys(params.states)[0] as S
       #setState(state: S) {
@@ -104,6 +106,15 @@ export const MetaFor = MetaForFabric(
         this.#updateView()
         this.setAttribute("state", this.#state)
         this.#channel = new BroadcastChannel("channel")
+        const actor = store.getActor({ tag: this.#tag })
+        if (!actor) {
+          store.createActor({
+            meta_tag: this.#tag,
+            parent_id: null,
+            idx: 0,
+            snapshot: "{}",
+          })
+        }
         requestAnimationFrame(this.#init.bind(this))
       }
 

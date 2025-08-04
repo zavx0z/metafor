@@ -55,7 +55,7 @@
  * @packageDocumentation
  */
 
-import { Context, type ContextSchema } from "./context"
+import { type ContextSchema } from "./context"
 import { type StatesConfig, validateNoUnconditionalCycles } from "./state"
 import type { ProcessesDeclaration } from "./proc/index.t.ts"
 import type { Core, FabricParams, Snapshot } from "./index.t.ts"
@@ -63,9 +63,6 @@ import type { ViewConfig } from "./view/index.t.ts"
 import type { ReactionsDeclaration } from "./react/index.t.ts"
 import type { ContextTypes } from "./context/types.t.ts"
 import { createRef } from "./html/directives"
-import { Processes } from "./proc/index.ts"
-import { Reactions } from "./react/index.ts"
-import { extractTemplateLiteral, extractCSSTemplateLiteral } from "./view/index.ts"
 
 export type { Core, FabricParams, Snapshot }
 
@@ -230,16 +227,19 @@ export function MetaForFabric(
                            * ```
                            */
                           view(view?: ViewConfig<C, S, I>): string {
-                            const params = { name, description, schema, states, core, process, reaction, view }
-                            const actor = constructor(params)
-                            const hash = (actor as any).hash()
+                            const meta = constructor({
+                              name,
+                              description,
+                              schema,
+                              states,
+                              core,
+                              process,
+                              reaction,
+                              view,
+                            })
+                            const hash = (meta as any).hash()
                             const tag: string = `meta-${hash}`
-                            if (!customElements.get(tag)) customElements.define(tag, constructor(params))
-                            if (config?.dev) {
-                              const tag = `meta-${name}`
-                              if (!customElements.get(tag)) customElements.define(tag, constructor(params))
-                              console.log(`${name}: ${hash}`)
-                            }
+                            if (!customElements.get(tag)) customElements.define(tag, meta)
                             return hash
                           },
                         }

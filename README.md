@@ -18,7 +18,7 @@
 ## 🎯 Быстрый старт
 
 ```typescript
-MetaFor("counter")
+const counter = MetaFor("counter")
   .context((types) => ({
     count: types.number.required(0),
     isLoading: types.boolean.required(false),
@@ -51,6 +51,7 @@ MetaFor("counter")
       </div>
     `,
   })
+document.body.innerHTML = `<meta-${counter}></meta-${counter}>`
 ```
 
 ## 🏗️ Архитектура
@@ -422,14 +423,14 @@ MetaFor использует автоматическую систему ген�
 const hash = MetaFor("user-profile")
   .context((types) => ({
     name: types.string.required(""),
-    email: types.string.required("")
+    email: types.string.required(""),
   }))
   .states({ idle: {} })
   .core()
   .processes()
   .reactions()
   .view({
-    render: ({ context, html }) => html`<div>${context.name}</div>`
+    render: ({ context, html }) => html`<div>${context.name}</div>`,
   })
 
 // Создание элемента с правильным тегом

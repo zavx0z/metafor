@@ -13,7 +13,6 @@
         ".idea": true,
         ".firebase": true,
         ".github": true,
-        ".windsurf": true,
         ".cursor": true,
         ".vscode": true
     },
@@ -21,7 +20,6 @@
         ".idea",
         ".firebase",
         ".github",
-        ".windsurf",
         ".cursor",
         ".vscode"
     ],

@@ -86,11 +86,12 @@ describe("Store", () => {
 
   describe("Операции с акторами", () => {
     test("должен создавать и получать актора", () => {
+      const meta = { tag: "test-meta", fingerprint: "test-fingerprint" }
       // Сначала создаем meta-запись
-      store.setMeta({ tag: "test-meta", fingerprint: "test-fingerprint" })
+      store.setMeta(meta)
 
       const actor = {
-        meta_tag: "test-meta",
+        meta_tag: meta.tag,
         parent_id: null,
         idx: 0,
         snapshot: "{}",
@@ -100,7 +101,7 @@ describe("Store", () => {
       const actorId = store.createActor(actor)
 
       // Получаем актора
-      const result = store.getActor(actorId)
+      const result = store.getActor({ tag: meta.tag })
 
       // Проверяем, что актор корректно создан
       expect(result, "Актор должен быть определен").toBeDefined()
@@ -116,9 +117,11 @@ describe("Store", () => {
     })
 
     test("должен обновлять снапшот актора", () => {
+      const meta = { tag: "test-meta", fingerprint: "test-fingerprint" }
+
       // Создаем актора
       const actorId = store.createActor({
-        meta_tag: "test-meta",
+        meta_tag: meta.tag,
         parent_id: null,
         idx: 0,
         snapshot: "{}",
@@ -129,7 +132,7 @@ describe("Store", () => {
       store.updateActorSnapshot(actorId, newSnapshot)
 
       // Проверяем, что снапшот обновился
-      const result = store.getActor(actorId)
+      const result = store.getActor({ tag: meta.tag })
       expect(result, "Актор должен существовать").toBeDefined()
 
       if (result) {
@@ -194,9 +197,9 @@ describe("Store", () => {
 
         // Проверяем, что временная метка существует и является объектом Any<String>
         expect(childRecord.timestamp, "Временная метка должна быть определена").toBeDefined()
-        expect(typeof childRecord.timestamp, "Временная метка должна быть объектом").toBe('object')
+        expect(typeof childRecord.timestamp, "Временная метка должна быть объектом").toBe("object")
         // Проверяем, что у объекта есть метод toString()
-        expect(typeof childRecord.timestamp.toString, "У временной метки должен быть метод toString()").toBe('function')
+        expect(typeof childRecord.timestamp.toString, "У временной метки должен быть метод toString()").toBe("function")
       })
 
       // Проверяем количество дочерних элементов
@@ -218,9 +221,10 @@ describe("Store", () => {
     })
 
     test("должен удалять актора и его дочерние элементы", () => {
+      const meta = { tag: "test-meta", fingerprint: "test-fingerprint" }
       // Создаем родительского актора
       const parentId = store.createActor({
-        meta_tag: "parent-meta",
+        meta_tag: meta.tag,
         parent_id: null,
         idx: 0,
         snapshot: "{}",
@@ -228,7 +232,7 @@ describe("Store", () => {
 
       // Создаем дочернего актора
       const childId = store.createActor({
-        meta_tag: "child-meta",
+        meta_tag: meta.tag,
         parent_id: parentId,
         idx: 0,
         snapshot: "{}",
@@ -238,8 +242,8 @@ describe("Store", () => {
       store.deleteActor(parentId)
 
       // Проверяем, что оба актора удалены
-      expect(store.getActor(parentId), "Родительский актор должен быть удален").toBeNull()
-      expect(store.getActor(childId), "Дочерний актор должен быть удален каскадно").toBeNull()
+      expect(store.getActor({ tag: meta.tag }), "Родительский актор должен быть удален").toBeNull()
+      expect(store.getActor({ tag: meta.tag }), "Дочерний актор должен быть удален каскадно").toBeNull()
     })
   })
 
@@ -296,21 +300,21 @@ describe("Store", () => {
 
       // Проверяем, что ID существует
       expect(patchRecord.id, "ID патча должен быть определен").toBeDefined()
-      
+
       // Логируем тип и значение ID для отладки
-      console.log('Тип ID:', typeof patchRecord.id);
-      console.log('Значение ID:', patchRecord.id);
-      
+      console.log("Тип ID:", typeof patchRecord.id)
+      console.log("Значение ID:", patchRecord.id)
+
       // Проверяем, что ID не является null или undefined
       expect(patchRecord.id != null, "ID не должен быть null или undefined").toBeTrue()
-      
+
       // Проверяем, что ID можно преобразовать в строку (на случай, если это объект)
-      const idString = String(patchRecord.id);
+      const idString = String(patchRecord.id)
       expect(idString.length > 0, "ID не должен быть пустой строкой").toBeTrue()
-      
+
       // Проверяем, что ID можно преобразовать в число (если это числовой ID)
       if (!isNaN(Number(idString))) {
-        const numericId = Number(idString);
+        const numericId = Number(idString)
         expect(numericId > 0, "Числовой ID должен быть больше 0").toBeTrue()
       }
       expect(patchRecord.actor_id, "ID актора в патче должен совпадать").toBe(patch.actor_id)
@@ -319,12 +323,12 @@ describe("Store", () => {
       expect(patchRecord.value, "Значение в патче должно совпадать").toBe(patch.value)
       // Проверяем, что временная метка определена и является объектом
       expect(patchRecord.timestamp, "Временная метка должна быть определена").toBeDefined()
-      expect(typeof patchRecord.timestamp, "Временная метка должна быть объектом").toBe('object')
-      
+      expect(typeof patchRecord.timestamp, "Временная метка должна быть объектом").toBe("object")
+
       // Логируем тип и значение временной метки для отладки
-      console.log('Тип временной метки:', typeof patchRecord.timestamp);
-      console.log('Значение временной метки:', patchRecord.timestamp);
-      
+      console.log("Тип временной метки:", typeof patchRecord.timestamp)
+      console.log("Значение временной метки:", patchRecord.timestamp)
+
       // Для объектов Any<String> мы не можем проверить формат, так как они не раскрываются в тестах
       // Вместо этого просто проверяем, что значение определено и является объектом
       // В реальном коде это будет корректная строка с датой
@@ -385,11 +389,12 @@ describe("Store", () => {
 
   describe("Сложные операции", () => {
     test("должен создавать актора с начальным патчем в транзакции", () => {
+      const meta = { tag: "test-meta", fingerprint: "test-fingerprint" }
       // Сначала создаем meta-запись
-      store.setMeta({ tag: "test-meta", fingerprint: "test-fingerprint" })
+      store.setMeta(meta)
 
       const actor = {
-        meta_tag: "test-meta",
+        meta_tag: meta.tag,
         parent_id: null,
         idx: 0,
         snapshot: "{}",
@@ -405,7 +410,7 @@ describe("Store", () => {
       const { actorId, patchId } = store.createActorWithInitialPatch(actor, initialPatch)
 
       // Проверяем, что актор создан
-      const createdActor = store.getActor(actorId)
+      const createdActor = store.getActor({ tag: meta.tag })
       expect(createdActor, "Актор должен быть создан").toBeDefined()
 
       // Проверяем, что патч создан и привязан к актору
@@ -459,7 +464,7 @@ describe("Store", () => {
       })
 
       // Получаем дерево
-      const tree = store.getActorTree(parentId)
+      const tree = store.getActorTree("parent-meta")
 
       // Проверяем структуру дерева
       expect(tree, "Дерево должно быть определено").toBeDefined()
@@ -619,7 +624,9 @@ describe("Store", () => {
 
       if (snapshot) {
         expect(snapshot.tag, "Тег в снапшоте должен совпадать с ожидаемым").toBe(testTag)
-        expect(snapshot.fingerprint, "Fingerprint в снапшоте должен совпадать с ожидаемым").toBe("fingerprint-placeholder")
+        expect(snapshot.fingerprint, "Fingerprint в снапшоте должен совпадать с ожидаемым").toBe(
+          "fingerprint-placeholder"
+        )
         expect(snapshot.timestamp, "Временная метка должна быть определена").toBeDefined()
       }
     })
