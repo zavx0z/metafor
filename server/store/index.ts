@@ -1,5 +1,5 @@
 import { Database } from "bun:sqlite"
-import type { MetaRecord, ActorRecord, PatchRecord, TransactionCallback, ActorTreeNode } from "./index.t"
+import type { MetaRecord, PatchRecord, TransactionCallback, ActorTreeNode } from "./index.t"
 import type { Message } from "../../core/message"
 
 // SQL-запросы для создания таблиц
@@ -108,7 +108,15 @@ const getOtherObjectsQuery = `
 SELECT sql FROM sqlite_master 
 WHERE type IN ('index', 'view', 'trigger') AND sql IS NOT NULL
 `
-
+class ActorStore {
+  id: number = 0
+  meta_tag: string = ""
+  parent_id: number | null = null
+  idx: number = 0
+  snapshot: string = ""
+  timestamp: string = ""
+}
+export { ActorStore }
 export class Store {
   #db: Database
 
@@ -193,7 +201,7 @@ export class Store {
   /**
    * Создает нового актора
    */
-  createActor(actor: Omit<ActorRecord, "id" | "timestamp">): number {
+  createActor(actor: Omit<ActorStore, "id" | "timestamp">): number {
     try {
       // Проверяем, что meta_tag существует
       const metaExists = this.#db.prepare("SELECT 1 FROM meta WHERE tag = ?").get(actor.meta_tag)
@@ -228,19 +236,7 @@ export class Store {
    * Получает актора по ID
    */
   getActor({ tag }: { tag: string }) {
-    const result = this.#db
-      .prepare(`SELECT * FROM actor WHERE meta_tag = $tag`)
-      .as(
-        class ActorRecord {
-          id: number = 0
-          meta_tag: string = ""
-          parent_id: number | null = null
-          idx: number = 0
-          snapshot: string = ""
-          timestamp: string = ""
-        }
-      )
-      .get({ tag })
+    const result = this.#db.prepare(`SELECT * FROM actor WHERE meta_tag = $tag`).as(ActorStore).get({ tag })
     return result
   }
 
@@ -254,8 +250,8 @@ export class Store {
   /**
    * Получает всех дочерних акторов для указанного родителя
    */
-  getChildActors(parentId: number): ActorRecord[] {
-    return this.#db.prepare(getChildActorsQuery).all(parentId) as ActorRecord[]
+  getChildActors(parentId: number): ActorStore[] {
+    return this.#db.prepare(getChildActorsQuery).all(parentId) as ActorStore[]
   }
 
   /**
@@ -304,7 +300,7 @@ export class Store {
    * Создает актора и его корневой патч в одной транзакции
    */
   createActorWithInitialPatch(
-    actor: Omit<ActorRecord, "id" | "timestamp">,
+    actor: Omit<ActorStore, "id" | "timestamp">,
     initialPatch: Omit<PatchRecord, "id" | "actor_id" | "timestamp">
   ): { actorId: number; patchId: number } {
     let actorId: number

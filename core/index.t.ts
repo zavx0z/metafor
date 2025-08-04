@@ -65,4 +65,21 @@ export type FabricParams<C extends ContextSchema, S extends string, I extends Co
   reaction: ReactionsDeclaration<C, S, I>
   /** Конфигурация view */
   view: ViewConfig<C, S, I> | undefined
+  /** Восстановление из последнего сохраненного состояния (snapshot) */
+  persist: boolean
+}
+/**
+ * Конфигурация компонента MetaFor
+ */
+export type MetaForConfig = {
+  /** Описание компонента */
+  description?: string
+  /** Режим разработки */
+  dev?: boolean
+  /**
+   * Восстановление из последнего сохраненного состояния (snapshot)
+   *
+   * @default false
+   */
+  persist?: boolean
 }

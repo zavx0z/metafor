@@ -10,9 +10,9 @@ import type { Message } from "../core/message"
 import { Processes, type Process } from "../core/proc"
 import { Reactions } from "../core/react"
 import { checkTransitionConditions, type StatesConfig } from "../core/state"
-import { Store } from "./store"
+import { ActorStore, Store } from "./store"
 
-const store = new Store()
+const db = new Store()
 
 export type { Message } from "../core/message/index"
 const hasher = new Bun.CryptoHasher("md5")
@@ -32,6 +32,7 @@ export const MetaFor = MetaForFabric(
 
       #shadow: ShadowRoot
       #channel: BroadcastChannel | null = null
+      #store: ActorStore
       /** ------------tag---------------------------------- */
       #_tag: string | undefined
       get #tag() {
@@ -51,8 +52,8 @@ export const MetaFor = MetaForFabric(
           ...(params.view?.style ? { style: extractCSSTemplateLiteral(params.view.style) } : {}),
         })
         const hash = hasher.update(fingerPrint).digest("hex")
-        if (store.getMeta(hash)) return hash
-        store.setMeta({ tag: hash, fingerprint: fingerPrint })
+        if (db.getMeta(hash)) return hash
+        db.setMeta({ tag: hash, fingerprint: fingerPrint })
         return hash
       }
       /** ------------idx------------------------------------- */
@@ -91,6 +92,18 @@ export const MetaFor = MetaForFabric(
         this.#reactions = new Reactions(params.reaction)
         this.#view = params.view
 
+        const actor = db.getActor({ tag: this.#tag })
+        if (!actor) {
+          db.createActor({
+            meta_tag: this.#tag,
+            parent_id: null,
+            idx: 0,
+            snapshot: JSON.stringify(this.getSnapshot()),
+          })
+        }
+        if (!actor) throw new Error(`Actor ${this.#name}: ${this.#tag} not found`)
+        this.#store = actor
+
         this.#view?.style?.({
           css: (strings, ...values) => {
             const sheet = new CSSStyleSheet()
@@ -106,15 +119,6 @@ export const MetaFor = MetaForFabric(
         this.#updateView()
         this.setAttribute("state", this.#state)
         this.#channel = new BroadcastChannel("channel")
-        const actor = store.getActor({ tag: this.#tag })
-        if (!actor) {
-          store.createActor({
-            meta_tag: this.#tag,
-            parent_id: null,
-            idx: 0,
-            snapshot: "{}",
-          })
-        }
         requestAnimationFrame(this.#init.bind(this))
       }
 

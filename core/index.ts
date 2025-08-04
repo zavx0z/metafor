@@ -58,7 +58,7 @@
 import { type ContextSchema } from "./context"
 import { type StatesConfig, validateNoUnconditionalCycles } from "./state"
 import type { ProcessesDeclaration } from "./proc/index.t.ts"
-import type { Core, FabricParams, Snapshot } from "./index.t.ts"
+import type { Core, FabricParams, MetaForConfig, Snapshot } from "./index.t.ts"
 import type { ViewConfig } from "./view/index.t.ts"
 import type { ReactionsDeclaration } from "./react/index.t.ts"
 import type { ContextTypes } from "./context/types.t.ts"
@@ -79,8 +79,10 @@ export function MetaForFabric(
    * **Важно:** Итоговый тег компонента формируется автоматически как `meta-<hash>`,
    * где hash — это MD5 хеш от всей конфигурации компонента.
    */
-  return function MetaFor(name: string, config?: { description?: string; dev?: boolean }) {
+  return function MetaFor(name: string, config?: MetaForConfig) {
     const description = config?.description
+    const dev = config?.dev ?? globalThis.DEV ?? false
+    const persist = config?.persist ?? false
     return {
       /**
        * Регистрирует схему контекста для автомата.
@@ -236,6 +238,7 @@ export function MetaForFabric(
                               process,
                               reaction,
                               view,
+                              persist,
                             })
                             const hash = (meta as any).hash()
                             const tag: string = `meta-${hash}`
