@@ -11,11 +11,12 @@ import { Processes, type Process } from "../core/proc"
 import { Reactions } from "../core/react"
 import { checkTransitionConditions, type StatesConfig } from "../core/state"
 import { ActorStore, Store } from "./store"
-
-const db = new Store()
+import { meta } from "../core/html/directives/meta.ts"
 
 export type { Message } from "../core/message/index"
 const hasher = new Bun.CryptoHasher("md5")
+export const store = new Store()
+
 export const MetaFor = MetaForFabric(
   <C extends ContextSchema, S extends string, I extends Core>(params: FabricParams<C, S, I>) =>
     class extends HTMLElement {
@@ -52,8 +53,8 @@ export const MetaFor = MetaForFabric(
           ...(params.view?.style ? { style: extractCSSTemplateLiteral(params.view.style) } : {}),
         })
         const hash = hasher.update(fingerPrint).digest("hex")
-        if (db.getMeta(hash)) return hash
-        db.setMeta({ tag: hash, fingerprint: fingerPrint })
+        if (store.getMeta(hash)) return hash
+        store.setMeta({ tag: hash, fingerprint: fingerPrint })
         return hash
       }
       /** ------------idx------------------------------------- */
@@ -92,9 +93,9 @@ export const MetaFor = MetaForFabric(
         this.#reactions = new Reactions(params.reaction)
         this.#view = params.view
 
-        const actor = db.getActor({ tag: this.#tag })
+        const actor = store.getActor({ tag: this.#tag })
         if (!actor) {
-          db.createActor({
+          store.createActor({
             meta_tag: this.#tag,
             parent_id: null,
             idx: 0,
@@ -139,11 +140,12 @@ export const MetaFor = MetaForFabric(
             this.#transition()
           }
         }
-        if (this.#view?.onMount) this.#view.onMount()
+        if (this.#view?.onMount) this.#view.onMount({ core: this.#core })
       }
 
       disconnectedCallback() {
         this.removeEventListener("channel", this.#reactionHandler)
+        if (this.#view?.onDestroy) this.#view.onDestroy({ core: this.#core })
       }
 
       /** обновление контекста */
@@ -268,6 +270,7 @@ export const MetaFor = MetaForFabric(
           map,
           nothing,
           choose,
+          meta,
         })
         if (template) render(template, this.#shadow)
       }

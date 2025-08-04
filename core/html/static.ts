@@ -1,5 +1,7 @@
 /**
  * Статический HTML
+ * 
+ * 
  * @module HTML
  */
 import { html as coreHtml, svg as coreSvg, mathml as coreMathml } from "."

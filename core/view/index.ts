@@ -1,6 +1,80 @@
+import type { ExtractValues, Update } from "../context/index.t.ts"
 import type { ContextSchema } from "../context/types.t.ts"
+import { choose } from "../html/directives/choose.ts"
+import { map } from "../html/directives/map.ts"
+import { meta } from "../html/directives/meta.ts"
+import { ref } from "../html/directives/ref.ts"
+import { repeat } from "../html/directives/repeat.ts"
+import { styleMap } from "../html/directives/style-map.ts"
+import { when } from "../html/directives/when.ts"
+import { html, nothing, render } from "../html/index.ts"
 import type { Core } from "../index.t.ts"
-import type { RenderFunc } from "./index.t.ts"
+import type { RenderFunc, ViewConfig } from "./index.t.ts"
+
+export class View<C extends ContextSchema, S extends string, I extends Core> {
+  actors: Map<string, Function> = new Map()
+
+  html: RenderFunc<C, S, I> | null = null
+  sheet: CSSStyleSheet | null = null
+  onMount: ({ core }: { core: I }) => void = () => {}
+  onDestroy: ({ core }: { core: I }) => void = () => {}
+  attachStyles = (shadow: ShadowRoot) => this.sheet && shadow.adoptedStyleSheets.push(this.sheet)
+
+  constructor(config?: ViewConfig<C, S, I>) {
+    if (!config) return
+    config.style?.({
+      css: (strings, ...values) => {
+        const sheet = new CSSStyleSheet()
+        const result = strings.reduce((acc, str, i) => acc + str + (values[i] || ""), "")
+        sheet.replaceSync(result)
+        this.sheet = sheet
+      },
+    })
+    if (config.render) this.html = config.render
+    this.onMount = config.onMount || (() => {})
+    this.onDestroy = config.onDestroy || (() => {})
+  }
+
+  render({
+    state,
+    context,
+    core,
+    shadow,
+    update,
+  }: {
+    state: S
+    context: ExtractValues<C>
+    core: I
+    shadow: ShadowRoot
+    update: Update<C>
+  }) {
+    if (!this.html) return
+    const template = this.html({
+      state,
+      context,
+      core,
+      update,
+      style: styleMap,
+      html,
+      ref,
+      repeat,
+      when,
+      map,
+      nothing,
+      choose,
+      meta,
+    })
+    if (template) render(template, shadow)
+  }
+  toSnapshot() {
+    // if (this.#view?.render) snapshot["view"] = extractTemplateLiteral(this.#view.render)
+    // if (this.#view?.style) snapshot["style"] = extractCSSTemplateLiteral(this.#view.style)
+    return {
+      render: "this.html",
+      style: "this.sheet",
+    }
+  }
+}
 
 export type { ViewConfig } from "./index.t.ts"
 /**

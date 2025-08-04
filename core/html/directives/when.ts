@@ -29,6 +29,7 @@ export function when<C, T, F = undefined>(
   trueCase: (c: Exclude<C, Falsy>) => T,
   falseCase?: (c: Extract<C, Falsy>) => F
 ): C extends Falsy ? F : T
+
 export function when(
   condition: unknown,
   trueCase: (c: unknown) => unknown,

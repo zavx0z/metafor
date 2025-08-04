@@ -7,6 +7,7 @@
 import type { ContextSchema, Update, ExtractValues } from "../context"
 import type { choose } from "../html/directives/choose"
 import type { map } from "../html/directives/map"
+import type { meta } from "../html/directives/meta"
 import type { ref } from "../html/directives/ref"
 import type { repeat } from "../html/directives/repeat"
 import type { styleMap } from "../html/directives/style-map"
@@ -173,6 +174,26 @@ export type ViewDefinitionParams<C extends ContextSchema, S extends string, I ex
    * ```
    */
   choose: typeof choose
+  /**
+   * Директива для включения мета-тегов компонентов в шаблон.
+   *
+   * Принимает хеш компонента и функцию рендера, которая получает готовый тег `meta-<hash>`.
+   * Результат кешируется для оптимизации производительности.
+   *
+   * @example
+   * ```ts
+   * // Простое использование
+   * render: ({ html, meta }) => html`
+   *   ${meta(childHash, (tag) => html`<${tag}></${tag}>`)}
+   * `
+   *
+   * // С передачей атрибутов
+   * render: ({ html, meta, context }) => html`
+   *   ${meta(childHash, (tag) => html`<${tag} context=${context}></${tag}>`)}
+   * `
+   * ```
+   */
+  meta: typeof meta
 }
 
 /**
@@ -209,17 +230,17 @@ export interface ViewConfig<C extends ContextSchema, S extends string, I extends
    * Функция, вызываемая после монтирования компонента в DOM.
    * Используется для инициализации после рендера.
    */
-  onMount?: (...args: unknown[]) => unknown
+  onMount?: ({ core }: { core: I }) => void
   /**
    * Функция, вызываемая при уничтожении компонента.
    * Используется для очистки ресурсов.
    */
-  onDestroy?: (...args: unknown[]) => unknown
+  onDestroy?: ({ core }: { core: I }) => void
   /**
    * Функция для определения CSS-стилей компонента.
    * Получает функцию css для создания инкапсулированных стилей.
    */
-  style?: ({ css }: { css: (strings: TemplateStringsArray, ...values: any[]) => CSSStyleSheet }) => void
+  style?: ({ css }: { css: (strings: TemplateStringsArray, ...values: any[]) => void }) => void
 }
 
 export type RenderFunc<C extends ContextSchema, S extends string, I extends Core> = (

@@ -25,7 +25,7 @@ import { Context } from "../core/context"
 import type { ContextInstance, ContextSnapshot, ExtractValues, ContextSchema } from "../core/context"
 import { html, nothing, render } from "../core/html"
 import { choose, map, ref, repeat, styleMap, when } from "../core/html/directives"
-import { extractTemplateLiteral, extractCSSTemplateLiteral, type ViewConfig } from "../core/view"
+import { extractTemplateLiteral, extractCSSTemplateLiteral, type ViewConfig, View } from "../core/view"
 import { MetaForFabric, type Core, type FabricParams, type Snapshot } from "../core"
 import { initMessage, updateContextMessage, stateBeforeActionMessage, stateAfterActionMessage } from "../core/message"
 import type { Message } from "../core/message"
@@ -33,6 +33,7 @@ import { Processes, type Process } from "../core/proc"
 import { Reactions } from "../core/react"
 import { checkTransitionConditions, type StatesConfig } from "../core/state"
 import SparkMD5 from "spark-md5"
+import { meta } from "../core/html/directives/meta"
 
 export type { Message } from "../core/message"
 export { ReactionsClone as Reactions } from "../core/react"
@@ -47,7 +48,7 @@ export const MetaFor = MetaForFabric(
       #core: I
       #processes: Processes<C, S, I>
       #reactions: Reactions<C, S, I>
-      #view: ViewConfig<C, S, I> | undefined
+      #view: View<C, S, I>
 
       #env = "browser"
       #name = params.name
@@ -108,21 +109,18 @@ export const MetaFor = MetaForFabric(
         this.#core = params.core
         this.#processes = new Processes(params.process)
         this.#reactions = new Reactions(params.reaction)
-        this.#view = params.view
-
-        this.#view?.style?.({
-          css: (strings, ...values) => {
-            const sheet = new CSSStyleSheet()
-            const result = strings.reduce((acc, str, i) => acc + str + (values[i] || ""), "")
-            sheet.replaceSync(result)
-            this.#shadow.adoptedStyleSheets.push(sheet)
-            return sheet
-          },
-        })
+        this.#view = new View(params.view)
+        this.#view.attachStyles(this.#shadow)
       }
 
       connectedCallback() {
-        this.#updateView()
+        this.#view.render({
+          state: this.#state,
+          context: this.#context.getSnapshot(),
+          core: this.#core,
+          shadow: this.#shadow,
+          update: this.update,
+        })
         this.setAttribute("state", this.#state)
         this.#channel = new BroadcastChannel("channel")
         requestAnimationFrame(this.#init.bind(this))
@@ -145,11 +143,12 @@ export const MetaFor = MetaForFabric(
             this.#transition()
           }
         }
-        if (this.#view?.onMount) this.#view.onMount()
+        this.#view.onMount({ core: this.#core })
       }
 
       disconnectedCallback() {
         this.removeEventListener("channel", this.#reactionHandler)
+        this.#view.onDestroy({ core: this.#core })
       }
 
       /** обновление контекста */
@@ -157,7 +156,13 @@ export const MetaFor = MetaForFabric(
         const updated = this.#context.update(context)
         if (Object.keys(updated).length > 0) {
           this.#sendEvent(updateContextMessage(this.#tag, updated))
-          this.#updateView()
+          this.#view.render({
+            state: this.#state,
+            context: this.#context.getSnapshot(),
+            core: this.#core,
+            shadow: this.#shadow,
+            update: this.update,
+          })
         }
         return updated
       }
@@ -245,7 +250,13 @@ export const MetaFor = MetaForFabric(
       #broadcastMessage = (message: Message) => {
         if (!this.#channel) return
         this.#channel.postMessage(message)
-        this.#updateView()
+        this.#view.render({
+          state: this.#state,
+          context: this.#context.getSnapshot(),
+          core: this.#core,
+          shadow: this.#shadow,
+          update: this.update,
+        })
       }
       #sendEvent = (message: Message) => {
         if (!this.#channel) return
@@ -259,24 +270,6 @@ export const MetaFor = MetaForFabric(
         //   })
         // )
       }
-      #updateView = () => {
-        if (!this.#view?.render) return
-        const template = this.#view.render({
-          state: this.#state,
-          context: this.#context.getSnapshot(),
-          core: this.#core,
-          update: this.update,
-          style: styleMap,
-          html,
-          ref,
-          repeat,
-          when,
-          map,
-          nothing,
-          choose,
-        })
-        if (template) render(template, this.#shadow)
-      }
       getSnapshot(): Snapshot<C, S> {
         const context: ContextSnapshot<C> = {} as ContextSnapshot<C>
         const contextCurrentValues = this.#context.getSnapshot()
@@ -285,6 +278,7 @@ export const MetaFor = MetaForFabric(
             type: value.type,
             required: value.required,
             default: value.default,
+            ...this.#view.toSnapshot(),
             ...(value.title ? { title: value.title } : {}),
             ...(value.values ? { values: value.values } : {}),
             value: contextCurrentValues[key as keyof C],
@@ -297,8 +291,7 @@ export const MetaFor = MetaForFabric(
         }
         if (this.#processes.size > 0) snapshot["processes"] = this.#processes.toSnapshot()
         if (this.#reactions.hasReactions()) snapshot["reactions"] = this.#reactions.toSnapshot()
-        if (this.#view?.render) snapshot["view"] = extractTemplateLiteral(this.#view.render)
-        if (this.#view?.style) snapshot["style"] = extractCSSTemplateLiteral(this.#view.style)
+
         return snapshot
       }
 

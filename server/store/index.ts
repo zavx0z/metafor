@@ -117,6 +117,7 @@ class ActorStore {
   timestamp: string = ""
 }
 export { ActorStore }
+
 export class Store {
   #db: Database
 
@@ -341,6 +342,9 @@ export class Store {
     }
   }
 
+  getAllActors() {
+    return this.#db.prepare("SELECT * FROM actor").as(ActorStore).all()
+  }
   // ===== Устаревшие методы =====
 
   /**
