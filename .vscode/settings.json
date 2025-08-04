@@ -12,12 +12,18 @@
         ".venv": true,
         ".idea": true,
         ".firebase": true,
-        ".github": true
+        ".github": true,
+        ".windsurf": true,
+        ".cursor": true,
+        ".vscode": true
     },
     "hide-files.files": [
         ".idea",
         ".firebase",
-        ".github"
+        ".github",
+        ".windsurf",
+        ".cursor",
+        ".vscode"
     ],
     "explorer.fileNesting.enabled": true,
     "explorer.fileNesting.expand": false,
@@ -33,6 +39,7 @@
     ],
     "bun.test.filePattern": "**/*{.test.,.spec.,_test_,_spec_}{js,ts,tsx,jsx,mts,cts}",
     "cSpell.words": [
+        "автоинкремент",
         "акторных",
         "АЛИАСЫ",
         "апгрейдил",
@@ -40,6 +47,9 @@
         "билдера",
         "булевому",
         "булевые",
+        "бэкапа",
+        "бэкапной",
+        "бэкапом",
         "Валидируйте",
         "вендорных",
         "верхнеуровневого",
@@ -49,6 +59,7 @@
         "Десериализованный",
         "Десериализует",
         "дистанцировать",
+        "журналирование",
         "закоммичен",
         "закоммичена",
         "закоммиченное",
@@ -72,6 +83,7 @@
         "коммитом",
         "коммитятся",
         "ЛИЧАТЬСЯ",
+        "Логируем",
         "Логирует",
         "маппинга",
         "матчеры",
@@ -133,6 +145,7 @@
         "bunfig",
         "clonable",
         "esac",
+        "FOREIGNKEY",
         "justinfagnani",
         "metaforpro",
         "mrow",

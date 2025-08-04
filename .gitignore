@@ -7,3 +7,4 @@ public
 /@zavx0z/
 docs
 .firebase/*
+*.sqlite

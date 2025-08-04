@@ -10,6 +10,9 @@ import type { Message } from "../core/message"
 import { Processes, type Process } from "../core/proc"
 import { Reactions } from "../core/react"
 import { checkTransitionConditions, type StatesConfig } from "../core/state"
+import { Store } from "./store"
+
+const store = new Store()
 
 export type { Message } from "../core/message/index"
 const hasher = new Bun.CryptoHasher("md5")
