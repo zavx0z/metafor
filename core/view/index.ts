@@ -92,7 +92,7 @@ export type { ViewConfig } from "./index.t.ts"
  */
 
 /**
- * Извлекает template literal из view функции
+ * Извлекает template literal из view функции с анализом замыканий
  */
 export function extractTemplateLiteral(fn: Function): string {
   const fnString = fn.toString()
@@ -104,6 +104,62 @@ export function extractTemplateLiteral(fn: Function): string {
   }
 
   return match[1]!
+}
+
+/**
+ * Продвинутая сериализация render-функции с захватом замыканий
+ */
+export function serializeRenderFunction<C extends ContextSchema, S extends string, I extends Core>(
+  renderFn: RenderFunc<C, S, I>,
+  closureContext?: Record<string, any>
+): {
+  template: string
+  closures: Record<string, any>
+  serialized: string
+} {
+  const fnString = renderFn.toString()
+  
+  // Извлекаем template literal
+  const templateMatch = fnString.match(/html`([\s\S]*)`/)
+  if (!templateMatch) {
+    throw new Error("Не удалось найти template literal в функции")
+  }
+  
+  const template = templateMatch[1]!
+  const closures: Record<string, any> = {}
+  
+  // Анализируем переменные в template literal
+  const variableMatches = template.matchAll(/\$\{([^}]+)\}/g)
+  
+  for (const match of variableMatches) {
+    const expression = match[1]!.trim()
+    
+    // Проверяем, является ли это простой переменной (не context.something)
+    if (!expression.includes('.') && !expression.includes('[') && closureContext) {
+      if (closureContext[expression] !== undefined) {
+        closures[expression] = closureContext[expression]
+      }
+    }
+  }
+  
+  // Создаем сериализованную версию с замененными значениями
+  let serialized = template
+  
+  // Обрабатываем случаи, когда константы уже подставлены в строку
+  // Заменяем конструкции вида meta-${"hash"} на meta-hash
+  serialized = serialized.replace(/meta-\$\{"([^"]+)"\}/g, 'meta-$1')
+  
+  // Обрабатываем обычные замыкания
+  for (const [key, value] of Object.entries(closures)) {
+    const regex = new RegExp(`\\$\\{${key}\\}`, 'g')
+    serialized = serialized.replace(regex, String(value))
+  }
+  
+  return {
+    template,
+    closures,
+    serialized
+  }
 }
 
 /**
@@ -122,12 +178,69 @@ export function extractCSSTemplateLiteral(fn: Function): string {
 }
 
 /**
+ * Автоматически захватывает контекст замыканий для render-функции
+ */
+export function captureRenderContext<C extends ContextSchema, S extends string, I extends Core>(
+  renderFn: RenderFunc<C, S, I>
+): Record<string, any> {
+  const fnString = renderFn.toString()
+  const context: Record<string, any> = {}
+  
+  // Получаем ссылку на область видимости, где была определена функция
+  // Это работает только в определенных случаях
+  try {
+    // Пытаемся получить доступ к локальным переменным через eval
+    const variableNames = fnString.match(/\$\{([a-zA-Z_$][a-zA-Z0-9_$]*)\}/g)
+    if (variableNames) {
+      for (const match of variableNames) {
+        const varName = match.slice(2, -1) // Убираем ${ и }
+        if (!varName.includes('.') && !varName.includes('[')) {
+          try {
+            // Осторожно: это может не работать в строгом режиме
+            const value = eval(varName)
+            if (value !== undefined) {
+              context[varName] = value
+            }
+          } catch {
+            // Переменная не доступна в текущем контексте
+          }
+        }
+      }
+    }
+  } catch {
+    // Не удалось захватить контекст
+  }
+  
+  return context
+}
+
+/**
  * Восстанавливает view функцию из template literal
  */
 export function restoreViewFunction(template: string) {
   // Создаем функцию через eval с фиксированными параметрами
-  const functionString = `({ html, update, context, ref, repeat, when, map, style, choose, nothing, core, state }) => html\`${template}\``
+  const functionString = `({ html, update, context, ref, repeat, when, map, style, choose, core, state }) => html\`${template}\``
   return eval(functionString)
+}
+
+/**
+ * Восстанавливает view функцию с замыканиями
+ */
+export function restoreViewFunctionWithClosures(
+  template: string,
+  closures: Record<string, any>
+) {
+  // Создаем строку с переменными замыкания
+  const closureVars = Object.entries(closures)
+    .map(([key, value]) => `const ${key} = ${JSON.stringify(value)};`)
+    .join(' ')
+  
+  const functionString = `
+    ${closureVars}
+    return ({ html, update, context, ref, repeat, when, map, style, choose, core, state }) => html\`${template}\`
+  `
+  
+  return new Function(functionString)()
 }
 
 /**

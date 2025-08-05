@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test"
-import { html, nothing, render } from "../../html"
+import { html } from "../../html"
 import { createRef, ref } from "../../html/directives/ref"
 import { repeat } from "../../html/directives/repeat"
 import { when } from "../../html/directives/when"
@@ -38,7 +38,6 @@ describe("serialize and deserialize", () => {
     map,
     style,
     choose,
-    nothing,
     core,
     state,
   }: ViewDefinitionParams<typeof schema, State, Core>) => {
@@ -59,7 +58,7 @@ describe("serialize and deserialize", () => {
         ["active", () => html`<div>active</div>`],
         ["inactive", () => html`<div>inactive</div>`],
       ])}
-      ${state === "active" ? html`<div>active</div>` : nothing}
+      ${state === "active" ? html`<div>active</div>` : ""}
     </div>`
   }
 
@@ -89,7 +88,6 @@ describe("serialize and deserialize", () => {
       map,
       style: styleMap,
       choose,
-      nothing,
       core,
       state,
     })
@@ -103,7 +101,6 @@ describe("serialize and deserialize", () => {
       map,
       style: styleMap,
       choose,
-      nothing,
       core,
       state,
     })
@@ -178,4 +175,49 @@ test("полный цикл извлечения и восстановления
 
   expect(restoredResult.strings[0], "шаблон должен совпадать").toBe(originalResult.strings[0])
   expect(restoredResult.values.length, "количество значений должно совпадать").toBe(originalResult.values.length)
+})
+
+test("сериализация render-функции с замыканиями", () => {
+  // Импортируем необходимые функции
+  const { serializeRenderFunction, restoreViewFunctionWithClosures } = require("../index")
+  
+  // Имитируем ситуацию с внешними переменными
+  const childHash = "child-243232"
+  const parentHash = "parent-456789"
+  
+  const renderWithClosures = ({ context, html }: any) => html`
+    <div>
+      <h1>Родитель: ${context.parentMessage}</h1>
+      <meta-${childHash}
+        context=${{
+          message: context.parentMessage,
+          count: context.parentCount,
+        }}></meta-${childHash}>
+      <meta-${parentHash}></meta-${parentHash}>
+    </div>
+  `
+  
+  // Сериализуем с контекстом замыканий
+  const { template, closures, serialized } = serializeRenderFunction(
+    renderWithClosures,
+    { childHash, parentHash }
+  )
+  
+  // Проверяем, что функция работает и возвращает ожидаемые результаты
+  expect(template).toContain("meta-${\"child-243232\"}")
+  expect(template).toContain("meta-${\"parent-456789\"}")
+  expect(closures).toEqual({})
+  expect(serialized).toContain("meta-child-243232")
+  expect(serialized).toContain("meta-parent-456789")
+  
+  // Восстанавливаем функцию
+  const restored = restoreViewFunctionWithClosures(template, closures)
+  expect(restored).toBeInstanceOf(Function)
+  
+  // Проверяем, что восстановленная функция работает
+  const mockContext = { parentMessage: "test", parentCount: 5 }
+  const result = restored({ context: mockContext, html })
+  
+  expect(result.strings.join('')).toContain("meta-child-243232")
+  expect(result.strings.join('')).toContain("meta-parent-456789")
 })
