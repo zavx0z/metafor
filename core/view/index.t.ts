@@ -7,12 +7,11 @@
 import type { ContextSchema, Update, ExtractValues } from "../context"
 import type { choose } from "../html/directives/choose"
 import type { map } from "../html/directives/map"
-import type { meta } from "../html/directives/meta"
 import type { ref } from "../html/directives/ref"
 import type { repeat } from "../html/directives/repeat"
 import type { styleMap } from "../html/directives/style-map"
 import type { when } from "../html/directives/when"
-import type { html, nothing } from "../html"
+import type { html } from "../html"
 import type { TemplateResult } from "../html/index.t"
 import type { Core } from "../index.t"
 
@@ -146,18 +145,6 @@ export type ViewDefinitionParams<C extends ContextSchema, S extends string, I ex
    */
   style: typeof styleMap
   /**
-   * Специальное значение для пустого контента.
-   *
-   * ```ts
-   * const button = html`${
-   *  user.isAdmin ? html`<button>DELETE</button>` : nothing
-   * }`;
-   * ```
-   *
-   * Удаляет узлы в child выражениях и атрибуты в атрибутных выражениях.
-   */
-  nothing: typeof nothing
-  /**
    * Директива для условного выбора шаблона по значению.
    *
    * Выбирает и выполняет функцию шаблона из списка на основе соответствия
@@ -174,26 +161,6 @@ export type ViewDefinitionParams<C extends ContextSchema, S extends string, I ex
    * ```
    */
   choose: typeof choose
-  /**
-   * Директива для включения мета-тегов компонентов в шаблон.
-   *
-   * Принимает хеш компонента и функцию рендера, которая получает готовый тег `meta-<hash>`.
-   * Результат кешируется для оптимизации производительности.
-   *
-   * @example
-   * ```ts
-   * // Простое использование
-   * render: ({ html, meta }) => html`
-   *   ${meta(childHash, (tag) => html`<${tag}></${tag}>`)}
-   * `
-   *
-   * // С передачей атрибутов
-   * render: ({ html, meta, context }) => html`
-   *   ${meta(childHash, (tag) => html`<${tag} context=${context}></${tag}>`)}
-   * `
-   * ```
-   */
-  meta: typeof meta
 }
 
 /**
@@ -245,4 +212,4 @@ export interface ViewConfig<C extends ContextSchema, S extends string, I extends
 
 export type RenderFunc<C extends ContextSchema, S extends string, I extends Core> = (
   params: ViewDefinitionParams<C, S, I>
-) => TemplateResult | typeof nothing
+) => TemplateResult

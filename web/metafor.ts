@@ -22,10 +22,8 @@
  */
 
 import { Context } from "../core/context"
-import type { ContextInstance, ContextSnapshot, ExtractValues, ContextSchema } from "../core/context"
-import { html, nothing, render } from "../core/html"
-import { choose, map, ref, repeat, styleMap, when } from "../core/html/directives"
-import { extractTemplateLiteral, extractCSSTemplateLiteral, type ViewConfig, View } from "../core/view"
+import type { ContextSchema, ExtractValues } from "../core/context"
+import { View } from "../core/view"
 import { MetaForFabric, type Core, type FabricParams, type Snapshot } from "../core"
 import { initMessage, updateContextMessage, stateBeforeActionMessage, stateAfterActionMessage } from "../core/message"
 import type { Message } from "../core/message"
@@ -33,7 +31,6 @@ import { Processes, type Process } from "../core/proc"
 import { Reactions } from "../core/react"
 import { checkTransitionConditions, type StatesConfig } from "../core/state"
 import SparkMD5 from "spark-md5"
-import { meta } from "../core/html/directives/meta"
 
 export type { Message } from "../core/message"
 export { ReactionsClone as Reactions } from "../core/react"
@@ -43,7 +40,7 @@ export { ProcessesClone as Processes } from "../core/proc"
 export const MetaFor = MetaForFabric(
   <C extends ContextSchema, S extends string, I extends Core>(params: FabricParams<C, S, I>) =>
     class extends HTMLElement {
-      #context: ContextInstance<C>
+      #context: Context<C>
       #states: StatesConfig<S, C>
       #core: I
       #processes: Processes<C, S, I>
@@ -56,27 +53,6 @@ export const MetaFor = MetaForFabric(
 
       #shadow: ShadowRoot
       #channel: BroadcastChannel | null = null
-      /** ------------tag---------------------------------- */
-      #_tag: string | undefined
-      get #tag() {
-        if (this.#_tag) return this.#_tag
-        this.#_tag = this.tagName.split("-")[1]!.toLowerCase() as string
-        return this.#_tag
-      }
-      static hash = () => {
-        const fingerPrint = JSON.stringify({
-          ...(params.name ? { name: params.name } : {}),
-          ...(params.description ? { desc: params.description } : {}),
-          states: params.states,
-          processes: new Processes(params.process).toSnapshot(),
-          reactions: new Reactions(params.reaction).toSnapshot(),
-          context: new Context(params.schema).schema,
-          ...(params.view?.render ? { view: extractTemplateLiteral(params.view.render) } : {}),
-          ...(params.view?.style ? { style: extractCSSTemplateLiteral(params.view.style) } : {}),
-        })
-        const hash = SparkMD5.hash(fingerPrint)
-        return hash
-      }
       /** ------------state-------------------------------- */
       #state: S = Object.keys(params.states)[0] as S
       #setState(state: S) {
@@ -126,13 +102,13 @@ export const MetaFor = MetaForFabric(
         })
         this.setAttribute("state", this.#state)
         this.#channel = new BroadcastChannel("channel")
-        requestAnimationFrame(this.#init.bind(this))
+        requestAnimationFrame(this.#init)
       }
 
-      #init() {
+      #init = () => {
         if (this.#reactions.hasReactions()) {
           if (this.#channel) this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
-          this.addEventListener("channel", this.#reactionHandler)
+          // this.addEventListener("channel", this.#reactionHandler)
         }
         this.#sendEvent(initMessage(this.#tag, this.getSnapshot()))
         const transition = this.#states[this.#state]
@@ -150,7 +126,7 @@ export const MetaFor = MetaForFabric(
       }
 
       disconnectedCallback() {
-        this.removeEventListener("channel", this.#reactionHandler)
+        // this.removeEventListener("channel", this.#reactionHandler)
         this.#view.onDestroy({ core: this.#core })
       }
 
@@ -264,43 +240,17 @@ export const MetaFor = MetaForFabric(
       #sendEvent = (message: Message) => {
         if (!this.#channel) return
         this.#channel.postMessage(message)
-        // this.#shadow.dispatchEvent(
-        //   new CustomEvent("channel", {
-        //     detail: message,
-        //     bubbles: true,
-        //     cancelable: false,
-        //     composed: true,
-        //   })
-        // )
       }
-      getSnapshot(): Snapshot<C, S> {
-        const context: ContextSnapshot<C> = {} as ContextSnapshot<C>
-        const contextCurrentValues = this.#context.getSnapshot()
-        for (const [key, value] of Object.entries(this.#context.schema)) {
-          context[key as keyof C] = {
-            type: value.type,
-            required: value.required,
-            default: value.default,
-            ...(value.title ? { title: value.title } : {}),
-            ...(value.values ? { values: value.values } : {}),
-            value: contextCurrentValues[key as keyof C],
-          }
-        }
-        const snapshot: Snapshot<C, S> = {
-          state: this.#state,
-          states: this.#states,
-          context,
-          ...this.#view.snapshot,
-        }
-        if (this.#processes.size > 0) snapshot["processes"] = this.#processes.toSnapshot()
-        if (this.#reactions.hasReactions()) snapshot["reactions"] = this.#reactions.toSnapshot()
+      getSnapshot = (): Snapshot<C, S> => ({
+        state: this.#state,
+        states: this.#states,
+        context: this.#context.snapshot,
+        ...this.#view.snapshot,
+        ...(this.#processes.size > 0 ? { processes: this.#processes.toSnapshot() } : {}),
+        ...(this.#reactions.hasReactions() ? { reactions: this.#reactions.toSnapshot() } : {}),
+      })
 
-        return snapshot
-      }
-
-      /**
-       * Обработка входящих сообщений для реакций
-       */
+      /** Обработка входящих сообщений для реакций */
       #handleReactionMessage = (message: Message) => {
         if (!this.#reactions.hasReactions()) return
         const { meta, patch } = message
@@ -313,6 +263,26 @@ export const MetaFor = MetaForFabric(
           state,
           update: this.update,
         })
+      }
+      /** ------------tag---------------------------------- */
+      #_tag: string | undefined
+      get #tag() {
+        if (this.#_tag) return this.#_tag
+        this.#_tag = this.tagName.split("-")[1]!.toLowerCase() as string
+        return this.#_tag
+      }
+      static hash = () => {
+        const fingerPrint = JSON.stringify({
+          ...(params.name ? { name: params.name } : {}),
+          ...(params.description ? { desc: params.description } : {}),
+          states: params.states,
+          processes: new Processes(params.process).toSnapshot(),
+          reactions: new Reactions(params.reaction).toSnapshot(),
+          context: new Context(params.schema).snapshot,
+          ...new View(params.view).snapshot,
+        })
+        const hash = SparkMD5.hash(fingerPrint)
+        return hash
       }
     }
 )

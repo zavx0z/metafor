@@ -5,10 +5,27 @@
 import { types } from "./types"
 
 import type { ContextSchema, ContextTypes } from "./types.t"
-import type { ExtractValues, UpdateValues, ContextInstance, SerializedSchema, Update, OnUpdate, ContextSnapshot } from "./index.t"
+import type {
+  ExtractValues,
+  UpdateValues,
+  ContextInstance,
+  SerializedSchema,
+  Update,
+  OnUpdate,
+  ContextSnapshot,
+} from "./index.t"
 
 export { types }
-export type { ContextSchema, SerializedSchema, ExtractValues, UpdateValues, ContextInstance, Update, OnUpdate, ContextSnapshot }
+export type {
+  ContextSchema,
+  SerializedSchema,
+  ExtractValues,
+  UpdateValues,
+  ContextInstance,
+  Update,
+  OnUpdate,
+  ContextSnapshot,
+}
 
 /** Базовый класс контекста */
 export abstract class ContextBase<C extends ContextSchema> implements ContextInstance<C> {
@@ -175,6 +192,26 @@ export abstract class ContextBase<C extends ContextSchema> implements ContextIns
    */
   getSnapshot(): ExtractValues<C> {
     return Object.freeze({ ...this.contextData })
+  }
+
+  /**
+   * Возвращает сериализованный снимок текущего состояния контекста.
+   * @returns Сериализованный снимок контекста
+   */
+  get snapshot() {
+    const context: ContextSnapshot<C> = {} as ContextSnapshot<C>
+    const contextCurrentValues = this.getSnapshot()
+    for (const [key, value] of Object.entries(this.schema)) {
+      context[key as keyof C] = {
+        type: value.type,
+        required: value.required,
+        default: value.default,
+        ...(value.title ? { title: value.title } : {}),
+        ...(value.values ? { values: value.values } : {}),
+        value: contextCurrentValues[key as keyof C],
+      }
+    }
+    return context
   }
 }
 

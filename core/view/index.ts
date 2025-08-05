@@ -2,13 +2,11 @@ import type { ExtractValues, Update } from "../context/index.t.ts"
 import type { ContextSchema } from "../context/types.t.ts"
 import { choose } from "../html/directives/choose.ts"
 import { map } from "../html/directives/map.ts"
-import { meta } from "../html/directives/meta.ts"
 import { ref } from "../html/directives/ref.ts"
 import { repeat } from "../html/directives/repeat.ts"
 import { styleMap } from "../html/directives/style-map.ts"
 import { when } from "../html/directives/when.ts"
-import { type TemplateResult } from "../html/index.t.ts"
-import { nothing, render } from "../html/index.ts"
+import { html, render } from "../html/index.ts"
 import type { Core } from "../index.t.ts"
 import type { RenderFunc, ViewConfig } from "./index.t.ts"
 
@@ -49,32 +47,7 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
     this.onDestroy = config.onDestroy || (() => {})
   }
 
-  html = (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<1> => {
-    let detected = false
-    let valuesLength = values.length - 1
 
-    const resultStrings: string[] = []
-    const resultValues: unknown[] = []
-
-    for (const [index, str] of strings.entries()) {
-      if (str.includes("meta-")) {
-        detected = true
-        resultStrings.push(str + (values[index] || ""))
-      } else if (detected) {
-        resultStrings[resultStrings.length - 1] += str
-        detected = false
-        resultValues.push(values[index])
-      } else {
-        resultStrings.push(str)
-        if (index <= valuesLength) resultValues.push(values[index])
-      }
-    }
-    return {
-      ["_$htmlType$"]: 1,
-      strings: Object.assign([...resultStrings], { raw: resultStrings.slice() }),
-      values: resultValues,
-    }
-  }
   render({
     state,
     context,
@@ -95,14 +68,12 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
       core,
       update,
       style: styleMap,
-      html: this.html,
+      html,
       ref,
       repeat,
       when,
       map,
-      nothing,
       choose,
-      meta,
     })
     render(template, shadow)
   }

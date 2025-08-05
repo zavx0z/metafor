@@ -295,6 +295,12 @@ const rawTextElement = /^(?:script|style|textarea|title)$/i
 /** Типы TemplateResult */
 // Важно: эти должны соответствовать значениям в PartType
 
+// Кэш для обработанных meta- шаблонов
+const metaTemplateCache = new WeakMap<TemplateStringsArray, {
+  processedStrings: TemplateStringsArray
+  metaIndices: Set<number>
+}>()
+
 /**
  * Генерирует функцию тега, которая возвращает TemplateResult с заданным
  * типом результата.
@@ -324,6 +330,51 @@ const tag =
         )
       }
     }
+
+    // Обрабатываем meta- теги
+    const hasMetaTags = strings.some(str => str.includes("meta-"))
+    if (hasMetaTags) {
+      let cached = metaTemplateCache.get(strings)
+      
+      if (!cached) {
+        let detected = false
+        const resultStrings: string[] = []
+        const metaIndices = new Set<number>()
+
+        for (const [index, str] of strings.entries()) {
+          if (str.includes("meta-") && index < values.length) {
+            detected = true
+            resultStrings.push(str + (values[index] || ""))
+            metaIndices.add(index)
+          } else if (detected) {
+            resultStrings[resultStrings.length - 1] += str
+            detected = false
+          } else {
+            resultStrings.push(str)
+          }
+        }
+        
+        const processedStrings = Object.assign([...resultStrings], { raw: resultStrings.slice() }) as TemplateStringsArray
+        cached = { processedStrings, metaIndices }
+        metaTemplateCache.set(strings, cached)
+      }
+
+      // Формируем values, исключая встроенные в строки
+      const resultValues: unknown[] = []
+      for (let i = 0; i < values.length; i++) {
+        if (!cached.metaIndices.has(i)) {
+          resultValues.push(values[i])
+        }
+      }
+
+      return {
+        // Это свойство должно оставаться неминифицированным.
+        ["_$htmlType$"]: type,
+        strings: cached.processedStrings,
+        values: resultValues,
+      }
+    }
+
     return {
       // Это свойство должно оставаться неминифицированным.
       ["_$htmlType$"]: type,

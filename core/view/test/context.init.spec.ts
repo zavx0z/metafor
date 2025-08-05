@@ -1,7 +1,6 @@
 import { describe, test, expect } from "bun:test"
 import { MetaFor } from "../../../web/metafor.ts"
 import { messagesFixture } from "../../../fixture/message.ts"
-import { createStaticViewFunction } from "../index.ts"
 
 describe("инициализация ребенка с переданным контекстом от родителя", async () => {
   let childContext: any
@@ -53,19 +52,16 @@ describe("инициализация ребенка с переданным ко
       ],
     ])
     .view({
-      render: createStaticViewFunction(
-        ({ context, html }) => html`
-          <div>
-            <h1>Родитель: ${context.parentMessage}</h1>
-            <meta-${childHash}
-              context=${{
-                message: context.parentMessage,
-                count: context.parentCount,
-              }}></meta-${childHash}>
-          </div>
-        `,
-        childHash
-      ),
+      render: ({ context, html }) => html`
+        <div>
+          <h1>Родитель: ${context.parentMessage}</h1>
+          <meta-${childHash}
+            context=${{
+              message: context.parentMessage,
+              count: context.parentCount,
+            }}></meta-${childHash}>
+        </div>
+      `,
     })
 
   const { waitForMessages } = messagesFixture({ meta: childHash })
