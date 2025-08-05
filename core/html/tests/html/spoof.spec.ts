@@ -1,5 +1,4 @@
 import { beforeEach, describe, expect, test } from "bun:test"
-import { stripExpressionMarkers } from "../../../../fixture/expect"
 import { render, html } from "../.."
 
 describe(`не рендерит простые поддельные результаты шаблонов`, () => {
@@ -20,7 +19,7 @@ describe(`не рендерит простые поддельные резуль
     } catch {
       threwError = true
     }
-    expect(stripExpressionMarkers(container.innerHTML)).toBe("")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("")
     expect(threwError).toBe(true)
   })
 })

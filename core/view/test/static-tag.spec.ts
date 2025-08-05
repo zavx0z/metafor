@@ -1,8 +1,38 @@
-import { describe, test, expect } from "bun:test"
-import { MetaFor } from "../../../web/metafor.ts"
-import { messagesFixture } from "../../../fixture/message.ts"
-import { createStaticViewFunction } from "../index"
+import { describe, beforeAll, test, expect } from "bun:test"
+import { createStaticViewFunction, View } from "../index"
+import { MetaFor } from "../../../web/metafor"
+import { messagesFixture } from "../../../fixture/message"
+import { Context } from "../../context"
+import { html } from "../../html"
 
+describe("  ", () => {
+  const { context } = new Context((types) => ({
+    parentMessage: types.string.required("message"),
+    parentCount: types.number.required(0),
+  }))
+  const core = {}
+  const state = "idle"
+
+  const hash = "child-243232"
+  const view = new View()
+  test("соответствие шаблонов", () => {
+    expect(view.html`<div>
+      <h1>Родитель: ${context.parentMessage}</h1>
+      <meta-${hash}
+        context=${{
+          message: context.parentMessage,
+          count: context.parentCount,
+        }}></meta-${hash}>
+    </div>`).toEqual(html`<div>
+      <h1>Родитель: ${context.parentMessage}</h1>
+      <meta-child-243232
+        context=${{
+          message: context.parentMessage,
+          count: context.parentCount,
+        }}></meta-child-243232>
+    </div>`)
+  })
+})
 describe("работа со статическими тегами", async () => {
   let childContext: any
   let countChildMount = 0
@@ -31,20 +61,6 @@ describe("работа со статическими тегами", async () => 
       `,
     })
 
-  // Создаем статическую view функцию для родителя
-  const originalParentView = ({ context, html }: any) => html`
-    <div>
-      <h1>Родитель: ${context.parentMessage}</h1>
-      <meta-${childHash}
-        context=${{
-          message: context.parentMessage,
-          count: context.parentCount,
-        }}></meta-${childHash}>
-    </div>
-  `
-
-  const staticParentView = createStaticViewFunction(originalParentView, childHash)
-
   const parentTag = MetaFor(Bun.randomUUIDv7(), { dev: false })
     .context((types) => ({
       parentMessage: types.string.required("message"),
@@ -71,7 +87,16 @@ describe("работа со статическими тегами", async () => 
       onMount: () => {
         countParentMount++
       },
-      render: staticParentView,
+      render: ({ context, html }) => html`
+      <div>
+        <h1>Родитель: ${context.parentMessage}</h1>
+        <meta-${childHash}
+          context=${{
+            message: context.parentMessage,
+            count: context.parentCount,
+          }}></meta-${childHash}>
+      </div>
+    `,
     })
   const { waitForMessages } = messagesFixture({ meta: parentTag })
 
@@ -106,23 +131,5 @@ describe("работа со статическими тегами", async () => 
 
   test("статический тег работает корректно - родитель рендерится один раз", () => {
     expect(countParentMount, "родитель должен быть отрендерен 1 раз").toEqual(1)
-  })
-
-  test("статическая view функция создается корректно", () => {
-    expect(staticParentView, "функция должна быть создана").toBeInstanceOf(Function)
-
-    // Проверяем, что функция работает
-    const mockContext = { parentMessage: "test", parentCount: 5 }
-    const mockHtml = (strings: any, ...values: any[]) => ({ strings, values })
-
-    const result = staticParentView({
-      context: mockContext,
-      html: mockHtml,
-    })
-
-    // Проверяем, что в результате нет динамических тегов
-    const templateString = result.strings.join("")
-    expect(templateString, "шаблон не должен содержать динамические теги").not.toContain("${childHash}")
-    expect(templateString, "шаблон должен содержать статический тег").toContain(`meta-${childHash}`)
   })
 })

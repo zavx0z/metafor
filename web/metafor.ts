@@ -112,7 +112,10 @@ export const MetaFor = MetaForFabric(
         this.#view = new View(params.view)
         this.#view.attachStyles(this.#shadow)
       }
-
+      __updCore = (value: Partial<I>) => {
+        // @ts-ignore
+        Object.entries(value).forEach(([key, val]) => (this.#core[key] = val))
+      }
       connectedCallback() {
         this.#view.render({
           state: this.#state,
@@ -278,7 +281,6 @@ export const MetaFor = MetaForFabric(
             type: value.type,
             required: value.required,
             default: value.default,
-            ...this.#view.toSnapshot(),
             ...(value.title ? { title: value.title } : {}),
             ...(value.values ? { values: value.values } : {}),
             value: contextCurrentValues[key as keyof C],
@@ -288,6 +290,7 @@ export const MetaFor = MetaForFabric(
           state: this.#state,
           states: this.#states,
           context,
+          ...this.#view.snapshot,
         }
         if (this.#processes.size > 0) snapshot["processes"] = this.#processes.toSnapshot()
         if (this.#reactions.hasReactions()) snapshot["reactions"] = this.#reactions.toSnapshot()

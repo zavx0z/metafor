@@ -46,6 +46,7 @@ import {
   isHtmlDebugLogEventsEnabled,
   enableHtmlDebug,
 } from "../../web/debug/config"
+import type { ActorInternal } from "../index.t"
 
 const ENABLE_EXTRA_SECURITY_HOOKS = true
 const ENABLE_SHADYDOM_NOPATCH = true
@@ -468,7 +469,7 @@ function trustFromTemplateString(tsa: TemplateStringsArray, stringFromTSA: strin
           issues, e.g. opening your code up to XSS attacks.
           If you're using the html or svg tagged template functions normally
           and still seeing this error, please file a bug at
-          https://github.com/lit/lit/issues/new?template=bug_report.md
+          https://github.com/zavx0z/metafor/issues/new?template=bug_report.md
           and include information about your build tooling, if any.
         `
         .trim()
@@ -650,11 +651,7 @@ class Template {
 
   parts: Array<TemplatePart> = []
 
-  constructor(
-    // Это свойство должно оставаться неминифицированным.
-    { strings, ["_$htmlType$"]: type }: UncompiledTemplateResult,
-    options?: RenderOptions
-  ) {
+  constructor({ strings, ["_$htmlType$"]: type }: UncompiledTemplateResult, options?: RenderOptions) {
     let node: Node | null
     let nodeIndex = 0
     let attrNameIndex = 0
@@ -699,7 +696,7 @@ class Template {
               const realName = attrNames[attrNameIndex++]
               const value = (node as Element).getAttribute(name)!
               const statics = value.split(marker)
-              if (realName === "context") {
+              if (realName === "context" || realName === "core") {
                 parts.push({
                   type: ATTRIBUTE_PART,
                   index: nodeIndex,
@@ -835,12 +832,8 @@ function resolveDirective(
     attributeIndex !== undefined
       ? (parent as AttributePart).__directives?.[attributeIndex]
       : (parent as ChildPart | ElementPart | Directive).__directive
-  const nextDirectiveConstructor = isPrimitive(value)
-    ? undefined
-    : // Это свойство должно оставаться неминифицированным.
-      (value as DirectiveResult)["_$htmlDirective$"]
+  const nextDirectiveConstructor = isPrimitive(value) ? undefined : (value as DirectiveResult)["_$htmlDirective$"]
   if (currentDirective?.constructor !== nextDirectiveConstructor) {
-    // Это свойство должно оставаться неминифицированным.
     currentDirective?.["_$notifyDirectiveConnectionChanged"]?.(false)
     if (nextDirectiveConstructor === undefined) {
       currentDirective = undefined
@@ -1109,7 +1102,6 @@ class ChildPart implements Disconnectable {
       } else if (value !== this._$committedValue && value !== noChange) {
         this._commitText(value)
       }
-      // Это свойство должно оставаться неминифицированным.
     } else if ((value as TemplateResult)["_$htmlType$"] !== undefined) {
       this._commitTemplateResult(value as TemplateResult)
     } else if ((value as Node).nodeType !== undefined) {
@@ -1151,7 +1143,7 @@ class ChildPart implements Disconnectable {
           if (isHtmlDebugEnabled()) {
             if (parentNodeName === "STYLE") {
               message =
-                `Lit не поддерживает связывание внутри узлов стиля. ` +
+                `@metafor/html не поддерживает связывание внутри узлов стиля. ` +
                 `Это представляет собой угрозу безопасности, так как инъекция
                 стилей может ` +
                 `экстрагировать данные и подделывать интерфейсы. ` +
@@ -1161,7 +1153,7 @@ class ChildPart implements Disconnectable {
                 `и путем мутации DOM, а не стилеток.`
             } else {
               message =
-                `Lit не поддерживает связывание внутри узлов скрипта. ` +
+                `@metafor/html не поддерживает связывание внутри узлов скрипта. ` +
                 `Это представляет собой угрозу безопасности, так как оно могло
                 позволить выполнение произвольного кода.`
             }
@@ -1556,12 +1548,13 @@ class PropertyPart extends AttributePart {
       })
     if (this.name === "context" && value) {
       try {
-        // @ts-ignore при первой отрисовки без оповещения изменения контекста так как еще не привязаны обработчики
-        this.element.update(value)
+        ;(this.element as ActorInternal).update(value)
       } catch (e) {
         const tag = this.element.tagName.toLowerCase()
         throw new Error(`meta-компонент ${tag} не создан`)
       }
+    } else if (this.name === "core" && value) {
+      ;(this.element as ActorInternal).__updCore(value)
     } else;
     ;(this.element as any)[this.name] = value === nothing ? undefined : value
   }
@@ -1792,6 +1785,7 @@ export const render = (
   const renderId = isHtmlDebugEnabled() ? debugLogRenderId++ : 0
   const partOwnerNode = options?.renderBefore ?? container
   let part: ChildPart = (partOwnerNode as any)["_$htmlPart$"]
+
   debugLogEvent && debugLogEvent({ kind: "begin render", id: renderId, value, container, options, part })
 
   if (part === undefined) {

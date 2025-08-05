@@ -7,34 +7,74 @@ import { ref } from "../html/directives/ref.ts"
 import { repeat } from "../html/directives/repeat.ts"
 import { styleMap } from "../html/directives/style-map.ts"
 import { when } from "../html/directives/when.ts"
-import { html, nothing, render } from "../html/index.ts"
+import { type TemplateResult } from "../html/index.t.ts"
+import { nothing, render } from "../html/index.ts"
 import type { Core } from "../index.t.ts"
 import type { RenderFunc, ViewConfig } from "./index.t.ts"
 
 export class View<C extends ContextSchema, S extends string, I extends Core> {
   actors: Map<string, Function> = new Map()
 
-  html: RenderFunc<C, S, I> | null = null
+  #render: RenderFunc<C, S, I> | null = null
+  htmlString: string | null = null
+
   sheet: CSSStyleSheet | null = null
+  sheetString: string | null = null
+
   onMount: ({ core }: { core: I }) => void = () => {}
   onDestroy: ({ core }: { core: I }) => void = () => {}
   attachStyles = (shadow: ShadowRoot) => this.sheet && shadow.adoptedStyleSheets.push(this.sheet)
 
+  /**
+   * @param config конфигурация представления {@linkcode ViewConfig} [опционально]
+   */
   constructor(config?: ViewConfig<C, S, I>) {
     if (!config) return
-    config.style?.({
-      css: (strings, ...values) => {
-        const sheet = new CSSStyleSheet()
-        const result = strings.reduce((acc, str, i) => acc + str + (values[i] || ""), "")
-        sheet.replaceSync(result)
-        this.sheet = sheet
-      },
-    })
-    if (config.render) this.html = config.render
+    if (config.style) {
+      config.style({
+        css: (strings, ...values) => {
+          const sheet = new CSSStyleSheet()
+          const result = strings.reduce((acc, str, i) => acc + str + (values[i] || ""), "")
+          sheet.replaceSync(result)
+          this.sheet = sheet
+        },
+      })
+      this.sheetString = extractCSSTemplateLiteral(config.style)
+    }
+    if (config.render) {
+      this.htmlString = extractTemplateLiteral(config.render)
+      this.#render = config.render
+    }
     this.onMount = config.onMount || (() => {})
     this.onDestroy = config.onDestroy || (() => {})
   }
 
+  html = (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<1> => {
+    let detected = false
+    let valuesLength = values.length - 1
+
+    const resultStrings: string[] = []
+    const resultValues: unknown[] = []
+
+    for (const [index, str] of strings.entries()) {
+      if (str.includes("meta-")) {
+        detected = true
+        resultStrings.push(str + (values[index] || ""))
+      } else if (detected) {
+        resultStrings[resultStrings.length - 1] += str
+        detected = false
+        resultValues.push(values[index])
+      } else {
+        resultStrings.push(str)
+        if (index <= valuesLength) resultValues.push(values[index])
+      }
+    }
+    return {
+      ["_$htmlType$"]: 1,
+      strings: Object.assign([...resultStrings], { raw: resultStrings.slice() }),
+      values: resultValues,
+    }
+  }
   render({
     state,
     context,
@@ -48,14 +88,14 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
     shadow: ShadowRoot
     update: Update<C>
   }) {
-    if (!this.html) return
-    const template = this.html({
+    if (!this.#render) return
+    const template = this.#render({
       state,
       context,
       core,
       update,
       style: styleMap,
-      html,
+      html: this.html,
       ref,
       repeat,
       when,
@@ -64,14 +104,12 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
       choose,
       meta,
     })
-    if (template) render(template, shadow)
+    render(template, shadow)
   }
-  toSnapshot() {
-    // if (this.#view?.render) snapshot["view"] = extractTemplateLiteral(this.#view.render)
-    // if (this.#view?.style) snapshot["style"] = extractCSSTemplateLiteral(this.#view.style)
+  get snapshot() {
     return {
-      render: "this.html",
-      style: "this.sheet",
+      ...(this.htmlString ? { render: this.htmlString } : {}),
+      ...(this.sheetString ? { style: this.sheetString } : {}),
     }
   }
 }

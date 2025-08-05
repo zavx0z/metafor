@@ -8,15 +8,13 @@ describe("обновления", () => {
     container = document.createElement("div")
   })
 
-  const assertContent = (expected: string) => expect(container.innerHTML).toMatchStringHTMLStripComments(expected)
-
   test("проверяет изменения простых значений", () => {
     const foo = "aaa"
 
     const t = () => html` <div>${foo}</div> `
 
     render(t(), container)
-    assertContent("<div>aaa</div>")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("<div>aaa</div>")
     const text = container.querySelector("div")!
     expect(text.textContent).toBe("aaa")
 
@@ -26,11 +24,11 @@ describe("обновления", () => {
     // следующий рендер с тем же значением.
     text.lastChild!.textContent = "bbb"
     expect(text.textContent).toBe("bbb")
-    assertContent("<div>bbb</div>")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("<div>bbb</div>")
 
     // Повторный рендер с тем же содержимым, должен быть no-op
     render(t(), container)
-    assertContent("<div>bbb</div>")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("<div>bbb</div>")
     const text2 = container.querySelector("div")!
 
     // Следующий узел должен быть тем же самым
@@ -44,9 +42,9 @@ describe("обновления", () => {
     const observer = new MutationObserver(() => {})
     observer.observe(container, { childList: true, subtree: true })
 
-    assertContent("")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("")
     render(t(), container)
-    assertContent("<div></div>")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("<div></div>")
 
     const elementNodes: Node[] = []
     let mutationRecords: MutationRecord[] = observer.takeRecords()
@@ -57,7 +55,7 @@ describe("обновления", () => {
 
     mutationRecords = []
     render(t(), container)
-    assertContent("<div></div>")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("<div></div>")
     mutationRecords = observer.takeRecords()
     expect(mutationRecords.length).toBe(0)
   })
@@ -68,13 +66,13 @@ describe("обновления", () => {
     const t = () => html` <div>${foo}</div> `
 
     render(t(), container)
-    assertContent("<div>aaa</div>")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("<div>aaa</div>")
     const div = container.querySelector("div")!
     expect(div.tagName).toBe("DIV")
 
     foo = "bbb"
     render(t(), container)
-    assertContent("<div>bbb</div>")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("<div>bbb</div>")
     const div2 = container.querySelector("div")!
     // проверяем, что изменилась только часть
     expect(div).toBe(div2)
@@ -87,11 +85,11 @@ describe("обновления", () => {
     const t = () => html` <div>${foo}${bar}</div> `
 
     render(t(), container)
-    assertContent("<div>foobar</div>")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("<div>foobar</div>")
 
     foo = "bbb"
     render(t(), container)
-    assertContent("<div>bbbbar</div>")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("<div>bbbbar</div>")
   })
 
   test("рендерит и обновляет атрибуты", () => {
@@ -101,11 +99,11 @@ describe("обновления", () => {
     const t = () => html` <div a="${foo}:${bar}"></div> `
 
     render(t(), container)
-    assertContent('<div a="foo:bar"></div>')
+    expect(container.innerHTML).toMatchStringHTMLStripComments('<div a="foo:bar"></div>')
 
     foo = "bbb"
     render(t(), container)
-    assertContent('<div a="bbb:bar"></div>')
+    expect(container.innerHTML).toMatchStringHTMLStripComments('<div a="bbb:bar"></div>')
   })
 
   test("обновляет вложенные шаблоны", () => {
@@ -125,14 +123,14 @@ describe("обновления", () => {
     }
 
     render(t(true), container)
-    assertContent("<h1>foo</h1>baz")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("<h1>foo</h1>baz")
 
     foo = "bbb"
     render(t(true), container)
-    assertContent("<h1>bbb</h1>baz")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("<h1>bbb</h1>baz")
 
     render(t(false), container)
-    assertContent("<h2>bar</h2>baz")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("<h2>bar</h2>baz")
   })
 
   test("обновляет элемент", () => {
@@ -144,15 +142,15 @@ describe("обновления", () => {
       </div>
     `
     render(t(), container)
-    assertContent("<div><p></p><div></div></div>")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("<div><p></p><div></div></div>")
 
     child = undefined
     render(t(), container)
-    assertContent("<div><div></div></div>")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("<div><div></div></div>")
 
     child = document.createTextNode("foo")
     render(t(), container)
-    assertContent("<div>foo<div></div></div>")
+    expect(container.innerHTML).toMatchStringHTMLStripComments("<div>foo<div></div></div>")
   })
 
   test("перезаписывает существующий TemplateInstance, если он существует и не имеет соответствующего Template", () => {

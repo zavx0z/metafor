@@ -13,15 +13,13 @@
         ".idea": true,
         ".firebase": true,
         ".github": true,
-        ".cursor": true,
-        ".vscode": true
+        ".cursor": true
     },
     "hide-files.files": [
         ".idea",
         ".firebase",
         ".github",
-        ".cursor",
-        ".vscode"
+        ".cursor"
     ],
     "explorer.fileNesting.enabled": true,
     "explorer.fileNesting.expand": false,
@@ -160,7 +158,7 @@
     ],
     "cSpell.ignorePaths": [
         ".github",
-        "./html/tests/*",
+        "./core/html/tests",
         "./docs",
         "./script",
         ".windsurf"

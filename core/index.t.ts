@@ -83,3 +83,7 @@ export type MetaForConfig = {
    */
   persist?: boolean
 }
+export interface ActorInternal extends HTMLElement {
+  __updCore: (value: Partial<unknown>) => void
+  update: (value: Partial<unknown>) => void
+}
