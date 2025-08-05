@@ -55,7 +55,7 @@ describe("хранилище sqlite", () => {
         // Игнорируем ошибку, если файла не существует
       }
       
-      // Создаем новую базу данных
+      // Создаем новую базу данных  
       db = new Database("test.sqlite")
       
       // Включаем проверку внешних ключей и журналирование
@@ -67,7 +67,6 @@ describe("хранилище sqlite", () => {
       
       // Проверяем, что внешние ключи включены
       const fkCheck = db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }
-      console.log('Foreign keys enabled:', fkCheck.foreign_keys === 1)
       
       // Выполняем каждый оператор по отдельности для лучшего отслеживания ошибок
       const statements = createTablesQuery.split(';').filter(s => s.trim())
@@ -80,10 +79,6 @@ describe("хранилище sqlite", () => {
           throw e
         }
       }
-      
-      // Проверяем, что таблицы созданы
-      const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()
-      console.log('Tables in database:', tables)
       
       // Инициализируем хранилище
       store = new Store("test.sqlite")
@@ -209,60 +204,36 @@ describe("хранилище sqlite", () => {
     it("должен проверять внешний ключ meta_tag в actor", () => {
       // Проверяем, что внешний ключ включен
       const fkCheck = db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }
-      console.log('Внешние ключи включены:', fkCheck.foreign_keys === 1)
       expect(fkCheck.foreign_keys).toBe(1)
       
       // Проверяем, что в таблице meta нет записи с таким тегом
       // SQLite возвращает null, если запись не найдена
       const existingMeta = db.prepare("SELECT * FROM meta WHERE tag = ?").get("non-existent-tag")
-      console.log('Существующая запись в meta:', existingMeta)
       expect(existingMeta).toBeNull()
-
-      // Проверяем структуру таблицы actor
-      const actorTableInfo = db.prepare("PRAGMA table_info(actor)").all()
-      console.log('Структура таблицы actor:', actorTableInfo)
-
-      // Проверяем внешние ключи таблицы actor
-      const fkList = db.prepare("PRAGMA foreign_key_list(actor)").all()
-      console.log('Внешние ключи таблицы actor:', fkList)
 
       let error: Error | null = null
       try {
-        console.log('\n=== Попытка вставить запись с несуществующим meta_tag ===')
         const insert = db.prepare(
           "INSERT INTO actor (meta_tag, idx, snapshot) VALUES (?, ?, ?)"
         )
-        console.log('Запрос:', "INSERT INTO actor (meta_tag, idx, snapshot) VALUES (?, ?, ?)")
-        console.log('Параметры:', ["non-existent-tag", 0, JSON.stringify({})])
         
         const result = insert.run("non-existent-tag", 0, JSON.stringify({}))
-        console.log('Результат вставки успешен:', result)
         
         // Если дошли сюда, значит вставка прошла успешно, что неверно
         const allActors = db.prepare("SELECT * FROM actor").all()
-        console.log('Все записи в actor после вставки:', allActors)
       } catch (e) {
         error = e as Error
-        console.log('Ошибка при вставке:\n', error)
-        console.log('Сообщение об ошибке:', error.message)
-        console.log('Стек вызовов:', error.stack)
       }
       
       expect(error).not.toBeNull()
       
-      // Проверяем, что запись не была добавлена
-      const count = db.prepare("SELECT COUNT(*) as count FROM actor").get() as { count: number }
-      console.log('Количество записей в таблице actor:', count.count)
-      
-      // SQLite может возвращать разные сообщения об ошибке
       const errorMessage = error?.message || ''
       const isForeignKeyError = 
         errorMessage.includes("FOREIGN KEY constraint failed") || 
         errorMessage.includes("SQLITE_CONSTRAINT_FOREIGNKEY") ||
-        errorMessage.includes("no such table") // На случай, если таблица не создана
+        errorMessage.includes("no such table")
         
       if (!isForeignKeyError) {
-        console.error('Неожиданное сообщение об ошибке:', errorMessage)
       }
       
       expect(isForeignKeyError).toBe(true)

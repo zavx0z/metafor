@@ -99,7 +99,7 @@ describe("реакции", () => {
               },
               state_3: {},
             },
-            view: "<div></div>",
+            render: "<div></div>",
             context: {
               param: {
                 type: "string",

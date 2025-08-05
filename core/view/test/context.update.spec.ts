@@ -1,6 +1,5 @@
 import { describe, test, expect } from "bun:test"
 import { MetaFor } from "../../../web/metafor.ts"
-import { messagesFixture } from "../../../fixture/message.ts"
 
 describe("обновление контекста ребенка", async () => {
   let childInitContext: any
@@ -83,11 +82,7 @@ describe("обновление контекста ребенка", async () => {
       `,
     })
   document.body.innerHTML = `<meta-${parentTag}></meta-${parentTag}>`
-
-  const { waitForMessages } = messagesFixture({ meta: childTag })
-  const childMessages = await waitForMessages(1000)
-  console.log(childMessages)
-
+  await Bun.sleep(200)
   test("в реакции родителя при добавлении ребенка получаем переданный контекст", () => {
     expect(
       childInitContext,

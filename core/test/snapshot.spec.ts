@@ -107,12 +107,12 @@ describe("полный снимок компонента", () => {
     await Bun.sleep(200)
 
     const snapshot = element.getSnapshot()
-    test("снимок содержит все поля: state, states, context, view, style, processes, reactions", async () => {
+    test("снимок содержит все поля: state, states, context, render, style, processes, reactions", async () => {
       // Проверяем структуру снимка
       expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("state")
       expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("states")
       expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("context")
-      expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("view")
+      expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("render")
       expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("style")
       expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("processes")
       expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("reactions")
@@ -205,11 +205,11 @@ describe("полный снимок компонента", () => {
         },
       })
     })
-    test("view", async () => {
-      expect(snapshot.view, "view должен содержать извлеченный HTML template").toContain('<div class="container">')
-      expect(snapshot.view, "view должен содержать извлеченный HTML template").toContain("<h1>")
-      expect(snapshot.view, "view должен содержать извлеченный HTML template").toContain("${context.title}")
-      expect(snapshot.view, "view должен содержать извлеченный HTML template").toContain("${context.count}")
+    test("render", async () => {
+      expect(snapshot.render, "render должен содержать извлеченный HTML template").toContain('<div class="container">')
+      expect(snapshot.render, "render должен содержать извлеченный HTML template").toContain("<h1>")
+      expect(snapshot.render, "render должен содержать извлеченный HTML template").toContain("${context.title}")
+      expect(snapshot.render, "render должен содержать извлеченный HTML template").toContain("${context.count}")
     })
 
     test("style", async () => {

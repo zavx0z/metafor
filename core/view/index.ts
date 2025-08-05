@@ -11,13 +11,10 @@ import type { Core } from "../index.t.ts"
 import type { RenderFunc, ViewConfig } from "./index.t.ts"
 
 export class View<C extends ContextSchema, S extends string, I extends Core> {
-  actors: Map<string, Function> = new Map()
-
   #render: RenderFunc<C, S, I> | null = null
-  htmlString: string | null = null
+  #style: ((params: { css: (strings: TemplateStringsArray, ...values: unknown[]) => void }) => void) | null = null
 
   sheet: CSSStyleSheet | null = null
-  sheetString: string | null = null
 
   onMount: ({ core }: { core: I }) => void = () => {}
   onDestroy: ({ core }: { core: I }) => void = () => {}
@@ -29,6 +26,7 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
   constructor(config?: ViewConfig<C, S, I>) {
     if (!config) return
     if (config.style) {
+      this.#style = config.style
       config.style({
         css: (strings, ...values) => {
           const sheet = new CSSStyleSheet()
@@ -37,10 +35,8 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
           this.sheet = sheet
         },
       })
-      this.sheetString = extractCSSTemplateLiteral(config.style)
     }
     if (config.render) {
-      this.htmlString = extractTemplateLiteral(config.render)
       this.#render = config.render
     }
     this.onMount = config.onMount || (() => {})
@@ -78,10 +74,52 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
     render(template, shadow)
   }
   get snapshot() {
-    return {
-      ...(this.htmlString ? { render: this.htmlString } : {}),
-      ...(this.sheetString ? { style: this.sheetString } : {}),
+    const result: { render?: string; style?: string } = {}
+    
+    if (this.#render) {
+      result.render = this.#extractRenderTemplate()
     }
+    
+    if (this.#style) {
+      result.style = this.#extractStyleTemplate()
+    }
+    
+    return result
+  }
+
+  /**
+   * Извлекает и обрабатывает render template для snapshot
+   */
+  #extractRenderTemplate(): string {
+    if (!this.#render) return ''
+    
+    const fnString = this.#render.toString()
+    
+    // Извлекаем template literal
+    const templateMatch = fnString.match(/html`([\s\S]*)`/)
+    if (!templateMatch) return ''
+    
+    let template = templateMatch[1]!
+    
+    // Обрабатываем динамические meta-теги
+    template = template.replace(/meta-\$\{"([^"]+)"\}/g, 'meta-$1')
+    
+    return template
+  }
+
+  /**
+   * Извлекает style template для snapshot
+   */
+  #extractStyleTemplate(): string {
+    if (!this.#style) return ''
+    
+    const fnString = this.#style.toString()
+    
+    // Извлекаем CSS template literal
+    const match = fnString.match(/css`([\s\S]*)`/)
+    if (!match) return ''
+    
+    return match[1]!
   }
 }
 
@@ -92,7 +130,7 @@ export type { ViewConfig } from "./index.t.ts"
  */
 
 /**
- * Извлекает template literal из view функции с анализом замыканий
+ * Извлекает template literal из view функции
  */
 export function extractTemplateLiteral(fn: Function): string {
   const fnString = fn.toString()
@@ -104,27 +142,6 @@ export function extractTemplateLiteral(fn: Function): string {
   }
 
   return match[1]!
-}
-
-/**
- * Сериализует render-функцию
- */
-export function serializeRenderFunction(renderFn: Function): string {
-  const fnString = renderFn.toString()
-  
-  // Извлекаем template literal
-  const templateMatch = fnString.match(/html`([\s\S]*)`/)
-  if (!templateMatch) {
-    throw new Error("Не удалось найти template literal в функции")
-  }
-  
-  let template = templateMatch[1]!
-  
-  // Обрабатываем случаи, когда константы уже подставлены в строку
-  // Заменяем конструкции вида meta-${"hash"} на meta-hash
-  template = template.replace(/meta-\$\{"([^"]+)"\}/g, 'meta-$1')
-  
-  return template
 }
 
 /**

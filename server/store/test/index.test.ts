@@ -301,10 +301,6 @@ describe("Store", () => {
       // Проверяем, что ID существует
       expect(patchRecord.id, "ID патча должен быть определен").toBeDefined()
 
-      // Логируем тип и значение ID для отладки
-      console.log("Тип ID:", typeof patchRecord.id)
-      console.log("Значение ID:", patchRecord.id)
-
       // Проверяем, что ID не является null или undefined
       expect(patchRecord.id != null, "ID не должен быть null или undefined").toBeTrue()
 
@@ -324,14 +320,6 @@ describe("Store", () => {
       // Проверяем, что временная метка определена и является объектом
       expect(patchRecord.timestamp, "Временная метка должна быть определена").toBeDefined()
       expect(typeof patchRecord.timestamp, "Временная метка должна быть объектом").toBe("object")
-
-      // Логируем тип и значение временной метки для отладки
-      console.log("Тип временной метки:", typeof patchRecord.timestamp)
-      console.log("Значение временной метки:", patchRecord.timestamp)
-
-      // Для объектов Any<String> мы не можем проверить формат, так как они не раскрываются в тестах
-      // Вместо этого просто проверяем, что значение определено и является объектом
-      // В реальном коде это будет корректная строка с датой
     })
 
     test("должен получать патчи по актору", () => {
