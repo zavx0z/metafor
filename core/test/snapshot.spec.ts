@@ -106,7 +106,7 @@ describe("полный снимок компонента", () => {
     const element = document.querySelector(`meta-${hash}`) as any
     await Bun.sleep(200)
 
-    const snapshot = element.getSnapshot()
+    const snapshot = element.snapshot
     test("снимок содержит все поля: state, states, context, render, style, processes, reactions", async () => {
       // Проверяем структуру снимка
       expect(snapshot, "снимок должен содержать все обязательные поля").toHaveProperty("state")
@@ -258,13 +258,13 @@ describe("полный снимок компонента", () => {
     const element = document.querySelector(`meta-${contextTestHash}`) as any
     await Bun.sleep(100)
 
-    const initialSnapshot = element.getSnapshot()
+    const initialSnapshot = element.snapshot
     expect(initialSnapshot.context.value.value, "начальное значение должно быть initial").toBe("initial")
 
     element.update({ value: "updated" })
     await Bun.sleep(100)
 
-    const updatedSnapshot = element.getSnapshot()
+    const updatedSnapshot = element.snapshot
     expect(updatedSnapshot.context.value.value, "значение должно быть обновлено").toBe("updated")
   })
 
@@ -294,14 +294,14 @@ describe("полный снимок компонента", () => {
     const element = document.querySelector(`meta-${stateTestHash}`) as any
     await Bun.sleep(100)
 
-    const initialSnapshot = element.getSnapshot()
+    const initialSnapshot = element.snapshot
     expect(initialSnapshot.state, "начальное состояние должно быть state_1").toBe("state_1")
 
     element.update({ value: "state2" })
     await Bun.sleep(100)
 
     test("снимок обновляется при изменении состояния", async () => {
-      const updatedSnapshot = element.getSnapshot()
+      const updatedSnapshot = element.snapshot
       expect(updatedSnapshot.state, "состояние должно остаться state_1").toBe("state_1")
       expect(updatedSnapshot.context.value.value, "значение должно быть обновлено").toBe("state2")
     })

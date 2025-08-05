@@ -33,6 +33,7 @@ describe("MetaFor: инициализация без действия", async ()
         op: "add",
         path: "/",
         value: {
+          name: "test-without-action",
           state: "state_1",
           states: {
             state_1: { state_2: { value: "ctx_1" } },

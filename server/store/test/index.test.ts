@@ -1,15 +1,15 @@
 import { describe, test, expect, beforeEach, afterEach } from "bun:test"
-import { Store } from "../index"
+import { SQLiteStore } from "../index"
 import type { ActorRecord, PatchRecord } from "../index.t"
 import { Database } from "bun:sqlite"
 
 describe("Store", () => {
-  let store: Store
+  let store: SQLiteStore
 
   // Перед каждым тестом создаем новое in-memory хранилище
   beforeEach(() => {
     // Используем специальный путь ':memory:' для in-memory базы данных
-    store = new Store(":memory:")
+    store = new SQLiteStore(":memory:")
 
     // Создаем тестовые meta-записи, которые могут понадобиться в тестах
     store.setMeta({ tag: "test-meta", fingerprint: "test-fingerprint" })
@@ -101,7 +101,7 @@ describe("Store", () => {
       const actorId = store.createActor(actor)
 
       // Получаем актора
-      const result = store.getActor({ tag: meta.tag })
+      const result = store.saveActorIsNotExist(meta.tag)
 
       // Проверяем, что актор корректно создан
       expect(result, "Актор должен быть определен").toBeDefined()
@@ -132,7 +132,7 @@ describe("Store", () => {
       store.updateActorSnapshot(actorId, newSnapshot)
 
       // Проверяем, что снапшот обновился
-      const result = store.getActor({ tag: meta.tag })
+      const result = store.saveActorIsNotExist(meta.tag)
       expect(result, "Актор должен существовать").toBeDefined()
 
       if (result) {
@@ -242,8 +242,8 @@ describe("Store", () => {
       store.deleteActor(parentId)
 
       // Проверяем, что оба актора удалены
-      expect(store.getActor({ tag: meta.tag }), "Родительский актор должен быть удален").toBeNull()
-      expect(store.getActor({ tag: meta.tag }), "Дочерний актор должен быть удален каскадно").toBeNull()
+      expect(() => store.saveActorIsNotExist(meta.tag)).toThrow("Actor with tag")
+      expect(() => store.saveActorIsNotExist(meta.tag)).toThrow("Actor with tag")
     })
   })
 
@@ -398,7 +398,7 @@ describe("Store", () => {
       const { actorId, patchId } = store.createActorWithInitialPatch(actor, initialPatch)
 
       // Проверяем, что актор создан
-      const createdActor = store.getActor({ tag: meta.tag })
+      const createdActor = store.saveActorIsNotExist(meta.tag)
       expect(createdActor, "Актор должен быть создан").toBeDefined()
 
       // Проверяем, что патч создан и привязан к актору

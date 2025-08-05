@@ -1,11 +1,5 @@
 import type { Database } from "bun:sqlite"
 
-export interface MetaRecord {
-  tag: string
-  fingerprint: string
-  timestamp: string
-}
-
 export interface ActorRecord {
   id: number
   meta_tag: string
@@ -26,8 +20,8 @@ export interface PatchRecord {
 
 export type TransactionCallback = (db: Database) => void
 
-export interface ActorTreeNode extends Omit<ActorRecord, 'parent_id' | 'idx'> {
-  children: ActorTreeNode[];
+export interface ActorTreeNode extends Omit<ActorRecord, "parent_id" | "idx"> {
+  children: ActorTreeNode[]
 }
 
-export * from './index'
+export * from "./index"

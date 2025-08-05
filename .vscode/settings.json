@@ -13,13 +13,17 @@
         ".idea": true,
         ".firebase": true,
         ".github": true,
-        ".cursor": true
+        ".cursor": true,
+        ".vscode": true,
+        ".windsurf": true
     },
     "hide-files.files": [
         ".idea",
         ".firebase",
         ".github",
-        ".cursor"
+        ".cursor",
+        ".vscode",
+        ".windsurf"
     ],
     "explorer.fileNesting.enabled": true,
     "explorer.fileNesting.expand": false,

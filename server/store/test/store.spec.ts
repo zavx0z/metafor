@@ -1,5 +1,5 @@
 import { describe, it, expect, afterAll, beforeAll, beforeEach } from "bun:test"
-import { Store } from "../index"
+import { SQLiteStore } from "../index"
 import { Database } from "bun:sqlite"
 
 // SQL-запросы для создания таблиц
@@ -41,9 +41,9 @@ CREATE INDEX IF NOT EXISTS idx_actor_tag ON actor (meta_tag);
 CREATE INDEX IF NOT EXISTS idx_actor_parent ON actor (parent_id);
 
 CREATE INDEX IF NOT EXISTS idx_patch_actor ON patch (actor_id);
-`;
+`
 describe("хранилище sqlite", () => {
-  let store: Store
+  let store: SQLiteStore
   let db: Database
 
   beforeAll(async () => {
@@ -54,36 +54,36 @@ describe("хранилище sqlite", () => {
       } catch (e) {
         // Игнорируем ошибку, если файла не существует
       }
-      
-      // Создаем новую базу данных  
+
+      // Создаем новую базу данных
       db = new Database("test.sqlite")
-      
+
       // Включаем проверку внешних ключей и журналирование
       db.exec(`
         PRAGMA foreign_keys = ON;
         PRAGMA journal_mode = WAL;
         PRAGMA synchronous = NORMAL;
       `)
-      
+
       // Проверяем, что внешние ключи включены
       const fkCheck = db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }
-      
+
       // Выполняем каждый оператор по отдельности для лучшего отслеживания ошибок
-      const statements = createTablesQuery.split(';').filter(s => s.trim())
+      const statements = createTablesQuery.split(";").filter((s) => s.trim())
       for (const stmt of statements) {
         try {
-          db.exec(stmt + ';')
+          db.exec(stmt + ";")
         } catch (e) {
-          console.error('Error executing statement:', stmt)
-          console.error('Error:', e)
+          console.error("Error executing statement:", stmt)
+          console.error("Error:", e)
           throw e
         }
       }
-      
+
       // Инициализируем хранилище
-      store = new Store("test.sqlite")
+      store = new SQLiteStore("test.sqlite")
     } catch (error) {
-      console.error('Error in beforeAll:', error)
+      console.error("Error in beforeAll:", error)
       throw error
     }
   })
@@ -113,21 +113,21 @@ describe("хранилище sqlite", () => {
   it("должен создавать новую базу данных", async () => {
     const fileExist = await Bun.file("test.sqlite").exists()
     expect(fileExist).toBe(true)
-    
+
     // Проверяем, что таблицы существуют
     const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()
-    const tableNames = (tables as any[]).map(t => t.name)
-    
-    expect(tableNames).toContain('meta')
-    expect(tableNames).toContain('actor')
-    expect(tableNames).toContain('patch')
+    const tableNames = (tables as any[]).map((t) => t.name)
+
+    expect(tableNames).toContain("meta")
+    expect(tableNames).toContain("actor")
+    expect(tableNames).toContain("patch")
   })
 
   describe("проверка структуры таблиц", () => {
     const checkTableColumns = async (tableName: string, expectedColumns: string[]) => {
       const columns = db.prepare(`PRAGMA table_info(${tableName})`).all()
-      const columnNames = (columns as any[]).map(col => col.name)
-      expectedColumns.forEach(col => {
+      const columnNames = (columns as any[]).map((col) => col.name)
+      expectedColumns.forEach((col) => {
         expect(columnNames).toContain(col)
       })
     }
@@ -135,43 +135,43 @@ describe("хранилище sqlite", () => {
     it("таблица meta должна существовать и иметь правильные колонки", async () => {
       const tableInfo = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='meta'").get()
       expect(tableInfo).toBeDefined()
-      
+
       const columns = db.prepare("PRAGMA table_info(meta)").all()
       const columnNames = columns.map((col: any) => col.name)
-      
-      expect(columnNames).toContain('tag')
-      expect(columnNames).toContain('fingerprint')
-      expect(columnNames).toContain('timestamp')
+
+      expect(columnNames).toContain("tag")
+      expect(columnNames).toContain("fingerprint")
+      expect(columnNames).toContain("timestamp")
     })
 
     it("таблица actor должна существовать и иметь правильные колонки", async () => {
       const tableInfo = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='actor'").get()
       expect(tableInfo).toBeDefined()
-      
+
       const columns = db.prepare("PRAGMA table_info(actor)").all()
       const columnNames = columns.map((col: any) => col.name)
-      
-      expect(columnNames).toContain('id')
-      expect(columnNames).toContain('meta_tag')
-      expect(columnNames).toContain('parent_id')
-      expect(columnNames).toContain('idx')
-      expect(columnNames).toContain('snapshot')
-      expect(columnNames).toContain('timestamp')
+
+      expect(columnNames).toContain("id")
+      expect(columnNames).toContain("meta_tag")
+      expect(columnNames).toContain("parent_id")
+      expect(columnNames).toContain("idx")
+      expect(columnNames).toContain("snapshot")
+      expect(columnNames).toContain("timestamp")
     })
 
     it("таблица patch должна существовать и иметь правильные колонки", async () => {
       const tableInfo = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='patch'").get()
       expect(tableInfo).toBeDefined()
-      
+
       const columns = db.prepare("PRAGMA table_info(patch)").all()
       const columnNames = columns.map((col: any) => col.name)
-      
-      expect(columnNames).toContain('id')
-      expect(columnNames).toContain('actor_id')
-      expect(columnNames).toContain('op')
-      expect(columnNames).toContain('path')
-      expect(columnNames).toContain('value')
-      expect(columnNames).toContain('timestamp')
+
+      expect(columnNames).toContain("id")
+      expect(columnNames).toContain("actor_id")
+      expect(columnNames).toContain("op")
+      expect(columnNames).toContain("path")
+      expect(columnNames).toContain("value")
+      expect(columnNames).toContain("timestamp")
     })
   })
 
@@ -180,21 +180,19 @@ describe("хранилище sqlite", () => {
       // Создаем запись в meta
       const metaInsert = db.prepare("INSERT INTO meta (tag, fingerprint) VALUES (?, ?)")
       metaInsert.run("test-tag", "fingerprint-123")
-      
+
       // Проверяем, что запись создана
       const metaRow = db.prepare("SELECT * FROM meta WHERE tag = ?").get("test-tag") as any
       expect(metaRow).toBeDefined()
       expect(metaRow.tag).toBe("test-tag")
-      
+
       // Создаем запись в actor
-      const actorInsert = db.prepare(
-        "INSERT INTO actor (meta_tag, idx, snapshot) VALUES (?, ?, ?) RETURNING id"
-      )
+      const actorInsert = db.prepare("INSERT INTO actor (meta_tag, idx, snapshot) VALUES (?, ?, ?) RETURNING id")
       const result = actorInsert.get("test-tag", 0, JSON.stringify({ test: "snapshot" })) as any
-      
+
       expect(result).toBeDefined()
       expect(result.id).toBe(1)
-      
+
       // Проверяем, что запись создана
       const actorRow = db.prepare("SELECT * FROM actor WHERE id = ?").get(1) as any
       expect(actorRow).toBeDefined()
@@ -205,7 +203,7 @@ describe("хранилище sqlite", () => {
       // Проверяем, что внешний ключ включен
       const fkCheck = db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }
       expect(fkCheck.foreign_keys).toBe(1)
-      
+
       // Проверяем, что в таблице meta нет записи с таким тегом
       // SQLite возвращает null, если запись не найдена
       const existingMeta = db.prepare("SELECT * FROM meta WHERE tag = ?").get("non-existent-tag")
@@ -213,65 +211,61 @@ describe("хранилище sqlite", () => {
 
       let error: Error | null = null
       try {
-        const insert = db.prepare(
-          "INSERT INTO actor (meta_tag, idx, snapshot) VALUES (?, ?, ?)"
-        )
-        
+        const insert = db.prepare("INSERT INTO actor (meta_tag, idx, snapshot) VALUES (?, ?, ?)")
+
         const result = insert.run("non-existent-tag", 0, JSON.stringify({}))
-        
+
         // Если дошли сюда, значит вставка прошла успешно, что неверно
         const allActors = db.prepare("SELECT * FROM actor").all()
       } catch (e) {
         error = e as Error
       }
-      
+
       expect(error).not.toBeNull()
-      
-      const errorMessage = error?.message || ''
-      const isForeignKeyError = 
-        errorMessage.includes("FOREIGN KEY constraint failed") || 
+
+      const errorMessage = error?.message || ""
+      const isForeignKeyError =
+        errorMessage.includes("FOREIGN KEY constraint failed") ||
         errorMessage.includes("SQLITE_CONSTRAINT_FOREIGNKEY") ||
         errorMessage.includes("no such table")
-        
+
       if (!isForeignKeyError) {
       }
-      
+
       expect(isForeignKeyError).toBe(true)
     })
 
     it("должен создавать иерархию actor с parent_id", () => {
       // Создаем запись в meta
-      db.prepare("INSERT INTO meta (tag, fingerprint) VALUES (?, ?)")
-        .run("parent-tag", "fingerprint-123")
-      
+      db.prepare("INSERT INTO meta (tag, fingerprint) VALUES (?, ?)").run("parent-tag", "fingerprint-123")
+
       // Создаем родительский actor
-      const parent = db.prepare(
-        "INSERT INTO actor (meta_tag, idx, snapshot) VALUES (?, ?, ?) RETURNING id"
-      ).get("parent-tag", 0, JSON.stringify({}))
-      
+      const parent = db
+        .prepare("INSERT INTO actor (meta_tag, idx, snapshot) VALUES (?, ?, ?) RETURNING id")
+        .get("parent-tag", 0, JSON.stringify({}))
+
       // Создаем дочерний actor
-      const child = db.prepare(
-        "INSERT INTO actor (meta_tag, parent_id, idx, snapshot) VALUES (?, ?, ?, ?) RETURNING id"
-      ).get("parent-tag", (parent as any).id, 0, JSON.stringify({}))
-      
+      const child = db
+        .prepare("INSERT INTO actor (meta_tag, parent_id, idx, snapshot) VALUES (?, ?, ?, ?) RETURNING id")
+        .get("parent-tag", (parent as any).id, 0, JSON.stringify({}))
+
       expect(child).toBeDefined()
     })
 
     it("должен создавать patch для существующего actor", () => {
       // Создаем запись в meta
-      db.prepare("INSERT INTO meta (tag, fingerprint) VALUES (?, ?)")
-        .run("test-tag", "fingerprint-123")
-      
+      db.prepare("INSERT INTO meta (tag, fingerprint) VALUES (?, ?)").run("test-tag", "fingerprint-123")
+
       // Создаем actor
-      const actor = db.prepare(
-        "INSERT INTO actor (meta_tag, idx, snapshot) VALUES (?, ?, ?) RETURNING id"
-      ).get("test-tag", 0, JSON.stringify({}))
-      
+      const actor = db
+        .prepare("INSERT INTO actor (meta_tag, idx, snapshot) VALUES (?, ?, ?) RETURNING id")
+        .get("test-tag", 0, JSON.stringify({}))
+
       // Создаем patch
-      const patch = db.prepare(
-        "INSERT INTO patch (actor_id, op, path, value) VALUES (?, ?, ?, ?) RETURNING id"
-      ).get((actor as any).id, "add", "test.path", "test value")
-      
+      const patch = db
+        .prepare("INSERT INTO patch (actor_id, op, path, value) VALUES (?, ?, ?, ?) RETURNING id")
+        .get((actor as any).id, "add", "test.path", "test value")
+
       expect(patch).toBeDefined()
     })
 
@@ -282,19 +276,17 @@ describe("хранилище sqlite", () => {
 
       let error: Error | null = null
       try {
-        const insert = db.prepare(
-          "INSERT INTO patch (actor_id, op, path, value) VALUES (?, ?, ?, ?)"
-        )
+        const insert = db.prepare("INSERT INTO patch (actor_id, op, path, value) VALUES (?, ?, ?, ?)")
         insert.run(999, "add", "test.path", "test value")
       } catch (e) {
         error = e as Error
       }
-      
+
       expect(error).not.toBeNull()
       // SQLite может возвращать разные сообщения об ошибке, проверяем оба варианта
       expect(
-        error?.message.includes("FOREIGN KEY constraint failed") || 
-        error?.message.includes("SQLITE_CONSTRAINT_FOREIGNKEY")
+        error?.message.includes("FOREIGN KEY constraint failed") ||
+          error?.message.includes("SQLITE_CONSTRAINT_FOREIGNKEY")
       ).toBe(true)
     })
   })

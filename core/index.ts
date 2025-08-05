@@ -55,22 +55,30 @@
  * @packageDocumentation
  */
 
-import { type ContextSchema } from "./context"
-import { type StatesConfig, validateNoUnconditionalCycles } from "./state"
-import type { ProcessesDeclaration } from "./proc/index.t.ts"
-import type { Core, FabricParams, MetaForConfig, Snapshot } from "./index.t.ts"
+import { Context, type ContextSchema, type ExtractValues } from "./context"
+import { checkTransitionConditions, type StatesConfig, validateNoUnconditionalCycles } from "./state"
+import type { Process, ProcessesDeclaration } from "./proc/index.t.ts"
+import type { Core, FabricParams, FingerPrint, MetaForConfig, Snapshot } from "./index.t.ts"
 import type { ViewConfig } from "./view/index.t.ts"
 import type { ReactionsDeclaration } from "./react/index.t.ts"
 import type { ContextTypes } from "./context/types.t.ts"
 import { createRef } from "./html/directives"
+import type { ActorStore } from "./store/index.t.ts"
+import { Processes } from "./proc/index.ts"
+import { Reactions } from "./react/index.ts"
+import { View } from "./view/index.ts"
+import {
+  initMessage,
+  stateAfterActionMessage,
+  stateBeforeActionMessage,
+  updateContextMessage,
+  type Message,
+} from "./message/index.ts"
 
 export type { Core, FabricParams, Snapshot }
 
-export function MetaForFabric(
-  constructor: <C extends ContextSchema, S extends string, I extends Core>(
-    params: FabricParams<C, S, I>
-  ) => CustomElementConstructor
-) {
+export function MetaForFabric(params: FabricParams) {
+  const { store } = params
   /**
    * MetaFor — фабрика для создания web-компонента-актора конечного автомата
    * @param name - имя актора (участвует в формировании хеша, но не является итоговым тегом)
@@ -229,20 +237,261 @@ export function MetaForFabric(
                            * ```
                            */
                           view(view?: ViewConfig<C, S, I>): string {
-                            const meta = constructor({
+                            const fingerPrint: FingerPrint<C, S> = {
                               name,
-                              description,
-                              schema,
+                              ...(description ? { description } : {}),
                               states,
-                              core,
-                              process,
-                              reaction,
-                              view,
-                              persist,
-                            })
-                            const hash = (meta as any).hash()
-                            const tag: string = `meta-${hash}`
-                            if (!customElements.get(tag)) customElements.define(tag, meta)
+                              processes: new Processes(process).toSnapshot(),
+                              reactions: new Reactions(reaction).toSnapshot(),
+                              context: new Context(schema).snapshot,
+                              ...new View(view).snapshot,
+                            }
+                            const hash = store.saveMetaIsNotExists(JSON.stringify(fingerPrint))
+                            const tagName = `meta-${hash}`
+
+                            if (!customElements.get(tagName))
+                              customElements.define(
+                                tagName,
+                                class extends HTMLElement {
+                                  #tag: string = hash
+                                  #store!: ActorStore
+
+                                  #context: Context<C>
+                                  #states: StatesConfig<S, C>
+                                  #core: I
+                                  #processes: Processes<C, S, I>
+                                  #reactions: Reactions<C, S, I>
+                                  #view: View<C, S, I>
+
+                                  #env = "browser"
+                                  #name = name
+                                  #description = description
+
+                                  #shadow: ShadowRoot
+                                  #channel: BroadcastChannel | null = null
+                                  /** ------------state-------------------------------- */
+                                  #state: S = Object.keys(states)[0] as S
+                                  #setState(state: S) {
+                                    this.setAttribute("state", state)
+                                    this.#state = state
+                                  }
+                                  /** ------------process-------------------------------- */
+                                  /** индикатор выполнения процесса */
+                                  #process: boolean = false
+                                  /**
+                                   * 1. устанавливает состояние процесса
+                                   * 2. при отключении процесса (после завершения действия)
+                                   *  - обновляет контекст
+                                   *  - выполняет переходы
+                                   */
+                                  #setProcess(process: boolean) {
+                                    if (this.#process === process) return
+                                    this.#process = process
+                                    if (!process) {
+                                      this.#transition()
+                                    }
+                                  }
+                                  /** ------------process-------------------------------- */
+                                  constructor() {
+                                    super()
+                                    this.#shadow = this.attachShadow({ mode: "closed" })
+
+                                    this.#context = new Context(schema)
+                                    this.#states = states
+                                    this.#core = core
+                                    this.#processes = new Processes(process)
+                                    this.#reactions = new Reactions(reaction)
+                                    this.#view = new View(view)
+                                    this.#view.attachStyles(this.#shadow)
+                                  }
+                                  /** @internal обновление ядра */
+                                  __updCore = (value: Partial<I>) =>
+                                    Object.entries(value).forEach(([key, val]) => (this.#core[key as keyof I] = val))
+
+                                  connectedCallback() {
+                                    this.#store = store.saveActorIsNotExist({
+                                      meta_tag: this.#tag,
+                                      parent_id: null,
+                                      idx: 0,
+                                      snapshot: JSON.stringify(this.snapshot),
+                                    })
+                                    this.#view.render({
+                                      state: this.#state,
+                                      context: this.#context.getSnapshot(),
+                                      core: this.#core,
+                                      shadow: this.#shadow,
+                                      update: this.update,
+                                    })
+                                    this.setAttribute("state", this.#state)
+                                    this.#channel = new BroadcastChannel("channel")
+                                    requestAnimationFrame(this.#init)
+                                  }
+
+                                  #init = () => {
+                                    if (this.#reactions.hasReactions() && this.#channel)
+                                      this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
+                                    this.#sendEvent(initMessage(this.#tag, this.snapshot))
+                                    const transition = this.#states[this.#state]
+                                    if (transition) {
+                                      const process = this.#processes.getProcess(this.#state)
+                                      if (process) {
+                                        this.#setProcess(true)
+                                        this.#executeAction(process)
+                                        this.#transition()
+                                      } else {
+                                        this.#transition()
+                                      }
+                                    }
+                                    this.#view.onMount({ core: this.#core })
+                                  }
+
+                                  disconnectedCallback() {
+                                    this.#view.onDestroy({ core: this.#core })
+                                  }
+
+                                  /** обновление контекста */
+                                  update = (context: Partial<ExtractValues<C>>) => {
+                                    const updated = this.#context.update(context)
+                                    if (Object.keys(updated).length > 0) {
+                                      this.#sendEvent(updateContextMessage(this.#tag, updated))
+                                      this.#view.render({
+                                        state: this.#state,
+                                        context: this.#context.getSnapshot(),
+                                        core: this.#core,
+                                        shadow: this.#shadow,
+                                        update: this.update,
+                                      })
+                                    }
+                                    return updated
+                                  }
+                                  /**
+                                   * - выполняет действие, устанавливая состояние процесса в true
+                                   * - после успешной обработки действия, если есть success, то обновляет контекст
+                                   * - после ошибки в обработке действия, если есть error, то обновляет контекст
+                                   * - после завершения действия, устанавливает состояние процесса в false
+                                   * - отправляет сообщение о состоянии процесса в канал (MSG)
+                                   *
+                                   * @param process - конфигурация процесса состояния
+                                   * @throws {Error} - если обработчик ошибки не найден
+                                   */
+                                  #executeAction = (process: Process<C, I>) => {
+                                    try {
+                                      this.#broadcastMessage(stateBeforeActionMessage(this.#tag, this.#state))
+                                      const result = process.action({
+                                        context: this.#context.getSnapshot(),
+                                        core: this.#core,
+                                        element: this,
+                                      })
+                                      if (result instanceof Promise) {
+                                        result
+                                          .then((data) => {
+                                            if (process.success) process.success({ update: this.update, data })
+                                          })
+                                          .catch((error) => {
+                                            if (process.error) {
+                                              if (error instanceof Error) {
+                                                process.error({ update: this.update, error })
+                                              } else if (typeof error === "string") {
+                                                process.error({ update: this.update, error: new Error(error) })
+                                              } else {
+                                                throw Error(
+                                                  `Передан неизвестный тип ошибки в состоянии: ${this.#state}`,
+                                                  error
+                                                )
+                                              }
+                                            } else
+                                              throw Error(
+                                                `Обработчик ошибки не найден для состояния: ${this.#state} \n ${error}`
+                                              )
+                                          })
+                                          .finally(() => {
+                                            this.#broadcastMessage(stateAfterActionMessage(this.#tag, this.#state))
+                                            this.#setProcess(false)
+                                          })
+                                      } else {
+                                        if (process.success) process.success({ update: this.update, data: result })
+                                        this.#broadcastMessage(stateAfterActionMessage(this.#tag, this.#state))
+                                        this.#setProcess(false)
+                                      }
+                                    } catch (error) {
+                                      if (error instanceof Error) process.error?.({ update: this.update, error })
+                                      this.#broadcastMessage(stateAfterActionMessage(this.#tag, this.#state))
+                                      this.#setProcess(false)
+                                    }
+                                  }
+
+                                  /**
+                                   * - выполняет переходы с установкой состояния
+                                   * - запускает процесс если есть
+                                   * - отправляет сообщение состояния если нет процесса (MSG)
+                                   */
+                                  #transition = () => {
+                                    const transition = this.#states[this.#state]
+                                    if (!transition) return
+                                    for (const [state, conditions] of Object.entries(transition)) {
+                                      if (checkTransitionConditions(conditions, this.#context.getSnapshot())) {
+                                        const process = this.#processes.getProcess(state as S)
+                                        if (this.#process) return
+                                        if (process) {
+                                          this.#setProcess(true)
+                                          this.#setState(state as S)
+                                          this.#executeAction(process)
+                                        } else {
+                                          this.#setState(state as S)
+                                          this.#channel &&
+                                            this.#broadcastMessage(stateAfterActionMessage(this.#tag, state as S))
+                                          if (!this.#process) this.#transition()
+                                        }
+                                        break
+                                      }
+                                    }
+                                  }
+                                  #broadcastMessage = (message: Message) => {
+                                    if (!this.#channel) return
+                                    this.#channel.postMessage(message)
+                                    this.#view.render({
+                                      state: this.#state,
+                                      context: this.#context.getSnapshot(),
+                                      core: this.#core,
+                                      shadow: this.#shadow,
+                                      update: this.update,
+                                    })
+                                  }
+                                  #sendEvent = (message: Message) => {
+                                    if (!this.#channel) return
+                                    this.#channel.postMessage(message)
+                                  }
+                                  get snapshot(): Snapshot<C, S> {
+                                    return {
+                                      name: this.#name,
+                                      state: this.#state,
+                                      states: this.#states,
+                                      context: this.#context.snapshot,
+                                      ...this.#view.snapshot,
+                                      ...(this.#description ? { description: this.#description } : {}),
+                                      ...(this.#processes.size > 0 ? { processes: this.#processes.toSnapshot() } : {}),
+                                      ...(this.#reactions.hasReactions()
+                                        ? { reactions: this.#reactions.toSnapshot() }
+                                        : {}),
+                                    }
+                                  }
+
+                                  /** Обработка входящих сообщений для реакций */
+                                  #handleReactionMessage = (message: Message) => {
+                                    if (!this.#reactions.hasReactions()) return
+                                    const { meta, patch } = message
+                                    const state = this.#state as S
+                                    this.#reactions.run({
+                                      context: this.#context.getSnapshot(),
+                                      core: this.#core,
+                                      meta,
+                                      patch,
+                                      state,
+                                      update: this.update,
+                                    })
+                                  }
+                                }
+                              )
                             return hash
                           },
                         }

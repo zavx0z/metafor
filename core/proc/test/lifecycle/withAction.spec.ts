@@ -3,7 +3,7 @@ import { messagesFixture } from "../../../../fixture/message.ts"
 import { MetaFor } from "../../../../web/metafor.ts"
 
 describe("MetaFor: инициализация с действиями", async () => {
-  const hex = MetaFor("")
+  const hex = MetaFor("test-with-action")
     .context((t) => ({
       value: t.string.optional("ctx_1")({ title: "Value" }),
     }))
@@ -52,6 +52,7 @@ describe("MetaFor: инициализация с действиями", async ()
         op: "add",
         path: "/",
         value: {
+          name: "test-with-action",
           state: "state_1",
           states: {
             state_1: { state_2: { value: "ctx_2" } },

@@ -118,7 +118,7 @@ test("стили сохраняются в снимке компонента", a
   const element = document.querySelector(`meta-${hash}`) as any
   await Bun.sleep(100)
 
-  const snapshot = element.getSnapshot()
+  const snapshot = element.snapshot
   expect(snapshot.style, "стили должны быть сохранены в снимке").toBe(`
         .container {
           color: red;

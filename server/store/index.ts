@@ -1,6 +1,9 @@
 import { Database } from "bun:sqlite"
-import type { MetaRecord, PatchRecord, TransactionCallback, ActorTreeNode } from "./index.t"
+import type { PatchRecord, TransactionCallback, ActorTreeNode } from "./index.t"
+import type { MetaRecord } from "../../core/store/index.t"
+import type { Store } from "../../core/store/index.t"
 import type { Message } from "../../core/message"
+import type { ActorStore } from "../../core/store/index.t"
 
 // SQL-запросы для создания таблиц
 const createTablesQuery = `
@@ -108,7 +111,7 @@ const getOtherObjectsQuery = `
 SELECT sql FROM sqlite_master 
 WHERE type IN ('index', 'view', 'trigger') AND sql IS NOT NULL
 `
-class ActorStore {
+class SQLiteActorStore implements ActorStore {
   id: number = 0
   meta_tag: string = ""
   parent_id: number | null = null
@@ -116,11 +119,37 @@ class ActorStore {
   snapshot: string = ""
   timestamp: string = ""
 }
-export { ActorStore }
+export { SQLiteActorStore }
 
-export class Store {
+const hasher = new Bun.CryptoHasher("md5")
+
+export class SQLiteStore implements Store {
   #db: Database
 
+  saveMetaIsNotExists(fingerprint: string) {
+    const hash = hasher.update(fingerprint).digest("hex")
+    const meta = this.getMeta(hash)
+    if (meta) return hash
+    this.setMeta({ tag: hash, fingerprint })
+    return hash
+  }
+
+  /**
+   * Получает актора по ID
+   */
+  saveActorIsNotExist(data: Omit<ActorStore, "id" | "timestamp">): ActorStore {
+    const result = this.#db
+      .prepare(`SELECT * FROM actor WHERE meta_tag = $meta_tag`)
+      .as(SQLiteActorStore)
+      .get({ meta_tag: data.meta_tag })
+    if (!result) {
+      const actorId = this.createActor(data)
+      const actor = this.getActorById(actorId)
+      if (!actor) throw new Error("Actor not found")
+      return actor
+    }
+    return result
+  }
   constructor(path: string = "store.sqlite") {
     this.#db = new Database(path, { create: true, strict: true })
 
@@ -202,7 +231,7 @@ export class Store {
   /**
    * Создает нового актора
    */
-  createActor(actor: Omit<ActorStore, "id" | "timestamp">): number {
+  createActor(actor: Omit<SQLiteActorStore, "id" | "timestamp">): number {
     try {
       // Проверяем, что meta_tag существует
       const metaExists = this.#db.prepare("SELECT 1 FROM meta WHERE tag = ?").get(actor.meta_tag)
@@ -234,14 +263,6 @@ export class Store {
   }
 
   /**
-   * Получает актора по ID
-   */
-  getActor({ tag }: { tag: string }) {
-    const result = this.#db.prepare(`SELECT * FROM actor WHERE meta_tag = $tag`).as(ActorStore).get({ tag })
-    return result
-  }
-
-  /**
    * Обновляет снапшот актора
    */
   updateActorSnapshot(id: number, snapshot: string): void {
@@ -251,8 +272,8 @@ export class Store {
   /**
    * Получает всех дочерних акторов для указанного родителя
    */
-  getChildActors(parentId: number): ActorStore[] {
-    return this.#db.prepare(getChildActorsQuery).all(parentId) as ActorStore[]
+  getChildActors(parentId: number): SQLiteActorStore[] {
+    return this.#db.prepare(getChildActorsQuery).all(parentId) as SQLiteActorStore[]
   }
 
   /**
@@ -301,7 +322,7 @@ export class Store {
    * Создает актора и его корневой патч в одной транзакции
    */
   createActorWithInitialPatch(
-    actor: Omit<ActorStore, "id" | "timestamp">,
+    actor: Omit<SQLiteActorStore, "id" | "timestamp">,
     initialPatch: Omit<PatchRecord, "id" | "actor_id" | "timestamp">
   ): { actorId: number; patchId: number } {
     let actorId: number
@@ -321,12 +342,24 @@ export class Store {
 
     return { actorId: actorId!, patchId: patchId! }
   }
-
+  getActorById(id: number): ActorStore | null {
+    const actor = this.#db.prepare(`SELECT * FROM actor WHERE id = $id`).as(SQLiteActorStore).get({ id })
+    if (!actor) return null
+    return actor
+  }
+  getActor(tag: string): ActorStore | null {
+    const actor = this.#db
+      .prepare(`SELECT * FROM actor WHERE meta_tag = $meta_tag`)
+      .as(SQLiteActorStore)
+      .get({ meta_tag: tag })
+    if (!actor) return null
+    return actor
+  }
   /**
    * Получает полное дерево акторов, начиная с корневого
    */
   getActorTree(rootTag: string): ActorTreeNode | null {
-    const actor = this.getActor({ tag: rootTag })
+    const actor = this.getActor(rootTag)
     if (!actor) return null
 
     const children = this.getChildActors(actor.id)
@@ -343,7 +376,7 @@ export class Store {
   }
 
   getAllActors() {
-    return this.#db.prepare("SELECT * FROM actor").as(ActorStore).all()
+    return this.#db.prepare("SELECT * FROM actor").as(SQLiteActorStore).all()
   }
   // ===== Устаревшие методы =====
 

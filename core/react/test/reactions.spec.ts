@@ -5,7 +5,8 @@ import { createStaticViewFunction } from "../../view/index.ts"
 
 describe("реакции", () => {
   test("MetaFor - базовый функционал", async () => {
-    const childHash = MetaFor(Bun.randomUUIDv7())
+    const childName = Bun.randomUUIDv7()
+    const childHash = MetaFor(childName)
       .context((types) => ({
         param: types.string.optional(),
       }))
@@ -85,6 +86,7 @@ describe("реакции", () => {
           op: "add",
           path: "/",
           value: {
+            name: childName,
             state: "state_1",
             states: {
               state_1: {
