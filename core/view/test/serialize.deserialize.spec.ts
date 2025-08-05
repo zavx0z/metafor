@@ -177,15 +177,15 @@ test("полный цикл извлечения и восстановления
   expect(restoredResult.values.length, "количество значений должно совпадать").toBe(originalResult.values.length)
 })
 
-test("сериализация render-функции с замыканиями", () => {
+test("сериализация render-функции", () => {
   // Импортируем необходимые функции
-  const { serializeRenderFunction, restoreViewFunctionWithClosures } = require("../index")
+  const { serializeRenderFunction, restoreViewFunction } = require("../index")
   
   // Имитируем ситуацию с внешними переменными
   const childHash = "child-243232"
   const parentHash = "parent-456789"
   
-  const renderWithClosures = ({ context, html }: any) => html`
+  const renderFunction = ({ context, html }: any) => html`
     <div>
       <h1>Родитель: ${context.parentMessage}</h1>
       <meta-${childHash}
@@ -197,21 +197,17 @@ test("сериализация render-функции с замыканиями",
     </div>
   `
   
-  // Сериализуем с контекстом замыканий
-  const { template, closures, serialized } = serializeRenderFunction(
-    renderWithClosures,
-    { childHash, parentHash }
-  )
+  // Сериализуем функцию
+  const serialized = serializeRenderFunction(renderFunction)
   
   // Проверяем, что функция работает и возвращает ожидаемые результаты
-  expect(template).toContain("meta-${\"child-243232\"}")
-  expect(template).toContain("meta-${\"parent-456789\"}")
-  expect(closures).toEqual({})
   expect(serialized).toContain("meta-child-243232")
   expect(serialized).toContain("meta-parent-456789")
+  expect(serialized).not.toContain("${\"child-243232\"}")
+  expect(serialized).not.toContain("${\"parent-456789\"}")
   
   // Восстанавливаем функцию
-  const restored = restoreViewFunctionWithClosures(template, closures)
+  const restored = restoreViewFunction(serialized)
   expect(restored).toBeInstanceOf(Function)
   
   // Проверяем, что восстановленная функция работает

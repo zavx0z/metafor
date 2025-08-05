@@ -107,16 +107,9 @@ export function extractTemplateLiteral(fn: Function): string {
 }
 
 /**
- * Продвинутая сериализация render-функции с захватом замыканий
+ * Сериализует render-функцию
  */
-export function serializeRenderFunction<C extends ContextSchema, S extends string, I extends Core>(
-  renderFn: RenderFunc<C, S, I>,
-  closureContext?: Record<string, any>
-): {
-  template: string
-  closures: Record<string, any>
-  serialized: string
-} {
+export function serializeRenderFunction(renderFn: Function): string {
   const fnString = renderFn.toString()
   
   // Извлекаем template literal
@@ -125,41 +118,13 @@ export function serializeRenderFunction<C extends ContextSchema, S extends strin
     throw new Error("Не удалось найти template literal в функции")
   }
   
-  const template = templateMatch[1]!
-  const closures: Record<string, any> = {}
-  
-  // Анализируем переменные в template literal
-  const variableMatches = template.matchAll(/\$\{([^}]+)\}/g)
-  
-  for (const match of variableMatches) {
-    const expression = match[1]!.trim()
-    
-    // Проверяем, является ли это простой переменной (не context.something)
-    if (!expression.includes('.') && !expression.includes('[') && closureContext) {
-      if (closureContext[expression] !== undefined) {
-        closures[expression] = closureContext[expression]
-      }
-    }
-  }
-  
-  // Создаем сериализованную версию с замененными значениями
-  let serialized = template
+  let template = templateMatch[1]!
   
   // Обрабатываем случаи, когда константы уже подставлены в строку
   // Заменяем конструкции вида meta-${"hash"} на meta-hash
-  serialized = serialized.replace(/meta-\$\{"([^"]+)"\}/g, 'meta-$1')
+  template = template.replace(/meta-\$\{"([^"]+)"\}/g, 'meta-$1')
   
-  // Обрабатываем обычные замыкания
-  for (const [key, value] of Object.entries(closures)) {
-    const regex = new RegExp(`\\$\\{${key}\\}`, 'g')
-    serialized = serialized.replace(regex, String(value))
-  }
-  
-  return {
-    template,
-    closures,
-    serialized
-  }
+  return template
 }
 
 /**
@@ -177,42 +142,7 @@ export function extractCSSTemplateLiteral(fn: Function): string {
   return match[1]!
 }
 
-/**
- * Автоматически захватывает контекст замыканий для render-функции
- */
-export function captureRenderContext<C extends ContextSchema, S extends string, I extends Core>(
-  renderFn: RenderFunc<C, S, I>
-): Record<string, any> {
-  const fnString = renderFn.toString()
-  const context: Record<string, any> = {}
-  
-  // Получаем ссылку на область видимости, где была определена функция
-  // Это работает только в определенных случаях
-  try {
-    // Пытаемся получить доступ к локальным переменным через eval
-    const variableNames = fnString.match(/\$\{([a-zA-Z_$][a-zA-Z0-9_$]*)\}/g)
-    if (variableNames) {
-      for (const match of variableNames) {
-        const varName = match.slice(2, -1) // Убираем ${ и }
-        if (!varName.includes('.') && !varName.includes('[')) {
-          try {
-            // Осторожно: это может не работать в строгом режиме
-            const value = eval(varName)
-            if (value !== undefined) {
-              context[varName] = value
-            }
-          } catch {
-            // Переменная не доступна в текущем контексте
-          }
-        }
-      }
-    }
-  } catch {
-    // Не удалось захватить контекст
-  }
-  
-  return context
-}
+
 
 /**
  * Восстанавливает view функцию из template literal
@@ -223,25 +153,7 @@ export function restoreViewFunction(template: string) {
   return eval(functionString)
 }
 
-/**
- * Восстанавливает view функцию с замыканиями
- */
-export function restoreViewFunctionWithClosures(
-  template: string,
-  closures: Record<string, any>
-) {
-  // Создаем строку с переменными замыкания
-  const closureVars = Object.entries(closures)
-    .map(([key, value]) => `const ${key} = ${JSON.stringify(value)};`)
-    .join(' ')
-  
-  const functionString = `
-    ${closureVars}
-    return ({ html, update, context, ref, repeat, when, map, style, choose, core, state }) => html\`${template}\`
-  `
-  
-  return new Function(functionString)()
-}
+
 
 /**
  * Восстанавливает CSS функцию из template literal
