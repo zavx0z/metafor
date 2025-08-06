@@ -161,13 +161,84 @@ tags: {
 }
 ```
 
-### 3. Процессы (Processes)
+### 3. Core — хранилище сложных данных
 
-Процессы — это действия с обработкой успеха и ошибок. Они могут быть как асинхронными, так и синхронными.
+Core — это объект для хранения сложных структур данных, сервисов и DOM ссылок, которые не должны храниться в контексте.
+
+```typescript
+.core((ref) => ({
+  // Коллекции и объекты
+  users: new Map<number, User>(),
+  cache: new LRUCache(),
+  settings: { theme: 'dark', lang: 'ru' },
+
+  // Соединения и сервисы
+  socket: null as WebSocket | null,
+  apiService: new ApiService(),
+  database: new DatabaseConnection(),
+
+  // Ссылки на DOM элементы
+  formRef: ref(),        // создает ссылку на форму
+  inputRef: ref(),       // создает ссылку на input
+  canvasRef: ref(),      // создает ссылку на canvas
+  modalRef: ref()        // создает ссылку на модальное окно
+}))
+```
+
+**Особенности Core:**
+
+- **Хранение сложных объектов**: Map, Set, классы, сервисы
+- **DOM ссылки через ref()**: для прямого доступа к DOM элементам
+- **Персистентность**: Core сохраняется между рендерами
+- **Доступность**: Core доступен во всех процессах, реакциях и view
+
+**Использование ref() для DOM:**
+
+```typescript
+.view({
+  render: ({ context, core, html, ref, update }) => html`
+    <form ${ref(core.formRef)} @submit=${(e) => {
+      e.preventDefault()
+      const formData = new FormData(core.formRef.current)
+      // работа с данными формы
+    }}>
+      <input
+        ${ref(core.inputRef)}
+        type="text"
+        .value=${context.name}
+      />
+      <canvas ${ref(core.canvasRef)}></canvas>
+    </form>
+  `,
+
+  onMount: ({ core }) => {
+    // Доступ к DOM элементам после монтирования
+    if (core.canvasRef.current) {
+      const ctx = core.canvasRef.current.getContext('2d')
+      // инициализация canvas
+    }
+
+    // Фокус на input
+    core.inputRef.current?.focus()
+  }
+})
+```
+
+### 4. Процессы (Processes)
+
+Процессы — это действия, выполняемые при входе в состояние. **ВАЖНО: Имя процесса должно точно совпадать с именем состояния.**
+
+**Ключевые правила:**
+
+- ✅ Имя процесса = имя состояния
+- ✅ Процесс выполняется автоматически при входе в состояние
+- ✅ action может быть async или sync
+- ✅ success и error всегда синхронные
 
 ```typescript
 .processes((process) => ({
-  login: process({
+  // Асинхронный процесс для состояния "loading"
+  loading: process({
     title: "Авторизация",
     description: "Процесс входа пользователя"
   })
@@ -203,68 +274,105 @@ tags: {
       })
     }),
 
-  logout: process()
-    .action(({ context }) => {
-      // Синхронное действие
-      localStorage.removeItem('token')
-      return { success: true }
+  // Синхронный процесс для состояния "save"
+  save: process({
+    title: "Сохранение данных"
+  })
+    .action(({ context, core }) => {
+      // Синхронная логика
+      const data = {
+        name: context.name,
+        email: context.email,
+        timestamp: Date.now()
+      }
+      localStorage.setItem('userData', JSON.stringify(data))
+      core.cache.set('lastSave', data)
+      return data
     })
+    .success(({ update, data }) => {
+      update({
+        lastSaved: data.timestamp,
+        isDirty: false,
+        saveError: ""
+      })
+    })
+    .error(({ update, error }) => {
+      update({
+        saveError: error.message,
+        isDirty: true
+      })
+    }),
+
+  // Процесс без action (только для изменения контекста)
+  reset: process()
     .success(({ update }) => {
       update({
-        isAuthenticated: false,
-        user: null,
+        name: "",
+        email: "",
+        isDirty: false,
         error: ""
       })
     })
 }))
 ```
 
-### 4. Реакции (Reactions)
+### 5. Реакции (Reactions)
 
-Реакции позволяют обрабатывать внешние события через декларативные фильтры.
+Реакции позволяют обрабатывать сообщения от других компонентов через декларативные фильтры. **ВАЖНО: `tag` в фильтре — это хеш компонента-отправителя, а не произвольная строка.**
 
 ```typescript
-.reactions((reaction) => [
-  [
-    ["idle", "loading"], // Состояния, в которых активна реакция
-    reaction({ title: "Обработка сообщений" })
-      .filter({
-        tag: "user",           // Фильтр по тегу
-        op: "replace",         // Фильтр по операции
-        path: "/context",      // Фильтр по пути
-        value: { gt: 0 }       // Фильтр по значению
-      })
-      .equal(({ update, context, meta, patch }) => {
-        // Обработка события
-        update({
-          lastMessage: patch.value,
-          messageCount: context.messageCount + 1
+// Сначала получаем хеши компонентов для фильтрации
+const userComponentHash = "abc123..." // хеш компонента user
+const adminComponentHash = "def456..." // хеш компонента admin
+
+  .reactions((reaction) => [
+    [
+      ["idle", "loading"], // Состояния, в которых активна реакция
+      reaction({ title: "Обработка сообщений от user компонента" })
+        .filter({
+          tag: userComponentHash, // Хеш компонента-отправителя
+          op: "replace", // Операция: "add" | "replace" | "remove" | "test"
+          path: "/context", // Путь: "/" | "/context" | "/state"
+          value: { userId: { gt: 0 } }, // Условия на значение
         })
-      })
-  ],
-  [
-    ["idle", "loading", "success", "error"], // Все состояния
-    reaction()
-      .filter({ tag: "system" })
-      .equal(({ update }) => {
-        update({ systemNotification: true })
-      })
-  ]
-])
+        .equal(({ update, context, meta, patch, core }) => {
+          // Обработка сообщения
+          const user = core.users.get(patch.value.userId)
+          update({
+            selectedUser: user,
+            lastMessageTime: meta.timestamp,
+            messageCount: context.messageCount + 1,
+          })
+        }),
+    ],
+    [
+      ["idle"], // Реакция только в состоянии idle
+      reaction({ title: "Обработка команд от admin компонента" })
+        .filter({
+          tag: adminComponentHash,
+          op: "add",
+          path: "/",
+        })
+        .equal(({ update, patch }) => {
+          console.log("Получена команда:", patch.value)
+          update({ adminCommand: patch.value })
+        }),
+    ],
+  ])
 ```
 
 **Фильтры реакций:**
 
-- `tag` — фильтр по тегу сообщения
-- `index` — фильтр по индексу
-- `timestamp` — фильтр по временной метке
-- `op` — фильтр по операции (replace, add, remove, test)
-- `path` — фильтр по пути (/context, /state, /)
-- `value` — фильтр по значению с поддержкой всех типов условий
+- `tag` — хеш компонента-отправителя (обязательно использовать переменную с хешем)
+- `op` — операция: `"add"` | `"replace"` | `"remove"` | `"test"`
+- `path` — путь изменения: `"/"` | `"/context"` | `"/state"`
+- `value` — условия на значение (как в states)
+- `index` — индекс сообщения
+- `timestamp` — временная метка сообщения
 
-### 5. Представление (View)
+### 6. Представление (View)
 
-Представление определяет UI компонента с использованием HTML template API.
+Представление определяет UI компонента с использованием HTML template API и специальных директив.
 
 ```typescript
 .view({
@@ -341,69 +449,156 @@ tags: {
 
 **Директивы HTML:**
 
-- `@event` — обработчики событий
-- `?attribute` — булевы атрибуты
-- `.property` — свойства элементов
-- `${ref()}` — ссылки на элементы
-- `${when(condition, template)}` — условный рендеринг
-- `${repeat(items, template)}` — циклы
-- `${map(items, fn)}` — преобразование массивов
+- `@event` — обработчики событий: `@click=${handler}`
+- `?attribute` — булевы атрибуты: `?disabled=${isDisabled}`
+- `.property` — свойства элементов: `.value=${text}`
+- `${ref(core.refName)}` — привязка DOM элемента к core
 
-### 6. Передача контекста между компонентами
+**Специальные директивы:**
 
-MetaFor поддерживает передачу контекста от родительского компонента к дочернему через специальный атрибут `context`.
+````typescript
+// choose — выбор шаблона по значению (например, по состоянию)
+${choose(state, [
+  ["idle", () => html`<div>Ожидание...</div>`],
+  ["loading", () => html`<div class="spinner">Загрузка...</div>`],
+  ["success", () => html`<div>Успешно!</div>`],
+  ["error", () => html`<div class="error">Ошибка!</div>`]
+])}
+
+// when — условный рендеринг
+${when(context.isLoggedIn,
+  () => html`<div>Добро пожаловать, ${context.userName}!</div>`,
+  () => html`<div>Пожалуйста, войдите в систему</div>`
+)}
+
+// repeat — рендеринг списков с ключами для оптимизации
+${repeat(
+  context.items,               // массив элементов
+  (item) => item.id,          // функция ключа
+  (item, index) => html`       // функция рендера
+    <li>
+      ${index + 1}. ${item.name}
+      <button @click=${() => removeItem(item.id)}>Удалить</button>
+    </li>
+  `
+)}
+
+// map — простое преобразование массива
+${map(context.tags, tag => html`<span class="tag">${tag}</span>`)}
+
+### 7. Передача данных между компонентами
+
+MetaFor поддерживает передачу данных от родительского компонента к дочернему через атрибуты `context` и `core`.
 
 ```typescript
-// Родительский компонент
-MetaFor("parent")
+// Сначала создаем дочерние компоненты и получаем их хеши
+const childUserHash = MetaFor("child-user")
   .context((types) => ({
-    parentMessage: types.string.required("Hello from parent"),
-    parentCount: types.number.required(42),
+    userId: types.number.required(0),
+    userName: types.string.required(""),
   }))
   .states({ idle: {} })
-  .core()
+  .core((ref) => ({
+    displayRef: ref()
+  }))
   .processes()
   .reactions()
   .view({
-    render: ({ context, html }) => html`
-      <div>
-        <h1>Родитель: ${context.parentMessage}</h1>
-        <meta-child
-          context=${{
-            message: context.parentMessage,
-            count: context.parentCount,
-          }}></meta-child>
+    render: ({ context, core, html }) => html`
+      <div ${ref(core.displayRef)}>
+        <p>User ID: ${context.userId}</p>
+        <p>User Name: ${context.userName}</p>
       </div>
     `,
   })
 
-// Дочерний компонент
-MetaFor("child")
+const childMessengerHash = MetaFor("child-messenger")
   .context((types) => ({
-    message: types.string.required("default message"),
-    count: types.number.required(0),
+    message: types.string.required(""),
   }))
   .states({ idle: {} })
   .core()
   .processes()
   .reactions()
   .view({
-    render: ({ context, html }) => html`
-      <div>
+    render: ({ context, core, html }) => html`
+      <div class="messenger">
         <p>Сообщение: ${context.message}</p>
-        <p>Счетчик: ${context.count}</p>
+        ${core.socket ? html`<span class="status">🟢 Online</span>` : html`<span class="status">🔴 Offline</span>`}
       </div>
     `,
   })
-```
 
-**Особенности передачи контекста:**
+// Родительский компонент
+const parentHash = MetaFor("parent")
+  .context((types) => ({
+    selectedUserId: types.number.required(1),
+    currentMessage: types.string.required("Hello!"),
+  }))
+  .states({ idle: {} })
+  .core((ref) => ({
+    socket: new WebSocket('ws://localhost:8080'),
+    apiService: new ApiService(),
+    users: new Map([
+      [1, { name: "Иван" }],
+      [2, { name: "Мария" }]
+    ])
+  }))
+  .processes()
+  .reactions()
+  .view({
+    render: ({ context, core, html }) => {
+      const user = core.users.get(context.selectedUserId)
+      return html`
+        <div class="container">
+          <h1>Родительский компонент</h1>
 
-- Контекст передается как объект через атрибут `context=${object}`
-- При первой отрисовке контекст устанавливается без дополнительных сообщений
-- При обновлении контекста родителя автоматически обновляется контекст ребенка
-- Компонент-ребенок должен быть уже зарегистрирован в MetaFor
-- Поддерживается реактивное обновление при изменении контекста родителя
+          <!-- Передача контекста -->
+          <meta-${childUserHash}
+            context=${{
+              userId: context.selectedUserId,
+              userName: user?.name || "Unknown"
+            }}>
+          </meta-${childUserHash}>
+
+          <!-- Передача core объектов -->
+          <meta-${childMessengerHash}
+            context=${{
+              message: context.currentMessage
+            }}
+            core=${{
+              socket: core.socket,
+              apiService: core.apiService
+            }}>
+          </meta-${childMessengerHash}>
+        </div>
+      `
+    }
+  })
+
+// Создание корневого элемента
+document.body.innerHTML = `<meta-${parentHash}></meta-${parentHash}>`
+````
+
+**Особенности передачи данных:**
+
+**Context:**
+
+- Передается через атрибут `context=${object}`
+- Автоматически обновляется при изменении контекста родителя
+- Содержит только примитивные типы данных
+
+**Core:**
+
+- Передается через атрибут `core=${object}`
+- Позволяет передавать сложные объекты, сервисы, соединения
+- Дочерний компонент получает доступ к объектам родителя
+
+**Важно:**
+
+- Сначала создайте дочерние компоненты и сохраните их хеши
+- Используйте хеши в шаблонах: `<meta-${hash}>`
+- Компоненты автоматически регистрируются при первом вызове MetaFor
 
 ## 🏷️ Система тегов компонентов
 
@@ -781,6 +976,45 @@ document.body.innerHTML = `<meta-${userFormHash}></meta-${userFormHash}>`
 ### Передача контекста между компонентами
 
 ```typescript
+// Сначала создаем дочерний компонент и получаем его хеш
+const childWidgetHash = MetaFor("child-widget")
+  .context((types) => ({
+    message: types.string.required("Сообщение по умолчанию"),
+    count: types.number.required(0),
+  }))
+  .states({ idle: {} })
+  .core()
+  .processes()
+  .reactions()
+  .view({
+    render: ({ context, html }) => html`
+      <div class="widget">
+        <h3>Дочерний виджет</h3>
+        <p>Полученное сообщение: ${context.message}</p>
+        <p>Полученный счетчик: ${context.count}</p>
+        <div class="status">Статус: ${context.count > 0 ? "Активен" : "Неактивен"}</div>
+      </div>
+    `,
+    style: ({ css }) => css`
+      .widget {
+        padding: 15px;
+        border: 1px solid #28a745;
+        border-radius: 6px;
+        margin-top: 15px;
+        background: #f8f9fa;
+      }
+
+      .status {
+        margin-top: 10px;
+        padding: 5px 10px;
+        background: #28a745;
+        color: white;
+        border-radius: 4px;
+        text-align: center;
+      }
+    `,
+  })
+
 // Родительский компонент с динамическим обновлением
 const parentHash = MetaFor("parent-dashboard")
   .context((types) => ({
@@ -822,11 +1056,11 @@ const parentHash = MetaFor("parent-dashboard")
           ${context.isLoading ? "Обновление..." : "Обновить данные"}
         </button>
 
-        <meta-child-widget
+        <meta-${childWidgetHash}
           context=${{
             message: context.userMessage,
             count: context.userCount,
-          }}></meta-child-widget>
+          }}></meta-${childWidgetHash}>
       </div>
     `,
     style: ({ css }) => css`
@@ -856,48 +1090,6 @@ const parentHash = MetaFor("parent-dashboard")
 
 // Создание родительского элемента
 document.body.innerHTML = `<meta-${parentHash}></meta-${parentHash}>`
-
-// Дочерний компонент, получающий контекст
-const childHash = MetaFor("child-widget")
-  .context((types) => ({
-    message: types.string.required("Сообщение по умолчанию"),
-    count: types.number.required(0),
-  }))
-  .states({ idle: {} })
-  .core()
-  .processes()
-  .reactions()
-  .view({
-    render: ({ context, html }) => html`
-      <div class="widget">
-        <h3>Дочерний виджет</h3>
-        <p>Полученное сообщение: ${context.message}</p>
-        <p>Полученный счетчик: ${context.count}</p>
-        <div class="status">Статус: ${context.count > 0 ? "Активен" : "Неактивен"}</div>
-      </div>
-    `,
-    style: ({ css }) => css`
-      .widget {
-        padding: 15px;
-        border: 1px solid #28a745;
-        border-radius: 6px;
-        margin-top: 15px;
-        background: #f8f9fa;
-      }
-
-      .status {
-        margin-top: 10px;
-        padding: 5px 10px;
-        background: #28a745;
-        color: white;
-        border-radius: 4px;
-        text-align: center;
-      }
-    `,
-  })
-
-// Дочерний компонент автоматически создается внутри родительского
-// через meta-child-widget в шаблоне родителя
 ```
 
 ## 🔍 Отладка
