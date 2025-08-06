@@ -173,7 +173,7 @@ export type ViewDefinitionParams<C extends ContextSchema, S extends string, I ex
  * @includeExample view/test/context.init.spec.ts
  * @includeExample view/test/context.update.spec.ts
  */
-export interface ViewConfig<C extends ContextSchema, S extends string, I extends Core> {
+export interface ViewDeclaration<C extends ContextSchema, S extends string, I extends Core> {
   /**
    * Функция рендеринга компонента.
    * Получает параметры с контекстом, состоянием и утилитами для построения UI.

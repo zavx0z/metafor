@@ -4,14 +4,7 @@
  */
 
 import type { ContextSchema, ExtractValues } from "../context"
-import type {
-  ActionChain,
-  ProcessesDeclaration,
-  Process,
-  ProcessChain,
-  ActionParams,
-  ProcessesType,
-} from "./index.t"
+import type { ActionChain, ProcessesDeclaration, Process, ProcessChain, ActionParams, ProcessesType } from "./index.t"
 import type { Core } from "../../core/index.t"
 import { getSnapshotProcesses } from "./parser.ts"
 export type { Process } from "./index.t"
@@ -159,6 +152,10 @@ export class Processes<C extends ContextSchema, S extends string, I extends Core
    */
   toSnapshot(): Record<string, any> {
     return getSnapshotProcesses(this.processesDeclaration)
+  }
+  get snapshot() {
+    if (!Object.keys(this.processes).length) return {} as Record<string, any>
+    return { processes: this.toSnapshot() }
   }
 }
 

@@ -59,7 +59,7 @@ import { Context, type ContextSchema, type ExtractValues } from "./context"
 import { checkTransitionConditions, type StatesConfig, validateNoUnconditionalCycles } from "./state"
 import type { Process, ProcessesDeclaration } from "./proc/index.t.ts"
 import type { Core, FabricParams, FingerPrint, MetaForConfig, Snapshot } from "./index.t.ts"
-import type { ViewConfig } from "./view/index.t.ts"
+import type { ViewDeclaration } from "./view/index.t.ts"
 import type { ReactionsDeclaration } from "./react/index.t.ts"
 import type { ContextTypes } from "./context/types.t.ts"
 import { createRef } from "./html/directives"
@@ -236,15 +236,15 @@ export function MetaForFabric(params: FabricParams) {
                            * document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
                            * ```
                            */
-                          view(view?: ViewConfig<C, S, I>): string {
+                          view(view?: ViewDeclaration<C, S, I>): string {
                             const fingerPrint: FingerPrint<C, S> = {
                               name,
-                              ...(description ? { description } : {}),
                               states,
-                              processes: new Processes(process).toSnapshot(),
-                              reactions: new Reactions(reaction).toSnapshot(),
                               context: new Context(schema).snapshot,
+                              ...new Processes(process).snapshot,
+                              ...(description ? { description } : {}),
                               ...new View(view).snapshot,
+                              ...new Reactions(reaction).snapshot,
                             }
                             const hash = store.saveMetaIsNotExists(JSON.stringify(fingerPrint))
                             const tagName = `meta-${hash}`
@@ -468,11 +468,9 @@ export function MetaForFabric(params: FabricParams) {
                                       states: this.#states,
                                       context: this.#context.snapshot,
                                       ...this.#view.snapshot,
+                                      ...this.#reactions.snapshot,
                                       ...(this.#description ? { description: this.#description } : {}),
                                       ...(this.#processes.size > 0 ? { processes: this.#processes.toSnapshot() } : {}),
-                                      ...(this.#reactions.hasReactions()
-                                        ? { reactions: this.#reactions.toSnapshot() }
-                                        : {}),
                                     }
                                   }
 

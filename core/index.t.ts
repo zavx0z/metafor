@@ -9,7 +9,7 @@ import type { ProcessesDeclaration } from "./proc/index.t"
 import type { SnapshotProcesses } from "./proc/parser.t"
 import type { ReactionsDeclaration, SnapshotReactions } from "./react/index.t"
 import type { StatesConfig } from "./state"
-import type { ViewConfig } from "./view/index.t"
+import type { ViewDeclaration } from "./view/index.t"
 import type { Store } from "./store/index.t"
 
 declare global {

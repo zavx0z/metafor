@@ -8,7 +8,7 @@ import { styleMap } from "../html/directives/style-map.ts"
 import { when } from "../html/directives/when.ts"
 import { html, render } from "../html/index.ts"
 import type { Core } from "../index.t.ts"
-import type { RenderFunc, ViewConfig } from "./index.t.ts"
+import type { RenderFunc, ViewDeclaration } from "./index.t.ts"
 
 export class View<C extends ContextSchema, S extends string, I extends Core> {
   #render: RenderFunc<C, S, I> | null = null
@@ -21,9 +21,9 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
   attachStyles = (shadow: ShadowRoot) => this.sheet && shadow.adoptedStyleSheets.push(this.sheet)
 
   /**
-   * @param config конфигурация представления {@linkcode ViewConfig} [опционально]
+   * @param config конфигурация представления {@linkcode ViewDeclaration} [опционально]
    */
-  constructor(config?: ViewConfig<C, S, I>) {
+  constructor(config?: ViewDeclaration<C, S, I>) {
     if (!config) return
     if (config.style) {
       this.#style = config.style
@@ -42,7 +42,6 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
     this.onMount = config.onMount || (() => {})
     this.onDestroy = config.onDestroy || (() => {})
   }
-
 
   render({
     state,
@@ -75,15 +74,15 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
   }
   get snapshot() {
     const result: { render?: string; style?: string } = {}
-    
+
     if (this.#render) {
       result.render = this.#extractRenderTemplate()
     }
-    
+
     if (this.#style) {
       result.style = this.#extractStyleTemplate()
     }
-    
+
     return result
   }
 
@@ -91,19 +90,19 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
    * Извлекает и обрабатывает render template для snapshot
    */
   #extractRenderTemplate(): string {
-    if (!this.#render) return ''
-    
+    if (!this.#render) return ""
+
     const fnString = this.#render.toString()
-    
+
     // Извлекаем template literal
     const templateMatch = fnString.match(/html`([\s\S]*)`/)
-    if (!templateMatch) return ''
-    
+    if (!templateMatch) return ""
+
     let template = templateMatch[1]!
-    
+
     // Обрабатываем динамические meta-теги
-    template = template.replace(/meta-\$\{"([^"]+)"\}/g, 'meta-$1')
-    
+    template = template.replace(/meta-\$\{"([^"]+)"\}/g, "meta-$1")
+
     return template
   }
 
@@ -111,19 +110,19 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
    * Извлекает style template для snapshot
    */
   #extractStyleTemplate(): string {
-    if (!this.#style) return ''
-    
+    if (!this.#style) return ""
+
     const fnString = this.#style.toString()
-    
+
     // Извлекаем CSS template literal
     const match = fnString.match(/css`([\s\S]*)`/)
-    if (!match) return ''
-    
+    if (!match) return ""
+
     return match[1]!
   }
 }
 
-export type { ViewConfig } from "./index.t.ts"
+export type { ViewDeclaration as ViewConfig } from "./index.t.ts"
 /**
  * Реализация представления (View)
  * @module View
@@ -159,8 +158,6 @@ export function extractCSSTemplateLiteral(fn: Function): string {
   return match[1]!
 }
 
-
-
 /**
  * Восстанавливает view функцию из template literal
  */
@@ -169,8 +166,6 @@ export function restoreViewFunction(template: string) {
   const functionString = `({ html, update, context, ref, repeat, when, map, style, choose, core, state }) => html\`${template}\``
   return eval(functionString)
 }
-
-
 
 /**
  * Восстанавливает CSS функцию из template literal

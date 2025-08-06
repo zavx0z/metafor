@@ -181,6 +181,10 @@ export class Reactions<C extends ContextSchema, S extends string, I extends Core
 
     return { reactions, states }
   }
+  get snapshot(): Record<string, SnapshotReactions> {
+    if (!this.hasReactions()) return {} as Record<string, SnapshotReactions>
+    return { reactions: this.toSnapshot() }
+  }
 }
 
 /** Клонированный реестр реакций с методом fromSnapshot */
