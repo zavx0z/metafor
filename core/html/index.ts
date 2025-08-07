@@ -458,7 +458,7 @@ export const html = tag(HTML_RESULT)
  * отмеченный тегом `svg`. Элемент `<svg>` является HTML-элементом и должен
  * использоваться в шаблоне, отмеченном функцией {@linkcode html} тега.
  *
- * В использовании LitElement это недопустимо возвращать фрагмент SVG из
+ * В использовании MetaFor это недопустимо возвращать фрагмент SVG из
  * метода `render()`, так как фрагмент SVG будет содержаться в теневом корне
  * элемента и, следовательно, не будет правильно содержаться в HTML-элементе
  * `<svg>`.
@@ -484,7 +484,7 @@ export const svg = tag(SVG_RESULT)
  * в шаблон, отмеченный тегом `mathml`. Элемент `<math>` является HTML-элементом
  * и должен использоваться в шаблоне, отмеченном функцией {@linkcode html} тега.
  *
- * В использовании LitElement это недопустимо возвращать фрагмент MathML из
+ * В использовании MetaFor это недопустимо возвращать фрагмент MathML из
  * метода `render()`, так как фрагмент MathML будет содержаться в теневом корне
  * элемента и, следовательно, не будет правильно содержаться в HTML-элементе
  * `<math>`.
@@ -544,7 +544,7 @@ let sanitizerFactoryInternal: SanitizerFactory = noopSanitizer
 // используемое `resolveDirective`
 
 function trustFromTemplateString(tsa: TemplateStringsArray, stringFromTSA: string): TrustedHTML {
-  // Проверка безопасности для предотвращения подделки результатов шаблона Lit.
+  // Проверка безопасности для предотвращения подделки результатов шаблона MetaFor.
   // В будущем мы можем заменить это на Array.isTemplateObject, хотя нам
   // может потребоваться сделать эту проверку внутри функций html и svg,
   // потому что предварительно скомпилированные шаблоны не поступают в виде
@@ -648,7 +648,7 @@ const getTemplateHtml = (strings: TemplateStringsArray, type: ResultType): [Trus
           if (isHtmlDebugEnabled()) {
             throw new Error(
               "Связывания в именах тегов не поддерживаются. Пожалуйста, используйте статические шаблоны вместо этого. " +
-                "См. https://lit.dev/docs/templates/expressions/#static-expressions"
+                "См. документацию по статическим выражениям"
             )
           }
           regex = tagEndRegex

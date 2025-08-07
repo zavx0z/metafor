@@ -386,18 +386,16 @@ export function MetaForFabric(params: FabricParams) {
                                       state: this.#state,
                                       states: this.#states,
                                       context: this.#context.snapshot,
-                                      ...this.#view.snapshot,
+                                      ...this.#processes.snapshot,
                                       ...this.#reactions.snapshot,
+                                      ...this.#view.snapshot,
                                       ...(this.#description ? { description: this.#description } : {}),
-                                      ...(this.#processes.size > 0 ? { processes: this.#processes.toSnapshot() } : {}),
                                     }
                                   }
 
                                   /** Обработка входящих сообщений для реакций */
                                   #handleReactionMessage = (message: Message) => {
                                     if (!this.#reactions.hasReactions()) return
-                                    const { meta, patch } = message
-                                    const state = this.#state as S
                                     this.#reactions.run({
                                       context: this.#context.getSnapshot(),
                                       core: this.#core,
@@ -405,7 +403,7 @@ export function MetaForFabric(params: FabricParams) {
                                       actor: message.actor,
                                       timestamp: message.timestamp,
                                       patch: message.patch,
-                                      state,
+                                      state: this.#state,
                                       update: this.update,
                                     })
                                   }
