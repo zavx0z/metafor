@@ -13,15 +13,12 @@
         ".idea": true,
         ".firebase": true,
         ".github": true,
-        ".cursor": true,
-        ".vscode": true,
         ".windsurf": true
     },
     "hide-files.files": [
         ".idea",
         ".firebase",
         ".github",
-        ".vscode",
         ".windsurf"
     ],
     "explorer.fileNesting.enabled": true,
@@ -144,6 +141,7 @@
         "фича",
         "Форкните",
         "фреймворках",
+        "шаблонезаторе",
         "AUTOINCREMENT",
         "bunfig",
         "clonable",

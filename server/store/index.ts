@@ -7,18 +7,18 @@ import type { MetaRecord } from "../../core/store/index.t"
 const createTablesQuery = `
 CREATE TABLE IF NOT EXISTS meta (
     meta TEXT PRIMARY KEY,
-    fingerprint TEXT NOT NULL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
+        fingerprint TEXT NOT NULL,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
 
 CREATE TABLE IF NOT EXISTS actor (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
     meta TEXT NOT NULL,
-    parent_id INTEGER,
-    idx INTEGER NOT NULL,
-    snapshot TEXT NOT NULL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (parent_id) REFERENCES actor (id) ON DELETE CASCADE,
+        parent_id INTEGER,
+        idx INTEGER NOT NULL,
+        snapshot TEXT NOT NULL,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (parent_id) REFERENCES actor (id) ON DELETE CASCADE,
     FOREIGN KEY (meta) REFERENCES meta (meta) ON DELETE CASCADE,
     UNIQUE (meta, parent_id)
 );
@@ -48,6 +48,16 @@ VALUES (?, ?, ?, ?);
 
 const getActorByMetaQuery = `
 SELECT * FROM actor WHERE meta = ?;
+`
+
+const getActorByIdQuery = `
+SELECT * FROM actor WHERE id = ?;
+`
+
+const getNextIndexQuery = `
+SELECT COALESCE(MAX(idx), -1) + 1 as next_index 
+FROM actor 
+WHERE meta = ? AND parent_id IS ?;
 `
 
 class SQLiteActorStore implements ActorStore {

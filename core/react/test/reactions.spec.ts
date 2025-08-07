@@ -1,7 +1,6 @@
 import { test, expect, describe } from "bun:test"
 import type { Message } from "../../message/index.t.ts"
 import { MetaFor } from "../../../web/metafor.ts"
-import { createStaticViewFunction } from "../../view/index.ts"
 
 describe("реакции", () => {
   test("MetaFor - базовый функционал", async () => {
@@ -66,10 +65,7 @@ describe("реакции", () => {
         ],
       ])
       .view({
-        render: createStaticViewFunction(
-          ({ html, context }) => html`<meta-${childHash}>${context.childAdded}</meta-${childHash}>`,
-          childHash
-        ),
+        render: ({ html, context }) => html`<meta-${childHash}>${context.childAdded}</meta-${childHash}>`,
       })
 
     document.body.innerHTML = `<meta-${parentHash}></meta-${parentHash}>`

@@ -176,38 +176,6 @@ export function restoreCSSFunction(template: string) {
   return eval(functionString)
 }
 
-/**
- * Создает статическую view функцию с заменой динамических хешей мет
- *
- * @param originalView - оригинальная view функция с динамическими хешами мет
- * @param hashName - имя хеша меты для замены
- * @returns новая view функция со статическими хешами мет
- *
- * @example
- * ```typescript
- * const originalView = ({ context, html }) => html`
- *   <div>
- *     <meta-${childTag} context=${context}></meta-${childTag}>
- *   </div>
- * `
- *
- * const staticView = createStaticViewFunction(originalView, 'child-243232')
- * ```
- */
-export function createStaticViewFunction<C extends ContextSchema, S extends string, I extends Core>(
-  originalView: RenderFunc<C, S, I>,
-  tagName: string
-): any {
-  // 1. Извлекаем template literal из оригинальной функции
-  const template = extractTemplateLiteral(originalView)
-
-  // 2. Заменяем динамический хеш меты на статический
-  // Ищем любые переменные в meta- элементах и заменяем на реальное значение
-  const staticTemplate = template.replace(/meta-\$\{([^}]+)\}/g, `meta-${tagName}`)
-
-  // 3. Создаем новую функцию с замененным шаблоном
-  return restoreViewFunction(staticTemplate)
-}
 
 /**
  * Создает статическую view функцию с заменой нескольких динамических хешей мет

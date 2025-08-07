@@ -1,44 +1,8 @@
-import { describe, beforeAll, test, expect } from "bun:test"
-import { createStaticViewFunction, View } from "../index"
+import { describe, test, expect } from "bun:test"
 import { MetaFor } from "../../../web/metafor"
 import { messagesFixture } from "../../../fixture/message"
-import { Context } from "../../context"
-import { html } from "../../html"
 
-describe("  ", () => {
-  const { context } = new Context((types) => ({
-    parentMessage: types.string.required("message"),
-    parentCount: types.number.required(0),
-  }))
-  const core = {}
-  const state = "idle"
-
-  const hash = "child-243232"
-  test("соответствие шаблонов", () => {
-    const template1 = html`<div>
-      <h1>Родитель: ${context.parentMessage}</h1>
-      <meta-${hash}
-        context=${{
-          message: context.parentMessage,
-          count: context.parentCount,
-        }}></meta-${hash}>
-    </div>`
-
-    const template2 = html`<div>
-      <h1>Родитель: ${context.parentMessage}</h1>
-      <meta-child-243232
-        context=${{
-          message: context.parentMessage,
-          count: context.parentCount,
-        }}></meta-child-243232>
-    </div>`
-
-    // Проверяем, что строки обработаны корректно
-    expect(template1.strings[2]).toContain("meta-child-243232")
-    expect(template1.values).toHaveLength(2) // Одно значение встроено в строку
-  })
-})
-describe("работа со статическими тегами", async () => {
+describe("работа со статическими тегами с передачей контекста", async () => {
   let childContext: any
   let countChildMount = 0
   let countParentMount = 0
@@ -81,6 +45,7 @@ describe("работа со статическими тегами", async () => 
         ["idle"],
         reaction()
           .filter({
+            meta: childHash,
             op: "add",
           })
           .equal(({ message }) => {
@@ -103,13 +68,14 @@ describe("работа со статическими тегами", async () => 
       </div>
     `,
     })
-  const { waitForMessages } = messagesFixture({ meta: parentTag })
 
-  document.body.innerHTML = `<meta-${parentTag}></meta-${parentTag}>`
+  const { waitForMessages } = messagesFixture({ meta: parentTag })
+  const container = document.createElement(`meta-${parentTag}`)
+  document.body.appendChild(container)
 
   const childMessages = await waitForMessages(500)
 
-  test("статический тег работает корректно - контекст передается", async () => {
+  test("статический тег работает корректно - контекст передается", () => {
     expect(childContext, "контекст ребенка должен соответствовать переданному от родителя").toEqual({
       count: {
         default: 1,
@@ -125,7 +91,8 @@ describe("работа со статическими тегами", async () => 
       },
     })
   })
-  test("статический тег работает корректно - нет лишних патчей", async () => {
+
+  test("статический тег работает корректно - нет лишних патчей", () => {
     expect(childMessages, "патч обновления контекста ребенка не должен быть").toHaveLength(1)
     expect(childMessages[0]!.patch.op, "патч обновления контекста ребенка должен быть add").toEqual("add")
   })

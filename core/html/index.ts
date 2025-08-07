@@ -296,10 +296,13 @@ const rawTextElement = /^(?:script|style|textarea|title)$/i
 // Важно: эти должны соответствовать значениям в PartType
 
 // Кэш для обработанных meta- шаблонов
-const metaTemplateCache = new WeakMap<TemplateStringsArray, {
-  processedStrings: TemplateStringsArray
-  metaIndices: Set<number>
-}>()
+const metaTemplateCache = new WeakMap<
+  TemplateStringsArray,
+  {
+    processedStrings: TemplateStringsArray
+    metaIndices: Set<number>
+  }
+>()
 
 /**
  * Генерирует функцию тега, которая возвращает TemplateResult с заданным
@@ -331,30 +334,68 @@ const tag =
       }
     }
 
-    // Обрабатываем meta- теги
-    const hasMetaTags = strings.some(str => str.includes("meta-"))
+    // Обрабатываем meta- теги (динамические имена тегов вида <meta-${hash}>)
+    const hasMetaTags = strings.some((str) => str.includes("meta-"))
     if (hasMetaTags) {
       let cached = metaTemplateCache.get(strings)
-      
+
       if (!cached) {
-        let detected = false
         const resultStrings: string[] = []
         const metaIndices = new Set<number>()
+        let stripNextLeadingGt = false
+        let pendingMetaPrefix: string | null = null
 
-        for (const [index, str] of strings.entries()) {
-          if (str.includes("meta-") && index < values.length) {
-            detected = true
-            resultStrings.push(str + (values[index] || ""))
+        for (let index = 0; index < strings.length; index++) {
+          let str = strings[index]!
+          let injectedFromPending = false
+          if (pendingMetaPrefix) {
+            // Перенос ранее собранного `<meta-<hash>` в начало текущего сегмента
+            str = pendingMetaPrefix + str
+            pendingMetaPrefix = null
+            injectedFromPending = true
+          }
+          if (stripNextLeadingGt && str.startsWith(">")) {
+            str = str.slice(1)
+            stripNextLeadingGt = false
+          }
+
+          const inject = (token: string) => {
+            const pos = str.lastIndexOf(token)
+            if (pos === -1 || index >= values.length) return false
+            const before = str.slice(0, pos)
+            const after = str.slice(pos + token.length)
+            let joined = before + token + String(values[index]) + after
+            const next = strings[index + 1] ?? ""
+            if (next.startsWith(">")) {
+              // Случай без атрибутов: переносим '>' в текущую строку
+              joined += ">"
+              stripNextLeadingGt = true
+            } else if (token === "<meta-" && next && !next.startsWith(">")) {
+              // Случай с атрибутами: переносим `<meta-` + hash к следующему сегменту,
+              // чтобы meta-<hash> оказался в strings[index+1]
+              resultStrings.push(before)
+              pendingMetaPrefix = `<meta-${String(values[index])}${after}`
+              metaIndices.add(index)
+              return true
+            } else if (next && !/^\s|^>|^\/>/.test(next)) {
+              // Защита от склейки имени тега с атрибутом без пробела
+              if (!/\s$/.test(joined)) joined += " "
+            }
+            resultStrings.push(joined)
             metaIndices.add(index)
-          } else if (detected) {
-            resultStrings[resultStrings.length - 1] += str
-            detected = false
+            return true
+          }
+
+          if (!injectedFromPending && (inject("</meta-") || inject("<meta-"))) {
+            // инъекция выполнена
           } else {
             resultStrings.push(str)
           }
         }
-        
-        const processedStrings = Object.assign([...resultStrings], { raw: resultStrings.slice() }) as TemplateStringsArray
+
+        const processedStrings = Object.assign([...resultStrings], {
+          raw: resultStrings.slice(),
+        }) as TemplateStringsArray
         cached = { processedStrings, metaIndices }
         metaTemplateCache.set(strings, cached)
       }
@@ -368,7 +409,6 @@ const tag =
       }
 
       return {
-        // Это свойство должно оставаться неминифицированным.
         ["_$htmlType$"]: type,
         strings: cached.processedStrings,
         values: resultValues,
@@ -774,11 +814,15 @@ class Template {
               }
               ;(node as Element).removeAttribute(name)
             } else if (name.startsWith(marker)) {
-              parts.push({
-                type: ELEMENT_PART,
-                index: nodeIndex,
-              })
-              ;(node as Element).removeAttribute(name)
+              // Не создаём ElementPart для meta-* элементов, чтобы не потреблять индекс значения
+              const el = node as Element
+              if (!el.localName.startsWith("meta-")) {
+                parts.push({
+                  type: ELEMENT_PART,
+                  index: nodeIndex,
+                })
+              }
+              el.removeAttribute(name)
             }
           }
         }
@@ -808,6 +852,14 @@ class Template {
         }
       } else if (node.nodeType === 8) {
         const data = (node as Comment).data
+        // Пропускаем маркер прямо перед meta-* элементом, чтобы не сдвигать индексы values
+        try {
+          const ns = (node as Comment).nextSibling as Element | null
+          if (ns && ns.nodeType === 1 && (ns as Element).localName?.startsWith("meta-")) {
+            nodeIndex++
+            continue
+          }
+        } catch {}
         if (data === markerMatch) {
           parts.push({ type: CHILD_PART, index: nodeIndex })
         } else {
