@@ -1,6 +1,6 @@
 export abstract class ActorStore {
   declare id: number
-  declare meta_tag: string
+  declare meta: string
   declare parent_id: number | null
   declare idx: number
   declare snapshot: string

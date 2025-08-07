@@ -310,7 +310,7 @@ export function MetaForFabric(params: FabricParams) {
 
                                   connectedCallback() {
                                     this.#store = store.saveActorIsNotExist({
-                                      meta_tag: this.#meta,
+                                      meta: this.#meta,
                                       parent_id: null,
                                       idx: 0,
                                       snapshot: JSON.stringify(this.snapshot),

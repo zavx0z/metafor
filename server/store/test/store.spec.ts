@@ -4,44 +4,28 @@ import { Database } from "bun:sqlite"
 
 // SQL-запросы для создания таблиц
 const createTablesQuery = `
-CREATE TABLE
-    IF NOT EXISTS meta (
-        meta TEXT PRIMARY KEY,
-        fingerprint TEXT NOT NULL,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
+CREATE TABLE IF NOT EXISTS meta (
+    meta TEXT PRIMARY KEY,
+    fingerprint TEXT NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-CREATE TABLE
-    IF NOT EXISTS actor (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        meta_tag TEXT NOT NULL,
-        parent_id INTEGER,
-        idx INTEGER NOT NULL,
-        snapshot TEXT NOT NULL,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (parent_id) REFERENCES actor (id) ON DELETE CASCADE,
-        FOREIGN KEY (meta_tag) REFERENCES meta (meta) ON DELETE CASCADE,
-        UNIQUE (meta_tag, parent_id)
-    );
+CREATE TABLE IF NOT EXISTS actor (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meta TEXT NOT NULL,
+    parent_id INTEGER,
+    idx INTEGER NOT NULL,
+    snapshot TEXT NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (parent_id) REFERENCES actor (id) ON DELETE CASCADE,
+    FOREIGN KEY (meta) REFERENCES meta (meta) ON DELETE CASCADE,
+    UNIQUE (meta, parent_id)
+);
 
-CREATE TABLE
-    IF NOT EXISTS patch (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        actor_id INTEGER NOT NULL,
-        op TEXT NOT NULL,
-        path TEXT NOT NULL,
-        value TEXT,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (actor_id) REFERENCES actor (id) ON DELETE CASCADE
-    );
-
--- Создаем индексы для ускорения поиска
-CREATE INDEX IF NOT EXISTS idx_actor_tag ON actor (meta_tag);
-
+CREATE INDEX IF NOT EXISTS idx_actor_meta ON actor (meta);
 CREATE INDEX IF NOT EXISTS idx_actor_parent ON actor (parent_id);
-
-CREATE INDEX IF NOT EXISTS idx_patch_actor ON patch (actor_id);
 `
+
 describe("хранилище sqlite", () => {
   let store: SQLiteStore
   let db: Database
@@ -103,42 +87,28 @@ describe("хранилище sqlite", () => {
 
   beforeEach(() => {
     // Пересоздаем таблицы с актуальной схемой перед каждым тестом
-    db.run("DROP TABLE IF EXISTS patch")
     db.run("DROP TABLE IF EXISTS actor")
     db.run("DROP TABLE IF EXISTS meta")
 
     // Пересоздаем таблицы с актуальной схемой
     const createTablesQuery = `
-CREATE TABLE
-    IF NOT EXISTS meta (
-        meta TEXT PRIMARY KEY,
-        fingerprint TEXT NOT NULL,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    );
+CREATE TABLE IF NOT EXISTS meta (
+    meta TEXT PRIMARY KEY,
+    fingerprint TEXT NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-CREATE TABLE
-    IF NOT EXISTS actor (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        meta_tag TEXT NOT NULL,
-        parent_id INTEGER,
-        idx INTEGER NOT NULL,
-        snapshot TEXT NOT NULL,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (parent_id) REFERENCES actor (id) ON DELETE CASCADE,
-        FOREIGN KEY (meta_tag) REFERENCES meta (meta) ON DELETE CASCADE,
-        UNIQUE (meta_tag, parent_id)
-    );
-
-CREATE TABLE
-    IF NOT EXISTS patch (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        actor_id INTEGER NOT NULL,
-        op TEXT NOT NULL,
-        path TEXT NOT NULL,
-        value TEXT,
-        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-        FOREIGN KEY (actor_id) REFERENCES actor (id) ON DELETE CASCADE
-    );
+CREATE TABLE IF NOT EXISTS actor (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    meta TEXT NOT NULL,
+    parent_id INTEGER,
+    idx INTEGER NOT NULL,
+    snapshot TEXT NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (parent_id) REFERENCES actor (id) ON DELETE CASCADE,
+    FOREIGN KEY (meta) REFERENCES meta (meta) ON DELETE CASCADE,
+    UNIQUE (meta, parent_id)
+);
     `
 
     db.exec(createTablesQuery)
@@ -154,18 +124,9 @@ CREATE TABLE
 
     expect(tableNames).toContain("meta")
     expect(tableNames).toContain("actor")
-    expect(tableNames).toContain("patch")
   })
 
   describe("проверка структуры таблиц", () => {
-    const checkTableColumns = async (tableName: string, expectedColumns: string[]) => {
-      const columns = db.prepare(`PRAGMA table_info(${tableName})`).all()
-      const columnNames = (columns as any[]).map((col) => col.name)
-      expectedColumns.forEach((col) => {
-        expect(columnNames).toContain(col)
-      })
-    }
-
     it("таблица meta должна существовать и иметь правильные колонки", async () => {
       const tableInfo = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='meta'").get()
       expect(tableInfo).toBeDefined()
@@ -186,25 +147,10 @@ CREATE TABLE
       const columnNames = columns.map((col: any) => col.name)
 
       expect(columnNames).toContain("id")
-      expect(columnNames).toContain("meta_tag")
+      expect(columnNames).toContain("meta")
       expect(columnNames).toContain("parent_id")
       expect(columnNames).toContain("idx")
       expect(columnNames).toContain("snapshot")
-      expect(columnNames).toContain("timestamp")
-    })
-
-    it("таблица patch должна существовать и иметь правильные колонки", async () => {
-      const tableInfo = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='patch'").get()
-      expect(tableInfo).toBeDefined()
-
-      const columns = db.prepare("PRAGMA table_info(patch)").all()
-      const columnNames = columns.map((col: any) => col.name)
-
-      expect(columnNames).toContain("id")
-      expect(columnNames).toContain("actor_id")
-      expect(columnNames).toContain("op")
-      expect(columnNames).toContain("path")
-      expect(columnNames).toContain("value")
       expect(columnNames).toContain("timestamp")
     })
   })
@@ -221,7 +167,7 @@ CREATE TABLE
       expect(metaRow.meta).toBe("test-tag")
 
       // Создаем запись в actor
-      const actorInsert = db.prepare("INSERT INTO actor (meta_tag, idx, snapshot) VALUES (?, ?, ?) RETURNING id")
+      const actorInsert = db.prepare("INSERT INTO actor (meta, idx, snapshot) VALUES (?, ?, ?) RETURNING id")
       const result = actorInsert.get("test-tag", 0, JSON.stringify({ test: "snapshot" })) as any
 
       expect(result).toBeDefined()
@@ -230,27 +176,22 @@ CREATE TABLE
       // Проверяем, что запись создана
       const actorRow = db.prepare("SELECT * FROM actor WHERE id = ?").get(1) as any
       expect(actorRow).toBeDefined()
-      expect(actorRow.meta_tag).toBe("test-tag")
+      expect(actorRow.meta).toBe("test-tag")
     })
 
-    it("должен проверять внешний ключ meta_tag в actor", () => {
+    it("должен проверять внешний ключ meta в actor", () => {
       // Проверяем, что внешний ключ включен
       const fkCheck = db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }
       expect(fkCheck.foreign_keys).toBe(1)
 
       // Проверяем, что в таблице meta нет записи с такой метой
-      // SQLite возвращает null, если запись не найдена
       const existingMeta = db.prepare("SELECT * FROM meta WHERE meta = ?").get("non-existent-meta")
       expect(existingMeta).toBeNull()
 
       let error: Error | null = null
       try {
-        const insert = db.prepare("INSERT INTO actor (meta_tag, idx, snapshot) VALUES (?, ?, ?)")
-
-        const result = insert.run("non-existent-tag", 0, JSON.stringify({}))
-
-        // Если дошли сюда, значит вставка прошла успешно, что неверно
-        const allActors = db.prepare("SELECT * FROM actor").all()
+        const insert = db.prepare("INSERT INTO actor (meta, idx, snapshot) VALUES (?, ?, ?)")
+        insert.run("non-existent-tag", 0, JSON.stringify({}))
       } catch (e) {
         error = e as Error
       }
@@ -263,9 +204,6 @@ CREATE TABLE
         errorMessage.includes("SQLITE_CONSTRAINT_FOREIGNKEY") ||
         errorMessage.includes("no such table")
 
-      if (!isForeignKeyError) {
-      }
-
       expect(isForeignKeyError).toBe(true)
     })
 
@@ -275,53 +213,15 @@ CREATE TABLE
 
       // Создаем родительский actor
       const parent = db
-        .prepare("INSERT INTO actor (meta_tag, idx, snapshot) VALUES (?, ?, ?) RETURNING id")
+        .prepare("INSERT INTO actor (meta, idx, snapshot) VALUES (?, ?, ?) RETURNING id")
         .get("parent-tag", 0, JSON.stringify({}))
 
       // Создаем дочерний actor
       const child = db
-        .prepare("INSERT INTO actor (meta_tag, parent_id, idx, snapshot) VALUES (?, ?, ?, ?) RETURNING id")
+        .prepare("INSERT INTO actor (meta, parent_id, idx, snapshot) VALUES (?, ?, ?, ?) RETURNING id")
         .get("parent-tag", (parent as any).id, 0, JSON.stringify({}))
 
       expect(child).toBeDefined()
-    })
-
-    it("должен создавать patch для существующего actor", () => {
-      // Создаем запись в meta
-      db.prepare("INSERT INTO meta (meta, fingerprint) VALUES (?, ?)").run("test-tag", "fingerprint-123")
-
-      // Создаем actor
-      const actor = db
-        .prepare("INSERT INTO actor (meta_tag, idx, snapshot) VALUES (?, ?, ?) RETURNING id")
-        .get("test-tag", 0, JSON.stringify({}))
-
-      // Создаем patch
-      const patch = db
-        .prepare("INSERT INTO patch (actor_id, op, path, value) VALUES (?, ?, ?, ?) RETURNING id")
-        .get((actor as any).id, "add", "test.path", "test value")
-
-      expect(patch).toBeDefined()
-    })
-
-    it("должен проверять внешний ключ actor_id в patch", () => {
-      // Проверяем, что внешний ключ включен
-      const fkCheck = db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }
-      expect(fkCheck.foreign_keys).toBe(1)
-
-      let error: Error | null = null
-      try {
-        const insert = db.prepare("INSERT INTO patch (actor_id, op, path, value) VALUES (?, ?, ?, ?)")
-        insert.run(999, "add", "test.path", "test value")
-      } catch (e) {
-        error = e as Error
-      }
-
-      expect(error).not.toBeNull()
-      // SQLite может возвращать разные сообщения об ошибке, проверяем оба варианта
-      expect(
-        error?.message.includes("FOREIGN KEY constraint failed") ||
-          error?.message.includes("SQLITE_CONSTRAINT_FOREIGNKEY")
-      ).toBe(true)
     })
   })
 })

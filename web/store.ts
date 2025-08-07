@@ -4,7 +4,7 @@ import type { ActorStore } from "../core/store/index.t"
 
 export class IndexedDBActorStore implements ActorStore {
   id: number = 0
-  meta_tag: string = ""
+  meta: string = ""
   parent_id: number | null = null
   idx: number = 0
   snapshot: string = ""
