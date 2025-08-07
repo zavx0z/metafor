@@ -58,7 +58,7 @@
 import { Context, type ContextSchema, type ExtractValues } from "./context"
 import { checkTransitionConditions, type StatesConfig, validateNoUnconditionalCycles } from "./state"
 import type { Process, ProcessesDeclaration } from "./proc/index.t.ts"
-import type { Core, FabricParams, FingerPrint, MetaForConfig, Snapshot } from "./index.t.ts"
+import type { Core, FabricParams, FingerPrint, MetaFor, MetaForConfig, Snapshot } from "./index.t.ts"
 import type { ViewDeclaration } from "./view/index.t.ts"
 import type { ReactionsDeclaration } from "./react/index.t.ts"
 import type { ContextTypes } from "./context/types.t.ts"
@@ -79,163 +79,23 @@ export type { Core, FabricParams, Snapshot }
 
 export function MetaForFabric(params: FabricParams) {
   const { store } = params
-  /**
-   * MetaFor — фабрика для создания web-компонента-актора конечного автомата
-   * @param name - имя актора (участвует в формировании хеша, но не является итоговым тегом)
-   * @returns chain API: context() -> states() -> core() -> processes() -> reactions() -> view()
-   *
-   * **Важно:** Итоговый тег компонента формируется автоматически как `meta-<hash>`,
-   * где hash — это MD5 хеш от всей конфигурации компонента.
-   */
   return function MetaFor(name: string, config?: MetaForConfig) {
     const description = config?.description
     const dev = config?.dev ?? globalThis.DEV ?? false
     const persist = config?.persist ?? false
     return {
-      /**
-       * Регистрирует схему контекста для автомата.
-       *
-       * Контекст содержит только простые типы данных. Сложные объекты храните в core.
-       *
-       * @param schema Функция, принимающая types и возвращающая объект-схему контекста
-       * @returns chain API для вызова .states(...)
-       *
-       * @example
-       * ```typescript
-       * .context((types) => ({
-       *   userId: types.number.required(0),
-       *   userName: types.string.required("Anonymous"),
-       *   selectedIds: types.array.required([]),
-       *   isLoading: types.boolean.required(false),
-       *   theme: types.enum.required(["light", "dark"]),
-       * }))
-       * ```
-       */
       context<C extends ContextSchema>(schema: (types: ContextTypes) => C) {
         return {
-          /**
-           * Регистрирует переходы автомата между состояниями.
-           *
-           * @param states Объект, где ключ — имя состояния, а значение — карта возможных переходов (ключ — следующее состояние, значение — условия или данные перехода).
-           * Пример:
-           * ```ts
-           * .states({
-           *   guest: { user: { name: "Пользователь" } },
-           *   user: { guest: {} },
-           * })
-           * ```
-           * @returns chain API для вызова .actions(...)
-           */
           states<S extends string>(states: StatesConfig<S, C>) {
             validateNoUnconditionalCycles(states)
             return {
-              /**
-               * Регистрирует core объект для автомата.
-               *
-               * Core - это простой объект с данными, используемыми во всех состояниях.
-               * Сложные объекты и структуры данных храните в core.
-               * Core доступен во всех процессах и реакциях.
-               *
-               * @param coreBuilder - функция, принимающая ref и возвращающая core объект, или сам core объект
-               * @returns chain API для вызова .processes(...)
-               *
-               * @example
-               * ```typescript
-               * // Вариант 1: Функция с ref
-               * .core((ref) => ({
-               *   users: [],
-               *   api: ref('api'),
-               *   logger: ref('logger')
-               * }))
-               *
-               * // Вариант 2: Простой объект
-               * .core({
-               *   users: [],
-               *   settings: { theme: 'dark' },
-               *   cache: new Map()
-               * })
-               * ```
-               */
               core<I extends Core>(coreBuilder: ((ref: typeof createRef) => I) | I = () => ({} as I)) {
                 const core = typeof coreBuilder === "function" ? coreBuilder(createRef) : coreBuilder
                 return {
-                  /**
-                   * Регистрирует процессы автомата для нужных состояний.
-                   *
-                   * @param process Функция, принимающая process — фабрику chain API для описания процессов.
-                   * Возвращает объект, где ключ — имя состояния (только для тех, где нужны процессы), а значение — chain-объект с обработчиками.
-                   *
-                   * Пример:
-                   * ```ts
-                   * .actions(process => ({
-                   *   guest: process({ title: "guest_process", description: "Процесс для гостя" })
-                   *     .action(({ context }) => { ... })
-                   *     .success(({ update, data }) => update({ ... }))
-                   *     .error(({ update, error }) => update({ ... })),
-                   *   // для других состояний можно не указывать процесс, если он не требуется
-                   * }))
-                   * ```
-                   *
-                   * @returns Объект с процессами только для нужных состояний
-                   */
                   processes(process: ProcessesDeclaration<C, S, I> = () => ({})) {
                     return {
-                      /**
-                       * Регистрирует карту реакций для автомата.
-                       *
-                       * **ВАЖНО: Реакции предназначены для реагирования на события других акторов, а не на собственные изменения состояния.**
-                       * Для управления собственными переходами состояний используйте процессы и их success/error обработчики.
-                       * Реакции связывают разные акторы в событийной архитектуре.
-                       *
-                       * @param reaction Функция (filter => декларация), где декларация — массив кортежей [string[], { update, filter, title }]
-                       * @returns chain API для вызова .view(...)
-                       *
-                       * @example
-                       * ```typescript
-                       * // Правильно: реакция на события другого актора
-                       * .reactions(reaction => [
-                       *   ["idle", "loading"], // Состояния, в которых активна реакция
-                       *   {
-                       *     filter: (args) => args.meta.tag === "roadmap" && args.patch.op === "replace",
-                       *     update: ({ update, context, patch }) => {
-                       *       update({
-                       *         lastMessage: patch.value,
-                       *         messageCount: context.messageCount + 1
-                       *       })
-                       *     },
-                       *     title: "Обработка сообщений от roadmap актора"
-                       *   }
-                       * ])
-                       *
-                       * // Неправильно: реакция на собственные изменения
-                       * // Вместо этого используйте процессы и их success/error обработчики
-                       * ```
-                       */
                       reactions(reaction: ReactionsDeclaration<C, S, I> = () => []) {
                         return {
-                          /**
-                           * Регистрирует представление компонента и завершает конфигурацию.
-                           *
-                           * @param view Конфигурация представления с render и style функциями
-                           * @returns Хеш компонента для создания элемента с тегом `meta-<hash>`
-                           *
-                           * @example
-                           * ```typescript
-                           * const hash = MetaFor("my-component")
-                           *   .context(...)
-                           *   .states(...)
-                           *   .core(...)
-                           *   .processes(...)
-                           *   .reactions(...)
-                           *   .view({
-                           *     render: ({ context, html }) => html`<div>${context.title}</div>`,
-                           *     style: ({ css }) => css`.container { color: blue; }`
-                           *   })
-                           *
-                           * // Создание элемента с полученным хешем
-                           * document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
-                           * ```
-                           */
                           view(view?: ViewDeclaration<C, S, I>): string {
                             const fingerPrint: FingerPrint<C, S> = {
                               name,
@@ -309,10 +169,17 @@ export function MetaForFabric(params: FabricParams) {
                                     Object.entries(value).forEach(([key, val]) => (this.#core[key as keyof I] = val))
 
                                   connectedCallback() {
+                                    // Получаем родительский meta и индекс среди братьев
+                                    const parentMeta = this.getParentMeta()
+                                    const siblingIndex = parentMeta ? this.getIndexAmongSiblings() : 0
+
+                                    // TODO: Получить parent_id из store, когда будет реализован getActorByMeta
+                                    const parentId: number | null = null
+
                                     this.#store = store.saveActorIsNotExist({
                                       meta: this.#meta,
-                                      parent_id: null,
-                                      idx: 0,
+                                      parent_id: parentId,
+                                      idx: siblingIndex,
                                       snapshot: JSON.stringify(this.snapshot),
                                     })
                                     this.#view.render({
@@ -471,6 +338,48 @@ export function MetaForFabric(params: FabricParams) {
                                     if (!this.#channel) return
                                     this.#channel.postMessage(message)
                                   }
+
+                                  /**
+                                   * Получает родительский meta из тега родителя
+                                   * @returns meta родительского актора или null, если родителя нет
+                                   */
+                                  getParentMeta(): string | null {
+                                    const parent = this.parentElement
+                                    if (!parent) return null
+
+                                    // Проверяем, является ли родитель meta-тегом
+                                    const tagName = parent.tagName.toLowerCase()
+                                    if (tagName.startsWith("meta-")) {
+                                      return tagName.substring(5) // Убираем "meta-" префикс
+                                    }
+
+                                    // Если родитель не meta-тег, ищем среди его предков
+                                    const parentMetaTag = parent.closest("meta-")
+                                    if (parentMetaTag) {
+                                      const metaTagName = parentMetaTag.tagName.toLowerCase()
+                                      if (metaTagName.startsWith("meta-")) {
+                                        return metaTagName.substring(5) // Убираем "meta-" префикс
+                                      }
+                                    }
+
+                                    return null
+                                  }
+
+                                  /**
+                                   * Получает индекс среди братьев (элементов с тем же тегом)
+                                   * @returns индекс среди братьев
+                                   */
+                                  getIndexAmongSiblings(): number {
+                                    const parent = this.parentElement
+                                    if (!parent) return 0
+
+                                    const siblings = Array.from(parent.children).filter(
+                                      (child) => child.tagName === this.tagName
+                                    )
+
+                                    return siblings.indexOf(this)
+                                  }
+
                                   get snapshot(): Snapshot<C, S> {
                                     return {
                                       name: this.#name,
@@ -515,5 +424,5 @@ export function MetaForFabric(params: FabricParams) {
         }
       },
     }
-  }
+  } as MetaFor
 }
