@@ -23,7 +23,9 @@ describe("Фильтрация по индексу (index)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test", index: 5 },
+      meta: "test",
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -46,7 +48,9 @@ describe("Фильтрация по индексу (index)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test", index: 10 },
+      meta: "test",
+      actor: { index: 10 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -69,7 +73,9 @@ describe("Фильтрация по индексу (index)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test", index: 5 },
+      meta: "test",
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -92,7 +98,9 @@ describe("Фильтрация по индексу (index)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test", index: 5 },
+      meta: "test",
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -115,7 +123,9 @@ describe("Фильтрация по индексу (index)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test", index: 5 },
+      meta: "test",
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -138,7 +148,9 @@ describe("Фильтрация по индексу (index)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test", index: 5 },
+      meta: "test",
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -161,7 +173,9 @@ describe("Фильтрация по индексу (index)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test", index: 5 },
+      meta: "test",
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -184,7 +198,9 @@ describe("Фильтрация по индексу (index)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test", index: 5 },
+      meta: "test",
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -207,7 +223,9 @@ describe("Фильтрация по индексу (index)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test", index: 5 },
+      meta: "test",
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -230,7 +248,9 @@ describe("Фильтрация по индексу (index)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test", index: 5 },
+      meta: "test",
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -253,7 +273,9 @@ describe("Фильтрация по индексу (index)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test", index: 5 },
+      meta: "test",
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -276,7 +298,9 @@ describe("Фильтрация по индексу (index)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test", index: 5 },
+      meta: "test",
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -299,7 +323,9 @@ describe("Фильтрация по индексу (index)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test", index: 5 },
+      meta: "test",
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -328,7 +354,9 @@ describe("Фильтрация по индексу (index)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test", index: 5 },
+      meta: "test",
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -351,7 +379,9 @@ describe("Фильтрация по индексу (index)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp: 0 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 0,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",

@@ -129,7 +129,7 @@ describe("Фильтрация по пути патча (path)", () => {
     expect(called, "реакция должна сработать при комбинированной фильтрации").toBe(true)
   })
 
-  it("комбинированная фильтрация с тегом", () => {
+  it("комбинированная фильтрация с метой", () => {
     let called = false
     const registry = new Reactions<Ctx, State, {}>((reaction) => [
       [

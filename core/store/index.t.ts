@@ -8,12 +8,12 @@ export abstract class ActorStore {
 }
 export abstract class Store {
   abstract saveMetaIsNotExists(fingerprint: string): string
-  abstract getMeta(tag: string): MetaRecord | null
+  abstract getMeta(meta: string): MetaRecord | null
 
   abstract saveActorIsNotExist(actor: Omit<ActorStore, "id" | "timestamp">): ActorStore
 }
 export interface MetaRecord {
-  tag: string
+  meta: string
   fingerprint: string
   timestamp: string
 }

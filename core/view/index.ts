@@ -100,7 +100,7 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
 
     let template = templateMatch[1]!
 
-    // Обрабатываем динамические meta-теги
+    // Обрабатываем динамические meta-хеши
     template = template.replace(/meta-\$\{"([^"]+)"\}/g, "meta-$1")
 
     return template
@@ -177,11 +177,11 @@ export function restoreCSSFunction(template: string) {
 }
 
 /**
- * Создает статическую view функцию с заменой динамических тегов
+ * Создает статическую view функцию с заменой динамических хешей мет
  *
- * @param originalView - оригинальная view функция с динамическими тегами
- * @param tagName - имя тега для замены
- * @returns новая view функция со статическими тегами
+ * @param originalView - оригинальная view функция с динамическими хешами мет
+ * @param hashName - имя хеша меты для замены
+ * @returns новая view функция со статическими хешами мет
  *
  * @example
  * ```typescript
@@ -201,8 +201,8 @@ export function createStaticViewFunction<C extends ContextSchema, S extends stri
   // 1. Извлекаем template literal из оригинальной функции
   const template = extractTemplateLiteral(originalView)
 
-  // 2. Заменяем динамический тег на статический
-  // Ищем любые переменные в meta- тегах и заменяем на реальное значение
+  // 2. Заменяем динамический хеш меты на статический
+  // Ищем любые переменные в meta- элементах и заменяем на реальное значение
   const staticTemplate = template.replace(/meta-\$\{([^}]+)\}/g, `meta-${tagName}`)
 
   // 3. Создаем новую функцию с замененным шаблоном
@@ -210,11 +210,11 @@ export function createStaticViewFunction<C extends ContextSchema, S extends stri
 }
 
 /**
- * Создает статическую view функцию с заменой нескольких динамических тегов
+ * Создает статическую view функцию с заменой нескольких динамических хешей мет
  *
- * @param originalView - оригинальная view функция с динамическими тегами
- * @param replacements - объект с заменами { childTag: 'child-123', parentTag: 'parent-456' }
- * @returns новая view функция со статическими тегами
+ * @param originalView - оригинальная view функция с динамическими хешами мет
+ * @param replacements - объект с заменами { childHash: 'child-123', parentHash: 'parent-456' }
+ * @returns новая view функция со статическими хешами мет
  *
  * @example
  * ```typescript
@@ -227,8 +227,8 @@ export function createStaticViewFunction<C extends ContextSchema, S extends stri
  * `
  *
  * const staticView = createStaticViewFunctionWithReplacements(originalView, {
- *   parentTag: 'parent-123',
- *   childTag: 'child-456'
+ *   parentHash: 'parent-123',
+ *   childHash: 'child-456'
  * })
  * ```
  */
@@ -239,15 +239,15 @@ export function createStaticViewFunctionWithReplacements(
   // 1. Извлекаем template literal из оригинальной функции
   const template = extractTemplateLiteral(originalView)
 
-  // 2. Заменяем все динамические теги на статические
+  // 2. Заменяем все динамические хеши мет на статические
   let staticTemplate = template
-  for (const [variableName, tagName] of Object.entries(replacements)) {
-    // Заменяем переменные в meta- тегах
+  for (const [variableName, hashName] of Object.entries(replacements)) {
+    // Заменяем переменные в meta- элементах
     // Ищем как переменные, так и их значения в кавычках
     const regex1 = new RegExp(`meta-\\$\\{${variableName}\\}`, "g")
-    const regex2 = new RegExp(`meta-\\$\\{"${tagName}"\\}`, "g")
-    staticTemplate = staticTemplate.replace(regex1, `meta-${tagName}`)
-    staticTemplate = staticTemplate.replace(regex2, `meta-${tagName}`)
+    const regex2 = new RegExp(`meta-\\$\\{"${hashName}"\\}`, "g")
+    staticTemplate = staticTemplate.replace(regex1, `meta-${hashName}`)
+    staticTemplate = staticTemplate.replace(regex2, `meta-${hashName}`)
   }
 
   // 3. Создаем новую функцию с замененным шаблоном

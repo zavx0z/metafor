@@ -12,14 +12,14 @@ describe("Store", () => {
     store = new SQLiteStore(":memory:")
 
     // Создаем тестовые meta-записи, которые могут понадобиться в тестах
-    store.setMeta({ tag: "test-meta", fingerprint: "test-fingerprint" })
-    store.setMeta({ tag: "parent-meta", fingerprint: "parent-fingerprint" })
-    store.setMeta({ tag: "child-meta", fingerprint: "child-fingerprint" })
-    store.setMeta({ tag: "child-meta-1", fingerprint: "child-fingerprint-1" })
-    store.setMeta({ tag: "child-meta-2", fingerprint: "child-fingerprint-2" })
-    store.setMeta({ tag: "grandchild-meta", fingerprint: "grandchild-fingerprint" })
-    store.setMeta({ tag: "parent", fingerprint: "parent-fingerprint" })
-    store.setMeta({ tag: "child", fingerprint: "child-fingerprint" })
+    store.setMeta({ meta: "test-meta", fingerprint: "test-fingerprint" })
+    store.setMeta({ meta: "parent-meta", fingerprint: "parent-fingerprint" })
+    store.setMeta({ meta: "child-meta", fingerprint: "child-fingerprint" })
+    store.setMeta({ meta: "child-meta-1", fingerprint: "child-fingerprint-1" })
+    store.setMeta({ meta: "child-meta-2", fingerprint: "child-fingerprint-2" })
+    store.setMeta({ meta: "grandchild-meta", fingerprint: "grandchild-fingerprint" })
+    store.setMeta({ meta: "parent", fingerprint: "parent-fingerprint" })
+    store.setMeta({ meta: "child", fingerprint: "child-fingerprint" })
   })
 
   // После каждого теста закрываем соединение с базой данных
@@ -29,7 +29,7 @@ describe("Store", () => {
 
   describe.skip("Операции с метаданными", () => {
     test("должен сохранять и получать метаданные", () => {
-      const meta = { tag: "test-tag", fingerprint: "test-fingerprint" }
+      const meta = { meta: "test-meta-hash", fingerprint: "test-fingerprint" }
 
       // Устанавливаем метаданные
       store.setMeta(meta)
@@ -41,15 +41,15 @@ describe("Store", () => {
       expect(result, "Метаданные должны быть определены").toBeDefined()
 
       if (result) {
-        expect(result.tag, "Тег метаданных должен совпадать").toBe(meta.tag)
+        expect(result.meta, "Мета метаданных должна совпадать").toBe(meta.meta)
         expect(result.fingerprint, "Отпечаток метаданных должен совпадать").toBe(meta.fingerprint)
         expect(result.timestamp, "Временная метка должна быть определена").toBeDefined()
       }
     })
 
     test("должен обновлять существующие метаданные", () => {
-      const meta1 = { tag: "test-tag", fingerprint: "fingerprint-1" }
-      const meta2 = { tag: "test-tag", fingerprint: "fingerprint-2" }
+      const meta1 = { meta: "test-meta-hash", fingerprint: "fingerprint-1" }
+      const meta2 = { meta: "test-meta-hash", fingerprint: "fingerprint-2" }
 
       // Устанавливаем метаданные первый раз
       store.setMeta(meta1)
@@ -66,11 +66,11 @@ describe("Store", () => {
 
     test("должен возвращать null для несуществующих метаданных", () => {
       const result = store.getMeta("non-existent-tag")
-      expect(result, "Для несуществующего тега должен возвращаться null").toBeNull()
+      expect(result, "Для несуществующей меты должен возвращаться null").toBeNull()
     })
 
     test("должен удалять метаданные", () => {
-      const meta = { tag: "test-tag", fingerprint: "test-fingerprint" }
+      const meta = { meta: "test-meta-hash", fingerprint: "test-fingerprint" }
 
       // Устанавливаем и проверяем метаданные
       store.setMeta(meta)
@@ -86,12 +86,12 @@ describe("Store", () => {
 
   describe.skip("Операции с акторами", () => {
     test("должен создавать и получать актора", () => {
-      const meta = { tag: "test-meta", fingerprint: "test-fingerprint" }
+      const meta = { meta: "test-meta", fingerprint: "test-fingerprint" }
       // Сначала создаем meta-запись
       store.setMeta(meta)
 
       const actor = {
-        meta_tag: meta.tag,
+        meta_tag: meta.meta,
         parent_id: null,
         idx: 0,
         snapshot: "{}",
@@ -101,14 +101,14 @@ describe("Store", () => {
       const actorId = store.createActor(actor)
 
       // Получаем актора
-      const result = store.saveActorIsNotExist(meta.tag)
+      const result = store.saveActorIsNotExist(meta.meta)
 
       // Проверяем, что актор корректно создан
       expect(result, "Актор должен быть определен").toBeDefined()
 
       if (result) {
         expect(result.id, "ID актора должен совпадать").toBe(actorId)
-        expect(result.meta_tag, "Тег метаданных актора должен совпадать").toBe(actor.meta_tag)
+        expect(result.meta_tag, "Мета метаданных актора должна совпадать").toBe(actor.meta_tag)
         expect(result.parent_id, "ID родительского актора должен быть null").toBe(actor.parent_id)
         expect(result.idx, "Индекс актора должен совпадать").toBe(actor.idx)
         expect(result.snapshot, "Снапшот актора должен совпадать").toBe(actor.snapshot)
@@ -117,11 +117,11 @@ describe("Store", () => {
     })
 
     test("должен обновлять снапшот актора", () => {
-      const meta = { tag: "test-meta", fingerprint: "test-fingerprint" }
+      const meta = { meta: "test-meta", fingerprint: "test-fingerprint" }
 
       // Создаем актора
       const actorId = store.createActor({
-        meta_tag: meta.tag,
+        meta_tag: meta.meta,
         parent_id: null,
         idx: 0,
         snapshot: "{}",
@@ -132,7 +132,7 @@ describe("Store", () => {
       store.updateActorSnapshot(actorId, newSnapshot)
 
       // Проверяем, что снапшот обновился
-      const result = store.saveActorIsNotExist(meta.tag)
+      const result = store.saveActorIsNotExist(meta.meta)
       expect(result, "Актор должен существовать").toBeDefined()
 
       if (result) {
@@ -205,12 +205,12 @@ describe("Store", () => {
       // Проверяем количество дочерних элементов
       expect(children, "Должны быть получены 2 дочерних актора").toHaveLength(2)
 
-      // Создаем ожидаемый массив тегов для проверки
+      // Создаем ожидаемый массив мет для проверки
       const expectedTags = [child1.meta_tag, child2.meta_tag]
 
       // Проверяем, что дочерние акторы имеют правильные meta_tag
       const actualTags = children.map((child) => child.meta_tag)
-      expect(actualTags, "Должны быть получены корректные теги дочерних акторов").toEqual(
+      expect(actualTags, "Должны быть получены корректные меты дочерних акторов").toEqual(
         expect.arrayContaining(expectedTags)
       )
 
@@ -221,10 +221,10 @@ describe("Store", () => {
     })
 
     test("должен удалять актора и его дочерние элементы", () => {
-      const meta = { tag: "test-meta", fingerprint: "test-fingerprint" }
+      const meta = { meta: "test-meta", fingerprint: "test-fingerprint" }
       // Создаем родительского актора
       const parentId = store.createActor({
-        meta_tag: meta.tag,
+        meta_tag: meta.meta,
         parent_id: null,
         idx: 0,
         snapshot: "{}",
@@ -232,7 +232,7 @@ describe("Store", () => {
 
       // Создаем дочернего актора
       const childId = store.createActor({
-        meta_tag: meta.tag,
+        meta_tag: meta.meta,
         parent_id: parentId,
         idx: 0,
         snapshot: "{}",
@@ -242,8 +242,8 @@ describe("Store", () => {
       store.deleteActor(parentId)
 
       // Проверяем, что оба актора удалены
-      expect(() => store.saveActorIsNotExist(meta.tag)).toThrow("Actor with tag")
-      expect(() => store.saveActorIsNotExist(meta.tag)).toThrow("Actor with tag")
+      expect(() => store.saveActorIsNotExist(meta.meta)).toThrow("Actor with tag")
+      expect(() => store.saveActorIsNotExist(meta.meta)).toThrow("Actor with tag")
     })
   })
 
@@ -252,11 +252,11 @@ describe("Store", () => {
 
     beforeEach(() => {
       // Создаем meta-запись
-      store.setMeta({ tag: "test-meta", fingerprint: "test-fingerprint" })
+      store.setMeta({ meta: "test-meta", fingerprint: "test-fingerprint" })
 
       // Создаем актора для тестирования патчей
       actorId = store.createActor({
-        meta_tag: "test-meta",
+        meta_meta: "test-meta",
         parent_id: null,
         idx: 0,
         snapshot: "{}",
@@ -377,12 +377,12 @@ describe("Store", () => {
 
   describe.skip("Сложные операции", () => {
     test("должен создавать актора с начальным патчем в транзакции", () => {
-      const meta = { tag: "test-meta", fingerprint: "test-fingerprint" }
+      const meta = { meta: "test-meta", fingerprint: "test-fingerprint" }
       // Сначала создаем meta-запись
       store.setMeta(meta)
 
       const actor = {
-        meta_tag: meta.tag,
+        meta_tag: meta.meta,
         parent_id: null,
         idx: 0,
         snapshot: "{}",
@@ -398,7 +398,7 @@ describe("Store", () => {
       const { actorId, patchId } = store.createActorWithInitialPatch(actor, initialPatch)
 
       // Проверяем, что актор создан
-      const createdActor = store.saveActorIsNotExist(meta.tag)
+      const createdActor = store.saveActorIsNotExist(meta.meta)
       expect(createdActor, "Актор должен быть создан").toBeDefined()
 
       // Проверяем, что патч создан и привязан к актору
@@ -511,14 +511,14 @@ describe("Store", () => {
   describe.skip("Резервное копирование", () => {
     test("должен создавать резервную копию базы данных", async () => {
       // Создаем meta-запись
-      store.setMeta({ tag: "test-meta", fingerprint: "test-fingerprint" })
+      store.setMeta({ meta: "test-meta", fingerprint: "test-fingerprint" })
 
       // Используем временный файл для бэкапа
       const backupPath = "test-backup.sqlite"
 
       // Создаем тестовые данные
       const actorId = store.createActor({
-        meta_tag: "test-meta",
+        meta_meta: "test-meta",
         parent_id: null,
         idx: 0,
         snapshot: "{}",

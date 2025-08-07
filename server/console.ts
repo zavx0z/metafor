@@ -21,7 +21,7 @@ const colors = {
 export function log(event: MessageEvent<Message>) {
   const { meta, patch } = event.data
   const timestamp = new Date().toLocaleTimeString("ru-RU", { hour12: false })
-  const tag = (meta.tag as string) || "unknown"
+  const tag = meta || "unknown"
 
   switch (patch.path) {
     case "/state":

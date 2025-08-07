@@ -46,8 +46,8 @@ describe("инициализация ребенка с переданным ко
           .filter({
             op: "add",
           })
-          .equal(({ patch }) => {
-            childContext = patch.value.context
+          .equal(({ message }) => {
+            childContext = message.patch.value.context
           }),
       ],
     ])

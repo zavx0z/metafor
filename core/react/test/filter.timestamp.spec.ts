@@ -24,7 +24,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -47,7 +49,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp: 2000 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -71,7 +75,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -94,7 +100,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp: 2000 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -117,7 +125,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp: 2000 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -141,7 +151,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -164,7 +176,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp: 2000 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -188,7 +202,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -211,7 +227,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp: 2000 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -234,7 +252,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp: 2000 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -257,7 +277,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp: 2000 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -280,7 +302,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp: 2000 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -303,7 +327,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp: 2000 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -332,7 +358,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp: 2000 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -355,7 +383,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp: 0 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 0,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -380,7 +410,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp: now },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: now,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -405,7 +437,9 @@ describe("Фильтрация по временной метке (timestamp)", 
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0, timestamp: 2000 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",

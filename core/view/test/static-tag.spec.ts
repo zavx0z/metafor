@@ -23,7 +23,7 @@ describe("  ", () => {
           count: context.parentCount,
         }}></meta-${hash}>
     </div>`
-    
+
     const template2 = html`<div>
       <h1>Родитель: ${context.parentMessage}</h1>
       <meta-child-243232
@@ -32,7 +32,7 @@ describe("  ", () => {
           count: context.parentCount,
         }}></meta-child-243232>
     </div>`
-    
+
     // Проверяем, что строки обработаны корректно
     expect(template1.strings[2]).toContain("meta-child-243232")
     expect(template1.values).toHaveLength(2) // Одно значение встроено в строку
@@ -83,8 +83,8 @@ describe("работа со статическими тегами", async () => 
           .filter({
             op: "add",
           })
-          .equal(({ patch }) => {
-            childContext = patch.value.context
+          .equal(({ message }) => {
+            childContext = message.patch.value.context
           }),
       ],
     ])

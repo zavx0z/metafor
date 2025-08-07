@@ -253,7 +253,7 @@ export function MetaForFabric(params: FabricParams) {
                               customElements.define(
                                 tagName,
                                 class extends HTMLElement {
-                                  #tag: string = hash
+                                  #meta: string = hash
                                   #store!: ActorStore
 
                                   #context: Context<C>
@@ -310,7 +310,7 @@ export function MetaForFabric(params: FabricParams) {
 
                                   connectedCallback() {
                                     this.#store = store.saveActorIsNotExist({
-                                      meta_tag: this.#tag,
+                                      meta_tag: this.#meta,
                                       parent_id: null,
                                       idx: 0,
                                       snapshot: JSON.stringify(this.snapshot),
@@ -330,7 +330,7 @@ export function MetaForFabric(params: FabricParams) {
                                   #init = () => {
                                     if (this.#reactions.hasReactions() && this.#channel)
                                       this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
-                                    this.#sendEvent(initMessage(this.#tag, this.snapshot))
+                                    this.#sendEvent(initMessage(this.#meta, { index: 0 }, this.snapshot))
                                     const transition = this.#states[this.#state]
                                     if (transition) {
                                       const process = this.#processes.getProcess(this.#state)
@@ -353,7 +353,7 @@ export function MetaForFabric(params: FabricParams) {
                                   update = (context: Partial<ExtractValues<C>>) => {
                                     const updated = this.#context.update(context)
                                     if (Object.keys(updated).length > 0) {
-                                      this.#sendEvent(updateContextMessage(this.#tag, updated))
+                                      this.#sendEvent(updateContextMessage(this.#meta, { index: 0 }, updated))
                                       this.#view.render({
                                         state: this.#state,
                                         context: this.#context.getSnapshot(),
@@ -376,7 +376,9 @@ export function MetaForFabric(params: FabricParams) {
                                    */
                                   #executeAction = (process: Process<C, I>) => {
                                     try {
-                                      this.#broadcastMessage(stateBeforeActionMessage(this.#tag, this.#state))
+                                      this.#broadcastMessage(
+                                        stateBeforeActionMessage(this.#meta, { index: 0 }, this.#state)
+                                      )
                                       const result = process.action({
                                         context: this.#context.getSnapshot(),
                                         core: this.#core,
@@ -405,17 +407,23 @@ export function MetaForFabric(params: FabricParams) {
                                               )
                                           })
                                           .finally(() => {
-                                            this.#broadcastMessage(stateAfterActionMessage(this.#tag, this.#state))
+                                            this.#broadcastMessage(
+                                              stateAfterActionMessage(this.#meta, { index: 0 }, this.#state)
+                                            )
                                             this.#setProcess(false)
                                           })
                                       } else {
                                         if (process.success) process.success({ update: this.update, data: result })
-                                        this.#broadcastMessage(stateAfterActionMessage(this.#tag, this.#state))
+                                        this.#broadcastMessage(
+                                          stateAfterActionMessage(this.#meta, { index: 0 }, this.#state)
+                                        )
                                         this.#setProcess(false)
                                       }
                                     } catch (error) {
                                       if (error instanceof Error) process.error?.({ update: this.update, error })
-                                      this.#broadcastMessage(stateAfterActionMessage(this.#tag, this.#state))
+                                      this.#broadcastMessage(
+                                        stateAfterActionMessage(this.#meta, { index: 0 }, this.#state)
+                                      )
                                       this.#setProcess(false)
                                     }
                                   }
@@ -439,7 +447,9 @@ export function MetaForFabric(params: FabricParams) {
                                         } else {
                                           this.#setState(state as S)
                                           this.#channel &&
-                                            this.#broadcastMessage(stateAfterActionMessage(this.#tag, state as S))
+                                            this.#broadcastMessage(
+                                              stateAfterActionMessage(this.#meta, { index: 0 }, state as S)
+                                            )
                                           if (!this.#process) this.#transition()
                                         }
                                         break
@@ -482,8 +492,10 @@ export function MetaForFabric(params: FabricParams) {
                                     this.#reactions.run({
                                       context: this.#context.getSnapshot(),
                                       core: this.#core,
-                                      meta,
-                                      patch,
+                                      meta: message.meta,
+                                      actor: message.actor,
+                                      timestamp: message.timestamp,
+                                      patch: message.patch,
                                       state,
                                       update: this.update,
                                     })

@@ -6,24 +6,26 @@ import type { JsonPatch } from "../../message"
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"
 
-describe("Фильтрация по тегу (tag)", () => {
+describe("Фильтрация по мете актора (meta)", () => {
   const fakeUpdate: Update<Ctx> = (values) => values as any
   const fakeContext: ExtractValues<Ctx> = { value: 10 }
   const fakePatch: JsonPatch = { op: "replace", path: "/context", value: 1 }
 
-  it("простое сравнение строки", () => {
+  it("простое сравнение хеша меты", () => {
     let called = false
     const registry = new Reactions<Ctx, State>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
-          .filter({ tag: "test" })
+          .filter({ meta: "test" })
           .equal(() => (called = true)),
       ],
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -40,13 +42,15 @@ describe("Фильтрация по тегу (tag)", () => {
       [
         ["idle"],
         reaction({ title: "test" })
-          .filter({ tag: "test" })
+          .filter({ meta: "test" })
           .equal(() => (called = true)),
       ],
     ])
 
     registry.run({
-      meta: { tag: "other", index: 0 },
+      meta: "other",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -63,13 +67,15 @@ describe("Фильтрация по тегу (tag)", () => {
       [
         ["idle"],
         reaction({ title: "test" })
-          .filter({ tag: /^test_/ })
+          .filter({ meta: /^test_/ })
           .equal(() => (called = true)),
       ],
     ])
 
     registry.run({
-      meta: { tag: "test_component", index: 0 },
+      meta: "test_component",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -86,13 +92,15 @@ describe("Фильтрация по тегу (tag)", () => {
       [
         ["idle"],
         reaction({ title: "test" })
-          .filter({ tag: { eq: "test" } })
+          .filter({ meta: { eq: "test" } })
           .equal(() => (called = true)),
       ],
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -109,13 +117,15 @@ describe("Фильтрация по тегу (tag)", () => {
       [
         ["idle"],
         reaction({ title: "test" })
-          .filter({ tag: { notEq: "other" } })
+          .filter({ meta: { notEq: "other" } })
           .equal(() => (called = true)),
       ],
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -132,13 +142,15 @@ describe("Фильтрация по тегу (tag)", () => {
       [
         ["idle"],
         reaction({ title: "test" })
-          .filter({ tag: { startsWith: "test" } })
+          .filter({ meta: { startsWith: "test" } })
           .equal(() => (called = true)),
       ],
     ])
 
     registry.run({
-      meta: { tag: "test_component", index: 0 },
+      meta: "test_component",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -155,13 +167,15 @@ describe("Фильтрация по тегу (tag)", () => {
       [
         ["idle"],
         reaction({ title: "test" })
-          .filter({ tag: { endsWith: "component" } })
+          .filter({ meta: { endsWith: "component" } })
           .equal(() => (called = true)),
       ],
     ])
 
     registry.run({
-      meta: { tag: "test_component", index: 0 },
+      meta: "test_component",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -178,13 +192,15 @@ describe("Фильтрация по тегу (tag)", () => {
       [
         ["idle"],
         reaction({ title: "test" })
-          .filter({ tag: { include: "comp" } })
+          .filter({ meta: { include: "comp" } })
           .equal(() => (called = true)),
       ],
     ])
 
     registry.run({
-      meta: { tag: "test_component", index: 0 },
+      meta: "test_component",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -201,13 +217,15 @@ describe("Фильтрация по тегу (tag)", () => {
       [
         ["idle"],
         reaction({ title: "test" })
-          .filter({ tag: { notInclude: "bad" } })
+          .filter({ meta: { notInclude: "bad" } })
           .equal(() => (called = true)),
       ],
     ])
 
     registry.run({
-      meta: { tag: "test_component", index: 0 },
+      meta: "test_component",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -224,13 +242,15 @@ describe("Фильтрация по тегу (tag)", () => {
       [
         ["idle"],
         reaction({ title: "test" })
-          .filter({ tag: { notStartsWith: "bad" } })
+          .filter({ meta: { notStartsWith: "bad" } })
           .equal(() => (called = true)),
       ],
     ])
 
     registry.run({
-      meta: { tag: "test_component", index: 0 },
+      meta: "test_component",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -247,13 +267,15 @@ describe("Фильтрация по тегу (tag)", () => {
       [
         ["idle"],
         reaction({ title: "test" })
-          .filter({ tag: { notEndsWith: "bad" } })
+          .filter({ meta: { notEndsWith: "bad" } })
           .equal(() => (called = true)),
       ],
     ])
 
     registry.run({
-      meta: { tag: "test_component", index: 0 },
+      meta: "test_component",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -270,13 +292,15 @@ describe("Фильтрация по тегу (tag)", () => {
       [
         ["idle"],
         reaction({ title: "test" })
-          .filter({ tag: { pattern: /^test_\d+$/ } })
+          .filter({ meta: { pattern: /^test_\d+$/ } })
           .equal(() => (called = true)),
       ],
     ])
 
     registry.run({
-      meta: { tag: "test_123", index: 0 },
+      meta: "test_123",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -293,13 +317,15 @@ describe("Фильтрация по тегу (tag)", () => {
       [
         ["idle"],
         reaction({ title: "test" })
-          .filter({ tag: { length: 4 } })
+          .filter({ meta: { length: 4 } })
           .equal(() => (called = true)),
       ],
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -316,13 +342,15 @@ describe("Фильтрация по тегу (tag)", () => {
       [
         ["idle"],
         reaction({ title: "test" })
-          .filter({ tag: { length: { min: 3, max: 10 } } })
+          .filter({ meta: { length: { min: 3, max: 10 } } })
           .equal(() => (called = true)),
       ],
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -339,13 +367,15 @@ describe("Фильтрация по тегу (tag)", () => {
       [
         ["idle"],
         reaction({ title: "test" })
-          .filter({ tag: { between: ["a", "z"] } })
+          .filter({ meta: { between: ["a", "z"] } })
           .equal(() => (called = true)),
       ],
     ])
 
     registry.run({
-      meta: { tag: "test", index: 0 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -363,7 +393,7 @@ describe("Фильтрация по тегу (tag)", () => {
         ["idle"],
         reaction({ title: "test" })
           .filter({
-            tag: {
+            meta: {
               startsWith: "test",
               include: "comp",
               length: { min: 10, max: 20 },
@@ -374,7 +404,9 @@ describe("Фильтрация по тегу (tag)", () => {
     ])
 
     registry.run({
-      meta: { tag: "test_component", index: 0 },
+      meta: "test_component",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",

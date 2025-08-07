@@ -136,8 +136,6 @@ Core содержит сложные объекты, сервисы и DOM сс�
 
 ### 4. Processes — действия при входе в состояния
 
-**ВАЖНО: Ключ процесса должен точно совпадать с именем состояния**
-
 ```typescript
 .processes((process) => ({
   // Процесс для состояния "loading"
@@ -201,7 +199,7 @@ const childFormHash = "def456..." // хеш дочернего form компон
       ["idle", "loading"], // НЕ используй ["*"]
       reaction({ title: "Обработка сообщений от user компонента" })
         .filter({
-          tag: childUserHash, // хеш компонента-отправителя
+          meta: childUserHash, // хеш меты компонента-отправителя
           op: "replace", // операция: "add" | "replace" | "remove" | "test"
           path: "/context", // путь: "/" | "/context" | "/state"
           value: { userId: { gt: 0 } }, // условия на значение

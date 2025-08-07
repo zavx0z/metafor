@@ -6,7 +6,7 @@
 
 import type { ContextSchema, ExtractValues } from "../context/index.t"
 import type { Core } from "../index.t"
-import type { JsonPatch, Message, MetaDataMessage } from "../message"
+import type { JsonPatch, Message } from "../message"
 import type { ReactionFilterConditions as ReactionConditions } from "./condition.t"
 
 /**
@@ -28,14 +28,15 @@ import type { ReactionFilterConditions as ReactionConditions } from "./condition
  *   update,    // Функция для обновления контекста
  *   context,   // Текущий контекст
  *   core,      // Core объект
- *   meta,      // Метаданные сообщения
- *   patch,     // JSON Patch
+ *   message,   // Полное сообщение
  *   state      // Текущее состояние
  * }) => {
  *   // Обработка события
  *   update({
- *     lastMessage: patch.value,
- *     messageCount: context.messageCount + 1
+ *     lastMessage: message.patch.value,
+ *     messageCount: context.messageCount + 1,
+ *     senderMeta: message.meta,
+ *     actorIndex: message.actor.index
  *   })
  * }
  * ```
@@ -47,10 +48,8 @@ export type ReactionUpdate<C extends ContextSchema, S extends string, I extends 
   context: ExtractValues<C>
   /** Core объект */
   core: I
-  /** Метаданные сообщения */
-  meta: MetaDataMessage
-  /** JSON Patch */
-  patch: JsonPatch
+  /** Сообщение с метаданными и патчем */
+  message: Message
   /** Текущее состояние */
   state: S
 }) => void
@@ -70,7 +69,7 @@ export type ReactionUpdate<C extends ContextSchema, S extends string, I extends 
  *   title: "Обработка сообщений",
  *   description: "Обрабатывает входящие сообщения от пользователей",
  *   filter: ({ meta, patch }) => {
- *     return meta.tag === "user" && patch.op === "replace"
+ *     return meta === "user" && patch.op === "replace"
  *   },
  *   update: ({ update, context, patch }) => {
  *     update({
@@ -107,7 +106,7 @@ export type Reaction<C extends ContextSchema, S extends string, I extends Core> 
  *   [
  *     ["idle", "loading"], // Состояния
  *     reaction({ title: "Обработка сообщений" })
- *       .filter({ tag: "user" })
+ *       .filter({ meta: "user" })
  *       .equal(({ update, patch }) => {
  *         update({ lastMessage: patch.value })
  *       })

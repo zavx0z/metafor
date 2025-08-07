@@ -55,13 +55,13 @@ describe("реакции", () => {
         [
           ["state_1"],
           reaction({ title: "record_all_messages" })
-            .filter({ tag: childHash })
-            .equal(({ meta, patch }) => recordMessage({ meta, patch })),
+            .filter({ meta: childHash })
+            .equal(({ message }) => recordMessage(message)),
         ],
         [
           ["state_1"],
           reaction()
-            .filter({ tag: childHash, op: "add" })
+            .filter({ meta: childHash, op: "add" })
             .equal(({ update }) => update({ childAdded: true })),
         ],
       ])
@@ -77,11 +77,11 @@ describe("реакции", () => {
 
     expect(reactionMessages).toEqual([
       {
-        meta: {
-          tag: childHash,
-          timestamp: expect.any(Number),
+        meta: childHash,
+        actor: {
           index: 0,
         },
+        timestamp: expect.any(Number),
         patch: {
           op: "add",
           path: "/",
@@ -126,11 +126,11 @@ describe("реакции", () => {
         },
       },
       {
-        meta: {
-          tag: childHash,
-          timestamp: expect.any(Number),
+        meta: childHash,
+        actor: {
           index: 0,
         },
+        timestamp: expect.any(Number),
         patch: {
           op: "test",
           path: "/state",
@@ -138,11 +138,11 @@ describe("реакции", () => {
         },
       },
       {
-        meta: {
-          tag: childHash,
-          timestamp: expect.any(Number),
+        meta: childHash,
+        actor: {
           index: 0,
         },
+        timestamp: expect.any(Number),
         patch: {
           op: "replace",
           path: "/context",
@@ -152,11 +152,11 @@ describe("реакции", () => {
         },
       },
       {
-        meta: {
-          tag: childHash,
-          timestamp: expect.any(Number),
+        meta: childHash,
+        actor: {
           index: 0,
         },
+        timestamp: expect.any(Number),
         patch: {
           op: "replace",
           path: "/state",
@@ -164,11 +164,11 @@ describe("реакции", () => {
         },
       },
       {
-        meta: {
-          tag: childHash,
-          timestamp: expect.any(Number),
+        meta: childHash,
+        actor: {
           index: 0,
         },
+        timestamp: expect.any(Number),
         patch: {
           op: "test",
           path: "/state",
@@ -176,11 +176,11 @@ describe("реакции", () => {
         },
       },
       {
-        meta: {
-          tag: childHash,
-          timestamp: expect.any(Number),
+        meta: childHash,
+        actor: {
           index: 0,
         },
+        timestamp: expect.any(Number),
         patch: {
           op: "replace",
           path: "/context",
@@ -190,11 +190,11 @@ describe("реакции", () => {
         },
       },
       {
-        meta: {
-          tag: childHash,
-          timestamp: expect.any(Number),
+        meta: childHash,
+        actor: {
           index: 0,
         },
+        timestamp: expect.any(Number),
         patch: {
           op: "replace",
           path: "/state",
@@ -202,11 +202,11 @@ describe("реакции", () => {
         },
       },
       {
-        meta: {
-          tag: childHash,
-          timestamp: expect.any(Number),
+        meta: childHash,
+        actor: {
           index: 0,
         },
+        timestamp: expect.any(Number),
         patch: {
           op: "replace",
           path: "/state",

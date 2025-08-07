@@ -9,7 +9,7 @@ import type { ActorStore } from "../../core/store/index.t"
 const createTablesQuery = `
 CREATE TABLE
     IF NOT EXISTS meta (
-        tag TEXT PRIMARY KEY,
+        meta TEXT PRIMARY KEY,
         fingerprint TEXT NOT NULL,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -23,7 +23,7 @@ CREATE TABLE
         snapshot TEXT NOT NULL,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (parent_id) REFERENCES actor (id) ON DELETE CASCADE,
-        FOREIGN KEY (meta_tag) REFERENCES meta (tag) ON DELETE CASCADE,
+        FOREIGN KEY (meta_tag) REFERENCES meta (meta) ON DELETE CASCADE,
         UNIQUE (meta_tag, parent_id)
     );
 
@@ -48,19 +48,19 @@ CREATE INDEX IF NOT EXISTS idx_patch_actor ON patch (actor_id);
 
 // SQL-запросы для работы с meta
 const setMetaQuery = `
-INSERT INTO meta (tag, fingerprint) 
+INSERT INTO meta (meta, fingerprint) 
 VALUES (?, ?)
-ON CONFLICT(tag) DO UPDATE SET 
+ON CONFLICT(meta) DO UPDATE SET 
   fingerprint = excluded.fingerprint,
   timestamp = CURRENT_TIMESTAMP;
 `
 
 const getMetaQuery = `
-SELECT * FROM meta WHERE tag = ?;
+SELECT * FROM meta WHERE meta = ?;
 `
 
 const deleteMetaQuery = `
-DELETE FROM meta WHERE tag = ?;
+DELETE FROM meta WHERE meta = ?;
 `
 
 // SQL-запросы для работы с акторами
@@ -130,7 +130,7 @@ export class SQLiteStore implements Store {
     const hash = hasher.update(fingerprint).digest("hex")
     const meta = this.getMeta(hash)
     if (meta) return hash
-    this.setMeta({ tag: hash, fingerprint })
+    this.setMeta({ meta: hash, fingerprint })
     return hash
   }
 
@@ -203,7 +203,7 @@ export class SQLiteStore implements Store {
     const stmt = this.#db.prepare(setMetaQuery)
     try {
       this.#db.transaction(() => {
-        stmt.run(meta.tag, meta.fingerprint)
+        stmt.run(meta.meta, meta.fingerprint)
       })()
     } catch (error) {
       console.error("Error in setMeta transaction:", error)
@@ -212,18 +212,18 @@ export class SQLiteStore implements Store {
   }
 
   /**
-   * Получает запись из таблицы meta по тегу
+   * Получает запись из таблицы meta по мете
    */
-  getMeta(tag: string): MetaRecord | null {
-    return this.#db.prepare(getMetaQuery).get(tag) as MetaRecord | null
+  getMeta(meta: string): MetaRecord | null {
+    return this.#db.prepare(getMetaQuery).get(meta) as MetaRecord | null
   }
 
   /**
-   * Удаляет запись из таблицы meta по тегу
+   * Удаляет запись из таблицы meta по мете
    * (каскадно удалит связанные записи из actor и patch)
    */
-  deleteMeta(tag: string): void {
-    this.#db.prepare(deleteMetaQuery).run(tag)
+  deleteMeta(meta: string): void {
+    this.#db.prepare(deleteMetaQuery).run(meta)
   }
 
   // ===== Методы для работы с Actor =====
@@ -234,7 +234,7 @@ export class SQLiteStore implements Store {
   createActor(actor: Omit<SQLiteActorStore, "id" | "timestamp">): number {
     try {
       // Проверяем, что meta_tag существует
-      const metaExists = this.#db.prepare("SELECT 1 FROM meta WHERE tag = ?").get(actor.meta_tag)
+      const metaExists = this.#db.prepare("SELECT 1 FROM meta WHERE meta = ?").get(actor.meta_tag)
 
       if (!metaExists) {
         throw new Error(`Meta with tag '${actor.meta_tag}' does not exist`)
@@ -347,19 +347,19 @@ export class SQLiteStore implements Store {
     if (!actor) return null
     return actor
   }
-  getActor(tag: string): ActorStore | null {
+  getActor(meta: string): ActorStore | null {
     const actor = this.#db
       .prepare(`SELECT * FROM actor WHERE meta_tag = $meta_tag`)
       .as(SQLiteActorStore)
-      .get({ meta_tag: tag })
+      .get({ meta_tag: meta })
     if (!actor) return null
     return actor
   }
   /**
    * Получает полное дерево акторов, начиная с корневого
    */
-  getActorTree(rootTag: string): ActorTreeNode | null {
-    const actor = this.getActor(rootTag)
+  getActorTree(rootMeta: string): ActorTreeNode | null {
+    const actor = this.getActor(rootMeta)
     if (!actor) return null
 
     const children = this.getChildActors(actor.id)
@@ -385,7 +385,7 @@ export class SQLiteStore implements Store {
    */
   setSnapshot(message: Message) {
     this.setMeta({
-      tag: message.meta.tag,
+      meta: message.meta,
       fingerprint: "fingerprint-placeholder",
     })
   }
@@ -393,8 +393,8 @@ export class SQLiteStore implements Store {
   /**
    * @deprecated Используйте getMeta
    */
-  getSnapshot(tag: string) {
-    return this.getMeta(tag)
+  getSnapshot(meta: string) {
+    return this.getMeta(meta)
   }
 
   // ===== Управление соединением =====

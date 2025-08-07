@@ -10,7 +10,7 @@ import type { CondStringRequired, CondNumberRequired, ConditionOptional } from "
  * @example
  * ```typescript
  * const conditions: ReactionFilterConditions = {
- *   tag: "user",                    // Фильтр по тегу
+ *   meta: "user",                   // Фильтр по мете актора
  *   op: "replace",                  // Фильтр по операции
  *   path: "/context",               // Фильтр по пути
  *   value: { gt: 0 },               // Фильтр по значению
@@ -22,16 +22,16 @@ import type { CondStringRequired, CondNumberRequired, ConditionOptional } from "
 
 export type ReactionFilterConditions = {
   /**
-   # Фильтрация по тегу
+   # Фильтрация по мете актора
    
    1. Прямое сравнение строки с условием
-    - tag: "test" - тег должен быть равен "test"
-    - tag: /test/ - тег должен соответствовать регулярному выражению /test/ (без кавычек)
+    - meta: "test" - мета должна быть равна "test"
+    - meta: /test/ - мета должна соответствовать регулярному выражению /test/ (без кавычек)
    
    2. Сравнение с условием
-    - tag: { eq: "test" } - тег должен быть равен "test"
-    - tag: { pattern: /test/ } - тег должен соответствовать регулярному выражению /test/
- 
+    - meta: { eq: "test" } - мета должна быть равна "test"
+    - meta: { pattern: /test/ } - мета должна соответствовать регулярному выражению /test/
+
    Условия сравнения:
    | Параметр       | Тип                                  | Описание                              |
    | -------------- | ------------------------------------ | ------------------------------------- |
@@ -50,21 +50,21 @@ export type ReactionFilterConditions = {
    @example
    ```typescript
    // Простые фильтры
-   tag: "user"
-   tag: /^user_/
+   meta: "user"
+   meta: /^user_/
    
    // Сложные фильтры
-   tag: {
+   meta: {
      startsWith: "user",
      notInclude: "admin"
    }
-   tag: {
+   meta: {
      pattern: /^[a-z]+_[0-9]+$/,
      length: { min: 3, max: 20 }
    }
    ```
   */
-  tag?: CondStringRequired
+  meta?: CondStringRequired
   /**
    # Фильтрация по индексу
    

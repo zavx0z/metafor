@@ -45,7 +45,7 @@ MetaFor("user")
       ["form", "loading"],
       reaction()
         .filter({
-          tag: "user",
+          meta: "user",
         })
         .equal(({ update }) => update({ name: "User" })),
     ],

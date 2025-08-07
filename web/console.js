@@ -3,7 +3,7 @@ const config = {
   // active: true,
   collapseAll: true,
   /**@type{Array<string>}*/
-  tag: [
+  meta: [
     // "graph-meta",
     // "graph-param"
     // "graph-state",
@@ -21,7 +21,7 @@ const config = {
   path: ["/", "/context", "/state"],
   // Ширины колонок
   width: {
-    tag: 22,
+    meta: 22,
     op: 8,
     path: 15,
   },
@@ -35,13 +35,13 @@ const config = {
  * @param {"/" | "/context" | "/state"} path
  * @returns {boolean}
  */
-const isLog = ({ meta, patch }, path) =>
+const isLog = (message, path) =>
   Boolean(
     config.active &&
-      patch.path === path &&
+      message.patch.path === path &&
       config.path.includes(path) &&
-      (!config.tag.length || config.tag.includes(meta.tag)) &&
-      (config.index === null || meta.index === config.index)
+      (!config.meta.length || config.meta.includes(message.meta)) &&
+      (config.index === null || message.actor.index === config.index)
   )
 
 /**
@@ -49,10 +49,10 @@ const isLog = ({ meta, patch }, path) =>
  * @param {Record<string, any>} core
  */
 export function log(message, core) {
-  const { meta, patch } = message
+  const { meta, actor, patch } = message
 
-  const tag = String(meta.tag).padEnd(config.width.tag, " ")
-  const index = String(meta.index).padEnd(4, " ")
+  const metaStr = String(meta).padEnd(config.width.meta, " ")
+  const index = String(actor.index).padEnd(4, " ")
   const op = centerText(String(patch.op), config.width.op)
   const path = String(patch.path).padEnd(config.width.path, " ")
 
@@ -63,7 +63,7 @@ export function log(message, core) {
     case isLog(message, "/"):
       ;(() => {
         const msg = [
-          `%c${tag}${index}%c | %c${op}%c | %c${path}`,
+          `%c${metaStr}${index}%c | %c${op}%c | %c${path}`,
           "color: #3498db; font-weight: bold",
           "",
           "color: #e74c3c",
@@ -83,7 +83,7 @@ export function log(message, core) {
     case isLog(message, "/context"):
       ;(() => {
         const msg = [
-          `%c${tag}${index}%c | %c${op}%c | %c${path}`,
+          `%c${metaStr}${index}%c | %c${op}%c | %c${path}`,
           `color: #3498db; font-weight: bold; ${isError ? "background: #7d4545" : ""}`,
           "",
           "color: #e74c3c",
@@ -114,7 +114,7 @@ export function log(message, core) {
           : patch.value
 
         const msg = [
-          `%c${tag}${index}%c | %c${op}%c | %c${path}%c %c${stateValue}`,
+          `%c${metaStr}${index}%c | %c${op}%c | %c${path}%c %c${stateValue}`,
           "color: #3498db; font-weight: bold",
           "",
           "color: #e74c3c",

@@ -4,7 +4,7 @@
  */
 import type { ContextSchema, ExtractValues, Update } from "../context/index.t"
 import type { Core } from "../index.t"
-import type { JsonPatch, MetaDataMessage } from "../message"
+import type { JsonPatch, Message } from "../message"
 import type { ReactionsDeclaration, ReactionUpdate, Reaction, SnapshotReactions, ReactionMetadata } from "./index.t"
 import type { ReactionFilterConditions } from "./condition.t"
 import { createFilterFn } from "./condition"
@@ -69,12 +69,27 @@ export abstract class ReactionsBase<C extends ContextSchema, S extends string, I
     state: S
     context: ExtractValues<C>
     core: I
-    meta: MetaDataMessage
+    meta: string
+    actor: { index: number; parent?: string }
+    timestamp: number
     patch: JsonPatch
     update: Update<C>
   }) {
+    const message: Message = {
+      meta: params.meta,
+      actor: params.actor,
+      timestamp: params.timestamp,
+      patch: params.patch,
+    }
     for (const reaction of this.getReactions(params.state))
-      if (reaction.filter({ meta: params.meta, patch: params.patch })) reaction.update(params)
+      if (reaction.filter(message))
+        reaction.update({
+          update: params.update,
+          context: params.context,
+          core: params.core,
+          state: params.state,
+          message,
+        })
   }
 
   /** Получить все уникальные реакции */

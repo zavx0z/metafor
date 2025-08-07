@@ -7,25 +7,29 @@
 /**
  Сообщение для обмена данными между акторами
 
- @property meta - Метаданные сообщения
- @property meta.tag - Имя типа актора
- @property meta.timestamp - Время отправки сообщения
- @property patches - Патч для применения к актору
+ @property meta - Хеш меты компонента-актора
+ @property actor - Информация об акторе
+ @property actor.index - Индекс актора по отношению к братьям в родителе
+ @property actor.parent - Хеш родительской меты актора
+ @property timestamp - Время отправки сообщения
+ @property patch - Патч для применения к актору
  */
 export type Message = {
-  meta: MetaDataMessage
+  meta: string
+  actor: ActorInfo
+  timestamp: number
   patch: JsonPatch
 }
-/**
-Метаданные сообщения
 
-@property tag - Имя типа актора (компонента)
-@property timestamp - Время отправки сообщения в миллисекундах
+/**
+Информация об акторе в сообщении
+
+@property index - Индекс актора по отношению к братьям в родителе (для уникализации)
+@property parent - Хеш родительской меты актора
 */
-export type MetaDataMessage = {
-  tag: string
-  index?: number
-  timestamp?: number
+export type ActorInfo = {
+  index: number
+  parent?: string
 }
 
 export type JsonPatch = { op: "replace" | "add" | "remove" | "test"; path: "/context" | "/state" | "/"; value?: any }

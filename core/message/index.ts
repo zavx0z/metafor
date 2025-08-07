@@ -5,39 +5,49 @@
 
 import type { ContextSchema, ExtractValues } from "../context"
 import type { Snapshot } from "../../core/index.t"
-import type { Message, JsonPatch, MetaDataMessage } from "./index.t"
-export type { Message, JsonPatch, MetaDataMessage }
+import type { Message, JsonPatch, ActorInfo } from "./index.t"
+export type { Message, JsonPatch, ActorInfo }
 
 export const initMessage = <C extends ContextSchema, S extends string>(
-  tag: string,
+  meta: string,
+  actor: ActorInfo,
   snapshot: Snapshot<C, S>
 ): Message => {
   return {
-    meta: { tag, timestamp: Date.now(), index: 0 },
+    meta,
+    actor,
+    timestamp: Date.now(),
     patch: { op: "add", path: "/", value: snapshot },
   }
 }
 
 export const updateContextMessage = <C extends ContextSchema>(
-  tag: string,
+  meta: string,
+  actor: ActorInfo,
   updated: Partial<ExtractValues<C>>
 ): Message => {
   return {
-    meta: { tag, timestamp: Date.now(), index: 0 },
+    meta,
+    actor,
+    timestamp: Date.now(),
     patch: { op: "replace", path: "/context", value: updated },
   }
 }
 
-export const stateBeforeActionMessage = <S extends string>(tag: string, state: S): Message => {
+export const stateBeforeActionMessage = <S extends string>(meta: string, actor: ActorInfo, state: S): Message => {
   return {
-    meta: { tag, timestamp: Date.now(), index: 0 },
+    meta,
+    actor,
+    timestamp: Date.now(),
     patch: { op: "test", path: "/state", value: state },
   }
 }
 
-export const stateAfterActionMessage = <S extends string>(tag: string, state: S): Message => {
+export const stateAfterActionMessage = <S extends string>(meta: string, actor: ActorInfo, state: S): Message => {
   return {
-    meta: { tag, timestamp: Date.now(), index: 0 },
+    meta,
+    actor,
+    timestamp: Date.now(),
     patch: { op: "replace", path: "/state", value: state },
   }
 }

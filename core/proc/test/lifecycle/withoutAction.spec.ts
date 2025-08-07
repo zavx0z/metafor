@@ -28,7 +28,9 @@ describe("MetaFor: инициализация без действия", async ()
     expect(patch.op, "patch.op должен быть 'add'").toBe("add")
     expect(patch.path, "patch.path должен быть '/' ").toBe("/")
     expect(message, "message должен содержать snapshot").toEqual({
-      meta: { tag: hash, index: 0, timestamp: expect.any(Number) },
+      meta: hash,
+      actor: { index: 0 },
+      timestamp: expect.any(Number),
       patch: {
         op: "add",
         path: "/",
@@ -59,7 +61,9 @@ describe("MetaFor: инициализация без действия", async ()
     expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
     expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
     expect(message, "message должен содержать snapshot").toEqual({
-      meta: { tag: hash, index: 0, timestamp: expect.any(Number) },
+      meta: hash,
+      actor: { index: 0 },
+      timestamp: expect.any(Number),
       patch: {
         op: "replace",
         path: "/state",

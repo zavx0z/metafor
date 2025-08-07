@@ -6,7 +6,7 @@ import { Database } from "bun:sqlite"
 const createTablesQuery = `
 CREATE TABLE
     IF NOT EXISTS meta (
-        tag TEXT PRIMARY KEY,
+        meta TEXT PRIMARY KEY,
         fingerprint TEXT NOT NULL,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
@@ -20,7 +20,7 @@ CREATE TABLE
         snapshot TEXT NOT NULL,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (parent_id) REFERENCES actor (id) ON DELETE CASCADE,
-        FOREIGN KEY (meta_tag) REFERENCES meta (tag) ON DELETE CASCADE,
+        FOREIGN KEY (meta_tag) REFERENCES meta (meta) ON DELETE CASCADE,
         UNIQUE (meta_tag, parent_id)
     );
 
@@ -102,12 +102,46 @@ describe("хранилище sqlite", () => {
   })
 
   beforeEach(() => {
-    // Очищаем таблицы перед каждым тестом
-    db.run("DELETE FROM patch")
-    db.run("DELETE FROM actor")
-    db.run("DELETE FROM meta")
-    // Сбрасываем автоинкремент
-    db.run("DELETE FROM sqlite_sequence WHERE name IN ('actor', 'patch')")
+    // Пересоздаем таблицы с актуальной схемой перед каждым тестом
+    db.run("DROP TABLE IF EXISTS patch")
+    db.run("DROP TABLE IF EXISTS actor")
+    db.run("DROP TABLE IF EXISTS meta")
+
+    // Пересоздаем таблицы с актуальной схемой
+    const createTablesQuery = `
+CREATE TABLE
+    IF NOT EXISTS meta (
+        meta TEXT PRIMARY KEY,
+        fingerprint TEXT NOT NULL,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    );
+
+CREATE TABLE
+    IF NOT EXISTS actor (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        meta_tag TEXT NOT NULL,
+        parent_id INTEGER,
+        idx INTEGER NOT NULL,
+        snapshot TEXT NOT NULL,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (parent_id) REFERENCES actor (id) ON DELETE CASCADE,
+        FOREIGN KEY (meta_tag) REFERENCES meta (meta) ON DELETE CASCADE,
+        UNIQUE (meta_tag, parent_id)
+    );
+
+CREATE TABLE
+    IF NOT EXISTS patch (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        actor_id INTEGER NOT NULL,
+        op TEXT NOT NULL,
+        path TEXT NOT NULL,
+        value TEXT,
+        timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        FOREIGN KEY (actor_id) REFERENCES actor (id) ON DELETE CASCADE
+    );
+    `
+
+    db.exec(createTablesQuery)
   })
 
   it("должен создавать новую базу данных", async () => {
@@ -139,7 +173,7 @@ describe("хранилище sqlite", () => {
       const columns = db.prepare("PRAGMA table_info(meta)").all()
       const columnNames = columns.map((col: any) => col.name)
 
-      expect(columnNames).toContain("tag")
+      expect(columnNames).toContain("meta")
       expect(columnNames).toContain("fingerprint")
       expect(columnNames).toContain("timestamp")
     })
@@ -178,13 +212,13 @@ describe("хранилище sqlite", () => {
   describe("проверка ограничений и связей", () => {
     it("должен создавать запись в meta и actor", () => {
       // Создаем запись в meta
-      const metaInsert = db.prepare("INSERT INTO meta (tag, fingerprint) VALUES (?, ?)")
+      const metaInsert = db.prepare("INSERT INTO meta (meta, fingerprint) VALUES (?, ?)")
       metaInsert.run("test-tag", "fingerprint-123")
 
       // Проверяем, что запись создана
-      const metaRow = db.prepare("SELECT * FROM meta WHERE tag = ?").get("test-tag") as any
+      const metaRow = db.prepare("SELECT * FROM meta WHERE meta = ?").get("test-tag") as any
       expect(metaRow).toBeDefined()
-      expect(metaRow.tag).toBe("test-tag")
+      expect(metaRow.meta).toBe("test-tag")
 
       // Создаем запись в actor
       const actorInsert = db.prepare("INSERT INTO actor (meta_tag, idx, snapshot) VALUES (?, ?, ?) RETURNING id")
@@ -204,9 +238,9 @@ describe("хранилище sqlite", () => {
       const fkCheck = db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }
       expect(fkCheck.foreign_keys).toBe(1)
 
-      // Проверяем, что в таблице meta нет записи с таким тегом
+      // Проверяем, что в таблице meta нет записи с такой метой
       // SQLite возвращает null, если запись не найдена
-      const existingMeta = db.prepare("SELECT * FROM meta WHERE tag = ?").get("non-existent-tag")
+      const existingMeta = db.prepare("SELECT * FROM meta WHERE meta = ?").get("non-existent-meta")
       expect(existingMeta).toBeNull()
 
       let error: Error | null = null
@@ -237,7 +271,7 @@ describe("хранилище sqlite", () => {
 
     it("должен создавать иерархию actor с parent_id", () => {
       // Создаем запись в meta
-      db.prepare("INSERT INTO meta (tag, fingerprint) VALUES (?, ?)").run("parent-tag", "fingerprint-123")
+      db.prepare("INSERT INTO meta (meta, fingerprint) VALUES (?, ?)").run("parent-tag", "fingerprint-123")
 
       // Создаем родительский actor
       const parent = db
@@ -254,7 +288,7 @@ describe("хранилище sqlite", () => {
 
     it("должен создавать patch для существующего actor", () => {
       // Создаем запись в meta
-      db.prepare("INSERT INTO meta (tag, fingerprint) VALUES (?, ?)").run("test-tag", "fingerprint-123")
+      db.prepare("INSERT INTO meta (meta, fingerprint) VALUES (?, ?)").run("test-tag", "fingerprint-123")
 
       // Создаем actor
       const actor = db

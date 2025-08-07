@@ -47,7 +47,9 @@ describe("MetaFor: инициализация с действиями", async ()
     expect(patch.op, "patch.op должен быть 'add'").toBe("add")
     expect(patch.path, "patch.path должен быть '/' ").toBe("/")
     expect(message, "message должен содержать snapshot").toEqual({
-      meta: { tag: hex, index: 0, timestamp: expect.any(Number) },
+      meta: hex,
+      actor: { index: 0 },
+      timestamp: expect.any(Number),
       patch: {
         op: "add",
         path: "/",

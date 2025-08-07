@@ -13,13 +13,13 @@ export class IndexedDBActorStore implements ActorStore {
 
 export class IndexedDBStore implements Store {
   saveMetaIsNotExists(fingerprint: string) {
-    const tag = SparkMD5.hash(fingerprint)
-    const meta = this.getMeta(tag)
-    if (meta) return tag
-    return tag
+    const meta = SparkMD5.hash(fingerprint)
+    const metaRecord = this.getMeta(meta)
+    if (metaRecord) return meta
+    return meta
   }
 
-  getMeta(tag: string) {
+  getMeta(meta: string) {
     // TODO: реализовать получение метаданных из IndexedDB
     return null
   }

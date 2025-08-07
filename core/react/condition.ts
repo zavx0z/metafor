@@ -167,12 +167,11 @@ export function checkValueCondition(value: any, condition: any): boolean {
  * Создает функцию фильтрации на основе декларативных условий
  */
 export function createFilterFn(conditions: ReactionFilterConditions) {
-  return ({ meta, patch }: Message): boolean => {
+  return ({ meta, actor, timestamp, patch }: Message): boolean => {
     // Проверяем условия для метаданных
-    if (conditions.tag !== undefined && !checkStringCondition(meta.tag, conditions.tag)) return false
-    if (conditions.index !== undefined && !checkNumberCondition(meta.index || 0, conditions.index)) return false
-    if (conditions.timestamp !== undefined && !checkNumberCondition(meta.timestamp || 0, conditions.timestamp))
-      return false
+    if (conditions.meta !== undefined && !checkStringCondition(meta, conditions.meta)) return false
+    if (conditions.index !== undefined && !checkNumberCondition(actor.index, conditions.index)) return false
+    if (conditions.timestamp !== undefined && !checkNumberCondition(timestamp, conditions.timestamp)) return false
     // Проверяем условия для патча
     if (conditions.op !== undefined && patch.op !== conditions.op) return false
     if (conditions.path !== undefined && patch.path !== conditions.path) return false
