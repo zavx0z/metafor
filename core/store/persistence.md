@@ -9,10 +9,11 @@
 
 ## 2. Что сохраняем
 
-- `meta(meta, fingerprint, timestamp)` — справочник конфигураций
-- `actor(id, meta, parent_id, idx, snapshot, timestamp)` — дерево акторов и их текущее состояние
-- `snapshot` — сериализованный `element.snapshot`: `{ state, context(values), states, processes, reactions, view, description? }`
+- `meta(meta, fingerprint, persist, timestamp)` — справочник конфигураций
+- `actor(id, meta, parent_id, idx, key, snapshot, timestamp)` — дерево акторов и их текущее состояние
+- `snapshot` — сериализованный `element.snapshot`: `{ state, context(values), states, processes, reactions, view, description?, persist }`
 - `path` не хранится, вычисляется из DOM: `meta:idx/meta:idx/...`
+- `persist` — определяет, восстанавливать ли состояние при создании актора и сохранять ли обновления snapshot
 
 ## 3. Когда сохраняем
 
@@ -21,7 +22,8 @@
 
 ## 4. Восстановление (rehydration)
 
-- Перед первым render: если найден `snapshot`, применяем `state` и значения `context` напрямую (без событий)
+- Перед первым render: если `persist: true` и найден `snapshot`, применяем `state` и значения `context` напрямую (без событий)
+- При `persist: false` восстановление состояния не выполняется, актор инициализируется с дефолтными значениями
 - Затем выполняется обычный `render()` и переходы
 
 ## 5. SQLiteStore (server)
@@ -34,6 +36,7 @@
 CREATE TABLE IF NOT EXISTS meta (
   meta TEXT PRIMARY KEY,
   fingerprint TEXT NOT NULL,
+  persist BOOLEAN NOT NULL DEFAULT 1,
   timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

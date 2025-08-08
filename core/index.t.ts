@@ -36,6 +36,8 @@ export interface FingerPrint<C extends ContextSchema, S extends string> {
   render?: string
   /** Стили компонента */
   style?: string
+  /** Восстановление состояния */
+  persist: boolean
 }
 
 /**

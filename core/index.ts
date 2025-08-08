@@ -82,7 +82,7 @@ export function MetaForFabric(params: FabricParams) {
   return function MetaFor(name: string, config?: MetaForConfig) {
     const description = config?.description
     const dev = config?.dev ?? globalThis.DEV ?? false
-    const persist = config?.persist ?? false
+    const persist = config?.persist ?? true
     return {
       context<C extends ContextSchema>(schema: (types: ContextTypes) => C) {
         return {
@@ -100,6 +100,7 @@ export function MetaForFabric(params: FabricParams) {
                             const fingerPrint: FingerPrint<C, S> = {
                               name,
                               states,
+                              persist,
                               context: new Context(schema).snapshot,
                               ...new Processes(process).snapshot,
                               ...(description ? { description } : {}),
@@ -126,6 +127,7 @@ export function MetaForFabric(params: FabricParams) {
                                   #env = "browser"
                                   #name = name
                                   #description = description
+                                  #persist = persist
 
                                   #shadow: ShadowRoot
                                   #channel: BroadcastChannel | null = null
@@ -228,48 +230,50 @@ export function MetaForFabric(params: FabricParams) {
                                     })
                                     // Проставляем id для быстрого доступа к родителю в DOM
                                     this.setAttribute("data-actor-id", String(this.#store.id))
-                                    // Попытка восстановления состояния из snapshot стора
-                                    try {
-                                      if (this.#store?.snapshot) {
-                                        const saved = JSON.parse(this.#store.snapshot) as Snapshot<C, S>
-                                        // Восстанавливаем состояние
-                                        if (saved?.state) {
-                                          this.#setState(saved.state as S)
-                                        }
-                                        // Восстанавливаем значения контекста без генерации сообщений
-                                        if (saved?.context) {
-                                          const values: Partial<ExtractValues<C>> = {}
-                                          let hasNonDefaultValues = false
-                                          for (const [key, def] of Object.entries(saved.context as any)) {
-                                            // @ts-ignore
-                                            const value = (def as any)?.value
-                                            const defaultValue = (def as any)?.default
-                                            values[key as keyof ExtractValues<C>] = value
-                                            // Проверяем, отличается ли значение от дефолтного
-                                            if (Array.isArray(value) && Array.isArray(defaultValue)) {
-                                              if (
-                                                value.length !== defaultValue.length ||
-                                                value.some((v, i) => v !== defaultValue[i])
-                                              ) {
+                                    // Попытка восстановления состояния из snapshot стора (только если persist: true)
+                                    if (this.#persist) {
+                                      try {
+                                        if (this.#store?.snapshot) {
+                                          const saved = JSON.parse(this.#store.snapshot) as Snapshot<C, S>
+                                          // Восстанавливаем состояние
+                                          if (saved?.state) {
+                                            this.#setState(saved.state as S)
+                                          }
+                                          // Восстанавливаем значения контекста без генерации сообщений
+                                          if (saved?.context) {
+                                            const values: Partial<ExtractValues<C>> = {}
+                                            let hasNonDefaultValues = false
+                                            for (const [key, def] of Object.entries(saved.context as any)) {
+                                              // @ts-ignore
+                                              const value = (def as any)?.value
+                                              const defaultValue = (def as any)?.default
+                                              values[key as keyof ExtractValues<C>] = value
+                                              // Проверяем, отличается ли значение от дефолтного
+                                              if (Array.isArray(value) && Array.isArray(defaultValue)) {
+                                                if (
+                                                  value.length !== defaultValue.length ||
+                                                  value.some((v, i) => v !== defaultValue[i])
+                                                ) {
+                                                  hasNonDefaultValues = true
+                                                }
+                                              } else if (value !== defaultValue) {
                                                 hasNonDefaultValues = true
                                               }
-                                            } else if (value !== defaultValue) {
-                                              hasNonDefaultValues = true
+                                            }
+                                            // Восстанавливаем только если есть реальные изменения от дефолта
+                                            if (hasNonDefaultValues) {
+                                              // Напрямую обновляем внутренний контекст, чтобы не отправлять события до инициализации
+                                              this.#context.update(values as Partial<ExtractValues<C>>)
+                                              this.#rehydratedValues = values as Partial<ExtractValues<C>>
+                                              ;(this as any).__hasRehydratedContext = true
+                                              // Первый внешний update(context) (например, из property) игнорируем, чтобы не перетереть восстановленные значения
+                                              this.#ignoreFirstExternalContextUpdate = true
                                             }
                                           }
-                                          // Восстанавливаем только если есть реальные изменения от дефолта
-                                          if (hasNonDefaultValues) {
-                                            // Напрямую обновляем внутренний контекст, чтобы не отправлять события до инициализации
-                                            this.#context.update(values as Partial<ExtractValues<C>>)
-                                            this.#rehydratedValues = values as Partial<ExtractValues<C>>
-                                            ;(this as any).__hasRehydratedContext = true
-                                            // Первый внешний update(context) (например, из property) игнорируем, чтобы не перетереть восстановленные значения
-                                            this.#ignoreFirstExternalContextUpdate = true
-                                          }
                                         }
+                                      } catch (_) {
+                                        // игнорируем ошибки десериализации
                                       }
-                                    } catch (_) {
-                                      // игнорируем ошибки десериализации
                                     }
                                     // Разрешаем внешние property-коммиты и применяем переданное значение контекста,
                                     // если снапшот не был прочитан из стора
@@ -300,8 +304,8 @@ export function MetaForFabric(params: FabricParams) {
                                     // И ещё раз в следующий кадр, чтобы учесть возможные отложенные перестановки DOM
                                     requestAnimationFrame(() => {
                                       this.#syncLocation()
-                                      // Если ещё не ре-гидратированы, пробуем по стабильному ключу из атрибута
-                                      if (!(this as any).__hasRehydratedContext) {
+                                      // Если ещё не ре-гидратированы, пробуем по стабильному ключу из атрибута (только если persist: true)
+                                      if (this.#persist && !(this as any).__hasRehydratedContext) {
                                         const k = this.getAttribute("data-key") || this.getAttribute("data-k")
                                         if (k && (store as any).getActorByKeyAnyParent) {
                                           try {
@@ -322,12 +326,14 @@ export function MetaForFabric(params: FabricParams) {
                                                   shadow: this.#shadow,
                                                   update: this.update,
                                                 })
-                                                try {
-                                                  store.updateActorSnapshot(
-                                                    this.#store.id,
-                                                    JSON.stringify(this.snapshot)
-                                                  )
-                                                } catch (_) {}
+                                                if (this.#persist) {
+                                                  try {
+                                                    store.updateActorSnapshot(
+                                                      this.#store.id,
+                                                      JSON.stringify(this.snapshot)
+                                                    )
+                                                  } catch (_) {}
+                                                }
                                                 ;(this as any).__hasRehydratedContext = true
                                               }
                                             }
@@ -345,7 +351,9 @@ export function MetaForFabric(params: FabricParams) {
                                             shadow: this.#shadow,
                                             update: this.update,
                                           })
-                                          store.updateActorSnapshot(this.#store.id, JSON.stringify(this.snapshot))
+                                          if (this.#persist) {
+                                            store.updateActorSnapshot(this.#store.id, JSON.stringify(this.snapshot))
+                                          }
                                         } catch (_) {}
                                       }
                                     })
@@ -399,10 +407,12 @@ export function MetaForFabric(params: FabricParams) {
                                       })
                                       // Положение могло измениться; синхронизируем
                                       this.#syncLocation()
-                                      // Сохраняем актуальный snapshot в store
-                                      try {
-                                        store.updateActorSnapshot(this.#store.id, JSON.stringify(this.snapshot))
-                                      } catch (_) {}
+                                      // Сохраняем актуальный snapshot в store (только если persist: true)
+                                      if (this.#persist) {
+                                        try {
+                                          store.updateActorSnapshot(this.#store.id, JSON.stringify(this.snapshot))
+                                        } catch (_) {}
+                                      }
                                     }
                                     return updated
                                   }
@@ -510,10 +520,12 @@ export function MetaForFabric(params: FabricParams) {
                                     })
                                     // Положение могло измениться при переходах; синхронизируем
                                     this.#syncLocation()
-                                    // Фиксируем состояние после изменений
-                                    try {
-                                      store.updateActorSnapshot(this.#store.id, JSON.stringify(this.snapshot))
-                                    } catch (_) {}
+                                    // Фиксируем состояние после изменений (только если persist: true)
+                                    if (this.#persist) {
+                                      try {
+                                        store.updateActorSnapshot(this.#store.id, JSON.stringify(this.snapshot))
+                                      } catch (_) {}
+                                    }
                                   }
                                   #sendEvent = (message: Message) => {
                                     if (!this.#channel) return
@@ -619,6 +631,7 @@ export function MetaForFabric(params: FabricParams) {
                                       state: this.#state,
                                       states: this.#states,
                                       context: this.#context.snapshot,
+                                      persist: this.#persist,
                                       ...this.#processes.snapshot,
                                       ...this.#reactions.snapshot,
                                       ...this.#view.snapshot,

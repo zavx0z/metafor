@@ -30,5 +30,6 @@ export abstract class Store {
 export interface MetaRecord {
   meta: string
   fingerprint: string
+  persist: boolean
   timestamp: string
 }

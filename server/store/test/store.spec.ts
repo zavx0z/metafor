@@ -2,30 +2,6 @@ import { describe, it, expect, afterAll, beforeAll, beforeEach } from "bun:test"
 import { SQLiteStore } from "../index"
 import { Database } from "bun:sqlite"
 
-// SQL-запросы для создания таблиц
-const createTablesQuery = `
-CREATE TABLE IF NOT EXISTS meta (
-    meta TEXT PRIMARY KEY,
-    fingerprint TEXT NOT NULL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS actor (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    meta TEXT NOT NULL,
-    parent_id INTEGER,
-    idx INTEGER NOT NULL,
-    snapshot TEXT NOT NULL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (parent_id) REFERENCES actor (id) ON DELETE CASCADE,
-    FOREIGN KEY (meta) REFERENCES meta (meta) ON DELETE CASCADE,
-    UNIQUE (meta, parent_id)
-);
-
-CREATE INDEX IF NOT EXISTS idx_actor_meta ON actor (meta);
-CREATE INDEX IF NOT EXISTS idx_actor_parent ON actor (parent_id);
-`
-
 describe("хранилище sqlite", () => {
   let store: SQLiteStore
   let db: Database
@@ -52,19 +28,7 @@ describe("хранилище sqlite", () => {
       // Проверяем, что внешние ключи включены
       const fkCheck = db.prepare("PRAGMA foreign_keys").get() as { foreign_keys: number }
 
-      // Выполняем каждый оператор по отдельности для лучшего отслеживания ошибок
-      const statements = createTablesQuery.split(";").filter((s) => s.trim())
-      for (const stmt of statements) {
-        try {
-          db.exec(stmt + ";")
-        } catch (e) {
-          console.error("Error executing statement:", stmt)
-          console.error("Error:", e)
-          throw e
-        }
-      }
-
-      // Инициализируем хранилище
+      // Инициализируем хранилище - оно само создаст таблицы
       store = new SQLiteStore("test.sqlite")
     } catch (error) {
       console.error("Error in beforeAll:", error)
@@ -90,28 +54,8 @@ describe("хранилище sqlite", () => {
     db.run("DROP TABLE IF EXISTS actor")
     db.run("DROP TABLE IF EXISTS meta")
 
-    // Пересоздаем таблицы с актуальной схемой
-    const createTablesQuery = `
-CREATE TABLE IF NOT EXISTS meta (
-    meta TEXT PRIMARY KEY,
-    fingerprint TEXT NOT NULL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-);
-
-CREATE TABLE IF NOT EXISTS actor (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    meta TEXT NOT NULL,
-    parent_id INTEGER,
-    idx INTEGER NOT NULL,
-    snapshot TEXT NOT NULL,
-    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (parent_id) REFERENCES actor (id) ON DELETE CASCADE,
-    FOREIGN KEY (meta) REFERENCES meta (meta) ON DELETE CASCADE,
-    UNIQUE (meta, parent_id)
-);
-    `
-
-    db.exec(createTablesQuery)
+    // Создаем store заново, который пересоздаст таблицы с актуальной схемой
+    store = new SQLiteStore("test.sqlite")
   })
 
   it("должен создавать новую базу данных", async () => {
@@ -119,37 +63,33 @@ CREATE TABLE IF NOT EXISTS actor (
     expect(fileExist).toBe(true)
 
     // Проверяем, что таблицы существуют
-    const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all()
-    const tableNames = (tables as any[]).map((t) => t.name)
+    const metaColumns = store._getTableInfo("meta")
+    const actorColumns = store._getTableInfo("actor")
 
-    expect(tableNames).toContain("meta")
-    expect(tableNames).toContain("actor")
+    expect(metaColumns.length).toBeGreaterThan(0)
+    expect(actorColumns.length).toBeGreaterThan(0)
   })
 
   describe("проверка структуры таблиц", () => {
     it("таблица meta должна существовать и иметь правильные колонки", async () => {
-      const tableInfo = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='meta'").get()
-      expect(tableInfo).toBeDefined()
-
-      const columns = db.prepare("PRAGMA table_info(meta)").all()
-      const columnNames = columns.map((col: any) => col.name)
+      const columns = store._getTableInfo("meta")
+      const columnNames = columns.map((col) => col.name)
 
       expect(columnNames).toContain("meta")
       expect(columnNames).toContain("fingerprint")
+      expect(columnNames).toContain("persist")
       expect(columnNames).toContain("timestamp")
     })
 
     it("таблица actor должна существовать и иметь правильные колонки", async () => {
-      const tableInfo = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='actor'").get()
-      expect(tableInfo).toBeDefined()
-
-      const columns = db.prepare("PRAGMA table_info(actor)").all()
-      const columnNames = columns.map((col: any) => col.name)
+      const columns = store._getTableInfo("actor")
+      const columnNames = columns.map((col) => col.name)
 
       expect(columnNames).toContain("id")
       expect(columnNames).toContain("meta")
       expect(columnNames).toContain("parent_id")
       expect(columnNames).toContain("idx")
+      expect(columnNames).toContain("key")
       expect(columnNames).toContain("snapshot")
       expect(columnNames).toContain("timestamp")
     })

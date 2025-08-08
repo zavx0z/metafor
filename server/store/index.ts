@@ -8,6 +8,7 @@ const createTablesQuery = `
 CREATE TABLE IF NOT EXISTS meta (
     meta TEXT PRIMARY KEY,
         fingerprint TEXT NOT NULL,
+        persist BOOLEAN NOT NULL DEFAULT 1,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     );
 
@@ -31,10 +32,11 @@ CREATE INDEX IF NOT EXISTS idx_actor_meta_parent_idx ON actor (meta, parent_id, 
 
 // SQL-запросы для работы с meta
 const setMetaQuery = `
-INSERT INTO meta (meta, fingerprint) 
-VALUES (?, ?)
+INSERT INTO meta (meta, fingerprint, persist) 
+VALUES (?, ?, ?)
 ON CONFLICT(meta) DO UPDATE SET 
   fingerprint = excluded.fingerprint,
+  persist = excluded.persist,
   timestamp = CURRENT_TIMESTAMP;
 `
 
@@ -151,8 +153,17 @@ export class SQLiteStore implements Store {
     const existingMeta = this.#db.prepare(getMetaQuery).get(hash) as MetaRecord | null
 
     if (!existingMeta) {
+      // Извлекаем значение persist из fingerprint
+      let persist = true // по умолчанию
+      try {
+        const fingerprintObj = JSON.parse(fingerprint)
+        persist = fingerprintObj.persist ?? true
+      } catch (_) {
+        // если не удается распарсить, используем значение по умолчанию
+      }
+
       // Создаем новую мета-запись
-      this.#db.prepare(setMetaQuery).run(hash, fingerprint)
+      this.#db.prepare(setMetaQuery).run(hash, fingerprint, persist ? 1 : 0)
     }
 
     return hash
@@ -163,6 +174,13 @@ export class SQLiteStore implements Store {
    */
   getMeta(meta: string): MetaRecord | null {
     return this.#db.prepare(getMetaQuery).get(meta) as MetaRecord | null
+  }
+
+  /**
+   * @internal Метод для тестирования схемы базы данных
+   */
+  _getTableInfo(tableName: string): Array<{ name: string; type: string }> {
+    return this.#db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string; type: string }>
   }
 
   /**
