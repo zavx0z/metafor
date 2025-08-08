@@ -84,6 +84,7 @@ describe("реакции", () => {
           value: {
             name: childName,
             state: "state_1",
+            process: false,
             states: {
               state_1: {
                 state_2: {

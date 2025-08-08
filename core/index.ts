@@ -383,6 +383,7 @@ export function MetaForFabric(params: FabricParams) {
                                     return {
                                       name: this.#name,
                                       state: this.#state,
+                                      process: this.#process,
                                       states: this.#states,
                                       context: this.#context.snapshot,
                                       ...this.#processes.snapshot,

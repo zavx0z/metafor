@@ -57,6 +57,7 @@ describe("MetaFor: инициализация с действиями", async ()
           value: {
             name: "test-with-action",
             state: "state_1",
+            process: false,
             states: {
               state_1: { state_2: { value: "ctx_2" } },
               state_2: { state_3: { value: "ctx_3" } },

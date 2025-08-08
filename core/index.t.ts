@@ -45,6 +45,8 @@ export interface FingerPrint<C extends ContextSchema, S extends string> {
 export interface Snapshot<C extends ContextSchema, S extends string> extends FingerPrint<C, S> {
   /** Текущее состояние */
   state: S
+  /** Индикатор выполнения процесса в текущем состоянии */
+  process: boolean
 }
 
 /**
