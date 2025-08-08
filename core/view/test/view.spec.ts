@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test"
-import { createRef } from "../../html/directives/ref"
+import { createRef } from "../html/directives/ref.ts"
 import { MetaFor } from "../../../web/metafor.ts"
 
 describe("MetaFor view", () => {

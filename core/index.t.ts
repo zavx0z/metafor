@@ -11,7 +11,7 @@ import type { ReactionsDeclaration, SnapshotReactions } from "./react/index.t"
 import type { StatesConfig } from "./state"
 import type { ViewDeclaration } from "./view/index.t"
 import type { Store } from "./store/index.t"
-import type { createRef } from "./html/directives"
+import type { createRef } from "./view/html/directives"
 
 declare global {
   var DEV: boolean

@@ -62,7 +62,7 @@ import type { Core, FabricParams, FingerPrint, MetaForType, MetaForConfig, Snaps
 import type { ViewDeclaration } from "./view/index.t.ts"
 import type { ReactionsDeclaration } from "./react/index.t.ts"
 import type { ContextTypes } from "./context/types.t.ts"
-import { createRef } from "./html/directives"
+import { createRef } from "./view/html/directives/index.ts"
 import type { ActorStore } from "./store/index.t.ts"
 import { Processes } from "./proc/index.ts"
 import { Reactions } from "./react/index.ts"
@@ -315,7 +315,8 @@ export function MetaForFabric(params: FabricParams) {
                                           this.#setState(state as S)
                                           this.#channel &&
                                             this.#broadcastMessage(
-                                              stateAfterActionMessage(this.#meta, { index: 0 }, state as S) )
+                                              stateAfterActionMessage(this.#meta, { index: 0 }, state as S)
+                                            )
                                           if (!this.#process) this.#transition()
                                         }
                                         break

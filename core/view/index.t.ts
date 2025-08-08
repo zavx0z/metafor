@@ -5,14 +5,14 @@
  */
 
 import type { ContextSchema, Update, ExtractValues } from "../context"
-import type { choose } from "../html/directives/choose"
-import type { map } from "../html/directives/map"
-import type { ref } from "../html/directives/ref"
-import type { repeat } from "../html/directives/repeat"
-import type { styleMap } from "../html/directives/style-map"
-import type { when } from "../html/directives/when"
-import type { html } from "../html"
-import type { TemplateResult } from "../html/index.t"
+import type { choose } from "./html/directives/choose"
+import type { map } from "./html/directives/map"
+import type { ref } from "./html/directives/ref"
+import type { repeat } from "./html/directives/repeat"
+import type { styleMap } from "./html/directives/style-map"
+import type { when } from "./html/directives/when"
+import type { html } from "./html"
+import type { TemplateResult } from "./html/index.t"
 import type { Core } from "../index.t"
 
 /**

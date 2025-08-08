@@ -104,10 +104,10 @@
 
 import type { AttributePart, ChildPart } from "./index.js"
 import type { Disconnectable, Part } from "./index.t.js"
-import { isSingleExpression } from "./directive-helpers"
-import { Directive } from "./directive"
-import { type PartInfo, PartType } from "./directive.t"
-import { isHtmlDebugEnabled } from "../../web/debug/config.js"
+import { isSingleExpression } from "./directive-helpers.js"
+import { Directive } from "./directive.js"
+import { type PartInfo, PartType } from "./directive.t.js"
+import { isHtmlDebugEnabled } from "../../../web/debug/config.js"
 export * from "./directive.js"
 
 /**

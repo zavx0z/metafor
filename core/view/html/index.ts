@@ -45,8 +45,9 @@ import {
   getHtmlPolyfillSupport,
   isHtmlDebugLogEventsEnabled,
   enableHtmlDebug,
-} from "../../web/debug/config"
-import type { ActorInternal } from "../index.t"
+} from "../../../web/debug/config"
+import type { ActorInternal } from "../../index.t"
+import { metaTemplateCache, templateCache } from "../maps"
 
 const ENABLE_EXTRA_SECURITY_HOOKS = true
 const ENABLE_SHADYDOM_NOPATCH = true
@@ -292,18 +293,6 @@ const doubleQuoteAttrEndRegex = /"/g
  */
 const rawTextElement = /^(?:script|style|textarea|title)$/i
 
-/** Типы TemplateResult */
-// Важно: эти должны соответствовать значениям в PartType
-
-// Кэш для обработанных meta- шаблонов
-const metaTemplateCache = new WeakMap<
-  TemplateStringsArray,
-  {
-    processedStrings: TemplateStringsArray
-    metaIndices: Set<number>
-  }
->()
-
 /**
  * Генерирует функцию тега, которая возвращает TemplateResult с заданным
  * типом результата.
@@ -333,88 +322,6 @@ const tag =
         )
       }
     }
-
-    // Обрабатываем meta- теги (динамические имена тегов вида <meta-${hash}>)
-    const hasMetaTags = strings.some((str) => str.includes("meta-"))
-    if (hasMetaTags) {
-      let cached = metaTemplateCache.get(strings)
-
-      if (!cached) {
-        const resultStrings: string[] = []
-        const metaIndices = new Set<number>()
-        let stripNextLeadingGt = false
-        let pendingMetaPrefix: string | null = null
-
-        for (let index = 0; index < strings.length; index++) {
-          let str = strings[index]!
-          let injectedFromPending = false
-          if (pendingMetaPrefix) {
-            // Перенос ранее собранного `<meta-<hash>` в начало текущего сегмента
-            str = pendingMetaPrefix + str
-            pendingMetaPrefix = null
-            injectedFromPending = true
-          }
-          if (stripNextLeadingGt && str.startsWith(">")) {
-            str = str.slice(1)
-            stripNextLeadingGt = false
-          }
-
-          const inject = (token: string) => {
-            const pos = str.lastIndexOf(token)
-            if (pos === -1 || index >= values.length) return false
-            const before = str.slice(0, pos)
-            const after = str.slice(pos + token.length)
-            let joined = before + token + String(values[index]) + after
-            const next = strings[index + 1] ?? ""
-            if (next.startsWith(">")) {
-              // Случай без атрибутов: переносим '>' в текущую строку
-              joined += ">"
-              stripNextLeadingGt = true
-            } else if (token === "<meta-" && next && !next.startsWith(">")) {
-              // Случай с атрибутами: переносим `<meta-` + hash к следующему сегменту,
-              // чтобы meta-<hash> оказался в strings[index+1]
-              resultStrings.push(before)
-              pendingMetaPrefix = `<meta-${String(values[index])}${after}`
-              metaIndices.add(index)
-              return true
-            } else if (next && !/^\s|^>|^\/>/.test(next)) {
-              // Защита от склейки имени тега с атрибутом без пробела
-              if (!/\s$/.test(joined)) joined += " "
-            }
-            resultStrings.push(joined)
-            metaIndices.add(index)
-            return true
-          }
-
-          if (!injectedFromPending && (inject("</meta-") || inject("<meta-"))) {
-            // инъекция выполнена
-          } else {
-            resultStrings.push(str)
-          }
-        }
-
-        const processedStrings = Object.assign([...resultStrings], {
-          raw: resultStrings.slice(),
-        }) as TemplateStringsArray
-        cached = { processedStrings, metaIndices }
-        metaTemplateCache.set(strings, cached)
-      }
-
-      // Формируем values, исключая встроенные в строки
-      const resultValues: unknown[] = []
-      for (let i = 0; i < values.length; i++) {
-        if (!cached.metaIndices.has(i)) {
-          resultValues.push(values[i])
-        }
-      }
-
-      return {
-        ["_$htmlType$"]: type,
-        strings: cached.processedStrings,
-        values: resultValues,
-      }
-    }
-
     return {
       // Это свойство должно оставаться неминифицированным.
       ["_$htmlType$"]: type,
@@ -519,15 +426,6 @@ export const noChange = Symbol.for("html-noChange")
  * В свойственных выражениях `nothing` становится `undefined`.
  */
 export const nothing = Symbol.for("html-nothing")
-
-/**
- * Кэш подготовленных шаблонов, ключами которого являются TemplateStringsArray
- * и _не_ учитывается конкретный тег шаблона, который использовался. Это
- * означает, что теги шаблонов не могут быть динамическими - они должны быть
- * статическими и быть одним из html, svg, или attr. Это ограничение
- * упрощает поиск в кэше, который является горячим путем для рендеринга.
- */
-const templateCache = new WeakMap<TemplateStringsArray, Template>()
 
 const walker = d.createTreeWalker(d, 129 /* NodeFilter.SHOW_{ELEMENT|COMMENT} */)
 

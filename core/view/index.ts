@@ -1,14 +1,17 @@
+import { isHtmlDebugEnabled } from "../../web/debug/config.ts"
 import type { ExtractValues, Update } from "../context/index.t.ts"
 import type { ContextSchema } from "../context/types.t.ts"
-import { choose } from "../html/directives/choose.ts"
-import { map } from "../html/directives/map.ts"
-import { ref } from "../html/directives/ref.ts"
-import { repeat } from "../html/directives/repeat.ts"
-import { styleMap } from "../html/directives/style-map.ts"
-import { when } from "../html/directives/when.ts"
-import { html, render } from "../html/index.ts"
+import { choose } from "./html/directives/choose.ts"
+import { map } from "./html/directives/map.ts"
+import { ref } from "./html/directives/ref.ts"
+import { repeat } from "./html/directives/repeat.ts"
+import { styleMap } from "./html/directives/style-map.ts"
+import { when } from "./html/directives/when.ts"
+import type { TemplateResult } from "./html/index.t.ts"
+import { render } from "./html/index.ts"
 import type { Core } from "../index.t.ts"
 import type { RenderFunc, ViewDeclaration } from "./index.t.ts"
+import { metaTemplateCache } from "./maps"
 
 export class View<C extends ContextSchema, S extends string, I extends Core> {
   #render: RenderFunc<C, S, I> | null = null
@@ -19,7 +22,107 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
   onMount: ({ core }: { core: I }) => void = () => {}
   onDestroy: ({ core }: { core: I }) => void = () => {}
   attachStyles = (shadow: ShadowRoot) => this.sheet && shadow.adoptedStyleSheets.push(this.sheet)
+  html = (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<1> => {
+    if (isHtmlDebugEnabled()) {
+      // Импорт static-html.js вызывает циклическую зависимость, которую g3 не
+      // обрабатывает. Вместо этого мы знаем, что статические значения должны
+      // иметь поле `_$htmlStatic$`.
+      if (values.some((val) => (val as { _$htmlStatic$: unknown })?.["_$htmlStatic$"])) {
+        console.warn(
+          `Статические значения 'literal' или 'unsafeStatic' не могут использоваться в нестатических шаблонах.\n` +
+            `Пожалуйста, используйте статическую функцию 'html' для тега, чтобы увидеть https://metafor.dev/docs/templates/expressions/#static-expressions`
+        )
+      }
+    }
 
+    // Обрабатываем meta- теги (динамические имена тегов вида <meta-${hash}>)
+    const hasMetaTags = strings.some((str) => str.includes("meta-"))
+    if (hasMetaTags) {
+      let cached = metaTemplateCache.get(strings)
+
+      if (!cached) {
+        const resultStrings: string[] = []
+        const metaIndices = new Set<number>()
+        let stripNextLeadingGt = false
+        let pendingMetaPrefix: string | null = null
+
+        for (let index = 0; index < strings.length; index++) {
+          let str = strings[index]!
+          let injectedFromPending = false
+          if (pendingMetaPrefix) {
+            // Перенос ранее собранного `<meta-<hash>` в начало текущего сегмента
+            str = pendingMetaPrefix + str
+            pendingMetaPrefix = null
+            injectedFromPending = true
+          }
+          if (stripNextLeadingGt && str.startsWith(">")) {
+            str = str.slice(1)
+            stripNextLeadingGt = false
+          }
+
+          const inject = (token: string) => {
+            const pos = str.lastIndexOf(token)
+            if (pos === -1 || index >= values.length) return false
+            const before = str.slice(0, pos)
+            const after = str.slice(pos + token.length)
+            let joined = before + token + String(values[index]) + after
+            const next = strings[index + 1] ?? ""
+            if (next.startsWith(">")) {
+              // Случай без атрибутов: переносим '>' в текущую строку
+              joined += ">"
+              stripNextLeadingGt = true
+            } else if (token === "<meta-" && next && !next.startsWith(">")) {
+              // Случай с атрибутами: переносим `<meta-` + hash к следующему сегменту,
+              // чтобы meta-<hash> оказался в strings[index+1]
+              resultStrings.push(before)
+              pendingMetaPrefix = `<meta-${String(values[index])}${after}`
+              metaIndices.add(index)
+              return true
+            } else if (next && !/^\s|^>|^\/>/.test(next)) {
+              // Защита от склейки имени тега с атрибутом без пробела
+              if (!/\s$/.test(joined)) joined += " "
+            }
+            resultStrings.push(joined)
+            metaIndices.add(index)
+            return true
+          }
+
+          if (!injectedFromPending && (inject("</meta-") || inject("<meta-"))) {
+            // инъекция выполнена
+          } else {
+            resultStrings.push(str)
+          }
+        }
+
+        const processedStrings = Object.assign([...resultStrings], {
+          raw: resultStrings.slice(),
+        }) as TemplateStringsArray
+        cached = { processedStrings, metaIndices }
+        metaTemplateCache.set(strings, cached)
+      }
+
+      // Формируем values, исключая встроенные в строки
+      const resultValues: unknown[] = []
+      for (let i = 0; i < values.length; i++) {
+        if (!cached.metaIndices.has(i)) {
+          resultValues.push(values[i])
+        }
+      }
+
+      return {
+        ["_$htmlType$"]: 1,
+        strings: cached.processedStrings,
+        values: resultValues,
+      }
+    }
+
+    return {
+      // Это свойство должно оставаться неминифицированным.
+      ["_$htmlType$"]: 1,
+      strings,
+      values,
+    }
+  }
   /**
    * @param config конфигурация представления {@linkcode ViewDeclaration} [опционально]
    */
@@ -63,7 +166,7 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
       core,
       update,
       style: styleMap,
-      html,
+      html: this.html,
       ref,
       repeat,
       when,
@@ -175,7 +278,6 @@ export function restoreCSSFunction(template: string) {
   const functionString = `({ css }) => css\`${template}\``
   return eval(functionString)
 }
-
 
 /**
  * Создает статическую view функцию с заменой нескольких динамических хешей мет

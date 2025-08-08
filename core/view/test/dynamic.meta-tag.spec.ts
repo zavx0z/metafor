@@ -1,5 +1,5 @@
 import { describe, test, expect } from "bun:test"
-import { html } from "../.."
+import { View } from "../index.ts"
 
 describe("динамические meta-теги в html-шаблонезаторе", () => {
   const hash = "child-243232"
@@ -7,15 +7,17 @@ describe("динамические meta-теги в html-шаблонезато�
   test("соответствие шаблонов (с контекстом)", () => {
     const parentMessage = "message"
     const parentCount = 0
+    const view = new View()
 
-    const template1 = html`<div>
+    const template1 = view.html`<div>
       <h1>Родитель: ${parentMessage}</h1>
       <meta-${hash}
         context=${{
           message: parentMessage,
           count: parentCount,
         }}></meta-${hash}>
-    </div>`
+    </div>
+    `
 
     // Хеш должен попасть в strings[2]
     expect(template1.strings[2]).toContain(`meta-${hash}`)
@@ -25,8 +27,9 @@ describe("динамические meta-теги в html-шаблонезато�
 
   test("соответствие шаблонов без контекста", () => {
     const parentMessage = "message"
+    const view = new View()
 
-    const template2 = html`<div>
+    const template2 = view.html`<div>
       <h1>Родитель: ${parentMessage}</h1>
       <meta-${hash}></meta-${hash}>
     </div>`
