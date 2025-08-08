@@ -32,7 +32,7 @@ describe("персистентность: ре-гидратация корнев
   test("значения контекста восстанавливаются перед первым рендером", async () => {
     // создаем фабрику с тем же стором
     const LocalMetaFor = MetaForFabric({ store })
-    const name = Bun.randomUUIDv7()
+    const name = "persist-rehydrate-root"
 
     const hash = LocalMetaFor(name)
       .context((types) => ({

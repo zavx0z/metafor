@@ -279,6 +279,22 @@ class RepeatDirective extends Directive {
       }
     }
 
+    // Синхронизируем позиции всех meta-* акторов в контейнере после манипуляций
+    try {
+      const container = containerPart._$startNode.parentNode as Element | null
+      if (container) {
+        const all = Array.from(container.querySelectorAll("*"))
+        for (const el of all) {
+          const tag = (el as Element).tagName?.toLowerCase?.() || ""
+          if (tag.startsWith("meta-")) {
+            try {
+              ;(el as any).__syncLocation?.()
+            } catch {}
+          }
+        }
+      }
+    } catch {}
+
     // Сохраняем порядок новых частей для следующего прохода
     this._itemKeys = newKeys
     // Прямо устанавливаем значение части, обходя её dirty-checking

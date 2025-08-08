@@ -67,7 +67,12 @@ describe("удаление родителя и реиндексация дете
     expect(p0.path, "P0 начальный idx 0").toBe(`${ph}:0`)
     expect(p1.path, "P1 начальный idx 1").toBe(`${ph}:1`)
 
-    // Удаляем первого родителя
+    // Меняем контекст у детей P0 перед удалением
+    const p0Children = Array.from(p0.shadowRoot!.querySelectorAll(`meta-${ch}`)) as any[]
+    p0Children[0].update({ v: "will-be-deleted" })
+    await Bun.sleep(10)
+
+    // Удаляем первого родителя (P0)
     parents = ["P1"]
     render(Page(), container)
     await Bun.sleep(10)
@@ -80,8 +85,8 @@ describe("удаление родителя и реиндексация дете
       "дети p1 сместились в новый сегмент родителя"
     ).toEqual([`${ph}:0/${ch}:0`, `${ph}:0/${ch}:1`])
 
-    // Ре-гидратация: меняем контекст у первого ребёнка, повторно монтируем
-    ;(cNodes[0] as any).update({ v: "persist-rmparent" })
+    // Ре-гидратация: меняем контекст у первого ребёнка P1, повторно монтируем
+    cNodes[0].update({ v: "persist-rmparent" })
     await Bun.sleep(120)
     container.remove()
     container = document.createElement("div")
@@ -90,7 +95,10 @@ describe("удаление родителя и реиндексация дете
     await Bun.sleep(120)
     const np1b = container.querySelector(`meta-${ph}[data-p="P1"]`) as any
     const cNodesb = Array.from(np1b.shadowRoot!.querySelectorAll(`meta-${ch}`)) as any[]
-    expect(cNodesb[0].snapshot.context.v.value, "после удаления/ре-монта контекст сохранился").toBe("persist-rmparent")
+    expect(cNodesb[0].snapshot.context.v.value, "контекст детей P1 сохранился").toBe("persist-rmparent")
+
+    // Проверяем что дети удалённого P0 НЕ восстановились (CASCADE удаление)
+    expect(cNodesb.length, "только дети P1 остались").toBe(2)
   })
 
   afterAll(async () => {
