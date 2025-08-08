@@ -154,7 +154,10 @@ export function MetaForFabric(params: FabricParams) {
                                   /** ------------process-------------------------------- */
                                   constructor() {
                                     super()
-                                    this.#shadow = this.attachShadow({ mode: "closed" })
+                                    // В DEV-режиме открываем shadow для удобства тестирования
+                                    this.#shadow = this.attachShadow({
+                                      mode: (dev ? "open" : "closed") as ShadowRootMode,
+                                    })
 
                                     this.#context = new Context(schema)
                                     this.#states = states
