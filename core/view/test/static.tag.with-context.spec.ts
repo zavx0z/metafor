@@ -48,8 +48,8 @@ describe("работа со статическими тегами с перед�
             meta: childHash,
             op: "add",
           })
-          .equal(({ message }) => {
-            childContext = message.patch.value.context
+          .equal(({ patch }) => {
+            childContext = patch.value.context
           }),
       ],
     ])
@@ -94,7 +94,7 @@ describe("работа со статическими тегами с перед�
 
   test("статический тег работает корректно - нет лишних патчей", () => {
     expect(childMessages, "патч обновления контекста ребенка не должен быть").toHaveLength(1)
-    expect(childMessages[0]!.patch.op, "патч обновления контекста ребенка должен быть add").toEqual("add")
+    expect(childMessages[0]!.patches[0]!.op, "патч обновления контекста ребенка должен быть add").toEqual("add")
   })
 
   test("статический тег работает корректно - ребенок рендерится один раз", () => {

@@ -13,7 +13,6 @@ import type { ViewDeclaration } from "./view/index.t"
 import type { Store } from "./store/index.t"
 import type { createRef } from "./html/directives"
 
-
 declare global {
   var DEV: boolean
 }
@@ -107,7 +106,7 @@ export interface ActorInternal extends HTMLElement {
  * где hash — это MD5 хеш от всей конфигурации компонента.
  */
 
-export type MetaFor = (
+export type MetaForType = (
   name: string,
   config?: MetaForConfig
 ) => {
@@ -215,7 +214,7 @@ export type MetaFor = (
            * .reactions(reaction => [
            *   ["idle", "loading"], // Состояния, в которых активна реакция
            *   {
-           *     filter: (args) => args.meta.tag === "roadmap" && args.patch.op === "replace",
+           *     filter: (args) => args.meta.tag === "roadmap" && args.patches[0]?.op === "replace",
            *     update: ({ update, context, patch }) => {
            *       update({
            *         lastMessage: patch.value,

@@ -1,6 +1,6 @@
 import { test, expect, describe } from "bun:test"
-import type { Message } from "../../message/index.t.ts"
 import { MetaFor } from "../../../web/metafor.ts"
+import type { ReactionParams } from "../index.t.ts"
 
 describe("реакции", () => {
   test("MetaFor - базовый функционал", async () => {
@@ -34,10 +34,10 @@ describe("реакции", () => {
       .view({
         render: ({ html }) => html`<div></div>`,
       })
-    const reactionMessages: Array<Message> = []
+    const reactionMessages: Array<ReactionParams> = []
 
     // Функция для записи сообщений
-    const recordMessage = (message: Message) => {
+    const recordMessage = (message: ReactionParams) => {
       reactionMessages.push(message)
     }
 
@@ -55,7 +55,7 @@ describe("реакции", () => {
           ["state_1"],
           reaction({ title: "record_all_messages" })
             .filter({ meta: childHash })
-            .equal(({ message }) => recordMessage(message)),
+            .equal(({ meta, actor, timestamp, patch }) => recordMessage({ meta, actor, timestamp, patch })),
         ],
         [
           ["state_1"],

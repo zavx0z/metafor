@@ -75,7 +75,7 @@ export abstract class ReactionsBase<C extends ContextSchema, S extends string, I
     patch: JsonPatch
     update: Update<C>
   }) {
-    const message: Message = {
+    const message = {
       meta: params.meta,
       actor: params.actor,
       timestamp: params.timestamp,
@@ -88,7 +88,7 @@ export abstract class ReactionsBase<C extends ContextSchema, S extends string, I
           context: params.context,
           core: params.core,
           state: params.state,
-          message,
+          ...message,
         })
   }
 

@@ -42,7 +42,7 @@ describe("MetaFor: инициализация с действиями", async ()
 
   test("сообщение 1", () => {
     const message = messages[0]!
-    const patch = message.patch
+    const patch = message.patches[0]!
 
     expect(patch.op, "patch.op должен быть 'add'").toBe("add")
     expect(patch.path, "patch.path должен быть '/' ").toBe("/")
@@ -50,66 +50,68 @@ describe("MetaFor: инициализация с действиями", async ()
       meta: hex,
       actor: { index: 0 },
       timestamp: expect.any(Number),
-      patch: {
-        op: "add",
-        path: "/",
-        value: {
-          name: "test-with-action",
-          state: "state_1",
-          states: {
-            state_1: { state_2: { value: "ctx_2" } },
-            state_2: { state_3: { value: "ctx_3" } },
-            state_3: {},
-          },
-          context: {
-            value: {
-              type: "string",
-              required: false,
-              title: "Value",
-              default: "ctx_1",
-              value: "ctx_1",
+      patches: [
+        {
+          op: "add",
+          path: "/",
+          value: {
+            name: "test-with-action",
+            state: "state_1",
+            states: {
+              state_1: { state_2: { value: "ctx_2" } },
+              state_2: { state_3: { value: "ctx_3" } },
+              state_3: {},
             },
-          },
-          processes: {
-            state_1: {
-              success: {
-                write: ["value"],
+            context: {
+              value: {
+                type: "string",
+                required: false,
+                title: "Value",
+                default: "ctx_1",
+                value: "ctx_1",
               },
             },
-            state_2: {
-              success: {
-                write: ["value"],
+            processes: {
+              state_1: {
+                success: {
+                  write: ["value"],
+                },
               },
-            },
-            state_3: {
-              success: {
-                write: ["value"],
+              state_2: {
+                success: {
+                  write: ["value"],
+                },
+              },
+              state_3: {
+                success: {
+                  write: ["value"],
+                },
               },
             },
           },
         },
-      },
+      ],
     })
   })
   // console.log(messages)
   describe("state_1", () => {
     test("вход", () => {
       const message = messages[1]!
-      const patch = message.patch
+      const patch = message.patches[0]!
       expect(patch.op, "patch.op должен быть 'test'").toBe("test")
       expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
       expect(patch.value, "patch.value должен быть 'state_1'").toEqual("state_1")
     })
     test("обновление контекста", () => {
       const message = messages[2]!
-      const patch = message.patch
+      const patch = message.patches[0]!
       expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
       expect(patch.path, "patch.path должен быть '/context' ").toBe("/context")
       expect(patch.value, "patch.value должен быть { value: 'ctx_2' }").toEqual({ value: "ctx_2" })
     })
     test("переход", () => {
       const message = messages[3]!
-      const patch = message.patch
+      const patch = message.patches[0]!
       expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
       expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
       expect(patch.value, "patch.value должен быть state_1").toEqual("state_1")
@@ -118,21 +120,21 @@ describe("MetaFor: инициализация с действиями", async ()
   describe("state_2", () => {
     test("вход", () => {
       const message = messages[4]!
-      const patch = message.patch
+      const patch = message.patches[0]!
       expect(patch.op, "patch.op должен быть 'test'").toBe("test")
       expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
       expect(patch.value, "patch.value должен быть 'state_2'").toEqual("state_2")
     })
     test("обновление контекста", () => {
       const message = messages[5]!
-      const patch = message.patch
+      const patch = message.patches[0]!
       expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
       expect(patch.path, "patch.path должен быть '/context' ").toBe("/context")
       expect(patch.value, "patch.value должен быть { value: 'ctx_3' }").toEqual({ value: "ctx_3" })
     })
     test("переход", () => {
       const message = messages[6]!
-      const patch = message.patch
+      const patch = message.patches[0]!
       expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
       expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
       expect(patch.value, "patch.value должен быть state_2").toEqual("state_2")
@@ -141,21 +143,21 @@ describe("MetaFor: инициализация с действиями", async ()
   describe("state_3", () => {
     test("вход", () => {
       const message = messages[7]!
-      const patch = message.patch
+      const patch = message.patches[0]!
       expect(patch.op, "patch.op должен быть 'test'").toBe("test")
       expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
       expect(patch.value, "patch.value должен быть 'state_3'").toEqual("state_3")
     })
     test("обновление контекста", () => {
       const message = messages[8]!
-      const patch = message.patch
+      const patch = message.patches[0]!
       expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
       expect(patch.path, "patch.path должен быть '/context' ").toBe("/context")
       expect(patch.value, "patch.value должен быть { value: 'ctx_4' }").toEqual({ value: "ctx_4" })
     })
     test("переход", () => {
       const message = messages[9]!
-      const patch = message.patch
+      const patch = message.patches[0]!
       expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
       expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
       expect(patch.value, "patch.value должен быть state_3").toEqual("state_3")

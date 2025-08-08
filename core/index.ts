@@ -58,7 +58,7 @@
 import { Context, type ContextSchema, type ExtractValues } from "./context"
 import { checkTransitionConditions, type StatesConfig, validateNoUnconditionalCycles } from "./state"
 import type { Process, ProcessesDeclaration } from "./proc/index.t.ts"
-import type { Core, FabricParams, FingerPrint, MetaFor, MetaForConfig, Snapshot } from "./index.t.ts"
+import type { Core, FabricParams, FingerPrint, MetaForType, MetaForConfig, Snapshot } from "./index.t.ts"
 import type { ViewDeclaration } from "./view/index.t.ts"
 import type { ReactionsDeclaration } from "./react/index.t.ts"
 import type { ContextTypes } from "./context/types.t.ts"
@@ -315,8 +315,7 @@ export function MetaForFabric(params: FabricParams) {
                                           this.#setState(state as S)
                                           this.#channel &&
                                             this.#broadcastMessage(
-                                              stateAfterActionMessage(this.#meta, { index: 0 }, state as S)
-                                            )
+                                              stateAfterActionMessage(this.#meta, { index: 0 }, state as S) )
                                           if (!this.#process) this.#transition()
                                         }
                                         break
@@ -396,16 +395,18 @@ export function MetaForFabric(params: FabricParams) {
                                   /** Обработка входящих сообщений для реакций */
                                   #handleReactionMessage = (message: Message) => {
                                     if (!this.#reactions.hasReactions()) return
-                                    this.#reactions.run({
-                                      context: this.#context.getSnapshot(),
-                                      core: this.#core,
-                                      meta: message.meta,
-                                      actor: message.actor,
-                                      timestamp: message.timestamp,
-                                      patch: message.patch,
-                                      state: this.#state,
-                                      update: this.update,
-                                    })
+                                    for (const patch of message.patches) {
+                                      this.#reactions.run({
+                                        context: this.#context.getSnapshot(),
+                                        core: this.#core,
+                                        meta: message.meta,
+                                        actor: message.actor,
+                                        timestamp: message.timestamp,
+                                        patch,
+                                        state: this.#state,
+                                        update: this.update,
+                                      })
+                                    }
                                   }
                                 }
                               )
@@ -422,5 +423,5 @@ export function MetaForFabric(params: FabricParams) {
         }
       },
     }
-  } as MetaFor
+  } as MetaForType
 }

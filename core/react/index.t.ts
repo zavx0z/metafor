@@ -6,7 +6,7 @@
 
 import type { ContextSchema, ExtractValues } from "../context/index.t"
 import type { Core } from "../index.t"
-import type { JsonPatch, Message } from "../message"
+import type { ActorInfo, JsonPatch } from "../message"
 import type { ReactionFilterConditions as ReactionConditions } from "./condition.t"
 
 /**
@@ -48,12 +48,23 @@ export type ReactionUpdate<C extends ContextSchema, S extends string, I extends 
   context: ExtractValues<C>
   /** Core объект */
   core: I
-  /** Сообщение с метаданными и патчем */
-  message: Message
+  /** Хеш меты компонента-актора */
+  meta: string
+  /** Информация об акторе */
+  actor: ActorInfo
+  /** Временная метка */
+  timestamp: number
+  /** Патч для применения к актору */
+  patch: JsonPatch
   /** Текущее состояние */
   state: S
 }) => void
-
+export type ReactionParams = {
+  meta: string
+  actor: ActorInfo
+  timestamp: number
+  patch: JsonPatch
+}
 /**
  * Конфигурация одной реакции
  *
@@ -86,7 +97,7 @@ export type Reaction<C extends ContextSchema, S extends string, I extends Core> 
   /** Описание реакции для документации */
   description?: string
   /** Функция фильтрации событий */
-  filter: (args: Message) => boolean
+  filter: (args: ReactionParams) => boolean
   /** Функция обработки события */
   update: ReactionUpdate<C, S, I>
 }

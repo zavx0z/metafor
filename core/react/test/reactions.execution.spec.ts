@@ -19,7 +19,7 @@ test("Выполнение реакций через run", () => {
     meta: "test",
     actor: { index: 0 },
     timestamp: Date.now(),
-    patch: { op: "replace", path: "/context", value: 1 },
+    patches: [{ op: "replace", path: "/context", value: 1 }],
   }
 
   const registry = new Reactions<Ctx, State>((reaction) => [

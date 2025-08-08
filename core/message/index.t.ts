@@ -12,13 +12,13 @@
  @property actor.index - Индекс актора по отношению к братьям в родителе
  @property actor.parent - Хеш родительской меты актора
  @property timestamp - Время отправки сообщения
- @property patch - Патч для применения к актору
+ @property patches - Массив патчей для применения к актору (JSON Patch RFC 6902)
  */
 export type Message = {
   meta: string
   actor: ActorInfo
   timestamp: number
-  patch: JsonPatch
+  patches: JsonPatch[]
 }
 
 /**

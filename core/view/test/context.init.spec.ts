@@ -46,8 +46,8 @@ describe("инициализация ребенка с переданным ко
           .filter({
             op: "add",
           })
-          .equal(({ message }) => {
-            childContext = message.patch.value.context
+          .equal(({ patch }) => {
+            childContext = patch.value.context
           }),
       ],
     ])
@@ -86,7 +86,7 @@ describe("инициализация ребенка с переданным ко
   })
   test("не должно быть сообщения с патчем обновления контекста ребенка", async () => {
     expect(childMessages, "патч обновления контекста ребенка не должен быть").toHaveLength(1)
-    expect(childMessages[0]!.patch.op, "патч обновления контекста ребенка должен быть add").toEqual("add")
+    expect(childMessages[0]!.patches[0]!.op, "патч обновления контекста ребенка должен быть add").toEqual("add")
   })
   test("ребенок должен быть отрендерен 1 раз", () => {
     expect(countChildMount, "ребенок должен быть отрендерен 1 раз").toEqual(1)

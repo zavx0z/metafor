@@ -77,7 +77,7 @@ describe("работа со статическими тегами с перед�
 
   test("статический тег работает корректно - нет лишних патчей", () => {
     expect(childMessages, "патч обновления core ребенка не должен быть").toHaveLength(1)
-    expect(childMessages[0]!.patch.op, "патч обновления core ребенка должен быть add").toEqual("add")
+    expect(childMessages[0]!.patches[0]!.op, "патч обновления core ребенка должен быть add").toEqual("add")
   })
 
   test("статический тег работает корректно - ребенок рендерится один раз", () => {

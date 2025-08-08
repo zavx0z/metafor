@@ -53,8 +53,8 @@ describe("обновление контекста ребенка", async () => {
           .filter({
             op: "add",
           })
-          .equal(({ message }) => {
-            childInitContext = message.patch.value.context
+          .equal(({ patch }) => {
+            childInitContext = patch.value.context
           }),
       ],
       [
@@ -64,8 +64,8 @@ describe("обновление контекста ребенка", async () => {
             op: "replace",
             path: "/context",
           })
-          .equal(({ message }) => {
-            childUpdateContext = message.patch.value
+          .equal(({ patch }) => {
+            childUpdateContext = patch.value
           }),
       ],
     ])

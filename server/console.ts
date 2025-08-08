@@ -19,48 +19,51 @@ const colors = {
  * Функция для цветного вывода debug логов
  */
 export function log(event: MessageEvent<Message>) {
-  const { meta, patch } = event.data
+  const { meta, patches } = event.data
   const timestamp = new Date().toLocaleTimeString("ru-RU", { hour12: false })
   const tag = meta || "unknown"
 
-  switch (patch.path) {
-    case "/state":
-      console.log(
-        `${colors.gray}[${timestamp}]${colors.reset} ${colors.cyan}${tag.padEnd(20)}${colors.reset} | ${
-          colors.yellow
-        }STATE${colors.reset}  | ${colors.magenta}${patch.op.padEnd(8)}${colors.reset} | ${colors.green}${patch.value}${
-          colors.reset
-        }`
-      )
-      break
-    case "/context":
-      const contextStr = JSON.stringify(patch.value).substring(0, 50)
-      console.log(
-        `${colors.gray}[${timestamp}]${colors.reset} ${colors.cyan}${tag.padEnd(20)}${colors.reset} | ${
-          colors.blue
-        }CONTEXT${colors.reset}| ${colors.magenta}${patch.op.padEnd(8)}${colors.reset} | ${colors.white}${contextStr}${
-          colors.reset
-        }`
-      )
-      break
-    case "/":
-      console.log(
-        `${colors.gray}[${timestamp}]${colors.reset} ${colors.cyan}${tag.padEnd(20)}${colors.reset} | ${
-          colors.green
-        }ADD${colors.reset}    | ${colors.magenta}${patch.op.padEnd(8)}${colors.reset} | ${colors.cyan}${tag}${
-          colors.reset
-        }`
-      )
-      break
-    default:
-      const path = patch.path as string
-      console.log(
-        `${colors.gray}[${timestamp}]${colors.reset} ${colors.cyan}${tag.padEnd(20)}${colors.reset} | ${
-          colors.red
-        }${path.padEnd(7)}${colors.reset} | ${colors.magenta}${patch.op.padEnd(8)}${colors.reset} | ${
-          colors.white
-        }${JSON.stringify(patch.value).substring(0, 30)}${colors.reset}`
-      )
-      break
+  // Выводим каждый патч отдельно
+  for (const patch of patches) {
+    switch (patch.path) {
+      case "/state":
+        console.log(
+          `${colors.gray}[${timestamp}]${colors.reset} ${colors.cyan}${tag.padEnd(20)}${colors.reset} | ${
+            colors.yellow
+          }STATE${colors.reset}  | ${colors.magenta}${patch.op.padEnd(8)}${colors.reset} | ${colors.green}${
+            patch.value
+          }${colors.reset}`
+        )
+        break
+      case "/context":
+        const contextStr = JSON.stringify(patch.value).substring(0, 50)
+        console.log(
+          `${colors.gray}[${timestamp}]${colors.reset} ${colors.cyan}${tag.padEnd(20)}${colors.reset} | ${
+            colors.blue
+          }CONTEXT${colors.reset}| ${colors.magenta}${patch.op.padEnd(8)}${colors.reset} | ${
+            colors.white
+          }${contextStr}${colors.reset}`
+        )
+        break
+      case "/":
+        console.log(
+          `${colors.gray}[${timestamp}]${colors.reset} ${colors.cyan}${tag.padEnd(20)}${colors.reset} | ${
+            colors.green
+          }ADD${colors.reset}    | ${colors.magenta}${patch.op.padEnd(8)}${colors.reset} | ${colors.cyan}${tag}${
+            colors.reset
+          }`
+        )
+        break
+      default:
+        const path = patch.path as string
+        console.log(
+          `${colors.gray}[${timestamp}]${colors.reset} ${colors.cyan}${tag.padEnd(20)}${colors.reset} | ${
+            colors.red
+          }${path.padEnd(7)}${colors.reset} | ${colors.magenta}${patch.op.padEnd(8)}${colors.reset} | ${
+            colors.white
+          }${JSON.stringify(patch.value).substring(0, 30)}${colors.reset}`
+        )
+        break
+    }
   }
 }

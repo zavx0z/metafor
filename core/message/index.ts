@@ -17,7 +17,7 @@ export const initMessage = <C extends ContextSchema, S extends string>(
     meta,
     actor,
     timestamp: Date.now(),
-    patch: { op: "add", path: "/", value: snapshot },
+    patches: [{ op: "add", path: "/", value: snapshot }],
   }
 }
 
@@ -30,7 +30,7 @@ export const updateContextMessage = <C extends ContextSchema>(
     meta,
     actor,
     timestamp: Date.now(),
-    patch: { op: "replace", path: "/context", value: updated },
+    patches: [{ op: "replace", path: "/context", value: updated }],
   }
 }
 
@@ -39,7 +39,7 @@ export const stateBeforeActionMessage = <S extends string>(meta: string, actor: 
     meta,
     actor,
     timestamp: Date.now(),
-    patch: { op: "test", path: "/state", value: state },
+    patches: [{ op: "test", path: "/state", value: state }],
   }
 }
 
@@ -48,6 +48,30 @@ export const stateAfterActionMessage = <S extends string>(meta: string, actor: A
     meta,
     actor,
     timestamp: Date.now(),
-    patch: { op: "replace", path: "/state", value: state },
+    patches: [{ op: "replace", path: "/state", value: state }],
+  }
+}
+
+/**
+ * Создает сообщение с несколькими патчами
+ */
+export const createMultiPatchMessage = (meta: string, actor: ActorInfo, patches: JsonPatch[]): Message => {
+  return {
+    meta,
+    actor,
+    timestamp: Date.now(),
+    patches,
+  }
+}
+
+/**
+ * Создает сообщение для удаления компонента
+ */
+export const removeMessage = (meta: string, actor: ActorInfo): Message => {
+  return {
+    meta,
+    actor,
+    timestamp: Date.now(),
+    patches: [{ op: "remove", path: "/" }],
   }
 }

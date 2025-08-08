@@ -23,7 +23,7 @@ describe("MetaFor: инициализация без действия", async ()
 
   test("патч add содержит полную информацию об акторе", () => {
     const message = messages[0]!
-    const patch = message.patch
+    const patch = message.patches[0]!
 
     expect(patch.op, "patch.op должен быть 'add'").toBe("add")
     expect(patch.path, "patch.path должен быть '/' ").toBe("/")
@@ -31,32 +31,34 @@ describe("MetaFor: инициализация без действия", async ()
       meta: hash,
       actor: { index: 0 },
       timestamp: expect.any(Number),
-      patch: {
-        op: "add",
-        path: "/",
-        value: {
-          name: "test-without-action",
-          state: "state_1",
-          states: {
-            state_1: { state_2: { value: "ctx_1" } },
-            state_2: { state_3: { value: "ctx_1" } },
-            state_3: {},
-          },
-          context: {
-            value: {
-              type: "string",
-              required: false,
-              default: "ctx_1",
-              value: "ctx_1",
+      patches: [
+        {
+          op: "add",
+          path: "/",
+          value: {
+            name: "test-without-action",
+            state: "state_1",
+            states: {
+              state_1: { state_2: { value: "ctx_1" } },
+              state_2: { state_3: { value: "ctx_1" } },
+              state_3: {},
+            },
+            context: {
+              value: {
+                type: "string",
+                required: false,
+                default: "ctx_1",
+                value: "ctx_1",
+              },
             },
           },
         },
-      },
+      ],
     })
   })
   test("сообщение 2", () => {
     const message = messages[1]!
-    const patch = message.patch
+    const patch = message.patches[0]!
 
     expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
     expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
@@ -64,11 +66,13 @@ describe("MetaFor: инициализация без действия", async ()
       meta: hash,
       actor: { index: 0 },
       timestamp: expect.any(Number),
-      patch: {
-        op: "replace",
-        path: "/state",
-        value: "state_2",
-      },
+      patches: [
+        {
+          op: "replace",
+          path: "/state",
+          value: "state_2",
+        },
+      ],
     })
   })
 })

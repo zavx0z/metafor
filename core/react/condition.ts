@@ -1,5 +1,6 @@
 import type { Message } from "../message"
 import type { ReactionFilterConditions } from "./condition.t"
+import type { ReactionParams } from "./index.t"
 
 /**
  * Проверяет условие для строкового значения
@@ -167,7 +168,7 @@ export function checkValueCondition(value: any, condition: any): boolean {
  * Создает функцию фильтрации на основе декларативных условий
  */
 export function createFilterFn(conditions: ReactionFilterConditions) {
-  return ({ meta, actor, timestamp, patch }: Message): boolean => {
+  return ({ meta, actor, timestamp, patch }: ReactionParams): boolean => {
     // Проверяем условия для метаданных
     if (conditions.meta !== undefined && !checkStringCondition(meta, conditions.meta)) return false
     if (conditions.index !== undefined && !checkNumberCondition(actor.index, conditions.index)) return false
