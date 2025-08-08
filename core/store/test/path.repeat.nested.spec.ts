@@ -1,57 +1,20 @@
 import { describe, test, expect, beforeEach } from "bun:test"
 import { MetaForFabric } from "../../index.ts"
-import type { ActorStore, MetaRecord, Store } from "../../store/index.t.ts"
+import { SQLiteStore } from "../../../server/store/index.ts"
+import { Database } from "bun:sqlite"
 import { html, render } from "../../html/index.js"
 import { repeat } from "../../html/directives/repeat.ts"
 
-class MemStore implements Store {
-  #auto = 1
-  #metas = new Map<string, string>()
-  #actors: ActorStore[] = []
-
-  saveMetaIsNotExists(fingerprint: string): string {
-    const name = JSON.parse(fingerprint).name as string
-    const hash = `test-${name}`
-    if (!this.#metas.has(hash)) this.#metas.set(hash, fingerprint)
-    return hash
-  }
-  getMeta(meta: string): MetaRecord | null {
-    const fp = this.#metas.get(meta)
-    return fp ? { meta, fingerprint: fp, timestamp: new Date().toISOString() } : null
-  }
-  saveActorIsNotExist(actor: Omit<ActorStore, "id" | "timestamp">): ActorStore {
-    const found = this.#actors.find(
-      (a) => a.meta === actor.meta && a.parent_id === actor.parent_id && a.idx === actor.idx
-    )
-    if (found) return found
-    const rec: ActorStore = {
-      id: this.#auto++,
-      timestamp: new Date().toISOString(),
-      ...actor,
-    }
-    this.#actors.push(rec)
-    return rec
-  }
-  getActorByMeta(meta: string): ActorStore | null {
-    const row = [...this.#actors].reverse().find((a) => a.meta === meta) || null
-    return row
-  }
-  updateActorSnapshot(id: number, snapshot: string): void {
-    const row = this.#actors.find((a) => a.id === id)
-    if (row) row.snapshot = snapshot
-  }
-  getActorByComposite(meta: string, parent_id: number | null, idx: number): ActorStore | null {
-    return this.#actors.find((a) => a.meta === meta && a.parent_id === parent_id && a.idx === idx) || null
-  }
-}
-
 describe("path + repeat: вложенные акторы", () => {
-  let store: MemStore
+  const dbPath = `path.nested.${Date.now()}.sqlite`
+  let db: Database
+  let store: SQLiteStore
   let MetaFor: ReturnType<typeof MetaForFabric>
   let container: HTMLDivElement
 
   beforeEach(() => {
-    store = new MemStore()
+    if (!db) db = new Database(dbPath)
+    if (!store) store = new SQLiteStore(dbPath)
     MetaFor = MetaForFabric({ store })
     container = document.createElement("div")
     document.body.innerHTML = ""
@@ -135,8 +98,12 @@ describe("path + repeat: вложенные акторы", () => {
     // Перестановка родительских акторов: [P2, P1]
     outer = ["P2", "P1"]
     render(Page(false), container)
-    ;(customElements as any).upgrade?.((container.querySelector(`meta-${parentHash}[data-parent="P1"]`) as any)?.shadowRoot)
-    ;(customElements as any).upgrade?.((container.querySelector(`meta-${parentHash}[data-parent="P2"]`) as any)?.shadowRoot)
+    ;(customElements as any).upgrade?.(
+      (container.querySelector(`meta-${parentHash}[data-parent="P1"]`) as any)?.shadowRoot
+    )
+    ;(customElements as any).upgrade?.(
+      (container.querySelector(`meta-${parentHash}[data-parent="P2"]`) as any)?.shadowRoot
+    )
     await Bun.sleep(10)
     const np1 = container.querySelector(`meta-${parentHash}[data-parent="P1"]`) as any
     const np2 = container.querySelector(`meta-${parentHash}[data-parent="P2"]`) as any
@@ -145,16 +112,21 @@ describe("path + repeat: вложенные акторы", () => {
 
     const np1nodes = Array.from(np1.shadowRoot!.querySelectorAll(`meta-${childHash}`)) as any[]
     expect(np1nodes.length, "у p1 должно быть 3 ребёнка после перестановки родителей").toBe(3)
-    expect(np1nodes[0]?.path, "p1/child[0] после перестановки родителя -> idx 0").toBe(
-      `${parentHash}:1/${childHash}:0`
-    )
-    expect(np1nodes[1]?.path, "p1/child[1] после перестановки родителя -> idx 1").toBe(
-      `${parentHash}:1/${childHash}:1`
-    )
-    expect(np1nodes[2]?.path, "p1/child[2] после перестановки родителя -> idx 2").toBe(
-      `${parentHash}:1/${childHash}:2`
-    )
+    expect(np1nodes[0]?.path, "p1/child[0] после перестановки родителя -> idx 0").toBe(`${parentHash}:1/${childHash}:0`)
+    expect(np1nodes[1]?.path, "p1/child[1] после перестановки родителя -> idx 1").toBe(`${parentHash}:1/${childHash}:1`)
+    expect(np1nodes[2]?.path, "p1/child[2] после перестановки родителя -> idx 2").toBe(`${parentHash}:1/${childHash}:2`)
+
+    // Ре-гидратация: меняем контекст у первого ребёнка p1, размонтируем и монтируем снова
+    const firstChild = np1nodes[0] as any
+    firstChild.update({ v: "persist-nested" })
+    await Bun.sleep(20)
+    container.remove()
+    container = document.createElement("div")
+    document.body.append(container)
+    render(Page(false), container)
+    await Bun.sleep(60)
+    const newP1 = container.querySelector(`meta-${parentHash}[data-parent="P1"]`) as any
+    const newFirst = (newP1.shadowRoot!.querySelectorAll(`meta-${childHash}`)[0] as any)!
+    expect(newFirst.snapshot.context.v.value, "вложенный ребёнок восстановился из стора").toBe("persist-nested")
   })
 })
-
-

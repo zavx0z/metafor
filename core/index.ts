@@ -131,6 +131,8 @@ export function MetaForFabric(params: FabricParams) {
                                   #channel: BroadcastChannel | null = null
                                   /** ------------state-------------------------------- */
                                   #state: S = Object.keys(states)[0] as S
+                                  /** Игнорировать первый внешний апдейт контекста после ре-гидратации */
+                                  #ignoreFirstExternalContextUpdate = false
                                   #setState(state: S) {
                                     this.setAttribute("state", state)
                                     this.#state = state
@@ -138,6 +140,8 @@ export function MetaForFabric(params: FabricParams) {
                                   /** ------------process-------------------------------- */
                                   /** индикатор выполнения процесса */
                                   #process: boolean = false
+                                  /** Значения контекста, восстановленные из стора, для повторного применения после коммита свойств */
+                                  #rehydratedValues: Partial<ExtractValues<C>> | null = null
                                   /**
                                    * 1. устанавливает состояние процесса
                                    * 2. при отключении процесса (после завершения действия)
@@ -170,10 +174,15 @@ export function MetaForFabric(params: FabricParams) {
                                   /** @internal обновление ядра */
                                   __updCore = (value: Partial<I>) =>
                                     Object.entries(value).forEach(([key, val]) => (this.#core[key as keyof I] = val))
+                                  /** @internal синхронизация положения (parent_id, idx) в сторе */
+                                  __syncLocation = () => this.#syncLocation()
 
                                   connectedCallback() {
                                     // Индекс текущего актора среди одноименных meta-тегов на уровне
                                     const siblingIndex = this.getIndexAmongSiblings()
+                                    // Попытка получить ключ из атрибута data-key для стабильной идентификации
+                                    const stableKey =
+                                      this.getAttribute("data-key") || this.getAttribute("data-k") || null
 
                                     // Вычисляем parent_id, проходя по сегментам пути родителя (meta, idx)
                                     let parentId: number | null = null
@@ -193,16 +202,35 @@ export function MetaForFabric(params: FabricParams) {
                                       }
                                     }
 
+                                    // Проверяем, существует ли запись для текущего актора ДО сохранения
+                                    let existed = false
+                                    try {
+                                      if (stableKey) {
+                                        const byKey = (store as any).getActorByKeyAnyParent?.(this.#meta, stableKey)
+                                        existed = !!byKey
+                                      }
+                                      if (!existed) {
+                                        const byComposite = store.getActorByComposite(
+                                          this.#meta,
+                                          parentId,
+                                          siblingIndex
+                                        )
+                                        existed = !!byComposite
+                                      }
+                                    } catch (_) {}
+
                                     this.#store = store.saveActorIsNotExist({
                                       meta: this.#meta,
                                       parent_id: parentId,
                                       idx: siblingIndex,
+                                      key: stableKey,
                                       snapshot: JSON.stringify(this.snapshot),
                                     })
-                                    // data-actor-id больше не используется для адресации (см. getter path)
-                                    // Попытка восстановления состояния из snapshot стора
+                                    // Проставляем id для быстрого доступа к родителю в DOM
+                                    this.setAttribute("data-actor-id", String(this.#store.id))
+                                    // Попытка восстановления состояния из snapshot стора (только если запись существовала ранее)
                                     try {
-                                      if (this.#store?.snapshot) {
+                                      if (existed && this.#store?.snapshot) {
                                         const saved = JSON.parse(this.#store.snapshot) as Snapshot<C, S>
                                         // Восстанавливаем состояние
                                         if (saved?.state) {
@@ -217,10 +245,25 @@ export function MetaForFabric(params: FabricParams) {
                                           }
                                           // Напрямую обновляем внутренний контекст, чтобы не отправлять события до инициализации
                                           this.#context.update(values as Partial<ExtractValues<C>>)
+                                          this.#rehydratedValues = values as Partial<ExtractValues<C>>
+                                          ;(this as any).__hasRehydratedContext = true
+                                          // Первый внешний update(context) (например, из property) игнорируем, чтобы не перетереть восстановленные значения
+                                          this.#ignoreFirstExternalContextUpdate = true
                                         }
                                       }
                                     } catch (_) {
                                       // игнорируем ошибки десериализации
+                                    }
+                                    // Разрешаем внешние property-коммиты и применяем переданное значение контекста,
+                                    // если снапшот не был прочитан из стора
+                                    ;(this as any).__readyForExternalContext = true
+                                    if (
+                                      !(this as any).__hasRehydratedContext &&
+                                      (this as any).__pendingInitialContext
+                                    ) {
+                                      try {
+                                        this.#context.update((this as any).__pendingInitialContext)
+                                      } catch (_) {}
                                     }
                                     this.#view.render({
                                       state: this.#state,
@@ -228,6 +271,66 @@ export function MetaForFabric(params: FabricParams) {
                                       core: this.#core,
                                       shadow: this.#shadow,
                                       update: this.update,
+                                    })
+                                    // После рендера фиксируем ключ, если был передан
+                                    if (stableKey) {
+                                      try {
+                                        ;(store as any).updateActorKey?.(this.#store.id, stableKey)
+                                      } catch (_) {}
+                                    }
+                                    // Сразу после первого рендера синхронизируем положение в сторе
+                                    this.#syncLocation()
+                                    // И ещё раз в следующий кадр, чтобы учесть возможные отложенные перестановки DOM
+                                    requestAnimationFrame(() => {
+                                      this.#syncLocation()
+                                      // Если ещё не ре-гидратированы, пробуем по стабильному ключу из атрибута
+                                      if (!(this as any).__hasRehydratedContext) {
+                                        const k = this.getAttribute("data-key") || this.getAttribute("data-k")
+                                        if (k && (store as any).getActorByKeyAnyParent) {
+                                          try {
+                                            const found = (store as any).getActorByKeyAnyParent(this.#meta, k)
+                                            if (found?.snapshot) {
+                                              const saved = JSON.parse(found.snapshot) as Snapshot<C, S>
+                                              if (saved?.context) {
+                                                const values: Partial<ExtractValues<C>> = {}
+                                                for (const [key, def] of Object.entries(saved.context as any)) {
+                                                  // @ts-ignore
+                                                  values[key as keyof ExtractValues<C>] = (def as any)?.value
+                                                }
+                                                this.#context.update(values as Partial<ExtractValues<C>>)
+                                                this.#view.render({
+                                                  state: this.#state,
+                                                  context: this.#context.getSnapshot(),
+                                                  core: this.#core,
+                                                  shadow: this.#shadow,
+                                                  update: this.update,
+                                                })
+                                                try {
+                                                  store.updateActorSnapshot(
+                                                    this.#store.id,
+                                                    JSON.stringify(this.snapshot)
+                                                  )
+                                                } catch (_) {}
+                                                ;(this as any).__hasRehydratedContext = true
+                                              }
+                                            }
+                                          } catch (_) {}
+                                        }
+                                      }
+                                      // Повторно применяем ре-гидратированные значения контекста после возможной перезаписи property-коммитом
+                                      if (this.#rehydratedValues) {
+                                        try {
+                                          this.#context.update(this.#rehydratedValues)
+                                          this.#view.render({
+                                            state: this.#state,
+                                            context: this.#context.getSnapshot(),
+                                            core: this.#core,
+                                            shadow: this.#shadow,
+                                            update: this.update,
+                                          })
+                                          store.updateActorSnapshot(this.#store.id, JSON.stringify(this.snapshot))
+                                        } catch (_) {}
+                                      }
                                     })
                                     this.setAttribute("state", this.#state)
                                     this.#channel = new BroadcastChannel("channel")
@@ -262,6 +365,11 @@ export function MetaForFabric(params: FabricParams) {
 
                                   /** обновление контекста */
                                   update = (context: Partial<ExtractValues<C>>) => {
+                                    // Игнорируем первый внешний апдейт после ре-гидратации
+                                    if (this.#ignoreFirstExternalContextUpdate) {
+                                      this.#ignoreFirstExternalContextUpdate = false
+                                      return {}
+                                    }
                                     const updated = this.#context.update(context)
                                     if (Object.keys(updated).length > 0) {
                                       this.#sendEvent(updateContextMessage(this.#meta, { index: 0 }, updated))
@@ -272,6 +380,8 @@ export function MetaForFabric(params: FabricParams) {
                                         shadow: this.#shadow,
                                         update: this.update,
                                       })
+                                      // Положение могло измениться; синхронизируем
+                                      this.#syncLocation()
                                       // Сохраняем актуальный snapshot в store
                                       try {
                                         store.updateActorSnapshot(this.#store.id, JSON.stringify(this.snapshot))
@@ -381,6 +491,8 @@ export function MetaForFabric(params: FabricParams) {
                                       shadow: this.#shadow,
                                       update: this.update,
                                     })
+                                    // Положение могло измениться при переходах; синхронизируем
+                                    this.#syncLocation()
                                     // Фиксируем состояние после изменений
                                     try {
                                       store.updateActorSnapshot(this.#store.id, JSON.stringify(this.snapshot))
@@ -449,8 +561,15 @@ export function MetaForFabric(params: FabricParams) {
                                     return null
                                   }
 
-                                  /** Индекс среди одноименных meta-тегов на уровне */
+                                  /** Индекс среди одноименных meta-тегов на уровне (устойчив к оберткам) */
                                   getIndexAmongSiblings(): number {
+                                    const root = this.getRootNode() as Document | ShadowRoot
+                                    if ((root as any).host) {
+                                      // Находим индекс среди одноименных meta-* внутри shadowRoot родителя
+                                      const list = Array.from((root as ShadowRoot).querySelectorAll(this.tagName))
+                                      return list.indexOf(this as unknown as Element)
+                                    }
+                                    // Корневой актор: индекс среди одноименных в пределах непосредственного родителя в документе
                                     const parent = this.parentElement
                                     if (!parent) return 0
                                     const siblings = Array.from(parent.children).filter(
@@ -459,16 +578,22 @@ export function MetaForFabric(params: FabricParams) {
                                     return siblings.indexOf(this)
                                   }
 
-                                  /** Индекс родителя среди одноименных meta-тегов на его уровне */
+                                  /** Индекс родителя среди одноименных meta-тегов на его уровне (устойчив к оберткам) */
                                   getParentIndexAmongSiblings(): number {
-                                    const parent = this.parentElement
-                                    if (!parent) return 0
-                                    const grand = parent.parentElement
+                                    const root = this.getRootNode() as any
+                                    const host = root?.host as Element | undefined
+                                    if (!host) return 0
+                                    const parentRoot = host.getRootNode() as Document | ShadowRoot
+                                    if ((parentRoot as any).host) {
+                                      const list = Array.from((parentRoot as ShadowRoot).querySelectorAll(host.tagName))
+                                      return list.indexOf(host)
+                                    }
+                                    const grand = host.parentElement
                                     if (!grand) return 0
                                     const siblings = Array.from(grand.children).filter(
-                                      (child) => child.tagName === parent.tagName
+                                      (child) => child.tagName === host.tagName
                                     )
-                                    return siblings.indexOf(parent)
+                                    return siblings.indexOf(host)
                                   }
 
                                   get snapshot(): Snapshot<C, S> {
@@ -494,27 +619,37 @@ export function MetaForFabric(params: FabricParams) {
                                   /** Возвращает сегменты пути {meta, idx} от корня до текущего (или до родителя) */
                                   getPathSegments(includeSelf: boolean): Array<{ meta: string; idx: number }> {
                                     const segments: Array<{ meta: string; idx: number }> = []
-                                    let host: Element | null = this as unknown as Element
+                                    let node: Element | null = this as unknown as Element
                                     if (!includeSelf) {
-                                      // смещаемся на родителя текущего
-                                      const root: any = (host as any).getRootNode?.()
-                                      host = root && root.host ? (root.host as Element) : host.parentElement
+                                      const root: any = (node as any).getRootNode?.()
+                                      node = root && root.host ? (root.host as Element) : node.parentElement
                                     }
-                                    while (host) {
-                                      const tag = host.tagName?.toLowerCase?.() || ""
+                                    while (node) {
+                                      const tag = node.tagName?.toLowerCase?.() || ""
                                       if (!tag.startsWith("meta-")) break
                                       const meta = tag.substring(5)
-                                      const parent = host.parentElement
+                                      // Индекс meta-узла среди одноименных в его корне (shadowRoot родителя или документ)
+                                      const parentRoot: any = (node as any).getRootNode?.()
                                       let idx = 0
-                                      if (parent) {
-                                        const siblings = Array.from(parent.children).filter(
-                                          (child) => child.tagName === host!.tagName
+                                      if (parentRoot && parentRoot.host) {
+                                        const list = Array.from(
+                                          (parentRoot as ShadowRoot).querySelectorAll(node.tagName)
                                         )
-                                        idx = siblings.indexOf(host)
+                                        idx = list.indexOf(node)
+                                      } else {
+                                        const parent = node.parentElement
+                                        if (parent) {
+                                          const siblings = Array.from(parent.children).filter(
+                                            (child) => child.tagName === (node?.tagName ?? "")
+                                          )
+                                          idx = node ? siblings.indexOf(node) : 0
+                                        }
                                       }
                                       segments.unshift({ meta, idx })
-                                      const root: any = (host as any).getRootNode?.()
-                                      host = root && root.host ? (root.host as Element) : null
+                                      // Поднимаемся к родительскому meta через host
+                                      const parentHostRoot: any = (node as any).getRootNode?.()
+                                      node =
+                                        parentHostRoot && parentHostRoot.host ? (parentHostRoot.host as Element) : null
                                     }
                                     return segments
                                   }
@@ -532,6 +667,30 @@ export function MetaForFabric(params: FabricParams) {
                                       state: this.#state,
                                       update: this.update,
                                     })
+                                  }
+
+                                  /** Синхронизирует текущее положение элемента (parent_id, idx) в сторе */
+                                  #syncLocation = () => {
+                                    try {
+                                      const newIdx = this.getIndexAmongSiblings()
+                                      const newParentId = this.getParentActorId()
+                                      // Обновляем только при реальном изменении
+                                      if (
+                                        (this.#store.parent_id ?? null) !== (newParentId ?? null) ||
+                                        this.#store.idx !== newIdx
+                                      ) {
+                                        // Локально применяем новые значения, чтобы избежать повторных обновлений
+                                        this.#store.parent_id = newParentId ?? null
+                                        this.#store.idx = newIdx
+                                        try {
+                                          store.updateActorLocation(
+                                            this.#store.id,
+                                            this.#store.parent_id,
+                                            this.#store.idx
+                                          )
+                                        } catch (_) {}
+                                      }
+                                    } catch (_) {}
                                   }
                                 }
                               )

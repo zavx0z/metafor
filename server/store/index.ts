@@ -16,11 +16,12 @@ CREATE TABLE IF NOT EXISTS actor (
     meta TEXT NOT NULL,
         parent_id INTEGER,
         idx INTEGER NOT NULL,
+        key TEXT,
         snapshot TEXT NOT NULL,
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (parent_id) REFERENCES actor (id) ON DELETE CASCADE,
-    FOREIGN KEY (meta) REFERENCES meta (meta) ON DELETE CASCADE,
-    UNIQUE (meta, parent_id, idx)
+    FOREIGN KEY (meta) REFERENCES meta (meta) ON DELETE CASCADE
+    -- Убрано уникальное ограничение на (meta,parent_id,idx) для поддержки атомарных перестановок
 );
 
 CREATE INDEX IF NOT EXISTS idx_actor_meta ON actor (meta);
@@ -43,8 +44,8 @@ SELECT * FROM meta WHERE meta = ?;
 
 // SQL-запросы для работы с акторами
 const createActorQuery = `
-INSERT INTO actor (meta, parent_id, idx, snapshot)
-VALUES (?, ?, ?, ?);
+INSERT INTO actor (meta, parent_id, idx, key, snapshot)
+VALUES (?, ?, ?, ?, ?);
 `
 
 const getActorByMetaAndParentQuery = `
@@ -69,12 +70,32 @@ const updateActorSnapshotQuery = `
 UPDATE actor SET snapshot = ?, timestamp = CURRENT_TIMESTAMP WHERE id = ?;
 `
 
+const updateActorLocationQuery = `
+UPDATE actor SET parent_id = ?, idx = ?, timestamp = CURRENT_TIMESTAMP WHERE id = ?;
+`
+
+const updateActorKeyQuery = `
+UPDATE actor SET key = ?, timestamp = CURRENT_TIMESTAMP WHERE id = ?;
+`
+
 const getActorByCompositeWithNullParentQuery = `
-SELECT * FROM actor WHERE meta = ? AND parent_id IS NULL AND idx = ?;
+SELECT * FROM actor WHERE meta = ? AND parent_id IS NULL AND idx = ? ORDER BY id DESC LIMIT 1;
 `
 
 const getActorByCompositeWithParentQuery = `
-SELECT * FROM actor WHERE meta = ? AND parent_id = ? AND idx = ?;
+SELECT * FROM actor WHERE meta = ? AND parent_id = ? AND idx = ? ORDER BY id DESC LIMIT 1;
+`
+
+const getActorByKeyAnyParentQuery = `
+SELECT * FROM actor WHERE meta = ? AND key = ? ORDER BY id DESC LIMIT 1;
+`
+
+const getActorByKeyWithParentQuery = `
+SELECT * FROM actor WHERE meta = ? AND parent_id IS ? AND key = ? ORDER BY id DESC LIMIT 1;
+`
+
+const getActorByMetaIdxAnyParentQuery = `
+SELECT * FROM actor WHERE meta = ? AND idx = ? ORDER BY id DESC LIMIT 1;
 `
 
 class SQLiteActorStore implements ActorStore {
@@ -82,6 +103,7 @@ class SQLiteActorStore implements ActorStore {
   meta: string = ""
   parent_id: number | null = null
   idx: number = 0
+  key: string | null = null
   snapshot: string = ""
   timestamp: string = ""
 }
@@ -147,36 +169,58 @@ export class SQLiteStore implements Store {
    * Сохраняет актора, если он не существует, и возвращает его
    */
   saveActorIsNotExist(data: Omit<ActorStore, "id" | "timestamp">): ActorStore {
-    // Пытаемся найти существующего актора по (meta, parent_id, idx)
-    let existingActor: SQLiteActorStore | null = null
-    if (data.idx !== undefined && data.idx !== null) {
-      if (data.parent_id == null) {
-        existingActor =
-          this.#db.prepare(getActorByCompositeWithNullParentQuery).as(SQLiteActorStore).get(data.meta, data.idx) || null
-      } else {
-        existingActor =
-          this.#db
-            .prepare(getActorByCompositeWithParentQuery)
-            .as(SQLiteActorStore)
-            .get(data.meta, data.parent_id, data.idx) || null
-      }
-    }
-
-    if (existingActor) {
-      // Если запись уже существует по (meta, parent_id, idx), не перезаписываем snapshot здесь,
-      // чтобы сохранить последнее актуальное состояние (ре-гидратация).
-      return existingActor
-    }
-
-    // Если актора нет, рассчитываем idx при необходимости
+    // Рассчитываем индекс заранее при необходимости
     let idx = data.idx
     if (idx == null || Number.isNaN(idx)) {
       const res = this.#db.prepare(getNextIndexQuery).get(data.meta, data.parent_id) as { next_index: number }
       idx = res?.next_index ?? 0
     }
+    // 1) Если есть стабильный ключ, пробуем найти по нему независимо от parent_id
+    if ((data as any).key) {
+      const byKey = this.#db
+        .prepare(getActorByKeyAnyParentQuery)
+        .as(SQLiteActorStore)
+        .get(data.meta, (data as any).key)
+      if (byKey) {
+        // Обновляем локацию на актуальную и возвращаем запись
+        this.updateActorLocation((byKey as any).id, data.parent_id ?? null, idx)
+        const updated = this.#db
+          .prepare(getActorByIdQuery)
+          .as(SQLiteActorStore)
+          .get((byKey as any).id)
+        return (updated as SQLiteActorStore) || (byKey as SQLiteActorStore)
+      }
+    }
+
+    // 2) Пытаемся найти существующего актора по (meta, parent_id, idx)
+    if (idx !== undefined && idx !== null) {
+      const existingActor: SQLiteActorStore | null =
+        data.parent_id == null
+          ? this.#db.prepare(getActorByCompositeWithNullParentQuery).as(SQLiteActorStore).get(data.meta, idx) || null
+          : this.#db
+              .prepare(getActorByCompositeWithParentQuery)
+              .as(SQLiteActorStore)
+              .get(data.meta, data.parent_id, idx) || null
+      if (existingActor) {
+        return existingActor
+      }
+    }
+
+    // 3) Фолбэк: ищем запись по meta+idx без учета родителя и переносим её под нового родителя
+    const byMetaIdx = this.#db.prepare(getActorByMetaIdxAnyParentQuery).as(SQLiteActorStore).get(data.meta, idx)
+    if (byMetaIdx) {
+      this.updateActorLocation((byMetaIdx as any).id, data.parent_id ?? null, idx)
+      const updated = this.#db
+        .prepare(getActorByIdQuery)
+        .as(SQLiteActorStore)
+        .get((byMetaIdx as any).id)
+      return (updated as SQLiteActorStore) || (byMetaIdx as SQLiteActorStore)
+    }
 
     // Создаем нового актора
-    const result = this.#db.prepare(createActorQuery).run(data.meta, data.parent_id, idx, data.snapshot)
+    const result = this.#db
+      .prepare(createActorQuery)
+      .run(data.meta, data.parent_id, idx, (data as any).key ?? null, data.snapshot)
 
     const actorId = Number(result.lastInsertRowid)
 
@@ -213,6 +257,21 @@ export class SQLiteStore implements Store {
     return (row as SQLiteActorStore) || null
   }
 
+  getActorByKey(meta: string, parent_id: number | null, key: string): ActorStore | null {
+    const row = this.#db.prepare(getActorByKeyWithParentQuery).as(SQLiteActorStore).get(meta, parent_id, key)
+    return (row as SQLiteActorStore) || null
+  }
+
+  getActorByKeyAnyParent(meta: string, key: string): ActorStore | null {
+    const row = this.#db.prepare(getActorByKeyAnyParentQuery).as(SQLiteActorStore).get(meta, key)
+    return (row as SQLiteActorStore) || null
+  }
+
+  /** Обновляет расположение актора (parent_id, idx) без изменения snapshot */
+  updateActorLocation(id: number, parent_id: number | null, idx: number): void {
+    this.#db.prepare(updateActorLocationQuery).run(parent_id, idx, id)
+  }
+
   /**
    * Получает всех акторов (для отладки и веб-сокетов)
    */
@@ -225,5 +284,9 @@ export class SQLiteStore implements Store {
    */
   close(): void {
     this.#db.close()
+  }
+
+  updateActorKey(id: number, key: string): void {
+    this.#db.prepare(updateActorKeyQuery).run(key, id)
   }
 }

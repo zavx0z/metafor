@@ -1650,11 +1650,20 @@ class PropertyPart extends AttributePart {
         options: this.options,
       })
     if (this.name === "context" && value) {
-      try {
-        ;(this.element as ActorInternal).update(value)
-      } catch (e) {
-        const tag = this.element.tagName.toLowerCase()
-        throw new Error(`meta-компонент ${tag} не создан`)
+      const el: any = this.element as any
+      // Если актор ре-гидратирован из стора, игнорируем property-коммиты контекста целиком
+      if (el.__hasRehydratedContext) {
+        // no-op
+      } else if (!el.__readyForExternalContext) {
+        // До готовности складываем значение, чтобы применить один раз, если не было ре-гидратации
+        el.__pendingInitialContext = value
+      } else {
+        try {
+          ;(this.element as ActorInternal).update(value)
+        } catch (e) {
+          const tag = this.element.tagName.toLowerCase()
+          throw new Error(`meta-компонент ${tag} не создан`)
+        }
       }
     } else if (this.name === "core" && value) {
       ;(this.element as ActorInternal).__updCore(value)

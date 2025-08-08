@@ -1,51 +1,20 @@
 import { describe, test, expect, beforeEach } from "bun:test"
 import { MetaForFabric } from "../../index.ts"
-import type { ActorStore, MetaRecord, Store } from "../../store/index.t.ts"
+import { SQLiteStore } from "../../../server/store/index.ts"
+import { Database } from "bun:sqlite"
 import { html, render } from "../../html/index.js"
 import { repeat } from "../../html/directives/repeat.ts"
 
-class MemStore implements Store {
-  #auto = 1
-  #metas = new Map<string, string>()
-  #actors: ActorStore[] = []
-  saveMetaIsNotExists(fingerprint: string): string {
-    const name = JSON.parse(fingerprint).name as string
-    const hash = `test-${name}`
-    if (!this.#metas.has(hash)) this.#metas.set(hash, fingerprint)
-    return hash
-  }
-  getMeta(meta: string): MetaRecord | null {
-    const fp = this.#metas.get(meta)
-    return fp ? { meta, fingerprint: fp, timestamp: new Date().toISOString() } : null
-  }
-  saveActorIsNotExist(actor: Omit<ActorStore, "id" | "timestamp">): ActorStore {
-    const found = this.#actors.find(
-      (a) => a.meta === actor.meta && a.parent_id === actor.parent_id && a.idx === actor.idx
-    )
-    if (found) return found
-    const rec: ActorStore = { id: this.#auto++, timestamp: new Date().toISOString(), ...actor }
-    this.#actors.push(rec)
-    return rec
-  }
-  getActorByMeta(meta: string): ActorStore | null {
-    return [...this.#actors].reverse().find((a) => a.meta === meta) || null
-  }
-  updateActorSnapshot(id: number, snapshot: string): void {
-    const row = this.#actors.find((a) => a.id === id)
-    if (row) row.snapshot = snapshot
-  }
-  getActorByComposite(meta: string, parent_id: number | null, idx: number): ActorStore | null {
-    return this.#actors.find((a) => a.meta === meta && a.parent_id === parent_id && a.idx === idx) || null
-  }
-}
-
 describe("path + repeat: многоуровневые вложенности", () => {
-  let store: MemStore
+  const dbPath = `path.multilevel.${Date.now()}.sqlite`
+  let db: Database
+  let store: SQLiteStore
   let MetaFor: ReturnType<typeof MetaForFabric>
   let container: HTMLDivElement
 
   beforeEach(() => {
-    store = new MemStore()
+    if (!db) db = new Database(dbPath)
+    if (!store) store = new SQLiteStore(dbPath)
     MetaFor = MetaForFabric({ store })
     container = document.createElement("div")
     document.body.innerHTML = ""
@@ -141,5 +110,18 @@ describe("path + repeat: многоуровневые вложенности", (
     expect(np1.path, "p1 стал idx 1").toBe(`${grandHash}:0/${parentHash}:1`)
     const np1Child = (np1.shadowRoot!.querySelectorAll(`meta-${childHash}`)[0] as any)!
     expect(np1Child.path, "ребёнок p1 скорректировал путь").toBe(`${grandHash}:0/${parentHash}:1/${childHash}:0`)
+
+    // Ре-гидратация на глубине 3: меняем контекст у листа, ре-монтируем grand
+    np1Child.update({ v: "persist-multilevel" })
+    await Bun.sleep(20)
+    container.remove()
+    container = document.createElement("div")
+    document.body.append(container)
+    render(tpl(), container)
+    await Bun.sleep(60)
+    const grand2 = container.querySelector(`meta-${grandHash}`) as any
+    const p12 = grand2.shadowRoot!.querySelector(`meta-${parentHash}[data-parent="P1"]`) as any
+    const leaf2 = (p12.shadowRoot!.querySelectorAll(`meta-${childHash}`)[0] as any)!
+    expect(leaf2.snapshot.context.v.value, "лист восстановился из стора").toBe("persist-multilevel")
   })
 })

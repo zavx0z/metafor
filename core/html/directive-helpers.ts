@@ -130,6 +130,30 @@ export const insertPart = (containerPart: ChildPart, refPart?: ChildPart, part?:
     }
   }
 
+  // После перемещения/создания части синхронизируем положения meta-* акторов внутри диапазона части
+  try {
+    const start = (part as any)._$startNode as Node
+    const end = (part as any)._$endNode as Node
+    let node: Node | null = start.nextSibling
+    const stack: Node[] = []
+    const visit = (el: Element) => {
+      const tag = el.tagName?.toLowerCase?.()
+      if (tag && tag.startsWith("meta-")) {
+        try {
+          ;(el as any).__syncLocation?.()
+        } catch {}
+      }
+      // Обходим потомков
+      for (let child = el.firstElementChild; child; child = child.nextElementSibling) {
+        visit(child)
+      }
+    }
+    while (node && node !== end) {
+      if (node.nodeType === Node.ELEMENT_NODE) visit(node as Element)
+      node = node.nextSibling
+    }
+  } catch {}
+
   return part
 }
 

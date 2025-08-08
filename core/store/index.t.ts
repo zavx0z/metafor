@@ -3,6 +3,7 @@ export abstract class ActorStore {
   declare meta: string
   declare parent_id: number | null
   declare idx: number
+  declare key: string | null
   declare snapshot: string
   declare timestamp: string
 }
@@ -17,6 +18,14 @@ export abstract class Store {
   abstract updateActorSnapshot(id: number, snapshot: string): void
   /** Получает актора по составному ключу (meta, parent_id, idx) без модификации */
   abstract getActorByComposite(meta: string, parent_id: number | null, idx: number): ActorStore | null
+  /** Обновляет расположение актора (parent_id, idx) без изменения snapshot */
+  abstract updateActorLocation(id: number, parent_id: number | null, idx: number): void
+  /** Получает актора по ключу (meta, parent_id, key) */
+  abstract getActorByKey(meta: string, parent_id: number | null, key: string): ActorStore | null
+  /** Получает актора по ключу без учета родителя (meta, key), последний по id */
+  abstract getActorByKeyAnyParent(meta: string, key: string): ActorStore | null
+  /** Устанавливает/обновляет стабильный ключ актора */
+  abstract updateActorKey(id: number, key: string): void
 }
 export interface MetaRecord {
   meta: string

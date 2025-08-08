@@ -1,58 +1,20 @@
 import { describe, test, expect, beforeEach } from "bun:test"
 import { MetaForFabric } from "../../index.ts"
-import type { ActorStore, MetaRecord, Store } from "../../store/index.t.ts"
+import { SQLiteStore } from "../../../server/store/index.ts"
+import { Database } from "bun:sqlite"
 import { html, render } from "../../html/index.js"
 import { repeat } from "../../html/directives/repeat.ts"
 
-class MemStore implements Store {
-  #auto = 1
-  #metas = new Map<string, string>()
-  #actors: ActorStore[] = []
-
-  saveMetaIsNotExists(fingerprint: string): string {
-    // Простейший детерминированный хеш по имени из fingerprint
-    const name = JSON.parse(fingerprint).name as string
-    const hash = `test-${name}`
-    if (!this.#metas.has(hash)) this.#metas.set(hash, fingerprint)
-    return hash
-  }
-  getMeta(meta: string): MetaRecord | null {
-    const fp = this.#metas.get(meta)
-    return fp ? { meta, fingerprint: fp, timestamp: new Date().toISOString() } : null
-  }
-  saveActorIsNotExist(actor: Omit<ActorStore, "id" | "timestamp">): ActorStore {
-    const found = this.#actors.find(
-      (a) => a.meta === actor.meta && a.parent_id === actor.parent_id && a.idx === actor.idx
-    )
-    if (found) return found
-    const rec: ActorStore = {
-      id: this.#auto++,
-      timestamp: new Date().toISOString(),
-      ...actor,
-    }
-    this.#actors.push(rec)
-    return rec
-  }
-  getActorByMeta(meta: string): ActorStore | null {
-    const row = [...this.#actors].reverse().find((a) => a.meta === meta) || null
-    return row
-  }
-  updateActorSnapshot(id: number, snapshot: string): void {
-    const row = this.#actors.find((a) => a.id === id)
-    if (row) row.snapshot = snapshot
-  }
-  getActorByComposite(meta: string, parent_id: number | null, idx: number): ActorStore | null {
-    return this.#actors.find((a) => a.meta === meta && a.parent_id === parent_id && a.idx === idx) || null
-  }
-}
-
 describe("path + repeat: корневые акторы", () => {
-  let store: MemStore
+  const dbPath = `path.root.${Date.now()}.sqlite`
+  let db: Database
+  let store: SQLiteStore
   let MetaFor: ReturnType<typeof MetaForFabric>
   let container: HTMLDivElement
 
   beforeEach(() => {
-    store = new MemStore()
+    if (!db) db = new Database(dbPath)
+    if (!store) store = new SQLiteStore(dbPath)
     MetaFor = MetaForFabric({ store })
     container = document.createElement("div")
     document.body.innerHTML = ""
@@ -123,7 +85,16 @@ describe("path + repeat: корневые акторы", () => {
     expect(elD4.path, "d добавлен на 0").toBe(`${childHash}:0`)
     expect(elC4.path, "c смещен на 1").toBe(`${childHash}:1`)
     expect(elA4.path, "a смещен на 2").toBe(`${childHash}:2`)
+
+    // Проверка ре-гидратации из стора: меняем контекст у "c", размонтируем и монтируем заново
+    elC4.update({ v: "persist-root" })
+    await Bun.sleep(120)
+    container.remove()
+    container = document.createElement("div")
+    document.body.append(container)
+    render(tpl(), container)
+    await Bun.sleep(120)
+    const elC5 = container.querySelector(`meta-${childHash}[data-key="c"]`) as any
+    expect(elC5.snapshot.context.v.value, "контекст должен восстановиться после ре-монта").toBe("persist-root")
   })
 })
-
-
