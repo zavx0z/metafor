@@ -152,8 +152,7 @@ export class SQLiteStore implements Store {
     if (data.idx !== undefined && data.idx !== null) {
       if (data.parent_id == null) {
         existingActor =
-          this.#db.prepare(getActorByCompositeWithNullParentQuery).as(SQLiteActorStore).get(data.meta, data.idx) ||
-          null
+          this.#db.prepare(getActorByCompositeWithNullParentQuery).as(SQLiteActorStore).get(data.meta, data.idx) || null
       } else {
         existingActor =
           this.#db
@@ -164,11 +163,9 @@ export class SQLiteStore implements Store {
     }
 
     if (existingActor) {
-      // Обновляем snapshot при каждом вызове, чтобы фиксировать текущее состояние
-      this.#db.prepare(updateActorSnapshotQuery).run(data.snapshot, existingActor.id)
-      // Возвращаем актуальную запись
-      const updated = this.#db.prepare(getActorByIdQuery).as(SQLiteActorStore).get(existingActor.id)
-      return (updated as SQLiteActorStore) || existingActor
+      // Если запись уже существует по (meta, parent_id, idx), не перезаписываем snapshot здесь,
+      // чтобы сохранить последнее актуальное состояние (ре-гидратация).
+      return existingActor
     }
 
     // Если актора нет, рассчитываем idx при необходимости
@@ -195,7 +192,10 @@ export class SQLiteStore implements Store {
 
   /** Возвращает последнего созданного актора по meta (для вычисления parent_id) */
   getActorByMeta(meta: string): ActorStore | null {
-    const row = this.#db.prepare("SELECT * FROM actor WHERE meta = ? ORDER BY id DESC LIMIT 1").as(SQLiteActorStore).get(meta)
+    const row = this.#db
+      .prepare("SELECT * FROM actor WHERE meta = ? ORDER BY id DESC LIMIT 1")
+      .as(SQLiteActorStore)
+      .get(meta)
     return (row as SQLiteActorStore) || null
   }
 
