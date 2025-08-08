@@ -169,7 +169,7 @@ export function MetaForFabric(params: FabricParams) {
                                     Object.entries(value).forEach(([key, val]) => (this.#core[key as keyof I] = val))
 
                                   connectedCallback() {
-                                    // Индекс текущего актора среди всех meta-актеров на уровне
+                                    // Индекс текущего актора среди одноименных meta-тегов на уровне
                                     const siblingIndex = this.getIndexAmongSiblings()
 
                                     // Вычисляем parent_id, проходя по сегментам пути родителя (meta, idx)
@@ -446,24 +446,24 @@ export function MetaForFabric(params: FabricParams) {
                                     return null
                                   }
 
-                                  /** Индекс среди всех meta-* на уровне (всех видов мета-актеров) */
+                                  /** Индекс среди одноименных meta-тегов на уровне */
                                   getIndexAmongSiblings(): number {
                                     const parent = this.parentElement
                                     if (!parent) return 0
-                                    const siblings = Array.from(parent.children).filter((child) =>
-                                      child.tagName.toLowerCase().startsWith("meta-")
+                                    const siblings = Array.from(parent.children).filter(
+                                      (child) => child.tagName === this.tagName
                                     )
                                     return siblings.indexOf(this)
                                   }
 
-                                  /** Индекс родителя среди всех meta-* на его уровне */
+                                  /** Индекс родителя среди одноименных meta-тегов на его уровне */
                                   getParentIndexAmongSiblings(): number {
                                     const parent = this.parentElement
                                     if (!parent) return 0
                                     const grand = parent.parentElement
                                     if (!grand) return 0
-                                    const siblings = Array.from(grand.children).filter((child) =>
-                                      child.tagName.toLowerCase().startsWith("meta-")
+                                    const siblings = Array.from(grand.children).filter(
+                                      (child) => child.tagName === parent.tagName
                                     )
                                     return siblings.indexOf(parent)
                                   }
@@ -504,8 +504,8 @@ export function MetaForFabric(params: FabricParams) {
                                       const parent = host.parentElement
                                       let idx = 0
                                       if (parent) {
-                                        const siblings = Array.from(parent.children).filter((child) =>
-                                          child.tagName.toLowerCase().startsWith("meta-")
+                                        const siblings = Array.from(parent.children).filter(
+                                          (child) => child.tagName === host!.tagName
                                         )
                                         idx = siblings.indexOf(host)
                                       }
