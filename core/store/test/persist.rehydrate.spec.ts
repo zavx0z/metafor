@@ -7,7 +7,7 @@ describe("персистентность: ре-гидратация корнев
   const dbPath = "persist.rehydrate.sqlite"
   let db: Database
   let store: SQLiteStore
-  const MetaFor = MetaForFabric({ store: ({} as any) }) as unknown as ReturnType<typeof MetaForFabric>
+  const MetaFor = MetaForFabric({ store: {} as any }) as unknown as ReturnType<typeof MetaForFabric>
 
   beforeAll(async () => {
     try {
@@ -59,9 +59,7 @@ describe("персистентность: ре-гидратация корнев
     el1.update({ value: "updated" })
     await Bun.sleep(100)
 
-    const actorRow = db
-      .prepare("SELECT * FROM actor WHERE meta = ? AND parent_id IS NULL AND idx = 0")
-      .get(hash) as any
+    const actorRow = db.prepare("SELECT * FROM actor WHERE meta = ? AND parent_id IS NULL AND idx = 0").get(hash) as any
     expect(actorRow, "запись актора должна существовать").toBeTruthy()
 
     const snap = JSON.parse(actorRow.snapshot)
@@ -81,5 +79,3 @@ describe("персистентность: ре-гидратация корнев
     expect(el2.snapshot.context.value.value, "должно восстановиться updated").toBe("updated")
   })
 })
-
-

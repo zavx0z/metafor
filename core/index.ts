@@ -471,4 +471,3 @@ export function MetaForFabric(params: FabricParams) {
     }
   } as MetaFor
 }
-

@@ -8,11 +8,11 @@ describe("персистентность: parent/child и idx (SQLite)", () => {
   let db: Database
   let store: SQLiteStore
 
-  beforeAll(() => {
+  beforeAll(async () => {
     try {
-      Bun.file(dbPath).deleteSync()
-      Bun.file(`${dbPath}-shm`).deleteSync()
-      Bun.file(`${dbPath}-wal`).deleteSync()
+      await Bun.file(dbPath).delete()
+      await Bun.file(`${dbPath}-shm`).delete()
+      await Bun.file(`${dbPath}-wal`).delete()
     } catch {}
     db = new Database(dbPath)
     store = new SQLiteStore(dbPath)
@@ -72,5 +72,3 @@ describe("персистентность: parent/child и idx (SQLite)", () => {
     expect(children[1].idx, "второй ребенок имеет idx=1").toBe(1)
   })
 })
-
-
