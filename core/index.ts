@@ -386,24 +386,29 @@ export function MetaForFabric(params: FabricParams) {
                                    * @returns meta родительского актора или null, если родителя нет
                                    */
                                   getParentMeta(): string | null {
+                                    // 1) Прямой родитель
                                     const parent = this.parentElement
-                                    if (!parent) return null
-
-                                    // Проверяем, является ли родитель meta-тегом
-                                    const tagName = parent.tagName.toLowerCase()
-                                    if (tagName.startsWith("meta-")) {
-                                      return tagName.substring(5) // Убираем "meta-" префикс
-                                    }
-
-                                    // Если родитель не meta-тег, ищем среди его предков
-                                    const parentMetaTag = parent.closest("meta-")
-                                    if (parentMetaTag) {
-                                      const metaTagName = parentMetaTag.tagName.toLowerCase()
-                                      if (metaTagName.startsWith("meta-")) {
-                                        return metaTagName.substring(5) // Убираем "meta-" префикс
+                                    if (parent) {
+                                      const tagName = parent.tagName.toLowerCase()
+                                      if (tagName.startsWith("meta-")) {
+                                        return tagName.substring(5)
+                                      }
+                                      const parentMetaTag = parent.closest("meta-")
+                                      if (parentMetaTag) {
+                                        const metaTagName = parentMetaTag.tagName.toLowerCase()
+                                        if (metaTagName.startsWith("meta-")) return metaTagName.substring(5)
                                       }
                                     }
-
+                                    // 2) По цепочке ShadowRoot.host (для случаев внутри shadow DOM родителя)
+                                    let root: Node | null = this.getRootNode() as Node
+                                    while (root && (root as any).host) {
+                                      const host = (root as any).host as Element
+                                      const hostTag = host.tagName?.toLowerCase?.()
+                                      if (hostTag && hostTag.startsWith("meta-")) {
+                                        return hostTag.substring(5)
+                                      }
+                                      root = (host as any).getRootNode?.() as Node
+                                    }
                                     return null
                                   }
 
@@ -466,3 +471,4 @@ export function MetaForFabric(params: FabricParams) {
     }
   } as MetaFor
 }
+

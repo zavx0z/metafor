@@ -69,6 +69,14 @@ const updateActorSnapshotQuery = `
 UPDATE actor SET snapshot = ?, timestamp = CURRENT_TIMESTAMP WHERE id = ?;
 `
 
+const getActorByCompositeWithNullParentQuery = `
+SELECT * FROM actor WHERE meta = ? AND parent_id IS NULL AND idx = ?;
+`
+
+const getActorByCompositeWithParentQuery = `
+SELECT * FROM actor WHERE meta = ? AND parent_id = ? AND idx = ?;
+`
+
 class SQLiteActorStore implements ActorStore {
   id: number = 0
   meta: string = ""
@@ -139,15 +147,20 @@ export class SQLiteStore implements Store {
    * Сохраняет актора, если он не существует, и возвращает его
    */
   saveActorIsNotExist(data: Omit<ActorStore, "id" | "timestamp">): ActorStore {
-    // Пытаемся найти существующего актора по (meta, parent_id)
-    let existingActor: SQLiteActorStore | null
-    if (data.parent_id == null) {
-      existingActor = this.#db.prepare(getActorByMetaAndParentNullQuery).as(SQLiteActorStore).get(data.meta) || null
-    } else {
-      existingActor = this.#db
-        .prepare(getActorByMetaAndParentQuery)
-        .as(SQLiteActorStore)
-        .get(data.meta, data.parent_id) || null
+    // Пытаемся найти существующего актора по (meta, parent_id, idx)
+    let existingActor: SQLiteActorStore | null = null
+    if (data.idx !== undefined && data.idx !== null) {
+      if (data.parent_id == null) {
+        existingActor =
+          this.#db.prepare(getActorByCompositeWithNullParentQuery).as(SQLiteActorStore).get(data.meta, data.idx) ||
+          null
+      } else {
+        existingActor =
+          this.#db
+            .prepare(getActorByCompositeWithParentQuery)
+            .as(SQLiteActorStore)
+            .get(data.meta, data.parent_id, data.idx) || null
+      }
     }
 
     if (existingActor) {
