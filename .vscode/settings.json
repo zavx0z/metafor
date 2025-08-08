@@ -14,7 +14,8 @@
         ".firebase": true,
         ".github": true,
         ".windsurf": true,
-        ".cursor": true
+        ".cursor": true,
+        ".vscode": true
     },
     "hide-files.files": [
         ".idea",
@@ -58,6 +59,7 @@
         "Десериализованный",
         "Десериализует",
         "дистанцировать",
+        "диффа",
         "журналирование",
         "закоммичен",
         "закоммичена",
@@ -156,6 +158,7 @@
         "FOREIGNKEY",
         "justinfagnani",
         "metaforpro",
+        "metas",
         "mrow",
         "nocollapse",
         "NOPATCH",

@@ -39,7 +39,7 @@ class MemStore implements Store {
   }
 }
 
-describe("path + repeat: смешанные теги на одном уровне", () => {
+describe("repeat без ключей: индексация по позиции", () => {
   let store: MemStore
   let MetaFor: ReturnType<typeof MetaForFabric>
   let container: HTMLDivElement
@@ -52,39 +52,35 @@ describe("path + repeat: смешанные теги на одном уровн�
     document.body.append(container)
   })
 
-  test("индексация среди одноименных тэгов, пути для разных мет уникальны", async () => {
-    const A = MetaFor("mixed-a", { dev: true }).context((t) => ({ v: t.string.required("") }))
+  test("позиции корректно отражаются в path", async () => {
+    const Child = MetaFor("no-keys-child", { dev: true })
+      .context((t) => ({ v: t.string.required("") }))
       .states({ idle: {} })
       .core()
       .processes()
       .reactions()
       .view()
-    const a = A
-    const B = MetaFor("mixed-b", { dev: true }).context((t) => ({ v: t.string.required("") }))
-      .states({ idle: {} })
-      .core()
-      .processes()
-      .reactions()
-      .view()
-    const b = B
+    const childHash = Child
 
-    // порядок: A, B, A, B
-    const tpl = () => html`<div>
-      <meta-${a}></meta-${a}>
-      <meta-${b}></meta-${b}>
-      <meta-${a}></meta-${a}>
-      <meta-${b}></meta-${b}>
-    </div>`
+    let items = [1, 2, 3]
+    const tpl = () => html`<div>${repeat(items, (it, i) => html`<meta-${childHash}></meta-${childHash}>`)}</div>`
+
     render(tpl(), container)
     await Bun.sleep(10)
+    const nodes1 = Array.from(container.querySelectorAll(`meta-${childHash}`)) as any[]
+    expect(
+      nodes1.map((n) => n.path),
+      "инициализация по позициям"
+    ).toEqual([`${childHash}:0`, `${childHash}:1`, `${childHash}:2`])
 
-    const nodesA = Array.from(container.querySelectorAll(`meta-${a}`)) as any[]
-    const nodesB = Array.from(container.querySelectorAll(`meta-${b}`)) as any[]
-    expect(nodesA[0]?.path, "первый A idx 0").toBe(`${a}:0`)
-    expect(nodesA[1]?.path, "второй A idx 1").toBe(`${a}:1`)
-    expect(nodesB[0]?.path, "первый B idx 0").toBe(`${b}:0`)
-    expect(nodesB[1]?.path, "второй B idx 1").toBe(`${b}:1`)
+    // Перемещение: [3,1,2]
+    items = [3, 1, 2]
+    render(tpl(), container)
+    await Bun.sleep(10)
+    const nodes2 = Array.from(container.querySelectorAll(`meta-${childHash}`)) as any[]
+    expect(
+      nodes2.map((n) => n.path),
+      "после перестановки по позициям"
+    ).toEqual([`${childHash}:0`, `${childHash}:1`, `${childHash}:2`])
   })
 })
-
-

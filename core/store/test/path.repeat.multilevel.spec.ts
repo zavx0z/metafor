@@ -53,7 +53,8 @@ describe("path + repeat: многоуровневые вложенности", (
   })
 
   test("перестановки на 3 уровнях корректно обновляют path", async () => {
-    const Child = MetaFor("ml-child", { dev: true }).context((t) => ({ v: t.string.required("") }))
+    const Child = MetaFor("ml-child", { dev: true })
+      .context((t) => ({ v: t.string.required("") }))
       .states({ idle: {} })
       .core()
       .processes()
@@ -89,8 +90,7 @@ describe("path + repeat: многоуровневые вложенности", (
           ${repeat(
             context.parents,
             (p) => p,
-            (p) => html`<meta-${parentHash} data-parent=${p} context=${{ arr: ["a", "b", "c"] }}></meta-${
-              parentHash}>`
+            (p) => html`<meta-${parentHash} data-parent=${p} context=${{ arr: ["a", "b", "c"] }}></meta-${parentHash}>`
           )}
         </div>`,
       })
@@ -106,7 +106,10 @@ describe("path + repeat: многоуровневые вложенности", (
     expect(grand.path, "grand idx 0").toBe(`${grandHash}:0`)
     expect(p1.path, "p1 под grand").toBe(`${grandHash}:0/${parentHash}:0`)
     const cNodes = Array.from(p1.shadowRoot!.querySelectorAll(`meta-${childHash}`)) as any[]
-    expect(cNodes.map((n) => n.path), "дети p1").toEqual([
+    expect(
+      cNodes.map((n) => n.path),
+      "дети p1"
+    ).toEqual([
       `${grandHash}:0/${parentHash}:0/${childHash}:0`,
       `${grandHash}:0/${parentHash}:0/${childHash}:1`,
       `${grandHash}:0/${parentHash}:0/${childHash}:2`,
@@ -116,7 +119,10 @@ describe("path + repeat: многоуровневые вложенности", (
     p1.update({ arr: ["c", "b", "a"] })
     await Bun.sleep(10)
     const cNodes2 = Array.from(p1.shadowRoot!.querySelectorAll(`meta-${childHash}`)) as any[]
-    expect(cNodes2.map((n) => n.path), "дети p1 переставлены").toEqual([
+    expect(
+      cNodes2.map((n) => n.path),
+      "дети p1 переставлены"
+    ).toEqual([
       `${grandHash}:0/${parentHash}:0/${childHash}:0`,
       `${grandHash}:0/${parentHash}:0/${childHash}:1`,
       `${grandHash}:0/${parentHash}:0/${childHash}:2`,
@@ -134,10 +140,6 @@ describe("path + repeat: многоуровневые вложенности", (
     const np1 = grand.shadowRoot!.querySelector(`meta-${parentHash}[data-parent="P1"]`) as any
     expect(np1.path, "p1 стал idx 1").toBe(`${grandHash}:0/${parentHash}:1`)
     const np1Child = (np1.shadowRoot!.querySelectorAll(`meta-${childHash}`)[0] as any)!
-    expect(np1Child.path, "ребёнок p1 скорректировал путь").toBe(
-      `${grandHash}:0/${parentHash}:1/${childHash}:0`
-    )
+    expect(np1Child.path, "ребёнок p1 скорректировал путь").toBe(`${grandHash}:0/${parentHash}:1/${childHash}:0`)
   })
 })
-
-

@@ -53,7 +53,8 @@ describe("перенос ребёнка между разными родител
   })
 
   test("ребёнок меняет parent segment в path", async () => {
-    const Child = MetaFor("move-child", { dev: true }).context((t) => ({ v: t.string.required("") }))
+    const Child = MetaFor("move-child", { dev: true })
+      .context((t) => ({ v: t.string.required("") }))
       .states({ idle: {} })
       .core()
       .processes()
@@ -102,5 +103,3 @@ describe("перенос ребёнка между разными родител
     expect(xB.path, "ребенок x теперь у B").toBe(`${parent}:1/${child}:0`)
   })
 })
-
-
