@@ -3,11 +3,12 @@ import { MetaForFabric } from "../../index.ts"
 import { SQLiteStore } from "../../../server/store/index.ts"
 import { Database } from "bun:sqlite"
 
+const name = Bun.randomUUIDv7()
+
 describe("персистентность: ре-гидратация корневого актора (SQLite)", () => {
   const dbPath = "persist.rehydrate.sqlite"
   let db: Database
   let store: SQLiteStore
-  const MetaFor = MetaForFabric({ store: {} as any }) as unknown as ReturnType<typeof MetaForFabric>
 
   beforeAll(async () => {
     try {
@@ -32,7 +33,6 @@ describe("персистентность: ре-гидратация корнев
   test("значения контекста восстанавливаются перед первым рендером", async () => {
     // создаем фабрику с тем же стором
     const LocalMetaFor = MetaForFabric({ store })
-    const name = "persist-rehydrate-root"
 
     const hash = LocalMetaFor(name)
       .context((types) => ({

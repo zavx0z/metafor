@@ -177,6 +177,7 @@ export function MetaForFabric(params: FabricParams) {
                                   /** @internal синхронизация положения (parent_id, idx) в сторе */
                                   __syncLocation = () => this.#syncLocation()
 
+
                                   connectedCallback() {
                                     // Индекс текущего актора среди одноименных meta-тегов на уровне
                                     const siblingIndex = this.getIndexAmongSiblings()
@@ -239,16 +240,26 @@ export function MetaForFabric(params: FabricParams) {
                                         // Восстанавливаем значения контекста без генерации сообщений
                                         if (saved?.context) {
                                           const values: Partial<ExtractValues<C>> = {}
+                                          let hasNonDefaultValues = false
                                           for (const [key, def] of Object.entries(saved.context as any)) {
                                             // @ts-ignore
-                                            values[key as keyof ExtractValues<C>] = (def as any)?.value
+                                            const value = (def as any)?.value
+                                            const defaultValue = (def as any)?.default
+                                            values[key as keyof ExtractValues<C>] = value
+                                            // Проверяем, отличается ли значение от дефолтного
+                                            if (value !== defaultValue) {
+                                              hasNonDefaultValues = true
+                                            }
                                           }
-                                          // Напрямую обновляем внутренний контекст, чтобы не отправлять события до инициализации
-                                          this.#context.update(values as Partial<ExtractValues<C>>)
-                                          this.#rehydratedValues = values as Partial<ExtractValues<C>>
-                                          ;(this as any).__hasRehydratedContext = true
-                                          // Первый внешний update(context) (например, из property) игнорируем, чтобы не перетереть восстановленные значения
-                                          this.#ignoreFirstExternalContextUpdate = true
+                                          // Восстанавливаем только если есть реальные изменения от дефолта
+                                          if (hasNonDefaultValues) {
+                                            // Напрямую обновляем внутренний контекст, чтобы не отправлять события до инициализации
+                                            this.#context.update(values as Partial<ExtractValues<C>>)
+                                            this.#rehydratedValues = values as Partial<ExtractValues<C>>
+                                            ;(this as any).__hasRehydratedContext = true
+                                            // Первый внешний update(context) (например, из property) игнорируем, чтобы не перетереть восстановленные значения
+                                            this.#ignoreFirstExternalContextUpdate = true
+                                          }
                                         }
                                       }
                                     } catch (_) {
