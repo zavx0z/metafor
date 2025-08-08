@@ -177,7 +177,6 @@ export function MetaForFabric(params: FabricParams) {
                                   /** @internal синхронизация положения (parent_id, idx) в сторе */
                                   __syncLocation = () => this.#syncLocation()
 
-
                                   connectedCallback() {
                                     // Индекс текущего актора среди одноименных meta-тегов на уровне
                                     const siblingIndex = this.getIndexAmongSiblings()
@@ -247,7 +246,14 @@ export function MetaForFabric(params: FabricParams) {
                                             const defaultValue = (def as any)?.default
                                             values[key as keyof ExtractValues<C>] = value
                                             // Проверяем, отличается ли значение от дефолтного
-                                            if (value !== defaultValue) {
+                                            if (Array.isArray(value) && Array.isArray(defaultValue)) {
+                                              if (
+                                                value.length !== defaultValue.length ||
+                                                value.some((v, i) => v !== defaultValue[i])
+                                              ) {
+                                                hasNonDefaultValues = true
+                                              }
+                                            } else if (value !== defaultValue) {
                                               hasNonDefaultValues = true
                                             }
                                           }

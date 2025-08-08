@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from "bun:test"
+import { describe, test, expect, beforeEach, afterAll } from "bun:test"
 import { MetaForFabric } from "../../index.ts"
 import { SQLiteStore } from "../../../server/store/index.ts"
 import { Database } from "bun:sqlite"
@@ -19,6 +19,11 @@ describe("path + repeat: вложенные акторы", () => {
     container = document.createElement("div")
     document.body.innerHTML = ""
     document.body.append(container)
+  })
+  afterAll(async () => {
+    await Bun.file(dbPath).delete()
+    await Bun.file(dbPath + "-shm").delete()
+    await Bun.file(dbPath + "-wal").delete()
   })
 
   test("перестановки/вставки/удаления на нескольких уровнях корректно обновляют path", async () => {
@@ -62,8 +67,7 @@ describe("path + repeat: вложенные акторы", () => {
     </div>`
 
     render(Page(true), container)
-    ;(customElements as any).upgrade?.((container.querySelector(`meta-${parentHash}`) as any)?.shadowRoot)
-    await Bun.sleep(10)
+    await Bun.sleep(120)
 
     // Проверка начальных путей
     const p1 = container.querySelector(`meta-${parentHash}[data-parent="P1"]`) as any
@@ -79,8 +83,7 @@ describe("path + repeat: вложенные акторы", () => {
 
     // Перестановка детей внутри P1: [c,a,b]
     p1.update({ arr: ["c", "a", "b"] })
-    ;(customElements as any).upgrade?.(p1.shadowRoot)
-    await Bun.sleep(10)
+    await Bun.sleep(60)
     const c1nodes2 = Array.from(p1.shadowRoot!.querySelectorAll(`meta-${childHash}`)) as any[]
     expect(c1nodes2[0]?.path, "p1/child[0] -> idx 0").toBe(`${parentHash}:0/${childHash}:0`)
     expect(c1nodes2[1]?.path, "p1/child[1] -> idx 1").toBe(`${parentHash}:0/${childHash}:1`)
@@ -88,8 +91,7 @@ describe("path + repeat: вложенные акторы", () => {
 
     // Удаление b, добавление d в начало: [d, c, a]
     p1.update({ arr: ["d", "c", "a"] })
-    ;(customElements as any).upgrade?.(p1.shadowRoot)
-    await Bun.sleep(10)
+    await Bun.sleep(60)
     const c1nodes3 = Array.from(p1.shadowRoot!.querySelectorAll(`meta-${childHash}`)) as any[]
     expect(c1nodes3[0]?.path, "p1/child[0] -> idx 0").toBe(`${parentHash}:0/${childHash}:0`)
     expect(c1nodes3[1]?.path, "p1/child[1] -> idx 1").toBe(`${parentHash}:0/${childHash}:1`)
@@ -98,13 +100,7 @@ describe("path + repeat: вложенные акторы", () => {
     // Перестановка родительских акторов: [P2, P1]
     outer = ["P2", "P1"]
     render(Page(false), container)
-    ;(customElements as any).upgrade?.(
-      (container.querySelector(`meta-${parentHash}[data-parent="P1"]`) as any)?.shadowRoot
-    )
-    ;(customElements as any).upgrade?.(
-      (container.querySelector(`meta-${parentHash}[data-parent="P2"]`) as any)?.shadowRoot
-    )
-    await Bun.sleep(10)
+    await Bun.sleep(120)
     const np1 = container.querySelector(`meta-${parentHash}[data-parent="P1"]`) as any
     const np2 = container.querySelector(`meta-${parentHash}[data-parent="P2"]`) as any
     expect(np2.path, "P2 теперь root idx 0").toBe(`${parentHash}:0`)
@@ -119,12 +115,12 @@ describe("path + repeat: вложенные акторы", () => {
     // Ре-гидратация: меняем контекст у первого ребёнка p1, размонтируем и монтируем снова
     const firstChild = np1nodes[0] as any
     firstChild.update({ v: "persist-nested" })
-    await Bun.sleep(20)
+    await Bun.sleep(120)
     container.remove()
     container = document.createElement("div")
     document.body.append(container)
     render(Page(false), container)
-    await Bun.sleep(60)
+    await Bun.sleep(150)
     const newP1 = container.querySelector(`meta-${parentHash}[data-parent="P1"]`) as any
     const newFirst = (newP1.shadowRoot!.querySelectorAll(`meta-${childHash}`)[0] as any)!
     expect(newFirst.snapshot.context.v.value, "вложенный ребёнок восстановился из стора").toBe("persist-nested")

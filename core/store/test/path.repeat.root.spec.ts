@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from "bun:test"
+import { describe, test, expect, beforeEach, afterAll } from "bun:test"
 import { MetaForFabric } from "../../index.ts"
 import { SQLiteStore } from "../../../server/store/index.ts"
 import { Database } from "bun:sqlite"
@@ -19,6 +19,13 @@ describe("path + repeat: корневые акторы", () => {
     container = document.createElement("div")
     document.body.innerHTML = ""
     document.body.append(container)
+  })
+
+  afterAll(async () => {
+    db.close()
+    await Bun.file(dbPath).delete()
+    await Bun.file(dbPath + "-shm").delete()
+    await Bun.file(dbPath + "-wal").delete()
   })
 
   test("перестановки, добавления, удаления с repeat обновляют path", async () => {

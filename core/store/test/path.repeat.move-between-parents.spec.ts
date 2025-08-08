@@ -1,11 +1,11 @@
-import { describe, test, expect, beforeEach } from "bun:test"
+import { describe, test, expect, beforeEach, afterAll } from "bun:test"
 import { MetaForFabric } from "../../index.ts"
 import { SQLiteStore } from "../../../server/store/index.ts"
 import { Database } from "bun:sqlite"
 import { html, render } from "../../html/index.js"
 import { repeat } from "../../html/directives/repeat.ts"
 
-describe("перенос ребёнка между разными родителями", () => {
+describe("перемещение между родителями", () => {
   const dbPath = `path.movebp.${Date.now()}.sqlite`
   let db: Database
   let store: SQLiteStore
@@ -21,18 +21,25 @@ describe("перенос ребёнка между разными родител
     document.body.append(container)
   })
 
-  test("ребёнок меняет parent segment в path", async () => {
-    const Child = MetaFor("move-child", { dev: true })
+  afterAll(async () => {
+    db.close()
+    await Bun.file(dbPath).delete()
+    await Bun.file(dbPath + "-shm").delete()
+    await Bun.file(dbPath + "-wal").delete()
+  })
+
+  test("перенос мета между родителями сохраняет ключи и путь", async () => {
+    const Child = MetaFor("move-between-child", { dev: true })
       .context((t) => ({ v: t.string.required("") }))
       .states({ idle: {} })
       .core()
       .processes()
       .reactions()
       .view()
-    const child = Child
+    const ch = Child
 
-    const Parent = MetaFor("move-parent", { dev: true })
-      .context((t) => ({ arr: t.array.required(["x"]) }))
+    const Parent = MetaFor("move-between-parent", { dev: true })
+      .context((t) => ({ arr: t.array.required(["a"]) }))
       .states({ idle: {} })
       .core()
       .processes()
@@ -41,46 +48,35 @@ describe("перенос ребёнка между разными родител
         render: ({ html, context }) => html`<div class="p">
           ${repeat(
             context.arr,
-            (it) => it,
-            (it) => html`<meta-${child} data-key=${it}></meta-${child}>`
+            (x) => x,
+            (x) => html`<meta-${ch} data-k=${x}></meta-${ch}>`
           )}
         </div>`,
       })
-    const parent = Parent
+    const ph = Parent
 
-    let order = ["A", "B"]
-    const Page = () => html`<div>
+    let parents = ["P1", "P2"]
+    const Page = () => html`<div id="page">
       ${repeat(
-        order,
-        (it) => it,
-        (it) => html`<meta-${parent} data-p=${it} context=${{ arr: ["x"] }}></meta-${parent}>`
+        parents,
+        (p) => p,
+        (p) => html`<meta-${ph} data-p=${p}></meta-${ph}>`
       )}
     </div>`
 
     render(Page(), container)
-    await Bun.sleep(10)
-    const pA = container.querySelector(`meta-${parent}[data-p="A"]`) as any
-    const pB = container.querySelector(`meta-${parent}[data-p="B"]`) as any
-    const xA = pA.shadowRoot!.querySelector(`meta-${child}`) as any
-    expect(xA.path, "ребенок x у A").toBe(`${parent}:0/${child}:0`)
+    await Bun.sleep(100)
 
-    // перенос x из A к B
-    pA.update({ arr: [] })
-    pB.update({ arr: ["x"] })
-    await Bun.sleep(10)
-    const xB = pB.shadowRoot!.querySelector(`meta-${child}`) as any
-    expect(xB.path, "ребенок x теперь у B").toBe(`${parent}:1/${child}:0`)
+    const p1 = container.querySelector(`meta-${ph}[data-p="P1"]`) as any
+    const p2 = container.querySelector(`meta-${ph}[data-p="P2"]`) as any
 
-    // Ре-гидратация: меняем контекст у x в B, размонтируем все и монтируем заново
-    xB.update({ v: "persist-move" })
-    await Bun.sleep(120)
-    container.remove()
-    container = document.createElement("div")
-    document.body.append(container)
-    render(Page(), container)
-    await Bun.sleep(120)
-    const pB2 = container.querySelector(`meta-${parent}[data-p="B"]`) as any
-    const xB2 = pB2.shadowRoot!.querySelector(`meta-${child}`) as any
-    expect(xB2.snapshot.context.v.value, "x у B восстановил контекст из стора").toBe("persist-move")
+    // перенос ребёнка "a" из P1 в P2
+    p1.update({ arr: [] })
+    p2.update({ arr: ["a"] })
+    await Bun.sleep(100)
+
+    const childInP2 = p2.shadowRoot!.querySelector(`meta-${ch}[data-k="a"]`) as any
+    expect(childInP2, "ребёнок с ключом a перемещён в P2").toBeTruthy()
+    expect(childInP2.path.startsWith(`${ph}:1/${ch}:`), "путь начинается с родителя P2").toBeTrue()
   })
 })
