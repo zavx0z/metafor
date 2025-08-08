@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from "bun:test"
+import { describe, test, expect, beforeEach, afterAll } from "bun:test"
 import { MetaForFabric } from "../../index.ts"
 import { SQLiteStore } from "../../../server/store/index.ts"
 import { Database } from "bun:sqlite"
@@ -140,5 +140,12 @@ describe("path + repeat: изменение контекста ДО манипу
     const p2 = container.querySelector(`meta-${parent}`) as any
     const b3 = p2.shadowRoot!.querySelector(`meta-${leaf}[data-k="b"]`) as any
     expect(b3.snapshot.context.v.value, "контекст b восстановился на новой позиции").toBe("pre-b")
+  })
+
+  afterAll(async () => {
+    db.close()
+    await Bun.file(dbPath).delete()
+    await Bun.file(`${dbPath}-shm`).delete()
+    await Bun.file(`${dbPath}-wal`).delete()
   })
 })

@@ -228,9 +228,9 @@ export function MetaForFabric(params: FabricParams) {
                                     })
                                     // Проставляем id для быстрого доступа к родителю в DOM
                                     this.setAttribute("data-actor-id", String(this.#store.id))
-                                    // Попытка восстановления состояния из snapshot стора (только если запись существовала ранее)
+                                    // Попытка восстановления состояния из snapshot стора
                                     try {
-                                      if (existed && this.#store?.snapshot) {
+                                      if (this.#store?.snapshot) {
                                         const saved = JSON.parse(this.#store.snapshot) as Snapshot<C, S>
                                         // Восстанавливаем состояние
                                         if (saved?.state) {

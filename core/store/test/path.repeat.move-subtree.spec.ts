@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from "bun:test"
+import { describe, test, expect, beforeEach, afterAll } from "bun:test"
 import { MetaForFabric } from "../../index.ts"
 import type { ActorStore, MetaRecord, Store } from "../../store/index.t.ts"
 import { html, render } from "../../html/index.js"
@@ -43,6 +43,16 @@ class MemStore implements Store {
       row.parent_id = parent_id
       row.idx = idx
     }
+  }
+  getActorByKey(meta: string, parent_id: number | null, key: string): ActorStore | null {
+    return this.#actors.find((a) => a.meta === meta && a.parent_id === parent_id && a.key === key) || null
+  }
+  getActorByKeyAnyParent(meta: string, key: string): ActorStore | null {
+    return this.#actors.find((a) => a.meta === meta && a.key === key) || null
+  }
+  updateActorKey(id: number, key: string): void {
+    const row = this.#actors.find((a) => a.id === id)
+    if (row) row.key = key
   }
 }
 

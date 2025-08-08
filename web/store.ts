@@ -7,6 +7,7 @@ export class IndexedDBActorStore implements ActorStore {
   meta: string = ""
   parent_id: number | null = null
   idx: number = 0
+  key: string | null = null
   snapshot: string = ""
   timestamp: string = ""
 }
@@ -25,8 +26,14 @@ export class IndexedDBStore implements Store {
   }
 
   saveActorIsNotExist(actor: Omit<ActorStore, "timestamp" | "id">) {
-    // TODO: реализовать получение актора из IndexedDB
-    return new IndexedDBActorStore()
+    // TODO: реализовать получение/создание актора в IndexedDB
+    const rec = new IndexedDBActorStore()
+    rec.meta = actor.meta
+    rec.parent_id = actor.parent_id
+    rec.idx = actor.idx
+    ;(rec as any).key = (actor as any).key ?? null
+    rec.snapshot = actor.snapshot
+    return rec
   }
 
   updateActorSnapshot(id: number, snapshot: string): void {
@@ -45,6 +52,20 @@ export class IndexedDBStore implements Store {
 
   updateActorLocation(id: number, parent_id: number | null, idx: number): void {
     // TODO: реализовать перемещение записи в IndexedDB
+  }
+
+  getActorByKey(meta: string, parent_id: number | null, key: string): ActorStore | null {
+    // TODO: реализовать
+    return null
+  }
+
+  getActorByKeyAnyParent(meta: string, key: string): ActorStore | null {
+    // TODO: реализовать
+    return null
+  }
+
+  updateActorKey(id: number, key: string): void {
+    // TODO: реализовать
   }
 
   constructor() {}

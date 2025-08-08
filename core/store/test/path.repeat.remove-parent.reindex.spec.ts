@@ -1,4 +1,4 @@
-import { describe, test, expect, beforeEach } from "bun:test"
+import { describe, test, expect, beforeEach, afterAll } from "bun:test"
 import { MetaForFabric } from "../../index.ts"
 import { SQLiteStore } from "../../../server/store/index.ts"
 import { Database } from "bun:sqlite"
@@ -91,5 +91,12 @@ describe("удаление родителя и реиндексация дете
     const np1b = container.querySelector(`meta-${ph}[data-p="P1"]`) as any
     const cNodesb = Array.from(np1b.shadowRoot!.querySelectorAll(`meta-${ch}`)) as any[]
     expect(cNodesb[0].snapshot.context.v.value, "после удаления/ре-монта контекст сохранился").toBe("persist-rmparent")
+  })
+
+  afterAll(async () => {
+    db.close()
+    await Bun.file(dbPath).delete()
+    await Bun.file(`${dbPath}-shm`).delete()
+    await Bun.file(`${dbPath}-wal`).delete()
   })
 })

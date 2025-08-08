@@ -227,8 +227,24 @@ export const getCommittedValue = (part: ChildPart) => part._$committedValue
  * @param part Часть для удаления
  */
 export const removePart = (part: ChildPart) => {
+  // Сохраняем контейнер до удаления для последующей синхронизации индексов
+  const container = wrap(part._$startNode).parentNode as Element | null
   part._$clear()
   part._$startNode.remove()
+  // После удаления части синхронизируем индексы оставшихся meta-* акторов в контейнере
+  try {
+    if (container) {
+      const all = Array.from(container.querySelectorAll("*"))
+      for (const el of all) {
+        const tag = (el as Element).tagName?.toLowerCase?.() || ""
+        if (tag.startsWith("meta-")) {
+          try {
+            ;(el as any).__syncLocation?.()
+          } catch {}
+        }
+      }
+    }
+  } catch {}
 }
 
 export const clearPart = (part: ChildPart) => {
