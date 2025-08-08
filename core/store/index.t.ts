@@ -11,6 +11,10 @@ export abstract class Store {
   abstract getMeta(meta: string): MetaRecord | null
 
   abstract saveActorIsNotExist(actor: Omit<ActorStore, "id" | "timestamp">): ActorStore
+  /** Возвращает последнего созданного актора по meta (для вычисления parent_id) */
+  abstract getActorByMeta(meta: string): ActorStore | null
+  /** Обновляет snapshot существующего актора по id */
+  abstract updateActorSnapshot(id: number, snapshot: string): void
 }
 export interface MetaRecord {
   meta: string

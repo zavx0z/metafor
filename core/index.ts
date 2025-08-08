@@ -173,8 +173,16 @@ export function MetaForFabric(params: FabricParams) {
                                     const parentMeta = this.getParentMeta()
                                     const siblingIndex = parentMeta ? this.getIndexAmongSiblings() : 0
 
-                                    // TODO: Получить parent_id из store, когда будет реализован getActorByMeta
-                                    const parentId: number | null = null
+                                    // Получаем parent_id из store, если доступен родитель с таким meta
+                                    let parentId: number | null = null
+                                    if (parentMeta) {
+                                      try {
+                                        const parentActor = store.getActorByMeta(parentMeta)
+                                        parentId = parentActor ? Number(parentActor.id) : null
+                                      } catch (_) {
+                                        parentId = null
+                                      }
+                                    }
 
                                     this.#store = store.saveActorIsNotExist({
                                       meta: this.#meta,
@@ -182,6 +190,28 @@ export function MetaForFabric(params: FabricParams) {
                                       idx: siblingIndex,
                                       snapshot: JSON.stringify(this.snapshot),
                                     })
+                                    // Попытка восстановления состояния из snapshot стора
+                                    try {
+                                      if (this.#store?.snapshot) {
+                                        const saved = JSON.parse(this.#store.snapshot) as Snapshot<C, S>
+                                        // Восстанавливаем состояние
+                                        if (saved?.state) {
+                                          this.#setState(saved.state as S)
+                                        }
+                                        // Восстанавливаем значения контекста без генерации сообщений
+                                        if (saved?.context) {
+                                          const values: Partial<ExtractValues<C>> = {}
+                                          for (const [key, def] of Object.entries(saved.context as any)) {
+                                            // @ts-ignore
+                                            values[key as keyof ExtractValues<C>] = (def as any)?.value
+                                          }
+                                          // Напрямую обновляем внутренний контекст, чтобы не отправлять события до инициализации
+                                          this.#context.update(values as Partial<ExtractValues<C>>)
+                                        }
+                                      }
+                                    } catch (_) {
+                                      // игнорируем ошибки десериализации
+                                    }
                                     this.#view.render({
                                       state: this.#state,
                                       context: this.#context.getSnapshot(),
@@ -214,6 +244,10 @@ export function MetaForFabric(params: FabricParams) {
 
                                   disconnectedCallback() {
                                     this.#view.onDestroy({ core: this.#core })
+                                    if (this.#channel) {
+                                      this.#channel.close()
+                                      this.#channel = null
+                                    }
                                   }
 
                                   /** обновление контекста */
@@ -228,6 +262,10 @@ export function MetaForFabric(params: FabricParams) {
                                         shadow: this.#shadow,
                                         update: this.update,
                                       })
+                                      // Сохраняем актуальный snapshot в store
+                                      try {
+                                        store.updateActorSnapshot(this.#store.id, JSON.stringify(this.snapshot))
+                                      } catch (_) {}
                                     }
                                     return updated
                                   }
@@ -333,6 +371,10 @@ export function MetaForFabric(params: FabricParams) {
                                       shadow: this.#shadow,
                                       update: this.update,
                                     })
+                                    // Фиксируем состояние после изменений
+                                    try {
+                                      store.updateActorSnapshot(this.#store.id, JSON.stringify(this.snapshot))
+                                    } catch (_) {}
                                   }
                                   #sendEvent = (message: Message) => {
                                     if (!this.#channel) return

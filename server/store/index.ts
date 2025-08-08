@@ -20,11 +20,12 @@ CREATE TABLE IF NOT EXISTS actor (
         timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (parent_id) REFERENCES actor (id) ON DELETE CASCADE,
     FOREIGN KEY (meta) REFERENCES meta (meta) ON DELETE CASCADE,
-    UNIQUE (meta, parent_id)
+    UNIQUE (meta, parent_id, idx)
 );
 
 CREATE INDEX IF NOT EXISTS idx_actor_meta ON actor (meta);
 CREATE INDEX IF NOT EXISTS idx_actor_parent ON actor (parent_id);
+CREATE INDEX IF NOT EXISTS idx_actor_meta_parent_idx ON actor (meta, parent_id, idx);
 `
 
 // SQL-запросы для работы с meta
@@ -46,8 +47,12 @@ INSERT INTO actor (meta, parent_id, idx, snapshot)
 VALUES (?, ?, ?, ?);
 `
 
-const getActorByMetaQuery = `
-SELECT * FROM actor WHERE meta = ?;
+const getActorByMetaAndParentQuery = `
+SELECT * FROM actor WHERE meta = ? AND parent_id = ?;
+`
+
+const getActorByMetaAndParentNullQuery = `
+SELECT * FROM actor WHERE meta = ? AND parent_id IS NULL;
 `
 
 const getActorByIdQuery = `
@@ -58,6 +63,10 @@ const getNextIndexQuery = `
 SELECT COALESCE(MAX(idx), -1) + 1 as next_index 
 FROM actor 
 WHERE meta = ? AND parent_id IS ?;
+`
+
+const updateActorSnapshotQuery = `
+UPDATE actor SET snapshot = ?, timestamp = CURRENT_TIMESTAMP WHERE id = ?;
 `
 
 class SQLiteActorStore implements ActorStore {
@@ -130,26 +139,56 @@ export class SQLiteStore implements Store {
    * Сохраняет актора, если он не существует, и возвращает его
    */
   saveActorIsNotExist(data: Omit<ActorStore, "id" | "timestamp">): ActorStore {
-    // Проверяем, существует ли уже актор с такой метой
-    const existingActor = this.#db.prepare(getActorByMetaQuery).as(SQLiteActorStore).get(data.meta)
+    // Пытаемся найти существующего актора по (meta, parent_id)
+    let existingActor: SQLiteActorStore | null
+    if (data.parent_id == null) {
+      existingActor = this.#db.prepare(getActorByMetaAndParentNullQuery).as(SQLiteActorStore).get(data.meta) || null
+    } else {
+      existingActor = this.#db
+        .prepare(getActorByMetaAndParentQuery)
+        .as(SQLiteActorStore)
+        .get(data.meta, data.parent_id) || null
+    }
 
     if (existingActor) {
-      return existingActor
+      // Обновляем snapshot при каждом вызове, чтобы фиксировать текущее состояние
+      this.#db.prepare(updateActorSnapshotQuery).run(data.snapshot, existingActor.id)
+      // Возвращаем актуальную запись
+      const updated = this.#db.prepare(getActorByIdQuery).as(SQLiteActorStore).get(existingActor.id)
+      return (updated as SQLiteActorStore) || existingActor
+    }
+
+    // Если актора нет, рассчитываем idx при необходимости
+    let idx = data.idx
+    if (idx == null || Number.isNaN(idx)) {
+      const res = this.#db.prepare(getNextIndexQuery).get(data.meta, data.parent_id) as { next_index: number }
+      idx = res?.next_index ?? 0
     }
 
     // Создаем нового актора
-    const result = this.#db.prepare(createActorQuery).run(data.meta, data.parent_id, data.idx, data.snapshot)
+    const result = this.#db.prepare(createActorQuery).run(data.meta, data.parent_id, idx, data.snapshot)
 
     const actorId = Number(result.lastInsertRowid)
 
     // Получаем созданного актора
-    const actor = this.#db.prepare("SELECT * FROM actor WHERE id = ?").as(SQLiteActorStore).get(actorId)
+    const actor = this.#db.prepare(getActorByIdQuery).as(SQLiteActorStore).get(actorId)
 
     if (!actor) {
       throw new Error("Failed to create actor")
     }
 
     return actor
+  }
+
+  /** Возвращает последнего созданного актора по meta (для вычисления parent_id) */
+  getActorByMeta(meta: string): ActorStore | null {
+    const row = this.#db.prepare("SELECT * FROM actor WHERE meta = ? ORDER BY id DESC LIMIT 1").as(SQLiteActorStore).get(meta)
+    return (row as SQLiteActorStore) || null
+  }
+
+  /** Обновляет snapshot существующего актора по id */
+  updateActorSnapshot(id: number, snapshot: string): void {
+    this.#db.prepare(updateActorSnapshotQuery).run(snapshot, id)
   }
 
   /**
