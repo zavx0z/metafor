@@ -169,16 +169,22 @@ export function MetaForFabric(params: FabricParams) {
                                     Object.entries(value).forEach(([key, val]) => (this.#core[key as keyof I] = val))
 
                                   connectedCallback() {
-                                    // Получаем родительский meta и индекс среди братьев
-                                    const parentMeta = this.getParentMeta()
-                                    const siblingIndex = parentMeta ? this.getIndexAmongSiblings() : 0
+                                    // Индекс текущего актора среди всех meta-актеров на уровне
+                                    const siblingIndex = this.getIndexAmongSiblings()
 
-                                    // Получаем parent_id из store, если доступен родитель с таким meta
+                                    // Вычисляем parent_id, проходя по сегментам пути родителя (meta, idx)
                                     let parentId: number | null = null
-                                    if (parentMeta) {
+                                    const parentSegments = this.getPathSegments(false)
+                                    if (parentSegments.length > 0) {
                                       try {
-                                        const parentActor = store.getActorByMeta(parentMeta)
-                                        parentId = parentActor ? Number(parentActor.id) : null
+                                        for (const seg of parentSegments) {
+                                          const parent = store.getActorByComposite(seg.meta, parentId, seg.idx)
+                                          if (!parent) {
+                                            parentId = null
+                                            break
+                                          }
+                                          parentId = Number(parent.id)
+                                        }
                                       } catch (_) {
                                         parentId = null
                                       }
@@ -190,6 +196,7 @@ export function MetaForFabric(params: FabricParams) {
                                       idx: siblingIndex,
                                       snapshot: JSON.stringify(this.snapshot),
                                     })
+                                    // data-actor-id больше не используется для адресации (см. getter path)
                                     // Попытка восстановления состояния из snapshot стора
                                     try {
                                       if (this.#store?.snapshot) {
@@ -413,18 +420,52 @@ export function MetaForFabric(params: FabricParams) {
                                   }
 
                                   /**
-                                   * Получает индекс среди братьев (элементов с тем же тегом)
-                                   * @returns индекс среди братьев
+                                   * Получает идентификатор актора родителя из DOM (через host в shadow DOM)
                                    */
+                                  getParentActorId(): number | null {
+                                    // Пробуем найти ближайший meta-хост по цепочке ShadowRoot.host
+                                    let root: Node | null = this.getRootNode() as Node
+                                    while (root && (root as any).host) {
+                                      const host = (root as any).host as Element
+                                      const hostTag = host.tagName?.toLowerCase?.()
+                                      if (hostTag && hostTag.startsWith("meta-")) {
+                                        const id = host.getAttribute("data-actor-id")
+                                        return id ? Number(id) : null
+                                      }
+                                      root = (host as any).getRootNode?.() as Node
+                                    }
+                                    // Вдобавок, проверим прямого родителя на случай корневых акторов в <body>
+                                    const parent = this.parentElement
+                                    if (parent) {
+                                      const tagName = parent.tagName.toLowerCase()
+                                      if (tagName.startsWith("meta-")) {
+                                        const id = parent.getAttribute("data-actor-id")
+                                        return id ? Number(id) : null
+                                      }
+                                    }
+                                    return null
+                                  }
+
+                                  /** Индекс среди всех meta-* на уровне (всех видов мета-актеров) */
                                   getIndexAmongSiblings(): number {
                                     const parent = this.parentElement
                                     if (!parent) return 0
-
-                                    const siblings = Array.from(parent.children).filter(
-                                      (child) => child.tagName === this.tagName
+                                    const siblings = Array.from(parent.children).filter((child) =>
+                                      child.tagName.toLowerCase().startsWith("meta-")
                                     )
-
                                     return siblings.indexOf(this)
+                                  }
+
+                                  /** Индекс родителя среди всех meta-* на его уровне */
+                                  getParentIndexAmongSiblings(): number {
+                                    const parent = this.parentElement
+                                    if (!parent) return 0
+                                    const grand = parent.parentElement
+                                    if (!grand) return 0
+                                    const siblings = Array.from(grand.children).filter((child) =>
+                                      child.tagName.toLowerCase().startsWith("meta-")
+                                    )
+                                    return siblings.indexOf(parent)
                                   }
 
                                   get snapshot(): Snapshot<C, S> {
@@ -438,6 +479,41 @@ export function MetaForFabric(params: FabricParams) {
                                       ...this.#view.snapshot,
                                       ...(this.#description ? { description: this.#description } : {}),
                                     }
+                                  }
+
+                                  /** Полный путь от корневого актора в формате: meta:idx/meta:idx/... */
+                                  get path(): string {
+                                    return this.getPathSegments(true)
+                                      .map((s) => `${s.meta}:${s.idx}`)
+                                      .join("/")
+                                  }
+
+                                  /** Возвращает сегменты пути {meta, idx} от корня до текущего (или до родителя) */
+                                  getPathSegments(includeSelf: boolean): Array<{ meta: string; idx: number }> {
+                                    const segments: Array<{ meta: string; idx: number }> = []
+                                    let host: Element | null = this as unknown as Element
+                                    if (!includeSelf) {
+                                      // смещаемся на родителя текущего
+                                      const root: any = (host as any).getRootNode?.()
+                                      host = root && root.host ? (root.host as Element) : host.parentElement
+                                    }
+                                    while (host) {
+                                      const tag = host.tagName?.toLowerCase?.() || ""
+                                      if (!tag.startsWith("meta-")) break
+                                      const meta = tag.substring(5)
+                                      const parent = host.parentElement
+                                      let idx = 0
+                                      if (parent) {
+                                        const siblings = Array.from(parent.children).filter((child) =>
+                                          child.tagName.toLowerCase().startsWith("meta-")
+                                        )
+                                        idx = siblings.indexOf(host)
+                                      }
+                                      segments.unshift({ meta, idx })
+                                      const root: any = (host as any).getRootNode?.()
+                                      host = root && root.host ? (root.host as Element) : null
+                                    }
+                                    return segments
                                   }
 
                                   /** Обработка входящих сообщений для реакций */

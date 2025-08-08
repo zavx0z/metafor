@@ -204,6 +204,15 @@ export class SQLiteStore implements Store {
     this.#db.prepare(updateActorSnapshotQuery).run(snapshot, id)
   }
 
+  /** Получает актора по составному ключу (meta, parent_id, idx) без модификации */
+  getActorByComposite(meta: string, parent_id: number | null, idx: number): ActorStore | null {
+    const row =
+      parent_id == null
+        ? this.#db.prepare(getActorByCompositeWithNullParentQuery).as(SQLiteActorStore).get(meta, idx)
+        : this.#db.prepare(getActorByCompositeWithParentQuery).as(SQLiteActorStore).get(meta, parent_id, idx)
+    return (row as SQLiteActorStore) || null
+  }
+
   /**
    * Получает всех акторов (для отладки и веб-сокетов)
    */

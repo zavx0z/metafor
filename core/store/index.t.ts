@@ -15,6 +15,8 @@ export abstract class Store {
   abstract getActorByMeta(meta: string): ActorStore | null
   /** Обновляет snapshot существующего актора по id */
   abstract updateActorSnapshot(id: number, snapshot: string): void
+  /** Получает актора по составному ключу (meta, parent_id, idx) без модификации */
+  abstract getActorByComposite(meta: string, parent_id: number | null, idx: number): ActorStore | null
 }
 export interface MetaRecord {
   meta: string
