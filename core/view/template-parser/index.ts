@@ -14,7 +14,7 @@ export interface ElementSchema {
   tag: string
   type: "el"
   attrs?: Record<string, string>
-  children?: Array<ElementSchema | TextSchema>
+  child?: Array<ElementSchema | TextSchema>
   item?: {
     src: string
     key: string
@@ -23,7 +23,7 @@ export interface ElementSchema {
 
 export interface TextSchema {
   type: "text"
-  value: string | { source: "item" }
+  value: string | { src: "item" }
 }
 
 export type Schema = Array<ElementSchema | TextSchema>
@@ -76,9 +76,9 @@ export class TemplateParser {
 
       // Парсим дочерние элементы
       if (innerContent !== undefined) {
-        const children = this.parseChildren(innerContent.trim(), arrayInfo)
-        if (children.length > 0) {
-          element.children = children
+        const child = this.parseChildren(innerContent.trim(), arrayInfo)
+        if (child.length > 0) {
+          element.child = child
         }
       }
 
@@ -111,15 +111,15 @@ export class TemplateParser {
    * Парсит дочерние элементы
    */
   private parseChildren(content: string, arrayInfo: ArrayInfo[] = []): Array<ElementSchema | TextSchema> {
-    const children: Array<ElementSchema | TextSchema> = []
+    const child: Array<ElementSchema | TextSchema> = []
 
     // Проверяем на массивы из контекста
     for (const arrayItem of arrayInfo) {
       if (content.trim() === arrayItem.placeholder) {
         // Весь контент это плейсхолдер массива
         const itemElement = this.parseArrayItemTemplate(arrayItem.itemTemplate, arrayItem.source, arrayItem.contextKey)
-        children.push(itemElement)
-        return children
+        child.push(itemElement)
+        return child
       }
     }
 
@@ -127,15 +127,15 @@ export class TemplateParser {
     if (!content.includes("<")) {
       if (content.trim() === "SIMPLE_PLACEHOLDER") {
         // Интерполяция - добавляем заглушку для текста
-        children.push({
+        child.push({
           type: "text",
-          value: { source: "item" },
+          value: { src: "item" },
         })
       } else if (content.trim()) {
         // Обрабатываем смешанный текст с плейсхолдерами
-        this.parseTextWithPlaceholders(content.trim(), children)
+        this.parseTextWithPlaceholders(content.trim(), child)
       }
-      return children
+      return child
     }
 
     // Парсим вложенные элементы
@@ -158,14 +158,14 @@ export class TemplateParser {
               arrayItem.source,
               arrayItem.contextKey
             )
-            children.push(itemElement)
+            child.push(itemElement)
             isArrayPlaceholder = true
             break
           }
         }
 
         if (!isArrayPlaceholder) {
-          this.parseTextWithPlaceholders(textBefore, children)
+          this.parseTextWithPlaceholders(textBefore, child)
         }
       }
 
@@ -178,7 +178,7 @@ export class TemplateParser {
             arrayItem.source,
             arrayItem.contextKey
           )
-          children.push(itemElement)
+          child.push(itemElement)
           isArrayElement = true
           break
         }
@@ -199,13 +199,13 @@ export class TemplateParser {
         }
 
         if (innerContent !== undefined) {
-          const nestedChildren = this.parseChildren(innerContent.trim(), arrayInfo)
-          if (nestedChildren.length > 0) {
-            element.children = nestedChildren
+          const nestedChild = this.parseChildren(innerContent.trim(), arrayInfo)
+          if (nestedChild.length > 0) {
+            element.child = nestedChild
           }
         }
 
-        children.push(element)
+        child.push(element)
       }
 
       lastIndex = match.index + fullMatch.length
@@ -223,24 +223,24 @@ export class TemplateParser {
             arrayItem.source,
             arrayItem.contextKey
           )
-          children.push(itemElement)
+          child.push(itemElement)
           isArrayPlaceholder = true
           break
         }
       }
 
       if (!isArrayPlaceholder) {
-        this.parseTextWithPlaceholders(textAfter, children)
+        this.parseTextWithPlaceholders(textAfter, child)
       }
     }
 
-    return children
+    return child
   }
 
   /**
    * Парсит текст с плейсхолдерами
    */
-  private parseTextWithPlaceholders(text: string, children: Array<ElementSchema | TextSchema>) {
+  private parseTextWithPlaceholders(text: string, child: Array<ElementSchema | TextSchema>) {
     const parts = text.split("SIMPLE_PLACEHOLDER")
 
     for (let i = 0; i < parts.length; i++) {
@@ -248,7 +248,7 @@ export class TemplateParser {
 
       // Добавляем текстовую часть если она есть
       if (part) {
-        children.push({
+        child.push({
           type: "text",
           value: part,
         })
@@ -256,9 +256,9 @@ export class TemplateParser {
 
       // Добавляем плейсхолдер если это не последняя часть
       if (i < parts.length - 1) {
-        children.push({
+        child.push({
           type: "text",
-          value: { source: "item" },
+          value: { src: "item" },
         })
       }
     }
@@ -281,10 +281,10 @@ export class TemplateParser {
         tag: "span", // fallback тег
         type: "el",
         attrs: {},
-        children: [
+        child: [
           {
             type: "text",
-            value: { source: "item" },
+            value: { src: "item" },
           },
         ],
         item: {
@@ -316,9 +316,9 @@ export class TemplateParser {
 
     // Парсим дочерние элементы
     if (innerContent) {
-      const children = this.parseChildren(innerContent.trim())
-      if (children.length > 0) {
-        element.children = children
+      const child = this.parseChildren(innerContent.trim())
+      if (child.length > 0) {
+        element.child = child
       }
     }
 

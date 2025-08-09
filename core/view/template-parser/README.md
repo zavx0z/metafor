@@ -43,7 +43,7 @@ const schema = parser.parseHtmlToSchema(htmlString)
   tag: "div",
   type: "el",
   attrs: { class: "container" },
-  children: [
+  child: [
     { type: "text", value: "Hello" }
   ]
 }
@@ -56,14 +56,14 @@ const schema = parser.parseHtmlToSchema(htmlString)
   tag: "ul",
   type: "el",
   attrs: {},
-  children: [
+  child: [
     {
       tag: "li",
       type: "el",
       item: { src: "context", key: "items" },
       attrs: {},
-      children: [
-        { type: "text", value: { source: "item" } }
+      child: [
+        { type: "text", value: { src: "item" } }
       ]
     }
   ]
@@ -75,7 +75,7 @@ const schema = parser.parseHtmlToSchema(htmlString)
 ```typescript
 {
   type: "text",
-  value: { source: "item" }  // для ${variable}
+  value: { src: "item" }  // для ${variable}
 }
 ```
 

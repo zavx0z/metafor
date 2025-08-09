@@ -20,7 +20,7 @@ export interface ElementSchema {
   tag: string
   type: "el"
   attrs?: Record<string, string>
-  children?: Array<ElementSchema | TextSchema>
+  child?: Array<ElementSchema | TextSchema>
   item?: {
     src: string
     key: string
@@ -32,7 +32,7 @@ export interface ElementSchema {
  */
 export interface TextSchema {
   type: "text"
-  value: string | { source: "item" }
+  value: string | { src: "item" }
 }
 
 /**

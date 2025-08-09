@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test"
 import { TemplateParser, parseTemplate } from "../index.ts"
+import type { ElementSchema, TextSchema, Schema } from "../index.t.ts"
 
 describe("TemplateParser", () => {
   describe("основные функции", () => {
@@ -10,7 +11,7 @@ describe("TemplateParser", () => {
           tag: "div",
           type: "el",
           attrs: {},
-          children: [
+          child: [
             {
               type: "text",
               value: "Hello",
@@ -28,7 +29,7 @@ describe("TemplateParser", () => {
           tag: "span",
           type: "el",
           attrs: {},
-          children: [
+          child: [
             {
               type: "text",
               value: "World",
@@ -47,7 +48,7 @@ describe("TemplateParser", () => {
           tag: "div",
           type: "el",
           attrs: {},
-          children: [
+          child: [
             {
               type: "text",
               value: "Hello, world!",
@@ -67,7 +68,7 @@ describe("TemplateParser", () => {
             class: "container",
             id: "main",
           },
-          children: [
+          child: [
             {
               type: "text",
               value: "Content",
@@ -87,12 +88,12 @@ describe("TemplateParser", () => {
           tag: "div",
           type: "el",
           attrs: {},
-          children: [
+          child: [
             {
               tag: "h1",
               type: "el",
               attrs: {},
-              children: [
+              child: [
                 {
                   type: "text",
                   value: "Title",
@@ -103,7 +104,7 @@ describe("TemplateParser", () => {
               tag: "p",
               type: "el",
               attrs: {},
-              children: [
+              child: [
                 {
                   type: "text",
                   value: "Description",
@@ -140,10 +141,10 @@ describe("TemplateParser", () => {
           tag: "div",
           type: "el",
           attrs: {},
-          children: [
+          child: [
             {
               type: "text",
-              value: { source: "item" },
+              value: { src: "item" } as const,
             },
           ],
         },
@@ -157,14 +158,14 @@ describe("TemplateParser", () => {
           tag: "div",
           type: "el",
           attrs: {},
-          children: [
+          child: [
             {
               type: "text",
               value: "Total:",
             },
             {
               type: "text",
-              value: { source: "item" },
+              value: { src: "item" } as const,
             },
           ],
         },
@@ -182,7 +183,7 @@ describe("TemplateParser", () => {
           tag: "ul",
           type: "el",
           attrs: {},
-          children: [
+          child: [
             {
               tag: "li",
               type: "el",
@@ -191,10 +192,10 @@ describe("TemplateParser", () => {
                 key: "ids",
               },
               attrs: {},
-              children: [
+              child: [
                 {
                   type: "text",
-                  value: { source: "item" },
+                  value: { src: "item" },
                 },
               ],
             },
@@ -212,7 +213,7 @@ describe("TemplateParser", () => {
           tag: "div",
           type: "el",
           attrs: {},
-          children: [
+          child: [
             {
               tag: "span",
               type: "el",
@@ -221,10 +222,10 @@ describe("TemplateParser", () => {
                 key: "users",
               },
               attrs: {},
-              children: [
+              child: [
                 {
                   type: "text",
-                  value: { source: "item" },
+                  value: { src: "item" },
                 },
               ],
             },
@@ -247,7 +248,7 @@ describe("TemplateParser", () => {
           attrs: {
             class: "list",
           },
-          children: [
+          child: [
             {
               tag: "div",
               type: "el",
@@ -259,15 +260,15 @@ describe("TemplateParser", () => {
                 class: "user-card",
                 "data-id": "SIMPLE_PLACEHOLDER",
               },
-              children: [
+              child: [
                 {
                   tag: "h3",
                   type: "el",
                   attrs: {},
-                  children: [
+                  child: [
                     {
                       type: "text",
-                      value: { source: "item" },
+                      value: { src: "item" },
                     },
                   ],
                 },
@@ -275,10 +276,10 @@ describe("TemplateParser", () => {
                   tag: "p",
                   type: "el",
                   attrs: {},
-                  children: [
+                  child: [
                     {
                       type: "text",
-                      value: { source: "item" },
+                      value: { src: "item" },
                     },
                   ],
                 },
@@ -298,7 +299,7 @@ describe("TemplateParser", () => {
           tag: "div",
           type: "el",
           attrs: {},
-          children: [
+          child: [
             {
               tag: "img",
               type: "el",
@@ -327,7 +328,7 @@ describe("TemplateParser", () => {
             "data-test": "value",
             "aria-label": "test",
           },
-          children: [
+          child: [
             {
               type: "text",
               value: "Content",
@@ -344,7 +345,7 @@ describe("TemplateParser", () => {
           tag: "header",
           type: "el",
           attrs: {},
-          children: [
+          child: [
             {
               type: "text",
               value: "Header",
@@ -355,7 +356,7 @@ describe("TemplateParser", () => {
           tag: "main",
           type: "el",
           attrs: {},
-          children: [
+          child: [
             {
               type: "text",
               value: "Main",
