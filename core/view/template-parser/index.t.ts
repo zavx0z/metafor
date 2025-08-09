@@ -32,7 +32,7 @@ export interface ElementSchema {
  */
 export interface TextSchema {
   type: "text"
-  value: string | { src: "item" }
+  value: string | { src: string; key?: string }
 }
 
 /**

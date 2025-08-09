@@ -161,7 +161,6 @@ describe("Template Parser - массивы", () => {
         {
           tag: "nav",
           type: "el",
-
           child: [
             {
               tag: "a",
@@ -176,7 +175,10 @@ describe("Template Parser - массивы", () => {
               child: [
                 {
                   type: "text",
-                  value: { src: "item" } as const,
+                  value: { 
+                    src: "item",
+                    key: "label"
+                   },
                 },
               ],
             },

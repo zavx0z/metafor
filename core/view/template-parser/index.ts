@@ -40,6 +40,7 @@ export class TemplateParser {
     const contextArrayPattern = /\$\{(context|core)\.(\w+)\.map\([^}]*html`([^`]*)`[^}]*\)\}/g
     let processedHtml = htmlString
     const arrayInfo: ArrayInfo[] = []
+    const interpolationMap = new Map<string, { src: string; key: string }>()
 
     let match
     while ((match = contextArrayPattern.exec(htmlString)) !== null) {
@@ -51,7 +52,15 @@ export class TemplateParser {
       }
     }
 
-    // Заменяем остальные интерполяции на простые плейсхолдеры
+    // Обрабатываем простые интерполяции и сохраняем их информацию
+    let interpolationIndex = 0
+    processedHtml = processedHtml.replace(/\$\{(context|core)\.(\w+)\}/g, (match, src, key) => {
+      const placeholder = `INTERPOLATION_${interpolationIndex++}`
+      interpolationMap.set(placeholder, { src, key })
+      return placeholder
+    })
+
+    // Заменяем оставшиеся интерполяции на простые плейсхолдеры
     processedHtml = processedHtml.replace(/\$\{[^}]*\}/g, "SIMPLE_PLACEHOLDER")
 
     // Парсим корневые элементы
@@ -74,7 +83,7 @@ export class TemplateParser {
 
       // Парсим дочерние элементы
       if (innerContent !== undefined) {
-        const child = this.parseChildren(innerContent.trim(), arrayInfo)
+        const child = this.parseChildren(innerContent.trim(), arrayInfo, interpolationMap)
         if (child.length > 0) {
           element.child = child
         }
@@ -108,7 +117,7 @@ export class TemplateParser {
   /**
    * Парсит дочерние элементы
    */
-  private parseChildren(content: string, arrayInfo: ArrayInfo[] = []): Array<ElementSchema | TextSchema> {
+  private parseChildren(content: string, arrayInfo: ArrayInfo[] = [], interpolationMap?: Map<string, { src: string; key: string }>): Array<ElementSchema | TextSchema> {
     const child: Array<ElementSchema | TextSchema> = []
 
     // Проверяем на массивы из контекста
@@ -129,9 +138,18 @@ export class TemplateParser {
           type: "text",
           value: { src: "item" },
         })
+      } else if (content.trim().startsWith("INTERPOLATION_") && interpolationMap) {
+        // Простая интерполяция
+        const interpolationInfo = interpolationMap.get(content.trim())
+        if (interpolationInfo) {
+          child.push({
+            type: "text",
+            value: interpolationInfo,
+          })
+        }
       } else if (content.trim()) {
         // Обрабатываем смешанный текст с плейсхолдерами
-        this.parseTextWithPlaceholders(content.trim(), child)
+        this.parseTextWithPlaceholders(content.trim(), child, interpolationMap)
       }
       return child
     }
@@ -163,7 +181,7 @@ export class TemplateParser {
         }
 
         if (!isArrayPlaceholder) {
-          this.parseTextWithPlaceholders(textBefore, child)
+          this.parseTextWithPlaceholders(textBefore, child, interpolationMap)
         }
       }
 
@@ -195,7 +213,7 @@ export class TemplateParser {
         }
 
         if (innerContent !== undefined) {
-          const nestedChild = this.parseChildren(innerContent.trim(), arrayInfo)
+          const nestedChild = this.parseChildren(innerContent.trim(), arrayInfo, interpolationMap)
           if (nestedChild.length > 0) {
             element.child = nestedChild
           }
@@ -226,7 +244,7 @@ export class TemplateParser {
       }
 
       if (!isArrayPlaceholder) {
-        this.parseTextWithPlaceholders(textAfter, child)
+        this.parseTextWithPlaceholders(textAfter, child, interpolationMap)
       }
     }
 
@@ -236,8 +254,26 @@ export class TemplateParser {
   /**
    * Парсит текст с плейсхолдерами
    */
-  private parseTextWithPlaceholders(text: string, child: Array<ElementSchema | TextSchema>) {
-    const parts = text.split("SIMPLE_PLACEHOLDER")
+  private parseTextWithPlaceholders(text: string, child: Array<ElementSchema | TextSchema>, interpolationMap?: Map<string, { src: string; key: string }>) {
+    // Сначала обрабатываем простые интерполяции
+    const interpolationPattern = /INTERPOLATION_\d+/g
+    let processedText = text
+    const interpolations: Array<{ index: number; info: { src: string; key: string } }> = []
+
+    let match
+    while ((match = interpolationPattern.exec(text)) !== null) {
+      const interpolationInfo = interpolationMap?.get(match[0])
+      if (interpolationInfo) {
+        interpolations.push({
+          index: match.index,
+          info: interpolationInfo
+        })
+        processedText = processedText.replace(match[0], "SIMPLE_PLACEHOLDER")
+      }
+    }
+
+    const parts = processedText.split("SIMPLE_PLACEHOLDER")
+    let interpolationIndex = 0
 
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i]?.trim()
@@ -252,10 +288,20 @@ export class TemplateParser {
 
       // Добавляем плейсхолдер если это не последняя часть
       if (i < parts.length - 1) {
-        child.push({
-          type: "text",
-          value: { src: "item" },
-        })
+        if (interpolationIndex < interpolations.length) {
+          // Это простая интерполяция
+          child.push({
+            type: "text",
+            value: interpolations[interpolationIndex].info,
+          })
+          interpolationIndex++
+        } else {
+          // Это интерполяция внутри массива
+          child.push({
+            type: "text",
+            value: { src: "item" },
+          })
+        }
       }
     }
   }
@@ -264,11 +310,32 @@ export class TemplateParser {
    * Парсит шаблон элемента массива
    */
   private parseArrayItemTemplate(template: string, source: string, contextKey: string): ElementSchema {
-    // Заменяем интерполяции в шаблоне элемента на плейсхолдеры
-    const cleanTemplate = template.replace(/\$\{[^}]*\}/g, "SIMPLE_PLACEHOLDER")
+    // Создаем карту интерполяций внутри элемента массива
+    const itemInterpolationMap = new Map<string, { src: string; key?: string }>()
+    let interpolationIndex = 0
+    
+
+    
+    // Заменяем интерполяции внутри массива на плейсхолдеры с извлечением ключей
+    let cleanTemplate = template
+      // Сначала обрабатываем `item.key` формат  
+      .replace(/\$\{(\w+)\.(\w+)\}/g, (match, itemName, key) => {
+        const placeholder = `ITEM_INTERPOLATION_${interpolationIndex++}`
+        itemInterpolationMap.set(placeholder, { src: "item", key })
+        return placeholder
+      })
+      // Затем обрабатываем простые переменные без ключа (как ${id})
+      .replace(/\$\{(\w+)\}/g, (match, itemName) => {
+        const placeholder = `ITEM_INTERPOLATION_${interpolationIndex++}`
+        itemInterpolationMap.set(placeholder, { src: "item" })
+        return placeholder
+      })
+    
+    // Заменяем оставшиеся интерполяции на SIMPLE_PLACEHOLDER
+    cleanTemplate = cleanTemplate.replace(/\$\{[^}]*\}/g, "SIMPLE_PLACEHOLDER")
 
     // Парсим один элемент
-    const tagRegex = /<(\w+)([^>]*?)(?:\s*\/\s*>|>(.*?)<\/\1>)/s
+    const tagRegex = /<(\w+)([^>]*?)(?:\s*\/\s*>|>([\s\S]*?)<\/\1>)/s
     const match = tagRegex.exec(cleanTemplate)
 
     if (!match) {
@@ -300,21 +367,190 @@ export class TemplateParser {
       },
     }
 
-    // Парсим атрибуты
-    const attrs = this.parseAttributes(attributesStr || "")
+    // Парсим атрибуты с заменой ITEM_INTERPOLATION на SIMPLE_PLACEHOLDER
+    let processedAttributesStr = attributesStr || ""
+    for (const [placeholder] of itemInterpolationMap) {
+      processedAttributesStr = processedAttributesStr.replace(new RegExp(placeholder, 'g'), "SIMPLE_PLACEHOLDER")
+    }
+    
+    const attrs = this.parseAttributes(processedAttributesStr)
     if (Object.keys(attrs).length > 0) {
       element.attrs = attrs
     }
 
     // Парсим дочерние элементы
     if (innerContent) {
-      const child = this.parseChildren(innerContent.trim())
+      const child = this.parseChildrenForArrayItem(innerContent.trim(), itemInterpolationMap)
       if (child.length > 0) {
         element.child = child
       }
     }
 
     return element
+  }
+
+  /**
+   * Парсит дочерние элементы для элементов массива
+   */
+  private parseChildrenForArrayItem(content: string, itemInterpolationMap: Map<string, { src: string; key?: string }>): Array<ElementSchema | TextSchema> {
+    const child: Array<ElementSchema | TextSchema> = []
+
+    // Обрабатываем интерполяции элементов массива  
+    const itemInterpolationPattern = /ITEM_INTERPOLATION_\d+/g
+    let processedContent = content
+    const interpolations: Array<{ placeholder: string; info: { src: string; key?: string } }> = []
+
+    let match
+    while ((match = itemInterpolationPattern.exec(content)) !== null) {
+      const interpolationInfo = itemInterpolationMap.get(match[0])
+      if (interpolationInfo) {
+        interpolations.push({
+          placeholder: match[0],
+          info: interpolationInfo
+        })
+        processedContent = processedContent.replace(match[0], "SIMPLE_PLACEHOLDER")
+      }
+    }
+
+    // Если это только текст (без HTML тегов)
+    if (!processedContent.includes("<")) {
+      if (processedContent.trim() === "SIMPLE_PLACEHOLDER") {
+        // Ищем первую подходящую интерполяцию
+        if (interpolations.length > 0) {
+          child.push({
+            type: "text",
+            value: interpolations[0].info,
+          })
+        } else {
+          // Это обычный SIMPLE_PLACEHOLDER без информации об источнике
+          child.push({
+            type: "text",
+            value: { src: "item" },
+          })
+        }
+      } else {
+        // Смешанный текст с плейсхолдерами
+        const parts = processedContent.split("SIMPLE_PLACEHOLDER")
+        let interpolationIndex = 0
+
+        for (let i = 0; i < parts.length; i++) {
+          const part = parts[i]?.trim()
+
+          if (part) {
+            child.push({
+              type: "text",
+              value: part,
+            })
+          }
+
+          if (i < parts.length - 1 && interpolationIndex < interpolations.length) {
+            child.push({
+              type: "text",
+              value: interpolations[interpolationIndex].info,
+            })
+            interpolationIndex++
+          }
+        }
+      }
+    } else {
+      // Есть HTML элементы - парсим их
+      const tagRegex = /<(\w+)([^>]*?)(?:\s*\/\s*>|>([\s\S]*?)<\/\1>)/g
+      let tagMatch
+      let lastIndex = 0
+
+      while ((tagMatch = tagRegex.exec(processedContent)) !== null) {
+        const [fullMatch, tagName, attributesStr, innerContent] = tagMatch
+
+        // Добавляем текст перед тегом
+        const textBefore = processedContent.slice(lastIndex, tagMatch.index).trim()
+        if (textBefore) {
+          this.parseTextWithPlaceholdersForArray(textBefore, child, interpolations)
+        }
+
+        // Создаем элемент
+        const element: ElementSchema = {
+          tag: tagName,
+          type: "el",
+        }
+
+        // Парсим атрибуты
+        const attrs = this.parseAttributesForArray(attributesStr || "", itemInterpolationMap)
+        if (Object.keys(attrs).length > 0) {
+          element.attrs = attrs
+        }
+
+        // Парсим дочерние элементы рекурсивно
+        if (innerContent !== undefined) {
+          const nestedChild = this.parseChildrenForArrayItem(innerContent.trim(), itemInterpolationMap)
+          if (nestedChild.length > 0) {
+            element.child = nestedChild
+          }
+        }
+
+        child.push(element)
+        lastIndex = tagMatch.index + fullMatch.length
+      }
+
+      // Добавляем текст после последнего тега
+      const textAfter = processedContent.slice(lastIndex).trim()
+      if (textAfter) {
+        this.parseTextWithPlaceholdersForArray(textAfter, child, interpolations)
+      }
+    }
+
+    return child
+  }
+
+  /**
+   * Парсит текст с плейсхолдерами для элементов массива
+   */
+  private parseTextWithPlaceholdersForArray(text: string, child: Array<ElementSchema | TextSchema>, interpolations: Array<{ placeholder: string; info: { src: string; key?: string } }>) {
+    const parts = text.split("SIMPLE_PLACEHOLDER")
+    let interpolationIndex = 0
+
+    for (let i = 0; i < parts.length; i++) {
+      const part = parts[i]?.trim()
+
+      if (part) {
+        child.push({
+          type: "text",
+          value: part,
+        })
+      }
+
+      if (i < parts.length - 1 && interpolationIndex < interpolations.length) {
+        child.push({
+          type: "text",
+          value: interpolations[interpolationIndex].info,
+        })
+        interpolationIndex++
+      }
+    }
+  }
+
+  /**
+   * Парсит атрибуты для элементов массива
+   */
+  private parseAttributesForArray(attributesStr: string, itemInterpolationMap: Map<string, { src: string; key?: string }>): Record<string, string> {
+    const attrs: Record<string, string> = {}
+    
+    // Сначала заменяем ITEM_INTERPOLATION на SIMPLE_PLACEHOLDER
+    let processedAttributeStr = attributesStr
+    for (const [placeholder] of itemInterpolationMap) {
+      processedAttributeStr = processedAttributeStr.replace(new RegExp(placeholder, 'g'), "SIMPLE_PLACEHOLDER")
+    }
+    
+    const attrRegex = /([\w-]+)(?:\s*=\s*["']([^"']*)["'])?/g
+    let match
+
+    while ((match = attrRegex.exec(processedAttributeStr)) !== null) {
+      const [, name, value] = match
+      if (name) {
+        attrs[name] = value || ""
+      }
+    }
+
+    return attrs
   }
 }
 

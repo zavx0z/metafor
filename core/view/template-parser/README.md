@@ -34,6 +34,23 @@ const parser = new TemplateParser()
 const schema = parser.parseHtmlToSchema(htmlString)
 ```
 
+## Логика обработки интерполяций
+
+### Простые интерполяции (вне массивов)
+- `${context.name}` → `{ src: "context", key: "name" }`
+- `${core.settings}` → `{ src: "core", key: "settings" }`
+
+### Интерполяции внутри массивов
+- `${item.property}` → `{ src: "item", key: "property" }`
+- `${id}` (простая переменная) → `{ src: "item" }`
+
+### Обработка массивов
+1. Парсер находит `${context.items.map((item) => html\`...\`)}`
+2. Извлекает шаблон элемента: все между html\`...\`
+3. В шаблоне элемента заменяет интерполяции на плейсхолдеры
+4. Сохраняет информацию об источнике данных для каждой интерполяции
+5. Парсит HTML структуру и восстанавливает правильные источники данных
+
 ## Форматы схем
 
 **Принципы:**
@@ -77,9 +94,22 @@ const schema = parser.parseHtmlToSchema(htmlString)
 ### Интерполяция
 
 ```typescript
+// Простая переменная без ключа (например, ${id})
+{
+  type: "text", 
+  value: { src: "item" }
+}
+
+// Переменная с ключом (например, ${item.name})
 {
   type: "text",
-  value: { src: "item" }  // для ${variable}
+  value: { src: "item", key: "name" }
+}
+
+// Интерполяция вне массива (например, ${context.title})
+{
+  type: "text",
+  value: { src: "context", key: "title" }
 }
 ```
 

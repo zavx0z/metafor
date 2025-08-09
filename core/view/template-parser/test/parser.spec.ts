@@ -137,7 +137,10 @@ describe("TemplateParser", () => {
           child: [
             {
               type: "text",
-              value: { src: "item" } as const,
+              value: { 
+                src: "context",
+                key: "name"
+              },
             },
           ],
         },
@@ -157,7 +160,7 @@ describe("TemplateParser", () => {
             },
             {
               type: "text",
-              value: { src: "item" } as const,
+              value: { src: "context", key: "count" },
             },
           ],
         },
