@@ -39,6 +39,8 @@ export class TemplateParser {
       { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
     >()
     processedHtml = this.parseConditionalAttributes(processedHtml, conditionalAttributeMap)
+    
+
 
     // Обрабатываем простые интерполяции и сохраняем их информацию
     let interpolationIndex = 0
@@ -95,7 +97,7 @@ export class TemplateParser {
   /**
    * Парсит атрибуты элемента
    */
-  private parseAttributes(
+    private parseAttributes(
     attributesStr: string,
     interpolationMap?: Map<string, { src: string; key: string }>,
     conditionalAttributeMap?: Map<
@@ -104,14 +106,140 @@ export class TemplateParser {
     >
   ): Record<string, AttributeValue> {
     const attrs: Record<string, AttributeValue> = {}
-    // Исправленный regex для атрибутов включая data-* и другие с дефисами
-    const attrRegex = /([\w-]+)(?:\s*=\s*["']([^"']*)["'])?/g
-    let match
+    
+    // Используем более сложный подход для правильной обработки кавычек
+    let currentIndex = 0
+    const length = attributesStr.length
 
-    while ((match = attrRegex.exec(attributesStr)) !== null) {
-      const [, name, value] = match
-      if (name && value !== undefined) {
-        attrs[name] = this.parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
+    while (currentIndex < length) {
+      // Пропускаем пробелы
+      while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) {
+        currentIndex++
+      }
+      if (currentIndex >= length) break
+
+      // Ищем имя атрибута
+      const nameStart = currentIndex
+      while (currentIndex < length && /[\w-]/.test(attributesStr[currentIndex]!)) {
+        currentIndex++
+      }
+      const name = attributesStr.slice(nameStart, currentIndex)
+      if (!name) break
+
+      // Пропускаем пробелы и знак равенства
+      while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) {
+        currentIndex++
+      }
+      if (currentIndex < length && attributesStr[currentIndex] === '=') {
+        currentIndex++
+        while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) {
+          currentIndex++
+        }
+
+        // Ищем кавычки
+        if (currentIndex < length && (attributesStr[currentIndex] === '"' || attributesStr[currentIndex] === "'")) {
+          const quote = attributesStr[currentIndex]!
+          currentIndex++
+          const valueStart = currentIndex
+
+          // Ищем закрывающую кавычку
+          while (currentIndex < length && attributesStr[currentIndex] !== quote) {
+            currentIndex++
+          }
+          const value = attributesStr.slice(valueStart, currentIndex)
+          currentIndex++ // Пропускаем закрывающую кавычку
+
+          // Проверяем плейсхолдеры условных атрибутов
+          if (conditionalAttributeMap) {
+            let foundPlaceholder = false
+            for (const [placeholder, info] of conditionalAttributeMap) {
+              if (value === placeholder) {
+                attrs[name] = {
+                  src: info.src,
+                  key: info.key,
+                  trueValue: info.trueValue,
+                  falseValue: info.falseValue,
+                  type: "conditional" as const,
+                }
+                foundPlaceholder = true
+                break
+              }
+              // Проверяем смешанный контент с условными плейсхолдерами
+              if (value.includes(placeholder)) {
+                const originalConditional = info.falseValue
+                  ? `\${${info.src}.${info.key} ? '${info.trueValue}' : '${info.falseValue}'}`
+                  : `\${${info.src}.${info.key} && '${info.trueValue}'}`
+                const resultValue = value.replace(placeholder, originalConditional)
+
+                attrs[name] = {
+                  src: info.src,
+                  key: info.key,
+                  trueValue: info.trueValue,
+                  falseValue: info.falseValue,
+                  result: resultValue,
+                  type: "conditional" as const,
+                }
+                foundPlaceholder = true
+                break
+              }
+            }
+            if (!foundPlaceholder) {
+              attrs[name] = this.parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
+            }
+          } else {
+            attrs[name] = this.parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
+          }
+        } else {
+          // Значение без кавычек (нестандартный случай)
+          const valueStart = currentIndex
+          while (currentIndex < length && !/\s/.test(attributesStr[currentIndex]!)) {
+            currentIndex++
+          }
+          const value = attributesStr.slice(valueStart, currentIndex)
+          // Проверяем плейсхолдеры условных атрибутов
+          if (conditionalAttributeMap) {
+            let foundPlaceholder = false
+            for (const [placeholder, info] of conditionalAttributeMap) {
+              if (value === placeholder) {
+                attrs[name] = {
+                  src: info.src,
+                  key: info.key,
+                  trueValue: info.trueValue,
+                  falseValue: info.falseValue,
+                  type: "conditional" as const,
+                }
+                foundPlaceholder = true
+                break
+              }
+              // Проверяем смешанный контент с условными плейсхолдерами
+              if (value.includes(placeholder)) {
+                const originalConditional = info.falseValue
+                  ? `\${${info.src}.${info.key} ? '${info.trueValue}' : '${info.falseValue}'}`
+                  : `\${${info.src}.${info.key} && '${info.trueValue}'}`
+                const resultValue = value.replace(placeholder, originalConditional)
+
+                attrs[name] = {
+                  src: info.src,
+                  key: info.key,
+                  trueValue: info.trueValue,
+                  falseValue: info.falseValue,
+                  result: resultValue,
+                  type: "conditional" as const,
+                }
+                foundPlaceholder = true
+                break
+              }
+            }
+            if (!foundPlaceholder) {
+              attrs[name] = this.parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
+            }
+          } else {
+            attrs[name] = this.parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
+          }
+        }
+      } else {
+        // Булев атрибут без значения
+        attrs[name] = ""
       }
     }
 
@@ -818,14 +946,140 @@ export class TemplateParser {
     >
   ): Record<string, AttributeValue> {
     const attrs: Record<string, AttributeValue> = {}
+    
+    // Используем более сложный подход для правильной обработки кавычек
+    let currentIndex = 0
+    const length = attributesStr.length
 
-    const attrRegex = /([\w-]+)(?:\s*=\s*["']([^"']*)["'])?/g
-    let match
+    while (currentIndex < length) {
+      // Пропускаем пробелы
+      while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) {
+        currentIndex++
+      }
+      if (currentIndex >= length) break
 
-    while ((match = attrRegex.exec(attributesStr)) !== null) {
-      const [, name, value] = match
-      if (name && value !== undefined) {
-        attrs[name] = this.parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+      // Ищем имя атрибута
+      const nameStart = currentIndex
+      while (currentIndex < length && /[\w-]/.test(attributesStr[currentIndex]!)) {
+        currentIndex++
+      }
+      const name = attributesStr.slice(nameStart, currentIndex)
+      if (!name) break
+
+      // Пропускаем пробелы и знак равенства
+      while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) {
+        currentIndex++
+      }
+      if (currentIndex < length && attributesStr[currentIndex] === '=') {
+        currentIndex++
+        while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) {
+          currentIndex++
+        }
+
+        // Ищем кавычки
+        if (currentIndex < length && (attributesStr[currentIndex] === '"' || attributesStr[currentIndex] === "'")) {
+          const quote = attributesStr[currentIndex]!
+          currentIndex++
+          const valueStart = currentIndex
+
+          // Ищем закрывающую кавычку
+          while (currentIndex < length && attributesStr[currentIndex] !== quote) {
+            currentIndex++
+          }
+          const value = attributesStr.slice(valueStart, currentIndex)
+          currentIndex++ // Пропускаем закрывающую кавычку
+
+          // Проверяем плейсхолдеры условных атрибутов
+          if (itemConditionalAttributeMap) {
+            let foundPlaceholder = false
+            for (const [placeholder, info] of itemConditionalAttributeMap) {
+              if (value === placeholder) {
+                attrs[name] = {
+                  src: info.src,
+                  key: info.key,
+                  trueValue: info.trueValue,
+                  falseValue: info.falseValue,
+                  type: "conditional" as const,
+                }
+                foundPlaceholder = true
+                break
+              }
+              // Проверяем смешанный контент с условными плейсхолдерами
+              if (value.includes(placeholder)) {
+                const originalConditional = info.falseValue
+                  ? `\${${info.src}.${info.key} ? '${info.trueValue}' : '${info.falseValue}'}`
+                  : `\${${info.src}.${info.key} && '${info.trueValue}'}`
+                const resultValue = value.replace(placeholder, originalConditional)
+
+                attrs[name] = {
+                  src: info.src,
+                  key: info.key,
+                  trueValue: info.trueValue,
+                  falseValue: info.falseValue,
+                  result: resultValue,
+                  type: "conditional" as const,
+                }
+                foundPlaceholder = true
+                break
+              }
+            }
+            if (!foundPlaceholder) {
+              attrs[name] = this.parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+            }
+          } else {
+            attrs[name] = this.parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+          }
+        } else {
+          // Значение без кавычек (нестандартный случай)
+          const valueStart = currentIndex
+          while (currentIndex < length && !/\s/.test(attributesStr[currentIndex]!)) {
+            currentIndex++
+          }
+          const value = attributesStr.slice(valueStart, currentIndex)
+          // Проверяем плейсхолдеры условных атрибутов
+          if (itemConditionalAttributeMap) {
+            let foundPlaceholder = false
+            for (const [placeholder, info] of itemConditionalAttributeMap) {
+              if (value === placeholder) {
+                attrs[name] = {
+                  src: info.src,
+                  key: info.key,
+                  trueValue: info.trueValue,
+                  falseValue: info.falseValue,
+                  type: "conditional" as const,
+                }
+                foundPlaceholder = true
+                break
+              }
+              // Проверяем смешанный контент с условными плейсхолдерами
+              if (value.includes(placeholder)) {
+                const originalConditional = info.falseValue
+                  ? `\${${info.src}.${info.key} ? '${info.trueValue}' : '${info.falseValue}'}`
+                  : `\${${info.src}.${info.key} && '${info.trueValue}'}`
+                const resultValue = value.replace(placeholder, originalConditional)
+
+                attrs[name] = {
+                  src: info.src,
+                  key: info.key,
+                  trueValue: info.trueValue,
+                  falseValue: info.falseValue,
+                  result: resultValue,
+                  type: "conditional" as const,
+                }
+                foundPlaceholder = true
+                break
+              }
+            }
+            if (!foundPlaceholder) {
+              attrs[name] = this.parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+            }
+          } else {
+            attrs[name] = this.parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+          }
+        }
+      } else {
+        // Булев атрибут без значения
+        attrs[name] = ""
       }
     }
 
@@ -1062,7 +1316,7 @@ export class TemplateParser {
     while ((match = ternaryPattern.exec(htmlString)) !== null) {
       const [fullMatch, conditionExpr, trueValue, falseValue] = match
 
-      if (!conditionExpr || !trueValue) continue
+      if (!conditionExpr) continue
 
       const conditionParts = conditionExpr.split(".")
       if (conditionParts.length >= 2) {
@@ -1075,10 +1329,10 @@ export class TemplateParser {
           const conditionalInfo: { src: string; key: string; trueValue: string; falseValue?: string } = {
             src,
             key,
-            trueValue,
+            trueValue: trueValue || "",
           }
 
-          if (falseValue) {
+          if (falseValue !== undefined) {
             conditionalInfo.falseValue = falseValue
           }
 
@@ -1095,7 +1349,7 @@ export class TemplateParser {
     while ((match = andPattern.exec(htmlString)) !== null) {
       const [fullMatch, conditionExpr, trueValue] = match
 
-      if (!conditionExpr || !trueValue) continue
+      if (!conditionExpr) continue
 
       const conditionParts = conditionExpr.split(".")
       if (conditionParts.length >= 2) {
@@ -1108,7 +1362,7 @@ export class TemplateParser {
           conditionalAttributeMap.set(placeholder, {
             src,
             key,
-            trueValue,
+            trueValue: trueValue || "",
           })
 
           processedHtml = processedHtml.replace(fullMatch, placeholder)
@@ -1139,14 +1393,14 @@ export class TemplateParser {
     while ((match = ternaryPattern.exec(template)) !== null) {
       const [fullMatch, itemName, key, trueValue, falseValue] = match
 
-      if (!key || !trueValue) continue
+      if (!key) continue
 
       const placeholder = `CONDITIONAL_ATTR_ITEM_${conditionalIndex++}`
 
       const conditionalInfo: { src: string; key: string; trueValue: string; falseValue?: string } = {
         src: "item",
         key,
-        trueValue,
+        trueValue: trueValue || "",
       }
 
       if (falseValue) {
@@ -1164,14 +1418,14 @@ export class TemplateParser {
     while ((match = andPattern.exec(template)) !== null) {
       const [fullMatch, itemName, key, trueValue] = match
 
-      if (!key || !trueValue) continue
+      if (!key) continue
 
       const placeholder = `CONDITIONAL_ATTR_ITEM_${conditionalIndex++}`
 
       itemConditionalAttributeMap.set(placeholder, {
         src: "item",
         key,
-        trueValue,
+        trueValue: trueValue || "",
       })
 
       processedTemplate = processedTemplate.replace(fullMatch, placeholder)

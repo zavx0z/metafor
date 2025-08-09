@@ -2,7 +2,7 @@ import { describe, it, expect } from "bun:test"
 import { parseTemplate } from "../index.ts"
 import type { Schema } from "../index.ts"
 
-describe("Template Parser - атрибуты", () => {
+describe("Template Parser - интерполяции в атрибутах", () => {
   describe("простые интерполяции в атрибутах", () => {
     it("простая интерполяция context в атрибуте", () => {
       const result = parseTemplate(`<div data-user="\${context.name}">Content</div>`)
@@ -408,128 +408,6 @@ describe("Template Parser - атрибуты", () => {
         },
       ]
       expect(result, "атрибуты с дефисами и интерполяциями").toEqual(expected)
-    })
-  })
-
-  describe("условия в атрибутах", () => {
-    it("простой тернарный оператор в атрибуте", () => {
-      const result = parseTemplate(`<div class="\${context.isActive ? 'active' : 'inactive'}">Content</div>`)
-      const expected: Schema = [
-        {
-          tag: "div",
-          type: "el",
-          attrs: {
-            class: {
-              src: "context",
-              key: "isActive",
-              trueValue: "active",
-              falseValue: "inactive",
-              type: "conditional",
-            },
-          },
-          child: [
-            {
-              type: "text",
-              value: "Content",
-            },
-          ],
-        },
-      ] as const
-      expect(result, "простой тернарный оператор в атрибуте").toEqual(expected)
-    })
-
-    it("логическое И в атрибуте", () => {
-      const result = parseTemplate(`<button disabled="\${context.cannotEdit && 'disabled'}">Edit</button>`)
-      const expected: Schema = [
-        {
-          tag: "button",
-          type: "el",
-          attrs: {
-            disabled: {
-              src: "context",
-              key: "cannotEdit",
-              trueValue: "disabled",
-              type: "conditional",
-            },
-          },
-          child: [
-            {
-              type: "text",
-              value: "Edit",
-            },
-          ],
-        },
-      ] as const
-      expect(result, "логическое И в атрибуте").toEqual(expected)
-    })
-
-    it("условие в атрибуте массива", () => {
-      const result = parseTemplate(`
-        <div>
-          \${context.items.map(item => html\`
-            <span class="\${item.isSpecial ? 'special' : 'normal'}">\${item.name}</span>
-          \`)}
-        </div>
-      `)
-      const expected: Schema = [
-        {
-          tag: "div",
-          type: "el",
-          child: [
-            {
-              tag: "span",
-              type: "el",
-              attrs: {
-                class: {
-                  src: "item",
-                  key: "isSpecial",
-                  trueValue: "special",
-                  falseValue: "normal",
-                  type: "conditional",
-                },
-              },
-              child: [
-                {
-                  type: "text",
-                  value: { src: "item", key: "name" },
-                },
-              ],
-              item: {
-                src: "context",
-                key: "items",
-              },
-            },
-          ],
-        },
-      ] as const
-      expect(result, "условие в атрибуте массива").toEqual(expected)
-    })
-
-    it("смешанный контент с условием в атрибуте", () => {
-      const result = parseTemplate(`<div class="btn \${context.isLarge ? 'btn-lg' : 'btn-sm'}">Button</div>`)
-      const expected: Schema = [
-        {
-          tag: "div",
-          type: "el",
-          attrs: {
-            class: {
-              src: "context",
-              key: "isLarge",
-              trueValue: "btn-lg",
-              falseValue: "btn-sm",
-              result: "btn ${context.isLarge ? 'btn-lg' : 'btn-sm'}",
-              type: "conditional",
-            },
-          },
-          child: [
-            {
-              type: "text",
-              value: "Button",
-            },
-          ],
-        },
-      ] as const
-      expect(result, "смешанный контент с условием в атрибуте").toEqual(expected)
     })
   })
 })
