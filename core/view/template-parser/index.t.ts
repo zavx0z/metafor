@@ -20,6 +20,7 @@ export type AttributeValue =
   | string // статическое значение
   | { src: string; key?: string } // простая интерполяция (key опционален для item без свойства)
   | { src: string; key?: string; result: string } // смешанный контент
+  | { src: string; key: string; trueValue: string; falseValue?: string; type: "conditional"; result?: string } // условный атрибут
 
 /**
  * Условие для элемента
