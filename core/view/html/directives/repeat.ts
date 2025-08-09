@@ -11,12 +11,10 @@ import {
   setCommittedValue,
   setChildPartValue,
 } from "../directive-helpers.js"
-
-export type KeyFn<T> = (item: T, index: number) => unknown
-export type ItemTemplate<T> = (item: T, index: number) => unknown
+import type { KeyFn, ItemTemplate, RepeatDirectiveFn } from "./repeat.t.ts"
 
 // Вспомогательная функция для генерации отображения элемента массива на его индекс по подмножеству массива (используется для ленивого создания newKeyToIndexMap и oldKeyToIndexMap)
-const generateMap = (list: unknown[], start: number, end: number) => {
+export const generateMap = (list: unknown[], start: number, end: number) => {
   const map = new Map<unknown, number>()
   for (let i = start; i <= end; i++) {
     map.set(list[i], i)
@@ -285,12 +283,6 @@ class RepeatDirective extends Directive {
     setCommittedValue(containerPart, newParts)
     return noChange
   }
-}
-
-export interface RepeatDirectiveFn {
-  <T>(items: Iterable<T>, keyFnOrTemplate: KeyFn<T> | ItemTemplate<T>, template?: ItemTemplate<T>): unknown
-  <T>(items: Iterable<T>, template: ItemTemplate<T>): unknown
-  <T>(items: Iterable<T>, keyFn: KeyFn<T> | ItemTemplate<T>, template: ItemTemplate<T>): unknown
 }
 
 /**

@@ -18,15 +18,13 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
   #style: ((params: { css: (strings: TemplateStringsArray, ...values: unknown[]) => void }) => void) | null = null
 
   sheet: CSSStyleSheet | null = null
+  path: string[] = []
 
   onMount: ({ core }: { core: I }) => void = () => {}
   onDestroy: ({ core }: { core: I }) => void = () => {}
   attachStyles = (shadow: ShadowRoot) => this.sheet && shadow.adoptedStyleSheets.push(this.sheet)
   html = (strings: TemplateStringsArray, ...values: unknown[]): TemplateResult<1> => {
     if (isHtmlDebugEnabled()) {
-      // Импорт static-html.js вызывает циклическую зависимость, которую g3 не
-      // обрабатывает. Вместо этого мы знаем, что статические значения должны
-      // иметь поле `_$htmlStatic$`.
       if (values.some((val) => (val as { _$htmlStatic$: unknown })?.["_$htmlStatic$"])) {
         console.warn(
           `Статические значения 'literal' или 'unsafeStatic' не могут использоваться в нестатических шаблонах.\n` +
@@ -34,12 +32,10 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
         )
       }
     }
-
     // Обрабатываем meta- теги (динамические имена тегов вида <meta-${hash}>)
     const hasMetaTags = strings.some((str) => str.includes("meta-"))
     if (hasMetaTags) {
       let cached = metaTemplateCache.get(strings)
-
       if (!cached) {
         const resultStrings: string[] = []
         const metaIndices = new Set<number>()
@@ -100,7 +96,6 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
         cached = { processedStrings, metaIndices }
         metaTemplateCache.set(strings, cached)
       }
-
       // Формируем values, исключая встроенные в строки
       const resultValues: unknown[] = []
       for (let i = 0; i < values.length; i++) {
@@ -108,26 +103,15 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
           resultValues.push(values[i])
         }
       }
-
-      return {
-        ["_$htmlType$"]: 1,
-        strings: cached.processedStrings,
-        values: resultValues,
-      }
+      return { ["_$htmlType$"]: 1, strings: cached.processedStrings, values: resultValues }
     }
-
-    return {
-      // Это свойство должно оставаться неминифицированным.
-      ["_$htmlType$"]: 1,
-      strings,
-      values,
-    }
+    return { ["_$htmlType$"]: 1, strings, values }
   }
   /**
    * @param config конфигурация представления {@linkcode ViewDeclaration} [опционально]
    */
-  constructor(config?: ViewDeclaration<C, S, I>) {
-    if (!config) return
+  constructor(config: ViewDeclaration<C, S, I> = {}, path: string[] = []) {
+    this.path = path
     if (config.style) {
       this.#style = config.style
       config.style({
@@ -139,13 +123,10 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
         },
       })
     }
-    if (config.render) {
-      this.#render = config.render
-    }
+    if (config.render) this.#render = config.render
     this.onMount = config.onMount || (() => {})
     this.onDestroy = config.onDestroy || (() => {})
   }
-
   render({
     state,
     context,

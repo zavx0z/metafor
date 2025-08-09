@@ -113,6 +113,7 @@ export function MetaForFabric(params: FabricParams) {
                               customElements.define(
                                 tagName,
                                 class extends HTMLElement {
+                                  __path: string[] = []
                                   #meta: string = hash
                                   #store!: ActorStore
 
@@ -126,7 +127,6 @@ export function MetaForFabric(params: FabricParams) {
                                   #env = "browser"
                                   #name = name
                                   #description = description
-
                                   #shadow: ShadowRoot
                                   #channel: BroadcastChannel | null = null
                                   /** ------------state-------------------------------- */
@@ -155,13 +155,12 @@ export function MetaForFabric(params: FabricParams) {
                                   constructor() {
                                     super()
                                     this.#shadow = this.attachShadow({ mode: "closed" })
-
                                     this.#context = new Context(schema)
                                     this.#states = states
                                     this.#core = core
                                     this.#processes = new Processes(process)
                                     this.#reactions = new Reactions(reaction)
-                                    this.#view = new View(view)
+                                    this.#view = new View(view, this.__path)
                                     this.#view.attachStyles(this.#shadow)
                                   }
                                   /** @internal обновление ядра */
