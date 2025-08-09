@@ -16,10 +16,24 @@ export interface ArrayInfo {
 /**
  * Значение атрибута - может быть статическим или содержать интерполяции
  */
-export type AttributeValue = 
-  | string  // статическое значение
-  | { src: string; key?: string }  // простая интерполяция (key опционален для item без свойства)
-  | { src: string; key?: string; result: string }  // смешанный контент
+export type AttributeValue =
+  | string // статическое значение
+  | { src: string; key?: string } // простая интерполяция (key опционален для item без свойства)
+  | { src: string; key?: string; result: string } // смешанный контент
+
+/**
+ * Условие для элемента
+ */
+export interface ConditionSchema {
+  src: string
+  key: string
+  eq?: any // равно значению
+  notEq?: any // не равно значению
+  gt?: number // больше (для чисел)
+  gte?: number // больше или равно
+  lt?: number // меньше
+  lte?: number // меньше или равно
+}
 
 /**
  * Схема HTML элемента
@@ -33,6 +47,7 @@ export interface ElementSchema {
     src: string
     key: string
   }
+  cond?: ConditionSchema
 }
 
 /**

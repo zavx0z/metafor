@@ -3,7 +3,7 @@
  * @module TemplateParser
  */
 
-import type { ArrayInfo, Schema, ElementSchema, TextSchema, AttributeValue } from "./index.t.ts"
+import type { ArrayInfo, Schema, ElementSchema, TextSchema, AttributeValue, ConditionSchema } from "./index.t.ts"
 
 /**
  * Основной класс парсера HTML шаблонов
@@ -46,7 +46,7 @@ export class TemplateParser {
 
     while ((match = rootRegex.exec(processedHtml)) !== null) {
       const [, tagName, attributesStr, innerContent] = match
-      
+
       if (!tagName) continue
 
       const element: ElementSchema = {
@@ -77,7 +77,10 @@ export class TemplateParser {
   /**
    * Парсит атрибуты элемента
    */
-  private parseAttributes(attributesStr: string, interpolationMap?: Map<string, { src: string; key: string }>): Record<string, AttributeValue> {
+  private parseAttributes(
+    attributesStr: string,
+    interpolationMap?: Map<string, { src: string; key: string }>
+  ): Record<string, AttributeValue> {
     const attrs: Record<string, AttributeValue> = {}
     // Исправленный regex для атрибутов включая data-* и другие с дефисами
     const attrRegex = /([\w-]+)(?:\s*=\s*["']([^"']*)["'])?/g
@@ -96,7 +99,10 @@ export class TemplateParser {
   /**
    * Парсит значение атрибута с поддержкой интерполяций
    */
-  private parseAttributeValue(value: string, interpolationMap?: Map<string, { src: string; key: string }>): AttributeValue {
+  private parseAttributeValue(
+    value: string,
+    interpolationMap?: Map<string, { src: string; key: string }>
+  ): AttributeValue {
     // Проверяем плейсхолдеры из interpolationMap (чистые плейсхолдеры)
     if (interpolationMap) {
       for (const [placeholder, info] of interpolationMap) {
@@ -116,7 +122,7 @@ export class TemplateParser {
           return {
             src: info.src,
             key: info.key,
-            result: resultValue
+            result: resultValue,
           }
         }
       }
@@ -150,7 +156,11 @@ export class TemplateParser {
   /**
    * Парсит дочерние элементы
    */
-  private parseChildren(content: string, arrayInfo: ArrayInfo[] = [], interpolationMap?: Map<string, { src: string; key: string }>): Array<ElementSchema | TextSchema> {
+  private parseChildren(
+    content: string,
+    arrayInfo: ArrayInfo[] = [],
+    interpolationMap?: Map<string, { src: string; key: string }>
+  ): Array<ElementSchema | TextSchema> {
     const child: Array<ElementSchema | TextSchema> = []
 
     // Проверяем на массивы из контекста
@@ -194,7 +204,7 @@ export class TemplateParser {
 
     while ((match = tagRegex.exec(content)) !== null) {
       const [fullMatch, tagName, attributesStr, innerContent] = match
-      
+
       if (!tagName) continue
 
       // Добавляем текст перед тегом
@@ -289,7 +299,11 @@ export class TemplateParser {
   /**
    * Парсит текст с плейсхолдерами
    */
-  private parseTextWithPlaceholders(text: string, child: Array<ElementSchema | TextSchema>, interpolationMap?: Map<string, { src: string; key: string }>) {
+  private parseTextWithPlaceholders(
+    text: string,
+    child: Array<ElementSchema | TextSchema>,
+    interpolationMap?: Map<string, { src: string; key: string }>
+  ) {
     // Сначала обрабатываем простые интерполяции
     const interpolationPattern = /INTERPOLATION_\d+/g
     let processedText = text
@@ -301,7 +315,7 @@ export class TemplateParser {
       if (interpolationInfo) {
         interpolations.push({
           index: match.index,
-          info: interpolationInfo
+          info: interpolationInfo,
         })
         processedText = processedText.replace(match[0], "SIMPLE_PLACEHOLDER")
       }
@@ -351,12 +365,10 @@ export class TemplateParser {
     // Создаем карту интерполяций внутри элемента массива
     const itemInterpolationMap = new Map<string, { src: string; key?: string }>()
     let interpolationIndex = 0
-    
 
-    
     // Заменяем интерполяции внутри массива на плейсхолдеры с извлечением ключей
     let cleanTemplate = template
-      // Сначала обрабатываем `item.key` формат  
+      // Сначала обрабатываем `item.key` формат
       .replace(/\$\{(\w+)\.(\w+)\}/g, (match, itemName, key) => {
         const placeholder = `ITEM_INTERPOLATION_${interpolationIndex++}`
         itemInterpolationMap.set(placeholder, { src: "item", key })
@@ -368,7 +380,7 @@ export class TemplateParser {
         itemInterpolationMap.set(placeholder, { src: "item" })
         return placeholder
       })
-    
+
     // Заменяем оставшиеся интерполяции на SIMPLE_PLACEHOLDER
     cleanTemplate = cleanTemplate.replace(/\$\{[^}]*\}/g, "SIMPLE_PLACEHOLDER")
 
@@ -395,7 +407,7 @@ export class TemplateParser {
     }
 
     const [, tagName, attributesStr, innerContent] = match
-    
+
     if (!tagName) {
       // Если tagName undefined, возвращаем fallback
       return {
@@ -420,9 +432,9 @@ export class TemplateParser {
     // Парсим атрибуты с заменой ITEM_INTERPOLATION на SIMPLE_PLACEHOLDER
     let processedAttributesStr = attributesStr || ""
     for (const [placeholder] of itemInterpolationMap) {
-      processedAttributesStr = processedAttributesStr.replace(new RegExp(placeholder, 'g'), "SIMPLE_PLACEHOLDER")
+      processedAttributesStr = processedAttributesStr.replace(new RegExp(placeholder, "g"), "SIMPLE_PLACEHOLDER")
     }
-    
+
     const attrs = this.parseAttributesForArray(attributesStr || "", itemInterpolationMap)
     if (Object.keys(attrs).length > 0) {
       element.attrs = attrs
@@ -442,10 +454,13 @@ export class TemplateParser {
   /**
    * Парсит дочерние элементы для элементов массива
    */
-  private parseChildrenForArrayItem(content: string, itemInterpolationMap: Map<string, { src: string; key?: string }>): Array<ElementSchema | TextSchema> {
+  private parseChildrenForArrayItem(
+    content: string,
+    itemInterpolationMap: Map<string, { src: string; key?: string }>
+  ): Array<ElementSchema | TextSchema> {
     const child: Array<ElementSchema | TextSchema> = []
 
-    // Обрабатываем интерполяции элементов массива  
+    // Обрабатываем интерполяции элементов массива
     const itemInterpolationPattern = /ITEM_INTERPOLATION_\d+/g
     let processedContent = content
     const interpolations: Array<{ placeholder: string; info: { src: string; key?: string } }> = []
@@ -458,11 +473,11 @@ export class TemplateParser {
       if (interpolationInfo) {
         interpolations.push({
           placeholder: match[0],
-          info: interpolationInfo
+          info: interpolationInfo,
         })
       }
     }
-    
+
     // processedContent остается с ITEM_INTERPOLATION для корректной обработки
 
     // Если это только текст (без HTML тегов)
@@ -508,7 +523,7 @@ export class TemplateParser {
 
       while ((tagMatch = tagRegex.exec(content)) !== null) {
         const [fullMatch, tagName, attributesStr, innerContent] = tagMatch
-        
+
         if (!tagName) continue
 
         // Добавляем текст перед тегом
@@ -554,12 +569,17 @@ export class TemplateParser {
   /**
    * Парсит текст с плейсхолдерами для элементов массива
    */
-  private parseTextWithPlaceholdersForArray(text: string, child: Array<ElementSchema | TextSchema>, interpolations: Array<{ placeholder: string; info: { src: string; key?: string } }>, itemInterpolationMap: Map<string, { src: string; key?: string }>) {
+  private parseTextWithPlaceholdersForArray(
+    text: string,
+    child: Array<ElementSchema | TextSchema>,
+    interpolations: Array<{ placeholder: string; info: { src: string; key?: string } }>,
+    itemInterpolationMap: Map<string, { src: string; key?: string }>
+  ) {
     // Заменяем ITEM_INTERPOLATION на SIMPLE_PLACEHOLDER для обработки как смешанного текста
     const itemInterpolationPattern = /ITEM_INTERPOLATION_\d+/g
     let processedText = text
     const foundInterpolations: Array<{ src: string; key?: string }> = []
-    
+
     let match
     while ((match = itemInterpolationPattern.exec(text)) !== null) {
       const interpolationInfo = itemInterpolationMap.get(match[0])
@@ -598,9 +618,12 @@ export class TemplateParser {
   /**
    * Парсит атрибуты для элементов массива
    */
-  private parseAttributesForArray(attributesStr: string, itemInterpolationMap: Map<string, { src: string; key?: string }>): Record<string, AttributeValue> {
+  private parseAttributesForArray(
+    attributesStr: string,
+    itemInterpolationMap: Map<string, { src: string; key?: string }>
+  ): Record<string, AttributeValue> {
     const attrs: Record<string, AttributeValue> = {}
-    
+
     const attrRegex = /([\w-]+)(?:\s*=\s*["']([^"']*)["'])?/g
     let match
 
@@ -617,7 +640,10 @@ export class TemplateParser {
   /**
    * Парсит значение атрибута для элементов массива
    */
-  private parseAttributeValueForArray(value: string, itemInterpolationMap: Map<string, { src: string; key?: string }>): AttributeValue {
+  private parseAttributeValueForArray(
+    value: string,
+    itemInterpolationMap: Map<string, { src: string; key?: string }>
+  ): AttributeValue {
     // Простая интерполяция item: ${item.property}
     const simpleItemMatch = value.match(/^\$\{item\.(\w+)\}$/)
     if (simpleItemMatch) {
@@ -643,14 +669,16 @@ export class TemplateParser {
         // Если это смешанный контент - восстанавливаем оригинальную интерполяцию
         const originalInterpolation = info.key ? `\${item.${info.key}}` : `\${id}` // для простых переменных используем общий паттерн
         const resultValue = value.replace(placeholder, originalInterpolation)
-        return info.key ? {
-          src: info.src,
-          key: info.key,
-          result: resultValue
-        } : {
-          src: info.src,
-          result: resultValue
-        }
+        return info.key
+          ? {
+              src: info.src,
+              key: info.key,
+              result: resultValue,
+            }
+          : {
+              src: info.src,
+              result: resultValue,
+            }
       }
     }
 
@@ -686,6 +714,4 @@ export function parseTemplate(htmlString: string): Schema {
 }
 
 // Реэкспорт типов
-export type { ArrayInfo, Schema, ElementSchema, TextSchema, AttributeValue } from "./index.t.ts"
-
-
+export type { ArrayInfo, Schema, ElementSchema, TextSchema, AttributeValue, ConditionSchema } from "./index.t.ts"
