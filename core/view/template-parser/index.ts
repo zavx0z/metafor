@@ -29,9 +29,9 @@ export class TemplateParser {
     // Используем более умный парсер для массивов с вложенными backticks
     processedHtml = this.parseArrayBlocks(processedHtml, arrayInfo)
 
-    // Обрабатываем условные блоки
+    // Обрабатываем условные блоки рекурсивно до полной обработки
     const conditionalInfo: ConditionalInfo[] = []
-    processedHtml = this.parseConditionalBlocks(processedHtml, conditionalInfo)
+    processedHtml = this.parseConditionalBlocksRecursively(processedHtml, conditionalInfo)
 
     // Обрабатываем простые интерполяции и сохраняем их информацию
     let interpolationIndex = 0
@@ -812,7 +812,7 @@ export class TemplateParser {
     return value
   }
 
-    /**
+  /**
    * Парсит условные блоки в HTML строке
    */
   private parseConditionalBlocks(htmlString: string, conditionalInfo: ConditionalInfo[]): string {
@@ -885,61 +885,100 @@ export class TemplateParser {
   }
 
   /**
+   * Рекурсивно обрабатывает условные блоки до полной обработки
+   */
+  private parseConditionalBlocksRecursively(htmlString: string, conditionalInfo: ConditionalInfo[]): string {
+    let processedHtml = htmlString
+    let hasChanges = true
+    let maxIterations = 10 // защита от бесконечной рекурсии
+    let iteration = 0
+    
+    while (hasChanges && iteration < maxIterations) {
+      const beforeLength = processedHtml.length
+      const beforeConditionalCount = conditionalInfo.length
+      
+      // Обрабатываем один уровень условных блоков в основной строке
+      processedHtml = this.parseConditionalBlocks(processedHtml, conditionalInfo)
+      
+      // Также обрабатываем условные блоки внутри уже найденных templates
+      for (let i = beforeConditionalCount; i < conditionalInfo.length; i++) {
+        const conditionalItem = conditionalInfo[i]
+        
+        if (conditionalItem && conditionalItem.trueTemplate) {
+          conditionalItem.trueTemplate = this.parseConditionalBlocks(conditionalItem.trueTemplate, conditionalInfo)
+        }
+        
+        if (conditionalItem && conditionalItem.falseTemplate) {
+          conditionalItem.falseTemplate = this.parseConditionalBlocks(conditionalItem.falseTemplate, conditionalInfo)
+        }
+      }
+      
+      // Проверяем были ли изменения
+      hasChanges = processedHtml.length !== beforeLength || conditionalInfo.length !== beforeConditionalCount
+      iteration++
+    }
+    
+    if (iteration >= maxIterations) {
+      console.warn('Достигнут максимум итераций при рекурсивной обработке условных блоков')
+    }
+    
+    return processedHtml
+  }
+
+  /**
    * Умный парсер условных блоков с поддержкой вложенных backticks
    */
   private parseConditionalBlocksSmart(htmlString: string, conditionalInfo: ConditionalInfo[]): string {
     let processedHtml = htmlString
     const conditionalStartPattern = /\$\{((?:context|core|item)\.(?:\w+))(?:\s*===\s*"([^"]+)")?\s*\?\s*/g
-    
+
     let match
     while ((match = conditionalStartPattern.exec(htmlString)) !== null) {
       const [startMatch, conditionExpr, compareValue] = match
       const startIndex = match.index
       const afterStart = startIndex + startMatch.length
-      
+
       // Ищем первый html`
-      const htmlTemplateStart = htmlString.indexOf('html`', afterStart)
+      const htmlTemplateStart = htmlString.indexOf("html`", afterStart)
       if (htmlTemplateStart === -1) continue
-      
+
       // Извлекаем true template
       const trueContent = this.extractTemplateContent(htmlString, htmlTemplateStart + 5)
       if (trueContent === null) continue
-      
+
       // Ищем `:` после true template
       const afterTrueTemplate = htmlTemplateStart + 5 + trueContent.length + 1 // +1 для закрывающего `
-      const colonIndex = htmlString.indexOf(':', afterTrueTemplate)
+      const colonIndex = htmlString.indexOf(":", afterTrueTemplate)
       if (colonIndex === -1) continue
-      
+
       // Ищем второй html`
-      const htmlTemplateStart2 = htmlString.indexOf('html`', colonIndex)
+      const htmlTemplateStart2 = htmlString.indexOf("html`", colonIndex)
       if (htmlTemplateStart2 === -1) continue
-      
+
       // Извлекаем false template
       const falseContent = this.extractTemplateContent(htmlString, htmlTemplateStart2 + 5)
       if (falseContent === null) continue
-      
+
       // Находим закрывающую скобку
       const afterFalseTemplate = htmlTemplateStart2 + 5 + falseContent.length + 1 // +1 для закрывающего `
       const closingBrace = this.findClosingBrace(htmlString, startIndex)
       if (closingBrace === -1) continue
-      
+
       // Извлекаем полное выражение
       const fullMatch = htmlString.substring(startIndex, closingBrace + 1)
-      
+
       // Парсим условие
       if (!conditionExpr) continue
-      
-      const conditionParts = conditionExpr.split('.')
+
+      const conditionParts = conditionExpr.split(".")
       if (conditionParts.length >= 2) {
         const src = conditionParts[0] as "context" | "core" | "item"
         const key = conditionParts[1]
-        
+
         if (key) {
           const placeholder = `CONDITIONAL_${conditionalInfo.length}`
-          const condition: ConditionSchema = compareValue 
-            ? { src, key, eq: compareValue }
-            : { src, key, eq: true }
-          
+          const condition: ConditionSchema = compareValue ? { src, key, eq: compareValue } : { src, key, eq: true }
+
           conditionalInfo.push({
             placeholder,
             condition,
@@ -947,12 +986,12 @@ export class TemplateParser {
             falseTemplate: falseContent,
             type: "ternary",
           })
-          
+
           processedHtml = processedHtml.replace(fullMatch, placeholder)
         }
       }
     }
-    
+
     return processedHtml
   }
 
