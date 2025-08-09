@@ -27,7 +27,6 @@ describe("TemplateParser", () => {
         {
           tag: "span",
           type: "el",
-
           child: [
             {
               type: "text",
@@ -162,7 +161,10 @@ describe("TemplateParser", () => {
             },
             {
               type: "text",
-              value: { src: "context", key: "count" },
+              value: {
+                src: "context",
+                key: "count",
+              },
             },
           ],
         },

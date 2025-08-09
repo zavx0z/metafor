@@ -3,7 +3,7 @@
  * @module TemplateParser
  */
 
-import type { ArrayInfo, Schema, ElementSchema, TextSchema } from "./index.t.ts"
+import type { ArrayInfo, Schema, ElementSchema, TextSchema, AttributeValue } from "./index.t.ts"
 
 /**
  * Основной класс парсера HTML шаблонов
@@ -55,7 +55,7 @@ export class TemplateParser {
       }
 
       // Парсим атрибуты
-      const attrs = this.parseAttributes(attributesStr || "")
+      const attrs = this.parseAttributes(attributesStr || "", interpolationMap)
       if (Object.keys(attrs).length > 0) {
         element.attrs = attrs
       }
@@ -77,20 +77,74 @@ export class TemplateParser {
   /**
    * Парсит атрибуты элемента
    */
-  private parseAttributes(attributesStr: string): Record<string, string> {
-    const attrs: Record<string, string> = {}
+  private parseAttributes(attributesStr: string, interpolationMap?: Map<string, { src: string; key: string }>): Record<string, AttributeValue> {
+    const attrs: Record<string, AttributeValue> = {}
     // Исправленный regex для атрибутов включая data-* и другие с дефисами
     const attrRegex = /([\w-]+)(?:\s*=\s*["']([^"']*)["'])?/g
     let match
 
     while ((match = attrRegex.exec(attributesStr)) !== null) {
       const [, name, value] = match
-      if (name) {
-        attrs[name] = value || ""
+      if (name && value !== undefined) {
+        attrs[name] = this.parseAttributeValue(value, interpolationMap)
       }
     }
 
     return attrs
+  }
+
+  /**
+   * Парсит значение атрибута с поддержкой интерполяций
+   */
+  private parseAttributeValue(value: string, interpolationMap?: Map<string, { src: string; key: string }>): AttributeValue {
+    // Проверяем плейсхолдеры из interpolationMap (чистые плейсхолдеры)
+    if (interpolationMap) {
+      for (const [placeholder, info] of interpolationMap) {
+        if (value === placeholder) {
+          return info
+        }
+      }
+    }
+
+    // Проверяем смешанный контент с плейсхолдерами
+    if (interpolationMap) {
+      for (const [placeholder, info] of interpolationMap) {
+        if (value.includes(placeholder)) {
+          // Восстанавливаем оригинальную интерполяцию для result
+          const originalInterpolation = `\${${info.src}.${info.key}}`
+          const resultValue = value.replace(placeholder, originalInterpolation)
+          return {
+            src: info.src,
+            key: info.key,
+            result: resultValue
+          }
+        }
+      }
+    }
+
+    // Простая интерполяция: ${context.name} или ${core.setting} (если не была заменена)
+    const simpleInterpolationMatch = value.match(/^\$\{(context|core)\.(\w+)\}$/)
+    if (simpleInterpolationMatch) {
+      const [, src, key] = simpleInterpolationMatch
+      if (src && key) {
+        return { src, key }
+      }
+    }
+
+    // Смешанный контент с интерполяциями: prefix-${context.name} или ${context.name}-suffix (если не был заменен)
+    const hasInterpolation = /\$\{(context|core)\.(\w+)\}/.test(value)
+    if (hasInterpolation) {
+      const interpolationMatch = value.match(/\$\{(context|core)\.(\w+)\}/)
+      if (interpolationMatch) {
+        const [, src, key] = interpolationMatch
+        if (src && key) {
+          return { src, key, result: value }
+        }
+      }
+    }
+
+    // Обычное статическое значение
+    return value
   }
 
   /**
@@ -188,7 +242,7 @@ export class TemplateParser {
           type: "el",
         }
 
-        const attrs = this.parseAttributes(attributesStr || "")
+        const attrs = this.parseAttributes(attributesStr || "", interpolationMap)
         if (Object.keys(attrs).length > 0) {
           element.attrs = attrs
         }
@@ -369,7 +423,7 @@ export class TemplateParser {
       processedAttributesStr = processedAttributesStr.replace(new RegExp(placeholder, 'g'), "SIMPLE_PLACEHOLDER")
     }
     
-    const attrs = this.parseAttributes(processedAttributesStr)
+    const attrs = this.parseAttributesForArray(attributesStr || "", itemInterpolationMap)
     if (Object.keys(attrs).length > 0) {
       element.attrs = attrs
     }
@@ -544,26 +598,82 @@ export class TemplateParser {
   /**
    * Парсит атрибуты для элементов массива
    */
-  private parseAttributesForArray(attributesStr: string, itemInterpolationMap: Map<string, { src: string; key?: string }>): Record<string, string> {
-    const attrs: Record<string, string> = {}
-    
-    // Сначала заменяем ITEM_INTERPOLATION на SIMPLE_PLACEHOLDER
-    let processedAttributeStr = attributesStr
-    for (const [placeholder] of itemInterpolationMap) {
-      processedAttributeStr = processedAttributeStr.replace(new RegExp(placeholder, 'g'), "SIMPLE_PLACEHOLDER")
-    }
+  private parseAttributesForArray(attributesStr: string, itemInterpolationMap: Map<string, { src: string; key?: string }>): Record<string, AttributeValue> {
+    const attrs: Record<string, AttributeValue> = {}
     
     const attrRegex = /([\w-]+)(?:\s*=\s*["']([^"']*)["'])?/g
     let match
 
-    while ((match = attrRegex.exec(processedAttributeStr)) !== null) {
+    while ((match = attrRegex.exec(attributesStr)) !== null) {
       const [, name, value] = match
-      if (name) {
-        attrs[name] = value || ""
+      if (name && value !== undefined) {
+        attrs[name] = this.parseAttributeValueForArray(value, itemInterpolationMap)
       }
     }
 
     return attrs
+  }
+
+  /**
+   * Парсит значение атрибута для элементов массива
+   */
+  private parseAttributeValueForArray(value: string, itemInterpolationMap: Map<string, { src: string; key?: string }>): AttributeValue {
+    // Простая интерполяция item: ${item.property}
+    const simpleItemMatch = value.match(/^\$\{item\.(\w+)\}$/)
+    if (simpleItemMatch) {
+      const [, key] = simpleItemMatch
+      if (key) {
+        return { src: "item", key }
+      }
+    }
+
+    // Простая переменная: ${id}
+    const simpleVarMatch = value.match(/^\$\{(\w+)\}$/)
+    if (simpleVarMatch) {
+      return { src: "item" }
+    }
+
+    // Проверяем ITEM_INTERPOLATION плейсхолдеры
+    for (const [placeholder, info] of itemInterpolationMap) {
+      if (value.includes(placeholder)) {
+        // Если это чистый плейсхолдер
+        if (value === placeholder) {
+          return info.key ? { src: info.src, key: info.key } : { src: info.src }
+        }
+        // Если это смешанный контент - восстанавливаем оригинальную интерполяцию
+        const originalInterpolation = info.key ? `\${item.${info.key}}` : `\${id}` // для простых переменных используем общий паттерн
+        const resultValue = value.replace(placeholder, originalInterpolation)
+        return info.key ? {
+          src: info.src,
+          key: info.key,
+          result: resultValue
+        } : {
+          src: info.src,
+          result: resultValue
+        }
+      }
+    }
+
+    // Смешанный контент с item интерполяциями
+    const hasItemInterpolation = /\$\{item\.(\w+)\}/.test(value)
+    if (hasItemInterpolation) {
+      const itemMatch = value.match(/\$\{item\.(\w+)\}/)
+      if (itemMatch) {
+        const [, key] = itemMatch
+        if (key) {
+          return { src: "item", key, result: value }
+        }
+      }
+    }
+
+    // Смешанный контент с простыми переменными
+    const hasSimpleVar = /\$\{(\w+)\}/.test(value)
+    if (hasSimpleVar) {
+      return { src: "item", result: value }
+    }
+
+    // Обычное статическое значение
+    return value
   }
 }
 
@@ -576,6 +686,6 @@ export function parseTemplate(htmlString: string): Schema {
 }
 
 // Реэкспорт типов
-export type { ArrayInfo, Schema, ElementSchema, TextSchema } from "./index.t.ts"
+export type { ArrayInfo, Schema, ElementSchema, TextSchema, AttributeValue } from "./index.t.ts"
 
 

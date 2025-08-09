@@ -126,8 +126,15 @@ describe("Template Parser - массивы", () => {
                 key: "items",
               },
               attrs: {
-                "data-id": "SIMPLE_PLACEHOLDER",
-                class: "item-SIMPLE_PLACEHOLDER",
+                "data-id": {
+                  src: "item",
+                  key: "id",
+                },
+                class: {
+                  src: "item",
+                  key: "type",
+                  result: "item-${item.type}",
+                },
               },
               child: [
                 {
@@ -169,9 +176,12 @@ describe("Template Parser - массивы", () => {
                 src: "core",
                 key: "menuItems",
               },
-              attrs: {
-                href: "SIMPLE_PLACEHOLDER",
-              },
+                        attrs: {
+            href: {
+              key: "url",
+              src: "item",
+            },
+          },
               child: [
                 {
                   type: "text",
@@ -216,15 +226,24 @@ describe("Template Parser - массивы", () => {
               },
               attrs: {
                 class: "product-card",
-                "data-product-id": "SIMPLE_PLACEHOLDER",
+                "data-product-id": {
+                  key: "id",
+                  src: "item",
+                },
               },
               child: [
                 {
                   tag: "img",
                   type: "el",
                   attrs: {
-                    src: "SIMPLE_PLACEHOLDER",
-                    alt: "SIMPLE_PLACEHOLDER",
+                    src: {
+                      key: "image",
+                      src: "item",
+                    },
+                    alt: {
+                      key: "name",
+                      src: "item",
+                    },
                   },
                 },
                 {
@@ -262,7 +281,10 @@ describe("Template Parser - массивы", () => {
                   type: "el",
                   attrs: {
                     class: "add-to-cart",
-                    "data-id": "SIMPLE_PLACEHOLDER",
+                    "data-id": {
+                      key: "id",
+                      src: "item",
+                    },
                   },
                   child: [
                     {
@@ -467,10 +489,16 @@ describe("Template Parser - массивы", () => {
                 src: "core",
                 key: "images",
               },
-              attrs: {
-                src: "SIMPLE_PLACEHOLDER",
-                alt: "SIMPLE_PLACEHOLDER",
+                          attrs: {
+              src: {
+                key: "url",
+                src: "item",
               },
+              alt: {
+                key: "alt",
+                src: "item",
+              },
+            },
             },
           ],
         },

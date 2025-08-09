@@ -14,12 +14,20 @@ export interface ArrayInfo {
 }
 
 /**
+ * Значение атрибута - может быть статическим или содержать интерполяции
+ */
+export type AttributeValue = 
+  | string  // статическое значение
+  | { src: string; key?: string }  // простая интерполяция (key опционален для item без свойства)
+  | { src: string; key?: string; result: string }  // смешанный контент
+
+/**
  * Схема HTML элемента
  */
 export interface ElementSchema {
   tag: string
   type: "el"
-  attrs?: Record<string, string>
+  attrs?: Record<string, AttributeValue>
   child?: Array<ElementSchema | TextSchema>
   item?: {
     src: string
