@@ -892,36 +892,36 @@ export class TemplateParser {
     let hasChanges = true
     let maxIterations = 10 // защита от бесконечной рекурсии
     let iteration = 0
-    
+
     while (hasChanges && iteration < maxIterations) {
       const beforeLength = processedHtml.length
       const beforeConditionalCount = conditionalInfo.length
-      
+
       // Обрабатываем один уровень условных блоков в основной строке
       processedHtml = this.parseConditionalBlocks(processedHtml, conditionalInfo)
-      
+
       // Также обрабатываем условные блоки внутри уже найденных templates
       for (let i = beforeConditionalCount; i < conditionalInfo.length; i++) {
         const conditionalItem = conditionalInfo[i]
-        
+
         if (conditionalItem && conditionalItem.trueTemplate) {
           conditionalItem.trueTemplate = this.parseConditionalBlocks(conditionalItem.trueTemplate, conditionalInfo)
         }
-        
+
         if (conditionalItem && conditionalItem.falseTemplate) {
           conditionalItem.falseTemplate = this.parseConditionalBlocks(conditionalItem.falseTemplate, conditionalInfo)
         }
       }
-      
+
       // Проверяем были ли изменения
       hasChanges = processedHtml.length !== beforeLength || conditionalInfo.length !== beforeConditionalCount
       iteration++
     }
-    
+
     if (iteration >= maxIterations) {
-      console.warn('Достигнут максимум итераций при рекурсивной обработке условных блоков')
+      console.warn("Достигнут максимум итераций при рекурсивной обработке условных блоков")
     }
-    
+
     return processedHtml
   }
 
