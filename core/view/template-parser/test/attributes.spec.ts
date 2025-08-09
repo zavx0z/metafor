@@ -424,8 +424,8 @@ describe("Template Parser - атрибуты", () => {
               key: "isActive",
               trueValue: "active",
               falseValue: "inactive",
-              type: "conditional"
-            }
+              type: "conditional",
+            },
           },
           child: [
             {
@@ -449,8 +449,8 @@ describe("Template Parser - атрибуты", () => {
               src: "context",
               key: "cannotEdit",
               trueValue: "disabled",
-              type: "conditional"
-            }
+              type: "conditional",
+            },
           },
           child: [
             {
@@ -485,8 +485,8 @@ describe("Template Parser - атрибуты", () => {
                   key: "isSpecial",
                   trueValue: "special",
                   falseValue: "normal",
-                  type: "conditional"
-                }
+                  type: "conditional",
+                },
               },
               child: [
                 {
@@ -517,9 +517,9 @@ describe("Template Parser - атрибуты", () => {
               key: "isLarge",
               trueValue: "btn-lg",
               falseValue: "btn-sm",
-              result: "btn \${context.isLarge ? 'btn-lg' : 'btn-sm'}",
-              type: "conditional"
-            }
+              result: "btn ${context.isLarge ? 'btn-lg' : 'btn-sm'}",
+              type: "conditional",
+            },
           },
           child: [
             {

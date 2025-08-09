@@ -34,7 +34,10 @@ export class TemplateParser {
     processedHtml = this.parseConditionalBlocksRecursively(processedHtml, conditionalInfo)
 
     // Обрабатываем условные выражения в атрибутах
-    const conditionalAttributeMap = new Map<string, { src: string; key: string; trueValue: string; falseValue?: string; result?: string }>()
+    const conditionalAttributeMap = new Map<
+      string,
+      { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
+    >()
     processedHtml = this.parseConditionalAttributes(processedHtml, conditionalAttributeMap)
 
     // Обрабатываем простые интерполяции и сохраняем их информацию
@@ -71,7 +74,13 @@ export class TemplateParser {
 
       // Парсим дочерние элементы
       if (innerContent !== undefined) {
-        const child = this.parseChildren(innerContent.trim(), arrayInfo, interpolationMap, conditionalInfo, conditionalAttributeMap)
+        const child = this.parseChildren(
+          innerContent.trim(),
+          arrayInfo,
+          interpolationMap,
+          conditionalInfo,
+          conditionalAttributeMap
+        )
         if (child.length > 0) {
           element.child = child
         }
@@ -89,7 +98,10 @@ export class TemplateParser {
   private parseAttributes(
     attributesStr: string,
     interpolationMap?: Map<string, { src: string; key: string }>,
-    conditionalAttributeMap?: Map<string, { src: string; key: string; trueValue: string; falseValue?: string; result?: string }>
+    conditionalAttributeMap?: Map<
+      string,
+      { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
+    >
   ): Record<string, AttributeValue> {
     const attrs: Record<string, AttributeValue> = {}
     // Исправленный regex для атрибутов включая data-* и другие с дефисами
@@ -112,7 +124,10 @@ export class TemplateParser {
   private parseAttributeValue(
     value: string,
     interpolationMap?: Map<string, { src: string; key: string }>,
-    conditionalAttributeMap?: Map<string, { src: string; key: string; trueValue: string; falseValue?: string; result?: string }>
+    conditionalAttributeMap?: Map<
+      string,
+      { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
+    >
   ): AttributeValue {
     // Проверяем условные атрибуты (приоритет выше чем обычные интерполяции)
     if (conditionalAttributeMap) {
@@ -123,24 +138,24 @@ export class TemplateParser {
             key: info.key,
             trueValue: info.trueValue,
             falseValue: info.falseValue,
-            type: "conditional" as const
+            type: "conditional" as const,
           }
         }
         // Проверяем смешанный контент с условными плейсхолдерами
         if (value.includes(placeholder)) {
           // Восстанавливаем оригинальную условную строку
-          const originalConditional = info.falseValue 
+          const originalConditional = info.falseValue
             ? `\${${info.src}.${info.key} ? '${info.trueValue}' : '${info.falseValue}'}`
             : `\${${info.src}.${info.key} && '${info.trueValue}'}`
           const resultValue = value.replace(placeholder, originalConditional)
-          
+
           return {
             src: info.src,
             key: info.key,
             trueValue: info.trueValue,
             falseValue: info.falseValue,
             result: resultValue,
-            type: "conditional" as const
+            type: "conditional" as const,
           }
         }
       }
@@ -204,7 +219,10 @@ export class TemplateParser {
     arrayInfo: ArrayInfo[] = [],
     interpolationMap?: Map<string, { src: string; key: string }>,
     conditionalInfo: ConditionalInfo[] = [],
-    conditionalAttributeMap?: Map<string, { src: string; key: string; trueValue: string; falseValue?: string; result?: string }>
+    conditionalAttributeMap?: Map<
+      string,
+      { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
+    >
   ): Array<ElementSchema | TextSchema> {
     const child: Array<ElementSchema | TextSchema> = []
 
@@ -333,7 +351,13 @@ export class TemplateParser {
         }
 
         if (innerContent !== undefined) {
-          const nestedChild = this.parseChildren(innerContent.trim(), arrayInfo, interpolationMap, conditionalInfo, conditionalAttributeMap)
+          const nestedChild = this.parseChildren(
+            innerContent.trim(),
+            arrayInfo,
+            interpolationMap,
+            conditionalInfo,
+            conditionalAttributeMap
+          )
           if (nestedChild.length > 0) {
             element.child = nestedChild
           }
@@ -462,7 +486,10 @@ export class TemplateParser {
     let cleanTemplate = this.parseConditionalBlocksForArray(template, itemConditionalInfo)
 
     // Обрабатываем условные атрибуты для item.*
-    const itemConditionalAttributeMap = new Map<string, { src: string; key: string; trueValue: string; falseValue?: string; result?: string }>()
+    const itemConditionalAttributeMap = new Map<
+      string,
+      { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
+    >()
     cleanTemplate = this.parseConditionalAttributesForArray(cleanTemplate, itemConditionalAttributeMap)
 
     // Заменяем интерполяции внутри массива на плейсхолдеры с извлечением ключей
@@ -541,7 +568,12 @@ export class TemplateParser {
 
     // Парсим дочерние элементы
     if (innerContent) {
-      const child = this.parseChildrenForArrayItem(innerContent.trim(), itemInterpolationMap, itemConditionalInfo, itemConditionalAttributeMap)
+      const child = this.parseChildrenForArrayItem(
+        innerContent.trim(),
+        itemInterpolationMap,
+        itemConditionalInfo,
+        itemConditionalAttributeMap
+      )
       if (child.length > 0) {
         element.child = child
       }
@@ -557,7 +589,10 @@ export class TemplateParser {
     content: string,
     itemInterpolationMap: Map<string, { src: string; key?: string }>,
     itemConditionalInfo: ConditionalInfo[] = [],
-    itemConditionalAttributeMap?: Map<string, { src: string; key: string; trueValue: string; falseValue?: string; result?: string }>
+    itemConditionalAttributeMap?: Map<
+      string,
+      { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
+    >
   ): Array<ElementSchema | TextSchema> {
     const child: Array<ElementSchema | TextSchema> = []
 
@@ -666,7 +701,11 @@ export class TemplateParser {
         }
 
         // Парсим атрибуты
-        const attrs = this.parseAttributesForArray(attributesStr || "", itemInterpolationMap, itemConditionalAttributeMap)
+        const attrs = this.parseAttributesForArray(
+          attributesStr || "",
+          itemInterpolationMap,
+          itemConditionalAttributeMap
+        )
         if (Object.keys(attrs).length > 0) {
           element.attrs = attrs
         }
@@ -773,7 +812,10 @@ export class TemplateParser {
   private parseAttributesForArray(
     attributesStr: string,
     itemInterpolationMap: Map<string, { src: string; key?: string }>,
-    itemConditionalAttributeMap?: Map<string, { src: string; key: string; trueValue: string; falseValue?: string; result?: string }>
+    itemConditionalAttributeMap?: Map<
+      string,
+      { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
+    >
   ): Record<string, AttributeValue> {
     const attrs: Record<string, AttributeValue> = {}
 
@@ -796,7 +838,10 @@ export class TemplateParser {
   private parseAttributeValueForArray(
     value: string,
     itemInterpolationMap: Map<string, { src: string; key?: string }>,
-    itemConditionalAttributeMap?: Map<string, { src: string; key: string; trueValue: string; falseValue?: string; result?: string }>
+    itemConditionalAttributeMap?: Map<
+      string,
+      { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
+    >
   ): AttributeValue {
     // Проверяем условные атрибуты для массивов (приоритет выше чем обычные интерполяции)
     if (itemConditionalAttributeMap) {
@@ -807,7 +852,7 @@ export class TemplateParser {
             key: info.key,
             trueValue: info.trueValue,
             falseValue: info.falseValue,
-            type: "conditional" as const
+            type: "conditional" as const,
           }
         }
         // Проверяем смешанный контент с условными плейсхолдерами
@@ -818,7 +863,7 @@ export class TemplateParser {
             trueValue: info.trueValue,
             falseValue: info.falseValue,
             result: info.result || value,
-            type: "conditional" as const
+            type: "conditional" as const,
           }
         }
       }
@@ -1002,40 +1047,43 @@ export class TemplateParser {
    */
   private parseConditionalAttributes(
     htmlString: string,
-    conditionalAttributeMap: Map<string, { src: string; key: string; trueValue: string; falseValue?: string; result?: string }>
+    conditionalAttributeMap: Map<
+      string,
+      { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
+    >
   ): string {
     let processedHtml = htmlString
     let conditionalIndex = 0
 
     // Тернарный оператор в атрибутах: ${condition ? 'true' : 'false'}
     const ternaryPattern = /\$\{((?:context|core|item)\.(?:\w+))\s*\?\s*['"]([^'"]*)['"]\s*:\s*['"]([^'"]*)['"]\}/g
-    
+
     let match
     while ((match = ternaryPattern.exec(htmlString)) !== null) {
       const [fullMatch, conditionExpr, trueValue, falseValue] = match
-      
+
       if (!conditionExpr || !trueValue) continue
-      
+
       const conditionParts = conditionExpr.split(".")
       if (conditionParts.length >= 2) {
         const src = conditionParts[0] as "context" | "core" | "item"
         const key = conditionParts[1]
-        
+
         if (key) {
           const placeholder = `CONDITIONAL_ATTR_${conditionalIndex++}`
-          
+
           const conditionalInfo: { src: string; key: string; trueValue: string; falseValue?: string } = {
             src,
             key,
             trueValue,
           }
-          
+
           if (falseValue) {
             conditionalInfo.falseValue = falseValue
           }
-          
+
           conditionalAttributeMap.set(placeholder, conditionalInfo)
-          
+
           processedHtml = processedHtml.replace(fullMatch, placeholder)
         }
       }
@@ -1043,26 +1091,26 @@ export class TemplateParser {
 
     // Логическое И в атрибутах: ${condition && 'value'}
     const andPattern = /\$\{((?:context|core|item)\.(?:\w+))\s*&&\s*['"]([^'"]*)['"]\}/g
-    
+
     while ((match = andPattern.exec(htmlString)) !== null) {
       const [fullMatch, conditionExpr, trueValue] = match
-      
+
       if (!conditionExpr || !trueValue) continue
-      
+
       const conditionParts = conditionExpr.split(".")
       if (conditionParts.length >= 2) {
         const src = conditionParts[0] as "context" | "core" | "item"
         const key = conditionParts[1]
-        
+
         if (key) {
           const placeholder = `CONDITIONAL_ATTR_${conditionalIndex++}`
-          
+
           conditionalAttributeMap.set(placeholder, {
             src,
             key,
             trueValue,
           })
-          
+
           processedHtml = processedHtml.replace(fullMatch, placeholder)
         }
       }
@@ -1076,53 +1124,56 @@ export class TemplateParser {
    */
   private parseConditionalAttributesForArray(
     template: string,
-    itemConditionalAttributeMap: Map<string, { src: string; key: string; trueValue: string; falseValue?: string; result?: string }>
+    itemConditionalAttributeMap: Map<
+      string,
+      { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
+    >
   ): string {
     let processedTemplate = template
     let conditionalIndex = 0
 
     // Тернарный оператор для item: ${item.property ? 'true' : 'false'}
     const ternaryPattern = /\$\{(\w+)\.(\w+)\s*\?\s*['"]([^'"]*)['"]\s*:\s*['"]([^'"]*)['"]\}/g
-    
+
     let match
     while ((match = ternaryPattern.exec(template)) !== null) {
       const [fullMatch, itemName, key, trueValue, falseValue] = match
-      
+
       if (!key || !trueValue) continue
-      
+
       const placeholder = `CONDITIONAL_ATTR_ITEM_${conditionalIndex++}`
-      
+
       const conditionalInfo: { src: string; key: string; trueValue: string; falseValue?: string } = {
         src: "item",
         key,
         trueValue,
       }
-      
+
       if (falseValue) {
         conditionalInfo.falseValue = falseValue
       }
-      
+
       itemConditionalAttributeMap.set(placeholder, conditionalInfo)
-      
+
       processedTemplate = processedTemplate.replace(fullMatch, placeholder)
     }
 
     // Логическое И для item: ${item.property && 'value'}
     const andPattern = /\$\{(\w+)\.(\w+)\s*&&\s*['"]([^'"]*)['"]\}/g
-    
+
     while ((match = andPattern.exec(template)) !== null) {
       const [fullMatch, itemName, key, trueValue] = match
-      
+
       if (!key || !trueValue) continue
-      
+
       const placeholder = `CONDITIONAL_ATTR_ITEM_${conditionalIndex++}`
-      
+
       itemConditionalAttributeMap.set(placeholder, {
         src: "item",
         key,
         trueValue,
       })
-      
+
       processedTemplate = processedTemplate.replace(fullMatch, placeholder)
     }
 
