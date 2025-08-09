@@ -183,7 +183,12 @@ export class TemplateParser {
     for (const conditionalItem of conditionalInfo) {
       if (content.trim() === conditionalItem.placeholder) {
         // Весь контент это условный блок
-        const conditionalElements = this.parseConditionalElements(conditionalItem, arrayInfo, interpolationMap, conditionalInfo)
+        const conditionalElements = this.parseConditionalElements(
+          conditionalItem,
+          arrayInfo,
+          interpolationMap,
+          conditionalInfo
+        )
         child.push(...conditionalElements)
         return child
       }
@@ -191,6 +196,21 @@ export class TemplateParser {
 
     // Если контент содержит только текст (без тегов)
     if (!content.includes("<")) {
+      // Проверяем на условные блоки в основном контексте
+      for (const conditionalItem of conditionalInfo) {
+        if (content.trim() === conditionalItem.placeholder) {
+          // Весь контент это условный блок
+          const conditionalElements = this.parseConditionalElements(
+            conditionalItem,
+            arrayInfo,
+            interpolationMap,
+            conditionalInfo
+          )
+          child.push(...conditionalElements)
+          return child
+        }
+      }
+
       if (content.trim() === "SIMPLE_PLACEHOLDER") {
         // Интерполяция - добавляем заглушку для текста
         child.push({
@@ -208,7 +228,7 @@ export class TemplateParser {
         }
       } else if (content.trim()) {
         // Обрабатываем смешанный текст с плейсхолдерами
-        this.parseTextWithPlaceholders(content.trim(), child, interpolationMap)
+        this.parseTextWithPlaceholders(content.trim(), child, interpolationMap, conditionalInfo)
       }
       return child
     }
@@ -242,7 +262,7 @@ export class TemplateParser {
         }
 
         if (!isArrayPlaceholder) {
-          this.parseTextWithPlaceholders(textBefore, child, interpolationMap)
+          this.parseTextWithPlaceholders(textBefore, child, interpolationMap, conditionalInfo)
         }
       }
 
@@ -305,7 +325,7 @@ export class TemplateParser {
       }
 
       if (!isArrayPlaceholder) {
-        this.parseTextWithPlaceholders(textAfter, child, interpolationMap)
+        this.parseTextWithPlaceholders(textAfter, child, interpolationMap, conditionalInfo)
       }
     }
 
@@ -318,9 +338,25 @@ export class TemplateParser {
   private parseTextWithPlaceholders(
     text: string,
     child: Array<ElementSchema | TextSchema>,
-    interpolationMap?: Map<string, { src: string; key: string }>
+    interpolationMap?: Map<string, { src: string; key: string }>,
+    conditionalInfo: ConditionalInfo[] = []
   ) {
-    // Сначала обрабатываем простые интерполяции
+    // Сначала проверяем на условные блоки
+    for (const conditionalItem of conditionalInfo) {
+      if (text.trim() === conditionalItem.placeholder) {
+        // Весь текст это условный блок
+        const conditionalElements = this.parseConditionalElements(
+          conditionalItem,
+          [],
+          interpolationMap,
+          conditionalInfo
+        )
+        child.push(...conditionalElements)
+        return
+      }
+    }
+
+    // Затем обрабатываем простые интерполяции
     const interpolationPattern = /INTERPOLATION_\d+/g
     let processedText = text
     const interpolations: Array<{ index: number; info: { src: string; key: string } }> = []
@@ -505,7 +541,11 @@ export class TemplateParser {
     for (const conditionalItem of itemConditionalInfo) {
       if (content.trim() === conditionalItem.placeholder) {
         // Весь контент это условный блок
-        const conditionalElements = this.parseConditionalElementsForArray(conditionalItem, itemInterpolationMap, itemConditionalInfo)
+        const conditionalElements = this.parseConditionalElementsForArray(
+          conditionalItem,
+          itemInterpolationMap,
+          itemConditionalInfo
+        )
         child.push(...conditionalElements)
         return child
       }
@@ -544,7 +584,13 @@ export class TemplateParser {
         }
       } else {
         // Смешанный текст с плейсхолдерами или ITEM_INTERPOLATION
-        this.parseTextWithPlaceholdersForArray(content, child, interpolations, itemInterpolationMap, itemConditionalInfo)
+        this.parseTextWithPlaceholdersForArray(
+          content,
+          child,
+          interpolations,
+          itemInterpolationMap,
+          itemConditionalInfo
+        )
       }
     } else {
       // Есть HTML элементы - парсим их
@@ -560,7 +606,13 @@ export class TemplateParser {
         // Добавляем текст перед тегом
         const textBefore = content.slice(lastIndex, tagMatch.index).trim()
         if (textBefore) {
-          this.parseTextWithPlaceholdersForArray(textBefore, child, interpolations, itemInterpolationMap, itemConditionalInfo)
+          this.parseTextWithPlaceholdersForArray(
+            textBefore,
+            child,
+            interpolations,
+            itemInterpolationMap,
+            itemConditionalInfo
+          )
         }
 
         // Создаем элемент
@@ -577,7 +629,11 @@ export class TemplateParser {
 
         // Парсим дочерние элементы рекурсивно
         if (innerContent !== undefined) {
-          const nestedChild = this.parseChildrenForArrayItem(innerContent.trim(), itemInterpolationMap, itemConditionalInfo)
+          const nestedChild = this.parseChildrenForArrayItem(
+            innerContent.trim(),
+            itemInterpolationMap,
+            itemConditionalInfo
+          )
           if (nestedChild.length > 0) {
             element.child = nestedChild
           }
@@ -590,7 +646,13 @@ export class TemplateParser {
       // Добавляем текст после последнего тега
       const textAfter = content.slice(lastIndex).trim()
       if (textAfter) {
-        this.parseTextWithPlaceholdersForArray(textAfter, child, interpolations, itemInterpolationMap, itemConditionalInfo)
+        this.parseTextWithPlaceholdersForArray(
+          textAfter,
+          child,
+          interpolations,
+          itemInterpolationMap,
+          itemConditionalInfo
+        )
       }
     }
 
@@ -611,7 +673,11 @@ export class TemplateParser {
     for (const conditionalItem of itemConditionalInfo) {
       if (text.trim() === conditionalItem.placeholder) {
         // Весь текст это условный блок
-        const conditionalElements = this.parseConditionalElementsForArray(conditionalItem, itemInterpolationMap, itemConditionalInfo)
+        const conditionalElements = this.parseConditionalElementsForArray(
+          conditionalItem,
+          itemInterpolationMap,
+          itemConditionalInfo
+        )
         child.push(...conditionalElements)
         return
       }
@@ -753,93 +819,92 @@ export class TemplateParser {
     let processedHtml = htmlString
 
     // Тернарный оператор: ${condition ? html`true` : html`false`}
-    const ternaryPattern = /\$\{((?:context|core|item)\.(?:\w+))(?:\s*===\s*"([^"]+)")?\s*\?\s*html`([^`]*)`\s*:\s*html`([^`]*)`\}/g
-    
+    const ternaryPattern =
+      /\$\{((?:context|core|item)\.(?:\w+))(?:\s*===\s*"([^"]+)")?\s*\?\s*html`([^`]*)`\s*:\s*html`([^`]*)`\}/g
+
     let match
     while ((match = ternaryPattern.exec(htmlString)) !== null) {
       const [fullMatch, conditionExpr, value, trueTemplate, falseTemplate] = match
-      
-      if (!conditionExpr || !trueTemplate) continue
-      
+
+      if (!conditionExpr) continue
+
       // Парсим условие
-      const conditionParts = conditionExpr.split('.')
+      const conditionParts = conditionExpr.split(".")
       if (conditionParts.length >= 2) {
         const src = conditionParts[0] as "context" | "core" | "item"
         const key = conditionParts[1]
-        
+
         if (!key) continue
-        
+
         const placeholder = `CONDITIONAL_${conditionalInfo.length}`
-        const condition: ConditionSchema = value 
-          ? { src, key, eq: value }
-          : { src, key, eq: true }
-        
+        const condition: ConditionSchema = value ? { src, key, eq: value } : { src, key, eq: true }
+
         conditionalInfo.push({
           placeholder,
           condition,
           trueTemplate,
           falseTemplate: falseTemplate || "",
-          type: "ternary"
+          type: "ternary",
         })
-        
+
         processedHtml = processedHtml.replace(fullMatch, placeholder)
       }
     }
 
     // Логическое И: ${condition && html`template`}
     const andPattern = /\$\{((?:context|core|item)\.(?:\w+))\s*&&\s*html`([^`]*)`\}/g
-    
+
     while ((match = andPattern.exec(htmlString)) !== null) {
       const [fullMatch, conditionExpr, template] = match
-      
+
       if (!conditionExpr || !template) continue
-      
-      const conditionParts = conditionExpr.split('.')
+
+      const conditionParts = conditionExpr.split(".")
       if (conditionParts.length >= 2) {
         const src = conditionParts[0] as "context" | "core" | "item"
         const key = conditionParts[1]
-        
+
         if (!key) continue
-        
+
         const placeholder = `CONDITIONAL_${conditionalInfo.length}`
         const condition: ConditionSchema = { src, key, eq: true }
-        
+
         conditionalInfo.push({
           placeholder,
           condition,
           trueTemplate: template,
-          type: "and"
+          type: "and",
         })
-        
+
         processedHtml = processedHtml.replace(fullMatch, placeholder)
       }
     }
 
     // Логическое ИЛИ: ${condition || html`fallback`}
     const orPattern = /\$\{((?:context|core|item)\.(?:\w+))\s*\|\|\s*html`([^`]*)`\}/g
-    
+
     while ((match = orPattern.exec(htmlString)) !== null) {
       const [fullMatch, conditionExpr, template] = match
-      
+
       if (!conditionExpr || !template) continue
-      
-      const conditionParts = conditionExpr.split('.')
+
+      const conditionParts = conditionExpr.split(".")
       if (conditionParts.length >= 2) {
         const src = conditionParts[0] as "context" | "core" | "item"
         const key = conditionParts[1]
-        
+
         if (!key) continue
-        
+
         const placeholder = `CONDITIONAL_${conditionalInfo.length}`
         const condition: ConditionSchema = { src, key, eq: null } // fallback когда значение пустое/null
-        
+
         conditionalInfo.push({
           placeholder,
           condition,
           trueTemplate: template, // в случае || это fallback шаблон
-          type: "or"
+          type: "or",
         })
-        
+
         processedHtml = processedHtml.replace(fullMatch, placeholder)
       }
     }
@@ -855,68 +920,66 @@ export class TemplateParser {
 
     // Тернарный оператор для переменных массива: ${varname.property ? html`true` : html`false`}
     const ternaryPattern = /\$\{((\w+)\.(\w+))(?:\s*===\s*"([^"]+)")?\s*\?\s*html`([^`]*)`\s*:\s*html`([^`]*)`\}/g
-    
+
     let match
     while ((match = ternaryPattern.exec(htmlString)) !== null) {
       const [fullMatch, conditionExpr, varName, key, value, trueTemplate, falseTemplate] = match
-      
-      if (!conditionExpr || !trueTemplate || !key) continue
-      
+
+      if (!conditionExpr || !key) continue
+
       const placeholder = `CONDITIONAL_${conditionalInfo.length}`
-      const condition: ConditionSchema = value 
-        ? { src: "item", key, eq: value }
-        : { src: "item", key, eq: true }
-      
+      const condition: ConditionSchema = value ? { src: "item", key, eq: value } : { src: "item", key, eq: true }
+
       conditionalInfo.push({
         placeholder,
         condition,
         trueTemplate,
         falseTemplate: falseTemplate || "",
-        type: "ternary"
+        type: "ternary",
       })
-      
+
       processedHtml = processedHtml.replace(fullMatch, placeholder)
     }
 
     // Логическое И для переменных массива: ${varname.property && html`template`}
     const andPattern = /\$\{((\w+)\.(\w+))\s*&&\s*html`([^`]*)`\}/g
-    
+
     while ((match = andPattern.exec(htmlString)) !== null) {
       const [fullMatch, conditionExpr, varName, key, template] = match
-      
+
       if (!conditionExpr || !template || !key) continue
-      
+
       const placeholder = `CONDITIONAL_${conditionalInfo.length}`
       const condition: ConditionSchema = { src: "item", key, eq: true }
-      
+
       conditionalInfo.push({
         placeholder,
         condition,
         trueTemplate: template,
-        type: "and"
+        type: "and",
       })
-      
+
       processedHtml = processedHtml.replace(fullMatch, placeholder)
     }
 
     // Логическое ИЛИ для переменных массива: ${varname.property || html`fallback`}
     const orPattern = /\$\{((\w+)\.(\w+))\s*\|\|\s*html`([^`]*)`\}/g
-    
+
     while ((match = orPattern.exec(htmlString)) !== null) {
       const [fullMatch, conditionExpr, varName, key, template] = match
-      
+
       if (!conditionExpr || !template || !key) continue
-      
+
       const placeholder = `CONDITIONAL_${conditionalInfo.length}`
       const condition: ConditionSchema = { src: "item", key, eq: null }
-      
+
       conditionalInfo.push({
         placeholder,
         condition,
         trueTemplate: template,
-        type: "or"
+        type: "or",
       })
-      
+
       processedHtml = processedHtml.replace(fullMatch, placeholder)
     }
 
@@ -936,11 +999,16 @@ export class TemplateParser {
 
     // Парсим true ветвь
     if (conditionalItem.trueTemplate) {
-      const trueElements = this.parseChildren(conditionalItem.trueTemplate, arrayInfo, interpolationMap, conditionalInfo)
-      trueElements.forEach(element => {
+      const trueElements = this.parseChildren(
+        conditionalItem.trueTemplate,
+        arrayInfo,
+        interpolationMap,
+        conditionalInfo
+      )
+      trueElements.forEach((element) => {
         if (element.type === "el") {
           // Добавляем условие eq: true к элементу
-          (element as ElementSchema).cond = conditionalItem.condition
+          ;(element as ElementSchema).cond = conditionalItem.condition
         }
         elements.push(element)
       })
@@ -948,19 +1016,25 @@ export class TemplateParser {
 
     // Парсим false ветвь (если есть)
     if (conditionalItem.falseTemplate && conditionalItem.type === "ternary") {
-      const falseElements = this.parseChildren(conditionalItem.falseTemplate, arrayInfo, interpolationMap, conditionalInfo)
-      falseElements.forEach(element => {
+      const falseElements = this.parseChildren(
+        conditionalItem.falseTemplate,
+        arrayInfo,
+        interpolationMap,
+        conditionalInfo
+      )
+      falseElements.forEach((element) => {
         if (element.type === "el") {
           // Добавляем условие eq: false к элементу
-          const falseCondition: ConditionSchema = conditionalItem.condition.eq !== undefined && conditionalItem.condition.eq !== true
-            ? { ...conditionalItem.condition, notEq: conditionalItem.condition.eq }
-            : { ...conditionalItem.condition, eq: false }
-          
+          const falseCondition: ConditionSchema =
+            conditionalItem.condition.eq !== undefined && conditionalItem.condition.eq !== true
+              ? { ...conditionalItem.condition, notEq: conditionalItem.condition.eq }
+              : { ...conditionalItem.condition, eq: false }
+
           // Удаляем eq если добавили notEq
           if (falseCondition.notEq !== undefined) {
             delete falseCondition.eq
           }
-          
+
           ;(element as ElementSchema).cond = falseCondition
         }
         elements.push(element)
@@ -983,12 +1057,19 @@ export class TemplateParser {
     // Парсим true ветвь
     if (conditionalItem.trueTemplate) {
       // Обрабатываем интерполяции в шаблоне
-      const processedTrueTemplate = this.processInterpolationsInTemplate(conditionalItem.trueTemplate, itemInterpolationMap)
-      const trueElements = this.parseChildrenForArrayItem(processedTrueTemplate, itemInterpolationMap, itemConditionalInfo)
-      trueElements.forEach(element => {
+      const processedTrueTemplate = this.processInterpolationsInTemplate(
+        conditionalItem.trueTemplate,
+        itemInterpolationMap
+      )
+      const trueElements = this.parseChildrenForArrayItem(
+        processedTrueTemplate,
+        itemInterpolationMap,
+        itemConditionalInfo
+      )
+      trueElements.forEach((element) => {
         if (element.type === "el") {
           // Добавляем условие eq: true к элементу
-          (element as ElementSchema).cond = conditionalItem.condition
+          ;(element as ElementSchema).cond = conditionalItem.condition
         }
         elements.push(element)
       })
@@ -997,20 +1078,28 @@ export class TemplateParser {
     // Парсим false ветвь (если есть)
     if (conditionalItem.falseTemplate && conditionalItem.type === "ternary") {
       // Обрабатываем интерполяции в шаблоне
-      const processedFalseTemplate = this.processInterpolationsInTemplate(conditionalItem.falseTemplate, itemInterpolationMap)
-      const falseElements = this.parseChildrenForArrayItem(processedFalseTemplate, itemInterpolationMap, itemConditionalInfo)
-      falseElements.forEach(element => {
+      const processedFalseTemplate = this.processInterpolationsInTemplate(
+        conditionalItem.falseTemplate,
+        itemInterpolationMap
+      )
+      const falseElements = this.parseChildrenForArrayItem(
+        processedFalseTemplate,
+        itemInterpolationMap,
+        itemConditionalInfo
+      )
+      falseElements.forEach((element) => {
         if (element.type === "el") {
           // Добавляем условие eq: false к элементу
-          const falseCondition: ConditionSchema = conditionalItem.condition.eq !== undefined && conditionalItem.condition.eq !== true
-            ? { ...conditionalItem.condition, notEq: conditionalItem.condition.eq }
-            : { ...conditionalItem.condition, eq: false }
-          
+          const falseCondition: ConditionSchema =
+            conditionalItem.condition.eq !== undefined && conditionalItem.condition.eq !== true
+              ? { ...conditionalItem.condition, notEq: conditionalItem.condition.eq }
+              : { ...conditionalItem.condition, eq: false }
+
           // Удаляем eq если добавили notEq
           if (falseCondition.notEq !== undefined) {
             delete falseCondition.eq
           }
-          
+
           ;(element as ElementSchema).cond = falseCondition
         }
         elements.push(element)
@@ -1024,7 +1113,7 @@ export class TemplateParser {
    * Обрабатывает интерполяции в шаблоне условного блока
    */
   private processInterpolationsInTemplate(
-    template: string, 
+    template: string,
     itemInterpolationMap: Map<string, { src: string; key?: string }>
   ): string {
     let processedTemplate = template
@@ -1040,7 +1129,7 @@ export class TemplateParser {
     // Заменяем простые переменные без ключа (как ${id})
     processedTemplate = processedTemplate.replace(/\$\{(\w+)\}/g, (match, varName) => {
       // Исключаем переменные которые могут быть другими (context, core)
-      if (!['context', 'core'].includes(varName)) {
+      if (!["context", "core"].includes(varName)) {
         const placeholder = `ITEM_INTERPOLATION_${interpolationIndex++}`
         itemInterpolationMap.set(placeholder, { src: "item" })
         return placeholder
@@ -1057,36 +1146,36 @@ export class TemplateParser {
   private parseArrayBlocks(htmlString: string, arrayInfo: ArrayInfo[]): string {
     let processedHtml = htmlString
     const arrayStartPattern = /\$\{(context|core)\.(\w+)\.map\(/g
-    
+
     let match
     while ((match = arrayStartPattern.exec(htmlString)) !== null) {
       const [startMatch, source, contextKey] = match
       const startIndex = match.index
       const afterStart = startIndex + startMatch.length
-      
+
       // Ищем соответствующий html` и закрывающую скобку
-      const htmlTemplateStart = htmlString.indexOf('html`', afterStart)
+      const htmlTemplateStart = htmlString.indexOf("html`", afterStart)
       if (htmlTemplateStart === -1) continue
-      
+
       // Находим содержимое между html`...` учитывая вложенные backticks
       const templateContent = this.extractTemplateContent(htmlString, htmlTemplateStart + 5)
       if (!templateContent) continue
-      
+
       // Находим закрывающую скобку после шаблона
       const afterTemplate = htmlTemplateStart + 5 + templateContent.length + 1 // +1 для закрывающего `
       const closingBrace = this.findClosingBrace(htmlString, startIndex)
       if (closingBrace === -1) continue
-      
+
       // Извлекаем полное выражение массива
       const fullMatch = htmlString.substring(startIndex, closingBrace + 1)
-      
+
       if (source && contextKey) {
         const placeholder = `CONTEXT_ARRAY_${arrayInfo.length}`
         arrayInfo.push({ placeholder, source, contextKey, itemTemplate: templateContent })
         processedHtml = processedHtml.replace(fullMatch, placeholder)
       }
     }
-    
+
     return processedHtml
   }
 
@@ -1097,17 +1186,17 @@ export class TemplateParser {
     let depth = 0
     let i = startIndex
     let result = ""
-    
+
     while (i < htmlString.length) {
       const char = htmlString[i]
-      
-      if (char === 'h' && htmlString.substr(i, 5) === 'html`') {
+
+      if (char === "h" && htmlString.substr(i, 5) === "html`") {
         // Начало вложенного template
         depth++
         result += htmlString.substr(i, 5)
         i += 5
         continue
-      } else if (char === '`') {
+      } else if (char === "`") {
         if (depth === 0) {
           // Это закрывающий backtick основного template
           return result
@@ -1116,11 +1205,11 @@ export class TemplateParser {
           depth--
         }
       }
-      
+
       result += char
       i++
     }
-    
+
     return null // не найден закрывающий backtick
   }
 
@@ -1130,22 +1219,22 @@ export class TemplateParser {
   private findClosingBrace(htmlString: string, startIndex: number): number {
     let depth = 0
     let i = startIndex
-    
+
     while (i < htmlString.length) {
       const char = htmlString[i]
-      
-      if (char === '{') {
+
+      if (char === "{") {
         depth++
-      } else if (char === '}') {
+      } else if (char === "}") {
         depth--
         if (depth === 0) {
           return i
         }
       }
-      
+
       i++
     }
-    
+
     return -1 // не найдена закрывающая скобка
   }
 }
