@@ -191,7 +191,7 @@ export function MetaForFabric(params: FabricParams) {
                                       state: this.#state,
                                       context: this.#context.getSnapshot(),
                                       core: this.#core,
-                                      shadow: this.#shadow,
+                                      element: this.#shadow,
                                       update: this.update,
                                     })
                                     this.setAttribute("state", this.#state)
@@ -230,7 +230,7 @@ export function MetaForFabric(params: FabricParams) {
                                         state: this.#state,
                                         context: this.#context.getSnapshot(),
                                         core: this.#core,
-                                        shadow: this.#shadow,
+                                        element: this.#shadow,
                                         update: this.update,
                                       })
                                     }
@@ -335,7 +335,7 @@ export function MetaForFabric(params: FabricParams) {
                                       state: this.#state,
                                       context: this.#context.getSnapshot(),
                                       core: this.#core,
-                                      shadow: this.#shadow,
+                                      element: this.#shadow,
                                       update: this.update,
                                     })
                                   }
