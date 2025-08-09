@@ -90,6 +90,14 @@ const schema = parser.parseHtmlToSchema(htmlString)
 
 ## Тесты
 
-Модуль покрыт комплексными тестами в `test/parser.spec.ts`.
+Модуль покрыт комплексными тестами:
 
-Запуск: `bun test core/view/template-parser/test/parser.spec.ts`
+- `test/parser.spec.ts` - основные функции парсера (11 тестов)
+- `test/arrays.spec.ts` - специализированные тесты для массивов (10 тестов)
+
+Запуск всех тестов: `bun test core/view/template-parser/test/`
+
+Отдельные файлы:
+
+- `bun test core/view/template-parser/test/parser.spec.ts`
+- `bun test core/view/template-parser/test/arrays.spec.ts`
