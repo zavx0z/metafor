@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test"
 import { TemplateParser, parseTemplate } from "../index.ts"
+import type { Schema } from "../index.ts"
 
 describe("TemplateParser", () => {
   describe("основные функции", () => {
@@ -130,7 +131,7 @@ describe("TemplateParser", () => {
   describe("интерполяции", () => {
     it("простая интерполяция", () => {
       const result = parseTemplate(`<div>\${context.name}</div>`)
-      expect(result, "простая интерполяция").toEqual([
+      const expected: Schema = [
         {
           tag: "div",
           type: "el",
@@ -144,12 +145,13 @@ describe("TemplateParser", () => {
             },
           ],
         },
-      ])
+      ]
+      expect(result, "простая интерполяция").toEqual(expected)
     })
 
     it("смешанный текст с интерполяцией", () => {
       const result = parseTemplate(`<div>Total: \${context.count}</div>`)
-      expect(result, "смешанный текст").toEqual([
+      const expected: Schema = [
         {
           tag: "div",
           type: "el",
@@ -164,7 +166,8 @@ describe("TemplateParser", () => {
             },
           ],
         },
-      ])
+      ]
+      expect(result, "смешанный текст").toEqual(expected)
     })
   })
 

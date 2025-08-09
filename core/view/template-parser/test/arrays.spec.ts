@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test"
 import { parseTemplate } from "../index.ts"
-import type { Schema } from "../index.t.ts"
+import type { Schema } from "../index.ts"
 
 describe("Template Parser - массивы", () => {
   describe("массивы из context", () => {
@@ -175,10 +175,10 @@ describe("Template Parser - массивы", () => {
               child: [
                 {
                   type: "text",
-                  value: { 
+                  value: {
                     src: "item",
-                    key: "label"
-                   },
+                    key: "label",
+                  },
                 },
               ],
             },

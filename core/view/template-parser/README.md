@@ -37,14 +37,17 @@ const schema = parser.parseHtmlToSchema(htmlString)
 ## Логика обработки интерполяций
 
 ### Простые интерполяции (вне массивов)
+
 - `${context.name}` → `{ src: "context", key: "name" }`
 - `${core.settings}` → `{ src: "core", key: "settings" }`
 
 ### Интерполяции внутри массивов
+
 - `${item.property}` → `{ src: "item", key: "property" }`
 - `${id}` (простая переменная) → `{ src: "item" }`
 
 ### Обработка массивов
+
 1. Парсер находит `${context.items.map((item) => html\`...\`)}`
 2. Извлекает шаблон элемента: все между html\`...\`
 3. В шаблоне элемента заменяет интерполяции на плейсхолдеры

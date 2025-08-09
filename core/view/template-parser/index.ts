@@ -3,30 +3,7 @@
  * @module TemplateParser
  */
 
-export interface ArrayInfo {
-  placeholder: string
-  source: string
-  contextKey: string
-  itemTemplate: string
-}
-
-export interface ElementSchema {
-  tag: string
-  type: "el"
-  attrs?: Record<string, string>
-  child?: Array<ElementSchema | TextSchema>
-  item?: {
-    src: string
-    key: string
-  }
-}
-
-export interface TextSchema {
-  type: "text"
-  value: string | { src: "item" }
-}
-
-export type Schema = Array<ElementSchema | TextSchema>
+import type { ArrayInfo, Schema, ElementSchema, TextSchema } from "./index.t.ts"
 
 /**
  * Основной класс парсера HTML шаблонов
@@ -69,6 +46,8 @@ export class TemplateParser {
 
     while ((match = rootRegex.exec(processedHtml)) !== null) {
       const [, tagName, attributesStr, innerContent] = match
+      
+      if (!tagName) continue
 
       const element: ElementSchema = {
         tag: tagName,
@@ -161,6 +140,8 @@ export class TemplateParser {
 
     while ((match = tagRegex.exec(content)) !== null) {
       const [fullMatch, tagName, attributesStr, innerContent] = match
+      
+      if (!tagName) continue
 
       // Добавляем текст перед тегом
       const textBefore = content.slice(lastIndex, match.index).trim()
@@ -289,11 +270,14 @@ export class TemplateParser {
       // Добавляем плейсхолдер если это не последняя часть
       if (i < parts.length - 1) {
         if (interpolationIndex < interpolations.length) {
-          // Это простая интерполяция
-          child.push({
-            type: "text",
-            value: interpolations[interpolationIndex].info,
-          })
+          const interpolation = interpolations[interpolationIndex]
+          if (interpolation) {
+            // Это простая интерполяция
+            child.push({
+              type: "text",
+              value: interpolation.info,
+            })
+          }
           interpolationIndex++
         } else {
           // Это интерполяция внутри массива
@@ -357,6 +341,18 @@ export class TemplateParser {
     }
 
     const [, tagName, attributesStr, innerContent] = match
+    
+    if (!tagName) {
+      // Если tagName undefined, возвращаем fallback
+      return {
+        tag: "span",
+        type: "el",
+        item: {
+          src: source,
+          key: contextKey,
+        },
+      }
+    }
 
     const element: ElementSchema = {
       tag: tagName,
@@ -434,7 +430,7 @@ export class TemplateParser {
         }
       } else if (processedContent.trim() === "SIMPLE_PLACEHOLDER") {
         // Ищем первую подходящую интерполяцию
-        if (interpolations.length > 0) {
+        if (interpolations.length > 0 && interpolations[0]) {
           child.push({
             type: "text",
             value: interpolations[0].info,
@@ -458,6 +454,8 @@ export class TemplateParser {
 
       while ((tagMatch = tagRegex.exec(content)) !== null) {
         const [fullMatch, tagName, attributesStr, innerContent] = tagMatch
+        
+        if (!tagName) continue
 
         // Добавляем текст перед тегом
         const textBefore = content.slice(lastIndex, tagMatch.index).trim()
@@ -531,10 +529,13 @@ export class TemplateParser {
       }
 
       if (i < parts.length - 1 && interpolationIndex < foundInterpolations.length) {
-        child.push({
-          type: "text",
-          value: foundInterpolations[interpolationIndex],
-        })
+        const interpolation = foundInterpolations[interpolationIndex]
+        if (interpolation) {
+          child.push({
+            type: "text",
+            value: interpolation,
+          })
+        }
         interpolationIndex++
       }
     }
@@ -573,3 +574,8 @@ export function parseTemplate(htmlString: string): Schema {
   const parser = new TemplateParser()
   return parser.parseHtmlToSchema(htmlString)
 }
+
+// Реэкспорт типов
+export type { ArrayInfo, Schema, ElementSchema, TextSchema } from "./index.t.ts"
+
+
