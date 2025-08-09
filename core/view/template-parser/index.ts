@@ -39,8 +39,6 @@ export class TemplateParser {
       { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
     >()
     processedHtml = this.parseConditionalAttributes(processedHtml, conditionalAttributeMap)
-    
-
 
     // Обрабатываем простые интерполяции и сохраняем их информацию
     let interpolationIndex = 0
@@ -55,7 +53,7 @@ export class TemplateParser {
 
     // Парсим корневые элементы
     const elements: Schema = []
-    const rootRegex = /<(\w+)([^>]*?)(?:\s*\/\s*>|>([\s\S]*?)<\/\1>)/g
+    const rootRegex = /<(\w+)([^>]*?)(?:\s*\/\s*>|>([\s\S]*?)<\/\1>|>)/g
 
     let match
     while ((match = rootRegex.exec(processedHtml)) !== null) {
@@ -70,6 +68,9 @@ export class TemplateParser {
 
       // Парсим атрибуты
       const attrs = this.parseAttributes(attributesStr || "", interpolationMap, conditionalAttributeMap)
+      
+
+      
       if (Object.keys(attrs).length > 0) {
         element.attrs = attrs
       }
@@ -97,7 +98,7 @@ export class TemplateParser {
   /**
    * Парсит атрибуты элемента
    */
-    private parseAttributes(
+  private parseAttributes(
     attributesStr: string,
     interpolationMap?: Map<string, { src: string; key: string }>,
     conditionalAttributeMap?: Map<
@@ -106,7 +107,7 @@ export class TemplateParser {
     >
   ): Record<string, AttributeValue> {
     const attrs: Record<string, AttributeValue> = {}
-    
+
     // Используем более сложный подход для правильной обработки кавычек
     let currentIndex = 0
     const length = attributesStr.length
@@ -130,13 +131,13 @@ export class TemplateParser {
       while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) {
         currentIndex++
       }
-      if (currentIndex < length && attributesStr[currentIndex] === '=') {
+      if (currentIndex < length && attributesStr[currentIndex] === "=") {
         currentIndex++
         while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) {
           currentIndex++
         }
 
-        // Ищем кавычки
+        // Ищем кавычки или плейсхолдеры
         if (currentIndex < length && (attributesStr[currentIndex] === '"' || attributesStr[currentIndex] === "'")) {
           const quote = attributesStr[currentIndex]!
           currentIndex++
@@ -190,12 +191,13 @@ export class TemplateParser {
             attrs[name] = this.parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
           }
         } else {
-          // Значение без кавычек (нестандартный случай)
+          // Значение без кавычек (может быть плейсхолдер)
           const valueStart = currentIndex
           while (currentIndex < length && !/\s/.test(attributesStr[currentIndex]!)) {
             currentIndex++
           }
           const value = attributesStr.slice(valueStart, currentIndex)
+          
           // Проверяем плейсхолдеры условных атрибутов
           if (conditionalAttributeMap) {
             let foundPlaceholder = false
@@ -946,7 +948,7 @@ export class TemplateParser {
     >
   ): Record<string, AttributeValue> {
     const attrs: Record<string, AttributeValue> = {}
-    
+
     // Используем более сложный подход для правильной обработки кавычек
     let currentIndex = 0
     const length = attributesStr.length
@@ -970,7 +972,7 @@ export class TemplateParser {
       while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) {
         currentIndex++
       }
-      if (currentIndex < length && attributesStr[currentIndex] === '=') {
+      if (currentIndex < length && attributesStr[currentIndex] === "=") {
         currentIndex++
         while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) {
           currentIndex++
@@ -1308,6 +1310,8 @@ export class TemplateParser {
   ): string {
     let processedHtml = htmlString
     let conditionalIndex = 0
+    
+
 
     // Тернарный оператор в атрибутах: ${condition ? 'true' : 'false'}
     const ternaryPattern = /\$\{((?:context|core|item)\.(?:\w+))\s*\?\s*['"]([^'"]*)['"]\s*:\s*['"]([^'"]*)['"]\}/g
@@ -1345,6 +1349,8 @@ export class TemplateParser {
 
     // Логическое И в атрибутах: ${condition && 'value'}
     const andPattern = /\$\{((?:context|core|item)\.(?:\w+))\s*&&\s*['"]([^'"]*)['"]\}/g
+    
+
 
     while ((match = andPattern.exec(htmlString)) !== null) {
       const [fullMatch, conditionExpr, trueValue] = match
