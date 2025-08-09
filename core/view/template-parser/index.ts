@@ -400,6 +400,8 @@ export class TemplateParser {
     let processedContent = content
     const interpolations: Array<{ placeholder: string; info: { src: string; key?: string } }> = []
 
+    // НЕ заменяем ITEM_INTERPOLATION в основном содержимом
+    // Просто сохраняем их для обработки
     let match
     while ((match = itemInterpolationPattern.exec(content)) !== null) {
       const interpolationInfo = itemInterpolationMap.get(match[0])
@@ -408,13 +410,29 @@ export class TemplateParser {
           placeholder: match[0],
           info: interpolationInfo
         })
-        processedContent = processedContent.replace(match[0], "SIMPLE_PLACEHOLDER")
       }
     }
+    
+    // processedContent остается с ITEM_INTERPOLATION для корректной обработки
 
     // Если это только текст (без HTML тегов)
     if (!processedContent.includes("<")) {
-      if (processedContent.trim() === "SIMPLE_PLACEHOLDER") {
+      // Проверяем на ITEM_INTERPOLATION напрямую
+      const itemMatch = content.trim().match(/^ITEM_INTERPOLATION_\d+$/)
+      if (itemMatch) {
+        const interpolationInfo = itemInterpolationMap.get(itemMatch[0])
+        if (interpolationInfo) {
+          child.push({
+            type: "text",
+            value: interpolationInfo,
+          })
+        } else {
+          child.push({
+            type: "text",
+            value: { src: "item" },
+          })
+        }
+      } else if (processedContent.trim() === "SIMPLE_PLACEHOLDER") {
         // Ищем первую подходящую интерполяцию
         if (interpolations.length > 0) {
           child.push({
@@ -429,28 +447,8 @@ export class TemplateParser {
           })
         }
       } else {
-        // Смешанный текст с плейсхолдерами
-        const parts = processedContent.split("SIMPLE_PLACEHOLDER")
-        let interpolationIndex = 0
-
-        for (let i = 0; i < parts.length; i++) {
-          const part = parts[i]?.trim()
-
-          if (part) {
-            child.push({
-              type: "text",
-              value: part,
-            })
-          }
-
-          if (i < parts.length - 1 && interpolationIndex < interpolations.length) {
-            child.push({
-              type: "text",
-              value: interpolations[interpolationIndex].info,
-            })
-            interpolationIndex++
-          }
-        }
+        // Смешанный текст с плейсхолдерами или ITEM_INTERPOLATION
+        this.parseTextWithPlaceholdersForArray(content, child, interpolations, itemInterpolationMap)
       }
     } else {
       // Есть HTML элементы - парсим их
@@ -458,13 +456,13 @@ export class TemplateParser {
       let tagMatch
       let lastIndex = 0
 
-      while ((tagMatch = tagRegex.exec(processedContent)) !== null) {
+      while ((tagMatch = tagRegex.exec(content)) !== null) {
         const [fullMatch, tagName, attributesStr, innerContent] = tagMatch
 
         // Добавляем текст перед тегом
-        const textBefore = processedContent.slice(lastIndex, tagMatch.index).trim()
+        const textBefore = content.slice(lastIndex, tagMatch.index).trim()
         if (textBefore) {
-          this.parseTextWithPlaceholdersForArray(textBefore, child, interpolations)
+          this.parseTextWithPlaceholdersForArray(textBefore, child, interpolations, itemInterpolationMap)
         }
 
         // Создаем элемент
@@ -492,9 +490,9 @@ export class TemplateParser {
       }
 
       // Добавляем текст после последнего тега
-      const textAfter = processedContent.slice(lastIndex).trim()
+      const textAfter = content.slice(lastIndex).trim()
       if (textAfter) {
-        this.parseTextWithPlaceholdersForArray(textAfter, child, interpolations)
+        this.parseTextWithPlaceholdersForArray(textAfter, child, interpolations, itemInterpolationMap)
       }
     }
 
@@ -504,8 +502,22 @@ export class TemplateParser {
   /**
    * Парсит текст с плейсхолдерами для элементов массива
    */
-  private parseTextWithPlaceholdersForArray(text: string, child: Array<ElementSchema | TextSchema>, interpolations: Array<{ placeholder: string; info: { src: string; key?: string } }>) {
-    const parts = text.split("SIMPLE_PLACEHOLDER")
+  private parseTextWithPlaceholdersForArray(text: string, child: Array<ElementSchema | TextSchema>, interpolations: Array<{ placeholder: string; info: { src: string; key?: string } }>, itemInterpolationMap: Map<string, { src: string; key?: string }>) {
+    // Заменяем ITEM_INTERPOLATION на SIMPLE_PLACEHOLDER для обработки как смешанного текста
+    const itemInterpolationPattern = /ITEM_INTERPOLATION_\d+/g
+    let processedText = text
+    const foundInterpolations: Array<{ src: string; key?: string }> = []
+    
+    let match
+    while ((match = itemInterpolationPattern.exec(text)) !== null) {
+      const interpolationInfo = itemInterpolationMap.get(match[0])
+      if (interpolationInfo) {
+        foundInterpolations.push(interpolationInfo)
+        processedText = processedText.replace(match[0], "SIMPLE_PLACEHOLDER")
+      }
+    }
+
+    const parts = processedText.split("SIMPLE_PLACEHOLDER")
     let interpolationIndex = 0
 
     for (let i = 0; i < parts.length; i++) {
@@ -518,10 +530,10 @@ export class TemplateParser {
         })
       }
 
-      if (i < parts.length - 1 && interpolationIndex < interpolations.length) {
+      if (i < parts.length - 1 && interpolationIndex < foundInterpolations.length) {
         child.push({
           type: "text",
-          value: interpolations[interpolationIndex].info,
+          value: foundInterpolations[interpolationIndex],
         })
         interpolationIndex++
       }

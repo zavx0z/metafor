@@ -70,7 +70,7 @@ describe("Template Parser - массивы", () => {
                   child: [
                     {
                       type: "text",
-                      value: { src: "item" } as const,
+                      value: { src: "item", key: "name" },
                     },
                   ],
                 },
@@ -81,7 +81,7 @@ describe("Template Parser - массивы", () => {
                   child: [
                     {
                       type: "text",
-                      value: { src: "item" } as const,
+                      value: { src: "item", key: "email" },
                     },
                   ],
                 },
@@ -92,7 +92,7 @@ describe("Template Parser - массивы", () => {
                   child: [
                     {
                       type: "text",
-                      value: { src: "item" } as const,
+                      value: { src: "item", key: "role" },
                     },
                   ],
                 },
@@ -137,7 +137,7 @@ describe("Template Parser - массивы", () => {
                   child: [
                     {
                       type: "text",
-                      value: { src: "item" } as const,
+                      value: { src: "item", key: "title" },
                     },
                   ],
                 },
@@ -236,7 +236,7 @@ describe("Template Parser - массивы", () => {
                   child: [
                     {
                       type: "text",
-                      value: { src: "item" } as const,
+                      value: { src: "item", key: "name" },
                     },
                   ],
                 },
@@ -253,7 +253,7 @@ describe("Template Parser - массивы", () => {
                     },
                     {
                       type: "text",
-                      value: { src: "item" } as const,
+                      value: { src: "item", key: "price" },
                     },
                   ],
                 },
@@ -342,7 +342,7 @@ describe("Template Parser - массивы", () => {
                   child: [
                     {
                       type: "text",
-                      value: { src: "item" } as const,
+                      value: { src: "item", key: "name" },
                     },
                   ],
                 },
@@ -355,7 +355,7 @@ describe("Template Parser - массивы", () => {
                   child: [
                     {
                       type: "text",
-                      value: { src: "item" } as const,
+                      value: { src: "item", key: "email" },
                     },
                   ],
                 },
@@ -377,7 +377,7 @@ describe("Template Parser - массивы", () => {
                     },
                     {
                       type: "text",
-                      value: { src: "item" } as const,
+                      value: { src: "context", key: "totalCount" },
                     },
                   ],
                 },

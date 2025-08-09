@@ -137,9 +137,9 @@ describe("TemplateParser", () => {
           child: [
             {
               type: "text",
-              value: { 
+              value: {
                 src: "context",
-                key: "name"
+                key: "name",
               },
             },
           ],
