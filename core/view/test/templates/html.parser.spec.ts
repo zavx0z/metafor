@@ -169,9 +169,9 @@ describe("HTML Parser", () => {
 
   it("сложный массив с атрибутами", () => {
     const view = new View({
-      render: ({ html, context }) =>
+      render: ({ html, core }) =>
         html`<div class="list">
-          ${context.users.map(
+          ${core.users.map(
             (user: any) => html`<div class="user-card" data-id="${user.id}">
               <h3>${user.name}</h3>
               <p>${user.email}</p>
@@ -191,7 +191,7 @@ describe("HTML Parser", () => {
             tag: "div",
             type: "el",
             item: {
-              src: "context",
+              src: "core",
               key: "users",
             },
             attrs: {

@@ -188,17 +188,17 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
    * Парсит HTML строку в JSON схему
    */
   #parseHtmlToSchema(htmlString: string): any[] {
-    // Сначала находим и обрабатываем массивы из контекста
-    const contextArrayPattern = /\$\{context\.(\w+)\.map\([^}]*html`([^`]*)`[^}]*\)\}/g
+    // Сначала находим и обрабатываем массивы из контекста и core
+    const contextArrayPattern = /\$\{(context|core)\.(\w+)\.map\([^}]*html`([^`]*)`[^}]*\)\}/g
     let processedHtml = htmlString
-    const arrayInfo: Array<{ placeholder: string; contextKey: string; itemTemplate: string }> = []
+    const arrayInfo: Array<{ placeholder: string; source: string; contextKey: string; itemTemplate: string }> = []
 
     let match
     while ((match = contextArrayPattern.exec(htmlString)) !== null) {
-      const [fullMatch, contextKey, itemTemplate] = match
-      if (contextKey && itemTemplate) {
+      const [fullMatch, source, contextKey, itemTemplate] = match
+      if (source && contextKey && itemTemplate) {
         const placeholder = `CONTEXT_ARRAY_${arrayInfo.length}`
-        arrayInfo.push({ placeholder, contextKey, itemTemplate })
+        arrayInfo.push({ placeholder, source, contextKey, itemTemplate })
         processedHtml = processedHtml.replace(fullMatch, placeholder)
       }
     }
@@ -264,7 +264,7 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
    */
   #parseChildren(
     content: string,
-    arrayInfo: Array<{ placeholder: string; contextKey: string; itemTemplate: string }> = []
+    arrayInfo: Array<{ placeholder: string; source: string; contextKey: string; itemTemplate: string }> = []
   ): any[] {
     const children: any[] = []
 
@@ -272,7 +272,7 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
     for (const arrayItem of arrayInfo) {
       if (content.trim() === arrayItem.placeholder) {
         // Весь контент это плейсхолдер массива
-        const itemElement = this.#parseArrayItemTemplate(arrayItem.itemTemplate, arrayItem.contextKey)
+        const itemElement = this.#parseArrayItemTemplate(arrayItem.itemTemplate, arrayItem.source, arrayItem.contextKey)
         children.push(itemElement)
         return children
       }
@@ -308,7 +308,11 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
         let isArrayPlaceholder = false
         for (const arrayItem of arrayInfo) {
           if (textBefore === arrayItem.placeholder) {
-            const itemElement = this.#parseArrayItemTemplate(arrayItem.itemTemplate, arrayItem.contextKey)
+            const itemElement = this.#parseArrayItemTemplate(
+              arrayItem.itemTemplate,
+              arrayItem.source,
+              arrayItem.contextKey
+            )
             children.push(itemElement)
             isArrayPlaceholder = true
             break
@@ -324,7 +328,11 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
       let isArrayElement = false
       for (const arrayItem of arrayInfo) {
         if (fullMatch.includes(arrayItem.placeholder)) {
-          const itemElement = this.#parseArrayItemTemplate(arrayItem.itemTemplate, arrayItem.contextKey)
+          const itemElement = this.#parseArrayItemTemplate(
+            arrayItem.itemTemplate,
+            arrayItem.source,
+            arrayItem.contextKey
+          )
           children.push(itemElement)
           isArrayElement = true
           break
@@ -365,7 +373,11 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
       let isArrayPlaceholder = false
       for (const arrayItem of arrayInfo) {
         if (textAfter === arrayItem.placeholder) {
-          const itemElement = this.#parseArrayItemTemplate(arrayItem.itemTemplate, arrayItem.contextKey)
+          const itemElement = this.#parseArrayItemTemplate(
+            arrayItem.itemTemplate,
+            arrayItem.source,
+            arrayItem.contextKey
+          )
           children.push(itemElement)
           isArrayPlaceholder = true
           break
@@ -410,7 +422,7 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
   /**
    * Парсит шаблон элемента массива
    */
-  #parseArrayItemTemplate(template: string, contextKey: string): any {
+  #parseArrayItemTemplate(template: string, source: string, contextKey: string): any {
     // Заменяем интерполяции в шаблоне элемента на плейсхолдеры
     const cleanTemplate = template.replace(/\$\{[^}]*\}/g, "SIMPLE_PLACEHOLDER")
 
@@ -431,7 +443,7 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
       tag: tagName,
       type: "el",
       item: {
-        src: "context",
+        src: source,
         key: contextKey,
       },
     }
