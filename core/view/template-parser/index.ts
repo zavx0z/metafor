@@ -544,7 +544,7 @@ export class TemplateParser {
         }
       } else {
         // Смешанный текст с плейсхолдерами или ITEM_INTERPOLATION
-        this.parseTextWithPlaceholdersForArray(content, child, interpolations, itemInterpolationMap)
+        this.parseTextWithPlaceholdersForArray(content, child, interpolations, itemInterpolationMap, itemConditionalInfo)
       }
     } else {
       // Есть HTML элементы - парсим их
@@ -560,7 +560,7 @@ export class TemplateParser {
         // Добавляем текст перед тегом
         const textBefore = content.slice(lastIndex, tagMatch.index).trim()
         if (textBefore) {
-          this.parseTextWithPlaceholdersForArray(textBefore, child, interpolations, itemInterpolationMap)
+          this.parseTextWithPlaceholdersForArray(textBefore, child, interpolations, itemInterpolationMap, itemConditionalInfo)
         }
 
         // Создаем элемент
@@ -590,7 +590,7 @@ export class TemplateParser {
       // Добавляем текст после последнего тега
       const textAfter = content.slice(lastIndex).trim()
       if (textAfter) {
-        this.parseTextWithPlaceholdersForArray(textAfter, child, interpolations, itemInterpolationMap)
+        this.parseTextWithPlaceholdersForArray(textAfter, child, interpolations, itemInterpolationMap, itemConditionalInfo)
       }
     }
 
@@ -604,8 +604,19 @@ export class TemplateParser {
     text: string,
     child: Array<ElementSchema | TextSchema>,
     interpolations: Array<{ placeholder: string; info: { src: string; key?: string } }>,
-    itemInterpolationMap: Map<string, { src: string; key?: string }>
+    itemInterpolationMap: Map<string, { src: string; key?: string }>,
+    itemConditionalInfo: ConditionalInfo[] = []
   ) {
+    // Сначала проверяем на условные блоки
+    for (const conditionalItem of itemConditionalInfo) {
+      if (text.trim() === conditionalItem.placeholder) {
+        // Весь текст это условный блок
+        const conditionalElements = this.parseConditionalElementsForArray(conditionalItem, itemInterpolationMap, itemConditionalInfo)
+        child.push(...conditionalElements)
+        return
+      }
+    }
+
     // Заменяем ITEM_INTERPOLATION на SIMPLE_PLACEHOLDER для обработки как смешанного текста
     const itemInterpolationPattern = /ITEM_INTERPOLATION_\d+/g
     let processedText = text
@@ -842,93 +853,71 @@ export class TemplateParser {
   private parseConditionalBlocksForArray(htmlString: string, conditionalInfo: ConditionalInfo[]): string {
     let processedHtml = htmlString
 
-    // Тернарный оператор для item: ${item.property ? html`true` : html`false`}
-    const ternaryPattern = /\$\{(item\.(?:\w+))(?:\s*===\s*"([^"]+)")?\s*\?\s*html`([^`]*)`\s*:\s*html`([^`]*)`\}/g
+    // Тернарный оператор для переменных массива: ${varname.property ? html`true` : html`false`}
+    const ternaryPattern = /\$\{((\w+)\.(\w+))(?:\s*===\s*"([^"]+)")?\s*\?\s*html`([^`]*)`\s*:\s*html`([^`]*)`\}/g
     
     let match
     while ((match = ternaryPattern.exec(htmlString)) !== null) {
-      const [fullMatch, conditionExpr, value, trueTemplate, falseTemplate] = match
+      const [fullMatch, conditionExpr, varName, key, value, trueTemplate, falseTemplate] = match
       
-      if (!conditionExpr || !trueTemplate) continue
+      if (!conditionExpr || !trueTemplate || !key) continue
       
-      // Парсим условие для item
-      const conditionParts = conditionExpr.split('.')
-      if (conditionParts.length >= 2 && conditionParts[0] === 'item') {
-        const key = conditionParts[1]
-        
-        if (!key) continue
-        
-        const placeholder = `CONDITIONAL_${conditionalInfo.length}`
-        const condition: ConditionSchema = value 
-          ? { src: "item", key, eq: value }
-          : { src: "item", key, eq: true }
-        
-        conditionalInfo.push({
-          placeholder,
-          condition,
-          trueTemplate,
-          falseTemplate: falseTemplate || "",
-          type: "ternary"
-        })
-        
-        processedHtml = processedHtml.replace(fullMatch, placeholder)
-      }
+      const placeholder = `CONDITIONAL_${conditionalInfo.length}`
+      const condition: ConditionSchema = value 
+        ? { src: "item", key, eq: value }
+        : { src: "item", key, eq: true }
+      
+      conditionalInfo.push({
+        placeholder,
+        condition,
+        trueTemplate,
+        falseTemplate: falseTemplate || "",
+        type: "ternary"
+      })
+      
+      processedHtml = processedHtml.replace(fullMatch, placeholder)
     }
 
-    // Логическое И для item: ${item.property && html`template`}
-    const andPattern = /\$\{(item\.(?:\w+))\s*&&\s*html`([^`]*)`\}/g
+    // Логическое И для переменных массива: ${varname.property && html`template`}
+    const andPattern = /\$\{((\w+)\.(\w+))\s*&&\s*html`([^`]*)`\}/g
     
     while ((match = andPattern.exec(htmlString)) !== null) {
-      const [fullMatch, conditionExpr, template] = match
+      const [fullMatch, conditionExpr, varName, key, template] = match
       
-      if (!conditionExpr || !template) continue
+      if (!conditionExpr || !template || !key) continue
       
-      const conditionParts = conditionExpr.split('.')
-      if (conditionParts.length >= 2 && conditionParts[0] === 'item') {
-        const key = conditionParts[1]
-        
-        if (!key) continue
-        
-        const placeholder = `CONDITIONAL_${conditionalInfo.length}`
-        const condition: ConditionSchema = { src: "item", key, eq: true }
-        
-        conditionalInfo.push({
-          placeholder,
-          condition,
-          trueTemplate: template,
-          type: "and"
-        })
-        
-        processedHtml = processedHtml.replace(fullMatch, placeholder)
-      }
+      const placeholder = `CONDITIONAL_${conditionalInfo.length}`
+      const condition: ConditionSchema = { src: "item", key, eq: true }
+      
+      conditionalInfo.push({
+        placeholder,
+        condition,
+        trueTemplate: template,
+        type: "and"
+      })
+      
+      processedHtml = processedHtml.replace(fullMatch, placeholder)
     }
 
-    // Логическое ИЛИ для item: ${item.property || html`fallback`}
-    const orPattern = /\$\{(item\.(?:\w+))\s*\|\|\s*html`([^`]*)`\}/g
+    // Логическое ИЛИ для переменных массива: ${varname.property || html`fallback`}
+    const orPattern = /\$\{((\w+)\.(\w+))\s*\|\|\s*html`([^`]*)`\}/g
     
     while ((match = orPattern.exec(htmlString)) !== null) {
-      const [fullMatch, conditionExpr, template] = match
+      const [fullMatch, conditionExpr, varName, key, template] = match
       
-      if (!conditionExpr || !template) continue
+      if (!conditionExpr || !template || !key) continue
       
-      const conditionParts = conditionExpr.split('.')
-      if (conditionParts.length >= 2 && conditionParts[0] === 'item') {
-        const key = conditionParts[1]
-        
-        if (!key) continue
-        
-        const placeholder = `CONDITIONAL_${conditionalInfo.length}`
-        const condition: ConditionSchema = { src: "item", key, eq: null }
-        
-        conditionalInfo.push({
-          placeholder,
-          condition,
-          trueTemplate: template,
-          type: "or"
-        })
-        
-        processedHtml = processedHtml.replace(fullMatch, placeholder)
-      }
+      const placeholder = `CONDITIONAL_${conditionalInfo.length}`
+      const condition: ConditionSchema = { src: "item", key, eq: null }
+      
+      conditionalInfo.push({
+        placeholder,
+        condition,
+        trueTemplate: template,
+        type: "or"
+      })
+      
+      processedHtml = processedHtml.replace(fullMatch, placeholder)
     }
 
     return processedHtml
@@ -993,7 +982,9 @@ export class TemplateParser {
 
     // Парсим true ветвь
     if (conditionalItem.trueTemplate) {
-      const trueElements = this.parseChildrenForArrayItem(conditionalItem.trueTemplate, itemInterpolationMap, itemConditionalInfo)
+      // Обрабатываем интерполяции в шаблоне
+      const processedTrueTemplate = this.processInterpolationsInTemplate(conditionalItem.trueTemplate, itemInterpolationMap)
+      const trueElements = this.parseChildrenForArrayItem(processedTrueTemplate, itemInterpolationMap, itemConditionalInfo)
       trueElements.forEach(element => {
         if (element.type === "el") {
           // Добавляем условие eq: true к элементу
@@ -1005,7 +996,9 @@ export class TemplateParser {
 
     // Парсим false ветвь (если есть)
     if (conditionalItem.falseTemplate && conditionalItem.type === "ternary") {
-      const falseElements = this.parseChildrenForArrayItem(conditionalItem.falseTemplate, itemInterpolationMap, itemConditionalInfo)
+      // Обрабатываем интерполяции в шаблоне
+      const processedFalseTemplate = this.processInterpolationsInTemplate(conditionalItem.falseTemplate, itemInterpolationMap)
+      const falseElements = this.parseChildrenForArrayItem(processedFalseTemplate, itemInterpolationMap, itemConditionalInfo)
       falseElements.forEach(element => {
         if (element.type === "el") {
           // Добавляем условие eq: false к элементу
@@ -1025,6 +1018,37 @@ export class TemplateParser {
     }
 
     return elements
+  }
+
+  /**
+   * Обрабатывает интерполяции в шаблоне условного блока
+   */
+  private processInterpolationsInTemplate(
+    template: string, 
+    itemInterpolationMap: Map<string, { src: string; key?: string }>
+  ): string {
+    let processedTemplate = template
+    let interpolationIndex = itemInterpolationMap.size
+
+    // Заменяем интерполяции varname.key на плейсхолдеры (для любых имен переменных)
+    processedTemplate = processedTemplate.replace(/\$\{(\w+)\.(\w+)\}/g, (match, varName, key) => {
+      const placeholder = `ITEM_INTERPOLATION_${interpolationIndex++}`
+      itemInterpolationMap.set(placeholder, { src: "item", key })
+      return placeholder
+    })
+
+    // Заменяем простые переменные без ключа (как ${id})
+    processedTemplate = processedTemplate.replace(/\$\{(\w+)\}/g, (match, varName) => {
+      // Исключаем переменные которые могут быть другими (context, core)
+      if (!['context', 'core'].includes(varName)) {
+        const placeholder = `ITEM_INTERPOLATION_${interpolationIndex++}`
+        itemInterpolationMap.set(placeholder, { src: "item" })
+        return placeholder
+      }
+      return match
+    })
+
+    return processedTemplate
   }
 
   /**
