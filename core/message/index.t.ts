@@ -32,4 +32,4 @@ export type ActorInfo = {
   parent?: string
 }
 
-export type JsonPatch = { op: "replace" | "add" | "remove" | "test"; path: "/context" | "/state" | "/"; value?: any }
+export type JsonPatch = { op: "replace" | "add" | "remove" | "test"; path: string; value?: any }

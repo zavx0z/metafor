@@ -160,7 +160,7 @@ export function MetaForFabric(params: FabricParams) {
                                     this.#core = core
                                     this.#processes = new Processes(process)
                                     this.#reactions = new Reactions(reaction)
-                                    this.#view = new View(view, this.__path)
+                                    this.#view = new View(view, [])
                                     this.#view.attachStyles(this.#shadow)
                                   }
                                   /** @internal обновление ядра */
@@ -171,6 +171,12 @@ export function MetaForFabric(params: FabricParams) {
                                     // Получаем родительский meta и индекс среди братьев
                                     const parentMeta = this.getParentMeta()
                                     const siblingIndex = parentMeta ? this.getIndexAmongSiblings() : 0
+
+                                    // Формируем путь актора
+                                    this.#setupPath()
+
+                                    // Обновляем путь в view
+                                    this.#view.path = this.__path
 
                                     // TODO: Получить parent_id из store, когда будет реализован getActorByMeta
                                     const parentId: number | null = null
@@ -196,7 +202,7 @@ export function MetaForFabric(params: FabricParams) {
                                   #init = () => {
                                     if (this.#reactions.hasReactions() && this.#channel)
                                       this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
-                                    this.#sendEvent(initMessage(this.#meta, { index: 0 }, this.snapshot))
+                                    this.#sendEvent(initMessage(this.#meta, { index: 0 }, this.snapshot, this.__path))
                                     const transition = this.#states[this.#state]
                                     if (transition) {
                                       const process = this.#processes.getProcess(this.#state)
@@ -336,6 +342,60 @@ export function MetaForFabric(params: FabricParams) {
                                   #sendEvent = (message: Message) => {
                                     if (!this.#channel) return
                                     this.#channel.postMessage(message)
+                                  }
+
+                                  /**
+                                   * Формирует путь актора в иерархии
+                                   * Путь состоит из: ["actors", ...parentPath, index]
+                                   */
+                                  #setupPath() {
+                                    const parent = this.parentElement
+                                    if (!parent) {
+                                      // Корневой актор: считаем индекс среди всех акторов этого типа в body
+                                      const siblings = Array.from(document.body.children).filter(
+                                        (child) => child.tagName === this.tagName
+                                      )
+                                      const index = siblings.indexOf(this)
+                                      this.__path = ["actors", String(index)]
+                                      this.setAttribute("__path", JSON.stringify(this.__path))
+                                      return
+                                    }
+
+                                    // Ищем родительский актор
+                                    const parentActor = this.#findParentActor(parent)
+                                    if (parentActor && parentActor.__path) {
+                                      // Наследуем путь от родителя и добавляем свой индекс
+                                      const siblings = Array.from(parent.children).filter(
+                                        (child) => child.tagName === this.tagName
+                                      )
+                                      const index = siblings.indexOf(this)
+                                      this.__path = [...parentActor.__path, String(index)]
+                                      this.setAttribute("__path", JSON.stringify(this.__path))
+                                    } else {
+                                      // Если родительский актор не найден, считаем как корневой
+                                      const siblings = Array.from(document.body.children).filter(
+                                        (child) => child.tagName === this.tagName
+                                      )
+                                      const index = siblings.indexOf(this)
+                                      this.__path = ["actors", String(index)]
+                                      this.setAttribute("__path", JSON.stringify(this.__path))
+                                    }
+                                  }
+
+                                  /**
+                                   * Находит ближайший родительский актор (meta-элемент)
+                                   * @param element - элемент для поиска
+                                   * @returns родительский актор или null
+                                   */
+                                  #findParentActor(element: Element): (HTMLElement & { __path?: string[] }) | null {
+                                    let current = element
+                                    while (current && current !== document.body) {
+                                      if (current.tagName.toLowerCase().startsWith("meta-")) {
+                                        return current as HTMLElement & { __path?: string[] }
+                                      }
+                                      current = current.parentElement!
+                                    }
+                                    return null
                                   }
 
                                   /**

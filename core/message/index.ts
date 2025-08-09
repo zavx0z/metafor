@@ -11,13 +11,14 @@ export type { Message, JsonPatch, ActorInfo }
 export const initMessage = <C extends ContextSchema, S extends string>(
   meta: string,
   actor: ActorInfo,
-  snapshot: Snapshot<C, S>
+  snapshot: Snapshot<C, S>,
+  path: string[]
 ): Message => {
   return {
     meta,
     actor,
     timestamp: Date.now(),
-    patches: [{ op: "add", path: "/", value: snapshot }],
+    patches: [{ op: "add", path: path.join("/"), value: snapshot }],
   }
 }
 
