@@ -97,6 +97,7 @@ export type MetaForConfig = {
 }
 export interface ActorInternal extends HTMLElement {
   __updCore: (value: Partial<unknown>) => void
+  __path: string[]
   update: (value: Partial<unknown>) => void
 }
 /**

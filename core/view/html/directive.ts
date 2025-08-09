@@ -15,11 +15,12 @@ export { PartType }
  */
 export const directive =
   <C extends DirectiveClass>(c: C) =>
-  (...values: unknown[]): DirectiveResult<C> => ({
-    // Это свойство не должно быть минифицировано.
-    ["_$htmlDirective$"]: c,
-    values,
-  })
+  (...values: unknown[]): DirectiveResult<C> => {
+    return {
+      ["_$htmlDirective$"]: c,
+      values,
+    }
+  }
 
 /**
  * Базовый класс для создания пользовательских директив.

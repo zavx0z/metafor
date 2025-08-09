@@ -11,7 +11,7 @@ import type { TemplateResult } from "./html/index.t.ts"
 import { render } from "./html/index.ts"
 import type { Core } from "../index.t.ts"
 import type { RenderFunc, ViewDeclaration } from "./index.t.ts"
-import { metaTemplateCache } from "./maps"
+import { metaTemplateCache, templateCache } from "./maps"
 
 export class View<C extends ContextSchema, S extends string, I extends Core> {
   #render: RenderFunc<C, S, I> | null = null
@@ -154,7 +154,10 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
       map,
       choose,
     })
-    render(template, shadow)
+    const result = render(template, shadow)
+    const el = templateCache.get(template.strings)
+    console.log(el)
+    return result
   }
   get snapshot() {
     const result: { render?: string; style?: string } = {}

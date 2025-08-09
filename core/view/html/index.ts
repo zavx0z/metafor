@@ -47,7 +47,7 @@ import {
   enableHtmlDebug,
 } from "../../../web/debug/config"
 import type { ActorInternal } from "../../index.t"
-import { metaTemplateCache, templateCache } from "../maps"
+import { templateCache } from "../maps"
 
 const ENABLE_EXTRA_SECURITY_HOOKS = true
 const ENABLE_SHADYDOM_NOPATCH = true
@@ -685,7 +685,7 @@ class Template {
               const realName = attrNames[attrNameIndex++]
               const value = (node as Element).getAttribute(name)!
               const statics = value.split(marker)
-              if (realName === "context" || realName === "core") {
+              if (realName === "context" || realName === "core" || realName === "path") {
                 parts.push({
                   type: ATTRIBUTE_PART,
                   index: nodeIndex,
@@ -1230,7 +1230,6 @@ class ChildPart implements Disconnectable {
   }
 
   private _commitTemplateResult(result: TemplateResult | CompiledTemplateResult): void {
-    // Это свойство должно оставаться неминифицированным.
     const { values, ["_$htmlType$"]: type } = result
     // Если $htmlType$ является числом, result является простым TemplateResult,
     // и мы получаем шаблон из кэша шаблонов. Если нет, result является
@@ -1556,6 +1555,8 @@ class PropertyPart extends AttributePart {
       }
     } else if (this.name === "core" && value) {
       ;(this.element as ActorInternal).__updCore(value)
+    } else if (this.name === "path") {
+      ;(this.element as ActorInternal).__path = (this.element as ActorInternal).__path.concat(value as string[])
     } else;
     ;(this.element as any)[this.name] = value === nothing ? undefined : value
   }

@@ -41,9 +41,10 @@ describe("Путь корневого актора", () => {
       const patch = patches[0]!
       expect(patch.path, "должен содержать путь").toBeDefined()
       expect(patch.path, "должен быть строкой").toBeString()
+      expect(patch.path, "должен содержать путь до актора").toContain("/actors/0")
       expect(patch.path.split("/"), "должен быть массивом").toBeArray()
-      expect(patch.path.split("/")[0], "должен содержать первым элементом 'actors'").toBe("actors")
-      expect(patch.path.split("/")[1], "должен содержать последним элементом '0'").toBe("0")
+      expect(patch.path.split("/")[1], "должен содержать первым элементом 'actors'").toBe("actors")
+      expect(patch.path.split("/")[2], "должен содержать последним элементом '0'").toBe("0")
     })
   })
   describe("Пути нескольких корневых акторов", () => {
