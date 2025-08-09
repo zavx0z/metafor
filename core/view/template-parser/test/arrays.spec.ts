@@ -13,7 +13,7 @@ describe("Template Parser - массивы", () => {
         {
           tag: "ul",
           type: "el",
-          attrs: {},
+
           child: [
             {
               tag: "li",
@@ -22,7 +22,7 @@ describe("Template Parser - массивы", () => {
                 src: "context",
                 key: "ids",
               },
-              attrs: {},
+
               child: [
                 {
                   type: "text",
@@ -50,7 +50,7 @@ describe("Template Parser - массивы", () => {
         {
           tag: "div",
           type: "el",
-          attrs: {},
+
           child: [
             {
               tag: "div",
@@ -66,7 +66,7 @@ describe("Template Parser - массивы", () => {
                 {
                   tag: "h3",
                   type: "el",
-                  attrs: {},
+
                   child: [
                     {
                       type: "text",
@@ -77,7 +77,7 @@ describe("Template Parser - массивы", () => {
                 {
                   tag: "p",
                   type: "el",
-                  attrs: {},
+
                   child: [
                     {
                       type: "text",
@@ -88,7 +88,7 @@ describe("Template Parser - массивы", () => {
                 {
                   tag: "span",
                   type: "el",
-                  attrs: {},
+
                   child: [
                     {
                       type: "text",
@@ -116,7 +116,7 @@ describe("Template Parser - массивы", () => {
         {
           tag: "section",
           type: "el",
-          attrs: {},
+
           child: [
             {
               tag: "article",
@@ -133,7 +133,7 @@ describe("Template Parser - массивы", () => {
                 {
                   tag: "h2",
                   type: "el",
-                  attrs: {},
+
                   child: [
                     {
                       type: "text",
@@ -161,7 +161,7 @@ describe("Template Parser - массивы", () => {
         {
           tag: "nav",
           type: "el",
-          attrs: {},
+
           child: [
             {
               tag: "a",
@@ -305,12 +305,12 @@ describe("Template Parser - массивы", () => {
             {
               tag: "header",
               type: "el",
-              attrs: {},
+
               child: [
                 {
                   tag: "h1",
                   type: "el",
-                  attrs: {},
+
                   child: [
                     {
                       type: "text",
@@ -362,12 +362,12 @@ describe("Template Parser - массивы", () => {
             {
               tag: "footer",
               type: "el",
-              attrs: {},
+
               child: [
                 {
                   tag: "p",
                   type: "el",
-                  attrs: {},
+
                   child: [
                     {
                       type: "text",
@@ -428,7 +428,7 @@ describe("Template Parser - массивы", () => {
         {
           tag: "ul",
           type: "el",
-          attrs: {},
+
           child: [
             {
               tag: "li",
@@ -437,7 +437,6 @@ describe("Template Parser - массивы", () => {
                 src: "context",
                 key: "items",
               },
-              attrs: {},
             },
           ],
         },
@@ -487,7 +486,7 @@ describe("Template Parser - массивы", () => {
         {
           tag: "ol",
           type: "el",
-          attrs: {},
+
           child: [
             {
               tag: "li",
@@ -496,7 +495,7 @@ describe("Template Parser - массивы", () => {
                 src: "context",
                 key: "steps",
               },
-              attrs: {},
+
               child: [
                 {
                   type: "text",

@@ -70,8 +70,6 @@ export class TemplateParser {
       const attrs = this.parseAttributes(attributesStr || "")
       if (Object.keys(attrs).length > 0) {
         element.attrs = attrs
-      } else {
-        element.attrs = {}
       }
 
       // Парсим дочерние элементы
@@ -194,8 +192,6 @@ export class TemplateParser {
         const attrs = this.parseAttributes(attributesStr || "")
         if (Object.keys(attrs).length > 0) {
           element.attrs = attrs
-        } else {
-          element.attrs = {}
         }
 
         if (innerContent !== undefined) {
@@ -280,7 +276,6 @@ export class TemplateParser {
       return {
         tag: "span", // fallback тег
         type: "el",
-        attrs: {},
         child: [
           {
             type: "text",
@@ -309,9 +304,6 @@ export class TemplateParser {
     const attrs = this.parseAttributes(attributesStr || "")
     if (Object.keys(attrs).length > 0) {
       element.attrs = attrs
-    } else {
-      // Добавляем пустые attrs если их нет (согласно тесту)
-      element.attrs = {}
     }
 
     // Парсим дочерние элементы

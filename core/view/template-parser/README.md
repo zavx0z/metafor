@@ -36,13 +36,19 @@ const schema = parser.parseHtmlToSchema(htmlString)
 
 ## Форматы схем
 
+**Принципы:**
+
+- `attrs` включается только если есть атрибуты (не пустой объект)
+- `child` включается только если есть дочерние элементы
+- `item` включается только для элементов массивов
+
 ### Простой элемент
 
 ```typescript
 {
   tag: "div",
   type: "el",
-  attrs: { class: "container" },
+  attrs: { class: "container" },  // только если есть атрибуты
   child: [
     { type: "text", value: "Hello" }
   ]
@@ -55,13 +61,11 @@ const schema = parser.parseHtmlToSchema(htmlString)
 {
   tag: "ul",
   type: "el",
-  attrs: {},
   child: [
     {
       tag: "li",
       type: "el",
       item: { src: "context", key: "items" },
-      attrs: {},
       child: [
         { type: "text", value: { src: "item" } }
       ]

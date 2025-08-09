@@ -9,7 +9,6 @@ describe("TemplateParser", () => {
         {
           tag: "div",
           type: "el",
-          attrs: {},
           child: [
             {
               type: "text",
@@ -27,7 +26,7 @@ describe("TemplateParser", () => {
         {
           tag: "span",
           type: "el",
-          attrs: {},
+
           child: [
             {
               type: "text",
@@ -46,7 +45,6 @@ describe("TemplateParser", () => {
         {
           tag: "div",
           type: "el",
-          attrs: {},
           child: [
             {
               type: "text",
@@ -86,12 +84,11 @@ describe("TemplateParser", () => {
         {
           tag: "div",
           type: "el",
-          attrs: {},
           child: [
             {
               tag: "h1",
               type: "el",
-              attrs: {},
+
               child: [
                 {
                   type: "text",
@@ -102,7 +99,7 @@ describe("TemplateParser", () => {
             {
               tag: "p",
               type: "el",
-              attrs: {},
+
               child: [
                 {
                   type: "text",
@@ -121,12 +118,10 @@ describe("TemplateParser", () => {
         {
           tag: "div",
           type: "el",
-          attrs: {},
         },
         {
           tag: "span",
           type: "el",
-          attrs: {},
         },
       ])
     })
@@ -139,7 +134,6 @@ describe("TemplateParser", () => {
         {
           tag: "div",
           type: "el",
-          attrs: {},
           child: [
             {
               type: "text",
@@ -156,7 +150,6 @@ describe("TemplateParser", () => {
         {
           tag: "div",
           type: "el",
-          attrs: {},
           child: [
             {
               type: "text",
@@ -179,7 +172,6 @@ describe("TemplateParser", () => {
         {
           tag: "div",
           type: "el",
-          attrs: {},
           child: [
             {
               tag: "img",
@@ -192,7 +184,6 @@ describe("TemplateParser", () => {
             {
               tag: "br",
               type: "el",
-              attrs: {},
             },
           ],
         },
@@ -225,7 +216,7 @@ describe("TemplateParser", () => {
         {
           tag: "header",
           type: "el",
-          attrs: {},
+
           child: [
             {
               type: "text",
@@ -236,7 +227,7 @@ describe("TemplateParser", () => {
         {
           tag: "main",
           type: "el",
-          attrs: {},
+
           child: [
             {
               type: "text",
