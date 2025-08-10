@@ -115,9 +115,19 @@ export function parseAttributes(
         const value = attributesStr.slice(valueStart, currentIndex)
         currentIndex++
 
-        // Событийные атрибуты: фиксируем наличие обработчика, не сериализуем функцию
+        // Событийные атрибуты: сериализуем функцию в строку
         if (isEventAttr(name)) {
-          attrs[name] = ""
+          const parsed = parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
+          if (typeof parsed === "string") {
+            attrs[name] = parsed
+          } else if (parsed && typeof parsed === "object" && "result" in (parsed as any) && (parsed as any).result) {
+            attrs[name] = (parsed as any).result as string
+          } else if (parsed && typeof parsed === "object" && "src" in (parsed as any)) {
+            const p = parsed as { src: string; key?: string }
+            attrs[name] = p.key ? `\${${p.src}.${p.key}}` : ""
+          } else {
+            attrs[name] = value
+          }
           continue
         }
 
@@ -128,6 +138,20 @@ export function parseAttributes(
         }
 
         if (conditionalAttributeMap) {
+          if (isEventAttr(name)) {
+            const parsed = parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
+            if (typeof parsed === "string") {
+              attrs[name] = parsed
+            } else if (parsed && typeof parsed === "object" && "result" in (parsed as any) && (parsed as any).result) {
+              attrs[name] = (parsed as any).result as string
+            } else if (parsed && typeof parsed === "object" && "src" in (parsed as any)) {
+              const p = parsed as { src: string; key?: string }
+              attrs[name] = p.key ? `\${${p.src}.${p.key}}` : ""
+            } else {
+              attrs[name] = value
+            }
+            continue
+          }
           let foundPlaceholder = false
           for (const [placeholder, info] of conditionalAttributeMap) {
             if (value === placeholder) {
