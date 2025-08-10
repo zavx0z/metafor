@@ -11,6 +11,11 @@
 - ✅ Самозакрывающиеся теги
 - ✅ Атрибуты с дефисами (`data-*`, `aria-*`)
 - ✅ Сериализуемый JSON формат
+  // ... existing code ...
+- ✅ Условные атрибуты: тернарный оператор и логическое И, в т.ч. без знака `=` и в массивах
+- ✅ Условия элементов (`cond`) с операторами сравнения: `===`, `!==`, `>`, `>=`, `<`, `<=`
+- ✅ Сравнения значений между `context`/`core`/`item`
+- ✅ События `on*`: парсинг и сериализация обработчиков в строку, поддержка синтаксиса без кавычек и стрелочных функций
 
 ## Использование
 
@@ -32,6 +37,97 @@ import { TemplateParser } from "./template-parser/index.ts"
 
 const parser = new TemplateParser()
 const schema = parser.parseHtmlToSchema(htmlString)
+```
+
+## Расширения парсинга
+
+### Условные атрибуты
+
+Поддерживаются оба варианта задания условных атрибутов:
+
+- Через тернарный оператор:
+
+```html
+<button disabled="${context.isDisabled ? 'disabled' : ''}">...</button>
+```
+
+- Через логическое И, в т.ч. без знака `=`:
+
+```html
+<button ${context.isDisabled && "disabled"}>...</button>
+```
+
+Результат нормализуется в `attrs["disabled"]` со схемой типа `conditional`:
+
+```typescript
+{
+  type: "el",
+  tag: "button",
+  attrs: {
+    disabled: { type: "conditional", trueValue: "disabled", falseValue: "" }
+  }
+}
+```
+
+Работает одинаково внутри элементов массивов и на самозакрывающихся тегах.
+
+### Условия элементов (`cond`)
+
+Поддерживаются сравнения со статическими значениями и между полями из разных источников:
+
+- Операторы: `===`, `!==`, `>`, `>=`, `<`, `<=`
+- Источники: `context`, `core`, `item`
+
+Пример выражения в шаблоне:
+
+```html
+${context.count > 0 && html`<span>...</span>`} ${context.role === core.requiredRole && html`
+<div>...</div>
+`}
+```
+
+В схеме условие представлено как `cond` с нормализованными полями:
+
+```typescript
+{
+  type: "el",
+  tag: "span",
+  cond: { src: "context", key: "count", gt: 0 }
+}
+
+{
+  type: "el",
+  tag: "div",
+  cond: { src: "context", key: "role", eq: { src: "core", key: "requiredRole" } }
+}
+```
+
+### События `on*`
+
+Парсер извлекает исходную строку обработчика и сериализует её в `attrs`:
+
+- Поддерживаются обе формы записи:
+  - с кавычками: `onclick="${context.onClick}"`
+  - без кавычек: `onclick=${context.onClick}`
+- Поддерживаются стрелочные функции: `onclick=${(e) => doSomething(e)}`
+- Работает на обычных и самозакрывающихся тегах, а также внутри массивов
+
+Пример:
+
+```html
+<button onclick=${() => console.log('hi')}>OK</button>
+```
+
+Схема:
+
+```typescript
+{
+  type: "el",
+  tag: "button",
+  attrs: {
+    onclick: "${() => console.log('hi')}"
+  }
+}
 ```
 
 ## Логика обработки интерполяций
@@ -99,7 +195,7 @@ const schema = parser.parseHtmlToSchema(htmlString)
 ```typescript
 // Простая переменная без ключа (например, ${id})
 {
-  type: "text", 
+  type: "text",
   value: { src: "item" }
 }
 
@@ -127,14 +223,16 @@ const schema = parser.parseHtmlToSchema(htmlString)
 
 ## Тесты
 
-Модуль покрыт комплексными тестами:
+Комплексные тесты находятся в каталоге `core/view/template-parser/test/`:
 
-- `test/parser.spec.ts` - основные функции парсера (11 тестов)
-- `test/arrays.spec.ts` - специализированные тесты для массивов (10 тестов)
+- `arrays.spec.ts` — парсинг массивов
+- `attr.boolean.spec.ts` — булевы атрибуты
+- `attr.cond.spec.ts` — условные атрибуты (в т.ч. без `=` и в массивах)
+- `attr.events.spec.ts` — события `on*`, стрелочные функции, синтаксис без кавычек
+- `conditionals.spec.ts` — `cond` и операторы сравнения
 
-Запуск всех тестов: `bun test core/view/template-parser/test/`
+Запуск всех тестов:
 
-Отдельные файлы:
-
-- `bun test core/view/template-parser/test/parser.spec.ts`
-- `bun test core/view/template-parser/test/arrays.spec.ts`
+```sh
+bun test core/view/template-parser/test/
+```
