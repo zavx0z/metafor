@@ -138,6 +138,19 @@ export class TemplateParser {
         element.attrs = attrs
       }
 
+      // Специальная обработка meta-* тегов: объектные атрибуты context/core
+      if (element.type === "meta" && attributesStr) {
+        const { metaContext, metaCore } = this.parseMetaObjects(attributesStr, interpolationMap)
+        if (metaContext) (element as any).context = metaContext
+        if (metaCore) (element as any).core = metaCore
+        // Удаляем исходные атрибуты context/core из attrs
+        if (element.attrs) {
+          delete (element.attrs as any).context
+          delete (element.attrs as any).core
+          if (Object.keys(element.attrs).length === 0) delete (element as any).attrs
+        }
+      }
+
       // Парсим дочерние элементы
       if (innerContent !== undefined) {
         const child = this.parseChildren(
@@ -267,6 +280,10 @@ export class TemplateParser {
             this.parseTextWithPlaceholders(before, child, interpolationMap, conditionalInfo)
           }
           const token = m[1]
+          if (!token) {
+            cursor = m.index
+            continue
+          }
           if (token.startsWith("CONTEXT_ARRAY_")) {
             const arr = arrayInfo.find((a) => a.placeholder === token)
             if (arr) {
@@ -342,6 +359,17 @@ export class TemplateParser {
         element.attrs = attrs
       }
 
+      if (element.type === "meta" && attributesStr) {
+        const { metaContext, metaCore } = this.parseMetaObjects(attributesStr, interpolationMap)
+        if (metaContext) (element as any).context = metaContext
+        if (metaCore) (element as any).core = metaCore
+        if (element.attrs) {
+          delete (element.attrs as any).context
+          delete (element.attrs as any).core
+          if (Object.keys(element.attrs).length === 0) delete (element as any).attrs
+        }
+      }
+
       if (innerContent !== undefined) {
         const nestedChild = this.parseChildren(
           innerContent.trim(),
@@ -407,9 +435,13 @@ export class TemplateParser {
         this.parseTextWithPlaceholders(before, child, interpolationMap, conditionalInfo)
       }
       const token = tokenMatch[1]
+      if (!token) {
+        cursor = tokenMatch.index
+        continue
+      }
       if (token.startsWith("CONTEXT_ARRAY_")) {
         // В текстовом контексте массива быть не должно; оставляем как текст фолбэк
-        child.push({ type: "text", value: token })
+        child.push({ type: "text", value: token as string })
       } else if (token.startsWith("CONDITIONAL_")) {
         const cond = conditionalInfo.find((c) => c.placeholder === token)
         if (cond) {
@@ -450,7 +482,7 @@ export class TemplateParser {
 
     let match
     while ((match = interpolationPattern.exec(text)) !== null) {
-      const interpolationInfo = interpolationMap?.get(match[0])
+      const interpolationInfo = interpolationMap?.get(match[0]!)
       if (interpolationInfo) {
         interpolations.push({
           index: match.index,
@@ -467,7 +499,8 @@ export class TemplateParser {
     if (interpolations.length === 1 && parts.length === 2) {
       const beforeRaw = parts[0] ?? ""
       const afterRaw = parts[1] ?? ""
-      const { src, key } = interpolations[0].info
+      const onlyInterpolation = interpolations[0]!
+      const { src, key } = onlyInterpolation.info
       const placeholderExpr = key ? `\${${src}.${key}}` : `\${${src}}`
       child.push({
         type: "text",
@@ -504,6 +537,92 @@ export class TemplateParser {
         }
       }
     }
+  }
+
+  // Разбор объектных атрибутов context/core у meta-элементов
+  private parseMetaObjects(
+    attributesStr: string,
+    interpolationMap?: Map<string, { src: string; key: string }>
+  ): {
+    metaContext?: Record<string, string | number | boolean | null | { src: "context" | "core"; key: string }>
+    metaCore?: Record<string, string | number | boolean | null | { src: "context" | "core"; key: string }>
+  } {
+    // Находим context="${{...}}" и core="${{...}}"
+    const findObjectAttr = (
+      name: string
+    ): Record<string, string | number | boolean | null | { src: "context" | "core"; key: string }> | undefined => {
+      const re = new RegExp(`${name}\\s*=\\s*\\"(\\$\\{\\{[\\s\\S]*?\\}\\})\\"`)
+      const m = re.exec(attributesStr)
+      if (!m) return undefined
+      const objExpr = m[1] as string // ${ {...} }
+      const inner = objExpr.slice(2, -1).trim() // {{...}}
+      if (!(inner.startsWith("{") && inner.endsWith("}"))) return undefined
+      const jsonish = inner.slice(1, -1)
+      // Разбираем пары ключ: значение, допускаем значения: строка/число/boolean/null и ${context.x}/${core.a.b}
+      const result: Record<string, string | number | boolean | null | { src: "context" | "core"; key: string }> = {}
+      // Простейший парсер: разделяем по запятым верхнего уровня
+      const parts: string[] = []
+      let depth = 0
+      let buf = ""
+      for (let i = 0; i < jsonish.length; i++) {
+        const ch = jsonish[i]!
+        if (ch === "{" || ch === "[") depth++
+        if (ch === "}" || ch === "]") depth--
+        if (ch === "," && depth === 0) {
+          parts.push(buf)
+          buf = ""
+          continue
+        }
+        buf += ch
+      }
+      if (buf.trim()) parts.push(buf)
+
+      for (const raw of parts) {
+        const seg = raw.trim()
+        if (!seg) continue
+        const colon = seg.indexOf(":")
+        if (colon === -1) continue
+        const key = seg
+          .slice(0, colon)
+          .trim()
+          .replace(/^['"]|['"]$/g, "")
+        let value = seg.slice(colon + 1).trim()
+        // Строка
+        if ((value.startsWith("'") && value.endsWith("'")) || (value.startsWith('"') && value.endsWith('"'))) {
+          result[key] = value.slice(1, -1)
+          continue
+        }
+        // boolean/number/null
+        if (/^(true|false|null)$/i.test(value)) {
+          result[key] = value.toLowerCase() === "true" ? true : value.toLowerCase() === "false" ? false : null
+          continue
+        }
+        if (/^[+-]?\d+(?:\.\d+)?$/.test(value)) {
+          result[key] = Number(value)
+          continue
+        }
+        // Ссылки на context/core: допускаем как ${context.x} так и context.x
+        let mInt = value.match(/^\$\{(context|core)\.([\w\.]+)\}$/)
+        if (!mInt) mInt = value.match(/^(context|core)\.([\w\.]+)$/)
+        if (mInt) {
+          result[key] = { src: mInt[1]! as "context" | "core", key: mInt[2]! }
+          continue
+        }
+        // Fallback: оставить как строку без кавычек
+        result[key] = value
+      }
+      return result
+    }
+
+    const metaContext = findObjectAttr("context")
+    const metaCore = findObjectAttr("core")
+    const ret: {
+      metaContext?: Record<string, string | number | boolean | null | { src: "context" | "core"; key: string }>
+      metaCore?: Record<string, string | number | boolean | null | { src: "context" | "core"; key: string }>
+    } = {}
+    if (metaContext) ret.metaContext = metaContext
+    if (metaCore) ret.metaCore = metaCore
+    return ret
   }
 
   // Выделяет обработчики событий on* в плейсхолдеры и запоминает исходные строки

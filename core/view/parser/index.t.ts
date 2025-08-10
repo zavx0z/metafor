@@ -49,6 +49,14 @@ export interface ElementSchema {
     key: string
   }
   cond?: ConditionSchema
+  /**
+   * Объектные привязки для meta-актеров: контекстные значения
+   */
+  context?: Record<string, string | number | boolean | null | { src: "context" | "core"; key: string }>
+  /**
+   * Объектные привязки для meta-актеров: core значения
+   */
+  core?: Record<string, string | number | boolean | null | { src: "context" | "core"; key: string }>
 }
 
 /**
