@@ -41,7 +41,7 @@ export interface ConditionSchema {
  */
 export interface ElementSchema {
   tag: string
-  type: "el"
+  type: "el" | "meta" | "wc"
   attrs?: Record<string, AttributeValue>
   child?: Array<ElementSchema | TextSchema>
   item?: {

@@ -65,7 +65,8 @@ export class TemplateParser {
 
     // Парсим корневые элементы
     const elements: Schema = []
-    const rootRegex = /<(\w+)([^>]*?)(?:\s*\/\s*>|>([\s\S]*?)<\/\1>|>)/g
+    // Тег может содержать дефисы (web-components, meta-* наши акторы)
+    const rootRegex = /<([a-zA-Z]+[a-zA-Z0-9-]*)([^>]*?)(?:\s*\/\s*>|>([\s\S]*?)<\/\1>|>)/g
 
     let match
     let lastIndex = 0
@@ -124,9 +125,10 @@ export class TemplateParser {
         innerContent = processedHtml.slice(tagOpenEnd + 1, endIndex - closingToken.length)
       }
 
+      // Определяем тип элемента: actor (meta-*), web-component (с дефисом), обычный элемент
       const element: ElementSchema = {
         tag: tagName,
-        type: "el",
+        type: tagName.startsWith("meta-") ? "meta" : tagName.includes("-") ? "wc" : "el",
       }
 
       // Парсим атрибуты
@@ -295,7 +297,7 @@ export class TemplateParser {
     }
 
     // Парсим вложенные элементы
-    const tagRegex = /<(\w+)([^>]*?)(?:\s*\/\s*>|>([\s\S]*?)<\/\1>)/g
+    const tagRegex = /<([a-zA-Z]+[a-zA-Z0-9-]*)([^>]*?)(?:\s*\/\s*>|>([\s\S]*?)<\/\1>)/g
     let match
     let lastIndex = 0
 
@@ -332,7 +334,7 @@ export class TemplateParser {
       // Обычный элемент
       const element: ElementSchema = {
         tag: tagName,
-        type: "el",
+        type: tagName.startsWith("meta-") ? "meta" : tagName.includes("-") ? "wc" : "el",
       }
 
       const attrs = parseAttributes(attributesStr || "", interpolationMap, conditionalAttributeMap)
@@ -560,7 +562,7 @@ export class TemplateParser {
     cleanTemplate = cleanTemplate.replace(/\$\{[^}]*\}/g, "SIMPLE_PLACEHOLDER")
 
     // Парсим один элемент
-    const tagRegex = /<(\w+)([^>]*?)(?:\s*\/\s*>|>([\s\S]*?)<\/\1>)/s
+    const tagRegex = /<([a-zA-Z]+[a-zA-Z0-9-]*)([^>]*?)(?:\s*\/\s*>|>([\s\S]*?)<\/\1>)/s
     const match = tagRegex.exec(cleanTemplate)
 
     if (!match) {
@@ -597,7 +599,7 @@ export class TemplateParser {
 
     const element: ElementSchema = {
       tag: tagName,
-      type: "el",
+      type: tagName.startsWith("meta-") ? "meta" : tagName.includes("-") ? "wc" : "el",
       item: {
         src: source,
         key: contextKey,
@@ -722,7 +724,7 @@ export class TemplateParser {
       }
     } else {
       // Есть HTML элементы - парсим их
-      const tagRegex = /<(\w+)([^>]*?)(?:\s*\/\s*>|>([\s\S]*?)<\/\1>)/g
+      const tagRegex = /<([a-zA-Z]+[a-zA-Z0-9-]*)([^>]*?)(?:\s*\/\s*>|>([\s\S]*?)<\/\1>)/g
       let tagMatch
       let lastIndex = 0
 
@@ -746,7 +748,7 @@ export class TemplateParser {
         // Создаем элемент
         const element: ElementSchema = {
           tag: tagName,
-          type: "el",
+          type: tagName.startsWith("meta-") ? "meta" : tagName.includes("-") ? "wc" : "el",
         }
 
         // Парсим атрибуты

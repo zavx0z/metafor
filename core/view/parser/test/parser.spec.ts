@@ -54,6 +54,46 @@ describe("TemplateParser", () => {
         },
       ])
     })
+    it("актор web-component", () => {
+      const result = parseTemplate(`<meta-hash></meta-hash>`)
+      const expected: Schema = [
+        {
+          tag: "meta-hash",
+          type: "meta",
+        },
+      ]
+      expect(result, "актор web-component").toEqual(expected)
+    })
+    it("актор web-component с самозакрывающимся тегом", () => {
+      const result = parseTemplate(`<meta-hash/>`)
+      const expected: Schema = [
+        {
+          tag: "meta-hash",
+          type: "meta",
+        },
+      ]
+      expect(result, "актор web-component с самозакрывающимся тегом").toEqual(expected)
+    })
+    it("web-component", () => {
+      const result = parseTemplate(`<web-component></web-component>`)
+      const expected: Schema = [
+        {
+          tag: "web-component",
+          type: "wc",
+        },
+      ]
+      expect(result, "web-component").toEqual(expected)
+    })
+    it("web-component с самозакрывающимся тегом", () => {
+      const result = parseTemplate(`<web-component/>`)
+      const expected: Schema = [
+        {
+          tag: "web-component",
+          type: "wc",
+        },
+      ]
+      expect(result, "web-component с самозакрывающимся тегом").toEqual(expected)
+    })
 
     it("элемент с атрибутами", () => {
       const result = parseTemplate(`<div class="container" id="main">Content</div>`)

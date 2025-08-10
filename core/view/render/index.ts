@@ -32,7 +32,7 @@ export function render<C extends ContextSchema, S extends string, I extends Core
 
   // Рендерим каждый элемент схемы
   for (const item of prepared) {
-    if (item.type === "el") {
+    if (item.type !== "text") {
       renderElement(state, item, context, core, element, update)
     } else if (item.type === "text") {
       renderText(state, item, context, core, element)
