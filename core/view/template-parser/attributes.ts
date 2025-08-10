@@ -86,7 +86,8 @@ export function parseAttributes(
   conditionalAttributeMap?: Map<
     string,
     { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
-  >
+  >,
+  eventAttributeMap?: Map<string, string>
 ): Record<string, AttributeValue> {
   const attrs: Record<string, AttributeValue> = {}
   let currentIndex = 0
@@ -115,8 +116,12 @@ export function parseAttributes(
         const value = attributesStr.slice(valueStart, currentIndex)
         currentIndex++
 
-        // Событийные атрибуты: сериализуем функцию в строку
+        // Событийные атрибуты: сериализуем функцию в строку (восстанавливаем из плейсхолдера, если есть)
         if (isEventAttr(name)) {
+          if (eventAttributeMap && eventAttributeMap.has(value)) {
+            attrs[name] = eventAttributeMap.get(value) as string
+            continue
+          }
           const parsed = parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
           if (typeof parsed === "string") {
             attrs[name] = parsed
@@ -139,6 +144,10 @@ export function parseAttributes(
 
         if (conditionalAttributeMap) {
           if (isEventAttr(name)) {
+            if (eventAttributeMap && eventAttributeMap.has(value)) {
+              attrs[name] = eventAttributeMap.get(value) as string
+              continue
+            }
             const parsed = parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
             if (typeof parsed === "string") {
               attrs[name] = parsed
@@ -191,13 +200,13 @@ export function parseAttributes(
       } else {
         const valueStart = currentIndex
         while (currentIndex < length && !/\s/.test(attributesStr[currentIndex]!)) currentIndex++
-          const value = attributesStr.slice(valueStart, currentIndex)
+        const value = attributesStr.slice(valueStart, currentIndex)
 
-          // Событийные атрибуты: фиксируем наличие обработчика
-          if (isEventAttr(name)) {
-            attrs[name] = ""
-            continue
-          }
+        // Событийные атрибуты: фиксируем наличие обработчика
+        if (isEventAttr(name)) {
+          attrs[name] = ""
+          continue
+        }
 
         if (isEventAttr(name)) {
           attrs[name] = ""
@@ -405,7 +414,8 @@ export function parseAttributesForArray(
   itemConditionalAttributeMap?: Map<
     string,
     { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
-  >
+  >,
+  eventAttributeMap?: Map<string, string>
 ): Record<string, AttributeValue> {
   const attrs: Record<string, AttributeValue> = {}
   let currentIndex = 0
@@ -437,7 +447,11 @@ export function parseAttributesForArray(
         if (itemConditionalAttributeMap) {
           // Событийные атрибуты: фиксируем наличие обработчика, не сериализуем функцию
           if (isEventAttr(name)) {
-            attrs[name] = ""
+            if (eventAttributeMap && eventAttributeMap.has(value)) {
+              attrs[name] = eventAttributeMap.get(value) as string
+            } else {
+              attrs[name] = ""
+            }
             continue
           }
           let foundPlaceholder = false
@@ -483,7 +497,11 @@ export function parseAttributesForArray(
         if (itemConditionalAttributeMap) {
           // Событийные атрибуты: фиксируем наличие обработчика, не сериализуем функцию
           if (isEventAttr(name)) {
-            attrs[name] = ""
+            if (eventAttributeMap && eventAttributeMap.has(value)) {
+              attrs[name] = eventAttributeMap.get(value) as string
+            } else {
+              attrs[name] = ""
+            }
             continue
           }
           let foundPlaceholder = false

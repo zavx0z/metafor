@@ -4,13 +4,13 @@ import type { Schema } from "../index.ts"
 
 describe("Template Parser - стандартные события on*", () => {
   it("onclick с выражением", () => {
-    const result = parseTemplate(`<button onclick="\${context.onClick}">OK</button>`)
+    const result = parseTemplate(`<button onclick="\${() => context.onClick()}">OK</button>`)
     const expected: Schema = [
       {
         tag: "button",
         type: "el",
         attrs: {
-          onclick: "${context.onClick}",
+          onclick: "${() => context.onClick()}",
         },
         child: [
           {
@@ -21,6 +21,21 @@ describe("Template Parser - стандартные события on*", () => {
       },
     ]
     expect(result, "должен распознать onclick и не сериализовать функцию").toEqual(expected)
+  })
+
+  it("onclick без кавычек со стрелочной функцией", () => {
+    const result = parseTemplate(`<button onclick=\${() => context.onClick()}>OK</button>`)
+    const expected: Schema = [
+      {
+        tag: "button",
+        type: "el",
+        attrs: {
+          onclick: "${() => context.onClick()}",
+        },
+        child: [{ type: "text", value: "OK" }],
+      },
+    ]
+    expect(result, "onclick без кавычек со стрелочной функцией").toEqual(expected)
   })
 
   it("onclick без значения (булев)", () => {
@@ -39,18 +54,30 @@ describe("Template Parser - стандартные события on*", () => {
   })
 
   it("несколько событий в самозакрывающемся теге", () => {
-    const result = parseTemplate(`<input onclick="\${core.onClick}" oninput="\${core.onInput}" />`)
+    const result = parseTemplate(`<input onclick="\${() => core.onClick()}" oninput="\${(e) => core.onInput(e)}" />`)
     const expected: Schema = [
       {
         tag: "input",
         type: "el",
         attrs: {
-          onclick: "${core.onClick}",
-          oninput: "${core.onInput}",
+          onclick: "${() => core.onClick()}",
+          oninput: "${(e) => core.onInput(e)}",
         },
       },
     ]
     expect(result, "должен поддерживать несколько событий on*").toEqual(expected)
+  })
+
+  it("oninput без кавычек со стрелочной функцией (input)", () => {
+    const result = parseTemplate(`<input oninput=\${(e) => core.onInput(e)} />`)
+    const expected: Schema = [
+      {
+        tag: "input",
+        type: "el",
+        attrs: { oninput: "${(e) => core.onInput(e)}" },
+      },
+    ]
+    expect(result, "oninput без кавычек со стрелочной функцией").toEqual(expected)
   })
 
   it("событие внутри массива", () => {
@@ -127,10 +154,10 @@ describe("Template Parser - стандартные события on*", () => {
     ] as const
 
     for (const ev of events) {
-      const tpl = `<div ${ev}="\${context.handler}"></div>`
+      const tpl = `<div ${ev}="\${(e) => context.handler(e)}"></div>`
       const result = parseTemplate(tpl)
       const expected: Schema = [
-        { tag: "div", type: "el", attrs: { [ev]: "${context.handler}" } as Record<string, string> },
+        { tag: "div", type: "el", attrs: { [ev]: "${(e) => context.handler(e)}" } as Record<string, string> },
       ]
       expect(result, `должен поддерживать событие ${ev}`).toEqual(expected)
     }
@@ -139,10 +166,10 @@ describe("Template Parser - стандартные события on*", () => {
   it("все стандартные on*-события в самозакрывающемся теге", () => {
     const events = ["onclick", "oninput", "onchange", "onfocus", "onblur"] as const
     for (const ev of events) {
-      const tpl = `<input ${ev}="\${core.handler}" />`
+      const tpl = `<input ${ev}="\${() => core.handler()}" />`
       const result = parseTemplate(tpl)
       const expected: Schema = [
-        { tag: "input", type: "el", attrs: { [ev]: "${core.handler}" } as Record<string, string> },
+        { tag: "input", type: "el", attrs: { [ev]: "${() => core.handler()}" } as Record<string, string> },
       ]
       expect(result, `должен поддерживать событие ${ev} на input`).toEqual(expected)
     }

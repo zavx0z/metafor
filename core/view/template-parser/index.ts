@@ -50,6 +50,10 @@ export class TemplateParser {
     >()
     processedHtml = parseConditionalAttributes(processedHtml, conditionalAttributeMap)
 
+    // Сохраняем исходные строки обработчиков событий on* (включая стрелочные функции)
+    const eventAttributeMap = new Map<string, string>()
+    processedHtml = this.parseEventAttributes(processedHtml, eventAttributeMap)
+
     // Обрабатываем простые интерполяции и сохраняем их информацию
     let interpolationIndex = 0
     processedHtml = processedHtml.replace(/\$\{(context|core)\.(\w+)\}/g, (match, src, key) => {
@@ -77,7 +81,7 @@ export class TemplateParser {
       }
 
       // Парсим атрибуты
-      const attrs = parseAttributes(attributesStr || "", interpolationMap, conditionalAttributeMap)
+      const attrs = parseAttributes(attributesStr || "", interpolationMap, conditionalAttributeMap, eventAttributeMap)
 
       if (Object.keys(attrs).length > 0) {
         element.attrs = attrs
@@ -609,6 +613,24 @@ export class TemplateParser {
         }
       }
     }
+  }
+
+  // Выделяет обработчики событий on* в плейсхолдеры и запоминает исходные строки
+  private parseEventAttributes(htmlString: string, eventAttributeMap: Map<string, string>): string {
+    let processed = htmlString
+    let idx = 0
+    // Матчит on*=${...} и on*="${...}" где внутри может быть стрелка или ссылка на context/core/item
+    const re = /\son([a-z]+)\s*=\s*(?:"(\$\{[\s\S]*?\})"|(\$\{[\s\S]*?\}))/g
+    let m
+    while ((m = re.exec(htmlString)) !== null) {
+      const full = m[0]!
+      const expr = (m[2] || m[3])!
+      const placeholder = `EVENT_ATTR_${idx++}`
+      eventAttributeMap.set(placeholder, expr)
+      const attrName = `on${m[1]}`
+      processed = processed.replace(full, ` ${attrName}="${placeholder}"`)
+    }
+    return processed
   }
 
   /**
