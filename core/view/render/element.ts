@@ -12,7 +12,7 @@ import { renderText } from "./text"
  */
 export function renderElement<C extends ContextSchema, S extends string, I extends Core>(
   state: S,
-  element: ElementSchema,
+  schema: ElementSchema,
   context: ExtractValues<C>,
   core: I,
   parentElement: HTMLElement | DocumentFragment,
@@ -20,23 +20,23 @@ export function renderElement<C extends ContextSchema, S extends string, I exten
   arrayContext?: ArrayRenderContext
 ): void {
   // Проверяем условие
-  if (element.cond) {
-    const shouldRender = evaluateCondition(state, element.cond, context, core, arrayContext)
+  if (schema.cond) {
+    const shouldRender = evaluateCondition(state, schema.cond, context, core, arrayContext)
     if (!shouldRender) return
   }
 
   // Если это элемент массива, рендерим его как массив
-  if (element.item) {
-    renderArrayElement(state, element, context, core, parentElement, update)
+  if (schema.item) {
+    renderArrayElement(state, schema, context, core, parentElement, update)
     return
   }
 
   // Создаем элемент
-  const el = document.createElement(element.tag)
+  const el = document.createElement(schema.tag)
 
   // Устанавливаем атрибуты
-  if (element.attrs) {
-    for (const [name, value] of Object.entries(element.attrs)) {
+  if (schema.attrs) {
+    for (const [name, value] of Object.entries(schema.attrs)) {
       const evaluatedValue = evaluateAttribute(state, context, core, value, arrayContext)
 
       if (evaluatedValue === true) {
@@ -53,8 +53,8 @@ export function renderElement<C extends ContextSchema, S extends string, I exten
   }
 
   // Рендерим дочерние элементы
-  if (element.child) {
-    for (const child of element.child) {
+  if (schema.child) {
+    for (const child of schema.child) {
       if (child.type === "el") {
         renderElement(state, child, context, core, el, update, arrayContext)
       } else if (child.type === "text") {
