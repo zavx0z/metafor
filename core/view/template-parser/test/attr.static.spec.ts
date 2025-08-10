@@ -245,8 +245,6 @@ describe("Template Parser - статические атрибуты", () => {
       expect(result, "атрибуты с двойными кавычками").toEqual(expected)
     })
 
-
-
     it("атрибуты с пробелами", () => {
       const result = parseTemplate(`<div class="  spaced  class  ">Content</div>`)
       const expected: Schema = [
@@ -265,6 +263,18 @@ describe("Template Parser - статические атрибуты", () => {
         },
       ] as const
       expect(result, "атрибуты с пробелами").toEqual(expected)
+    })
+
+    it("некавыченные статические атрибуты на обычном элементе", () => {
+      const result = parseTemplate(`<div id=root class=box data-a=1></div>`)
+      const expected: Schema = [{ tag: "div", type: "el", attrs: { id: "root", class: "box", "data-a": "1" } }] as const
+      expect(result, "атрибуты без кавычек должны парситься").toEqual(expected)
+    })
+
+    it("некавыченные статические атрибуты в самозакрывающемся теге", () => {
+      const result = parseTemplate(`<input type=text disabled />`)
+      const expected: Schema = [{ tag: "input", type: "el", attrs: { type: "text", disabled: "" } }] as const
+      expect(result, "самозакрывающийся с некавыч. атрибутами").toEqual(expected)
     })
   })
 })
