@@ -431,11 +431,7 @@ describe("Template Parser - массивы", () => {
                   child: [
                     {
                       type: "text",
-                      value: "Total users:",
-                    },
-                    {
-                      type: "text",
-                      value: { src: "context", key: "totalCount" },
+                      value: { src: "context", key: "totalCount", result: "Total users: ${context.totalCount}" },
                     },
                   ],
                 },

@@ -56,7 +56,7 @@ export interface ElementSchema {
  */
 export interface TextSchema {
   type: "text"
-  value: string | { src: string; key?: string }
+  value: string | { src: string; key?: string; result?: string }
 }
 
 /**

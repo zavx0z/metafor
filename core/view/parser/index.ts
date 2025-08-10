@@ -461,10 +461,22 @@ export class TemplateParser {
     const parts = processedText.split("SIMPLE_PLACEHOLDER")
     let interpolationIndex = 0
 
+    // Специальный случай: одна интерполяция и есть окружение текстом — объединяем в один узел с result
+    if (interpolations.length === 1 && parts.length === 2) {
+      const beforeRaw = parts[0] ?? ""
+      const afterRaw = parts[1] ?? ""
+      const { src, key } = interpolations[0].info
+      const placeholderExpr = key ? `\${${src}.${key}}` : `\${${src}}`
+      child.push({
+        type: "text",
+        value: { src, ...(key ? { key } : {}), result: `${beforeRaw}${placeholderExpr}${afterRaw}` },
+      })
+      return
+    }
+
     for (let i = 0; i < parts.length; i++) {
       const part = parts[i]?.trim()
 
-      // Добавляем текстовую часть если она есть
       if (part) {
         child.push({
           type: "text",
@@ -472,12 +484,10 @@ export class TemplateParser {
         })
       }
 
-      // Добавляем плейсхолдер если это не последняя часть
       if (i < parts.length - 1) {
         if (interpolationIndex < interpolations.length) {
           const interpolation = interpolations[interpolationIndex]
           if (interpolation) {
-            // Это простая интерполяция
             child.push({
               type: "text",
               value: interpolation.info,
@@ -485,7 +495,6 @@ export class TemplateParser {
           }
           interpolationIndex++
         } else {
-          // Это интерполяция внутри массива
           child.push({
             type: "text",
             value: { src: "item" },

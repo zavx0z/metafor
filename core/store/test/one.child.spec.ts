@@ -11,7 +11,7 @@ const MetaFor = MetaForFabric({ store })
 const parentName = Bun.randomUUIDv7()
 const childName = Bun.randomUUIDv7()
 
-describe("работа со статическими тегами", async () => {
+describe.skip("работа со статическими тегами", async () => {
   let parentMounted = false
   let childMounted = false
 

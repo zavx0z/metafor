@@ -157,13 +157,10 @@ describe("TemplateParser", () => {
           child: [
             {
               type: "text",
-              value: "Total:",
-            },
-            {
-              type: "text",
               value: {
                 src: "context",
                 key: "count",
+                result: "Total: ${context.count}",
               },
             },
           ],
