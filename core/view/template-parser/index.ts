@@ -3,25 +3,21 @@
  * @module TemplateParser
  */
 
-import type { ArrayInfo, Schema, ElementSchema, TextSchema, AttributeValue, ConditionSchema } from "./index.t.ts"
-import { extractTemplateContent, findClosingBrace } from "./utils.ts"
-import { parseArrayBlocks as parseArrayBlocksUtil } from "./arrays.ts"
+import type { ArrayInfo, Schema, ElementSchema, TextSchema, ConditionSchema } from "./index.t.ts"
+import { parseArrayBlocks } from "./arrays.ts"
 import {
   parseAttributes,
-  parseAttributeValue,
   parseConditionalAttributes,
   parseAttributesForArray,
-  parseAttributeValueForArray,
   parseConditionalAttributesForArray,
 } from "./attributes.ts"
 import {
   type ConditionalInfo,
-  parseConditionalBlocksRecursively as parseConditionalBlocksRecursivelyUtil,
-  parseConditionalBlocks as parseConditionalBlocksUtil2,
-  parseConditionalBlocksForArray as parseConditionalBlocksForArrayUtil,
+  parseConditionalBlocksRecursively,
+  parseConditionalBlocksForArray,
 } from "./conditionals.ts"
 
-// ConditionalInfo тип импортируется из conditionals.ts
+//
 
 /**
  * Основной класс парсера HTML шаблонов
@@ -37,11 +33,11 @@ export class TemplateParser {
     const interpolationMap = new Map<string, { src: string; key: string }>()
 
     // Используем более умный парсер для массивов с вложенными backticks
-    processedHtml = parseArrayBlocksUtil(processedHtml, arrayInfo)
+    processedHtml = parseArrayBlocks(processedHtml, arrayInfo)
 
     // Обрабатываем условные блоки рекурсивно до полной обработки
     const conditionalInfo: ConditionalInfo[] = []
-    processedHtml = parseConditionalBlocksRecursivelyUtil(processedHtml, conditionalInfo)
+    processedHtml = parseConditionalBlocksRecursively(processedHtml, conditionalInfo)
 
     // Обрабатываем условные выражения в атрибутах
     const conditionalAttributeMap = new Map<
@@ -108,250 +104,8 @@ export class TemplateParser {
   }
 
   /**
-   * Парсит атрибуты элемента
-   */
-  private parseAttributes(
-    attributesStr: string,
-    interpolationMap?: Map<string, { src: string; key: string }>,
-    conditionalAttributeMap?: Map<
-      string,
-      { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
-    >
-  ): Record<string, AttributeValue> {
-    const attrs: Record<string, AttributeValue> = {}
-
-    // Используем более сложный подход для правильной обработки кавычек
-    let currentIndex = 0
-    const length = attributesStr.length
-
-    while (currentIndex < length) {
-      // Пропускаем пробелы
-      while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) {
-        currentIndex++
-      }
-      if (currentIndex >= length) break
-
-      // Ищем имя атрибута
-      const nameStart = currentIndex
-      while (currentIndex < length && /[\w-]/.test(attributesStr[currentIndex]!)) {
-        currentIndex++
-      }
-      const name = attributesStr.slice(nameStart, currentIndex)
-      if (!name) break
-
-      // Пропускаем пробелы и знак равенства
-      while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) {
-        currentIndex++
-      }
-      if (currentIndex < length && attributesStr[currentIndex] === "=") {
-        currentIndex++
-        while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) {
-          currentIndex++
-        }
-
-        // Ищем кавычки или плейсхолдеры
-        if (currentIndex < length && (attributesStr[currentIndex] === '"' || attributesStr[currentIndex] === "'")) {
-          const quote = attributesStr[currentIndex]!
-          currentIndex++
-          const valueStart = currentIndex
-
-          // Ищем закрывающую кавычку
-          while (currentIndex < length && attributesStr[currentIndex] !== quote) {
-            currentIndex++
-          }
-          const value = attributesStr.slice(valueStart, currentIndex)
-          currentIndex++ // Пропускаем закрывающую кавычку
-
-          // Проверяем плейсхолдеры условных атрибутов
-          if (conditionalAttributeMap) {
-            let foundPlaceholder = false
-            for (const [placeholder, info] of conditionalAttributeMap) {
-              if (value === placeholder) {
-                attrs[name] = {
-                  src: info.src,
-                  key: info.key,
-                  trueValue: info.trueValue,
-                  falseValue: info.falseValue,
-                  type: "conditional" as const,
-                }
-                foundPlaceholder = true
-                break
-              }
-              // Проверяем смешанный контент с условными плейсхолдерами
-              if (value.includes(placeholder)) {
-                const originalConditional = info.falseValue
-                  ? `\${${info.src}.${info.key} ? '${info.trueValue}' : '${info.falseValue}'}`
-                  : `\${${info.src}.${info.key} && '${info.trueValue}'}`
-                const resultValue = value.replace(placeholder, originalConditional)
-
-                attrs[name] = {
-                  src: info.src,
-                  key: info.key,
-                  trueValue: info.trueValue,
-                  falseValue: info.falseValue,
-                  result: resultValue,
-                  type: "conditional" as const,
-                }
-                foundPlaceholder = true
-                break
-              }
-            }
-            if (!foundPlaceholder) {
-              attrs[name] = parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
-            }
-          } else {
-            attrs[name] = parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
-          }
-        } else {
-          // Значение без кавычек (может быть плейсхолдер)
-          const valueStart = currentIndex
-          while (currentIndex < length && !/\s/.test(attributesStr[currentIndex]!)) {
-            currentIndex++
-          }
-          const value = attributesStr.slice(valueStart, currentIndex)
-
-          // Проверяем плейсхолдеры условных атрибутов
-          if (conditionalAttributeMap) {
-            let foundPlaceholder = false
-            for (const [placeholder, info] of conditionalAttributeMap) {
-              if (value === placeholder) {
-                attrs[name] = {
-                  src: info.src,
-                  key: info.key,
-                  trueValue: info.trueValue,
-                  falseValue: info.falseValue,
-                  type: "conditional" as const,
-                }
-                foundPlaceholder = true
-                break
-              }
-              // Проверяем смешанный контент с условными плейсхолдерами
-              if (value.includes(placeholder)) {
-                const originalConditional = info.falseValue
-                  ? `\${${info.src}.${info.key} ? '${info.trueValue}' : '${info.falseValue}'}`
-                  : `\${${info.src}.${info.key} && '${info.trueValue}'}`
-                const resultValue = value.replace(placeholder, originalConditional)
-
-                attrs[name] = {
-                  src: info.src,
-                  key: info.key,
-                  trueValue: info.trueValue,
-                  falseValue: info.falseValue,
-                  result: resultValue,
-                  type: "conditional" as const,
-                }
-                foundPlaceholder = true
-                break
-              }
-            }
-            if (!foundPlaceholder) {
-              attrs[name] = parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
-            }
-          } else {
-            attrs[name] = parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
-          }
-        }
-      } else {
-        // Булев атрибут без значения
-        attrs[name] = ""
-      }
-    }
-
-    return attrs
-  }
-
-  /**
    * Парсит значение атрибута с поддержкой интерполяций
    */
-  private parseAttributeValue(
-    value: string,
-    interpolationMap?: Map<string, { src: string; key: string }>,
-    conditionalAttributeMap?: Map<
-      string,
-      { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
-    >
-  ): AttributeValue {
-    // Проверяем условные атрибуты (приоритет выше чем обычные интерполяции)
-    if (conditionalAttributeMap) {
-      for (const [placeholder, info] of conditionalAttributeMap) {
-        if (value === placeholder) {
-          return {
-            src: info.src,
-            key: info.key,
-            trueValue: info.trueValue,
-            falseValue: info.falseValue,
-            type: "conditional" as const,
-          }
-        }
-        // Проверяем смешанный контент с условными плейсхолдерами
-        if (value.includes(placeholder)) {
-          // Восстанавливаем оригинальную условную строку
-          const originalConditional = info.falseValue
-            ? `\${${info.src}.${info.key} ? '${info.trueValue}' : '${info.falseValue}'}`
-            : `\${${info.src}.${info.key} && '${info.trueValue}'}`
-          const resultValue = value.replace(placeholder, originalConditional)
-
-          return {
-            src: info.src,
-            key: info.key,
-            trueValue: info.trueValue,
-            falseValue: info.falseValue,
-            result: resultValue,
-            type: "conditional" as const,
-          }
-        }
-      }
-    }
-
-    // Проверяем плейсхолдеры из interpolationMap (чистые плейсхолдеры)
-    if (interpolationMap) {
-      for (const [placeholder, info] of interpolationMap) {
-        if (value === placeholder) {
-          return info
-        }
-      }
-    }
-
-    // Проверяем смешанный контент с плейсхолдерами
-    if (interpolationMap) {
-      for (const [placeholder, info] of interpolationMap) {
-        if (value.includes(placeholder)) {
-          // Восстанавливаем оригинальную интерполяцию для result
-          const originalInterpolation = `\${${info.src}.${info.key}}`
-          const resultValue = value.replace(placeholder, originalInterpolation)
-          return {
-            src: info.src,
-            key: info.key,
-            result: resultValue,
-          }
-        }
-      }
-    }
-
-    // Простая интерполяция: ${context.name} или ${core.setting} (если не была заменена)
-    const simpleInterpolationMatch = value.match(/^\$\{(context|core)\.(\w+)\}$/)
-    if (simpleInterpolationMatch) {
-      const [, src, key] = simpleInterpolationMatch
-      if (src && key) {
-        return { src, key }
-      }
-    }
-
-    // Смешанный контент с интерполяциями: prefix-${context.name} или ${context.name}-suffix (если не был заменен)
-    const hasInterpolation = /\$\{(context|core)\.(\w+)\}/.test(value)
-    if (hasInterpolation) {
-      const interpolationMatch = value.match(/\$\{(context|core)\.(\w+)\}/)
-      if (interpolationMatch) {
-        const [, src, key] = interpolationMatch
-        if (src && key) {
-          return { src, key, result: value }
-        }
-      }
-    }
-
-    // Обычное статическое значение
-    return value
-  }
 
   /**
    * Парсит дочерние элементы
@@ -643,7 +397,7 @@ export class TemplateParser {
 
     // Сначала обрабатываем условные блоки внутри массива (только для item.*)
     const itemConditionalInfo: ConditionalInfo[] = []
-    let cleanTemplate = this.parseConditionalBlocksForArray(template, itemConditionalInfo)
+    let cleanTemplate = parseConditionalBlocksForArray(template, itemConditionalInfo)
 
     // Обрабатываем условные атрибуты для item.*
     const itemConditionalAttributeMap = new Map<
@@ -655,13 +409,13 @@ export class TemplateParser {
     // Заменяем интерполяции внутри массива на плейсхолдеры с извлечением ключей
     cleanTemplate = cleanTemplate
       // Сначала обрабатываем `item.key` формат
-      .replace(/\$\{(\w+)\.(\w+)\}/g, (match, itemName, key) => {
+      .replace(/\$\{(\w+)\.(\w+)\}/g, (_m: string, _itemName: string, key: string) => {
         const placeholder = `ITEM_INTERPOLATION_${interpolationIndex++}`
         itemInterpolationMap.set(placeholder, { src: "item", key })
         return placeholder
       })
       // Затем обрабатываем простые переменные без ключа (как ${id})
-      .replace(/\$\{(\w+)\}/g, (match, itemName) => {
+      .replace(/\$\{(\w+)\}/g, (_m: string, _itemName: string) => {
         const placeholder = `ITEM_INTERPOLATION_${interpolationIndex++}`
         itemInterpolationMap.set(placeholder, { src: "item" })
         return placeholder
@@ -763,7 +517,7 @@ export class TemplateParser {
 
     // НЕ заменяем ITEM_INTERPOLATION в основном содержимом
     // Просто сохраняем их для обработки
-    let match
+    let match: RegExpExecArray | null
     while ((match = itemInterpolationPattern.exec(content)) !== null) {
       const interpolationInfo = itemInterpolationMap.get(match[0])
       if (interpolationInfo) {
@@ -927,7 +681,7 @@ export class TemplateParser {
     let processedText = text
     const foundInterpolations: Array<{ src: string; key?: string }> = []
 
-    let match
+    let match: RegExpExecArray | null
     while ((match = itemInterpolationPattern.exec(text)) !== null) {
       const interpolationInfo = itemInterpolationMap.get(match[0])
       if (interpolationInfo) {
@@ -965,646 +719,34 @@ export class TemplateParser {
   /**
    * Парсит атрибуты для элементов массива
    */
-  private parseAttributesForArray(
-    attributesStr: string,
-    itemInterpolationMap: Map<string, { src: string; key?: string }>,
-    itemConditionalAttributeMap?: Map<
-      string,
-      { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
-    >
-  ): Record<string, AttributeValue> {
-    const attrs: Record<string, AttributeValue> = {}
-
-    // Используем более сложный подход для правильной обработки кавычек
-    let currentIndex = 0
-    const length = attributesStr.length
-
-    while (currentIndex < length) {
-      // Пропускаем пробелы
-      while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) {
-        currentIndex++
-      }
-      if (currentIndex >= length) break
-
-      // Ищем имя атрибута
-      const nameStart = currentIndex
-      while (currentIndex < length && /[\w-]/.test(attributesStr[currentIndex]!)) {
-        currentIndex++
-      }
-      const name = attributesStr.slice(nameStart, currentIndex)
-      if (!name) break
-
-      // Пропускаем пробелы и знак равенства
-      while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) {
-        currentIndex++
-      }
-      if (currentIndex < length && attributesStr[currentIndex] === "=") {
-        currentIndex++
-        while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) {
-          currentIndex++
-        }
-
-        // Ищем кавычки
-        if (currentIndex < length && (attributesStr[currentIndex] === '"' || attributesStr[currentIndex] === "'")) {
-          const quote = attributesStr[currentIndex]!
-          currentIndex++
-          const valueStart = currentIndex
-
-          // Ищем закрывающую кавычку
-          while (currentIndex < length && attributesStr[currentIndex] !== quote) {
-            currentIndex++
-          }
-          const value = attributesStr.slice(valueStart, currentIndex)
-          currentIndex++ // Пропускаем закрывающую кавычку
-
-          // Проверяем плейсхолдеры условных атрибутов
-          if (itemConditionalAttributeMap) {
-            let foundPlaceholder = false
-            for (const [placeholder, info] of itemConditionalAttributeMap) {
-              if (value === placeholder) {
-                attrs[name] = {
-                  src: info.src,
-                  key: info.key,
-                  trueValue: info.trueValue,
-                  falseValue: info.falseValue,
-                  type: "conditional" as const,
-                }
-                foundPlaceholder = true
-                break
-              }
-              // Проверяем смешанный контент с условными плейсхолдерами
-              if (value.includes(placeholder)) {
-                const originalConditional = info.falseValue
-                  ? `\${${info.src}.${info.key} ? '${info.trueValue}' : '${info.falseValue}'}`
-                  : `\${${info.src}.${info.key} && '${info.trueValue}'}`
-                const resultValue = value.replace(placeholder, originalConditional)
-
-                attrs[name] = {
-                  src: info.src,
-                  key: info.key,
-                  trueValue: info.trueValue,
-                  falseValue: info.falseValue,
-                  result: resultValue,
-                  type: "conditional" as const,
-                }
-                foundPlaceholder = true
-                break
-              }
-            }
-            if (!foundPlaceholder) {
-              attrs[name] = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
-            }
-          } else {
-            attrs[name] = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
-          }
-        } else {
-          // Значение без кавычек (нестандартный случай)
-          const valueStart = currentIndex
-          while (currentIndex < length && !/\s/.test(attributesStr[currentIndex]!)) {
-            currentIndex++
-          }
-          const value = attributesStr.slice(valueStart, currentIndex)
-          // Проверяем плейсхолдеры условных атрибутов
-          if (itemConditionalAttributeMap) {
-            let foundPlaceholder = false
-            for (const [placeholder, info] of itemConditionalAttributeMap) {
-              if (value === placeholder) {
-                attrs[name] = {
-                  src: info.src,
-                  key: info.key,
-                  trueValue: info.trueValue,
-                  falseValue: info.falseValue,
-                  type: "conditional" as const,
-                }
-                foundPlaceholder = true
-                break
-              }
-              // Проверяем смешанный контент с условными плейсхолдерами
-              if (value.includes(placeholder)) {
-                const originalConditional = info.falseValue
-                  ? `\${${info.src}.${info.key} ? '${info.trueValue}' : '${info.falseValue}'}`
-                  : `\${${info.src}.${info.key} && '${info.trueValue}'}`
-                const resultValue = value.replace(placeholder, originalConditional)
-
-                attrs[name] = {
-                  src: info.src,
-                  key: info.key,
-                  trueValue: info.trueValue,
-                  falseValue: info.falseValue,
-                  result: resultValue,
-                  type: "conditional" as const,
-                }
-                foundPlaceholder = true
-                break
-              }
-            }
-            if (!foundPlaceholder) {
-              attrs[name] = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
-            }
-          } else {
-            attrs[name] = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
-          }
-        }
-      } else {
-        // Булев атрибут без значения
-        attrs[name] = ""
-      }
-    }
-
-    return attrs
-  }
 
   /**
    * Парсит значение атрибута для элементов массива
    */
-  private parseAttributeValueForArray(
-    value: string,
-    itemInterpolationMap: Map<string, { src: string; key?: string }>,
-    itemConditionalAttributeMap?: Map<
-      string,
-      { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
-    >
-  ): AttributeValue {
-    // Проверяем условные атрибуты для массивов (приоритет выше чем обычные интерполяции)
-    if (itemConditionalAttributeMap) {
-      for (const [placeholder, info] of itemConditionalAttributeMap) {
-        if (value === placeholder) {
-          return {
-            src: info.src,
-            key: info.key,
-            trueValue: info.trueValue,
-            falseValue: info.falseValue,
-            type: "conditional" as const,
-          }
-        }
-        // Проверяем смешанный контент с условными плейсхолдерами
-        if (value.includes(placeholder)) {
-          return {
-            src: info.src,
-            key: info.key,
-            trueValue: info.trueValue,
-            falseValue: info.falseValue,
-            result: info.result || value,
-            type: "conditional" as const,
-          }
-        }
-      }
-    }
-
-    // Простая интерполяция item: ${item.property}
-    const simpleItemMatch = value.match(/^\$\{item\.(\w+)\}$/)
-    if (simpleItemMatch) {
-      const [, key] = simpleItemMatch
-      if (key) {
-        return { src: "item", key }
-      }
-    }
-
-    // Простая переменная: ${id}
-    const simpleVarMatch = value.match(/^\$\{(\w+)\}$/)
-    if (simpleVarMatch) {
-      return { src: "item" }
-    }
-
-    // Проверяем ITEM_INTERPOLATION плейсхолдеры
-    for (const [placeholder, info] of itemInterpolationMap) {
-      if (value.includes(placeholder)) {
-        // Если это чистый плейсхолдер
-        if (value === placeholder) {
-          return info.key ? { src: info.src, key: info.key } : { src: info.src }
-        }
-        // Если это смешанный контент - восстанавливаем оригинальную интерполяцию
-        const originalInterpolation = info.key ? `\${item.${info.key}}` : `\${id}` // для простых переменных используем общий паттерн
-        const resultValue = value.replace(placeholder, originalInterpolation)
-        return info.key
-          ? {
-              src: info.src,
-              key: info.key,
-              result: resultValue,
-            }
-          : {
-              src: info.src,
-              result: resultValue,
-            }
-      }
-    }
-
-    // Смешанный контент с item интерполяциями
-    const hasItemInterpolation = /\$\{item\.(\w+)\}/.test(value)
-    if (hasItemInterpolation) {
-      const itemMatch = value.match(/\$\{item\.(\w+)\}/)
-      if (itemMatch) {
-        const [, key] = itemMatch
-        if (key) {
-          return { src: "item", key, result: value }
-        }
-      }
-    }
-
-    // Смешанный контент с простыми переменными
-    const hasSimpleVar = /\$\{(\w+)\}/.test(value)
-    if (hasSimpleVar) {
-      return { src: "item", result: value }
-    }
-
-    // Обычное статическое значение
-    return value
-  }
 
   /**
    * Парсит условные блоки в HTML строке
    */
-  private parseConditionalBlocks(htmlString: string, conditionalInfo: ConditionalInfo[]): string {
-    let processedHtml = htmlString
-
-    // Используем умный парсер для условных блоков с вложенными backticks
-    processedHtml = this.parseConditionalBlocksSmart(processedHtml, conditionalInfo)
-
-    // Логическое И: ${condition && html`template`}
-    const andPattern = /\$\{((?:context|core|item)\.(?:\w+))\s*&&\s*html`([^`]*)`\}/g
-
-    let match
-    while ((match = andPattern.exec(htmlString)) !== null) {
-      const [fullMatch, conditionExpr, template] = match
-
-      if (!conditionExpr || !template) continue
-
-      const conditionParts = conditionExpr.split(".")
-      if (conditionParts.length >= 2) {
-        const src = conditionParts[0] as "context" | "core" | "item"
-        const key = conditionParts[1]
-
-        if (!key) continue
-
-        const placeholder = `CONDITIONAL_${conditionalInfo.length}`
-        const condition: ConditionSchema = { src, key, eq: true }
-
-        conditionalInfo.push({
-          placeholder,
-          condition,
-          trueTemplate: template,
-          type: "and",
-        })
-
-        processedHtml = processedHtml.replace(fullMatch, placeholder)
-      }
-    }
-
-    // Логическое ИЛИ: ${condition || html`fallback`}
-    const orPattern = /\$\{((?:context|core|item)\.(?:\w+))\s*\|\|\s*html`([^`]*)`\}/g
-
-    match = null // reset match
-    while ((match = orPattern.exec(htmlString)) !== null) {
-      const [fullMatch, conditionExpr, template] = match
-
-      if (!conditionExpr || !template) continue
-
-      const conditionParts = conditionExpr.split(".")
-      if (conditionParts.length >= 2) {
-        const src = conditionParts[0] as "context" | "core" | "item"
-        const key = conditionParts[1]
-
-        if (!key) continue
-
-        const placeholder = `CONDITIONAL_${conditionalInfo.length}`
-        const condition: ConditionSchema = { src, key, eq: null } // fallback когда значение пустое/null
-
-        conditionalInfo.push({
-          placeholder,
-          condition,
-          trueTemplate: template, // в случае || это fallback шаблон
-          type: "or",
-        })
-
-        processedHtml = processedHtml.replace(fullMatch, placeholder)
-      }
-    }
-
-    return processedHtml
-  }
 
   /**
    * Рекурсивно обрабатывает условные блоки до полной обработки
    */
-  private parseConditionalBlocksRecursively(htmlString: string, conditionalInfo: ConditionalInfo[]): string {
-    let processedHtml = htmlString
-    let hasChanges = true
-    let maxIterations = 10 // защита от бесконечной рекурсии
-    let iteration = 0
-
-    while (hasChanges && iteration < maxIterations) {
-      const beforeLength = processedHtml.length
-      const beforeConditionalCount = conditionalInfo.length
-
-      // Обрабатываем один уровень условных блоков в основной строке
-      processedHtml = this.parseConditionalBlocks(processedHtml, conditionalInfo)
-
-      // Также обрабатываем условные блоки внутри уже найденных templates
-      for (let i = beforeConditionalCount; i < conditionalInfo.length; i++) {
-        const conditionalItem = conditionalInfo[i]
-
-        if (conditionalItem && conditionalItem.trueTemplate) {
-          conditionalItem.trueTemplate = this.parseConditionalBlocks(conditionalItem.trueTemplate, conditionalInfo)
-        }
-
-        if (conditionalItem && conditionalItem.falseTemplate) {
-          conditionalItem.falseTemplate = this.parseConditionalBlocks(conditionalItem.falseTemplate, conditionalInfo)
-        }
-      }
-
-      // Проверяем были ли изменения
-      hasChanges = processedHtml.length !== beforeLength || conditionalInfo.length !== beforeConditionalCount
-      iteration++
-    }
-
-    if (iteration >= maxIterations) {
-      console.warn("Достигнут максимум итераций при рекурсивной обработке условных блоков")
-    }
-
-    return processedHtml
-  }
 
   /**
    * Парсит условные выражения в атрибутах
    */
-  private parseConditionalAttributes(
-    htmlString: string,
-    conditionalAttributeMap: Map<
-      string,
-      { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
-    >
-  ): string {
-    let processedHtml = htmlString
-    let conditionalIndex = 0
-
-    // Тернарный оператор в атрибутах: ${condition ? 'true' : 'false'}
-    const ternaryPattern = /\$\{((?:context|core|item)\.(?:\w+))\s*\?\s*['"]([^'"]*)['"]\s*:\s*['"]([^'"]*)['"]\}/g
-
-    let match
-    while ((match = ternaryPattern.exec(htmlString)) !== null) {
-      const [fullMatch, conditionExpr, trueValue, falseValue] = match
-
-      if (!conditionExpr) continue
-
-      const conditionParts = conditionExpr.split(".")
-      if (conditionParts.length >= 2) {
-        const src = conditionParts[0] as "context" | "core" | "item"
-        const key = conditionParts[1]
-
-        if (key) {
-          const placeholder = `CONDITIONAL_ATTR_${conditionalIndex++}`
-
-          const conditionalInfo: { src: string; key: string; trueValue: string; falseValue?: string } = {
-            src,
-            key,
-            trueValue: trueValue || "",
-          }
-
-          if (falseValue !== undefined) {
-            conditionalInfo.falseValue = falseValue
-          }
-
-          conditionalAttributeMap.set(placeholder, conditionalInfo)
-
-          processedHtml = processedHtml.replace(fullMatch, placeholder)
-        }
-      }
-    }
-
-    // Логическое И в атрибутах: ${condition && 'value'}
-    const andPattern = /\$\{((?:context|core|item)\.(?:\w+))\s*&&\s*['"]([^'"]*)['"]\}/g
-
-    while ((match = andPattern.exec(htmlString)) !== null) {
-      const [fullMatch, conditionExpr, trueValue] = match
-
-      if (!conditionExpr) continue
-
-      const conditionParts = conditionExpr.split(".")
-      if (conditionParts.length >= 2) {
-        const src = conditionParts[0] as "context" | "core" | "item"
-        const key = conditionParts[1]
-
-        if (key) {
-          const placeholder = `CONDITIONAL_ATTR_${conditionalIndex++}`
-
-          conditionalAttributeMap.set(placeholder, {
-            src,
-            key,
-            trueValue: trueValue || "",
-          })
-
-          processedHtml = processedHtml.replace(fullMatch, placeholder)
-        }
-      }
-    }
-
-    return processedHtml
-  }
 
   /**
    * Парсит условные выражения в атрибутах для элементов массива
    */
-  private parseConditionalAttributesForArray(
-    template: string,
-    itemConditionalAttributeMap: Map<
-      string,
-      { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
-    >
-  ): string {
-    let processedTemplate = template
-    let conditionalIndex = 0
-
-    // Тернарный оператор для item: ${item.property ? 'true' : 'false'}
-    const ternaryPattern = /\$\{(\w+)\.(\w+)\s*\?\s*['"]([^'"]*)['"]\s*:\s*['"]([^'"]*)['"]\}/g
-
-    let match
-    while ((match = ternaryPattern.exec(template)) !== null) {
-      const [fullMatch, itemName, key, trueValue, falseValue] = match
-
-      if (!key) continue
-
-      const placeholder = `CONDITIONAL_ATTR_ITEM_${conditionalIndex++}`
-
-      const conditionalInfo: { src: string; key: string; trueValue: string; falseValue?: string } = {
-        src: "item",
-        key,
-        trueValue: trueValue || "",
-      }
-
-      if (falseValue) {
-        conditionalInfo.falseValue = falseValue
-      }
-
-      itemConditionalAttributeMap.set(placeholder, conditionalInfo)
-
-      processedTemplate = processedTemplate.replace(fullMatch, placeholder)
-    }
-
-    // Логическое И для item: ${item.property && 'value'}
-    const andPattern = /\$\{(\w+)\.(\w+)\s*&&\s*['"]([^'"]*)['"]\}/g
-
-    while ((match = andPattern.exec(template)) !== null) {
-      const [fullMatch, itemName, key, trueValue] = match
-
-      if (!key) continue
-
-      const placeholder = `CONDITIONAL_ATTR_ITEM_${conditionalIndex++}`
-
-      itemConditionalAttributeMap.set(placeholder, {
-        src: "item",
-        key,
-        trueValue: trueValue || "",
-      })
-
-      processedTemplate = processedTemplate.replace(fullMatch, placeholder)
-    }
-
-    return processedTemplate
-  }
 
   /**
    * Умный парсер условных блоков с поддержкой вложенных backticks
    */
-  private parseConditionalBlocksSmart(htmlString: string, conditionalInfo: ConditionalInfo[]): string {
-    let processedHtml = htmlString
-    const conditionalStartPattern = /\$\{((?:context|core|item)\.(?:\w+))(?:\s*===\s*"([^"]+)")?\s*\?\s*/g
-
-    let match
-    while ((match = conditionalStartPattern.exec(htmlString)) !== null) {
-      const [startMatch, conditionExpr, compareValue] = match
-      const startIndex = match.index
-      const afterStart = startIndex + startMatch.length
-
-      // Ищем первый html`
-      const htmlTemplateStart = htmlString.indexOf("html`", afterStart)
-      if (htmlTemplateStart === -1) continue
-
-      // Извлекаем true template
-      const trueContent = extractTemplateContent(htmlString, htmlTemplateStart + 5)
-      if (trueContent === null) continue
-
-      // Ищем `:` после true template
-      const afterTrueTemplate = htmlTemplateStart + 5 + trueContent.length + 1 // +1 для закрывающего `
-      const colonIndex = htmlString.indexOf(":", afterTrueTemplate)
-      if (colonIndex === -1) continue
-
-      // Ищем второй html`
-      const htmlTemplateStart2 = htmlString.indexOf("html`", colonIndex)
-      if (htmlTemplateStart2 === -1) continue
-
-      // Извлекаем false template
-      const falseContent = extractTemplateContent(htmlString, htmlTemplateStart2 + 5)
-      if (falseContent === null) continue
-
-      // Находим закрывающую скобку
-      const afterFalseTemplate = htmlTemplateStart2 + 5 + falseContent.length + 1 // +1 для закрывающего `
-      const closingBrace = findClosingBrace(htmlString, startIndex)
-      if (closingBrace === -1) continue
-
-      // Извлекаем полное выражение
-      const fullMatch = htmlString.substring(startIndex, closingBrace + 1)
-
-      // Парсим условие
-      if (!conditionExpr) continue
-
-      const conditionParts = conditionExpr.split(".")
-      if (conditionParts.length >= 2) {
-        const src = conditionParts[0] as "context" | "core" | "item"
-        const key = conditionParts[1]
-
-        if (key) {
-          const placeholder = `CONDITIONAL_${conditionalInfo.length}`
-          const condition: ConditionSchema = compareValue ? { src, key, eq: compareValue } : { src, key, eq: true }
-
-          conditionalInfo.push({
-            placeholder,
-            condition,
-            trueTemplate: trueContent,
-            falseTemplate: falseContent,
-            type: "ternary",
-          })
-
-          processedHtml = processedHtml.replace(fullMatch, placeholder)
-        }
-      }
-    }
-
-    return processedHtml
-  }
 
   /**
    * Парсит условные блоки для элементов массива (только item.*)
    */
-  private parseConditionalBlocksForArray(htmlString: string, conditionalInfo: ConditionalInfo[]): string {
-    let processedHtml = htmlString
-
-    // Тернарный оператор для переменных массива: ${varname.property ? html`true` : html`false`}
-    const ternaryPattern = /\$\{((\w+)\.(\w+))(?:\s*===\s*"([^"]+)")?\s*\?\s*html`([^`]*)`\s*:\s*html`([^`]*)`\}/g
-
-    let match
-    while ((match = ternaryPattern.exec(htmlString)) !== null) {
-      const [fullMatch, conditionExpr, varName, key, value, trueTemplate, falseTemplate] = match
-
-      if (!conditionExpr || !key) continue
-
-      const placeholder = `CONDITIONAL_${conditionalInfo.length}`
-      const condition: ConditionSchema = value ? { src: "item", key, eq: value } : { src: "item", key, eq: true }
-
-      conditionalInfo.push({
-        placeholder,
-        condition,
-        trueTemplate: trueTemplate || "",
-        falseTemplate: falseTemplate || "",
-        type: "ternary",
-      })
-
-      processedHtml = processedHtml.replace(fullMatch, placeholder)
-    }
-
-    // Логическое И для переменных массива: ${varname.property && html`template`}
-    const andPattern = /\$\{((\w+)\.(\w+))\s*&&\s*html`([^`]*)`\}/g
-
-    while ((match = andPattern.exec(htmlString)) !== null) {
-      const [fullMatch, conditionExpr, varName, key, template] = match
-
-      if (!conditionExpr || !template || !key) continue
-
-      const placeholder = `CONDITIONAL_${conditionalInfo.length}`
-      const condition: ConditionSchema = { src: "item", key, eq: true }
-
-      conditionalInfo.push({
-        placeholder,
-        condition,
-        trueTemplate: template,
-        type: "and",
-      })
-
-      processedHtml = processedHtml.replace(fullMatch, placeholder)
-    }
-
-    // Логическое ИЛИ для переменных массива: ${varname.property || html`fallback`}
-    const orPattern = /\$\{((\w+)\.(\w+))\s*\|\|\s*html`([^`]*)`\}/g
-
-    while ((match = orPattern.exec(htmlString)) !== null) {
-      const [fullMatch, conditionExpr, varName, key, template] = match
-
-      if (!conditionExpr || !template || !key) continue
-
-      const placeholder = `CONDITIONAL_${conditionalInfo.length}`
-      const condition: ConditionSchema = { src: "item", key, eq: null }
-
-      conditionalInfo.push({
-        placeholder,
-        condition,
-        trueTemplate: template,
-        type: "or",
-      })
-
-      processedHtml = processedHtml.replace(fullMatch, placeholder)
-    }
-
-    return processedHtml
-  }
 
   /**
    * Парсит условный блок в элементы с полем cond
@@ -1770,64 +912,9 @@ export class TemplateParser {
    */
   // перенесено в arrays.ts
 
-  /**
-   * Извлекает содержимое template literal с учетом вложенных backticks
-   */
-  private extractTemplateContent(htmlString: string, startIndex: number): string | null {
-    let depth = 0
-    let i = startIndex
-    let result = ""
+  // Удалено: дублирующая внутренняя реализация extractTemplateContent (используются функции из utils.ts)
 
-    while (i < htmlString.length) {
-      const char = htmlString[i]
-
-      if (char === "h" && htmlString.substr(i, 5) === "html`") {
-        // Начало вложенного template
-        depth++
-        result += htmlString.substr(i, 5)
-        i += 5
-        continue
-      } else if (char === "`") {
-        if (depth === 0) {
-          // Это закрывающий backtick основного template
-          return result
-        } else {
-          // Это закрывающий backtick вложенного template
-          depth--
-        }
-      }
-
-      result += char
-      i++
-    }
-
-    return null // не найден закрывающий backtick
-  }
-
-  /**
-   * Находит закрывающую скобку с учетом вложенности
-   */
-  private findClosingBrace(htmlString: string, startIndex: number): number {
-    let depth = 0
-    let i = startIndex
-
-    while (i < htmlString.length) {
-      const char = htmlString[i]
-
-      if (char === "{") {
-        depth++
-      } else if (char === "}") {
-        depth--
-        if (depth === 0) {
-          return i
-        }
-      }
-
-      i++
-    }
-
-    return -1 // не найдена закрывающая скобка
-  }
+  // Удалено: дублирующая внутренняя реализация findClosingBrace (используются функции из utils.ts)
 }
 
 /**

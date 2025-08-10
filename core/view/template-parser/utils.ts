@@ -1,5 +1,3 @@
-import type { ConditionSchema } from "./index.t.ts"
-
 /**
  * Извлекает содержимое template literal с учетом вложенных backticks
  */

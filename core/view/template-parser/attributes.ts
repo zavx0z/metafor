@@ -1,4 +1,7 @@
 import type { AttributeValue } from "./index.t.ts"
+const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null
+const hasResult = (v: unknown): v is { result: string } => isObject(v) && typeof (v as any).result === "string"
+const hasSrc = (v: unknown): v is { src: string; key?: string } => isObject(v) && typeof (v as any).src === "string"
 
 export function parseAttributeValue(
   value: string,
@@ -119,17 +122,16 @@ export function parseAttributes(
         // Событийные атрибуты: сериализуем функцию в строку (восстанавливаем из плейсхолдера, если есть)
         if (isEventAttr(name)) {
           if (eventAttributeMap && eventAttributeMap.has(value)) {
-            attrs[name] = eventAttributeMap.get(value) as string
+            attrs[name] = eventAttributeMap.get(value) ?? ""
             continue
           }
           const parsed = parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
           if (typeof parsed === "string") {
             attrs[name] = parsed
-          } else if (parsed && typeof parsed === "object" && "result" in (parsed as any) && (parsed as any).result) {
-            attrs[name] = (parsed as any).result as string
-          } else if (parsed && typeof parsed === "object" && "src" in (parsed as any)) {
-            const p = parsed as { src: string; key?: string }
-            attrs[name] = p.key ? `\${${p.src}.${p.key}}` : ""
+          } else if (hasResult(parsed)) {
+            attrs[name] = parsed.result
+          } else if (hasSrc(parsed)) {
+            attrs[name] = parsed.key ? `\${${parsed.src}.${parsed.key}}` : ""
           } else {
             attrs[name] = value
           }
@@ -145,17 +147,16 @@ export function parseAttributes(
         if (conditionalAttributeMap) {
           if (isEventAttr(name)) {
             if (eventAttributeMap && eventAttributeMap.has(value)) {
-              attrs[name] = eventAttributeMap.get(value) as string
+              attrs[name] = eventAttributeMap.get(value) ?? ""
               continue
             }
             const parsed = parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
             if (typeof parsed === "string") {
               attrs[name] = parsed
-            } else if (parsed && typeof parsed === "object" && "result" in (parsed as any) && (parsed as any).result) {
-              attrs[name] = (parsed as any).result as string
-            } else if (parsed && typeof parsed === "object" && "src" in (parsed as any)) {
-              const p = parsed as { src: string; key?: string }
-              attrs[name] = p.key ? `\${${p.src}.${p.key}}` : ""
+            } else if (hasResult(parsed)) {
+              attrs[name] = parsed.result
+            } else if (hasSrc(parsed)) {
+              attrs[name] = parsed.key ? `\${${parsed.src}.${parsed.key}}` : ""
             } else {
               attrs[name] = value
             }
@@ -448,7 +449,7 @@ export function parseAttributesForArray(
           // Событийные атрибуты: фиксируем наличие обработчика, не сериализуем функцию
           if (isEventAttr(name)) {
             if (eventAttributeMap && eventAttributeMap.has(value)) {
-              attrs[name] = eventAttributeMap.get(value) as string
+              attrs[name] = eventAttributeMap.get(value) ?? ""
             } else {
               attrs[name] = ""
             }
@@ -498,7 +499,7 @@ export function parseAttributesForArray(
           // Событийные атрибуты: фиксируем наличие обработчика, не сериализуем функцию
           if (isEventAttr(name)) {
             if (eventAttributeMap && eventAttributeMap.has(value)) {
-              attrs[name] = eventAttributeMap.get(value) as string
+              attrs[name] = eventAttributeMap.get(value) ?? ""
             } else {
               attrs[name] = ""
             }
