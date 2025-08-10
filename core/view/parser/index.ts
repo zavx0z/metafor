@@ -66,10 +66,26 @@ export class TemplateParser {
     const rootRegex = /<(\w+)([^>]*?)(?:\s*\/\s*>|>([\s\S]*?)<\/\1>|>)/g
 
     let match
+    let lastIndex = 0
     while ((match = rootRegex.exec(processedHtml)) !== null) {
-      const [, tagName, attributesStr, innerContent] = match
+      const [fullMatch, tagName, attributesStr, innerContent] = match
 
       if (!tagName) continue
+
+      // Добавляем элементы, полученные из текста перед текущим тегом (в т.ч. условные плейсхолдеры на корне)
+      const textBefore = processedHtml.slice(lastIndex, match.index).trim()
+      if (textBefore) {
+        const beforeChildren = this.parseChildren(
+          textBefore,
+          arrayInfo,
+          interpolationMap,
+          conditionalInfo,
+          conditionalAttributeMap
+        )
+        if (beforeChildren.length > 0) {
+          beforeChildren.forEach((c) => elements.push(c as ElementSchema))
+        }
+      }
 
       const element: ElementSchema = {
         tag: tagName,
@@ -98,6 +114,24 @@ export class TemplateParser {
       }
 
       elements.push(element)
+
+      // Обновляем позицию после текущего тега
+      lastIndex = match.index + fullMatch.length
+    }
+
+    // Добавляем элементы из текста после последнего тега (в т.ч. условные плейсхолдеры на корне)
+    const textAfter = processedHtml.slice(lastIndex).trim()
+    if (textAfter) {
+      const afterChildren = this.parseChildren(
+        textAfter,
+        arrayInfo,
+        interpolationMap,
+        conditionalInfo,
+        conditionalAttributeMap
+      )
+      if (afterChildren.length > 0) {
+        afterChildren.forEach((c) => elements.push(c as ElementSchema))
+      }
     }
 
     return elements

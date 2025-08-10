@@ -48,7 +48,49 @@ describe("Template Parser - условные блоки", () => {
       ]
       expect(result, "простой тернарный оператор с context").toEqual(expected)
     })
-
+    it("простой тернарный оператор с context без обертки", () => {
+      const result = parseTemplate(
+        `<div></div>
+        \${context.isVisible ? html\`<span>Visible</span>\` : html\`<span>Hidden</span>\`}`
+      )
+      const expected: Schema = [
+        {
+          tag: "div",
+          type: "el",
+        },
+        {
+          tag: "span",
+          type: "el",
+          cond: {
+            src: "context",
+            key: "isVisible",
+            eq: true,
+          },
+          child: [
+            {
+              type: "text",
+              value: "Visible",
+            },
+          ],
+        },
+        {
+          tag: "span",
+          type: "el",
+          cond: {
+            src: "context",
+            key: "isVisible",
+            eq: false,
+          },
+          child: [
+            {
+              type: "text",
+              value: "Hidden",
+            },
+          ],
+        },
+      ]
+      expect(result, "простой тернарный оператор с context").toEqual(expected)
+    })
     it("тернарный оператор с core", () => {
       const result = parseTemplate(
         `<div>\${core.showMenu ? html\`<nav>Menu</nav>\` : html\`<div>No menu</div>\`}</div>`
