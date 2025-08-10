@@ -101,6 +101,25 @@ describe("Template Parser - условные атрибуты", () => {
       ] as const
       expect(result, "логическое И с core").toEqual(expected)
     })
+
+    it("логическое И в самозакрывающемся теге (новый синтаксис)", () => {
+      const result = parseTemplate(`<input \${core.isReadOnly && "readonly"} />`)
+      const expected: Schema = [
+        {
+          tag: "input",
+          type: "el",
+          attrs: {
+            readonly: {
+              src: "core",
+              key: "isReadOnly",
+              trueValue: "readonly",
+              type: "conditional",
+            },
+          },
+        },
+      ] as const
+      expect(result, "логическое И в самозакрывающемся теге (новый синтаксис)").toEqual(expected)
+    })
   })
 
   describe("условия в атрибутах массивов", () => {
@@ -186,6 +205,39 @@ describe("Template Parser - условные атрибуты", () => {
       ] as const
       expect(result, "логическое И в атрибуте массива").toEqual(expected)
     })
+
+    it("логическое И в атрибуте массива без знака=", () => {
+      const result = parseTemplate(`
+        <div>
+          ${"${context.users.map(user => html`<input ${user.isAdmin && 'readonly'} />`)}"}
+        </div>
+      `)
+      const expected: Schema = [
+        {
+          tag: "div",
+          type: "el",
+          child: [
+            {
+              tag: "input",
+              type: "el",
+              attrs: {
+                readonly: {
+                  src: "item",
+                  key: "isAdmin",
+                  trueValue: "readonly",
+                  type: "conditional",
+                },
+              },
+              item: {
+                src: "context",
+                key: "users",
+              },
+            },
+          ],
+        },
+      ] as const
+      expect(result, "логическое И в атрибуте массива без знака=").toEqual(expected)
+    })
   })
 
   describe("смешанный контент с условиями", () => {
@@ -201,7 +253,7 @@ describe("Template Parser - условные атрибуты", () => {
               key: "isLarge",
               trueValue: "btn-lg",
               falseValue: "btn-sm",
-              result: "btn \${context.isLarge ? 'btn-lg' : 'btn-sm'}",
+              result: "btn ${context.isLarge ? 'btn-lg' : 'btn-sm'}",
               type: "conditional",
             },
           },
@@ -228,7 +280,7 @@ describe("Template Parser - условные атрибуты", () => {
               key: "theme",
               trueValue: "dark",
               falseValue: "light",
-              result: "prefix-\${context.theme ? 'dark' : 'light'}",
+              result: "prefix-${context.theme ? 'dark' : 'light'}",
               type: "conditional",
             },
           },
@@ -255,7 +307,7 @@ describe("Template Parser - условные атрибуты", () => {
               key: "status",
               trueValue: "active",
               falseValue: "inactive",
-              result: "\${context.status ? 'active' : 'inactive'}-status",
+              result: "${context.status ? 'active' : 'inactive'}-status",
               type: "conditional",
             },
           },
@@ -317,5 +369,29 @@ describe("Template Parser - условные атрибуты", () => {
       ] as const
       expect(result, "одинаковые значения в обеих ветвях").toEqual(expected)
     })
+  })
+  it("логическое И в атрибуте", () => {
+    const result = parseTemplate(`<button \${context.cannotEdit && "disabled"}>Edit</button>`)
+    const expected: Schema = [
+      {
+        tag: "button",
+        type: "el",
+        attrs: {
+          disabled: {
+            src: "context",
+            key: "cannotEdit",
+            trueValue: "disabled",
+            type: "conditional",
+          },
+        },
+        child: [
+          {
+            type: "text",
+            value: "Edit",
+          },
+        ],
+      },
+    ] as const
+    expect(result, "логическое И в атрибуте (новый синтаксис)").toEqual(expected)
   })
 })

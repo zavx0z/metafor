@@ -194,7 +194,29 @@ export function parseAttributes(
         }
       }
     } else {
-      attrs[name] = ""
+      // Булев атрибут без значения или плейсхолдер условного атрибута
+      if (conditionalAttributeMap) {
+        let matchedPlaceholder = false
+        for (const [placeholder, info] of conditionalAttributeMap) {
+          if (name === placeholder) {
+            const attrName = info.trueValue || name
+            attrs[attrName] = {
+              src: info.src,
+              key: info.key,
+              trueValue: info.trueValue,
+              falseValue: info.falseValue,
+              type: "conditional" as const,
+            }
+            matchedPlaceholder = true
+            break
+          }
+        }
+        if (!matchedPlaceholder) {
+          attrs[name] = ""
+        }
+      } else {
+        attrs[name] = ""
+      }
     }
   }
 
@@ -435,7 +457,29 @@ export function parseAttributesForArray(
         }
       }
     } else {
-      attrs[name] = ""
+      // Булев атрибут без значения или плейсхолдер условного атрибута (item.*)
+      if (itemConditionalAttributeMap) {
+        let matchedPlaceholder = false
+        for (const [placeholder, info] of itemConditionalAttributeMap) {
+          if (name === placeholder) {
+            const attrName = info.trueValue || name
+            attrs[attrName] = {
+              src: info.src,
+              key: info.key,
+              trueValue: info.trueValue,
+              falseValue: info.falseValue,
+              type: "conditional" as const,
+            }
+            matchedPlaceholder = true
+            break
+          }
+        }
+        if (!matchedPlaceholder) {
+          attrs[name] = ""
+        }
+      } else {
+        attrs[name] = ""
+      }
     }
   }
 
