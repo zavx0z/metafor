@@ -48,6 +48,65 @@ describe("Template Parser - условные блоки", () => {
       ]
       expect(result, "простой тернарный оператор с context").toEqual(expected)
     })
+    it("простой тернарный оператор с context с оберткой и соседними элементами", () => {
+      const result = parseTemplate(
+        `<div><span>1</span><div>2</div>\${context.isVisible ? html\`<span>Visible</span>\` : html\`<span>Hidden</span>\`}<span>3</span></div>`
+      )
+      const expected: Schema = [
+        {
+          tag: "div",
+          type: "el",
+          child: [
+            {
+              tag: "span",
+              type: "el",
+              child: [{ type: "text", value: "1" }],
+            },
+            {
+              tag: "div",
+              type: "el",
+              child: [{ type: "text", value: "2" }],
+            },
+            {
+              tag: "span",
+              type: "el",
+              cond: {
+                src: "context",
+                key: "isVisible",
+                eq: true,
+              },
+              child: [
+                {
+                  type: "text",
+                  value: "Visible",
+                },
+              ],
+            },
+            {
+              tag: "span",
+              type: "el",
+              cond: {
+                src: "context",
+                key: "isVisible",
+                eq: false,
+              },
+              child: [
+                {
+                  type: "text",
+                  value: "Hidden",
+                },
+              ],
+            },
+            {
+              tag: "span",
+              type: "el",
+              child: [{ type: "text", value: "3" }],
+            },
+          ],
+        },
+      ]
+      expect(result, "простой тернарный оператор с context с оберткой и соседними элементами").toEqual(expected)
+    })
     it("простой тернарный оператор с context без обертки", () => {
       const result = parseTemplate(
         `<div></div>
@@ -89,7 +148,7 @@ describe("Template Parser - условные блоки", () => {
           ],
         },
       ]
-      expect(result, "простой тернарный оператор с context").toEqual(expected)
+      expect(result, "простой тернарный оператор с context без обертки").toEqual(expected)
     })
     it("тернарный оператор с core", () => {
       const result = parseTemplate(

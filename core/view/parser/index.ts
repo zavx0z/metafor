@@ -68,7 +68,7 @@ export class TemplateParser {
     let match
     let lastIndex = 0
     while ((match = rootRegex.exec(processedHtml)) !== null) {
-      const [fullMatch, tagName, attributesStr, innerContent] = match
+      const [, tagName, attributesStr] = match
 
       if (!tagName) continue
 
@@ -85,6 +85,41 @@ export class TemplateParser {
         if (beforeChildren.length > 0) {
           beforeChildren.forEach((c) => elements.push(c as ElementSchema))
         }
+      }
+
+      // Корректно находим границу закрывающего тега с учетом вложенных одноименных тегов
+      const openStart = match.index
+      const tagOpenEnd = processedHtml.indexOf(">", openStart)
+      if (tagOpenEnd === -1) {
+        lastIndex = openStart + 1
+        continue
+      }
+      const isSelfClosing = /\/>\s*$/.test(processedHtml.slice(openStart, tagOpenEnd + 1))
+
+      let innerContent: string | undefined
+      let fullMatch: string
+      if (isSelfClosing) {
+        innerContent = undefined
+        fullMatch = processedHtml.slice(openStart, tagOpenEnd + 1)
+      } else {
+        const closingToken = `</${tagName}>`
+        let searchPos = tagOpenEnd + 1
+        let depth = 1
+        while (depth > 0 && searchPos < processedHtml.length) {
+          const nextOpen = processedHtml.indexOf(`<${tagName}`, searchPos)
+          const nextClose = processedHtml.indexOf(closingToken, searchPos)
+          if (nextClose === -1) break
+          if (nextOpen !== -1 && nextOpen < nextClose) {
+            depth++
+            searchPos = nextOpen + 1
+          } else {
+            depth--
+            searchPos = nextClose + closingToken.length
+          }
+        }
+        const endIndex = searchPos
+        fullMatch = processedHtml.slice(openStart, endIndex)
+        innerContent = processedHtml.slice(tagOpenEnd + 1, endIndex - closingToken.length)
       }
 
       const element: ElementSchema = {
@@ -115,8 +150,9 @@ export class TemplateParser {
 
       elements.push(element)
 
-      // Обновляем позицию после текущего тега
+      // Обновляем позицию после текущего тега и продвигаем regex каретку
       lastIndex = match.index + fullMatch.length
+      rootRegex.lastIndex = lastIndex
     }
 
     // Добавляем элементы из текста после последнего тега (в т.ч. условные плейсхолдеры на корне)
