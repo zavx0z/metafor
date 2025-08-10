@@ -13,7 +13,6 @@ describe("Template Parser - массивы", () => {
         {
           tag: "ul",
           type: "el",
-
           child: [
             {
               tag: "li",
@@ -27,6 +26,43 @@ describe("Template Parser - массивы", () => {
                 {
                   type: "text",
                   value: { src: "item" } as const,
+                },
+              ],
+            },
+          ],
+        },
+      ]
+
+      expect(result, "простой массив из контекста").toEqual(expected)
+    })
+    it("простой массив с одним элементом вложенный в другой элемент", () => {
+      const result = parseTemplate(`<div><ul>
+        \${context.ids.map((id) => html\`<li>\${id}</li>\`)}
+      </ul></div>`)
+
+      const expected: Schema = [
+        {
+          type: "el",
+          tag: "div",
+          child: [
+            {
+              tag: "ul",
+              type: "el",
+              child: [
+                {
+                  tag: "li",
+                  type: "el",
+                  item: {
+                    src: "context",
+                    key: "ids",
+                  },
+
+                  child: [
+                    {
+                      type: "text",
+                      value: { src: "item" } as const,
+                    },
+                  ],
                 },
               ],
             },
@@ -176,12 +212,12 @@ describe("Template Parser - массивы", () => {
                 src: "core",
                 key: "menuItems",
               },
-                        attrs: {
-            href: {
-              key: "url",
-              src: "item",
-            },
-          },
+              attrs: {
+                href: {
+                  key: "url",
+                  src: "item",
+                },
+              },
               child: [
                 {
                   type: "text",
@@ -489,16 +525,16 @@ describe("Template Parser - массивы", () => {
                 src: "core",
                 key: "images",
               },
-                          attrs: {
-              src: {
-                key: "url",
-                src: "item",
+              attrs: {
+                src: {
+                  key: "url",
+                  src: "item",
+                },
+                alt: {
+                  key: "alt",
+                  src: "item",
+                },
               },
-              alt: {
-                key: "alt",
-                src: "item",
-              },
-            },
             },
           ],
         },

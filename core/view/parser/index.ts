@@ -219,48 +219,33 @@ export class TemplateParser {
         }
       }
 
-      // Проверяем на плейсхолдер массива в теге
-      let isArrayElement = false
-      for (const arrayItem of arrayInfo) {
-        if (fullMatch.includes(arrayItem.placeholder)) {
-          const itemElement = this.parseArrayItemTemplate(
-            arrayItem.itemTemplate,
-            arrayItem.source,
-            arrayItem.contextKey
-          )
-          child.push(itemElement)
-          isArrayElement = true
-          break
+      // Не считаем тег элементом массива лишь из-за наличия плейсхолдера внутри содержимого.
+      // Плейсхолдеры внутри innerContent будут обработаны рекурсивным разбором ниже.
+      // Обычный элемент
+      const element: ElementSchema = {
+        tag: tagName,
+        type: "el",
+      }
+
+      const attrs = parseAttributes(attributesStr || "", interpolationMap, conditionalAttributeMap)
+      if (Object.keys(attrs).length > 0) {
+        element.attrs = attrs
+      }
+
+      if (innerContent !== undefined) {
+        const nestedChild = this.parseChildren(
+          innerContent.trim(),
+          arrayInfo,
+          interpolationMap,
+          conditionalInfo,
+          conditionalAttributeMap
+        )
+        if (nestedChild.length > 0) {
+          element.child = nestedChild
         }
       }
 
-      if (!isArrayElement) {
-        // Обычный элемент
-        const element: ElementSchema = {
-          tag: tagName,
-          type: "el",
-        }
-
-        const attrs = parseAttributes(attributesStr || "", interpolationMap, conditionalAttributeMap)
-        if (Object.keys(attrs).length > 0) {
-          element.attrs = attrs
-        }
-
-        if (innerContent !== undefined) {
-          const nestedChild = this.parseChildren(
-            innerContent.trim(),
-            arrayInfo,
-            interpolationMap,
-            conditionalInfo,
-            conditionalAttributeMap
-          )
-          if (nestedChild.length > 0) {
-            element.child = nestedChild
-          }
-        }
-
-        child.push(element)
-      }
+      child.push(element)
 
       lastIndex = match.index + fullMatch.length
     }
