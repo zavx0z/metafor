@@ -93,6 +93,27 @@ export function parseConditionalBlocks(htmlString: string, conditionalInfo: Cond
 
   processedHtml = parseConditionalBlocksSmart(processedHtml, conditionalInfo)
 
+  // Явный простой тернарий: ${ expr ? html`...` : html`...` }
+  const simpleTernary = /\$\{\s*([^?]+?)\s*\?\s*html`([^`]*)`\s*:\s*html`([^`]*)`\s*\}/g
+  processedHtml = processedHtml.replace(
+    simpleTernary,
+    (_full, conditionExpr: string, trueTemplate: string, falseTemplate: string) => {
+      if (!conditionExpr) return _full
+      const parsed = parseComparisonExpression(conditionExpr)
+      if (!parsed) return _full
+      const placeholder = `CONDITIONAL_${conditionalInfo.length}`
+      const condition = buildTrueCondFromComparison(parsed)
+      conditionalInfo.push({
+        placeholder,
+        condition,
+        trueTemplate: trueTemplate || "",
+        falseTemplate: falseTemplate || "",
+        type: "ternary",
+      })
+      return placeholder
+    }
+  )
+
   const andPattern = /\$\{((?:context|core|item)\.(?:\w+))\s*&&\s*html`([^`]*)`\}/g
   let match
   while ((match = andPattern.exec(htmlString)) !== null) {
@@ -168,12 +189,54 @@ export function parseConditionalBlocksSmart(htmlString: string, conditionalInfo:
     if (closingBrace === -1) continue
     const fullMatch = htmlString.substring(startIndex, closingBrace + 1)
     const body = htmlString.substring(startIndex + 2, closingBrace)
-    if (!body.includes('html`')) continue
+    if (!body.includes("html`")) continue
+
+    // Пытаемся распознать простой тернарий: expr ? html`...` : html`...`
+    const qIndexInBody = body.indexOf("?")
+    if (qIndexInBody !== -1) {
+      const firstHtmlAbs = htmlString.indexOf("html`", startIndex + 2 + qIndexInBody)
+      if (firstHtmlAbs !== -1 && firstHtmlAbs < closingBrace) {
+        const trueContent = extractTemplateContent(htmlString, firstHtmlAbs + 5)
+        if (trueContent !== null) {
+          const afterTrueAbs = firstHtmlAbs + 5 + trueContent.length + 1
+          const colonAbs = htmlString.indexOf(":", afterTrueAbs)
+          const secondHtmlAbs = colonAbs !== -1 ? htmlString.indexOf("html`", colonAbs) : -1
+          if (colonAbs !== -1 && secondHtmlAbs !== -1 && secondHtmlAbs < closingBrace) {
+            // Проверяем, что правая часть не является цепочкой (нет дополнительного '?')
+            const elseSegment = htmlString.slice(colonAbs + 1, closingBrace)
+            if (!elseSegment.includes("?")) {
+              const falseContent = extractTemplateContent(htmlString, secondHtmlAbs + 5)
+              if (falseContent === null) {
+                // не простой тернарий
+              } else {
+                const condExpr = body.substring(0, qIndexInBody)
+                const parsed = parseComparisonExpression(condExpr)
+                if (parsed) {
+                  const ph = `CONDITIONAL_${conditionalInfo.length}`
+                  conditionalInfo.push({
+                    placeholder: ph,
+                    condition: buildTrueCondFromComparison(parsed),
+                    trueTemplate: trueContent,
+                    falseTemplate: falseContent,
+                    type: "ternary",
+                  })
+                  processedHtml = processedHtml.replace(fullMatch, ph)
+                  continue
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+
+    // Иначе разбираем как цепочку else-if: cond1 ? html`...` : cond2 ? html`...` : ...
     const chainRe = /\s*([^?:]+?)\s*\?\s*html`([^`]*)`/g
     const placeholders: string[] = []
     let chainMatch: RegExpExecArray | null
     while ((chainMatch = chainRe.exec(body)) !== null) {
-      const [, condExpr, trueTpl] = chainMatch
+      const condExpr = chainMatch[1]!
+      const trueTpl = chainMatch[2]!
       const parsed = parseComparisonExpression(condExpr)
       if (!parsed) continue
       const ph = `CONDITIONAL_${conditionalInfo.length}`

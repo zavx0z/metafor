@@ -468,9 +468,7 @@ describe("Template Parser - массивы", () => {
               tag: "span",
               type: "el",
               attrs: { class: "category" },
-              child: [
-                { type: "text", value: { src: "item", key: "name" } },
-              ],
+              child: [{ type: "text", value: { src: "item", key: "name" } }],
               item: { src: "context", key: "categories" },
             },
             {
@@ -490,7 +488,9 @@ describe("Template Parser - массивы", () => {
         },
       ]
 
-      expect(result, "множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы").toEqual(expected)
+      expect(result, "множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы").toEqual(
+        expected
+      )
     })
   })
 
