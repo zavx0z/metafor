@@ -550,6 +550,48 @@ describe("Template Parser - условные блоки", () => {
       ]
       expect(result, "условие только с одной ветвью в массиве").toEqual(expected)
     })
+
+    it("map затем тернарный оператор как сосед", () => {
+      const tpl = [
+        "<div>",
+        "${context.items.map((item) => html`<span>${item.name}</span>`)}",
+        "${context.flag ? html`<p>Yes</p>` : html`<p>No</p>`}",
+        "</div>",
+      ].join("\n")
+      const result = parseTemplate(tpl)
+      const expected: Schema = [
+        {
+          tag: "div",
+          type: "el",
+          child: [
+            {
+              tag: "span",
+              type: "el",
+              child: [
+                {
+                  type: "text",
+                  value: { src: "item", key: "name" },
+                },
+              ],
+              item: { src: "context", key: "items" },
+            },
+            {
+              tag: "p",
+              type: "el",
+              cond: { src: "context", key: "flag", eq: true },
+              child: [{ type: "text", value: "Yes" }],
+            },
+            {
+              tag: "p",
+              type: "el",
+              cond: { src: "context", key: "flag", eq: false },
+              child: [{ type: "text", value: "No" }],
+            },
+          ],
+        },
+      ]
+      expect(result, "map затем тернарный оператор как сосед").toEqual(expected)
+    })
   })
 
   describe("edge cases условий", () => {

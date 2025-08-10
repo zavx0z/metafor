@@ -250,8 +250,44 @@ export class TemplateParser {
           })
         }
       } else if (content.trim()) {
-        // Обрабатываем смешанный текст с плейсхолдерами
-        this.parseTextWithPlaceholders(content.trim(), child, interpolationMap, conditionalInfo)
+        // Обрабатываем смешанный текст с плейсхолдерами массивов и условных блоков
+        const tokenPattern = /(CONTEXT_ARRAY_\d+|CONDITIONAL_\d+)/g
+        let cursor = 0
+        let m: RegExpExecArray | null
+        let sawToken = false
+
+        while ((m = tokenPattern.exec(content)) !== null) {
+          sawToken = true
+          const before = content.slice(cursor, m.index).trim()
+          if (before) {
+            this.parseTextWithPlaceholders(before, child, interpolationMap, conditionalInfo)
+          }
+          const token = m[1]
+          if (token.startsWith("CONTEXT_ARRAY_")) {
+            const arr = arrayInfo.find((a) => a.placeholder === token)
+            if (arr) {
+              const itemElement = this.parseArrayItemTemplate(arr.itemTemplate, arr.source, arr.contextKey)
+              child.push(itemElement)
+            }
+          } else if (token.startsWith("CONDITIONAL_")) {
+            const cond = conditionalInfo.find((c) => c.placeholder === token)
+            if (cond) {
+              const condElements = this.parseConditionalElements(cond, arrayInfo, interpolationMap, conditionalInfo)
+              child.push(...condElements)
+            }
+          }
+          cursor = m.index + token.length
+        }
+
+        if (sawToken) {
+          const after = content.slice(cursor).trim()
+          if (after) {
+            this.parseTextWithPlaceholders(after, child, interpolationMap, conditionalInfo)
+          }
+        } else {
+          // Обычный текст без плейсхолдеров массивов/условий
+          this.parseTextWithPlaceholders(content.trim(), child, interpolationMap, conditionalInfo)
+        }
       }
       return child
     }
