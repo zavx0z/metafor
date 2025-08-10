@@ -20,7 +20,6 @@ describe("Интерполяция core", () => {
   })
   it("Корневой элемент div", () => {
     const div = element.querySelector("div")!
-    console.log(view.schema)
     expect(div, "должен быть отрендерен div").toBeDefined()
     expect(div.innerHTML, "должен быть отрендерен текст").toBe(`<h1>Hello, ${core.framework}!</h1>`)
   })

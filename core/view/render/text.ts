@@ -2,6 +2,7 @@ import type { ContextSchema, ExtractValues } from "../../context"
 import type { Core } from "../../index.t"
 import type { TextSchema } from "../parser"
 import type { ArrayRenderContext } from "./index.t"
+import { evaluateInterpolation } from "./utils"
 
 /**
  * Рендерит текстовый узел
@@ -40,9 +41,10 @@ export function renderText<C extends ContextSchema, S extends string, I extends 
         break
     }
 
-    if (text.value.key) {
-      value = String(source?.[text.value.key] || "")
-    } else {
+    if (text.value.key && "result" in text.value)
+      value = evaluateInterpolation(text.value.result, state, context, core, arrayContext)
+    else if (text.value.key) value = String(source?.[text.value.key] || "")
+    else {
       value = String(source || "")
     }
   }
