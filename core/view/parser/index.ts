@@ -250,13 +250,6 @@ export class TemplateParser {
           })
         }
       } else if (content.trim()) {
-        // Особый случай: несколько массивов на одном уровне — сохраняем как текст (известное ограничение)
-        const arrayPlaceholders = content.match(/CONTEXT_ARRAY_\d+/g) || []
-        if (arrayPlaceholders.length > 1) {
-          child.push({ type: "text", value: content.trim() })
-          return child
-        }
-
         // Обрабатываем смешанный текст с плейсхолдерами массивов и условных блоков
         const tokenPattern = /(CONTEXT_ARRAY_\d+|CONDITIONAL_\d+)/g
         let cursor = 0

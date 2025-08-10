@@ -448,7 +448,7 @@ describe("Template Parser - массивы", () => {
       expect(result, "массив между статическими элементами").toEqual(expected)
     })
 
-    it("множественные массивы в одном шаблоне - текущая реализация парсера", () => {
+    it("множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы", () => {
       const result = parseTemplate(`<div class="dashboard">
         \${context.categories.map((cat) => html\`<span class="category">\${cat.name}</span>\`)}
         \${core.items.map((item) => html\`<div class="item" data-category="\${item.categoryId}">
@@ -456,8 +456,6 @@ describe("Template Parser - массивы", () => {
         </div>\`)}
       </div>`)
 
-      // Парсер в текущей реализации не умеет обрабатывать несколько массивов на одном уровне
-      // Он создает текстовый узел с плейсхолдерами
       const expected: Schema = [
         {
           tag: "div",
@@ -467,14 +465,32 @@ describe("Template Parser - массивы", () => {
           },
           child: [
             {
-              type: "text",
-              value: "CONTEXT_ARRAY_0\n        CONTEXT_ARRAY_1",
+              tag: "span",
+              type: "el",
+              attrs: { class: "category" },
+              child: [
+                { type: "text", value: { src: "item", key: "name" } },
+              ],
+              item: { src: "context", key: "categories" },
+            },
+            {
+              tag: "div",
+              type: "el",
+              attrs: { class: "item", "data-category": { src: "item", key: "categoryId" } },
+              child: [
+                {
+                  tag: "h4",
+                  type: "el",
+                  child: [{ type: "text", value: { src: "item", key: "title" } }],
+                },
+              ],
+              item: { src: "core", key: "items" },
             },
           ],
         },
       ]
 
-      expect(result, "множественные массивы в одном шаблоне - ограничение парсера").toEqual(expected)
+      expect(result, "множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы").toEqual(expected)
     })
   })
 
