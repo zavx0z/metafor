@@ -411,6 +411,11 @@ export function parseAttributesForArray(
         currentIndex++
 
         if (itemConditionalAttributeMap) {
+          // Событийные атрибуты: фиксируем наличие обработчика, не сериализуем функцию
+          if (isEventAttr(name)) {
+            attrs[name] = ""
+            continue
+          }
           let foundPlaceholder = false
           for (const [placeholder, info] of itemConditionalAttributeMap) {
             if (value === placeholder) {
@@ -452,6 +457,11 @@ export function parseAttributesForArray(
         while (currentIndex < length && !/\s/.test(attributesStr[currentIndex]!)) currentIndex++
         const value = attributesStr.slice(valueStart, currentIndex)
         if (itemConditionalAttributeMap) {
+          // Событийные атрибуты: фиксируем наличие обработчика, не сериализуем функцию
+          if (isEventAttr(name)) {
+            attrs[name] = ""
+            continue
+          }
           let foundPlaceholder = false
           for (const [placeholder, info] of itemConditionalAttributeMap) {
             if (value === placeholder) {
