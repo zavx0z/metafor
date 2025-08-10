@@ -37,6 +37,10 @@ export function renderElement<C extends ContextSchema, S extends string, I exten
   // Устанавливаем атрибуты
   if (schema.attrs) {
     for (const [name, value] of Object.entries(schema.attrs)) {
+      // Не устанавливаем on*-атрибуты напрямую (Happy DOM интерпретирует их как код)
+      if (name.startsWith("on")) {
+        continue
+      }
       const evaluatedValue = evaluateAttribute(state, context, core, value, arrayContext)
 
       if (evaluatedValue === true) {

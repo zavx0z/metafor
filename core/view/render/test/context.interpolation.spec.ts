@@ -10,11 +10,12 @@ describe("Интерполяция контекста", () => {
     visible: t.boolean.required(true),
     disabled: t.boolean.required(true),
     list: t.array.required(["item1", "item2", "item3"]),
+    enum: t.enum("div", "span", "p").required("div"),
   }))
 
   const container = document.createElement("div")
 
-  new View({
+  const view = new View({
     render: ({ html, context }) =>
       html` <div class=${context.className} id="${context.id}" data-text="${context.text}">
         <img
@@ -29,8 +30,16 @@ describe("Интерполяция контекста", () => {
         <ul>
           ${context.list.map((item: string) => html`<li>${item}</li>`)}
         </ul>
+        ${context.enum === "div"
+          ? html`<div class="enum">enum element div</div>`
+          : context.enum === "span"
+          ? html`<span class="enum">enum element span</span>`
+          : context.enum === "p"
+          ? html`<p class="enum">enum element p</p>`
+          : null}
       </div>`,
-  }).render({
+  })
+  view.render({
     state: "",
     context: ctx,
     core: {},
@@ -71,5 +80,10 @@ describe("Интерполяция контекста", () => {
     expect(ul.children[0]?.textContent, "должен быть отрендерен текст").toBe(ctx.list[0]!)
     expect(ul.children[1]?.textContent, "должен быть отрендерен текст").toBe(ctx.list[1]!)
     expect(ul.children[2]?.textContent, "должен быть отрендерен текст").toBe(ctx.list[2]!)
+  })
+  it("тренарная интерполяция", () => {
+    const elEnum = container.querySelector(".enum")!
+    expect(elEnum, "должен быть отрендерен элемент").toBeDefined()
+    expect(elEnum.textContent, "должен быть отрендерен текст").toBe("enum element div")
   })
 })

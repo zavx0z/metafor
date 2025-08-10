@@ -3,6 +3,7 @@ import type { Core } from "../../index.t.ts"
 import { renderElement } from "./element.ts"
 import type { RenderParams } from "./index.t.ts"
 import { renderText } from "./text.ts"
+import { resolveConditionalSequences } from "./condition.ts"
 
 /**
  * Основная функция рендеринга
@@ -19,16 +20,18 @@ export function render<C extends ContextSchema, S extends string, I extends Core
 
   // Очищаем элемент
   if ("innerHTML" in element) {
-    element.innerHTML = ""
+    ;(element as HTMLElement).innerHTML = ""
   } else {
-    // Для DocumentFragment удаляем все дочерние элементы
     while (element.firstChild) {
       element.removeChild(element.firstChild)
     }
   }
 
+  // Предобрабатываем последовательности условных элементов на корне
+  const prepared = resolveConditionalSequences(state, schema, context, core)
+
   // Рендерим каждый элемент схемы
-  for (const item of schema) {
+  for (const item of prepared) {
     if (item.type === "el") {
       renderElement(state, item, context, core, element, update)
     } else if (item.type === "text") {
