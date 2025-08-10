@@ -1,4 +1,3 @@
-import type { Message } from "../message"
 import type { ReactionFilterConditions } from "./condition.t"
 import type { ReactionParams } from "./index.t"
 
