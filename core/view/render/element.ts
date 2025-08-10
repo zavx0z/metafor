@@ -8,6 +8,45 @@ import type { ArrayRenderContext } from "./index.t"
 import { renderText } from "./text"
 
 /**
+ * Вычисляет значения context и core объектов для meta-элементов
+ */
+function evaluateMetaObject<C extends ContextSchema, I extends Core>(
+  obj: Record<string, string | number | boolean | null | { src: "context" | "core"; key: string }>,
+  context: ExtractValues<C>,
+  core: I
+): Record<string, any> {
+  const result: Record<string, any> = {}
+  
+  for (const [key, value] of Object.entries(obj)) {
+    if (typeof value === "object" && value !== null && "src" in value) {
+      // Это ссылка на context или core
+      const { src, key: sourceKey } = value as { src: "context" | "core"; key: string }
+      const source = src === "context" ? context : core
+      
+      // Получаем значение по пути (например, "user.family")
+      const keys = sourceKey.split(".")
+      let currentValue: any = source
+      
+      for (const k of keys) {
+        if (currentValue && typeof currentValue === "object" && k in currentValue) {
+          currentValue = currentValue[k]
+        } else {
+          currentValue = undefined
+          break
+        }
+      }
+      
+      result[key] = currentValue
+    } else {
+      // Примитивное значение
+      result[key] = value
+    }
+  }
+  
+  return result
+}
+
+/**
  * Рендерит HTML элемент
  */
 export function renderElement<C extends ContextSchema, S extends string, I extends Core>(
@@ -31,7 +70,7 @@ export function renderElement<C extends ContextSchema, S extends string, I exten
     return
   }
 
-  // Создаем элемент
+  // Создаем элемент (обрабатываем meta-акторы и web-components так же, как обычные элементы)
   const el = document.createElement(schema.tag)
 
   // Устанавливаем атрибуты
@@ -53,6 +92,19 @@ export function renderElement<C extends ContextSchema, S extends string, I exten
         // Обычный атрибут
         el.setAttribute(name, String(evaluatedValue))
       }
+    }
+  }
+
+  // Обрабатываем context и core для meta-элементов
+  if (schema.type === "meta") {
+    if (schema.context) {
+      const evaluatedContext = evaluateMetaObject(schema.context, context, core)
+      ;(el as any).context = evaluatedContext
+    }
+    
+    if (schema.core) {
+      const evaluatedCore = evaluateMetaObject(schema.core, context, core)
+      ;(el as any).core = evaluatedCore
     }
   }
 

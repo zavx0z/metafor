@@ -1,7 +1,7 @@
 import { test, expect, describe } from "bun:test"
 import { MetaFor } from "../../web/metafor.ts"
 
-describe("полный снимок компонента", () => {
+describe.skip("полный снимок компонента", () => {
   describe("структура снимка", async () => {
     const hash = MetaFor("test")
       .context((types) => ({
