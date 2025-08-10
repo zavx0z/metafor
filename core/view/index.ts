@@ -168,8 +168,6 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
       choose,
     })
     const result = render(template, element)
-    const el = templateCache.get(template.strings)
-    console.log(el)
     return result
   }
   get snapshot() {

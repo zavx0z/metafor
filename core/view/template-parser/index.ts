@@ -4,14 +4,24 @@
  */
 
 import type { ArrayInfo, Schema, ElementSchema, TextSchema, AttributeValue, ConditionSchema } from "./index.t.ts"
+import { extractTemplateContent, findClosingBrace } from "./utils.ts"
+import { parseArrayBlocks as parseArrayBlocksUtil } from "./arrays.ts"
+import {
+  parseAttributes,
+  parseAttributeValue,
+  parseConditionalAttributes,
+  parseAttributesForArray,
+  parseAttributeValueForArray,
+  parseConditionalAttributesForArray,
+} from "./attributes.ts"
+import {
+  type ConditionalInfo,
+  parseConditionalBlocksRecursively as parseConditionalBlocksRecursivelyUtil,
+  parseConditionalBlocks as parseConditionalBlocksUtil2,
+  parseConditionalBlocksForArray as parseConditionalBlocksForArrayUtil,
+} from "./conditionals.ts"
 
-interface ConditionalInfo {
-  placeholder: string
-  condition: ConditionSchema
-  trueTemplate: string
-  falseTemplate?: string
-  type: "ternary" | "and" | "or"
-}
+// ConditionalInfo тип импортируется из conditionals.ts
 
 /**
  * Основной класс парсера HTML шаблонов
@@ -27,18 +37,18 @@ export class TemplateParser {
     const interpolationMap = new Map<string, { src: string; key: string }>()
 
     // Используем более умный парсер для массивов с вложенными backticks
-    processedHtml = this.parseArrayBlocks(processedHtml, arrayInfo)
+    processedHtml = parseArrayBlocksUtil(processedHtml, arrayInfo)
 
     // Обрабатываем условные блоки рекурсивно до полной обработки
     const conditionalInfo: ConditionalInfo[] = []
-    processedHtml = this.parseConditionalBlocksRecursively(processedHtml, conditionalInfo)
+    processedHtml = parseConditionalBlocksRecursivelyUtil(processedHtml, conditionalInfo)
 
     // Обрабатываем условные выражения в атрибутах
     const conditionalAttributeMap = new Map<
       string,
       { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
     >()
-    processedHtml = this.parseConditionalAttributes(processedHtml, conditionalAttributeMap)
+    processedHtml = parseConditionalAttributes(processedHtml, conditionalAttributeMap)
 
     // Обрабатываем простые интерполяции и сохраняем их информацию
     let interpolationIndex = 0
@@ -67,10 +77,8 @@ export class TemplateParser {
       }
 
       // Парсим атрибуты
-      const attrs = this.parseAttributes(attributesStr || "", interpolationMap, conditionalAttributeMap)
-      
+      const attrs = parseAttributes(attributesStr || "", interpolationMap, conditionalAttributeMap)
 
-      
       if (Object.keys(attrs).length > 0) {
         element.attrs = attrs
       }
@@ -185,10 +193,10 @@ export class TemplateParser {
               }
             }
             if (!foundPlaceholder) {
-              attrs[name] = this.parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
+              attrs[name] = parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
             }
           } else {
-            attrs[name] = this.parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
+            attrs[name] = parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
           }
         } else {
           // Значение без кавычек (может быть плейсхолдер)
@@ -197,7 +205,7 @@ export class TemplateParser {
             currentIndex++
           }
           const value = attributesStr.slice(valueStart, currentIndex)
-          
+
           // Проверяем плейсхолдеры условных атрибутов
           if (conditionalAttributeMap) {
             let foundPlaceholder = false
@@ -233,10 +241,10 @@ export class TemplateParser {
               }
             }
             if (!foundPlaceholder) {
-              attrs[name] = this.parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
+              attrs[name] = parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
             }
           } else {
-            attrs[name] = this.parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
+            attrs[name] = parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
           }
         }
       } else {
@@ -475,7 +483,7 @@ export class TemplateParser {
           type: "el",
         }
 
-        const attrs = this.parseAttributes(attributesStr || "", interpolationMap, conditionalAttributeMap)
+        const attrs = parseAttributes(attributesStr || "", interpolationMap, conditionalAttributeMap)
         if (Object.keys(attrs).length > 0) {
           element.attrs = attrs
         }
@@ -620,7 +628,7 @@ export class TemplateParser {
       string,
       { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
     >()
-    cleanTemplate = this.parseConditionalAttributesForArray(cleanTemplate, itemConditionalAttributeMap)
+    cleanTemplate = parseConditionalAttributesForArray(cleanTemplate, itemConditionalAttributeMap)
 
     // Заменяем интерполяции внутри массива на плейсхолдеры с извлечением ключей
     cleanTemplate = cleanTemplate
@@ -691,7 +699,7 @@ export class TemplateParser {
       processedAttributesStr = processedAttributesStr.replace(new RegExp(placeholder, "g"), "SIMPLE_PLACEHOLDER")
     }
 
-    const attrs = this.parseAttributesForArray(attributesStr || "", itemInterpolationMap, itemConditionalAttributeMap)
+    const attrs = parseAttributesForArray(attributesStr || "", itemInterpolationMap, itemConditionalAttributeMap)
     if (Object.keys(attrs).length > 0) {
       element.attrs = attrs
     }
@@ -831,11 +839,7 @@ export class TemplateParser {
         }
 
         // Парсим атрибуты
-        const attrs = this.parseAttributesForArray(
-          attributesStr || "",
-          itemInterpolationMap,
-          itemConditionalAttributeMap
-        )
+        const attrs = parseAttributesForArray(attributesStr || "", itemInterpolationMap, itemConditionalAttributeMap)
         if (Object.keys(attrs).length > 0) {
           element.attrs = attrs
         }
@@ -1026,10 +1030,10 @@ export class TemplateParser {
               }
             }
             if (!foundPlaceholder) {
-              attrs[name] = this.parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+              attrs[name] = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
             }
           } else {
-            attrs[name] = this.parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+            attrs[name] = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
           }
         } else {
           // Значение без кавычек (нестандартный случай)
@@ -1073,10 +1077,10 @@ export class TemplateParser {
               }
             }
             if (!foundPlaceholder) {
-              attrs[name] = this.parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+              attrs[name] = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
             }
           } else {
-            attrs[name] = this.parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+            attrs[name] = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
           }
         }
       } else {
@@ -1310,8 +1314,6 @@ export class TemplateParser {
   ): string {
     let processedHtml = htmlString
     let conditionalIndex = 0
-    
-
 
     // Тернарный оператор в атрибутах: ${condition ? 'true' : 'false'}
     const ternaryPattern = /\$\{((?:context|core|item)\.(?:\w+))\s*\?\s*['"]([^'"]*)['"]\s*:\s*['"]([^'"]*)['"]\}/g
@@ -1349,8 +1351,6 @@ export class TemplateParser {
 
     // Логическое И в атрибутах: ${condition && 'value'}
     const andPattern = /\$\{((?:context|core|item)\.(?:\w+))\s*&&\s*['"]([^'"]*)['"]\}/g
-    
-
 
     while ((match = andPattern.exec(htmlString)) !== null) {
       const [fullMatch, conditionExpr, trueValue] = match
@@ -1458,7 +1458,7 @@ export class TemplateParser {
       if (htmlTemplateStart === -1) continue
 
       // Извлекаем true template
-      const trueContent = this.extractTemplateContent(htmlString, htmlTemplateStart + 5)
+      const trueContent = extractTemplateContent(htmlString, htmlTemplateStart + 5)
       if (trueContent === null) continue
 
       // Ищем `:` после true template
@@ -1471,12 +1471,12 @@ export class TemplateParser {
       if (htmlTemplateStart2 === -1) continue
 
       // Извлекаем false template
-      const falseContent = this.extractTemplateContent(htmlString, htmlTemplateStart2 + 5)
+      const falseContent = extractTemplateContent(htmlString, htmlTemplateStart2 + 5)
       if (falseContent === null) continue
 
       // Находим закрывающую скобку
       const afterFalseTemplate = htmlTemplateStart2 + 5 + falseContent.length + 1 // +1 для закрывающего `
-      const closingBrace = this.findClosingBrace(htmlString, startIndex)
+      const closingBrace = findClosingBrace(htmlString, startIndex)
       if (closingBrace === -1) continue
 
       // Извлекаем полное выражение
@@ -1741,41 +1741,7 @@ export class TemplateParser {
   /**
    * Парсит блоки массивов с учетом вложенных backticks
    */
-  private parseArrayBlocks(htmlString: string, arrayInfo: ArrayInfo[]): string {
-    let processedHtml = htmlString
-    const arrayStartPattern = /\$\{(context|core)\.(\w+)\.map\(/g
-
-    let match
-    while ((match = arrayStartPattern.exec(htmlString)) !== null) {
-      const [startMatch, source, contextKey] = match
-      const startIndex = match.index
-      const afterStart = startIndex + startMatch.length
-
-      // Ищем соответствующий html` и закрывающую скобку
-      const htmlTemplateStart = htmlString.indexOf("html`", afterStart)
-      if (htmlTemplateStart === -1) continue
-
-      // Находим содержимое между html`...` учитывая вложенные backticks
-      const templateContent = this.extractTemplateContent(htmlString, htmlTemplateStart + 5)
-      if (!templateContent) continue
-
-      // Находим закрывающую скобку после шаблона
-      const afterTemplate = htmlTemplateStart + 5 + templateContent.length + 1 // +1 для закрывающего `
-      const closingBrace = this.findClosingBrace(htmlString, startIndex)
-      if (closingBrace === -1) continue
-
-      // Извлекаем полное выражение массива
-      const fullMatch = htmlString.substring(startIndex, closingBrace + 1)
-
-      if (source && contextKey) {
-        const placeholder = `CONTEXT_ARRAY_${arrayInfo.length}`
-        arrayInfo.push({ placeholder, source, contextKey, itemTemplate: templateContent })
-        processedHtml = processedHtml.replace(fullMatch, placeholder)
-      }
-    }
-
-    return processedHtml
-  }
+  // перенесено в arrays.ts
 
   /**
    * Извлекает содержимое template literal с учетом вложенных backticks
