@@ -5,14 +5,6 @@
  */
 
 import type { ContextSchema, Update, ExtractValues } from "../context"
-import type { choose } from "./html/directives/choose"
-import type { map } from "./html/directives/map"
-import type { ref } from "./html/directives/ref"
-import type { repeat } from "./html/directives/repeat"
-import type { styleMap } from "./html/directives/style-map"
-import type { when } from "./html/directives/when"
-import type { html } from "./html"
-import type { TemplateResult } from "./html/index.t"
 import type { Core } from "../index.t"
 
 /**
@@ -81,86 +73,7 @@ export type ViewDefinitionParams<C extends ContextSchema, S extends string, I ex
    * html`<div>${context.value}</div>`
    * ```
    */
-  html: typeof html
-  /**
-   * Директива для получения ссылки на DOM-элемент.
-   * Используется для доступа к элементу после рендера.
-   * @example
-   * ```ts
-   * const r = ref();
-   * html`<input ${ref(r)} />`
-   * // r.value будет содержать DOM-элемент
-   * ```
-   */
-  ref: typeof ref
-  /**
-   * Директива для эффективного рендера списков с ключами.
-   * Позволяет оптимально обновлять DOM при изменении массива.
-   * @example
-   * ```ts
-   * html`<ul>${repeat(context.items, (item, i) => html`<li>${i}: ${item}</li>`)}</ul>`
-   * ```
-   *
-   * Или возвращать напрямую:
-   * ```ts
-   * return repeat(context.items, (item, i) => html`<li>${i}: ${item}</li>`)
-   * ```
-   */
-  repeat: typeof repeat
-  /**
-   * Директива для условного рендера.
-   * Позволяет элегантно отображать разные шаблоны в зависимости от условия.
-   * @example
-   * ```ts
-   * html`<div>${when(flag, () => html`<span>Да</span>`, () => html`<span>Нет</span>`)}</div>`
-   * ```
-   *
-   * Или возвращать напрямую:
-   * ```ts
-   * return when(flag, () => html`<span>Да</span>`, () => html`<span>Нет</span>`)
-   * ```
-   */
-  when: typeof when
-  /**
-   * Директива для простого отображения массива в элементы.
-   * Удобна для простых случаев, когда не нужны ключи.
-   * @example
-   * ```ts
-   * html`<ul>${map(items, (item, i) => html`<li>${item}</li>`)}</ul>`
-   * ```
-   *
-   * Или возвращать напрямую:
-   * ```ts
-   * return map(items, (item, i) => html`<li>${item}</li>`)
-   * ```
-   */
-  map: typeof map
-  /**
-   * Директива для применения inline-стилей к элементу.
-   * Позволяет динамически задавать стили через объект.
-   * @example
-   * ```ts
-   * html`<div ${style({ color: 'red', fontWeight: 600 })}></div>`
-   * ```
-   */
-  style: typeof styleMap
-  /**
-   * Директива для условного выбора шаблона по значению.
-   *
-   * Выбирает и выполняет функцию шаблона из списка на основе соответствия
-   * заданного значения к случаю. Случаи структурированы как `[caseValue, func]`.
-   *
-   * @example
-   * ```ts
-   * render: ({ context, html }) => html`
-   *   ${choose(context.section, [
-   *     ['home', () => html`<h1>Главная</h1>`],
-   *     ['about', () => html`<h1>О нас</h1>`]
-   *   ], () => html`<h1>Ошибка</h1>`)}
-   * `
-   * ```
-   */
-  choose: typeof choose
+  html: (strings: TemplateStringsArray, ...values: any[]) => void
 }
 
 /**
@@ -212,4 +125,4 @@ export interface ViewDeclaration<C extends ContextSchema, S extends string, I ex
 
 export type RenderFunc<C extends ContextSchema, S extends string, I extends Core> = (
   params: ViewDefinitionParams<C, S, I>
-) => TemplateResult
+) => void

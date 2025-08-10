@@ -1,4 +1,5 @@
-import type { MetaRecord } from "./index.t.ts"
+import type { MetaRecord, ActorStore } from "./index.t"
+export type { ActorStore }
 
 export class MetaClass implements MetaRecord {
   declare id: number

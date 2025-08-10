@@ -4,11 +4,11 @@
  */
 import type { ContextSchema, ExtractValues, Update } from "../context/index.t"
 import type { Core } from "../index.t"
-import type { JsonPatch, Message } from "../message"
+import type { JsonPatch } from "../message"
 import type { ReactionsDeclaration, ReactionUpdate, Reaction, SnapshotReactions, ReactionMetadata } from "./index.t"
 import type { ReactionFilterConditions } from "./condition.t"
 import { createFilterFn } from "./condition"
-
+export type { ReactionsDeclaration }
 /**
  * Анализирует функцию update для извлечения полей
  */

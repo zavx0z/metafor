@@ -11,7 +11,6 @@ import type { ReactionsDeclaration, SnapshotReactions } from "./react/index.t"
 import type { StatesConfig } from "./state"
 import type { ViewDeclaration } from "./view/index.t"
 import type { Store } from "./store/index.t"
-import type { createRef } from "./view/html/directives"
 
 declare global {
   var DEV: boolean
@@ -158,16 +157,14 @@ export type MetaForType = (
        * Сложные объекты и структуры данных храните в core.
        * Core доступен во всех процессах и реакциях.
        *
-       * @param coreBuilder - функция, принимающая ref и возвращающая core объект, или сам core объект
+       * @param coreBuilder - функция, возвращающая core объект, или сам core объект
        * @returns chain API для вызова .processes(...)
        *
        * @example
        * ```typescript
-       * // Вариант 1: Функция с ref
-       * .core((ref) => ({
+       * // Вариант 1: Функция
+       * .core(() => ({
        *   users: [],
-       *   api: ref('api'),
-       *   logger: ref('logger')
        * }))
        *
        * // Вариант 2: Простой объект
@@ -179,7 +176,7 @@ export type MetaForType = (
        * ```
        */
       core<I extends Core>(
-        coreBuilder?: ((ref: typeof createRef) => I) | I
+        coreBuilder?: (() => I) | I
       ): {
         /**
          * Регистрирует процессы автомата для нужных состояний.

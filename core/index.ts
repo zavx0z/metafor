@@ -55,26 +55,21 @@
  * @packageDocumentation
  */
 
-import { Context, type ContextSchema, type ExtractValues } from "./context"
+import { Context, type ContextSchema, type ContextTypes, type ExtractValues } from "./context"
 import { checkTransitionConditions, type StatesConfig, validateNoUnconditionalCycles } from "./state"
-import type { Process, ProcessesDeclaration } from "./proc/index.t.ts"
-import type { Core, FabricParams, FingerPrint, MetaForType, MetaForConfig, Snapshot } from "./index.t.ts"
-import type { ViewDeclaration } from "./view/index.t.ts"
-import type { ReactionsDeclaration } from "./react/index.t.ts"
-import type { ContextTypes } from "./context/types.t.ts"
-import { createRef } from "./view/html/directives/index.ts"
-import type { ActorStore } from "./store/index.t.ts"
-import { Processes } from "./proc/index.ts"
-import { Reactions } from "./react/index.ts"
-import { View } from "./view/index.ts"
+import { Processes, type Process, type ProcessesDeclaration } from "./proc"
+import { Reactions, type ReactionsDeclaration } from "./react"
+import { View, type ViewDeclaration } from "./view"
+import type { ActorStore } from "./store"
 import {
   initMessage,
   stateAfterActionMessage,
   stateBeforeActionMessage,
   updateContextMessage,
   type Message,
-} from "./message/index.ts"
+} from "./message"
 
+import type { Core, FabricParams, FingerPrint, MetaForType, MetaForConfig, Snapshot } from "./index.t"
 export type { Core, FabricParams, Snapshot }
 
 export function MetaForFabric(params: FabricParams) {
@@ -89,8 +84,8 @@ export function MetaForFabric(params: FabricParams) {
           states<S extends string>(states: StatesConfig<S, C>) {
             validateNoUnconditionalCycles(states)
             return {
-              core<I extends Core>(coreBuilder: ((ref: typeof createRef) => I) | I = () => ({} as I)) {
-                const core = typeof coreBuilder === "function" ? coreBuilder(createRef) : coreBuilder
+              core<I extends Core>(coreBuilder: (() => I) | I = () => ({} as I)) {
+                const core = typeof coreBuilder === "function" ? coreBuilder() : coreBuilder
                 return {
                   processes(process: ProcessesDeclaration<C, S, I> = () => ({})) {
                     return {
@@ -168,23 +163,10 @@ export function MetaForFabric(params: FabricParams) {
                                     Object.entries(value).forEach(([key, val]) => (this.#core[key as keyof I] = val))
 
                                   connectedCallback() {
-                                    // Получаем родительский meta и индекс среди братьев
-                                    const parentMeta = this.getParentMeta()
-                                    const siblingIndex = parentMeta ? this.getIndexAmongSiblings() : 0
-
-                                    // Формируем путь актора
-                                    this.#setupPath()
-
-                                    // Обновляем путь в view
-                                    this.#view.path = this.__path
-
-                                    // TODO: Получить parent_id из store, когда будет реализован getActorByMeta
-                                    const parentId: number | null = null
-
                                     this.#store = store.saveActorIsNotExist({
                                       meta: this.#meta,
-                                      parent_id: parentId,
-                                      idx: siblingIndex,
+                                      parent_id: null,
+                                      idx: 0,
                                       snapshot: JSON.stringify(this.snapshot),
                                     })
                                     this.#view.render({
@@ -342,101 +324,6 @@ export function MetaForFabric(params: FabricParams) {
                                   #sendEvent = (message: Message) => {
                                     if (!this.#channel) return
                                     this.#channel.postMessage(message)
-                                  }
-
-                                  /**
-                                   * Формирует путь актора в иерархии
-                                   * Путь состоит из: ["actors", ...parentPath, index]
-                                   */
-                                  #setupPath() {
-                                    const parent = this.parentElement
-                                    if (!parent) {
-                                      // Корневой актор: считаем индекс среди всех акторов этого типа в body
-                                      const siblings = Array.from(document.body.children).filter(
-                                        (child) => child.tagName === this.tagName
-                                      )
-                                      const index = siblings.indexOf(this)
-                                      this.__path = ["actors", String(index)]
-                                      this.setAttribute("__path", JSON.stringify(this.__path))
-                                      return
-                                    }
-
-                                    // Ищем родительский актор
-                                    const parentActor = this.#findParentActor(parent)
-                                    if (parentActor && parentActor.__path) {
-                                      // Наследуем путь от родителя и добавляем свой индекс
-                                      const siblings = Array.from(parent.children).filter(
-                                        (child) => child.tagName === this.tagName
-                                      )
-                                      const index = siblings.indexOf(this)
-                                      this.__path = [...parentActor.__path, String(index)]
-                                      this.setAttribute("__path", JSON.stringify(this.__path))
-                                    } else {
-                                      // Если родительский актор не найден, считаем как корневой
-                                      const siblings = Array.from(document.body.children).filter(
-                                        (child) => child.tagName === this.tagName
-                                      )
-                                      const index = siblings.indexOf(this)
-                                      this.__path = ["actors", String(index)]
-                                      this.setAttribute("__path", JSON.stringify(this.__path))
-                                    }
-                                  }
-
-                                  /**
-                                   * Находит ближайший родительский актор (meta-элемент)
-                                   * @param element - элемент для поиска
-                                   * @returns родительский актор или null
-                                   */
-                                  #findParentActor(element: Element): (HTMLElement & { __path?: string[] }) | null {
-                                    let current = element
-                                    while (current && current !== document.body) {
-                                      if (current.tagName.toLowerCase().startsWith("meta-")) {
-                                        return current as HTMLElement & { __path?: string[] }
-                                      }
-                                      current = current.parentElement!
-                                    }
-                                    return null
-                                  }
-
-                                  /**
-                                   * Получает родительский meta из тега родителя
-                                   * @returns meta родительского актора или null, если родителя нет
-                                   */
-                                  getParentMeta(): string | null {
-                                    const parent = this.parentElement
-                                    if (!parent) return null
-
-                                    // Проверяем, является ли родитель meta-тегом
-                                    const tagName = parent.tagName.toLowerCase()
-                                    if (tagName.startsWith("meta-")) {
-                                      return tagName.substring(5) // Убираем "meta-" префикс
-                                    }
-
-                                    // Если родитель не meta-тег, ищем среди его предков
-                                    const parentMetaTag = parent.closest("meta-")
-                                    if (parentMetaTag) {
-                                      const metaTagName = parentMetaTag.tagName.toLowerCase()
-                                      if (metaTagName.startsWith("meta-")) {
-                                        return metaTagName.substring(5) // Убираем "meta-" префикс
-                                      }
-                                    }
-
-                                    return null
-                                  }
-
-                                  /**
-                                   * Получает индекс среди братьев (элементов с тем же тегом)
-                                   * @returns индекс среди братьев
-                                   */
-                                  getIndexAmongSiblings(): number {
-                                    const parent = this.parentElement
-                                    if (!parent) return 0
-
-                                    const siblings = Array.from(parent.children).filter(
-                                      (child) => child.tagName === this.tagName
-                                    )
-
-                                    return siblings.indexOf(this)
                                   }
 
                                   get snapshot(): Snapshot<C, S> {

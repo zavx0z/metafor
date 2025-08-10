@@ -1,6 +1,4 @@
 import { expect } from "bun:test"
-import { render } from "../core/view/html"
-import type { TemplateResult } from "../core/view/html/index.t"
 
 /** Удаляет комментарии выражений из предоставленной html-строки. */
 export const stripExpressionComments = (html: string) => html.replace(/<!--\?html\$[0-9]+\$-->|<!--\??-->/g, "")
@@ -14,11 +12,6 @@ export const stripWhitespace = (str: unknown) => {
   return normalized.trim()
 }
 
-export const makeExpectRender = (getContainer: () => HTMLElement) => (value: any, expected: string) => {
-  const container = getContainer()
-  render(value, container)
-  return expect(stripWhitespace(stripExpressionComments(container.innerHTML))).toBe(expected)
-}
 const divider = "\n" + "-".repeat(20) + "\n"
 
 const toMatchStringHTML = (received: unknown, expected: string) => {
@@ -127,34 +120,6 @@ expect.extend({
             null,
             2
           )}\nПолучено: ${JSON.stringify(plain, null, 2)}`,
-        pass: false,
-      }
-    }
-  },
-  /** Проверяет, что рендер десериализованного шаблона совпадает с оригинальным */
-  toMatchRender(received: unknown, expected: unknown) {
-    const receivedTemplate = received as TemplateResult
-    const expectedTemplate = expected as TemplateResult
-
-    const originalContainer = document.createElement("div")
-    const deserializedContainer = document.createElement("div")
-
-    render(receivedTemplate, originalContainer)
-    render(expectedTemplate, deserializedContainer)
-
-    const originalHTML = originalContainer.innerHTML
-    const deserializedHTML = deserializedContainer.innerHTML
-    const pass = originalHTML === deserializedHTML
-
-    if (pass) {
-      return {
-        message: () => `expected рендеры не совпадать`,
-        pass: true,
-      }
-    } else {
-      return {
-        message: () =>
-          `рендеры не совпадают:${divider}Оригинал: ${originalHTML}${divider}Десериализованный: ${deserializedHTML}${divider}`,
         pass: false,
       }
     }

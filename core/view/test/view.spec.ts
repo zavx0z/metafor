@@ -1,11 +1,10 @@
 import { describe, test, expect } from "bun:test"
-import { createRef } from "../html/directives/ref.ts"
 import { MetaFor } from "../../../web/metafor.ts"
 
 describe("MetaFor view", () => {
   test("Рендерит правильный текст через внутренний snapshot", async () => {
     let snapshot = ""
-    const buttonRef = createRef()
+    let btn = undefined as unknown as HTMLButtonElement
     const hash = MetaFor("test-view")
       .context((t) => ({
         param: t.boolean.required(false),
@@ -17,14 +16,13 @@ describe("MetaFor view", () => {
       .processes(() => ({}))
       .reactions()
       .view({
-        render: function ({ html, update, context, ref }) {
+        render: ({ html, update, context }) => {
           snapshot = `${context.param ? "true" : "false"}`
-          return html` <button ${ref(buttonRef)} @click=${() => update({ param: !context.param })}>
+          return html` <button ref=${btn} onclick=${() => update({ param: !context.param })}>
             ${context.param ? "true" : "false"}
           </button>`
         },
         onMount() {
-          const btn = buttonRef.value as HTMLButtonElement | undefined
           if (btn) btn.click()
         },
       })
@@ -35,7 +33,7 @@ describe("MetaFor view", () => {
 
   test("Обновляет snapshot при изменении контекста", async () => {
     let snapshot = ""
-    const buttonRef = createRef()
+    let btn = undefined as unknown as HTMLButtonElement
     const hash = MetaFor("test-view-update")
       .context((t) => ({
         param: t.boolean.required(false),
@@ -47,21 +45,19 @@ describe("MetaFor view", () => {
       .processes(() => ({}))
       .reactions()
       .view({
-        render: function ({ html, update, context, ref }) {
+        render: ({ html, update, context }) => {
           snapshot = `${context.param ? "true" : "false"}`
-          return html` <button ${ref(buttonRef)} @click=${() => update({ param: !context.param })}>
+          return html` <button ref=${btn} onclick=${() => update({ param: !context.param })}>
             ${context.param ? "true" : "false"}
           </button>`
         },
         onMount() {
-          const btn = buttonRef.value as HTMLButtonElement | undefined
           if (btn) btn.click()
         },
       })
     document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
     await Bun.sleep(10)
     expect(snapshot).toBe("true")
-    const btn = buttonRef.value as HTMLButtonElement | undefined
     if (btn) btn.click()
     await Bun.sleep(10)
     expect(snapshot).toBe("false")
@@ -70,7 +66,7 @@ describe("MetaFor view", () => {
   test("onMount не вызывается повторно при update (API)", async () => {
     let mountCount = 0
     let snapshot = ""
-    const buttonRef = createRef()
+    let btn = undefined as unknown as HTMLButtonElement
     const hash = MetaFor("test-view-api")
       .context((t) => ({
         param: t.boolean.required(false),
@@ -82,15 +78,14 @@ describe("MetaFor view", () => {
       .processes(() => ({}))
       .reactions()
       .view({
-        render: function ({ html, update, context, ref }) {
+        render: ({ html, update, context }) => {
           snapshot = `${context.param ? "true" : "false"}`
-          return html` <button ${ref(buttonRef)} @click=${() => update({ param: !context.param })}>
+          return html` <button ref=${btn} onclick=${() => update({ param: !context.param })}>
             ${context.param ? "true" : "false"}
           </button>`
         },
         onMount() {
           mountCount++
-          const btn = buttonRef.value as HTMLButtonElement | undefined
           if (btn) btn.click()
         },
       })

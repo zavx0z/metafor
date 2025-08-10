@@ -7,7 +7,7 @@ import type { ContextSchema, ExtractValues } from "../context"
 import type { ActionChain, ProcessesDeclaration, Process, ProcessChain, ActionParams, ProcessesType } from "./index.t"
 import type { Core } from "../../core/index.t"
 import { getSnapshotProcesses } from "./parser.ts"
-export type { Process } from "./index.t"
+export type { Process, ProcessesDeclaration } from "./index.t"
 /**
  * Базовый класс для работы с процессами.
  * Содержит общую логику для управления процессами.

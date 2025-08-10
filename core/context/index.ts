@@ -25,6 +25,7 @@ export type {
   Update,
   OnUpdate,
   ContextSnapshot,
+  ContextTypes,
 }
 
 /** Базовый класс контекста */
