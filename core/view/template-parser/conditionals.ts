@@ -13,6 +13,81 @@ export function buildFalseCondition(base: ConditionSchema): ConditionSchema {
   return base.eq !== undefined && base.eq !== true ? { ...base, notEq: base.eq } : { ...base, eq: false }
 }
 
+type ComparisonOp = "===" | "!==" | ">" | ">=" | "<" | "<="
+
+function parseComparisonExpression(expr: string): {
+  left: { src: "context" | "core" | "item"; key: string }
+  op: ComparisonOp | undefined
+  right: string | number | { src: "context" | "core" | "item"; key: string } | undefined
+} | null {
+  const trimmed = expr.trim()
+  const re =
+    /^(?:\s*)((?:context|core|item)\.(\w+))(?:\s*(===|!==|>=|<=|>|<)\s*(?:"([^"]*)"|'([^']*)'|(\d+(?:\.\d+)?)|((?:context|core|item)\.(\w+))))?\s*$/
+  const m = trimmed.match(re)
+  if (!m) return null
+  const leftSrcKey = m[1]!
+  const leftSrc = leftSrcKey.split(".")[0] as "context" | "core" | "item"
+  const leftKey = leftSrcKey.split(".")[1]!
+  const op = (m[3] as ComparisonOp | undefined) || undefined
+  let right: string | number | { src: "context" | "core" | "item"; key: string } | undefined
+  if (op) {
+    if (m[4] !== undefined) right = m[4]!
+    else if (m[5] !== undefined) right = m[5]!
+    else if (m[6] !== undefined) right = Number(m[6]!)
+    else if (m[7] !== undefined) {
+      const ref = m[7]!
+      right = { src: ref.split(".")[0] as any, key: ref.split(".")[1]! }
+    }
+  }
+  return { left: { src: leftSrc, key: leftKey }, op: op ?? undefined, right: right ?? undefined }
+}
+
+function buildTrueCondFromComparison(
+  parsed: NonNullable<ReturnType<typeof parseComparisonExpression>>
+): ConditionSchema {
+  const { left, op, right } = parsed
+  if (!op) {
+    return { src: left.src, key: left.key, eq: true }
+  }
+  switch (op) {
+    case "===":
+      return { src: left.src, key: left.key, eq: right as any }
+    case "!==":
+      return { src: left.src, key: left.key, notEq: right as any }
+    case ">":
+      return { src: left.src, key: left.key, gt: right as number | any }
+    case ">=":
+      return { src: left.src, key: left.key, gte: right as number | any }
+    case "<":
+      return { src: left.src, key: left.key, lt: right as number | any }
+    case "<=":
+      return { src: left.src, key: left.key, lte: right as number | any }
+  }
+}
+
+function buildFalseCondFromComparison(
+  parsed: NonNullable<ReturnType<typeof parseComparisonExpression>>
+): ConditionSchema {
+  const { left, op, right } = parsed
+  if (!op) {
+    return { src: left.src, key: left.key, eq: false }
+  }
+  switch (op) {
+    case "===":
+      return { src: left.src, key: left.key, notEq: right as any }
+    case "!==":
+      return { src: left.src, key: left.key, eq: right as any }
+    case ">":
+      return { src: left.src, key: left.key, lte: right as number | any }
+    case ">=":
+      return { src: left.src, key: left.key, lt: right as number | any }
+    case "<":
+      return { src: left.src, key: left.key, gte: right as number | any }
+    case "<=":
+      return { src: left.src, key: left.key, gt: right as number | any }
+  }
+}
+
 export function parseConditionalBlocks(htmlString: string, conditionalInfo: ConditionalInfo[]): string {
   let processedHtml = htmlString
 
@@ -84,10 +159,10 @@ export function parseConditionalBlocksRecursively(htmlString: string, conditiona
 
 export function parseConditionalBlocksSmart(htmlString: string, conditionalInfo: ConditionalInfo[]): string {
   let processedHtml = htmlString
-  const conditionalStartPattern = /\$\{((?:context|core|item)\.(?:\w+))(?:\s*===\s*"([^"]+)")?\s*\?\s*/g
+  const conditionalStartPattern = /\$\{\s*([^?]+?)\s*\?\s*/g
   let match
   while ((match = conditionalStartPattern.exec(htmlString)) !== null) {
-    const [startMatch, conditionExpr, compareValue] = match
+    const [startMatch, conditionExpr] = match
     const startIndex = match.index
     const afterStart = startIndex + startMatch.length
     const htmlTemplateStart = htmlString.indexOf("html`", afterStart)
@@ -106,36 +181,33 @@ export function parseConditionalBlocksSmart(htmlString: string, conditionalInfo:
     if (closingBrace === -1) continue
     const fullMatch = htmlString.substring(startIndex, closingBrace + 1)
     if (!conditionExpr) continue
-    const conditionParts = conditionExpr.split(".")
-    if (conditionParts.length >= 2) {
-      const src = conditionParts[0] as "context" | "core" | "item"
-      const key = conditionParts[1]
-      if (key) {
-        const placeholder = `CONDITIONAL_${conditionalInfo.length}`
-        const condition: ConditionSchema = compareValue ? { src, key, eq: compareValue } : { src, key, eq: true }
-        conditionalInfo.push({
-          placeholder,
-          condition,
-          trueTemplate: trueContent,
-          falseTemplate: falseContent,
-          type: "ternary",
-        })
-        processedHtml = processedHtml.replace(fullMatch, placeholder)
-      }
-    }
+    const parsed = parseComparisonExpression(conditionExpr)
+    if (!parsed) continue
+    const placeholder = `CONDITIONAL_${conditionalInfo.length}`
+    const condition = buildTrueCondFromComparison(parsed)
+    conditionalInfo.push({
+      placeholder,
+      condition,
+      trueTemplate: trueContent,
+      falseTemplate: falseContent,
+      type: "ternary",
+    })
+    processedHtml = processedHtml.replace(fullMatch, placeholder)
   }
   return processedHtml
 }
 
 export function parseConditionalBlocksForArray(htmlString: string, conditionalInfo: ConditionalInfo[]): string {
   let processedHtml = htmlString
-  const ternaryPattern = /\$\{((\w+)\.(\w+))(?:\s*===\s*"([^"]+)")?\s*\?\s*html`([^`]*)`\s*:\s*html`([^`]*)`\}/g
+  const ternaryPattern = /\$\{\s*([^?]+?)\s*\?\s*html`([^`]*)`\s*:\s*html`([^`]*)`\}/g
   let match
   while ((match = ternaryPattern.exec(htmlString)) !== null) {
-    const [fullMatch, conditionExpr, _varName, key, value, trueTemplate, falseTemplate] = match
-    if (!conditionExpr || !key) continue
+    const [fullMatch, conditionExpr, trueTemplate, falseTemplate] = match
+    if (!conditionExpr) continue
+    const parsed = parseComparisonExpression(conditionExpr)
+    if (!parsed) continue
     const placeholder = `CONDITIONAL_${conditionalInfo.length}`
-    const condition: ConditionSchema = value ? { src: "item", key, eq: value } : { src: "item", key, eq: true }
+    const condition = buildTrueCondFromComparison(parsed)
     conditionalInfo.push({
       placeholder,
       condition,

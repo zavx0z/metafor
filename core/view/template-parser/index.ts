@@ -1622,17 +1622,22 @@ export class TemplateParser {
       )
       falseElements.forEach((element) => {
         if (element.type === "el") {
-          // Добавляем условие eq: false к элементу
-          const falseCondition: ConditionSchema =
-            conditionalItem.condition.eq !== undefined && conditionalItem.condition.eq !== true
-              ? { ...conditionalItem.condition, notEq: conditionalItem.condition.eq }
-              : { ...conditionalItem.condition, eq: false }
-
-          // Удаляем eq если добавили notEq
-          if (falseCondition.notEq !== undefined) {
-            delete falseCondition.eq
+          // Инвертируем условие для false ветви
+          const cond = conditionalItem.condition
+          let falseCondition: ConditionSchema
+          if (cond.gt !== undefined) {
+            falseCondition = { src: cond.src, key: cond.key, lte: cond.gt }
+          } else if (cond.gte !== undefined) {
+            falseCondition = { src: cond.src, key: cond.key, lt: cond.gte }
+          } else if (cond.lt !== undefined) {
+            falseCondition = { src: cond.src, key: cond.key, gte: cond.lt }
+          } else if (cond.lte !== undefined) {
+            falseCondition = { src: cond.src, key: cond.key, gt: cond.lte }
+          } else if (cond.eq !== undefined && cond.eq !== true) {
+            falseCondition = { src: cond.src, key: cond.key, notEq: cond.eq }
+          } else {
+            falseCondition = { src: cond.src, key: cond.key, eq: false }
           }
-
           ;(element as ElementSchema).cond = falseCondition
         }
         elements.push(element)

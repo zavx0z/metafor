@@ -166,6 +166,93 @@ describe("Template Parser - условные блоки", () => {
       ]
       expect(result, "сравнение с определенным значением").toEqual(expected)
     })
+
+    it("сравнение context и core (>)", () => {
+      const result = parseTemplate(`
+        <div>
+          ${"${context.a > core.b ? html`<span>A>B</span>` : html`<span>B>=A</span>`}"}
+        </div>
+      `)
+      const expected: Schema = [
+        {
+          tag: "div",
+          type: "el",
+          child: [
+            {
+              tag: "span",
+              type: "el",
+              cond: { src: "context", key: "a", gt: { src: "core", key: "b" } as any },
+              child: [{ type: "text", value: "A>B" }],
+            },
+            {
+              tag: "span",
+              type: "el",
+              cond: { src: "context", key: "a", lte: { src: "core", key: "b" } as any },
+              child: [{ type: "text", value: "B>=A" }],
+            },
+          ],
+        },
+      ]
+      expect(result, "сравнение context и core (>)").toEqual(expected)
+    })
+
+    it("сравнение core и context (<=)", () => {
+      const result = parseTemplate(`
+        <section>
+          ${"${core.b <= context.a ? html`<p>ok</p>` : html`<p>no</p>`}"}
+        </section>
+      `)
+      const expected: Schema = [
+        {
+          tag: "section",
+          type: "el",
+          child: [
+            {
+              tag: "p",
+              type: "el",
+              cond: { src: "core", key: "b", lte: { src: "context", key: "a" } as any },
+              child: [{ type: "text", value: "ok" }],
+            },
+            {
+              tag: "p",
+              type: "el",
+              cond: { src: "core", key: "b", gt: { src: "context", key: "a" } as any },
+              child: [{ type: "text", value: "no" }],
+            },
+          ],
+        },
+      ]
+      expect(result, "сравнение core и context (<=)").toEqual(expected)
+    })
+
+    it("строковое сравнение между полями (===, !==)", () => {
+      const result = parseTemplate(`
+        <div>
+          ${"${context.role === core.requiredRole ? html`<h1>match</h1>` : html`<h1>mismatch</h1>`}"}
+        </div>
+      `)
+      const expected: Schema = [
+        {
+          tag: "div",
+          type: "el",
+          child: [
+            {
+              tag: "h1",
+              type: "el",
+              cond: { src: "context", key: "role", eq: { src: "core", key: "requiredRole" } as any },
+              child: [{ type: "text", value: "match" }],
+            },
+            {
+              tag: "h1",
+              type: "el",
+              cond: { src: "context", key: "role", notEq: { src: "core", key: "requiredRole" } as any },
+              child: [{ type: "text", value: "mismatch" }],
+            },
+          ],
+        },
+      ]
+      expect(result, "строковое сравнение между полями (===, !==)").toEqual(expected)
+    })
   })
 
   describe("логические операторы", () => {
