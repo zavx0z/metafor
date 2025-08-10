@@ -159,40 +159,35 @@ export function parseConditionalBlocksRecursively(htmlString: string, conditiona
 
 export function parseConditionalBlocksSmart(htmlString: string, conditionalInfo: ConditionalInfo[]): string {
   let processedHtml = htmlString
-  const conditionalStartPattern = /\$\{\s*([^?]+?)\s*\?\s*/g
-  let match
-  while ((match = conditionalStartPattern.exec(htmlString)) !== null) {
-    const [startMatch, conditionExpr] = match
-    const startIndex = match.index
-    const afterStart = startIndex + startMatch.length
-    const htmlTemplateStart = htmlString.indexOf("html`", afterStart)
-    if (htmlTemplateStart === -1) continue
-    const trueContent = extractTemplateContent(htmlString, htmlTemplateStart + 5)
-    if (trueContent === null) continue
-    const afterTrueTemplate = htmlTemplateStart + 5 + trueContent.length + 1
-    const colonIndex = htmlString.indexOf(":", afterTrueTemplate)
-    if (colonIndex === -1) continue
-    const htmlTemplateStart2 = htmlString.indexOf("html`", colonIndex)
-    if (htmlTemplateStart2 === -1) continue
-    const falseContent = extractTemplateContent(htmlString, htmlTemplateStart2 + 5)
-    if (falseContent === null) continue
-    const afterFalseTemplate = htmlTemplateStart2 + 5 + falseContent.length + 1
+  // Проходим по всем ${...} и пытаемся извлечь цепочки cond ? html`...`
+  const braceStartRe = /\$\{/g
+  let m: RegExpExecArray | null
+  while ((m = braceStartRe.exec(htmlString)) !== null) {
+    const startIndex = m.index
     const closingBrace = findClosingBrace(htmlString, startIndex)
     if (closingBrace === -1) continue
     const fullMatch = htmlString.substring(startIndex, closingBrace + 1)
-    if (!conditionExpr) continue
-    const parsed = parseComparisonExpression(conditionExpr)
-    if (!parsed) continue
-    const placeholder = `CONDITIONAL_${conditionalInfo.length}`
-    const condition = buildTrueCondFromComparison(parsed)
-    conditionalInfo.push({
-      placeholder,
-      condition,
-      trueTemplate: trueContent,
-      falseTemplate: falseContent,
-      type: "ternary",
-    })
-    processedHtml = processedHtml.replace(fullMatch, placeholder)
+    const body = htmlString.substring(startIndex + 2, closingBrace)
+    if (!body.includes('html`')) continue
+    const chainRe = /\s*([^?:]+?)\s*\?\s*html`([^`]*)`/g
+    const placeholders: string[] = []
+    let chainMatch: RegExpExecArray | null
+    while ((chainMatch = chainRe.exec(body)) !== null) {
+      const [, condExpr, trueTpl] = chainMatch
+      const parsed = parseComparisonExpression(condExpr)
+      if (!parsed) continue
+      const ph = `CONDITIONAL_${conditionalInfo.length}`
+      conditionalInfo.push({
+        placeholder: ph,
+        condition: buildTrueCondFromComparison(parsed),
+        trueTemplate: trueTpl,
+        type: "ternary",
+      })
+      placeholders.push(ph)
+    }
+    if (placeholders.length > 0) {
+      processedHtml = processedHtml.replace(fullMatch, placeholders.join(""))
+    }
   }
   return processedHtml
 }

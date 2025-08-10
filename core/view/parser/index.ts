@@ -50,6 +50,9 @@ export class TemplateParser {
     const eventAttributeMap = new Map<string, string>()
     processedHtml = this.parseEventAttributes(processedHtml, eventAttributeMap)
 
+    // Дополнительный проход по условным блокам для случаев сложных цепочек тернарных выражений
+    processedHtml = parseConditionalBlocksRecursively(processedHtml, conditionalInfo)
+
     // Обрабатываем простые интерполяции и сохраняем их информацию
     let interpolationIndex = 0
     processedHtml = processedHtml.replace(/\$\{(context|core)\.(\w+)\}/g, (match, src, key) => {
@@ -58,8 +61,7 @@ export class TemplateParser {
       return placeholder
     })
 
-    // Заменяем оставшиеся интерполяции на простые плейсхолдеры
-    processedHtml = processedHtml.replace(/\$\{[^}]*\}/g, "SIMPLE_PLACEHOLDER")
+    // Не трогаем остальные выражения ${...} — они могут быть условными блоками/цепочками и будут обработаны ниже
 
     // Парсим корневые элементы
     const elements: Schema = []
@@ -391,6 +393,39 @@ export class TemplateParser {
     interpolationMap?: Map<string, { src: string; key: string }>,
     conditionalInfo: ConditionalInfo[] = []
   ) {
+    // Раскладываем плейсхолдеры массивов/условий даже если их несколько подряд
+    const tokenPattern = /(CONTEXT_ARRAY_\d+|CONDITIONAL_\d+)/g
+    let cursor = 0
+    let tokenMatch: RegExpExecArray | null
+    let expanded = false
+    while ((tokenMatch = tokenPattern.exec(text)) !== null) {
+      expanded = true
+      const before = text.slice(cursor, tokenMatch.index).trim()
+      if (before) {
+        this.parseTextWithPlaceholders(before, child, interpolationMap, conditionalInfo)
+      }
+      const token = tokenMatch[1]
+      if (token.startsWith("CONTEXT_ARRAY_")) {
+        // В текстовом контексте массива быть не должно; оставляем как текст фолбэк
+        child.push({ type: "text", value: token })
+      } else if (token.startsWith("CONDITIONAL_")) {
+        const cond = conditionalInfo.find((c) => c.placeholder === token)
+        if (cond) {
+          const condElements = this.parseConditionalElements(cond, [], interpolationMap, conditionalInfo)
+          child.push(...condElements)
+        }
+      }
+      cursor = tokenMatch.index + token.length
+    }
+    if (expanded) {
+      const after = text.slice(cursor).trim()
+      if (after) {
+        // Остаток текста обработаем обычным способом
+        this.parseTextWithPlaceholders(after, child, interpolationMap, conditionalInfo)
+      }
+      return
+    }
+
     // Сначала проверяем на условные блоки
     for (const conditionalItem of conditionalInfo) {
       if (text.trim() === conditionalItem.placeholder) {

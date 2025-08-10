@@ -48,16 +48,20 @@ export function parseAttributeValue(
   }
 
   if (interpolationMap) {
+    // Поддержка множественных интерполяций в одном атрибуте
+    let resultValue = value
+    let firstInfo: { src: string; key: string } | null = null
+    let matched = false
     for (const [placeholder, info] of interpolationMap) {
-      if (value.includes(placeholder)) {
+      if (resultValue.includes(placeholder)) {
         const originalInterpolation = `\${${info.src}.${info.key}}`
-        const resultValue = value.replace(placeholder, originalInterpolation)
-        return {
-          src: info.src,
-          key: info.key,
-          result: resultValue,
-        }
+        resultValue = resultValue.replaceAll(placeholder, originalInterpolation)
+        if (!firstInfo) firstInfo = info
+        matched = true
       }
+    }
+    if (matched) {
+      return firstInfo ? { src: firstInfo.src, key: firstInfo.key, result: resultValue } : (resultValue as any)
     }
   }
 

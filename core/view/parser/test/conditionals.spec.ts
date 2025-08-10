@@ -4,6 +4,118 @@ import type { Schema } from "../index.ts"
 
 describe("Template Parser - условные блоки", () => {
   describe("тернарный оператор", () => {
+    it("тернарий и && в атрибутах + сложные классы и enum после массива", () => {
+      const html = [
+        '<div class=${context.className} id="${context.id}" data-text="${context.text}">',
+        "  <img",
+        '    class="image ${context.className}-image"',
+        '    src="test.jpg"',
+        '    ${context.visible ? "visible" : "hidden"}',
+        '    alt="${context.text}" />',
+        "  <br />",
+        '  <button class="button-${context.className} ${context.className}-button" ${context.disabled && "disabled"}>',
+        "    ${context.text}",
+        "  </button>",
+        "  <ul>",
+        "    ${context.list.map((item) => html`<li>${item}</li>`)}",
+        "  </ul>",
+        '  ${context.enum === "div"',
+        '    ? html`<div class="enum">enum element div</div>`',
+        '    : context.enum === "span"',
+        '    ? html`<span class="enum">enum element span</span>`',
+        '    : context.enum === "p"',
+        '    ? html`<p class="enum">enum element p</p>`',
+        "    : null}",
+        "</div>",
+      ].join("\n")
+
+      const result = parseTemplate(html)
+
+      const expected: Schema = [
+        {
+          tag: "div",
+          type: "el",
+          attrs: {
+            class: { src: "context", key: "className" },
+            id: { src: "context", key: "id" },
+            "data-text": { src: "context", key: "text" },
+          },
+          child: [
+            {
+              tag: "img",
+              type: "el",
+              attrs: {
+                class: { src: "context", key: "className", result: "image ${context.className}-image" },
+                src: "test.jpg",
+                visible: {
+                  src: "context",
+                  key: "visible",
+                  trueValue: "visible",
+                  falseValue: "hidden",
+                  type: "conditional",
+                },
+                alt: { src: "context", key: "text" },
+              },
+            },
+            { tag: "br", type: "el" },
+            {
+              tag: "button",
+              type: "el",
+              attrs: {
+                class: {
+                  src: "context",
+                  key: "className",
+                  result: "button-${context.className} ${context.className}-button",
+                },
+                disabled: {
+                  src: "context",
+                  key: "disabled",
+                  trueValue: "disabled",
+                  falseValue: undefined,
+                  type: "conditional",
+                },
+              },
+              child: [{ type: "text", value: { src: "context", key: "text" } }],
+            },
+            {
+              tag: "ul",
+              type: "el",
+              child: [
+                {
+                  tag: "li",
+                  type: "el",
+                  item: { src: "context", key: "list" },
+                  child: [{ type: "text", value: { src: "item" } }],
+                },
+              ],
+            },
+            {
+              tag: "div",
+              type: "el",
+              attrs: { class: "enum" },
+              child: [{ type: "text", value: "enum element div" }],
+              cond: { src: "context", key: "enum", eq: "div" },
+            },
+            {
+              tag: "span",
+              type: "el",
+              attrs: { class: "enum" },
+              child: [{ type: "text", value: "enum element span" }],
+              cond: { src: "context", key: "enum", eq: "span" },
+            },
+            {
+              tag: "p",
+              type: "el",
+              attrs: { class: "enum" },
+              child: [{ type: "text", value: "enum element p" }],
+              cond: { src: "context", key: "enum", eq: "p" },
+            },
+          ],
+        },
+      ]
+
+      expect(result, "тернарий и && в атрибутах + сложные классы и enum после массива").toEqual(expected)
+    })
     it("простой тернарный оператор с context", () => {
       const result = parseTemplate(
         `<div>\${context.isVisible ? html\`<span>Visible</span>\` : html\`<span>Hidden</span>\`}</div>`
