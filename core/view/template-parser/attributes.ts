@@ -91,6 +91,7 @@ export function parseAttributes(
   const attrs: Record<string, AttributeValue> = {}
   let currentIndex = 0
   const length = attributesStr.length
+  const isEventAttr = (name: string) => /^on[a-z]+$/.test(name)
 
   while (currentIndex < length) {
     while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) currentIndex++
@@ -113,6 +114,18 @@ export function parseAttributes(
         while (currentIndex < length && attributesStr[currentIndex] !== quote) currentIndex++
         const value = attributesStr.slice(valueStart, currentIndex)
         currentIndex++
+
+        // Событийные атрибуты: фиксируем наличие обработчика, не сериализуем функцию
+        if (isEventAttr(name)) {
+          attrs[name] = ""
+          continue
+        }
+
+        // Событийные атрибуты: фиксируем наличие обработчика, но не сериализуем функцию
+        if (isEventAttr(name)) {
+          attrs[name] = ""
+          continue
+        }
 
         if (conditionalAttributeMap) {
           let foundPlaceholder = false
@@ -154,7 +167,18 @@ export function parseAttributes(
       } else {
         const valueStart = currentIndex
         while (currentIndex < length && !/\s/.test(attributesStr[currentIndex]!)) currentIndex++
-        const value = attributesStr.slice(valueStart, currentIndex)
+          const value = attributesStr.slice(valueStart, currentIndex)
+
+          // Событийные атрибуты: фиксируем наличие обработчика
+          if (isEventAttr(name)) {
+            attrs[name] = ""
+            continue
+          }
+
+        if (isEventAttr(name)) {
+          attrs[name] = ""
+          continue
+        }
         if (conditionalAttributeMap) {
           let foundPlaceholder = false
           for (const [placeholder, info] of conditionalAttributeMap) {
@@ -212,10 +236,18 @@ export function parseAttributes(
           }
         }
         if (!matchedPlaceholder) {
-          attrs[name] = ""
+          if (isEventAttr(name)) {
+            attrs[name] = ""
+          } else {
+            attrs[name] = ""
+          }
         }
       } else {
-        attrs[name] = ""
+        if (isEventAttr(name)) {
+          attrs[name] = ""
+        } else {
+          attrs[name] = ""
+        }
       }
     }
   }
@@ -354,6 +386,7 @@ export function parseAttributesForArray(
   const attrs: Record<string, AttributeValue> = {}
   let currentIndex = 0
   const length = attributesStr.length
+  const isEventAttr = (name: string) => /^on[a-z]+$/.test(name)
 
   while (currentIndex < length) {
     while (currentIndex < length && /\s/.test(attributesStr[currentIndex]!)) currentIndex++
@@ -475,10 +508,20 @@ export function parseAttributesForArray(
           }
         }
         if (!matchedPlaceholder) {
-          attrs[name] = ""
+          // Событийный атрибут без значения (редко, но допустимо)
+          if (isEventAttr(name)) {
+            attrs[name] = ""
+          } else {
+            attrs[name] = ""
+          }
         }
       } else {
-        attrs[name] = ""
+        // Событийный атрибут без значения
+        if (isEventAttr(name)) {
+          attrs[name] = ""
+        } else {
+          attrs[name] = ""
+        }
       }
     }
   }
