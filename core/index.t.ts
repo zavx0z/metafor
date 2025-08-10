@@ -75,7 +75,7 @@ export type FabricParams = {
   // /** Реакции */
   // reaction: ReactionsDeclaration<C, S, I>
   // /** Конфигурация view */
-  // view: ViewConfig<C, S, I> | undefined
+  // view: ViewDeclaration<C, S, I> | undefined
   // /** Восстановление из последнего сохраненного состояния (snapshot) */
   // persist: boolean
 }

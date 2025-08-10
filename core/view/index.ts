@@ -1,14 +1,20 @@
+/**
+ * Реализация представления (View)
+ * @packageDocumentation
+ * @module View
+ */
+
 import type { ExtractValues, Update } from "../context/index.t.ts"
 import type { ContextSchema } from "../context/types.t.ts"
 import type { Core } from "../index.t.ts"
-import type { RenderFunc, ViewDeclaration } from "./index.t.ts"
+import type { ViewDeclaration, ViewDefinitionParams } from "./index.t.ts"
 import { parseTemplate } from "./parser/index.ts"
 import type { Schema } from "./parser/index.t.ts"
+import { render } from "./render/index.ts"
 
 export type { ViewDeclaration }
 
 export class View<C extends ContextSchema, S extends string, I extends Core> {
-  #render: RenderFunc<C, S, I> | null = null
   #style: ((params: { css: (strings: TemplateStringsArray, ...values: unknown[]) => void }) => void) | null = null
   schema: Schema = []
 
@@ -35,8 +41,6 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
       })
     }
     if (config.render) {
-      this.#render = config.render
-      // Парсим HTML шаблон в JSON схему
       try {
         const htmlString = extractTemplateLiteral(config.render)
         this.schema = parseTemplate(htmlString)
@@ -48,54 +52,16 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
     this.onMount = config.onMount || (() => {})
     this.onDestroy = config.onDestroy || (() => {})
   }
-  render({
-    state,
-    context,
-    core,
-    element,
-    update,
-  }: {
-    state: S
-    context: ExtractValues<C>
-    core: I
-    element: HTMLElement | DocumentFragment
-    update: Update<C>
-  }) {
-    if (!this.#render) return
-    this.#render({ state, context, core, update, html: String.raw })
+  render(params: Omit<ViewDefinitionParams<C, S, I>, "html"> & { element: HTMLElement | DocumentFragment }) {
+    if (!this.schema) return
+    render({ ...params, schema: this.schema, element: params.element })
   }
   get snapshot() {
     const result: { render?: string; style?: string } = {}
 
-    if (this.#render) {
-      result.render = this.#extractRenderTemplate()
-    }
-
-    if (this.#style) {
-      result.style = this.#extractStyleTemplate()
-    }
+    if (this.#style) result.style = this.#extractStyleTemplate()
 
     return result
-  }
-
-  /**
-   * Извлекает и обрабатывает render template для snapshot
-   */
-  #extractRenderTemplate(): string {
-    if (!this.#render) return ""
-
-    const fnString = this.#render.toString()
-
-    // Извлекаем template literal
-    const templateMatch = fnString.match(/html`([\s\S]*)`/)
-    if (!templateMatch) return ""
-
-    let template = templateMatch[1]!
-
-    // Обрабатываем динамические meta-хеши
-    template = template.replace(/meta-\$\{"([^"]+)"\}/g, "meta-$1")
-
-    return template
   }
 
   /**
@@ -113,12 +79,6 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
     return match[1]!
   }
 }
-
-export type { ViewDeclaration as ViewConfig } from "./index.t.ts"
-/**
- * Реализация представления (View)
- * @module View
- */
 
 /**
  * Извлекает template literal из view функции

@@ -105,7 +105,7 @@ export interface ViewDeclaration<C extends ContextSchema, S extends string, I ex
    * `
    * ```
    */
-  render?: RenderFunc<C, S, I>
+  render?: (params: ViewDefinitionParams<C, S, I>) => void
   /**
    * Функция, вызываемая после монтирования компонента в DOM.
    * Используется для инициализации после рендера.
@@ -122,7 +122,3 @@ export interface ViewDeclaration<C extends ContextSchema, S extends string, I ex
    */
   style?: ({ css }: { css: (strings: TemplateStringsArray, ...values: any[]) => void }) => void
 }
-
-export type RenderFunc<C extends ContextSchema, S extends string, I extends Core> = (
-  params: ViewDefinitionParams<C, S, I>
-) => void
