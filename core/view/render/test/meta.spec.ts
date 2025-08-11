@@ -169,9 +169,7 @@ describe("meta элементы", () => {
       },
     }
 
-    const schema = parseTemplate(
-      `<meta-user context="\${{name: context.name, missing: 'undefined'}}"></meta-user>`
-    )
+    const schema = parseTemplate(`<meta-user context="\${{name: context.name, missing: 'undefined'}}"></meta-user>`)
 
     render({
       state: "idle",

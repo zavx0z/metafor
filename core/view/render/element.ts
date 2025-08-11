@@ -3,7 +3,7 @@ import { evaluateCondition } from "./condition"
 import { evaluateAttribute } from "./attribute"
 import { createMetaElement, applyMetaData } from "./meta"
 import type { ContextSchema, ExtractValues, Update } from "../../context"
-import type { Core } from "../../index.t"
+import type { ActorInternal, Core } from "../../index.t"
 import type { ElementSchema } from "../parser"
 import type { ArrayRenderContext } from "./index.t"
 import { renderText } from "./text"
@@ -33,10 +33,10 @@ export function renderElement<C extends ContextSchema, S extends string, I exten
   }
 
   let el: HTMLElement
-  // meta-элемент
-  if (typeof schema.tag === "object" && schema.type === "meta") {
+  // meta-элемент - сразу отдаем на обработку
+  if (schema.type === "meta") {
     el = createMetaElement(schema, context, core)
-  // стандартный элемент или web-component 
+  // стандартный элемент или web-component
   } else if (typeof schema.tag === "string") {
     el = document.createElement(schema.tag)
   } else {
@@ -66,7 +66,9 @@ export function renderElement<C extends ContextSchema, S extends string, I exten
   }
 
   // Применяем context и core для meta-элементов
-  applyMetaData(el, schema, context, core)
+  if (schema.type === "meta") {
+    applyMetaData(el, schema, context, core)
+  }
 
   // Рендерим дочерние элементы
   if (schema.child) {
@@ -75,7 +77,7 @@ export function renderElement<C extends ContextSchema, S extends string, I exten
         renderText(state, child, context, core, el, arrayContext)
       } else {
         renderElement(state, child, context, core, el, update, arrayContext)
-      }  
+      }
     }
   }
 

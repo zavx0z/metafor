@@ -1,5 +1,5 @@
 import type { ContextSchema, ExtractValues, Update } from "../../context"
-import type { Core } from "../../index.t"
+import type { ActorInternal, Core } from "../../index.t"
 import type { ElementSchema } from "../parser"
 import type { ArrayRenderContext } from "./index.t"
 
@@ -50,22 +50,29 @@ export function createMetaElement<C extends ContextSchema, I extends Core>(
   context: ExtractValues<C>,
   core: I
 ): HTMLElement {
-  if (typeof schema.tag === "object" && schema.type === "meta") {
-    let value: string
-    if (Array.isArray(schema.tag.key)) {
-      let src = core as any
-      for (const key of schema.tag.key) {
-        src = src[key]
+  if (schema.type === "meta") {
+    // Если tag - это объект с key, то извлекаем значение из core
+    if (typeof schema.tag === "object" && schema.tag && "key" in schema.tag) {
+      let value: string
+      if (Array.isArray(schema.tag.key)) {
+        let src = core as any
+        for (const key of schema.tag.key) {
+          src = src[key]
+        }
+        value = src as string
+      } else {
+        value = core[schema.tag.key] as string
       }
-      value = src as string
-    } else {
-      value = core[schema.tag.key] as string
+      const tagName = `meta-${value}`
+      return document.createElement(tagName)
     }
-    const tagName = `meta-${value}`
-    return document.createElement(tagName)
-  } else {
-    throw new Error("Invalid meta element schema")
+    // Если tag - это строка, просто создаем элемент с этим именем
+    else if (typeof schema.tag === "string") {
+      return document.createElement(schema.tag)
+    }
   }
+
+  throw new Error("Invalid meta element schema")
 }
 
 /**

@@ -71,7 +71,7 @@ describe("инициализация ребенка с переданным ко
   const { waitForMessages } = messagesFixture({ meta: childHash })
   document.body.innerHTML = `<meta-${parentHash}></meta-${parentHash}>`
   const childMessages = await waitForMessages(400)
-  test.skip("в реакции родителя при добавлении ребенка получаем переданный контекст", async () => {
+  test("в реакции родителя при добавлении ребенка получаем переданный контекст", async () => {
     expect(childContext, "контекст ребенка должен соответствовать переданному от родителя").toEqual({
       count: {
         default: 1,
