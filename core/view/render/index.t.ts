@@ -7,7 +7,7 @@
 import type { ExtractValues, Update } from "../../context"
 import type { ContextSchema } from "../../context/types.t.ts"
 import type { Core } from "../../index.t.ts"
-import type { Schema, AttributeValue, ConditionSchema } from "../parser/index.t.ts"
+import type { Schema, AttributeValue, ConditionSchema, ElementSchema } from "../parser/index.t.ts"
 
 /**
  * Параметры функции рендеринга
@@ -66,3 +66,22 @@ export type AttributeEvaluator = (
   core: any,
   arrayContext?: ArrayRenderContext
 ) => AttributeResult
+
+/**
+ * Функция для создания meta-элемента
+ */
+export type MetaElementCreator<C extends ContextSchema, I extends Core> = (
+  schema: ElementSchema,
+  context: ExtractValues<C>,
+  core: I
+) => HTMLElement
+
+/**
+ * Функция для применения meta-данных
+ */
+export type MetaDataApplier<C extends ContextSchema, I extends Core> = (
+  element: HTMLElement,
+  schema: ElementSchema,
+  context: ExtractValues<C>,
+  core: I
+) => void
