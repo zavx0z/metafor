@@ -1,9 +1,9 @@
 import { renderArrayElement } from "./array"
 import { evaluateCondition } from "./condition"
-import { evaluateAttribute } from "./attribute"
-import { createMetaElement, applyMetaData } from "./meta"
+import { applyAttributes, evaluateAttribute } from "./attribute"
+import { renderMetaElement } from "./meta"
 import type { ContextSchema, ExtractValues, Update } from "../../context"
-import type { ActorInternal, Core } from "../../index.t"
+import type { Core } from "../../index.t"
 import type { ElementSchema } from "../parser"
 import type { ArrayRenderContext } from "./index.t"
 import { renderText } from "./text"
@@ -32,49 +32,24 @@ export function renderElement<C extends ContextSchema, S extends string, I exten
     return
   }
 
-  let el: HTMLElement
-  // meta-элемент - сразу отдаем на обработку
-  if (schema.type === "meta") {
-    el = createMetaElement(schema, context, core)
-  // стандартный элемент или web-component
-  } else if (typeof schema.tag === "string") {
-    el = document.createElement(schema.tag)
-  } else {
-    throw new Error("Invalid tag type")
-  }
+  const el = document.createElement(schema.tag as string)
 
-  // Устанавливаем атрибуты
-  if (schema.attrs) {
-    for (const [name, value] of Object.entries(schema.attrs)) {
-      // Не устанавливаем on*-атрибуты напрямую (Happy DOM интерпретирует их как код)
-      if (name.startsWith("on")) {
-        continue
-      }
-      const evaluatedValue = evaluateAttribute(state, context, core, value, arrayContext)
-
-      if (evaluatedValue === true) {
-        // Булев атрибут
-        el.setAttribute(name, "")
-      } else if (evaluatedValue === false || evaluatedValue === undefined) {
-        // Пропускаем false/undefined атрибуты
-        continue
-      } else {
-        // Обычный атрибут
-        el.setAttribute(name, String(evaluatedValue))
-      }
-    }
-  }
-
-  // Применяем context и core для meta-элементов
-  applyMetaData(el, schema, context, core)
+  if (schema.attrs) applyAttributes(el, schema.attrs, state, context, core, arrayContext)
 
   // Рендерим дочерние элементы
   if (schema.child) {
     for (const child of schema.child) {
-      if (child.type === "text") {
-        renderText(state, child, context, core, el, arrayContext)
-      } else {
-        renderElement(state, child, context, core, el, update, arrayContext)
+      switch (child.type) {
+        case "text":
+          renderText(state, child, context, core, el, arrayContext)
+          break
+        case "wc":
+        case "el":
+          renderElement(state, child, context, core, el, update, arrayContext)
+          break
+        case "meta":
+          renderMetaElement(state, child, context, core, el, update, arrayContext)
+          break
       }
     }
   }

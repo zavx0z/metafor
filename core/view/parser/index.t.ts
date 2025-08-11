@@ -47,7 +47,7 @@ export interface ConditionSchema {
  * Схема HTML элемента
  */
 export interface ElementSchema {
-  tag: string | { src: "core"; key: string | string[] }
+  tag: HtmlParseTag
   type: "el" | "meta" | "wc"
   attrs?: Record<string, AttributeValue>
   child?: Array<ElementSchema | TextSchema>
@@ -93,3 +93,8 @@ export interface ITemplateParser {
  * Функция для быстрого парсинга шаблона
  */
 export type ParseTemplateFunction = (htmlString: string) => Schema
+
+/**
+ * Тип тега HTML
+ */
+export type HtmlParseTag = string | { src: "core"; key: string | string[] }

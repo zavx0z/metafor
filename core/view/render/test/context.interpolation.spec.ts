@@ -39,13 +39,7 @@ describe("Интерполяция контекста", () => {
           : null}
       </div>`,
   })
-  view.render({
-    state: "",
-    context: ctx,
-    core: {},
-    update: upd,
-    element: container,
-  })
+  view.render({ state: "", context: ctx, core: {}, update: upd, element: container })
 
   it("корневой элемент div", () => {
     const div = container.querySelector("div")!

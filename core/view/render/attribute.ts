@@ -6,9 +6,39 @@ import type { ArrayRenderContext, AttributeResult } from "./index.t"
 import { evaluateInterpolation } from "./utils"
 
 /**
+ * Устанавливает атрибуты на элемент
+ */
+export function applyAttributes<C extends ContextSchema, S extends string, I extends Core>(
+  element: HTMLElement,
+  attrs: Record<string, AttributeValue>,
+  state: S,
+  context: ExtractValues<C>,
+  core: I,
+  arrayContext?: ArrayRenderContext
+): void {
+  for (const [name, value] of Object.entries(attrs)) {
+    // Не устанавливаем on*-атрибуты напрямую (Happy DOM интерпретирует их как код)
+    if (name.startsWith("on")) {
+      continue
+    }
+    const evaluatedValue = evaluateAttribute(state, context, core, value, arrayContext)
+
+    if (evaluatedValue === true) {
+      // Булев атрибут
+      element.setAttribute(name, "")
+    } else if (evaluatedValue === false || evaluatedValue === undefined) {
+      // Пропускаем false/undefined атрибуты
+      continue
+    } else {
+      // Обычный атрибут
+      element.setAttribute(name, String(evaluatedValue))
+    }
+  }
+}
+
+/**
  * Оценивает значение атрибута
  */
-
 export function evaluateAttribute<C extends ContextSchema, S extends string, I extends Core>(
   state: S,
   context: ExtractValues<C>,

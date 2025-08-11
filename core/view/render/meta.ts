@@ -1,8 +1,85 @@
 import type { ContextSchema, ExtractValues, Update } from "../../context"
 import type { ActorInternal, Core } from "../../index.t"
 import type { ElementSchema } from "../parser"
+import { renderArrayElement } from "./array"
+import { evaluateCondition } from "./condition"
+import { applyAttributes } from "./attribute"
+import { renderElement } from "./element"
 import type { ArrayRenderContext } from "./index.t"
+import { renderText } from "./text"
+import type { HtmlParseTag } from "../parser/index.t"
 
+/**
+ * Создает meta-элемент с правильным именем тега
+ */
+export function renderMetaElement<C extends ContextSchema, S extends string, I extends Core>(
+  state: S,
+  schema: ElementSchema,
+  context: ExtractValues<C>,
+  core: I,
+  parentElement: HTMLElement | DocumentFragment,
+  update: Update<any>,
+  arrayContext?: ArrayRenderContext
+): void {
+  // Проверяем условие
+  if (schema.cond) {
+    const shouldRender = evaluateCondition(state, schema.cond, context, core, arrayContext)
+    if (!shouldRender) return
+  }
+
+  // Если это элемент массива, рендерим его как массив
+  if (schema.item) {
+    renderArrayElement(state, schema, context, core, parentElement, update)
+    return
+  }
+
+  const el = document.createElement(createTagName(schema.tag, core)) as ActorInternal
+
+  if (schema.attrs) applyAttributes(el, schema.attrs, state, context, core, arrayContext)
+  if (schema.context) el.update(evaluateMetaObject(schema.context, context, core))
+  if (schema.core) el.__updCore(evaluateMetaObject(schema.core, context, core))
+
+  // Рендерим дочерние элементы
+  if (schema.child) {
+    for (const child of schema.child) {
+      switch (child.type) {
+        case "text":
+          renderText(state, child, context, core, el, arrayContext)
+          break
+        case "wc":
+        case "el":
+          renderElement(state, child, context, core, el, update, arrayContext)
+          break
+        case "meta":
+          renderMetaElement(state, child, context, core, el, update, arrayContext)
+          break
+      }
+    }
+  }
+  parentElement.appendChild(el)
+}
+
+/**
+ * Создает имя тега для meta-элемента
+ */
+function createTagName(tag: HtmlParseTag, core: Core): string {
+  let tagName: string
+  // Если tag - это объект с key, то извлекаем значение из core
+  if (typeof tag === "object" && tag && "key" in tag) {
+    let value: string
+    if (Array.isArray(tag.key)) {
+      let src = core as any
+      for (const key of tag.key) {
+        src = src[key]
+      }
+      value = src as string
+    } else {
+      value = core[tag.key] as string
+    }
+    tagName = `meta-${value}`
+  } else tagName = tag
+  return tagName
+}
 /**
  * Вычисляет значения context и core объектов для meta-элементов
  */
@@ -40,59 +117,4 @@ export function evaluateMetaObject<C extends ContextSchema, I extends Core>(
   }
 
   return result
-}
-
-/**
- * Создает meta-элемент с правильным именем тега
- */
-export function createMetaElement<C extends ContextSchema, I extends Core>(
-  schema: ElementSchema,
-  context: ExtractValues<C>,
-  core: I
-): HTMLElement {
-  if (schema.type === "meta") {
-    // Если tag - это объект с key, то извлекаем значение из core
-    if (typeof schema.tag === "object" && schema.tag && "key" in schema.tag) {
-      let value: string
-      if (Array.isArray(schema.tag.key)) {
-        let src = core as any
-        for (const key of schema.tag.key) {
-          src = src[key]
-        }
-        value = src as string
-      } else {
-        value = core[schema.tag.key] as string
-      }
-      const tagName = `meta-${value}`
-      return document.createElement(tagName)
-    }
-    // Если tag - это строка, просто создаем элемент с этим именем
-    else if (typeof schema.tag === "string") {
-      return document.createElement(schema.tag)
-    }
-  }
-
-  throw new Error("Invalid meta element schema")
-}
-
-/**
- * Применяет context и core к meta-элементу
- */
-export function applyMetaData<C extends ContextSchema, I extends Core>(
-  element: HTMLElement,
-  schema: ElementSchema,
-  context: ExtractValues<C>,
-  core: I
-): void {
-  if (schema.type === "meta") {
-    if (schema.context) {
-      const evaluatedContext = evaluateMetaObject(schema.context, context, core)
-      ;(element as any).context = evaluatedContext
-    }
-
-    if (schema.core) {
-      const evaluatedCore = evaluateMetaObject(schema.core, context, core)
-      ;(element as any).core = evaluatedCore
-    }
-  }
 }
