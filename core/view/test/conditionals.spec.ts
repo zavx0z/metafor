@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
-
+const html = String.raw
 describe("условные блоки", () => {
   describe("тернарный оператор", () => {
     describe("тернарий и && в атрибутах + сложные классы и enum после массива", () => {
@@ -112,7 +112,7 @@ describe("условные блоки", () => {
             ],
           },
         ]))
-      it.todo("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({
           core: {},
@@ -125,8 +125,12 @@ describe("условные блоки", () => {
             text: "test",
           },
         })
-        expect(element.innerHTML).toEqual(
-          `<div class="test" id="test" data-text="test"><img class="image test-image" src="test.jpg" visible="visible" alt="test"><br><button class="button-test test-button" disabled>test</button><ul><li>test</li></ul><div class="enum">enum element div</div><span class="enum">enum element span</span><p class="enum">enum element p</p></div>`
+        expect(element.innerHTML).toMatchStringHTML(
+          html`<div class="test" id="test" data-text="test">
+            <img class="image test-image" src="test.jpg" visible="hidden" alt="test" /><br />
+            <button class="button-test test-button" disabled="">test</button>
+            <ul></ul>
+          </div>`
         )
       })
     })
@@ -175,7 +179,19 @@ describe("условные блоки", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({
+          core: {},
+          update: () => ({}),
+          state: "",
+          element,
+          context: {
+            isVisible: true,
+          },
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`<div><span>Visible</span></div>`)
+      })
     })
     describe("простой тернарный оператор с context с оберткой и соседними элементами", () => {
       const view = new View({
@@ -241,7 +257,25 @@ describe("условные блоки", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({
+          core: {},
+          update: () => ({}),
+          state: "",
+          element,
+          context: {
+            isVisible: true,
+          },
+        })
+        expect(element.innerHTML).toMatchStringHTML(
+          html`<div>
+            <span>1</span>
+            <div>2</div>
+            <span>Visible</span><span>3</span>
+          </div>`
+        )
+      })
     })
     describe("простой тернарный оператор с context без обертки", () => {
       const view = new View({
@@ -287,7 +321,22 @@ describe("условные блоки", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({
+          core: {},
+          update: () => ({}),
+          state: "",
+          element,
+          context: {
+            isVisible: true,
+          },
+        })
+        expect(element.innerHTML).toMatchStringHTML(
+          html`<div></div>
+            <span>Visible</span>`
+        )
+      })
     })
     describe("тернарный оператор с core", () => {
       const view = new View({
@@ -334,7 +383,19 @@ describe("условные блоки", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({
+          core: {
+            showMenu: true,
+          },
+          update: () => ({}),
+          state: "",
+          element,
+          context: {},
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`<div><nav>Menu</nav></div>`)
+      })
     })
 
     describe("сравнение с определенным значением", () => {
@@ -411,7 +472,23 @@ describe("условные блоки", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({
+          core: {},
+          update: () => ({}),
+          state: "",
+          element,
+          context: {
+            userRole: "admin",
+          },
+        })
+        expect(element.innerHTML).toMatchStringHTML(
+          html`<main>
+            <section class="admin-panel"><h2>Admin Panel</h2></section>
+          </main>`
+        )
+      })
     })
 
     describe("сравнение context и core (>)", () => {
@@ -441,7 +518,21 @@ describe("условные блоки", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({
+          core: {
+            b: 5,
+          },
+          update: () => ({}),
+          state: "",
+          element,
+          context: {
+            a: 10,
+          },
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`<div></div>`)
+      })
     })
 
     describe("сравнение core и context (<=)", () => {
@@ -471,7 +562,21 @@ describe("условные блоки", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({
+          core: {
+            b: 5,
+          },
+          update: () => ({}),
+          state: "",
+          element,
+          context: {
+            a: 3,
+          },
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`<section></section>`)
+      })
     })
 
     it("строковое сравнение между полями (===, !==)", () => {
@@ -499,6 +604,21 @@ describe("условные блоки", () => {
           ],
         },
       ])
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({
+          core: {
+            requiredRole: "admin",
+          },
+          update: () => ({}),
+          state: "",
+          element,
+          context: {
+            role: "admin",
+          },
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`<div><h1>match</h1></div>`)
+      })
     })
   })
 
@@ -536,7 +656,19 @@ describe("условные блоки", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({
+          core: {},
+          update: () => ({}),
+          state: "",
+          element,
+          context: {
+            isLoggedIn: true,
+          },
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`<div><span class="user">Welcome!</span></div>`)
+      })
     })
 
     describe("оператор || с fallback", () => {
@@ -571,7 +703,19 @@ describe("условные блоки", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({
+          core: {},
+          update: () => ({}),
+          state: "",
+          element,
+          context: {
+            userName: null,
+          },
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`<div><span class="guest">Guest</span></div>`)
+      })
     })
   })
 
@@ -642,7 +786,27 @@ describe("условные блоки", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({
+          core: {},
+          update: () => ({}),
+          state: "",
+          element,
+          context: {
+            items: [
+              { isVisible: true, name: "Item 1" },
+              { isVisible: false, name: "Item 2" },
+            ],
+          },
+        })
+        expect(element.innerHTML).toMatchStringHTML(
+          html`<ul>
+            <li><span>Item 1</span></li>
+            <li><span class="hidden">Hidden</span></li>
+          </ul>`
+        )
+      })
     })
 
     describe("условие только с одной ветвью в массиве", () => {
@@ -709,7 +873,30 @@ describe("условные блоки", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({
+          core: {},
+          update: () => ({}),
+          state: "",
+          element,
+          context: {
+            notifications: [
+              { message: "Hello", hasAction: true },
+              { message: "World", hasAction: false },
+            ],
+          },
+        })
+        expect(element.innerHTML).toMatchStringHTML(
+          html`<div>
+            <div class="notification">
+              <p></p>
+              <button>Action</button>
+            </div>
+            <div class="notification"><p></p></div>
+          </div>`
+        )
+      })
     })
 
     describe("map затем тернарный оператор как сосед", () => {
@@ -754,7 +941,25 @@ describe("условные блоки", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({
+          core: {},
+          update: () => ({}),
+          state: "",
+          element,
+          context: {
+            items: [{ name: "Item 1" }, { name: "Item 2" }],
+            flag: true,
+          },
+        })
+        expect(element.innerHTML).toMatchStringHTML(
+          html`<div>
+            <span></span><span></span>
+            <p>Yes</p>
+          </div>`
+        )
+      })
     })
   })
   describe("edge cases условий", () => {
@@ -787,7 +992,19 @@ describe("условные блоки", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({
+          core: {},
+          update: () => ({}),
+          state: "",
+          element,
+          context: {
+            showEmpty: false,
+          },
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`<div><span>Not empty</span></div>`)
+      })
     })
 
     describe("вложенные условия", () => {
@@ -879,7 +1096,24 @@ describe("условные блоки", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({
+          core: {},
+          update: () => ({}),
+          state: "",
+          element,
+          context: {
+            hasPermission: true,
+            isAdmin: true,
+          },
+        })
+        expect(element.innerHTML).toMatchStringHTML(
+          html`<div>
+            <div><button class="admin">Admin Action</button></div>
+          </div>`
+        )
+      })
     })
   })
 })
