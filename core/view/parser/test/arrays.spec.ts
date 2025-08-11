@@ -277,7 +277,7 @@ describe("Template Parser - массивы", () => {
                 class: "product-card",
                 "data-product-id": {
                   key: "id",
-                  src: "item",
+                  src: ["core", "products"],
                 },
               },
               child: [
@@ -684,7 +684,6 @@ describe("Template Parser - массивы", () => {
                     type: "text",
                     value: {
                       src: ["core", "items", "children"],
-                      key: "name",
                     },
                   },
                 ],
