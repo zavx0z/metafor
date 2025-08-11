@@ -1,4 +1,6 @@
 import { expect } from "bun:test"
+import { diffChars } from "diff"
+import prettier from "prettier"
 
 /** Удаляет комментарии выражений из предоставленной html-строки. */
 export const stripExpressionComments = (html: string) => html.replace(/<!--\?html\$[0-9]+\$-->|<!--\??-->/g, "")
@@ -36,9 +38,65 @@ export const normalizeHTML = (str: string) => {
   )
 }
 
+/** Форматирует HTML с помощью prettier */
+const formatHTML = async (html: string) => {
+  try {
+    const result = await prettier.format(html, {
+      parser: "html",
+      printWidth: 1, // Минимальная ширина для принудительного переноса
+      tabWidth: 2,
+      useTabs: false,
+      semi: false,
+      singleQuote: false,
+      quoteProps: "as-needed",
+      jsxSingleQuote: false,
+      trailingComma: "none",
+      bracketSpacing: false,
+      bracketSameLine: false,
+      arrowParens: "avoid",
+      endOfLine: "lf",
+    })
+    return result
+  } catch (error) {
+    // Fallback к простому форматированию
+    return html
+      .replace(/></g, ">\n<")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .join("\n")
+  }
+}
+
+/** Создает diff с помощью библиотеки diff */
+const createDiff = (received: string, expected: string) => {
+  try {
+    const differences = diffChars(received, expected)
+    let diffOutput = ""
+
+    differences.forEach((part) => {
+      if (part.added) {
+        // Зеленый цвет для того, что ожидали (но не получили)
+        diffOutput += `\x1b[32m${part.value}\x1b[0m`
+      } else if (part.removed) {
+        // Красный цвет для того, что получили (но не ожидали)
+        diffOutput += `\x1b[31m${part.value}\x1b[0m`
+      } else {
+        // Обычный цвет для неизмененного
+        diffOutput += part.value
+      }
+    })
+
+    return diffOutput
+  } catch (error) {
+    // Fallback к простому сравнению строк
+    return `Получено: ${received}\nОжидалось: ${expected}`
+  }
+}
+
 const divider = "\n" + "-".repeat(20) + "\n"
 
-const toMatchStringHTML = (received: unknown, expected: string) => {
+const toMatchStringHTML = async (received: unknown, expected: string) => {
   const normalizedReceived = normalizeHTML(received as string)
   const normalizedExpected = normalizeHTML(expected)
   const pass = normalizedReceived === normalizedExpected
@@ -49,8 +107,12 @@ const toMatchStringHTML = (received: unknown, expected: string) => {
       pass: true,
     }
   } else {
+    const formattedReceived = await formatHTML(normalizedReceived)
+    const formattedExpected = await formatHTML(normalizedExpected)
+    const diff = createDiff(formattedReceived, formattedExpected)
+
     return {
-      message: () => `not match:${divider}${normalizedReceived}${divider}${normalizedExpected}${divider}`,
+      message: () => `\x1b[1mHTML не совпадает:\x1b[0m${divider}${diff}${divider}`,
       pass: false,
     }
   }

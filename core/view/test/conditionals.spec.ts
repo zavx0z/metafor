@@ -121,6 +121,7 @@ describe("условные блоки", () => {
           element,
           context: {
             className: "test",
+            list: ["1", "2", "3"],
             id: "test",
             text: "test",
           },
@@ -129,7 +130,11 @@ describe("условные блоки", () => {
           html`<div class="test" id="test" data-text="test">
             <img class="image test-image" src="test.jpg" visible="hidden" alt="test" /><br />
             <button class="button-test test-button" disabled="">test</button>
-            <ul></ul>
+            <ul>
+              <li>1</li>
+              <li>2</li>
+              <li>3</li>
+            </ul>
           </div>`
         )
       })
