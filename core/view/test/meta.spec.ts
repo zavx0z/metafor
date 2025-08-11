@@ -208,7 +208,7 @@ describe("meta", () => {
     })
   })
 
-  describe.skip("вложенные meta-элементы", () => {
+  describe("вложенные meta-элементы", () => {
     describe("meta-элемент внутри обычного элемента", () => {
       const view = new View({
         render: ({ html, context, core }) => html`
@@ -246,7 +246,7 @@ describe("meta", () => {
       it("рендер", () => {})
     })
 
-    describe.skip("несколько meta-элементов", () => {
+    describe("несколько meta-элементов", () => {
       const view = new View({
         render: ({ html, context, core }) => html`
           <div class="container">

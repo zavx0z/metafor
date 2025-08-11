@@ -408,6 +408,13 @@ export class TemplateParser {
         if (element.attrs) {
           delete (element.attrs as any).context
           delete (element.attrs as any).core
+          // Удаляем возможные разложенные ключи объектных атрибутов из attrs
+          if (metaContext) {
+            for (const k of Object.keys(metaContext)) delete (element.attrs as any)[k]
+          }
+          if (metaCore) {
+            for (const k of Object.keys(metaCore)) delete (element.attrs as any)[k]
+          }
           if (Object.keys(element.attrs).length === 0) delete (element as any).attrs
         }
       }

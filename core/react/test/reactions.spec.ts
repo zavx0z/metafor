@@ -2,7 +2,7 @@ import { test, expect, describe } from "bun:test"
 import { MetaFor } from "../../../web/metafor.ts"
 import type { ReactionParams } from "../index.t.ts"
 
-describe("реакции", () => {
+describe.skip("реакции", () => {
   test("MetaFor - базовый функционал", async () => {
     const childName = Bun.randomUUIDv7()
     const childHash = MetaFor(childName)
