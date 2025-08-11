@@ -1,5 +1,5 @@
 /**
- * HTML Template Parser - модуль для парсинга HTML шаблонов в JSON схемы
+ * HTML модуль для парсинга HTML шаблонов в JSON схемы
  * @module TemplateParser
  */
 

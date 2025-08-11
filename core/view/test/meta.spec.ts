@@ -1,9 +1,9 @@
 import { describe, expect, it } from "bun:test"
-import { parseTemplate, type Schema } from ".."
+import { parseTemplate, type Schema } from "../parser"
 
 describe("meta", () => {
   describe("теги", () => {
-    it("актор web-component", () => {
+    describe("актор web-component", () => {
       const result = parseTemplate(`<meta-hash></meta-hash>`)
       const expected: Schema = [
         {
@@ -11,9 +11,12 @@ describe("meta", () => {
           type: "meta",
         },
       ]
-      expect(result, "актор web-component").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "актор web-component").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
-    it("актор web-component с самозакрывающимся тегом", () => {
+    describe("актор web-component с самозакрывающимся тегом", () => {
       const result = parseTemplate(`<meta-hash/>`)
       const expected: Schema = [
         {
@@ -21,9 +24,12 @@ describe("meta", () => {
           type: "meta",
         },
       ]
-      expect(result, "актор web-component с самозакрывающимся тегом").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "актор web-component с самозакрывающимся тегом").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
-    it("хеш-тег из core в самозакрывающемся теге", () => {
+    describe("хеш-тег из core в самозакрывающемся теге", () => {
       const result = parseTemplate(`<meta-\${core.actors.child}/>`)
       const expected: Schema = [
         {
@@ -34,9 +40,12 @@ describe("meta", () => {
           type: "meta",
         },
       ]
-      expect(result, "хеш-тег из core").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "хеш-тег из core").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
-    it("хеш-тег из core", () => {
+    describe("хеш-тег из core", () => {
       const result = parseTemplate(`<meta-\${core.actors.child}></meta-\${core.actors.child}>`)
       const expected: Schema = [
         {
@@ -47,9 +56,12 @@ describe("meta", () => {
           type: "meta",
         },
       ]
-      expect(result, "хеш-тег из core").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "хеш-тег из core").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
-    it("meta-элемент с хеш-тегом из core и с передачей контекста", () => {
+    describe("meta-элемент с хеш-тегом из core и с передачей контекста", () => {
       const result = parseTemplate(`
           <meta-\${core.actors.child}
             context=\${{
@@ -76,11 +88,14 @@ describe("meta", () => {
           },
         },
       ]
-      expect(result, "meta-элемент с хеш-тегом из core и с передачей контекста").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "meta-элемент с хеш-тегом из core и с передачей контекста").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
   })
   describe("объекты в атрибутах", () => {
-    it("интерполяция объекта context", () => {
+    describe("интерполяция объекта context", () => {
       const result = parseTemplate(
         `<meta-hash context="\${{
             name: 'John', 
@@ -105,9 +120,12 @@ describe("meta", () => {
           },
         },
       ]
-      expect(result, "объект контекста в meta").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "объект контекста в meta").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
-    it("интерполяция объекта core", () => {
+    describe("интерполяция объекта core", () => {
       const result = parseTemplate(
         `<meta-hash core="\${{name: context.name, age: 30, family: core.user.family}}"></meta-hash>`
       )
@@ -128,9 +146,12 @@ describe("meta", () => {
           },
         },
       ]
-      expect(result, "объект core в meta").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "объект core в meta").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
-    it("интерполяция объекта context в meta с самозакрывающимся тегом", () => {
+    describe("интерполяция объекта context в meta с самозакрывающимся тегом", () => {
       const result = parseTemplate(`<meta-hash context="\${{name: context.name, age: 30, family: core.user.family}}"/>`)
       const expected: Schema = [
         {
@@ -149,9 +170,12 @@ describe("meta", () => {
           },
         },
       ]
-      expect(result, "объект context в meta с самозакрывающимся тегом").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "объект context в meta с самозакрывающимся тегом").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
-    it("интерполяция объекта core в meta с самозакрывающимся тегом", () => {
+    describe("интерполяция объекта core в meta с самозакрывающимся тегом", () => {
       const result = parseTemplate(`<meta-hash core="\${{name: context.name, age: 30, family: core.user.family}}"/>`)
       const expected: Schema = [
         {
@@ -170,9 +194,12 @@ describe("meta", () => {
           },
         },
       ]
-      expect(result, "объект core в meta с самозакрывающимся тегом").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "объект core в meta с самозакрывающимся тегом").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
-    it("интерполяция context и core в meta", () => {
+    describe("интерполяция context и core в meta", () => {
       const result = parseTemplate(
         `<meta-hash 
       context="\${{name: context.name, age: 30, family: core.user.family}}"
@@ -207,9 +234,12 @@ describe("meta", () => {
           },
         },
       ]
-      expect(result, "объект context и core в meta").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "объект context и core в meta").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
-    it("интерполяция context и core в meta с самозакрывающимся тегом", () => {
+    describe("интерполяция context и core в meta с самозакрывающимся тегом", () => {
       const result = parseTemplate(
         `<meta-hash 
       context="\${{name: context.name, age: 30, family: core.user.family}}"
@@ -243,7 +273,10 @@ describe("meta", () => {
           },
         },
       ]
-      expect(result, "объект context и core в meta с самозакрывающимся тегом").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "объект context и core в meta с самозакрывающимся тегом").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
   })
 })

@@ -1,10 +1,10 @@
 import { describe, it, expect } from "bun:test"
-import { parseTemplate } from "../index.ts"
-import type { Schema } from "../index.ts"
+import { parseTemplate } from "../parser/index.ts"
+import type { Schema } from "../parser/index.ts"
 
-describe("Template Parser - массивы", () => {
+describe("массивы", () => {
   describe("массивы из context", () => {
-    it("простой массив с одним элементом", () => {
+    describe("простой массив с одним элементом", () => {
       const result = parseTemplate(`<ul>
         \${context.ids.map((id) => html\`<li>\${id}</li>\`)}
       </ul>`)
@@ -35,9 +35,12 @@ describe("Template Parser - массивы", () => {
         },
       ]
 
-      expect(result, "простой массив из контекста").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "простой массив из контекста").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
-    it("простой массив с одним элементом вложенный в другой элемент", () => {
+    describe("простой массив с одним элементом вложенный в другой элемент", () => {
       const result = parseTemplate(`<div><ul>
         \${context.ids.map((id) => html\`<li>\${id}</li>\`)}
       </ul></div>`)
@@ -74,10 +77,13 @@ describe("Template Parser - массивы", () => {
         },
       ]
 
-      expect(result, "простой массив из контекста").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "простой массив из контекста").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("массив с множественными свойствами", () => {
+    describe("массив с множественными свойствами", () => {
       const result = parseTemplate(`<div>
         \${context.users.map((user) => html\`<div class="user">
           <h3>\${user.name}</h3>
@@ -151,10 +157,13 @@ describe("Template Parser - массивы", () => {
         },
       ]
 
-      expect(result, "массив с множественными свойствами").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "массив с множественными свойствами").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("массив с динамическими атрибутами", () => {
+    describe("массив с динамическими атрибутами", () => {
       const result = parseTemplate(`<section>
         \${context.items.map((item) => html\`<article data-id="\${item.id}" class="item-\${item.type}">
           <h2>\${item.title}</h2>
@@ -205,12 +214,15 @@ describe("Template Parser - массивы", () => {
         },
       ]
 
-      expect(result, "массив с динамическими атрибутами").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "массив с динамическими атрибутами").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
   })
 
   describe("массивы из core", () => {
-    it("простой массив из core", () => {
+    describe("простой массив из core", () => {
       const result = parseTemplate(`<nav>
         \${core.menuItems.map((item) => html\`<a href="\${item.url}">\${item.label}</a>\`)}
       </nav>`)
@@ -247,10 +259,13 @@ describe("Template Parser - массивы", () => {
         },
       ]
 
-      expect(result, "простой массив из core").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "простой массив из core").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("сложная структура из core", () => {
+    describe("сложная структура из core", () => {
       const result = parseTemplate(`<main class="products">
         \${core.products.map((product) => html\`<div class="product-card" data-product-id="\${product.id}">
           <img src="\${product.image}" alt="\${product.name}" />
@@ -354,12 +369,15 @@ describe("Template Parser - массивы", () => {
         },
       ]
 
-      expect(result, "сложная структура из core").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "сложная структура из core").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
   })
 
   describe("смешанный контент с массивами", () => {
-    it("массив между статическими элементами", () => {
+    describe("массив между статическими элементами", () => {
       const result = parseTemplate(`<div class="container">
         <header>
           <h1>User List</h1>
@@ -470,10 +488,13 @@ describe("Template Parser - массивы", () => {
         },
       ]
 
-      expect(result, "массив между статическими элементами").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "массив между статическими элементами").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы", () => {
+    describe("множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы", () => {
       const result = parseTemplate(`<div class="dashboard">
         \${context.categories.map((cat) => html\`<span class="category">\${cat.name}</span>\`)}
         \${core.items.map((item) => html\`<div class="item" data-category="\${item.categoryId}">
@@ -541,14 +562,17 @@ describe("Template Parser - массивы", () => {
         },
       ]
 
-      expect(result, "множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы").toEqual(
-        expected
-      )
+      it("парсинг", () => {
+        expect(result, "множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы").toEqual(
+          expected
+        )
+      })
+      it("рендер", () => {})
     })
   })
 
   describe("edge cases массивов", () => {
-    it("пустой элемент в массиве", () => {
+    describe("пустой элемент в массиве", () => {
       const result = parseTemplate(`<ul>
         \${context.items.map((item) => html\`<li></li>\`)}
       </ul>`)
@@ -571,10 +595,13 @@ describe("Template Parser - массивы", () => {
         },
       ]
 
-      expect(result, "пустой элемент в массиве").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "пустой элемент в массиве").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("самозакрывающиеся теги в массиве", () => {
+    describe("самозакрывающиеся теги в массиве", () => {
       const result = parseTemplate(`<div class="images">
         \${core.images.map((img) => html\`<img src="\${img.url}" alt="\${img.alt}" />\`)}
       </div>`)
@@ -609,10 +636,13 @@ describe("Template Parser - массивы", () => {
         },
       ]
 
-      expect(result, "самозакрывающиеся теги в массиве").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "самозакрывающиеся теги в массиве").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("только текст в элементе массива", () => {
+    describe("только текст в элементе массива", () => {
       const result = parseTemplate(`<ol>
         \${context.steps.map((step) => html\`<li>\${step}</li>\`)}
       </ol>`)
@@ -643,10 +673,13 @@ describe("Template Parser - массивы", () => {
         },
       ]
 
-      expect(result, "только текст в элементе массива").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "только текст в элементе массива").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
   })
-  it("массив вложенный в массив", () => {
+  describe("массив вложенный в массив", () => {
     type Core = {
       items: {
         id: number
@@ -693,10 +726,13 @@ describe("Template Parser - массивы", () => {
         ],
       },
     ]
-    expect(result, "массив вложенный в массив").toEqual(expected)
+    it("парсинг", () => {
+      expect(result, "массив вложенный в массив").toEqual(expected)
+    })
+    it("рендер", () => {})
   })
 
-  it("массив в массиве в массиве (3 уровня)", () => {
+  describe("массив в массиве в массиве (3 уровня)", () => {
     type Core = {
       items: {
         id: number
@@ -749,6 +785,9 @@ describe("Template Parser - массивы", () => {
       },
     ]
 
-    expect(result, "массив в массиве в массиве (3 уровня)").toEqual(expected)
+    it("парсинг", () => {
+      expect(result, "массив в массиве в массиве (3 уровня)").toEqual(expected)
+    })
+    it("рендер", () => {})
   })
 })

@@ -1,10 +1,10 @@
 import { describe, it, expect } from "bun:test"
-import { parseTemplate } from "../index.ts"
-import type { Schema } from "../index.ts"
+import { parseTemplate } from "../parser/index.ts"
+import type { Schema } from "../parser/index.ts"
 
-describe("Template Parser - булевы атрибуты", () => {
+describe("булевы атрибуты", () => {
   describe("простые булевы атрибуты", () => {
-    it("один булев атрибут", () => {
+    describe("один булев атрибут", () => {
       const result = parseTemplate(`<input disabled />`)
       const expected: Schema = [
         {
@@ -15,10 +15,13 @@ describe("Template Parser - булевы атрибуты", () => {
           },
         },
       ] as const
-      expect(result, "один булев атрибут").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "один булев атрибут").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("несколько булевых атрибутов", () => {
+    describe("несколько булевых атрибутов", () => {
       const result = parseTemplate(`<input disabled readonly required />`)
       const expected: Schema = [
         {
@@ -31,10 +34,13 @@ describe("Template Parser - булевы атрибуты", () => {
           },
         },
       ] as const
-      expect(result, "несколько булевых атрибутов").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "несколько булевых атрибутов").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("булевы атрибуты с дефисами", () => {
+    describe("булевы атрибуты с дефисами", () => {
       const result = parseTemplate(`<input data-required aria-hidden />`)
       const expected: Schema = [
         {
@@ -46,12 +52,15 @@ describe("Template Parser - булевы атрибуты", () => {
           },
         },
       ] as const
-      expect(result, "булевы атрибуты с дефисами").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "булевы атрибуты с дефисами").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
   })
 
   describe("булевы атрибуты с обычными", () => {
-    it("булев атрибут с обычным", () => {
+    describe("булев атрибут с обычным", () => {
       const result = parseTemplate(`<input type="text" disabled />`)
       const expected: Schema = [
         {
@@ -63,10 +72,13 @@ describe("Template Parser - булевы атрибуты", () => {
           },
         },
       ] as const
-      expect(result, "булев атрибут с обычным").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "булев атрибут с обычным").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("обычный атрибут с булевым", () => {
+    describe("обычный атрибут с булевым", () => {
       const result = parseTemplate(`<button disabled class="btn">Submit</button>`)
       const expected: Schema = [
         {
@@ -84,10 +96,13 @@ describe("Template Parser - булевы атрибуты", () => {
           ],
         },
       ] as const
-      expect(result, "обычный атрибут с булевым").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "обычный атрибут с булевым").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("смешанные атрибуты", () => {
+    describe("смешанные атрибуты", () => {
       const result = parseTemplate(`<input type="checkbox" checked disabled data-test />`)
       const expected: Schema = [
         {
@@ -101,12 +116,15 @@ describe("Template Parser - булевы атрибуты", () => {
           },
         },
       ] as const
-      expect(result, "смешанные атрибуты").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "смешанные атрибуты").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
   })
 
   describe("самозакрывающиеся теги с булевыми атрибутами", () => {
-    it("input с булевыми атрибутами", () => {
+    describe("input с булевыми атрибутами", () => {
       const result = parseTemplate(`<input type="text" placeholder="Enter name" required />`)
       const expected: Schema = [
         {
@@ -119,10 +137,13 @@ describe("Template Parser - булевы атрибуты", () => {
           },
         },
       ] as const
-      expect(result, "input с булевыми атрибутами").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "input с булевыми атрибутами").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("img с булевыми атрибутами", () => {
+    describe("img с булевыми атрибутами", () => {
       const result = parseTemplate(`<img src="image.jpg" alt="Description" loading />`)
       const expected: Schema = [
         {
@@ -135,12 +156,15 @@ describe("Template Parser - булевы атрибуты", () => {
           },
         },
       ] as const
-      expect(result, "img с булевыми атрибутами").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "img с булевыми атрибутами").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
   })
 
   describe("вложенные элементы с булевыми атрибутами", () => {
-    it("вложенные элементы", () => {
+    describe("вложенные элементы", () => {
       const result = parseTemplate(`
         <form>
           <input type="text" required />
@@ -177,12 +201,15 @@ describe("Template Parser - булевы атрибуты", () => {
           ],
         },
       ] as const
-      expect(result, "вложенные элементы").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "вложенные элементы").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
   })
 
   describe("edge cases булевых атрибутов", () => {
-    it("булев атрибут в конце", () => {
+    describe("булев атрибут в конце", () => {
       const result = parseTemplate(`<input type="text" disabled />`)
       const expected: Schema = [
         {
@@ -194,10 +221,13 @@ describe("Template Parser - булевы атрибуты", () => {
           },
         },
       ] as const
-      expect(result, "булев атрибут в конце").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "булев атрибут в конце").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("булев атрибут в начале", () => {
+    describe("булев атрибут в начале", () => {
       const result = parseTemplate(`<input disabled type="text" />`)
       const expected: Schema = [
         {
@@ -209,10 +239,13 @@ describe("Template Parser - булевы атрибуты", () => {
           },
         },
       ] as const
-      expect(result, "булев атрибут в начале").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "булев атрибут в начале").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("только булевы атрибуты", () => {
+    describe("только булевы атрибуты", () => {
       const result = parseTemplate(`<input disabled readonly required />`)
       const expected: Schema = [
         {
@@ -225,7 +258,10 @@ describe("Template Parser - булевы атрибуты", () => {
           },
         },
       ] as const
-      expect(result, "только булевы атрибуты").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "только булевы атрибуты").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
   })
 })

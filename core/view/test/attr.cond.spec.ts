@@ -1,10 +1,10 @@
 import { describe, it, expect } from "bun:test"
-import { parseTemplate } from "../index.ts"
-import type { Schema } from "../index.ts"
+import { parseTemplate } from "../parser/index.ts"
+import type { Schema } from "../parser/index.ts"
 
-describe("Template Parser - условные атрибуты", () => {
+describe("условные атрибуты", () => {
   describe("тернарный оператор в атрибутах", () => {
-    it("простой тернарный оператор в атрибуте", () => {
+    describe("простой тернарный оператор в атрибуте", () => {
       const result = parseTemplate(`<div class="\${context.isActive ? 'active' : 'inactive'}">Content</div>`)
       const expected: Schema = [
         {
@@ -27,10 +27,13 @@ describe("Template Parser - условные атрибуты", () => {
           ],
         },
       ] as const
-      expect(result, "простой тернарный оператор в атрибуте").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "простой тернарный оператор в атрибуте").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("тернарный оператор с core", () => {
+    describe("тернарный оператор с core", () => {
       const result = parseTemplate(`<button disabled="\${core.isLoading ? 'disabled' : ''}">Submit</button>`)
       const expected: Schema = [
         {
@@ -53,12 +56,15 @@ describe("Template Parser - условные атрибуты", () => {
           ],
         },
       ] as const
-      expect(result, "тернарный оператор с core").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "тернарный оператор с core").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
   })
 
   describe("логические операторы в атрибутах", () => {
-    it("логическое И в атрибуте", () => {
+    describe("логическое И в атрибуте", () => {
       const result = parseTemplate(`<button disabled="\${context.cannotEdit && 'disabled'}">Edit</button>`)
       const expected: Schema = [
         {
@@ -80,10 +86,13 @@ describe("Template Parser - условные атрибуты", () => {
           ],
         },
       ] as const
-      expect(result, "логическое И в атрибуте").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "логическое И в атрибуте").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("логическое И с core", () => {
+    describe("логическое И с core", () => {
       const result = parseTemplate(`<input readonly="\${core.isReadOnly && 'readonly'}">`)
       const expected: Schema = [
         {
@@ -99,10 +108,13 @@ describe("Template Parser - условные атрибуты", () => {
           },
         },
       ] as const
-      expect(result, "логическое И с core").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "логическое И с core").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("логическое И в самозакрывающемся теге (новый синтаксис)", () => {
+    describe("логическое И в самозакрывающемся теге (новый синтаксис)", () => {
       const result = parseTemplate(`<input \${core.isReadOnly && "readonly"} />`)
       const expected: Schema = [
         {
@@ -118,12 +130,15 @@ describe("Template Parser - условные атрибуты", () => {
           },
         },
       ] as const
-      expect(result, "логическое И в самозакрывающемся теге (новый синтаксис)").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "логическое И в самозакрывающемся теге (новый синтаксис)").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
   })
 
   describe("условия в атрибутах массивов", () => {
-    it("условие в атрибуте массива", () => {
+    describe("условие в атрибуте массива", () => {
       const result = parseTemplate(`
         <div>
           \${context.items.map(item => html\`
@@ -162,10 +177,13 @@ describe("Template Parser - условные атрибуты", () => {
           ],
         },
       ] as const
-      expect(result, "условие в атрибуте массива").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "условие в атрибуте массива").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("логическое И в атрибуте массива", () => {
+    describe("логическое И в атрибуте массива", () => {
       const result = parseTemplate(`
         <div>
           \${context.users.map(user => html\`
@@ -204,10 +222,13 @@ describe("Template Parser - условные атрибуты", () => {
           ],
         },
       ] as const
-      expect(result, "логическое И в атрибуте массива").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "логическое И в атрибуте массива").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("логическое И в атрибуте массива без знака=", () => {
+    describe("логическое И в атрибуте массива без знака=", () => {
       const result = parseTemplate(`
         <div>
           ${"${context.users.map(user => html`<input ${user.isAdmin && 'readonly'} />`)}"}
@@ -237,12 +258,15 @@ describe("Template Parser - условные атрибуты", () => {
           ],
         },
       ] as const
-      expect(result, "логическое И в атрибуте массива без знака=").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "логическое И в атрибуте массива без знака=").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
   })
 
   describe("смешанный контент с условиями", () => {
-    it("смешанный контент с условием в атрибуте", () => {
+    describe("смешанный контент с условием в атрибуте", () => {
       const result = parseTemplate(`<div class="btn \${context.isLarge ? 'btn-lg' : 'btn-sm'}">Button</div>`)
       const expected: Schema = [
         {
@@ -266,10 +290,13 @@ describe("Template Parser - условные атрибуты", () => {
           ],
         },
       ] as const
-      expect(result, "смешанный контент с условием в атрибуте").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "смешанный контент с условием в атрибуте").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("префикс с условием", () => {
+    describe("префикс с условием", () => {
       const result = parseTemplate(`<div class="prefix-\${context.theme ? 'dark' : 'light'}">Theme</div>`)
       const expected: Schema = [
         {
@@ -293,10 +320,13 @@ describe("Template Parser - условные атрибуты", () => {
           ],
         },
       ] as const
-      expect(result, "префикс с условием").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "префикс с условием").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("суффикс с условием", () => {
+    describe("суффикс с условием", () => {
       const result = parseTemplate(`<div class="\${context.status ? 'active' : 'inactive'}-status">Status</div>`)
       const expected: Schema = [
         {
@@ -320,12 +350,15 @@ describe("Template Parser - условные атрибуты", () => {
           ],
         },
       ] as const
-      expect(result, "суффикс с условием").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "суффикс с условием").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
   })
 
   describe("edge cases условных атрибутов", () => {
-    it("пустое значение в false ветви", () => {
+    describe("пустое значение в false ветви", () => {
       const result = parseTemplate(`<input disabled="\${context.isEnabled ? '' : 'disabled'}">`)
       const expected: Schema = [
         {
@@ -342,10 +375,13 @@ describe("Template Parser - условные атрибуты", () => {
           },
         },
       ] as const
-      expect(result, "пустое значение в false ветви").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "пустое значение в false ветви").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
 
-    it("одинаковые значения в обеих ветвях", () => {
+    describe("одинаковые значения в обеих ветвях", () => {
       const result = parseTemplate(`<div class="\${context.always ? 'same' : 'same'}">Content</div>`)
       const expected: Schema = [
         {
@@ -368,10 +404,13 @@ describe("Template Parser - условные атрибуты", () => {
           ],
         },
       ] as const
-      expect(result, "одинаковые значения в обеих ветвях").toEqual(expected)
+      it("парсинг", () => {
+        expect(result, "одинаковые значения в обеих ветвях").toEqual(expected)
+      })
+      it("рендер", () => {})
     })
   })
-  it("логическое И в атрибуте", () => {
+  describe("логическое И в атрибуте", () => {
     const result = parseTemplate(`<button \${context.cannotEdit && "disabled"}>Edit</button>`)
     const expected: Schema = [
       {
@@ -393,6 +432,9 @@ describe("Template Parser - условные атрибуты", () => {
         ],
       },
     ] as const
-    expect(result, "логическое И в атрибуте (новый синтаксис)").toEqual(expected)
+    it("парсинг", () => {
+      expect(result, "логическое И в атрибуте (новый синтаксис)").toEqual(expected)
+    })
+    it("рендер", () => {})
   })
 })
