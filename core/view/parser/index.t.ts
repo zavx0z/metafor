@@ -18,10 +18,10 @@ export interface ArrayInfo {
  */
 export type AttributeValue =
   | string // статическое значение
-  | { src: string; key?: string | string[] } // простая интерполяция (key опционален для item без свойства)
-  | { src: string; key?: string | string[]; result: string } // смешанный контент
+  | { src: string | string[]; key?: string | string[] } // простая интерполяция (key опционален для item без свойства)
+  | { src: string | string[]; key?: string | string[]; result: string } // смешанный контент
   | {
-      src: string
+      src: string | string[]
       key: string | string[]
       trueValue: string
       falseValue?: string
@@ -33,7 +33,7 @@ export type AttributeValue =
  * Условие для элемента
  */
 export interface ConditionSchema {
-  src: string
+  src: string | string[]
   key: string | string[]
   eq?: any // равно значению
   notEq?: any // не равно значению

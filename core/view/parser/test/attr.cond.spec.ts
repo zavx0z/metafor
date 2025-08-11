@@ -141,7 +141,7 @@ describe("Template Parser - условные атрибуты", () => {
               type: "el",
               attrs: {
                 class: {
-                  src: "item",
+                  src: ["context", "items"],
                   key: "isSpecial",
                   trueValue: "special",
                   falseValue: "normal",
@@ -151,7 +151,7 @@ describe("Template Parser - условные атрибуты", () => {
               child: [
                 {
                   type: "text",
-                  value: { src: "item", key: "name" },
+                  value: { src: ["context", "items"], key: "name" },
                 },
               ],
               item: {
@@ -183,16 +183,17 @@ describe("Template Parser - условные атрибуты", () => {
               type: "el",
               attrs: {
                 class: {
-                  src: "item",
+                  src: ["context", "users"],
                   key: "isAdmin",
                   trueValue: "admin-user",
+                  falseValue: undefined,
                   type: "conditional",
                 },
               },
               child: [
                 {
                   type: "text",
-                  value: { src: "item", key: "name" },
+                  value: { src: ["context", "users"], key: "name" },
                 },
               ],
               item: {

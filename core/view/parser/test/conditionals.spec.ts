@@ -1,9 +1,13 @@
 import { describe, it, expect } from "bun:test"
 import { parseTemplate } from "../index.ts"
 import type { Schema } from "../index.ts"
+import { View } from "../../index.ts"
 
 describe("Template Parser - условные блоки", () => {
   describe("тернарный оператор", () => {
+    const view = new View({
+      render: ({html}) => html``
+    })
     it("тернарий и && в атрибутах + сложные классы и enum после массива", () => {
       const html = [
         '<div class=${context.className} id="${context.id}" data-text="${context.text}">',
@@ -85,7 +89,7 @@ describe("Template Parser - условные блоки", () => {
                   tag: "li",
                   type: "el",
                   item: { src: "context", key: "list" },
-                  child: [{ type: "text", value: { src: "item" } }],
+                  child: [{ type: "text", value: { src: ["context", "list"] } }],
                 },
               ],
             },
@@ -630,7 +634,7 @@ describe("Template Parser - условные блоки", () => {
                     {
                       type: "text",
                       value: {
-                        src: "item",
+                        src: ["context", "notifications"],
                         key: "message",
                       },
                     },
@@ -682,7 +686,7 @@ describe("Template Parser - условные блоки", () => {
               child: [
                 {
                   type: "text",
-                  value: { src: "item", key: "name" },
+                  value: { src: ["context", "items"], key: "name" },
                 },
               ],
               item: { src: "context", key: "items" },
