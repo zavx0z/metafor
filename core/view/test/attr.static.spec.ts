@@ -1,77 +1,79 @@
 import { describe, it, expect } from "bun:test"
-import { parseTemplate } from "../parser/index.ts"
-import type { Schema } from "../parser/index.ts"
+import { View } from "../index.ts"
 
 describe("статические атрибуты", () => {
   describe("простые статические атрибуты", () => {
     describe("один статический атрибут", () => {
-      const result = parseTemplate(`<div class="container">Content</div>`)
-      const expected: Schema = [
-        {
-          tag: "div",
-          type: "el",
-          attrs: {
-            class: "container",
-          },
-          child: [
-            {
-              type: "text",
-              value: "Content",
-            },
-          ],
-        },
-      ] as const
+      const view = new View({
+        render: ({ html }) => html`<div class="container">Content</div>`,
+      })
       it("парсинг", () => {
-        expect(result, "один статический атрибут").toEqual(expected)
+        expect(view.schema, "один статический атрибут").toEqual([
+          {
+            tag: "div",
+            type: "el",
+            attrs: {
+              class: "container",
+            },
+            child: [
+              {
+                type: "text",
+                value: "Content",
+              },
+            ],
+          },
+        ])
       })
       it("рендер", () => {})
     })
 
     describe("несколько статических атрибутов", () => {
-      const result = parseTemplate(`<button type="submit" class="btn" disabled>Submit</button>`)
-      const expected: Schema = [
-        {
-          tag: "button",
-          type: "el",
-          attrs: {
-            type: "submit",
-            class: "btn",
-            disabled: "",
-          },
-          child: [
-            {
-              type: "text",
-              value: "Submit",
-            },
-          ],
-        },
-      ] as const
+      const view = new View({
+        render: ({ html }) => html`<button type="submit" class="btn" disabled>Submit</button>`,
+      })
       it("парсинг", () => {
-        expect(result, "несколько статических атрибутов").toEqual(expected)
+        expect(view.schema, "несколько статических атрибутов").toEqual([
+          {
+            tag: "button",
+            type: "el",
+            attrs: {
+              type: "submit",
+              class: "btn",
+              disabled: "",
+            },
+            child: [
+              {
+                type: "text",
+                value: "Submit",
+              },
+            ],
+          },
+        ])
       })
       it("рендер", () => {})
     })
 
     describe("атрибуты с дефисами", () => {
-      const result = parseTemplate(`<div data-test-id="test" aria-label="description">Content</div>`)
-      const expected: Schema = [
-        {
-          tag: "div",
-          type: "el",
-          attrs: {
-            "data-test-id": "test",
-            "aria-label": "description",
-          },
-          child: [
-            {
-              type: "text",
-              value: "Content",
-            },
-          ],
-        },
-      ] as const
+      const view = new View({
+        render: ({ html }) => html`<div data-test-id="test" aria-label="description">Content</div>`,
+      })
       it("парсинг", () => {
-        expect(result, "атрибуты с дефисами").toEqual(expected)
+        expect(view.schema, "атрибуты с дефисами").toEqual([
+          {
+            tag: "div",
+            type: "el",
+            attrs: {
+              "data-test-id": "test",
+              "aria-label": "description",
+            },
+            child: [
+              {
+                type: "text",
+                value: "Content",
+              },
+            ],
+          },
+        ])
       })
       it("рендер", () => {})
     })
@@ -79,239 +81,323 @@ describe("статические атрибуты", () => {
 
   describe("самозакрывающиеся теги", () => {
     describe("input с атрибутами", () => {
-      const result = parseTemplate(`<input type="text" placeholder="Enter name" required />`)
-      const expected: Schema = [
-        {
-          tag: "input",
-          type: "el",
-          attrs: {
-            type: "text",
-            placeholder: "Enter name",
-            required: "",
-          },
-        },
-      ] as const
+      const view = new View({
+        render: ({ html }) => html`<input type="text" placeholder="Enter name" required />`,
+      })
       it("парсинг", () => {
-        expect(result, "input с атрибутами").toEqual(expected)
+        expect(view.schema, "input с атрибутами").toEqual([
+          {
+            tag: "input",
+            type: "el",
+            attrs: {
+              type: "text",
+              placeholder: "Enter name",
+              required: "",
+            },
+          },
+        ])
       })
       it("рендер", () => {})
     })
 
     describe("img с атрибутами", () => {
-      const result = parseTemplate(`<img src="image.jpg" alt="Description" width="100" height="50" />`)
-      const expected: Schema = [
-        {
-          tag: "img",
-          type: "el",
-          attrs: {
-            src: "image.jpg",
-            alt: "Description",
-            width: "100",
-            height: "50",
-          },
-        },
-      ] as const
-      it("парсинг", () => {
-        expect(result, "img с атрибутами").toEqual(expected)
+      const view = new View({
+        render: ({ html }) => html`<img src="image.jpg" alt="Description" loading />`,
       })
-      it("рендер", () => {})
-    })
-  })
-
-  describe("пустые элементы", () => {
-    describe("элемент без атрибутов", () => {
-      const result = parseTemplate(`<div>Content</div>`)
-      const expected: Schema = [
-        {
-          tag: "div",
-          type: "el",
-          child: [
-            {
-              type: "text",
-              value: "Content",
+      it("парсинг", () => {
+        expect(view.schema, "img с атрибутами").toEqual([
+          {
+            tag: "img",
+            type: "el",
+            attrs: {
+              src: "image.jpg",
+              alt: "Description",
+              loading: "",
             },
-          ],
-        },
-      ] as const
-      it("парсинг", () => {
-        expect(result, "элемент без атрибутов").toEqual(expected)
+          },
+        ])
       })
       it("рендер", () => {})
     })
 
-    describe("самозакрывающийся элемент без атрибутов", () => {
-      const result = parseTemplate(`<br />`)
-      const expected: Schema = [
-        {
-          tag: "br",
-          type: "el",
-        },
-      ] as const
+    describe("meta с атрибутами", () => {
+      const view = new View({
+        render: ({ html }) => html`<meta charset="utf-8" name="viewport" content="width=device-width" />`,
+      })
       it("парсинг", () => {
-        expect(result, "самозакрывающийся элемент без атрибутов").toEqual(expected)
+        expect(view.schema, "meta с атрибутами").toEqual([
+          {
+            tag: "meta",
+            type: "el",
+            attrs: {
+              charset: "utf-8",
+              name: "viewport",
+              content: "width=device-width",
+            },
+          },
+        ])
       })
       it("рендер", () => {})
     })
   })
 
-  describe("вложенные элементы со статическими атрибутами", () => {
-    describe("вложенные элементы", () => {
-      const result = parseTemplate(`
-        <div class="container">
-          <header class="header">
-            <h1 class="title">Title</h1>
-          </header>
-          <main class="main">
-            <p class="text">Content</p>
-          </main>
-        </div>
-      `)
-      const expected: Schema = [
-        {
-          tag: "div",
-          type: "el",
-          attrs: {
-            class: "container",
-          },
-          child: [
-            {
-              tag: "header",
-              type: "el",
-              attrs: {
-                class: "header",
-              },
-              child: [
-                {
-                  tag: "h1",
-                  type: "el",
-                  attrs: {
-                    class: "title",
-                  },
-                  child: [
-                    {
-                      type: "text",
-                      value: "Title",
-                    },
-                  ],
+  describe("вложенные элементы", () => {
+    describe("вложенные элементы с атрибутами", () => {
+      const view = new View({
+        render: ({ html }) => html`
+          <form class="form" method="post">
+            <input type="text" name="username" required />
+            <button type="submit" class="btn">Submit</button>
+          </form>
+        `,
+      })
+      it("парсинг", () => {
+        expect(view.schema, "вложенные элементы с атрибутами").toEqual([
+          {
+            tag: "form",
+            type: "el",
+            attrs: {
+              class: "form",
+              method: "post",
+            },
+            child: [
+              {
+                tag: "input",
+                type: "el",
+                attrs: {
+                  type: "text",
+                  name: "username",
+                  required: "",
                 },
-              ],
-            },
-            {
-              tag: "main",
-              type: "el",
-              attrs: {
-                class: "main",
               },
-              child: [
-                {
-                  tag: "p",
-                  type: "el",
-                  attrs: {
-                    class: "text",
-                  },
-                  child: [
-                    {
-                      type: "text",
-                      value: "Content",
-                    },
-                  ],
+              {
+                tag: "button",
+                type: "el",
+                attrs: {
+                  type: "submit",
+                  class: "btn",
                 },
-              ],
-            },
-          ],
-        },
-      ] as const
+                child: [
+                  {
+                    type: "text",
+                    value: "Submit",
+                  },
+                ],
+              },
+            ],
+          },
+        ])
+      })
+      it("рендер", () => {})
+    })
+
+    describe("сложная структура с атрибутами", () => {
+      const view = new View({
+        render: ({ html }) => html`
+          <div class="container">
+            <header class="header">
+              <h1 class="title">Title</h1>
+            </header>
+            <main class="main">
+              <section class="section">
+                <article class="article">
+                  <h2 class="subtitle">Subtitle</h2>
+                  <p class="text">Content</p>
+                </article>
+              </section>
+            </main>
+            <footer class="footer">
+              <p class="copyright">Copyright</p>
+            </footer>
+          </div>
+        `,
+      })
       it("парсинг", () => {
-        expect(result, "вложенные элементы").toEqual(expected)
+        expect(view.schema, "сложная структура с атрибутами").toEqual([
+          {
+            tag: "div",
+            type: "el",
+            attrs: {
+              class: "container",
+            },
+            child: [
+              {
+                tag: "header",
+                type: "el",
+                attrs: {
+                  class: "header",
+                },
+                child: [
+                  {
+                    tag: "h1",
+                    type: "el",
+                    attrs: {
+                      class: "title",
+                    },
+                    child: [
+                      {
+                        type: "text",
+                        value: "Title",
+                      },
+                    ],
+                  },
+                ],
+              },
+              {
+                tag: "main",
+                type: "el",
+                attrs: {
+                  class: "main",
+                },
+                child: [
+                  {
+                    tag: "section",
+                    type: "el",
+                    attrs: {
+                      class: "section",
+                    },
+                    child: [
+                      {
+                        tag: "article",
+                        type: "el",
+                        attrs: {
+                          class: "article",
+                        },
+                        child: [
+                          {
+                            tag: "h2",
+                            type: "el",
+                            attrs: {
+                              class: "subtitle",
+                            },
+                            child: [
+                              {
+                                type: "text",
+                                value: "Subtitle",
+                              },
+                            ],
+                          },
+                          {
+                            tag: "p",
+                            type: "el",
+                            attrs: {
+                              class: "text",
+                            },
+                            child: [
+                              {
+                                type: "text",
+                                value: "Content",
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+              {
+                tag: "footer",
+                type: "el",
+                attrs: {
+                  class: "footer",
+                },
+                child: [
+                  {
+                    tag: "p",
+                    type: "el",
+                    attrs: {
+                      class: "copyright",
+                    },
+                    child: [
+                      {
+                        type: "text",
+                        value: "Copyright",
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ])
       })
       it("рендер", () => {})
     })
   })
 
-  describe("edge cases статических атрибутов", () => {
-    describe("атрибуты с кавычками внутри", () => {
-      const result = parseTemplate(`<div title="This is a 'quoted' text">Content</div>`)
-      const expected: Schema = [
-        {
-          tag: "div",
-          type: "el",
-          attrs: {
-            title: "This is a 'quoted' text",
-          },
-          child: [
-            {
-              type: "text",
-              value: "Content",
-            },
-          ],
-        },
-      ] as const
-      it("парсинг", () => {
-        expect(result, "атрибуты с кавычками внутри").toEqual(expected)
+  describe("edge cases", () => {
+    describe("пустые атрибуты", () => {
+      const view = new View({
+        render: ({ html }) => html`<div class="" id="">Content</div>`,
       })
-      it("рендер", () => {})
-    })
-
-    describe("атрибуты с двойными кавычками", () => {
-      const result = parseTemplate(`<div title='This is a "quoted" text'>Content</div>`)
-      const expected: Schema = [
-        {
-          tag: "div",
-          type: "el",
-          attrs: {
-            title: 'This is a "quoted" text',
-          },
-          child: [
-            {
-              type: "text",
-              value: "Content",
-            },
-          ],
-        },
-      ] as const
       it("парсинг", () => {
-        expect(result, "атрибуты с двойными кавычками").toEqual(expected)
+        expect(view.schema, "пустые атрибуты").toEqual([
+          {
+            tag: "div",
+            type: "el",
+            attrs: {
+              class: "",
+              id: "",
+            },
+            child: [
+              {
+                type: "text",
+                value: "Content",
+              },
+            ],
+          },
+        ])
       })
       it("рендер", () => {})
     })
 
     describe("атрибуты с пробелами", () => {
-      const result = parseTemplate(`<div class="  spaced  class  ">Content</div>`)
-      const expected: Schema = [
-        {
-          tag: "div",
-          type: "el",
-          attrs: {
-            class: "  spaced  class  ",
-          },
-          child: [
-            {
-              type: "text",
-              value: "Content",
+      const view = new View({
+        render: ({ html }) => html`<div class="  spaced  " title="  title  ">Content</div>`,
+      })
+      it("парсинг", () => {
+        expect(view.schema, "атрибуты с пробелами").toEqual([
+          {
+            tag: "div",
+            type: "el",
+            attrs: {
+              class: "  spaced  ",
+              title: "  title  ",
             },
-          ],
-        },
-      ] as const
-      it("парсинг", () => {
-        expect(result, "атрибуты с пробелами").toEqual(expected)
+            child: [
+              {
+                type: "text",
+                value: "Content",
+              },
+            ],
+          },
+        ])
       })
       it("рендер", () => {})
     })
 
-    describe("некавыченные статические атрибуты на обычном элементе", () => {
-      const result = parseTemplate(`<div id=root class=box data-a=1></div>`)
-      const expected: Schema = [{ tag: "div", type: "el", attrs: { id: "root", class: "box", "data-a": "1" } }] as const
-      it("парсинг", () => {
-        expect(result, "атрибуты без кавычек должны парситься").toEqual(expected)
+    describe("атрибуты с специальными символами", () => {
+      const view = new View({
+        render: ({ html }) => html`<div data-value="&quot;quoted&quot;" title="'single' &amp; &quot;double&quot;">Content</div>`,
       })
-      it("рендер", () => {})
-    })
-
-    describe("некавыченные статические атрибуты в самозакрывающемся теге", () => {
-      const result = parseTemplate(`<input type=text disabled />`)
-      const expected: Schema = [{ tag: "input", type: "el", attrs: { type: "text", disabled: "" } }] as const
       it("парсинг", () => {
-        expect(result, "самозакрывающийся с некавыч. атрибутами").toEqual(expected)
+        expect(view.schema, "атрибуты с специальными символами").toEqual([
+          {
+            tag: "div",
+            type: "el",
+            attrs: {
+              "data-value": "&quot;quoted&quot;",
+              title: "'single' &amp; &quot;double&quot;",
+            },
+            child: [
+              {
+                type: "text",
+                value: "Content",
+              },
+            ],
+          },
+        ])
       })
       it("рендер", () => {})
     })
