@@ -1,59 +1,61 @@
 import { describe, it, expect } from "bun:test"
-import { parseTemplate } from "../parser/index.ts"
-import type { Schema } from "../parser/index.ts"
+import { View } from "../index.ts"
 
 describe("булевы атрибуты", () => {
   describe("простые булевы атрибуты", () => {
     describe("один булев атрибут", () => {
-      const result = parseTemplate(`<input disabled />`)
-      const expected: Schema = [
-        {
-          tag: "input",
-          type: "el",
-          attrs: {
-            disabled: "",
-          },
-        },
-      ] as const
+      const view = new View({
+        render: ({ html }) => html`<input disabled />`,
+      })
       it("парсинг", () => {
-        expect(result, "один булев атрибут").toEqual(expected)
+        expect(view.schema, "один булев атрибут").toEqual([
+          {
+            tag: "input",
+            type: "el",
+            attrs: {
+              disabled: "",
+            },
+          },
+        ])
       })
       it("рендер", () => {})
     })
 
     describe("несколько булевых атрибутов", () => {
-      const result = parseTemplate(`<input disabled readonly required />`)
-      const expected: Schema = [
-        {
-          tag: "input",
-          type: "el",
-          attrs: {
-            disabled: "",
-            readonly: "",
-            required: "",
-          },
-        },
-      ] as const
+      const view = new View({
+        render: ({ html }) => html`<input disabled readonly required />`,
+      })
       it("парсинг", () => {
-        expect(result, "несколько булевых атрибутов").toEqual(expected)
+        expect(view.schema, "несколько булевых атрибутов").toEqual([
+          {
+            tag: "input",
+            type: "el",
+            attrs: {
+              disabled: "",
+              readonly: "",
+              required: "",
+            },
+          },
+        ])
       })
       it("рендер", () => {})
     })
 
     describe("булевы атрибуты с дефисами", () => {
-      const result = parseTemplate(`<input data-required aria-hidden />`)
-      const expected: Schema = [
-        {
-          tag: "input",
-          type: "el",
-          attrs: {
-            "data-required": "",
-            "aria-hidden": "",
-          },
-        },
-      ] as const
+      const view = new View({
+        render: ({ html }) => html`<input data-required aria-hidden />`,
+      })
       it("парсинг", () => {
-        expect(result, "булевы атрибуты с дефисами").toEqual(expected)
+        expect(view.schema, "булевы атрибуты с дефисами").toEqual([
+          {
+            tag: "input",
+            type: "el",
+            attrs: {
+              "data-required": "",
+              "aria-hidden": "",
+            },
+          },
+        ])
       })
       it("рендер", () => {})
     })
@@ -61,63 +63,66 @@ describe("булевы атрибуты", () => {
 
   describe("булевы атрибуты с обычными", () => {
     describe("булев атрибут с обычным", () => {
-      const result = parseTemplate(`<input type="text" disabled />`)
-      const expected: Schema = [
-        {
-          tag: "input",
-          type: "el",
-          attrs: {
-            type: "text",
-            disabled: "",
-          },
-        },
-      ] as const
+      const view = new View({
+        render: ({ html }) => html`<input type="text" disabled />`,
+      })
       it("парсинг", () => {
-        expect(result, "булев атрибут с обычным").toEqual(expected)
+        expect(view.schema, "булев атрибут с обычным").toEqual([
+          {
+            tag: "input",
+            type: "el",
+            attrs: {
+              type: "text",
+              disabled: "",
+            },
+          },
+        ])
       })
       it("рендер", () => {})
     })
 
     describe("обычный атрибут с булевым", () => {
-      const result = parseTemplate(`<button disabled class="btn">Submit</button>`)
-      const expected: Schema = [
-        {
-          tag: "button",
-          type: "el",
-          attrs: {
-            disabled: "",
-            class: "btn",
-          },
-          child: [
-            {
-              type: "text",
-              value: "Submit",
-            },
-          ],
-        },
-      ] as const
+      const view = new View({
+        render: ({ html }) => html`<button disabled class="btn">Submit</button>`,
+      })
       it("парсинг", () => {
-        expect(result, "обычный атрибут с булевым").toEqual(expected)
+        expect(view.schema, "обычный атрибут с булевым").toEqual([
+          {
+            tag: "button",
+            type: "el",
+            attrs: {
+              disabled: "",
+              class: "btn",
+            },
+            child: [
+              {
+                type: "text",
+                value: "Submit",
+              },
+            ],
+          },
+        ])
       })
       it("рендер", () => {})
     })
 
     describe("смешанные атрибуты", () => {
-      const result = parseTemplate(`<input type="checkbox" checked disabled data-test />`)
-      const expected: Schema = [
-        {
-          tag: "input",
-          type: "el",
-          attrs: {
-            type: "checkbox",
-            checked: "",
-            disabled: "",
-            "data-test": "",
-          },
-        },
-      ] as const
+      const view = new View({
+        render: ({ html }) => html`<input type="checkbox" checked disabled data-test />`,
+      })
       it("парсинг", () => {
-        expect(result, "смешанные атрибуты").toEqual(expected)
+        expect(view.schema, "смешанные атрибуты").toEqual([
+          {
+            tag: "input",
+            type: "el",
+            attrs: {
+              type: "checkbox",
+              checked: "",
+              disabled: "",
+              "data-test": "",
+            },
+          },
+        ])
       })
       it("рендер", () => {})
     })
@@ -125,39 +130,41 @@ describe("булевы атрибуты", () => {
 
   describe("самозакрывающиеся теги с булевыми атрибутами", () => {
     describe("input с булевыми атрибутами", () => {
-      const result = parseTemplate(`<input type="text" placeholder="Enter name" required />`)
-      const expected: Schema = [
-        {
-          tag: "input",
-          type: "el",
-          attrs: {
-            type: "text",
-            placeholder: "Enter name",
-            required: "",
-          },
-        },
-      ] as const
+      const view = new View({
+        render: ({ html }) => html`<input type="text" placeholder="Enter name" required />`,
+      })
       it("парсинг", () => {
-        expect(result, "input с булевыми атрибутами").toEqual(expected)
+        expect(view.schema, "input с булевыми атрибутами").toEqual([
+          {
+            tag: "input",
+            type: "el",
+            attrs: {
+              type: "text",
+              placeholder: "Enter name",
+              required: "",
+            },
+          },
+        ])
       })
       it("рендер", () => {})
     })
 
     describe("img с булевыми атрибутами", () => {
-      const result = parseTemplate(`<img src="image.jpg" alt="Description" loading />`)
-      const expected: Schema = [
-        {
-          tag: "img",
-          type: "el",
-          attrs: {
-            src: "image.jpg",
-            alt: "Description",
-            loading: "",
-          },
-        },
-      ] as const
+      const view = new View({
+        render: ({ html }) => html`<img src="image.jpg" alt="Description" loading />`,
+      })
       it("парсинг", () => {
-        expect(result, "img с булевыми атрибутами").toEqual(expected)
+        expect(view.schema, "img с булевыми атрибутами").toEqual([
+          {
+            tag: "img",
+            type: "el",
+            attrs: {
+              src: "image.jpg",
+              alt: "Description",
+              loading: "",
+            },
+          },
+        ])
       })
       it("рендер", () => {})
     })
@@ -165,44 +172,45 @@ describe("булевы атрибуты", () => {
 
   describe("вложенные элементы с булевыми атрибутами", () => {
     describe("вложенные элементы", () => {
-      const result = parseTemplate(`
-        <form>
-          <input type="text" required />
-          <button type="submit" disabled>Submit</button>
-        </form>
-      `)
-      const expected: Schema = [
-        {
-          tag: "form",
-          type: "el",
-          child: [
-            {
-              tag: "input",
-              type: "el",
-              attrs: {
-                type: "text",
-                required: "",
-              },
-            },
-            {
-              tag: "button",
-              type: "el",
-              attrs: {
-                type: "submit",
-                disabled: "",
-              },
-              child: [
-                {
-                  type: "text",
-                  value: "Submit",
-                },
-              ],
-            },
-          ],
-        },
-      ] as const
+      const view = new View({
+        render: ({ html }) => html`
+          <form>
+            <input type="text" required />
+            <button type="submit" disabled>Submit</button>
+          </form>
+        `,
+      })
       it("парсинг", () => {
-        expect(result, "вложенные элементы").toEqual(expected)
+        expect(view.schema, "вложенные элементы").toEqual([
+          {
+            tag: "form",
+            type: "el",
+            child: [
+              {
+                tag: "input",
+                type: "el",
+                attrs: {
+                  type: "text",
+                  required: "",
+                },
+              },
+              {
+                tag: "button",
+                type: "el",
+                attrs: {
+                  type: "submit",
+                  disabled: "",
+                },
+                child: [
+                  {
+                    type: "text",
+                    value: "Submit",
+                  },
+                ],
+              },
+            ],
+          },
+        ])
       })
       it("рендер", () => {})
     })
@@ -210,56 +218,59 @@ describe("булевы атрибуты", () => {
 
   describe("edge cases булевых атрибутов", () => {
     describe("булев атрибут в конце", () => {
-      const result = parseTemplate(`<input type="text" disabled />`)
-      const expected: Schema = [
-        {
-          tag: "input",
-          type: "el",
-          attrs: {
-            type: "text",
-            disabled: "",
-          },
-        },
-      ] as const
+      const view = new View({
+        render: ({ html }) => html`<input type="text" disabled />`,
+      })
       it("парсинг", () => {
-        expect(result, "булев атрибут в конце").toEqual(expected)
+        expect(view.schema, "булев атрибут в конце").toEqual([
+          {
+            tag: "input",
+            type: "el",
+            attrs: {
+              type: "text",
+              disabled: "",
+            },
+          },
+        ])
       })
       it("рендер", () => {})
     })
 
     describe("булев атрибут в начале", () => {
-      const result = parseTemplate(`<input disabled type="text" />`)
-      const expected: Schema = [
-        {
-          tag: "input",
-          type: "el",
-          attrs: {
-            disabled: "",
-            type: "text",
-          },
-        },
-      ] as const
+      const view = new View({
+        render: ({ html }) => html`<input disabled type="text" />`,
+      })
       it("парсинг", () => {
-        expect(result, "булев атрибут в начале").toEqual(expected)
+        expect(view.schema, "булев атрибут в начале").toEqual([
+          {
+            tag: "input",
+            type: "el",
+            attrs: {
+              disabled: "",
+              type: "text",
+            },
+          },
+        ])
       })
       it("рендер", () => {})
     })
 
     describe("только булевы атрибуты", () => {
-      const result = parseTemplate(`<input disabled readonly required />`)
-      const expected: Schema = [
-        {
-          tag: "input",
-          type: "el",
-          attrs: {
-            disabled: "",
-            readonly: "",
-            required: "",
-          },
-        },
-      ] as const
+      const view = new View({
+        render: ({ html }) => html`<input disabled readonly required />`,
+      })
       it("парсинг", () => {
-        expect(result, "только булевы атрибуты").toEqual(expected)
+        expect(view.schema, "только булевы атрибуты").toEqual([
+          {
+            tag: "input",
+            type: "el",
+            attrs: {
+              disabled: "",
+              readonly: "",
+              required: "",
+            },
+          },
+        ])
       })
       it("рендер", () => {})
     })
