@@ -34,7 +34,13 @@ export function evaluateCondition<C extends ContextSchema, S extends string, I e
 
   // Получаем значение
   if (schema.key) {
-    value = source[schema.key]
+    const path = Array.isArray(schema.key) ? schema.key : [schema.key]
+    let current: any = source
+    for (const p of path) {
+      if (current == null) break
+      current = current[p as any]
+    }
+    value = current
   } else {
     value = source
   }

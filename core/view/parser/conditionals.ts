@@ -16,7 +16,7 @@ export function buildFalseCondition(base: ConditionSchema): ConditionSchema {
 type ComparisonOp = "===" | "!==" | ">" | ">=" | "<" | "<="
 
 function parseComparisonExpression(expr: string): {
-  left: { src: "context" | "core" | "item"; key: string }
+  left: { src: "context" | "core" | "item"; key: string | string[] }
   op: ComparisonOp | undefined
   right: string | number | { src: "context" | "core" | "item"; key: string } | undefined
 } | null {
@@ -27,19 +27,24 @@ function parseComparisonExpression(expr: string): {
   if (!m) return null
   const leftSrcKey = m[1]!
   const leftSrc = leftSrcKey.split(".")[0] as "context" | "core" | "item"
-  const leftKey = leftSrcKey.split(".")[1]!
+  const leftKey = leftSrcKey.split(".").slice(1)
   const op = (m[3] as ComparisonOp | undefined) || undefined
-  let right: string | number | { src: "context" | "core" | "item"; key: string } | undefined
+  let right: string | number | { src: "context" | "core" | "item"; key: string | string[] } | undefined
   if (op) {
     if (m[4] !== undefined) right = m[4]!
     else if (m[5] !== undefined) right = m[5]!
     else if (m[6] !== undefined) right = Number(m[6]!)
     else if (m[7] !== undefined) {
       const ref = m[7]!
-      right = { src: ref.split(".")[0] as any, key: ref.split(".")[1]! }
+      const parts = ref.split(".")
+      const rSrc = parts[0] as any
+      const rPath = parts.slice(1)
+      const rKey: string | string[] = rPath.length === 1 ? rPath[0]! : rPath
+      right = { src: rSrc, key: rKey }
     }
   }
-  return { left: { src: leftSrc, key: leftKey }, op: op ?? undefined, right: right ?? undefined }
+  const leftKeyFinal: string | string[] = leftKey.length === 1 ? leftKey[0]! : leftKey
+  return { left: { src: leftSrc, key: leftKeyFinal }, op: op ?? undefined, right: right ?? undefined }
 }
 
 function buildTrueCondFromComparison(

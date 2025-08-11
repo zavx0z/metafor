@@ -43,7 +43,15 @@ export function renderText<C extends ContextSchema, S extends string, I extends 
 
     if (text.value.key && "result" in text.value)
       value = evaluateInterpolation(text.value.result, state, context, core, arrayContext)
-    else if (text.value.key) value = String(source?.[text.value.key] || "")
+    else if (text.value.key) {
+      const path = Array.isArray(text.value.key) ? text.value.key : [text.value.key]
+      let current: any = source
+      for (const p of path) {
+        if (current == null) break
+        current = current[p as any]
+      }
+      value = String(current ?? "")
+    }
     else {
       value = String(source || "")
     }

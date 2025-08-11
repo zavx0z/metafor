@@ -31,26 +31,32 @@ export class TemplateParser {
     let processedHtml = htmlString
     const arrayInfo: ArrayInfo[] = []
     const interpolationMap = new Map<string, { src: string; key: string }>()
-    const dynamicMetaTagMap = new Map<string, { src: "core"; key: string }>()
+    const dynamicMetaTagMap = new Map<string, { src: "core"; key: string | string[] }>()
 
     // Используем более умный парсер для массивов с вложенными backticks
     processedHtml = parseArrayBlocks(processedHtml, arrayInfo)
 
     // Обрабатываем динамические meta-теги: только из core
-    // self-closing
+    // self-closing с поддержкой атрибутов
     let dynIdx = 0
-    processedHtml = processedHtml.replace(/<meta-\$\{core\.([\w\.]+)\}\s*\/\s*>/g, (_m, key) => {
+    processedHtml = processedHtml.replace(/<meta-\$\{core\.([\w\.]+)\}([^>]*)\/\s*>/g, (_m, key, attrs) => {
       const placeholder = `MDYN${dynIdx++}`
-      dynamicMetaTagMap.set(placeholder, { src: "core", key })
-      return `<${placeholder}/>`
+      dynamicMetaTagMap.set(placeholder, {
+        src: "core",
+        key: String(key).includes(".") ? String(key).split(".") : String(key),
+      })
+      return `<${placeholder}${attrs || ""}/>`
     })
-    // paired
+    // paired с поддержкой атрибутов
     processedHtml = processedHtml.replace(
-      /<meta-\$\{core\.([\w\.]+)\}\s*>([\s\S]*?)<\/meta-\$\{core\.\1\}\s*>/g,
-      (_m, key, inner) => {
+      /<meta-\$\{core\.([\w\.]+)\}([^>]*)>([\s\S]*?)<\/meta-\$\{core\.\1\}\s*>/g,
+      (_m, key, attrs, inner) => {
         const placeholder = `MDYN${dynIdx++}`
-        dynamicMetaTagMap.set(placeholder, { src: "core", key })
-        return `<${placeholder}>${inner}</${placeholder}>`
+        dynamicMetaTagMap.set(placeholder, {
+          src: "core",
+          key: String(key).includes(".") ? String(key).split(".") : String(key),
+        })
+        return `<${placeholder}${attrs || ""}>${inner}</${placeholder}>`
       }
     )
 
@@ -74,7 +80,7 @@ export class TemplateParser {
 
     // Обрабатываем простые интерполяции и сохраняем их информацию
     let interpolationIndex = 0
-    processedHtml = processedHtml.replace(/\$\{(context|core)\.(\w+)\}/g, (match, src, key) => {
+    processedHtml = processedHtml.replace(/\$\{(context|core)\.([\w\.]+)\}/g, (match, src, key) => {
       const placeholder = `INTERPOLATION_${interpolationIndex++}`
       interpolationMap.set(placeholder, { src, key })
       return placeholder
@@ -166,10 +172,16 @@ export class TemplateParser {
         const { metaContext, metaCore } = this.parseMetaObjects(attributesStr, interpolationMap)
         if (metaContext) (element as any).context = metaContext
         if (metaCore) (element as any).core = metaCore
-        // Удаляем исходные атрибуты context/core из attrs
+        // Удаляем исходные атрибуты context/core из attrs и возможные разложенные ключи объекта
         if (element.attrs) {
           delete (element.attrs as any).context
           delete (element.attrs as any).core
+          if (metaContext) {
+            for (const k of Object.keys(metaContext)) delete (element.attrs as any)[k]
+          }
+          if (metaCore) {
+            for (const k of Object.keys(metaCore)) delete (element.attrs as any)[k]
+          }
           if (Object.keys(element.attrs).length === 0) delete (element as any).attrs
         }
       }
@@ -231,7 +243,7 @@ export class TemplateParser {
       string,
       { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
     >,
-    dynamicMetaTagMap?: Map<string, { src: "core"; key: string }>
+    dynamicMetaTagMap?: Map<string, { src: "core"; key: string | string[] }>
   ): Array<ElementSchema | TextSchema> {
     const child: Array<ElementSchema | TextSchema> = []
 
@@ -530,10 +542,15 @@ export class TemplateParser {
       const afterRaw = parts[1] ?? ""
       const onlyInterpolation = interpolations[0]!
       const { src, key } = onlyInterpolation.info
-      const placeholderExpr = key ? `\${${src}.${key}}` : `\${${src}}`
+      const keyStr = key
+      const placeholderExpr = keyStr ? `\${${src}.${keyStr}}` : `\${${src}}`
       child.push({
         type: "text",
-        value: { src, ...(key ? { key } : {}), result: `${beforeRaw}${placeholderExpr}${afterRaw}` },
+        value: {
+          src,
+          ...(key ? { key: key.includes(".") ? key.split(".") : key } : {}),
+          result: `${beforeRaw}${placeholderExpr}${afterRaw}`,
+        },
       })
       return
     }
@@ -554,7 +571,10 @@ export class TemplateParser {
           if (interpolation) {
             child.push({
               type: "text",
-              value: interpolation.info,
+              value: {
+                src: interpolation.info.src,
+                key: interpolation.info.key.includes(".") ? interpolation.info.key.split(".") : interpolation.info.key,
+              },
             })
           }
           interpolationIndex++
@@ -576,12 +596,13 @@ export class TemplateParser {
     metaContext?: Record<string, string | number | boolean | null | { src: "context" | "core"; key: string }>
     metaCore?: Record<string, string | number | boolean | null | { src: "context" | "core"; key: string }>
   } {
-    // Находим context="${{...}}" и core="${{...}}"
+    // Находим context="${{...}}" и core="${{...}}" (также допускаем без кавычек: context=${{...}})
     const findObjectAttr = (
       name: string
     ): Record<string, string | number | boolean | null | { src: "context" | "core"; key: string }> | undefined => {
-      const re = new RegExp(`${name}\\s*=\\s*\\"(\\$\\{\\{[\\s\\S]*?\\}\\})\\"`)
-      const m = re.exec(attributesStr)
+      const reQuoted = new RegExp(`${name}\\s*=\\s*\"(\\$\\{\\{[\\s\\S]*?\\}\\})\"`)
+      const reUnquoted = new RegExp(`${name}\\s*=\\s*(\\$\\{\\{[\\s\\S]*?\\}\\})`)
+      const m = reQuoted.exec(attributesStr) || reUnquoted.exec(attributesStr)
       if (!m) return undefined
       const objExpr = m[1] as string // ${ {...} }
       const inner = objExpr.slice(2, -1).trim() // {{...}}
@@ -677,7 +698,7 @@ export class TemplateParser {
    */
   private parseArrayItemTemplate(template: string, source: string, contextKey: string): ElementSchema {
     // Создаем карту интерполяций внутри элемента массива
-    const itemInterpolationMap = new Map<string, { src: string; key?: string }>()
+    const itemInterpolationMap = new Map<string, { src: string; key?: string | string[] }>()
     let interpolationIndex = 0
 
     // Сначала обрабатываем условные блоки внутри массива (только для item.*)
@@ -694,7 +715,7 @@ export class TemplateParser {
     // Заменяем интерполяции внутри массива на плейсхолдеры с извлечением ключей
     cleanTemplate = cleanTemplate
       // Сначала обрабатываем `item.key` формат
-      .replace(/\$\{(\w+)\.(\w+)\}/g, (_m: string, _itemName: string, key: string) => {
+      .replace(/\$\{(\w+)\.([\w\.]+)\}/g, (_m: string, _itemName: string, key: string) => {
         const placeholder = `ITEM_INTERPOLATION_${interpolationIndex++}`
         itemInterpolationMap.set(placeholder, { src: "item", key })
         return placeholder
@@ -769,7 +790,7 @@ export class TemplateParser {
     if (innerContent) {
       const child = this.parseChildrenForArrayItem(
         innerContent.trim(),
-        itemInterpolationMap,
+        itemInterpolationMap as Map<string, { src: string; key?: string | string[] }>,
         itemConditionalInfo,
         itemConditionalAttributeMap
       )
@@ -786,7 +807,7 @@ export class TemplateParser {
    */
   private parseChildrenForArrayItem(
     content: string,
-    itemInterpolationMap: Map<string, { src: string; key?: string }>,
+    itemInterpolationMap: Map<string, { src: string; key?: string | string[] }>,
     itemConditionalInfo: ConditionalInfo[] = [],
     itemConditionalAttributeMap?: Map<
       string,
@@ -798,7 +819,7 @@ export class TemplateParser {
     // Обрабатываем интерполяции элементов массива
     const itemInterpolationPattern = /ITEM_INTERPOLATION_\d+/g
     let processedContent = content
-    const interpolations: Array<{ placeholder: string; info: { src: string; key?: string } }> = []
+    const interpolations: Array<{ placeholder: string; info: { src: string; key?: string | string[] } }> = []
 
     // НЕ заменяем ITEM_INTERPOLATION в основном содержимом
     // Просто сохраняем их для обработки
@@ -821,7 +842,7 @@ export class TemplateParser {
         // Весь контент это условный блок
         const conditionalElements = this.parseConditionalElementsForArray(
           conditionalItem,
-          itemInterpolationMap,
+          itemInterpolationMap as Map<string, { src: string; key?: string | string[] }>,
           itemConditionalInfo
         )
         child.push(...conditionalElements)
@@ -909,7 +930,7 @@ export class TemplateParser {
         if (innerContent !== undefined) {
           const nestedChild = this.parseChildrenForArrayItem(
             innerContent.trim(),
-            itemInterpolationMap,
+            itemInterpolationMap as Map<string, { src: string; key?: string | string[] }>,
             itemConditionalInfo
           )
           if (nestedChild.length > 0) {
@@ -943,8 +964,8 @@ export class TemplateParser {
   private parseTextWithPlaceholdersForArray(
     text: string,
     child: Array<ElementSchema | TextSchema>,
-    interpolations: Array<{ placeholder: string; info: { src: string; key?: string } }>,
-    itemInterpolationMap: Map<string, { src: string; key?: string }>,
+    interpolations: Array<{ placeholder: string; info: { src: string; key?: string | string[] } }>,
+    itemInterpolationMap: Map<string, { src: string; key?: string | string[] }>,
     itemConditionalInfo: ConditionalInfo[] = []
   ) {
     // Сначала проверяем на условные блоки
@@ -964,7 +985,7 @@ export class TemplateParser {
     // Заменяем ITEM_INTERPOLATION на SIMPLE_PLACEHOLDER для обработки как смешанного текста
     const itemInterpolationPattern = /ITEM_INTERPOLATION_\d+/g
     let processedText = text
-    const foundInterpolations: Array<{ src: string; key?: string }> = []
+    const foundInterpolations: Array<{ src: string; key?: string | string[] }> = []
 
     let match: RegExpExecArray | null
     while ((match = itemInterpolationPattern.exec(text)) !== null) {
@@ -1101,7 +1122,7 @@ export class TemplateParser {
    */
   private parseConditionalElementsForArray(
     conditionalItem: ConditionalInfo,
-    itemInterpolationMap: Map<string, { src: string; key?: string }>,
+    itemInterpolationMap: Map<string, { src: string; key?: string | string[] }>,
     itemConditionalInfo: ConditionalInfo[] = []
   ): Array<ElementSchema | TextSchema> {
     const elements: Array<ElementSchema | TextSchema> = []
@@ -1111,7 +1132,7 @@ export class TemplateParser {
       // Обрабатываем интерполяции в шаблоне
       const processedTrueTemplate = this.processInterpolationsInTemplate(
         conditionalItem.trueTemplate,
-        itemInterpolationMap
+        itemInterpolationMap as Map<string, { src: string; key?: string }>
       )
       const trueElements = this.parseChildrenForArrayItem(
         processedTrueTemplate,
@@ -1132,7 +1153,7 @@ export class TemplateParser {
       // Обрабатываем интерполяции в шаблоне
       const processedFalseTemplate = this.processInterpolationsInTemplate(
         conditionalItem.falseTemplate,
-        itemInterpolationMap
+        itemInterpolationMap as Map<string, { src: string; key?: string }>
       )
       const falseElements = this.parseChildrenForArrayItem(
         processedFalseTemplate,

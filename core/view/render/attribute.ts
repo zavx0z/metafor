@@ -64,8 +64,15 @@ export function evaluateAttribute<C extends ContextSchema, S extends string, I e
         return ""
     }
     if (attribute.key) {
-      if ("result" in attribute) return evaluateInterpolation(attribute.result, state, context, core, arrayContext)
-      return source[attribute.key]
+      if ("result" in attribute)
+        return evaluateInterpolation(attribute.result, state, context, core, arrayContext)
+      const path = Array.isArray(attribute.key) ? attribute.key : [attribute.key]
+      let current: any = source
+      for (const p of path) {
+        if (current == null) break
+        current = current[p as any]
+      }
+      return current
     } else {
       return source
     }

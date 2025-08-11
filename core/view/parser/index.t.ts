@@ -18,16 +18,23 @@ export interface ArrayInfo {
  */
 export type AttributeValue =
   | string // статическое значение
-  | { src: string; key?: string } // простая интерполяция (key опционален для item без свойства)
-  | { src: string; key?: string; result: string } // смешанный контент
-  | { src: string; key: string; trueValue: string; falseValue?: string; type: "conditional"; result?: string } // условный атрибут
+  | { src: string; key?: string | string[] } // простая интерполяция (key опционален для item без свойства)
+  | { src: string; key?: string | string[]; result: string } // смешанный контент
+  | {
+      src: string
+      key: string | string[]
+      trueValue: string
+      falseValue?: string
+      type: "conditional"
+      result?: string
+    } // условный атрибут
 
 /**
  * Условие для элемента
  */
 export interface ConditionSchema {
   src: string
-  key: string
+  key: string | string[]
   eq?: any // равно значению
   notEq?: any // не равно значению
   gt?: number // больше (для чисел)
@@ -40,7 +47,7 @@ export interface ConditionSchema {
  * Схема HTML элемента
  */
 export interface ElementSchema {
-  tag: string | { src: "core"; key: string }
+  tag: string | { src: "core"; key: string | string[] }
   type: "el" | "meta" | "wc"
   attrs?: Record<string, AttributeValue>
   child?: Array<ElementSchema | TextSchema>
@@ -64,7 +71,7 @@ export interface ElementSchema {
  */
 export interface TextSchema {
   type: "text"
-  value: string | { src: string; key?: string; result?: string }
+  value: string | { src: string; key?: string | string[]; result?: string }
 }
 
 /**

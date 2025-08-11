@@ -1,7 +1,8 @@
 import type { AttributeValue } from "./index.t.ts"
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null
 const hasResult = (v: unknown): v is { result: string } => isObject(v) && typeof (v as any).result === "string"
-const hasSrc = (v: unknown): v is { src: string; key?: string } => isObject(v) && typeof (v as any).src === "string"
+const hasSrc = (v: unknown): v is { src: string; key?: string | string[] } =>
+  isObject(v) && typeof (v as any).src === "string"
 
 export function parseAttributeValue(
   value: string,
@@ -42,7 +43,7 @@ export function parseAttributeValue(
   if (interpolationMap) {
     for (const [placeholder, info] of interpolationMap) {
       if (value === placeholder) {
-        return info
+        return { src: info.src, key: info.key.includes(".") ? info.key.split(".") : info.key }
       }
     }
   }
@@ -61,25 +62,31 @@ export function parseAttributeValue(
       }
     }
     if (matched) {
-      return firstInfo ? { src: firstInfo.src, key: firstInfo.key, result: resultValue } : (resultValue as any)
+      return firstInfo
+        ? {
+            src: firstInfo.src,
+            key: firstInfo.key.includes(".") ? firstInfo.key.split(".") : firstInfo.key,
+            result: resultValue,
+          }
+        : (resultValue as any)
     }
   }
 
-  const simpleInterpolationMatch = value.match(/^\$\{(context|core)\.(\w+)\}$/)
+  const simpleInterpolationMatch = value.match(/^\$\{(context|core)\.([\w\.]+)\}$/)
   if (simpleInterpolationMatch) {
     const [, src, key] = simpleInterpolationMatch
     if (src && key) {
-      return { src, key }
+      return { src, key: key.includes(".") ? key.split(".") : key }
     }
   }
 
-  const hasInterpolation = /\$\{(context|core)\.(\w+)\}/.test(value)
+  const hasInterpolation = /\$\{(context|core)\.([\w\.]+)\}/.test(value)
   if (hasInterpolation) {
-    const interpolationMatch = value.match(/\$\{(context|core)\.(\w+)\}/)
+    const interpolationMatch = value.match(/\$\{(context|core)\.([\w\.]+)\}/)
     if (interpolationMatch) {
       const [, src, key] = interpolationMatch
       if (src && key) {
-        return { src, key, result: value }
+        return { src, key: key.includes(".") ? key.split(".") : key, result: value }
       }
     }
   }
@@ -348,7 +355,7 @@ export function parseConditionalAttributes(
 
 export function parseAttributeValueForArray(
   value: string,
-  itemInterpolationMap: Map<string, { src: string; key?: string }>,
+  itemInterpolationMap: Map<string, { src: string; key?: string | string[] }>,
   itemConditionalAttributeMap?: Map<
     string,
     { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
@@ -378,10 +385,10 @@ export function parseAttributeValueForArray(
     }
   }
 
-  const simpleItemMatch = value.match(/^\$\{item\.(\w+)\}$/)
+  const simpleItemMatch = value.match(/^\$\{item\.([\w\.]+)\}$/)
   if (simpleItemMatch) {
     const [, key] = simpleItemMatch
-    if (key) return { src: "item", key }
+    if (key) return { src: "item", key: key.includes(".") ? key.split(".") : key }
   }
 
   const simpleVarMatch = value.match(/^\$\{(\w+)\}$/)
@@ -390,20 +397,33 @@ export function parseAttributeValueForArray(
   for (const [placeholder, info] of itemInterpolationMap) {
     if (value.includes(placeholder)) {
       if (value === placeholder) {
-        return info.key ? { src: info.src, key: info.key } : { src: info.src }
+        return info.key
+          ? {
+              src: info.src,
+              key: Array.isArray(info.key) ? info.key : info.key.includes(".") ? info.key.split(".") : info.key,
+            }
+          : { src: info.src }
       }
-      const originalInterpolation = info.key ? `\${item.${info.key}}` : `\${id}`
+      const originalInterpolation = info.key
+        ? `\${item.${Array.isArray(info.key) ? (info.key as string[]).join(".") : info.key}}`
+        : `\${id}`
       const resultValue = value.replace(placeholder, originalInterpolation)
-      return info.key ? { src: info.src, key: info.key, result: resultValue } : { src: info.src, result: resultValue }
+      return info.key
+        ? {
+            src: info.src,
+            key: Array.isArray(info.key) ? info.key : info.key.includes(".") ? info.key.split(".") : info.key,
+            result: resultValue,
+          }
+        : { src: info.src, result: resultValue }
     }
   }
 
-  const hasItemInterpolation = /\$\{item\.(\w+)\}/.test(value)
+  const hasItemInterpolation = /\$\{item\.([\w\.]+)\}/.test(value)
   if (hasItemInterpolation) {
-    const itemMatch = value.match(/\$\{item\.(\w+)\}/)
+    const itemMatch = value.match(/\$\{item\.([\w\.]+)\}/)
     if (itemMatch) {
       const [, key] = itemMatch
-      if (key) return { src: "item", key, result: value }
+      if (key) return { src: "item", key: key.includes(".") ? key.split(".") : key, result: value }
     }
   }
 
@@ -415,7 +435,7 @@ export function parseAttributeValueForArray(
 
 export function parseAttributesForArray(
   attributesStr: string,
-  itemInterpolationMap: Map<string, { src: string; key?: string }>,
+  itemInterpolationMap: Map<string, { src: string; key?: string | string[] }>,
   itemConditionalAttributeMap?: Map<
     string,
     { src: string; key: string; trueValue: string; falseValue?: string; result?: string }

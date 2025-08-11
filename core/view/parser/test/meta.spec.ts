@@ -29,7 +29,7 @@ describe("meta", () => {
         {
           tag: {
             src: "core",
-            key: "actors.child",
+            key: ["actors", "child"],
           },
           type: "meta",
         },
@@ -42,12 +42,41 @@ describe("meta", () => {
         {
           tag: {
             src: "core",
-            key: "actors.child",
+            key: ["actors", "child"],
           },
           type: "meta",
         },
       ]
       expect(result, "хеш-тег из core").toEqual(expected)
+    })
+    it("meta-элемент с хеш-тегом из core и с передачей контекста", () => {
+      const result = parseTemplate(`
+          <meta-\${core.actors.child}
+            context=\${{
+              message: context.parentMessage,
+              count: context.parentCount,
+            }} />
+      `)
+      const expected: Schema = [
+        {
+          tag: {
+            src: "core",
+            key: ["actors", "child"],
+          },
+          type: "meta",
+          context: {
+            message: {
+              src: "context",
+              key: "parentMessage",
+            },
+            count: {
+              src: "context",
+              key: "parentCount",
+            },
+          },
+        },
+      ]
+      expect(result, "meta-элемент с хеш-тегом из core и с передачей контекста").toEqual(expected)
     })
   })
   describe("объекты в атрибутах", () => {
