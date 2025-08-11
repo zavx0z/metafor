@@ -38,7 +38,9 @@ describe("работа со статическими тегами с перед�
     .states({
       idle: {},
     })
-    .core()
+    .core({
+      child: childHash,
+    })
     .processes()
     .reactions((reaction) => [
       [
@@ -57,16 +59,16 @@ describe("работа со статическими тегами с перед�
       onMount: () => {
         countParentMount++
       },
-      render: ({ context, html }) => html`
-      <div>
-        <h1>Родитель: ${context.parentMessage}</h1>
-        <meta-${childHash}
-          context=${{
-            message: context.parentMessage,
-            count: context.parentCount,
-          }}></meta-${childHash}>
-      </div>
-    `,
+      render: ({ context, html, core }) => html`
+        <div>
+          <h1>Родитель: ${context.parentMessage}</h1>
+          <meta-${core.child}
+            context=${{
+              message: context.parentMessage,
+              count: context.parentCount,
+            }} />
+        </div>
+      `,
     })
 
   const { waitForMessages } = messagesFixture({ meta: parentTag })

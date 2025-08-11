@@ -46,13 +46,17 @@ export function renderArrayElement<C extends ContextSchema, S extends string, I 
       const shouldRender = evaluateCondition(state, element.cond, context, core, arrayContext)
       if (!shouldRender) return
     }
+    // Создаем копию элемента без свойства item для избежания рекурсии
+    const elementWithoutItem = { ...element }
+    delete elementWithoutItem.item
+
     switch (element.type) {
       case "wc":
       case "el":
-        renderElement(state, element, context, core, parentElement, update, arrayContext)
+        renderElement(state, elementWithoutItem, context, core, parentElement, update, arrayContext)
         break
       case "meta":
-        renderMetaElement(state, element, context, core, parentElement, update, arrayContext)
+        renderMetaElement(state, elementWithoutItem, context, core, parentElement, update, arrayContext)
         break
       default:
         throw new Error(`Unknown element type: ${element.type}`)

@@ -95,4 +95,77 @@ describe("Рендеринг массивов", () => {
 
     expect(lis?.length, "не должно быть элементов списка").toBe(0)
   })
+  it("массив с интерполяцией из ядра", () => {
+    const view = new View({
+      render: ({ html, core }) =>
+        html`<ul>
+          ${core.list.map((item: { id: number; name: string }) => html`<li data-id="${item.id}">${item.name}</li>`)}
+        </ul>`,
+    })
+    const container = document.createElement("div")
+
+    view.render({
+      state: "initial",
+      context: {},
+      core: {
+        list: [
+          { id: 1, name: "Item 1" },
+          { id: 2, name: "Item 2" },
+          { id: 3, name: "Item 3" },
+        ],
+      },
+      update: (() => {}) as any,
+      element: container,
+    })
+
+    const ul = container.querySelector("ul")
+    const lis = ul?.querySelectorAll("li")
+
+    expect(lis?.length, "должно быть 3 элемента списка").toBe(3)
+    expect(lis?.[0]?.getAttribute("data-id"), "первый элемент должен быть Item 1").toBe("1")
+    expect(lis?.[1]?.getAttribute("data-id"), "второй элемент должен быть Item 2").toBe("2")
+    expect(lis?.[2]?.getAttribute("data-id"), "третий элемент должен быть Item 3").toBe("3")
+    expect(lis?.[0]?.textContent, "первый элемент должен быть Item 1").toBe("Item 1")
+    expect(lis?.[1]?.textContent, "второй элемент должен быть Item 2").toBe("Item 2")
+    expect(lis?.[2]?.textContent, "третий элемент должен быть Item 3").toBe("Item 3")
+  })
+  it("массив с интерполяцией из ядра с вложенными элементами", () => {
+    const view = new View({
+      render: ({ html, core }) =>
+        html`<ul>
+          ${core.list.map(
+            (item: { id: number; name: string }) => html`<li>
+              <div>${item.id}</div>
+              <span>${item.name}</span>
+            </li>`
+          )}
+        </ul>`,
+    })
+    const container = document.createElement("div")
+
+    view.render({
+      state: "initial",
+      context: {},
+      core: {
+        list: [
+          { id: 1, name: "Item 1" },
+          { id: 2, name: "Item 2" },
+          { id: 3, name: "Item 3" },
+        ],
+      },
+      update: (() => {}) as any,
+      element: container,
+    })
+
+    const ul = container.querySelector("ul")
+    const lis = ul?.querySelectorAll("li")
+
+    expect(lis?.length, "должно быть 3 элемента списка").toBe(3)
+    expect(lis?.[0]?.querySelector("div")?.textContent, "первый элемент должен быть Item 1").toBe("1")
+    expect(lis?.[1]?.querySelector("div")?.textContent, "второй элемент должен быть Item 2").toBe("2")
+    expect(lis?.[2]?.querySelector("div")?.textContent, "третий элемент должен быть Item 3").toBe("3")
+    expect(lis?.[0]?.querySelector("span")?.textContent, "первый элемент должен быть Item 1").toBe("Item 1")
+    expect(lis?.[1]?.querySelector("span")?.textContent, "второй элемент должен быть Item 2").toBe("Item 2")
+    expect(lis?.[2]?.querySelector("span")?.textContent, "третий элемент должен быть Item 3").toBe("Item 3")
+  })
 })
