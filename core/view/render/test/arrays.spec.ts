@@ -168,4 +168,60 @@ describe("Рендеринг массивов", () => {
     expect(lis?.[1]?.querySelector("span")?.textContent, "второй элемент должен быть Item 2").toBe("Item 2")
     expect(lis?.[2]?.querySelector("span")?.textContent, "третий элемент должен быть Item 3").toBe("Item 3")
   })
+  it("массив вложенный в массив", () => {
+    const view = new View({
+      render: ({ html, core }) =>
+        html`<ul>
+          ${core.list.map(
+            (item: { id: number; children: { name: string }[] }) => html`<li>
+              <div>${item.id}</div>
+              ${item.children.map((child: { name: string }) => html`<span>${child.name}</span>`)}
+            </li>`
+          )}
+        </ul>`,
+    })
+    const container = document.createElement("div")
+
+    view.render({
+      state: "initial",
+      context: {},
+      core: {
+        list: [
+          {
+            id: 1,
+            children: [{ name: "Item 1" }, { name: "Item 2" }],
+          },
+          {
+            id: 2,
+            children: [{ name: "Item 3" }, { name: "Item 4" }],
+          },
+          {
+            id: 3,
+            children: [{ name: "Item 5" }, { name: "Item 6" }],
+          },
+        ],
+      },
+      update: (() => {}) as any,
+      element: container,
+    })
+    const ul = container.querySelector("ul")
+    const lis = ul?.querySelectorAll("li")
+    console.log(view.schema)
+    expect(lis?.length, "должно быть 3 элемента списка").toBe(3)
+    const li0 = lis?.[0]
+    const li1 = lis?.[1]
+    const li2 = lis?.[2]
+    expect(li0?.querySelector("div")?.textContent, "первый элемент должен быть Item 1").toBe("1")
+    expect(li1?.querySelector("div")?.textContent, "второй элемент должен быть Item 2").toBe("2")
+    expect(li2?.querySelector("div")?.textContent, "третий элемент должен быть Item 3").toBe("3")
+    const child0 = li0?.querySelectorAll("span")
+    const child1 = li1?.querySelectorAll("span")
+    const child2 = li2?.querySelectorAll("span")
+    expect(child0?.[0]?.textContent, "первый элемент должен быть Item 1").toBe("Item 1")
+    expect(child0?.[1]?.textContent, "второй элемент должен быть Item 2").toBe("Item 2")
+    expect(child1?.[0]?.textContent, "первый элемент должен быть Item 3").toBe("Item 3")
+    expect(child1?.[1]?.textContent, "второй элемент должен быть Item 4").toBe("Item 4")
+    expect(child2?.[0]?.textContent, "первый элемент должен быть Item 5").toBe("Item 5")
+    expect(child2?.[1]?.textContent, "второй элемент должен быть Item 6").toBe("Item 6")
+  })
 })

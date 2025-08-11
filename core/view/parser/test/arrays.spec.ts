@@ -25,7 +25,9 @@ describe("Template Parser - массивы", () => {
               child: [
                 {
                   type: "text",
-                  value: { src: "item" } as const,
+                  value: {
+                    src: ["context", "ids"],
+                  },
                 },
               ],
             },
@@ -60,7 +62,9 @@ describe("Template Parser - массивы", () => {
                   child: [
                     {
                       type: "text",
-                      value: { src: "item" } as const,
+                      value: {
+                        src: ["context", "ids"],
+                      },
                     },
                   ],
                 },
@@ -106,7 +110,10 @@ describe("Template Parser - массивы", () => {
                   child: [
                     {
                       type: "text",
-                      value: { src: "item", key: "name" },
+                      value: {
+                        src: ["context", "users"],
+                        key: "name",
+                      },
                     },
                   ],
                 },
@@ -117,7 +124,10 @@ describe("Template Parser - массивы", () => {
                   child: [
                     {
                       type: "text",
-                      value: { src: "item", key: "email" },
+                      value: {
+                        src: ["context", "users"],
+                        key: "email",
+                      },
                     },
                   ],
                 },
@@ -128,7 +138,10 @@ describe("Template Parser - массивы", () => {
                   child: [
                     {
                       type: "text",
-                      value: { src: "item", key: "role" },
+                      value: {
+                        src: ["context", "users"],
+                        key: "role",
+                      },
                     },
                   ],
                 },
@@ -163,24 +176,26 @@ describe("Template Parser - массивы", () => {
               },
               attrs: {
                 "data-id": {
-                  src: "item",
+                  src: ["context", "items"],
                   key: "id",
                 },
                 class: {
-                  src: "item",
+                  src: ["context", "items"],
                   key: "type",
-                  result: "item-${item.type}",
+                  result: "item-${VALUE}",
                 },
               },
               child: [
                 {
                   tag: "h2",
                   type: "el",
-
                   child: [
                     {
                       type: "text",
-                      value: { src: "item", key: "title" },
+                      value: {
+                        src: ["context", "items"],
+                        key: "title",
+                      },
                     },
                   ],
                 },
@@ -214,15 +229,15 @@ describe("Template Parser - массивы", () => {
               },
               attrs: {
                 href: {
+                  src: ["core", "menuItems"],
                   key: "url",
-                  src: "item",
                 },
               },
               child: [
                 {
                   type: "text",
                   value: {
-                    src: "item",
+                    src: ["core", "menuItems"],
                     key: "label",
                   },
                 },
@@ -249,9 +264,7 @@ describe("Template Parser - массивы", () => {
         {
           tag: "main",
           type: "el",
-          attrs: {
-            class: "products",
-          },
+          attrs: { class: "products" },
           child: [
             {
               tag: "div",
@@ -273,12 +286,12 @@ describe("Template Parser - массивы", () => {
                   type: "el",
                   attrs: {
                     src: {
+                      src: ["core", "products"],
                       key: "image",
-                      src: "item",
                     },
                     alt: {
+                      src: ["core", "products"],
                       key: "name",
-                      src: "item",
                     },
                   },
                 },
@@ -291,7 +304,10 @@ describe("Template Parser - массивы", () => {
                   child: [
                     {
                       type: "text",
-                      value: { src: "item", key: "name" },
+                      value: {
+                        src: ["core", "products"],
+                        key: "name",
+                      },
                     },
                   ],
                 },
@@ -308,7 +324,10 @@ describe("Template Parser - массивы", () => {
                     },
                     {
                       type: "text",
-                      value: { src: "item", key: "price" },
+                      value: {
+                        src: ["core", "products"],
+                        key: "price",
+                      },
                     },
                   ],
                 },
@@ -318,8 +337,8 @@ describe("Template Parser - массивы", () => {
                   attrs: {
                     class: "add-to-cart",
                     "data-id": {
+                      src: ["core", "products"],
                       key: "id",
-                      src: "item",
                     },
                   },
                   child: [
@@ -400,7 +419,10 @@ describe("Template Parser - массивы", () => {
                   child: [
                     {
                       type: "text",
-                      value: { src: "item", key: "name" },
+                      value: {
+                        src: ["context", "users"],
+                        key: "name",
+                      },
                     },
                   ],
                 },
@@ -413,7 +435,10 @@ describe("Template Parser - массивы", () => {
                   child: [
                     {
                       type: "text",
-                      value: { src: "item", key: "email" },
+                      value: {
+                        src: ["context", "users"],
+                        key: "email",
+                      },
                     },
                   ],
                 },
@@ -431,7 +456,11 @@ describe("Template Parser - массивы", () => {
                   child: [
                     {
                       type: "text",
-                      value: { src: "context", key: "totalCount", result: "Total users: ${context.totalCount}" },
+                      value: {
+                        src: "context",
+                        key: "totalCount",
+                        result: "Total users: ${context.totalCount}",
+                      },
                     },
                   ],
                 },
@@ -464,21 +493,49 @@ describe("Template Parser - массивы", () => {
               tag: "span",
               type: "el",
               attrs: { class: "category" },
-              child: [{ type: "text", value: { src: "item", key: "name" } }],
-              item: { src: "context", key: "categories" },
+              item: {
+                src: "context",
+                key: "categories",
+              },
+              child: [
+                {
+                  type: "text",
+                  value: {
+                    src: ["context", "categories"],
+                    key: "name",
+                  },
+                },
+              ],
             },
             {
               tag: "div",
               type: "el",
-              attrs: { class: "item", "data-category": { src: "item", key: "categoryId" } },
+              item: {
+                src: "core",
+                key: "items",
+              },
+              attrs: {
+                class: "item",
+                "data-category": {
+                  src: ["core", "items"],
+                  key: "categoryId",
+                },
+              },
               child: [
                 {
                   tag: "h4",
                   type: "el",
-                  child: [{ type: "text", value: { src: "item", key: "title" } }],
+                  child: [
+                    {
+                      type: "text",
+                      value: {
+                        src: ["core", "items"],
+                        key: "title",
+                      },
+                    },
+                  ],
                 },
               ],
-              item: { src: "core", key: "items" },
             },
           ],
         },
@@ -539,12 +596,12 @@ describe("Template Parser - массивы", () => {
               },
               attrs: {
                 src: {
+                  src: ["core", "images"],
                   key: "url",
-                  src: "item",
                 },
                 alt: {
+                  src: ["core", "images"],
                   key: "alt",
-                  src: "item",
                 },
               },
             },
@@ -564,7 +621,6 @@ describe("Template Parser - массивы", () => {
         {
           tag: "ol",
           type: "el",
-
           child: [
             {
               tag: "li",
@@ -577,7 +633,9 @@ describe("Template Parser - массивы", () => {
               child: [
                 {
                   type: "text",
-                  value: { src: "item" } as const,
+                  value: {
+                    src: ["context", "steps"],
+                  },
                 },
               ],
             },
@@ -587,5 +645,111 @@ describe("Template Parser - массивы", () => {
 
       expect(result, "только текст в элементе массива").toEqual(expected)
     })
+  })
+  it("массив вложенный в массив", () => {
+    type Core = {
+      items: {
+        id: number
+        children: {
+          name: string
+        }[]
+      }[]
+    }
+    const result = parseTemplate(`<ul>
+      \${core.items.map((item) => html\`<li>\${item.children.map((child) => html\`<span>\${child}</span>\`)}</li>\`)}
+    </ul>`)
+
+    const expected: Schema = [
+      {
+        tag: "ul",
+        type: "el",
+        child: [
+          {
+            tag: "li",
+            type: "el",
+            item: {
+              src: "core",
+              key: "items",
+            },
+            child: [
+              {
+                tag: "span",
+                type: "el",
+                item: {
+                  src: ["core", "items"],
+                  key: "children",
+                },
+                child: [
+                  {
+                    type: "text",
+                    value: {
+                      src: ["core", "items", "children"],
+                      key: "name",
+                    },
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]
+    expect(result, "массив вложенный в массив").toEqual(expected)
+  })
+
+  it("массив в массиве в массиве (3 уровня)", () => {
+    type Core = {
+      items: {
+        id: number
+        children: {
+          name: string
+          tags: { label: string }[]
+        }[]
+      }[]
+    }
+    const result = parseTemplate(`<ul>
+      \
+      \${core.items.map((item) => html\`<li>
+        \${item.children.map((child) => html\`<div>
+          \${child.tags.map((tag) => html\`<span>\${tag}</span>\`)}
+        </div>\`)}
+      </li>\`)}
+    </ul>`)
+
+    const expected: Schema = [
+      {
+        tag: "ul",
+        type: "el",
+        child: [
+          {
+            tag: "li",
+            type: "el",
+            item: { src: "core", key: "items" },
+            child: [
+              {
+                tag: "div",
+                type: "el",
+                item: { src: ["core", "items"], key: "children" },
+                child: [
+                  {
+                    tag: "span",
+                    type: "el",
+                    item: { src: ["core", "items", "children"], key: "tags" },
+                    child: [
+                      {
+                        type: "text",
+                        value: { src: ["core", "items", "children", "tags"], key: "label" },
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ],
+      },
+    ]
+
+    expect(result, "массив в массиве в массиве (3 уровня)").toEqual(expected)
   })
 })
