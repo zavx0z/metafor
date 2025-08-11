@@ -40,6 +40,12 @@ export type ExtractValue<T> = T extends RequiredStringDefinition
   ? U[number]
   : T extends OptionalEnumDefinition<infer U>
   ? U[number] | null
+  : T extends { type: "array"; required: true; default?: number[] }
+  ? number[]
+  : T extends { type: "array"; required: true; default?: string[] }
+  ? string[]
+  : T extends { type: "array"; required: true; default?: boolean[] }
+  ? boolean[]
   : never
 
 export type ExtractValues<C extends ContextSchema> = { [K in keyof C]: ExtractValue<C[K]> }

@@ -1,6 +1,7 @@
 import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
 const html = String.raw
+
 describe("условные блоки", () => {
   describe("тернарный оператор", () => {
     describe("тернарий и && в атрибутах + сложные классы и enum после массива", () => {
@@ -896,26 +897,26 @@ describe("условные блоки", () => {
             ],
           },
         })
-        expect(element.innerHTML).toMatchStringHTML(
-          html`<div>
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <div>
             <div class="notification">
-              <p></p>
+              <p>Hello</p>
               <button>Action</button>
             </div>
-            <div class="notification"><p></p></div>
-          </div>`
-        )
+            <div class="notification"><p>World</p></div>
+          </div>
+        `)
       })
     })
 
     describe("map затем тернарный оператор как сосед", () => {
       const view = new View({
-        render: ({ html, context }) =>
-          html`<div>
-            ${context.items.map((item: { name: string }) => html`<span>${item.name}</span>`)}${context.flag
-              ? html`<p>Yes</p>`
-              : html`<p>No</p>`}
-          </div>`,
+        render: ({ html, context }) => html`
+          <div>
+            ${context.items.map((item: { name: string }) => html`<span>${item.name}</span>`)}
+            ${context.flag ? html`<p>Yes</p>` : html`<p>No</p>`}
+          </div>
+        `,
       })
       it("парсинг", () => {
         expect(view.schema, "map затем тернарный оператор как сосед").toEqual([
@@ -962,19 +963,20 @@ describe("условные блоки", () => {
             flag: true,
           },
         })
-        expect(element.innerHTML).toMatchStringHTML(
-          html`<div>
-            <span></span><span></span>
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <div>
+            <span> Item 1 </span>
+            <span> Item 2 </span>
             <p>Yes</p>
-          </div>`
-        )
+          </div>
+        `)
       })
     })
   })
   describe("edge cases условий", () => {
     describe("пустые условные блоки", () => {
       const view = new View({
-        render: ({ html, context }) => html`<div>${context.showEmpty ? html`` : html`<span>Not empty</span>`}</div>`,
+        render: ({ html, context }) => html` <div>${context.showEmpty ? html`` : html`<span>Not empty</span>`}</div> `,
       })
       it("парсинг", () => {
         expect(view.schema, "пустые условные блоки").toEqual([
@@ -1018,8 +1020,8 @@ describe("условные блоки", () => {
 
     describe("вложенные условия", () => {
       const view = new View({
-        render: ({ html, context }) =>
-          html`<div>
+        render: ({ html, context }) => html`
+          <div>
             ${context.hasPermission
               ? html`
                   <div>
@@ -1029,7 +1031,8 @@ describe("условные блоки", () => {
                   </div>
                 `
               : html`<div class="no-access">Access Denied</div>`}
-          </div> `,
+          </div>
+        `,
       })
       it("парсинг", () => {
         expect(view.schema, "вложенные условия").toEqual([
@@ -1118,11 +1121,13 @@ describe("условные блоки", () => {
             isAdmin: true,
           },
         })
-        expect(element.innerHTML).toMatchStringHTML(
-          html`<div>
-            <div><button class="admin">Admin Action</button></div>
-          </div>`
-        )
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <div>
+            <div>
+              <button class="admin">Admin Action</button>
+            </div>
+          </div>
+        `)
       })
     })
   })

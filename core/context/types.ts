@@ -122,7 +122,7 @@ const createArrayType = {
    * userIds: types.array.required([])
    * ```
    */
-  required: (defaultValue?: any[]) => {
+  required: <T extends string | number | boolean = string>(defaultValue?: T[]) => {
     const base = { type: "array" as const, required: true as const, default: defaultValue }
     const configurator = (options: { title?: string } = {}) => ({ ...base, ...options })
     return Object.assign(configurator, base)
@@ -137,7 +137,7 @@ const createArrayType = {
    * tags: types.array.optional()
    * ```
    */
-  optional: (defaultValue?: any[]) => {
+  optional: <T extends string | number | boolean = string>(defaultValue?: T[]) => {
     const base = { type: "array" as const, required: false as const, default: defaultValue }
     const configurator = (options: { title?: string } = {}) => ({ ...base, ...options })
     return Object.assign(configurator, base)

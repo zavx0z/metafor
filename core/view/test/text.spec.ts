@@ -1,41 +1,60 @@
 import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
+import { Context, type ExtractValues } from "../../context/index.ts"
 const html = String.raw
 
 describe("текстовые узлы", () => {
   describe("статический текст без интерполяций", () => {
     const view = new View({ render: ({ html }) => html`<div>Hello</div>` })
-    it("парсинг", () => {
+    it("парсинг", () =>
       expect(view.schema, "статический текст парсится в текстовый узел").toEqual([
         {
           tag: "div",
           type: "el",
-          child: [{ type: "text", value: "Hello" }],
+          child: [
+            {
+              type: "text",
+              value: "Hello",
+            },
+          ],
         },
-      ])
-    })
+      ]))
     it("рендер", () => {
-      const el = document.createElement("div")
-      view.render({ state: "", context: {}, core: {}, update: (() => {}) as any, element: el })
-      expect(el.innerHTML, "статический текст рендерится как есть").toMatchStringHTML(html`<div>Hello</div>`)
+      const element = document.createElement("div")
+      view.render({ element })
+      expect(element.innerHTML, "статический текст рендерится как есть").toMatchStringHTML(html`<div>Hello</div>`)
     })
   })
 
   describe("прямая интерполяция по ключу из context (key: string)", () => {
-    const view = new View({ render: ({ html, context }) => html`<span>${context.user.name}</span>` })
+    const ctx = new Context((t) => ({ framework: t.string.required("MetaFor") }))
+    const { context, schema } = ctx
+    const view = new View<typeof schema, string>({
+      render: ({ html, context }) => html`<span>${context.framework}</span>`,
+    })
     it("парсинг", () => {
       expect(view.schema, "context.user.name парсится с key в точечной нотации").toEqual([
         {
           tag: "span",
           type: "el",
-          child: [{ type: "text", value: { src: "context", key: "user.name" } }],
+          child: [
+            {
+              type: "text",
+              value: {
+                src: "context",
+                key: "framework",
+              },
+            },
+          ],
         },
       ])
     })
     it("рендер", () => {
-      const el = document.createElement("div")
-      view.render({ state: "", context: { user: { name: "Alice" } }, core: {}, update: (() => {}) as any, element: el })
-      expect(el.innerHTML, "context.user.name подставляется").toMatchStringHTML(html`<span>Alice</span>`)
+      const element = document.createElement("div")
+      view.render({ context, element })
+      expect(element.innerHTML, "context.framework подставляется").toMatchStringHTML(html`
+        <span>${context.framework}</span>
+      `)
     })
   })
 
@@ -64,10 +83,11 @@ describe("текстовые узлы", () => {
   })
 
   describe("значение по пути (src: string[]) внутри массива без key — примитивный item", () => {
-    const view = new View({
+    const { context, schema } = new Context((t) => ({ ids: t.array.required([1, 2]) }))
+    const view = new View<typeof schema>({
       render: ({ html, context }) =>
         html`<ul>
-          ${context.ids.map((id: string) => html`<li>${id}</li>`)}
+          ${context.ids.map((id) => html`<li>${id}</li>`)}
         </ul>`,
     })
     it("парсинг", () => {
@@ -87,18 +107,19 @@ describe("текстовые узлы", () => {
       ])
     })
     it("рендер", () => {
-      const el = document.createElement("div")
-      view.render({ state: "", context: { ids: ["1", "2"] }, core: {}, update: (() => {}) as any, element: el })
-      expect(el.innerHTML, "каждый li получает текущее примитивное значение id").toMatchStringHTML(
-        html`<ul>
+      const element = document.createElement("div")
+      view.render({ context, element })
+      expect(element.innerHTML, "каждый li получает текущее примитивное значение id").toMatchStringHTML(html`
+        <ul>
           <li>1</li>
           <li>2</li>
-        </ul>`
-      )
+        </ul>
+      `)
     })
   })
 
   describe("значение по пути (src: string[]) внутри массива с key: string — свойство item", () => {
+    
     const view = new View({
       render: ({ html, context }) =>
         html`<ul>

@@ -14,7 +14,11 @@ import { render } from "./render/index.ts"
 
 export type { ViewDeclaration }
 
-export class View<C extends ContextSchema, S extends string, I extends Core> {
+export class View<
+  C extends ContextSchema,
+  S extends string = string,
+  I extends Core = Record<string, any>,
+> {
   #style: ((params: { css: (strings: TemplateStringsArray, ...values: unknown[]) => void }) => void) | null = null
   schema: Schema = []
 
@@ -52,9 +56,21 @@ export class View<C extends ContextSchema, S extends string, I extends Core> {
     this.onMount = config.onMount || (() => {})
     this.onDestroy = config.onDestroy || (() => {})
   }
-  render(params: Omit<ViewDefinitionParams<C, S, I>, "html"> & { element: HTMLElement | DocumentFragment }) {
+  render({
+    element,
+    state = "" as S,
+    context = {} as ExtractValues<C>,
+    core = {} as I,
+    update = () => ({}),
+  }: {
+    element: HTMLElement | DocumentFragment
+    state?: S
+    context?: ExtractValues<C>
+    core?: I
+    update?: Update<C>
+  }) {
     if (!this.schema) return
-    render({ ...params, schema: this.schema, element: params.element })
+    render({ schema: this.schema, element, state, context, core, update })
   }
   get snapshot() {
     const result: { render?: string; style?: string } = {}

@@ -112,7 +112,7 @@ export abstract class ContextBase<C extends ContextSchema> implements ContextIns
    * Геттер для доступа к схеме контекста.
    * @returns Схема контекста
    */
-  get schema(): Record<keyof C, any> {
+  get schema(): SerializedSchema<C> {
     const serializedSchema: Record<keyof C, any> = {} as Record<keyof C, any>
 
     for (const [key, definition] of Object.entries(this.schemaDefinition)) {

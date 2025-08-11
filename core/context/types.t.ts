@@ -286,7 +286,7 @@ export type AnyDefinition =
   | StringDefinition
   | NumberDefinition
   | BooleanDefinition
-  | ArrayDefinition<any>
+  | ArrayDefinition<string | number | boolean>
   | EnumDefinition<any>
 
 /**
