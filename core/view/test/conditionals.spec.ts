@@ -22,10 +22,10 @@ describe("условные блоки", () => {
             ${context.enum === "div"
               ? html`<div class="enum">enum element div</div>`
               : context.enum === "span"
-              ? html`<span class="enum">enum element span</span>`
-              : context.enum === "p"
-              ? html`<p class="enum">enum element p</p>`
-              : null}
+                ? html`<span class="enum">enum element span</span>`
+                : context.enum === "p"
+                  ? html`<p class="enum">enum element p</p>`
+                  : null}
           </div>
         `,
       })
@@ -405,19 +405,20 @@ describe("условные блоки", () => {
 
     describe("сравнение с определенным значением", () => {
       const view = new View({
-        render: ({ html, context }) => html`<main>
-          ${context.userRole === "admin"
-            ? html`
-                <section class="admin-panel">
-                  <h2>Admin Panel</h2>
-                </section>
-              `
-            : html`
-                <section class="user-panel">
-                  <h2>User Panel</h2>
-                </section>
-              `}
-        </main>`,
+        render: ({ html, context }) =>
+          html`<main>
+            ${context.userRole === "admin"
+              ? html`
+                  <section class="admin-panel">
+                    <h2>Admin Panel</h2>
+                  </section>
+                `
+              : html`
+                  <section class="user-panel">
+                    <h2>User Panel</h2>
+                  </section>
+                `}
+          </main>`,
       })
       it("парсинг", () => {
         expect(view.schema, "сравнение с определенным значением").toEqual([
@@ -727,13 +728,14 @@ describe("условные блоки", () => {
   describe("условия в массивах", () => {
     describe("условный рендеринг элементов массива", () => {
       const view = new View({
-        render: ({ html, context }) => html`<ul>
-          ${context.items.map(
-            (item: { isVisible: boolean; name: string }) => html`
-              <li>${item.isVisible ? html`<span>${item.name}</span>` : html`<span class="hidden">Hidden</span>`}</li>
-            `
-          )}
-        </ul> `,
+        render: ({ html, context }) =>
+          html`<ul>
+            ${context.items.map(
+              (item: { isVisible: boolean; name: string }) => html`
+                <li>${item.isVisible ? html`<span>${item.name}</span>` : html`<span class="hidden">Hidden</span>`}</li>
+              `
+            )}
+          </ul> `,
       })
       it("парсинг", () => {
         expect(view.schema, "условный рендеринг элементов массива").toEqual([
@@ -816,16 +818,18 @@ describe("условные блоки", () => {
 
     describe("условие только с одной ветвью в массиве", () => {
       const view = new View({
-        render: ({ html, context }) => html`<div>
-          ${context.notifications.map(
-            (notification: { message: string; hasAction: boolean }) => html`
-              <div class="notification">
-                <p>${notification.message}</p>
-                ${notification.hasAction && html`<button>Action</button>`}
-              </div>
-            `
-          )}
-        </div> `,
+        render: ({ html, context }) => html`
+          <div>
+            ${context.notifications.map(
+              (notification: { message: string; hasAction: boolean }) => html`
+                <div class="notification">
+                  <p>${notification.message}</p>
+                  ${notification.hasAction && html`<button>Action</button>`}
+                </div>
+              `
+            )}
+          </div>
+        `,
       })
       it("парсинг", () => {
         expect(view.schema, "условие только с одной ветвью в массиве").toEqual([
@@ -1014,17 +1018,18 @@ describe("условные блоки", () => {
 
     describe("вложенные условия", () => {
       const view = new View({
-        render: ({ html, context }) => html`<div>
-          ${context.hasPermission
-            ? html`
-                <div>
-                  ${context.isAdmin
-                    ? html`<button class="admin">Admin Action</button>`
-                    : html`<button class="user">User Action</button>`}
-                </div>
-              `
-            : html`<div class="no-access">Access Denied</div>`}
-        </div> `,
+        render: ({ html, context }) =>
+          html`<div>
+            ${context.hasPermission
+              ? html`
+                  <div>
+                    ${context.isAdmin
+                      ? html`<button class="admin">Admin Action</button>`
+                      : html`<button class="user">User Action</button>`}
+                  </div>
+                `
+              : html`<div class="no-access">Access Denied</div>`}
+          </div> `,
       })
       it("парсинг", () => {
         expect(view.schema, "вложенные условия").toEqual([

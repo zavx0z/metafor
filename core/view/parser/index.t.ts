@@ -3,6 +3,8 @@
  * @module TemplateParserTypes
  */
 
+import type { TextSchema } from "../render/text.t"
+
 /**
  * Информация о массиве из контекста или core
  */
@@ -64,14 +66,6 @@ export interface ElementSchema {
    * Объектные привязки для meta-актеров: core значения
    */
   core?: Record<string, string | number | boolean | null | { src: "context" | "core"; key: string }>
-}
-
-/**
- * Схема текстового узла
- */
-export interface TextSchema {
-  type: "text"
-  value: string | { src: string | string[]; key?: string | string[]; result?: string }
 }
 
 /**

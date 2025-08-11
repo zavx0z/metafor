@@ -3,7 +3,8 @@
  * @module TemplateParser
  */
 
-import type { ArrayInfo, Schema, ElementSchema, TextSchema, ConditionSchema } from "./index.t.ts"
+import type { ArrayInfo, Schema, ElementSchema, ConditionSchema } from "./index.t.ts"
+import type { TextSchema } from "../render/text.t.ts"
 import { extractTemplateContent, findClosingBrace } from "./utils.ts"
 import { parseArrayBlocks } from "./arrays.ts"
 import {
