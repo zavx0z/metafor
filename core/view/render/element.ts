@@ -66,9 +66,7 @@ export function renderElement<C extends ContextSchema, S extends string, I exten
   }
 
   // Применяем context и core для meta-элементов
-  if (schema.type === "meta") {
-    applyMetaData(el, schema, context, core)
-  }
+  applyMetaData(el, schema, context, core)
 
   // Рендерим дочерние элементы
   if (schema.child) {
