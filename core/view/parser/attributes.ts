@@ -440,7 +440,8 @@ export function parseAttributesForArray(
     string,
     { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
   >,
-  eventAttributeMap?: Map<string, string>
+  eventAttributeMap?: Map<string, string>,
+  currentPath?: string[]
 ): Record<string, AttributeValue> {
   const attrs: Record<string, AttributeValue> = {}
   let currentIndex = 0
@@ -483,7 +484,7 @@ export function parseAttributesForArray(
           for (const [placeholder, info] of itemConditionalAttributeMap) {
             if (value === placeholder) {
               attrs[name] = {
-                src: info.src,
+                src: info.src === "item" && currentPath ? (currentPath as any) : info.src,
                 key: info.key,
                 trueValue: info.trueValue,
                 falseValue: info.falseValue,
@@ -493,12 +494,13 @@ export function parseAttributesForArray(
               break
             }
             if (value.includes(placeholder)) {
+              const srcForCond = info.src === "item" && currentPath ? "VALUE" : `${info.src}.${info.key}`
               const originalConditional = info.falseValue
-                ? `\${${info.src}.${info.key} ? '${info.trueValue}' : '${info.falseValue}'}`
-                : `\${${info.src}.${info.key} && '${info.trueValue}'}`
+                ? `\${${srcForCond} ? '${info.trueValue}' : '${info.falseValue}'}`
+                : `\${${srcForCond} && '${info.trueValue}'}`
               const resultValue = value.replace(placeholder, originalConditional)
               attrs[name] = {
-                src: info.src,
+                src: info.src === "item" && currentPath ? (currentPath as any) : info.src,
                 key: info.key,
                 trueValue: info.trueValue,
                 falseValue: info.falseValue,
@@ -510,10 +512,32 @@ export function parseAttributesForArray(
             }
           }
           if (!foundPlaceholder) {
-            attrs[name] = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+            {
+              const parsed = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+              if (typeof parsed === "string") attrs[name] = parsed
+              else if (hasSrc(parsed)) {
+                const out: any = { ...parsed }
+                if (parsed.src === "item" && currentPath) out.src = currentPath as any
+                if ("result" in parsed && parsed.result && parsed.src === "item") {
+                  out.result = parsed.result.replace(/\$\{item\.[^}]+\}/g, "${VALUE}")
+                }
+                attrs[name] = out
+              } else attrs[name] = parsed
+            }
           }
         } else {
-          attrs[name] = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+          {
+            const parsed = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+            if (typeof parsed === "string") attrs[name] = parsed
+            else if (hasSrc(parsed)) {
+              const out: any = { ...parsed }
+              if (parsed.src === "item" && currentPath) out.src = currentPath as any
+              if ("result" in parsed && parsed.result && parsed.src === "item") {
+                out.result = parsed.result.replace(/\$\{item\.[^}]+\}/g, "${VALUE}")
+              }
+              attrs[name] = out
+            } else attrs[name] = parsed
+          }
         }
       } else {
         const valueStart = currentIndex
@@ -533,7 +557,7 @@ export function parseAttributesForArray(
           for (const [placeholder, info] of itemConditionalAttributeMap) {
             if (value === placeholder) {
               attrs[name] = {
-                src: info.src,
+                src: info.src === "item" && currentPath ? (currentPath as any) : info.src,
                 key: info.key,
                 trueValue: info.trueValue,
                 falseValue: info.falseValue,
@@ -543,12 +567,13 @@ export function parseAttributesForArray(
               break
             }
             if (value.includes(placeholder)) {
+              const srcForCond = info.src === "item" && currentPath ? "VALUE" : `${info.src}.${info.key}`
               const originalConditional = info.falseValue
-                ? `\${${info.src}.${info.key} ? '${info.trueValue}' : '${info.falseValue}'}`
-                : `\${${info.src}.${info.key} && '${info.trueValue}'}`
+                ? `\${${srcForCond} ? '${info.trueValue}' : '${info.falseValue}'}`
+                : `\${${srcForCond} && '${info.trueValue}'}`
               const resultValue = value.replace(placeholder, originalConditional)
               attrs[name] = {
-                src: info.src,
+                src: info.src === "item" && currentPath ? (currentPath as any) : info.src,
                 key: info.key,
                 trueValue: info.trueValue,
                 falseValue: info.falseValue,
@@ -560,10 +585,32 @@ export function parseAttributesForArray(
             }
           }
           if (!foundPlaceholder) {
-            attrs[name] = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+            {
+              const parsed = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+              if (typeof parsed === "string") attrs[name] = parsed
+              else if (hasSrc(parsed)) {
+                const out: any = { ...parsed }
+                if (parsed.src === "item" && currentPath) out.src = currentPath as any
+                if ("result" in parsed && parsed.result && parsed.src === "item") {
+                  out.result = parsed.result.replace(/\$\{item\.[^}]+\}/g, "${VALUE}")
+                }
+                attrs[name] = out
+              } else attrs[name] = parsed
+            }
           }
         } else {
-          attrs[name] = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+          {
+            const parsed = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
+            if (typeof parsed === "string") attrs[name] = parsed
+            else if (hasSrc(parsed)) {
+              const out: any = { ...parsed }
+              if (parsed.src === "item" && currentPath) out.src = currentPath as any
+              if ("result" in parsed && parsed.result && parsed.src === "item") {
+                out.result = parsed.result.replace(/\$\{item\.[^}]+\}/g, "${VALUE}")
+              }
+              attrs[name] = out
+            } else attrs[name] = parsed
+          }
         }
       }
     } else {

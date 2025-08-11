@@ -4,6 +4,7 @@
  */
 
 import type { ArrayInfo, Schema, ElementSchema, TextSchema, ConditionSchema } from "./index.t.ts"
+import { extractTemplateContent, findClosingBrace } from "./utils.ts"
 import { parseArrayBlocks } from "./arrays.ts"
 import {
   parseAttributes,
@@ -696,7 +697,7 @@ export class TemplateParser {
   /**
    * Парсит шаблон элемента массива
    */
-  private parseArrayItemTemplate(template: string, source: string, contextKey: string): ElementSchema {
+  private parseArrayItemTemplate(template: string, source: string | string[], contextKey: string): ElementSchema {
     // Создаем карту интерполяций внутри элемента массива
     const itemInterpolationMap = new Map<string, { src: string; key?: string | string[] }>()
     let interpolationIndex = 0
@@ -704,6 +705,30 @@ export class TemplateParser {
     // Сначала обрабатываем условные блоки внутри массива (только для item.*)
     const itemConditionalInfo: ConditionalInfo[] = []
     let cleanTemplate = parseConditionalBlocksForArray(template, itemConditionalInfo)
+
+    // Накапливаем путь для вложенных массивов: basePath = [...sourcePath, contextKey]
+    const basePath: string[] = Array.isArray(source) ? [...source, contextKey] : [source, contextKey]
+
+    // Ищем вложенные map внутри элемента массива: ${var.childKey.map((x) => html`...`)}
+    type NestedInfo = { placeholder: string; sourcePath: string[]; contextKey: string; itemTemplate: string }
+    const nestedInfos: NestedInfo[] = []
+    let nestedIndex = 0
+    const nestedRe = /\$\{(\w+)\.(\w+)\.map\(/g
+    let nm: RegExpExecArray | null
+    while ((nm = nestedRe.exec(cleanTemplate)) !== null) {
+      const startIndex = nm.index
+      const afterStart = startIndex + nm[0]!.length
+      const htmlStart = cleanTemplate.indexOf("html`", afterStart)
+      if (htmlStart === -1) continue
+      const content = extractTemplateContent(cleanTemplate, htmlStart + 5)
+      if (content == null) continue
+      const closing = findClosingBrace(cleanTemplate, startIndex)
+      if (closing === -1) continue
+      const fullMatch = cleanTemplate.substring(startIndex, closing + 1)
+      const placeholder = `NESTED_ARRAY_${nestedIndex++}`
+      nestedInfos.push({ placeholder, sourcePath: basePath, contextKey: nm[2]!, itemTemplate: content })
+      cleanTemplate = cleanTemplate.replace(fullMatch, placeholder)
+    }
 
     // Обрабатываем условные атрибуты для item.*
     const itemConditionalAttributeMap = new Map<
@@ -742,11 +767,11 @@ export class TemplateParser {
         child: [
           {
             type: "text",
-            value: { src: "item" },
+            value: { src: basePath },
           },
         ],
         item: {
-          src: source,
+          src: Array.isArray(source) ? source : source,
           key: contextKey,
         },
       }
@@ -770,7 +795,7 @@ export class TemplateParser {
       tag: tagName,
       type: tagName.startsWith("meta-") ? "meta" : tagName.includes("-") ? "wc" : "el",
       item: {
-        src: source,
+        src: Array.isArray(source) ? source : source,
         key: contextKey,
       },
     }
@@ -781,7 +806,13 @@ export class TemplateParser {
       processedAttributesStr = processedAttributesStr.replace(new RegExp(placeholder, "g"), "SIMPLE_PLACEHOLDER")
     }
 
-    const attrs = parseAttributesForArray(attributesStr || "", itemInterpolationMap, itemConditionalAttributeMap)
+    const attrs = parseAttributesForArray(
+      attributesStr || "",
+      itemInterpolationMap,
+      itemConditionalAttributeMap,
+      undefined,
+      basePath
+    )
     if (Object.keys(attrs).length > 0) {
       element.attrs = attrs
     }
@@ -792,7 +823,9 @@ export class TemplateParser {
         innerContent.trim(),
         itemInterpolationMap as Map<string, { src: string; key?: string | string[] }>,
         itemConditionalInfo,
-        itemConditionalAttributeMap
+        itemConditionalAttributeMap,
+        nestedInfos,
+        basePath
       )
       if (child.length > 0) {
         element.child = child
@@ -812,7 +845,9 @@ export class TemplateParser {
     itemConditionalAttributeMap?: Map<
       string,
       { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
-    >
+    >,
+    nestedInfos: Array<{ placeholder: string; sourcePath: string[]; contextKey: string; itemTemplate: string }> = [],
+    currentPath: string[] = []
   ): Array<ElementSchema | TextSchema> {
     const child: Array<ElementSchema | TextSchema> = []
 
@@ -831,6 +866,18 @@ export class TemplateParser {
           placeholder: match[0],
           info: interpolationInfo,
         })
+      }
+    }
+
+    // Обрабатываем вложенные массивы: плейсхолдеры NESTED_ARRAY_*
+    for (const nested of nestedInfos) {
+      const { placeholder, sourcePath, contextKey, itemTemplate } = nested
+      if (content.trim().includes(placeholder)) {
+        // Превращаем плейсхолдер в элемент с item= { src: [...sourcePath], key: contextKey }
+        const nestedElement = this.parseArrayItemTemplate(itemTemplate, sourcePath, contextKey)
+        child.push(nestedElement)
+        // Удаляем плейсхолдер из контента для дальнейшей текстовой обработки
+        content = content.replace(placeholder, "")
       }
     }
 
@@ -857,28 +904,31 @@ export class TemplateParser {
       if (itemMatch) {
         const interpolationInfo = itemInterpolationMap.get(itemMatch[0])
         if (interpolationInfo) {
-          child.push({
-            type: "text",
-            value: interpolationInfo,
-          })
+          const hasKey = interpolationInfo.key !== undefined
+          const srcVal: any = currentPath.length ? currentPath : interpolationInfo.src
+          const value: any = { src: srcVal }
+          if (hasKey) value.key = interpolationInfo.key
+          child.push({ type: "text", value })
         } else {
           child.push({
             type: "text",
-            value: { src: "item" },
+            value: { src: currentPath.length ? currentPath : "item" },
           })
         }
       } else if (processedContent.trim() === "SIMPLE_PLACEHOLDER") {
         // Ищем первую подходящую интерполяцию
         if (interpolations.length > 0 && interpolations[0]) {
-          child.push({
-            type: "text",
-            value: interpolations[0].info,
-          })
+          const info = interpolations[0].info
+          const hasKey = info.key !== undefined
+          const srcVal: any = currentPath.length ? currentPath : info.src
+          const value: any = { src: srcVal }
+          if (hasKey) value.key = info.key
+          child.push({ type: "text", value })
         } else {
           // Это обычный SIMPLE_PLACEHOLDER без информации об источнике
           child.push({
             type: "text",
-            value: { src: "item" },
+            value: { src: currentPath.length ? currentPath : "item" },
           })
         }
       } else {
@@ -888,7 +938,8 @@ export class TemplateParser {
           child,
           interpolations,
           itemInterpolationMap,
-          itemConditionalInfo
+          itemConditionalInfo,
+          currentPath
         )
       }
     } else {
@@ -910,7 +961,8 @@ export class TemplateParser {
             child,
             interpolations,
             itemInterpolationMap,
-            itemConditionalInfo
+            itemConditionalInfo,
+            currentPath
           )
         }
 
@@ -921,7 +973,13 @@ export class TemplateParser {
         }
 
         // Парсим атрибуты
-        const attrs = parseAttributesForArray(attributesStr || "", itemInterpolationMap, itemConditionalAttributeMap)
+        const attrs = parseAttributesForArray(
+          attributesStr || "",
+          itemInterpolationMap,
+          itemConditionalAttributeMap,
+          undefined,
+          currentPath
+        )
         if (Object.keys(attrs).length > 0) {
           element.attrs = attrs
         }
@@ -931,7 +989,10 @@ export class TemplateParser {
           const nestedChild = this.parseChildrenForArrayItem(
             innerContent.trim(),
             itemInterpolationMap as Map<string, { src: string; key?: string | string[] }>,
-            itemConditionalInfo
+            itemConditionalInfo,
+            undefined,
+            nestedInfos,
+            currentPath
           )
           if (nestedChild.length > 0) {
             element.child = nestedChild
@@ -950,7 +1011,8 @@ export class TemplateParser {
           child,
           interpolations,
           itemInterpolationMap,
-          itemConditionalInfo
+          itemConditionalInfo,
+          currentPath
         )
       }
     }
@@ -966,7 +1028,8 @@ export class TemplateParser {
     child: Array<ElementSchema | TextSchema>,
     interpolations: Array<{ placeholder: string; info: { src: string; key?: string | string[] } }>,
     itemInterpolationMap: Map<string, { src: string; key?: string | string[] }>,
-    itemConditionalInfo: ConditionalInfo[] = []
+    itemConditionalInfo: ConditionalInfo[] = [],
+    currentPath: string[] = []
   ) {
     // Сначала проверяем на условные блоки
     for (const conditionalItem of itemConditionalInfo) {
@@ -1012,10 +1075,11 @@ export class TemplateParser {
       if (i < parts.length - 1 && interpolationIndex < foundInterpolations.length) {
         const interpolation = foundInterpolations[interpolationIndex]
         if (interpolation) {
-          child.push({
-            type: "text",
-            value: interpolation,
-          })
+          const hasKey = interpolation.key !== undefined
+          const srcVal: any = currentPath.length ? currentPath : interpolation.src
+          const value: any = { src: srcVal }
+          if (hasKey) value.key = interpolation.key
+          child.push({ type: "text", value })
         }
         interpolationIndex++
       }

@@ -173,7 +173,7 @@ describe("Template Parser - интерполяции в атрибутах", () 
               type: "el",
               attrs: {
                 "data-id": {
-                  src: "item",
+                  src: ["context", "items"],
                   key: "id",
                 },
               },
@@ -208,9 +208,9 @@ describe("Template Parser - интерполяции в атрибутах", () 
               type: "el",
               attrs: {
                 class: {
-                  src: "item",
+                  src: ["context", "items"],
                   key: "type",
-                  result: "item-${item.type}",
+                  result: "item-${VALUE}",
                 },
               },
               child: [
@@ -244,16 +244,16 @@ describe("Template Parser - интерполяции в атрибутах", () 
               type: "el",
               attrs: {
                 "data-id": {
-                  src: "item",
+                  src: ["context", "items"],
                   key: "id",
                 },
                 class: {
-                  src: "item",
+                  src: ["context", "items"],
                   key: "type",
-                  result: "item-${item.type}",
+                  result: "item-${VALUE}",
                 },
                 title: {
-                  src: "item",
+                  src: ["context", "items"],
                   key: "name",
                 },
               },
@@ -324,18 +324,18 @@ describe("Template Parser - интерполяции в атрибутах", () 
               type: "el",
               attrs: {
                 "data-id": {
-                  src: "item",
+                  src: ["context", "items"],
                   key: "id",
                 },
                 class: {
-                  src: "item",
+                  src: ["context", "items"],
                   key: "type",
-                  result: "static item-${item.type}",
+                  result: "static item-${VALUE}",
                 },
                 title: {
-                  src: "item",
+                  src: ["context", "items"],
                   key: "name",
-                  result: "Item: ${item.name}",
+                  result: "Item: ${VALUE}",
                 },
               },
               child: [

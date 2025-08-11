@@ -738,7 +738,7 @@ describe("Template Parser - массивы", () => {
                     child: [
                       {
                         type: "text",
-                        value: { src: ["core", "items", "children", "tags"], key: "label" },
+                        value: { src: ["core", "items", "children", "tags"] },
                       },
                     ],
                   },

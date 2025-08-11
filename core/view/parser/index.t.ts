@@ -52,7 +52,7 @@ export interface ElementSchema {
   attrs?: Record<string, AttributeValue>
   child?: Array<ElementSchema | TextSchema>
   item?: {
-    src: string
+    src: string | string[]
     key: string
   }
   cond?: ConditionSchema
@@ -71,7 +71,7 @@ export interface ElementSchema {
  */
 export interface TextSchema {
   type: "text"
-  value: string | { src: string; key?: string | string[]; result?: string }
+  value: string | { src: string | string[]; key?: string | string[]; result?: string }
 }
 
 /**
