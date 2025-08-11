@@ -31,9 +31,28 @@ export class TemplateParser {
     let processedHtml = htmlString
     const arrayInfo: ArrayInfo[] = []
     const interpolationMap = new Map<string, { src: string; key: string }>()
+    const dynamicMetaTagMap = new Map<string, { src: "core"; key: string }>()
 
     // Используем более умный парсер для массивов с вложенными backticks
     processedHtml = parseArrayBlocks(processedHtml, arrayInfo)
+
+    // Обрабатываем динамические meta-теги: только из core
+    // self-closing
+    let dynIdx = 0
+    processedHtml = processedHtml.replace(/<meta-\$\{core\.([\w\.]+)\}\s*\/\s*>/g, (_m, key) => {
+      const placeholder = `MDYN${dynIdx++}`
+      dynamicMetaTagMap.set(placeholder, { src: "core", key })
+      return `<${placeholder}/>`
+    })
+    // paired
+    processedHtml = processedHtml.replace(
+      /<meta-\$\{core\.([\w\.]+)\}\s*>([\s\S]*?)<\/meta-\$\{core\.\1\}\s*>/g,
+      (_m, key, inner) => {
+        const placeholder = `MDYN${dynIdx++}`
+        dynamicMetaTagMap.set(placeholder, { src: "core", key })
+        return `<${placeholder}>${inner}</${placeholder}>`
+      }
+    )
 
     // Обрабатываем условные блоки рекурсивно до полной обработки
     const conditionalInfo: ConditionalInfo[] = []
@@ -83,7 +102,8 @@ export class TemplateParser {
           arrayInfo,
           interpolationMap,
           conditionalInfo,
-          conditionalAttributeMap
+          conditionalAttributeMap,
+          dynamicMetaTagMap
         )
         if (beforeChildren.length > 0) {
           beforeChildren.forEach((c) => elements.push(c as ElementSchema))
@@ -126,10 +146,13 @@ export class TemplateParser {
       }
 
       // Определяем тип элемента: actor (meta-*), web-component (с дефисом), обычный элемент
-      const element: ElementSchema = {
-        tag: tagName,
-        type: tagName.startsWith("meta-") ? "meta" : tagName.includes("-") ? "wc" : "el",
-      }
+      const dynamicMeta = dynamicMetaTagMap.get(tagName)
+      const element: ElementSchema = dynamicMeta
+        ? { tag: dynamicMeta, type: "meta" }
+        : {
+            tag: tagName,
+            type: tagName.startsWith("meta-") ? "meta" : tagName.includes("-") ? "wc" : "el",
+          }
 
       // Парсим атрибуты
       const attrs = parseAttributes(attributesStr || "", interpolationMap, conditionalAttributeMap, eventAttributeMap)
@@ -158,7 +181,8 @@ export class TemplateParser {
           arrayInfo,
           interpolationMap,
           conditionalInfo,
-          conditionalAttributeMap
+          conditionalAttributeMap,
+          dynamicMetaTagMap
         )
         if (child.length > 0) {
           element.child = child
@@ -180,7 +204,8 @@ export class TemplateParser {
         arrayInfo,
         interpolationMap,
         conditionalInfo,
-        conditionalAttributeMap
+        conditionalAttributeMap,
+        dynamicMetaTagMap
       )
       if (afterChildren.length > 0) {
         afterChildren.forEach((c) => elements.push(c as ElementSchema))
@@ -205,7 +230,8 @@ export class TemplateParser {
     conditionalAttributeMap?: Map<
       string,
       { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
-    >
+    >,
+    dynamicMetaTagMap?: Map<string, { src: "core"; key: string }>
   ): Array<ElementSchema | TextSchema> {
     const child: Array<ElementSchema | TextSchema> = []
 
@@ -349,10 +375,13 @@ export class TemplateParser {
       // Не считаем тег элементом массива лишь из-за наличия плейсхолдера внутри содержимого.
       // Плейсхолдеры внутри innerContent будут обработаны рекурсивным разбором ниже.
       // Обычный элемент
-      const element: ElementSchema = {
-        tag: tagName,
-        type: tagName.startsWith("meta-") ? "meta" : tagName.includes("-") ? "wc" : "el",
-      }
+      const dynamicMeta = dynamicMetaTagMap?.get(tagName)
+      const element: ElementSchema = dynamicMeta
+        ? { tag: dynamicMeta, type: "meta" }
+        : {
+            tag: tagName,
+            type: tagName.startsWith("meta-") ? "meta" : tagName.includes("-") ? "wc" : "el",
+          }
 
       const attrs = parseAttributes(attributesStr || "", interpolationMap, conditionalAttributeMap)
       if (Object.keys(attrs).length > 0) {

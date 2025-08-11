@@ -40,7 +40,7 @@ export interface ConditionSchema {
  * Схема HTML элемента
  */
 export interface ElementSchema {
-  tag: string
+  tag: string | { src: "core"; key: string }
   type: "el" | "meta" | "wc"
   attrs?: Record<string, AttributeValue>
   child?: Array<ElementSchema | TextSchema>
