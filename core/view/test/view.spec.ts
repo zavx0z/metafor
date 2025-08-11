@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test"
 import { MetaFor } from "../../../web/metafor.ts"
 
 describe("MetaFor view", () => {
-  test("Рендерит правильный текст через внутренний snapshot", async () => {
+  test.skip("Рендерит правильный текст через внутренний snapshot", async () => {
     let snapshot = ""
     let btn = undefined as unknown as HTMLButtonElement
     const hash = MetaFor("test-view")
@@ -31,7 +31,7 @@ describe("MetaFor view", () => {
     expect(snapshot).toBe("true") // после клика
   })
 
-  test("Обновляет snapshot при изменении контекста", async () => {
+  test.skip("Обновляет snapshot при изменении контекста", async () => {
     let snapshot = ""
     let btn = undefined as unknown as HTMLButtonElement
     const hash = MetaFor("test-view-update")

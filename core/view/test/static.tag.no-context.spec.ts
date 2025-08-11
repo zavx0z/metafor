@@ -36,17 +36,21 @@ describe("работа со статическими тегами без пер�
     .states({
       idle: {},
     })
-    .core()
+    .core({
+      actors: {
+        child: childHash,
+      },
+    })
     .processes()
     .reactions()
     .view({
       onMount: () => {
         countParentMount++
       },
-      render: ({ context, html }) => html`
+      render: ({ context, html, core }) => html`
       <div>
         <h1>Родитель: ${context.parentMessage}</h1>
-        <meta-${childHash}></meta-${childHash}>
+        <meta-${core.actors.child}></meta-${core.actors.child}>
       </div>
     `,
     })

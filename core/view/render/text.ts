@@ -51,8 +51,7 @@ export function renderText<C extends ContextSchema, S extends string, I extends 
         current = current[p as any]
       }
       value = String(current ?? "")
-    }
-    else {
+    } else {
       value = String(source || "")
     }
   }

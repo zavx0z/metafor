@@ -1,10 +1,13 @@
 import { describe, expect, it } from "bun:test"
 import { render } from "../index.ts"
 import { parseTemplate } from "../../parser/index.ts"
+import { View } from "../../index.ts"
 
 describe("meta элементы", () => {
   it("передает context в meta-элемент", () => {
     const container = document.createElement("div")
+
+    const view = new View()
     const context = {
       name: "John",
       age: 30,
