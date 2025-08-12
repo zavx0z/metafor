@@ -1,6 +1,5 @@
-import type { AttributeValue } from "./index.t.ts"
+import type { AttributeValue } from "../render/attribute.t.ts"
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === "object" && v !== null
-const hasResult = (v: unknown): v is { result: string } => isObject(v) && typeof (v as any).result === "string"
 const hasSrc = (v: unknown): v is { src: string; key?: string | string[] } =>
   isObject(v) && typeof (v as any).src === "string"
 
@@ -33,7 +32,6 @@ export function parseAttributeValue(
           key: info.key,
           trueValue: info.trueValue,
           falseValue: info.falseValue,
-          result: resultValue,
           type: "conditional" as const,
         }
       }
@@ -49,27 +47,19 @@ export function parseAttributeValue(
   }
 
   if (interpolationMap) {
-    // Поддержка множественных интерполяций в одном атрибуте
-    let resultValue = value
-    let firstInfo: { src: string; key: string } | null = null
+    // Поддержка множественных интерполяций в одном атрибуте — формируем template/items
+    let templ = value
     let matched = false
+    const items: any[] = []
     for (const [placeholder, info] of interpolationMap) {
-      if (resultValue.includes(placeholder)) {
-        const originalInterpolation = `\${${info.src}.${info.key}}`
-        resultValue = resultValue.replaceAll(placeholder, originalInterpolation)
-        if (!firstInfo) firstInfo = info
+      if (templ.includes(placeholder)) {
+        const normalizedKey = info.key.includes(".") ? info.key.split(".") : info.key
+        const idx = items.push({ src: info.src, key: normalizedKey }) - 1
+        templ = templ.replaceAll(placeholder, `\${${idx}}`)
         matched = true
       }
     }
-    if (matched) {
-      return firstInfo
-        ? {
-            src: firstInfo.src,
-            key: firstInfo.key.includes(".") ? firstInfo.key.split(".") : firstInfo.key,
-            result: resultValue,
-          }
-        : (resultValue as any)
-    }
+    if (matched) return { template: templ, items } as any
   }
 
   const simpleInterpolationMatch = value.match(/^\$\{(context|core)\.([\w\.]+)\}$/)
@@ -82,13 +72,13 @@ export function parseAttributeValue(
 
   const hasInterpolation = /\$\{(context|core)\.([\w\.]+)\}/.test(value)
   if (hasInterpolation) {
-    const interpolationMatch = value.match(/\$\{(context|core)\.([\w\.]+)\}/)
-    if (interpolationMatch) {
-      const [, src, key] = interpolationMatch
-      if (src && key) {
-        return { src, key: key.includes(".") ? key.split(".") : key, result: value }
-      }
-    }
+    const items: any[] = []
+    const replaced = value.replace(/\$\{(context|core)\.([\w\.]+)\}/g, (_m, src, key) => {
+      const normalizedKey = String(key)
+      const idx = items.push({ src, key: normalizedKey.includes(".") ? normalizedKey.split(".") : normalizedKey }) - 1
+      return `\${${idx}}`
+    })
+    return { template: replaced, items } as any
   }
 
   return value
@@ -137,15 +127,7 @@ export function parseAttributes(
             continue
           }
           const parsed = parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
-          if (typeof parsed === "string") {
-            attrs[name] = parsed
-          } else if (hasResult(parsed)) {
-            attrs[name] = parsed.result
-          } else if (hasSrc(parsed)) {
-            attrs[name] = parsed.key ? `\${${parsed.src}.${parsed.key}}` : ""
-          } else {
-            attrs[name] = value
-          }
+          attrs[name] = parsed as any
           continue
         }
 
@@ -162,15 +144,7 @@ export function parseAttributes(
               continue
             }
             const parsed = parseAttributeValue(value, interpolationMap, conditionalAttributeMap)
-            if (typeof parsed === "string") {
-              attrs[name] = parsed
-            } else if (hasResult(parsed)) {
-              attrs[name] = parsed.result
-            } else if (hasSrc(parsed)) {
-              attrs[name] = parsed.key ? `\${${parsed.src}.${parsed.key}}` : ""
-            } else {
-              attrs[name] = value
-            }
+            attrs[name] = parsed as any
             continue
           }
           let foundPlaceholder = false
@@ -196,7 +170,6 @@ export function parseAttributes(
                 key: info.key,
                 trueValue: info.trueValue,
                 falseValue: info.falseValue,
-                result: resultValue,
                 type: "conditional",
               }
               foundPlaceholder = true
@@ -248,7 +221,6 @@ export function parseAttributes(
                 key: info.key,
                 trueValue: info.trueValue,
                 falseValue: info.falseValue,
-                result: resultValue,
                 type: "conditional",
               }
               foundPlaceholder = true
@@ -378,7 +350,6 @@ export function parseAttributeValueForArray(
           key: info.key,
           trueValue: info.trueValue,
           falseValue: info.falseValue,
-          result: info.result || value,
           type: "conditional" as const,
         }
       }
@@ -404,31 +375,36 @@ export function parseAttributeValueForArray(
             }
           : { src: info.src }
       }
-      const originalInterpolation = info.key
-        ? `\${item.${Array.isArray(info.key) ? (info.key as string[]).join(".") : info.key}}`
-        : `\${id}`
-      const resultValue = value.replace(placeholder, originalInterpolation)
-      return info.key
-        ? {
-            src: info.src,
-            key: Array.isArray(info.key) ? info.key : info.key.includes(".") ? info.key.split(".") : info.key,
-            result: resultValue,
-          }
-        : { src: info.src, result: resultValue }
+      // Строим шаблонный формат { template, items }
+      const items: any[] = []
+      const replaced = value.replaceAll(placeholder, () => {
+        const normalizedKey = Array.isArray(info.key)
+          ? (info.key as string[])
+          : info.key && typeof info.key === "string" && info.key.includes(".")
+            ? (info.key as string).split(".")
+            : info.key
+        const idx = items.push(info.key ? { src: "item", key: normalizedKey as any } : { src: "item" }) - 1
+        return `\${${idx}}`
+      })
+      return { template: replaced, items } as any
     }
   }
 
   const hasItemInterpolation = /\$\{item\.([\w\.]+)\}/.test(value)
   if (hasItemInterpolation) {
-    const itemMatch = value.match(/\$\{item\.([\w\.]+)\}/)
-    if (itemMatch) {
-      const [, key] = itemMatch
-      if (key) return { src: "item", key: key.includes(".") ? key.split(".") : key, result: value }
-    }
+    const items: any[] = []
+    const replaced = value.replace(/\$\{item\.([\w\.]+)\}/g, (_m, key) => {
+      const normalizedKey = String(key)
+      const idx =
+        items.push({ src: "item", key: normalizedKey.includes(".") ? normalizedKey.split(".") : normalizedKey }) - 1
+      return `\${${idx}}`
+    })
+    return { template: replaced, items } as any
   }
 
   const hasSimpleVar = /\$\{(\w+)\}/.test(value)
-  if (hasSimpleVar) return { src: "item", result: value }
+  if (hasSimpleVar)
+    return { template: value.replace(/\$\{(\w+)\}/g, (_m, _n, _i) => "${0}"), items: [{ src: "item" }] } as any
 
   return value
 }
@@ -504,7 +480,6 @@ export function parseAttributesForArray(
                 key: info.key,
                 trueValue: info.trueValue,
                 falseValue: info.falseValue,
-                result: resultValue,
                 type: "conditional",
               }
               foundPlaceholder = true
@@ -577,7 +552,6 @@ export function parseAttributesForArray(
                 key: info.key,
                 trueValue: info.trueValue,
                 falseValue: info.falseValue,
-                result: resultValue,
                 type: "conditional",
               }
               foundPlaceholder = true

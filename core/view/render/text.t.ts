@@ -54,7 +54,6 @@ export type TextValue =
         | { src: "state" }
         | { src: "context" | "core"; key: string | string[] }
         | { src: string[]; key?: string | string[] }
-        | { src: "item"; key?: string | string[] }
       >
     }
   /**

@@ -3,6 +3,7 @@
  * @module TemplateParserTypes
  */
 
+import type { AttributeValue } from "../render/attribute.t"
 import type { TextSchema } from "../render/text.t"
 
 /**
@@ -14,22 +15,6 @@ export interface ArrayInfo {
   contextKey: string
   itemTemplate: string
 }
-
-/**
- * Значение атрибута - может быть статическим или содержать интерполяции
- */
-export type AttributeValue =
-  | string // статическое значение
-  | { src: string | string[]; key?: string | string[] } // простая интерполяция (key опционален для item без свойства)
-  | { src: string | string[]; key?: string | string[]; result: string } // смешанный контент
-  | {
-      src: string | string[]
-      key: string | string[]
-      trueValue: string
-      falseValue?: string
-      type: "conditional"
-      result?: string
-    } // условный атрибут
 
 /**
  * Условие для элемента

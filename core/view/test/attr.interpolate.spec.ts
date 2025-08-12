@@ -1,11 +1,13 @@
 import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
+import { Context } from "../../context/index.ts"
 
 describe("интерполяции в атрибутах", () => {
   describe("простые интерполяции в атрибутах", () => {
     describe("простая интерполяция context в атрибуте", () => {
-      const view = new View({
-        render: ({ html, context }) => html`<div data-user="${context.name}">Content</div>`,
+      const { context, schema } = new Context((t) => ({ name: t.string.required("MetaFor") }))
+      const view = new View<typeof schema>({
+        render: ({ html, context }) => html` <div data-user="${context.name}">Content</div> `,
       })
       it("парсинг", () => {
         expect(view.schema, "простая интерполяция context в атрибуте").toEqual([
@@ -27,11 +29,19 @@ describe("интерполяции в атрибутах", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element, context })
+
+        const div = element.querySelector("div")!
+        expect(div).toBeDefined()
+        expect(div.getAttribute("data-user")).toBe(context.name)
+      })
     })
 
     describe("простая интерполяция core в атрибуте", () => {
-      const view = new View({
+      const core = { settings: "settings" }
+      const view = new View<any, typeof core>({
         render: ({ html, core }) => html`<div data-config="${core.settings}">Content</div>`,
       })
       it("парсинг", () => {
@@ -54,13 +64,26 @@ describe("интерполяции в атрибутах", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element, core })
+
+        const div = element.querySelector("div")!
+        expect(div).toBeDefined()
+        expect(div.getAttribute("data-config")).toBe(core.settings)
+      })
     })
 
     describe("несколько атрибутов с интерполяциями", () => {
-      const view = new View({
-        render: ({ html, context, core }) =>
-          html`<div id="${context.userId}" class="${context.role}" data-name="${core.userName}">Content</div>`,
+      const core = { userName: "zavx0z" }
+      const { context, schema } = new Context((t) => ({
+        userId: t.number.required(1),
+        role: t.string.required("SuperUser"),
+      }))
+      const view = new View<typeof schema, typeof core>({
+        render: ({ html, context, core }) => html`
+          <div id="${context.userId}" class="${context.role}" data-name="${core.userName}">Content</div>
+        `,
       })
       it("парсинг", () => {
         expect(view.schema, "несколько атрибутов с интерполяциями").toEqual([
@@ -90,14 +113,23 @@ describe("интерполяции в атрибутах", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element, context, core })
+
+        const div = element.querySelector("div")!
+        expect(div).toBeDefined()
+        expect(div.getAttribute("id")).toBe(context.userId.toString())
+        expect(div.getAttribute("class")).toBe(context.role)
+      })
     })
   })
 
   describe("смешанный контент в атрибутах", () => {
     describe("префикс с интерполяцией", () => {
-      const view = new View({
-        render: ({ html, context }) => html`<div class="btn-${context.type}">Button</div>`,
+      const { context, schema } = new Context((t) => ({ type: t.string.required("primary") }))
+      const view = new View<typeof schema>({
+        render: ({ html, context }) => html` <div class="btn-${context.type}">Button</div> `,
       })
       it("парсинг", () => {
         expect(view.schema, "префикс с интерполяцией").toEqual([
@@ -106,9 +138,8 @@ describe("интерполяции в атрибутах", () => {
             type: "el",
             attrs: {
               class: {
-                src: "context",
-                key: "type",
-                result: "btn-${context.type}",
+                template: "btn-${0}",
+                items: [{ src: "context", key: "type" }],
               },
             },
             child: [
@@ -120,7 +151,14 @@ describe("интерполяции в атрибутах", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element, context })
+
+        const div = element.querySelector("div")!
+        expect(div).toBeDefined()
+        expect(div.getAttribute("class")).toBe("btn-primary")
+      })
     })
 
     describe("суффикс с интерполяцией", () => {
@@ -134,9 +172,8 @@ describe("интерполяции в атрибутах", () => {
             type: "el",
             attrs: {
               class: {
-                src: "context",
-                key: "theme",
-                result: "${context.theme}-mode",
+                template: "${0}-mode",
+                items: [{ src: "context", key: "theme" }],
               },
             },
             child: [
@@ -162,9 +199,8 @@ describe("интерполяции в атрибутах", () => {
             type: "el",
             attrs: {
               "data-key": {
-                src: "core",
-                key: "id",
-                result: "prefix-${core.id}-suffix",
+                template: "prefix-${0}-suffix",
+                items: [{ src: "core", key: "id" }],
               },
             },
             child: [
@@ -239,9 +275,8 @@ describe("интерполяции в атрибутах", () => {
                 type: "el",
                 attrs: {
                   class: {
-                    src: ["context", "items"],
-                    key: "type",
-                    result: "item-${VALUE}",
+                    template: "item-${0}",
+                    items: [{ src: "item", key: "type" }],
                   },
                 },
                 child: [
@@ -286,9 +321,8 @@ describe("интерполяции в атрибутах", () => {
                     key: "id",
                   },
                   class: {
-                    src: ["context", "items"],
-                    key: "type",
-                    result: "item-${VALUE}",
+                    template: "item-${0}",
+                    items: [{ src: "item", key: "type" }],
                   },
                   title: {
                     src: ["context", "items"],
@@ -381,14 +415,12 @@ describe("интерполяции в атрибутах", () => {
                     key: "id",
                   },
                   class: {
-                    src: ["context", "items"],
-                    key: "type",
-                    result: "static item-${VALUE}",
+                    template: "static item-${0}",
+                    items: [{ src: "item", key: "type" }],
                   },
                   title: {
-                    src: ["context", "items"],
-                    key: "name",
-                    result: "Item: ${VALUE}",
+                    template: "Item: ${0}",
+                    items: [{ src: "item", key: "name" }],
                   },
                 },
                 child: [
@@ -453,9 +485,8 @@ describe("интерполяции в атрибутах", () => {
                   key: "testId",
                 },
                 "aria-label": {
-                  src: "context",
-                  key: "name",
-                  result: "Label: ${context.name}",
+                  template: "Label: ${0}",
+                  items: [{ src: "context", key: "name" }],
                 },
               },
               child: [

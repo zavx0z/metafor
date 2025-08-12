@@ -7,7 +7,8 @@
 import type { ExtractValues, Update } from "../../context"
 import type { ContextSchema } from "../../context/types.t.ts"
 import type { Core } from "../../index.t.ts"
-import type { Schema, AttributeValue, ConditionSchema, ElementSchema } from "../parser/index.t.ts"
+import type { Schema, ConditionSchema, ElementSchema } from "../parser/index.t.ts"
+import type { AttributeValue } from "./attribute.t.ts"
 
 /**
  * Параметры функции рендеринга
