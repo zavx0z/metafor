@@ -5,9 +5,10 @@ describe("массивы", () => {
   describe("массивы из context", () => {
     describe("простой массив с одним элементом", () => {
       const view = new View({
-        render: ({ html, context }) => html`<ul>
-          ${context.ids.map((id: string) => html`<li>${id}</li>`)}
-        </ul>`,
+        render: ({ html, context }) =>
+          html`<ul>
+            ${context.ids.map((id: string) => html`<li>${id}</li>`)}
+          </ul>`,
       })
       it("парсинг", () => {
         expect(view.schema, "простой массив из контекста").toEqual([
@@ -40,11 +41,12 @@ describe("массивы", () => {
     })
     describe("простой массив с одним элементом вложенный в другой элемент", () => {
       const view = new View({
-        render: ({ html, context }) => html`<div>
-          <ul>
-            ${context.ids.map((id: string) => html`<li>${id}</li>`)}
-          </ul>
-        </div>`,
+        render: ({ html, context }) =>
+          html`<div>
+            <ul>
+              ${context.ids.map((id: string) => html`<li>${id}</li>`)}
+            </ul>
+          </div>`,
       })
       it("парсинг", () => {
         expect(view.schema, "простой массив из контекста").toEqual([
@@ -84,15 +86,17 @@ describe("массивы", () => {
 
     describe("массив с множественными свойствами", () => {
       const view = new View({
-        render: ({ html, context }) => html`<div>
-          ${context.users.map(
-            (user: any) => html`<div class="user">
-              <h3>${user.name}</h3>
-              <p>${user.email}</p>
-              <span>${user.role}</span>
-            </div>`
-          )}
-        </div>`,
+        render: ({ html, context }) =>
+          html`<div>
+            ${context.users.map(
+              (user: any) =>
+                html`<div class="user">
+                  <h3>${user.name}</h3>
+                  <p>${user.email}</p>
+                  <span>${user.role}</span>
+                </div>`
+            )}
+          </div>`,
       })
       it("парсинг", () => {
         expect(view.schema, "массив с множественными свойствами").toEqual([
@@ -165,13 +169,15 @@ describe("массивы", () => {
 
     describe("массив с динамическими атрибутами", () => {
       const view = new View({
-        render: ({ html, context }) => html`<section>
-          ${context.items.map(
-            (item: any) => html`<article data-id="${item.id}" class="item-${item.type}">
-              <h2>${item.title}</h2>
-            </article>`
-          )}
-        </section>`,
+        render: ({ html, context }) =>
+          html`<section>
+            ${context.items.map(
+              (item: any) =>
+                html`<article data-id="${item.id}" class="item-${item.type}">
+                  <h2>${item.title}</h2>
+                </article>`
+            )}
+          </section>`,
       })
 
       it("парсинг", () => {
@@ -226,9 +232,8 @@ describe("массивы", () => {
   describe("массивы из core", () => {
     describe("простой массив из core", () => {
       const view = new View({
-        render: ({ html, core }) => html`<nav>
-          ${core.menuItems.map((item: any) => html`<a href="${item.url}">${item.label}</a>`)}
-        </nav>`,
+        render: ({ html, core }) =>
+          html`<nav>${core.menuItems.map((item: any) => html`<a href="${item.url}">${item.label}</a>`)}</nav>`,
       })
       it("парсинг", () => {
         expect(view.schema, "простой массив из core").toEqual([
@@ -268,16 +273,18 @@ describe("массивы", () => {
 
     describe("сложная структура из core", () => {
       const view = new View({
-        render: ({ html, core }) => html`<main class="products">
-          ${core.products.map(
-            (product: any) => html`<div class="product-card" data-product-id="${product.id}">
-              <img src="${product.image}" alt="${product.name}" />
-              <h3 class="product-title">${product.name}</h3>
-              <p class="product-price">$${product.price}</p>
-              <button class="add-to-cart" data-id="${product.id}">Add to Cart</button>
-            </div>`
-          )}
-        </main>`,
+        render: ({ html, core }) =>
+          html`<main class="products">
+            ${core.products.map(
+              (product: any) =>
+                html`<div class="product-card" data-product-id="${product.id}">
+                  <img src="${product.image}" alt="${product.name}" />
+                  <h3 class="product-title">${product.name}</h3>
+                  <p class="product-price">$${product.price}</p>
+                  <button class="add-to-cart" data-id="${product.id}">Add to Cart</button>
+                </div>`
+            )}
+          </main>`,
       })
       it("парсинг", () => {
         expect(view.schema, "сложная структура из core").toEqual([
@@ -381,20 +388,22 @@ describe("массивы", () => {
   describe("смешанный контент с массивами", () => {
     describe("массив между статическими элементами", () => {
       const view = new View({
-        render: ({ html, context }) => html`<div class="container">
-          <header>
-            <h1>User List</h1>
-          </header>
-          ${context.users.map(
-            (user: any) => html`<div class="user-item">
-              <span class="name">${user.name}</span>
-              <span class="email">${user.email}</span>
-            </div>`
-          )}
-          <footer>
-            <p>Total users: ${context.totalCount}</p>
-          </footer>
-        </div>`,
+        render: ({ html, context }) =>
+          html`<div class="container">
+            <header>
+              <h1>User List</h1>
+            </header>
+            ${context.users.map(
+              (user: any) =>
+                html`<div class="user-item">
+                  <span class="name">${user.name}</span>
+                  <span class="email">${user.email}</span>
+                </div>`
+            )}
+            <footer>
+              <p>Total users: ${context.totalCount}</p>
+            </footer>
+          </div>`,
       })
 
       it("парсинг", () => {
@@ -482,9 +491,13 @@ describe("массивы", () => {
                       {
                         type: "text",
                         value: {
-                          src: "context",
-                          key: "totalCount",
-                          result: "Total users: ${context.totalCount}",
+                          items: [
+                            {
+                              src: "context",
+                              key: "totalCount",
+                            },
+                          ],
+                          template: "Total users: ${0}",
                         },
                       },
                     ],
@@ -500,14 +513,16 @@ describe("массивы", () => {
 
     describe("множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы", () => {
       const view = new View({
-        render: ({ html, context, core }) => html`<div class="dashboard">
-          ${context.categories.map((cat: any) => html`<span class="category">${cat.name}</span>`)}
-          ${core.items.map(
-            (item: any) => html`<div class="item" data-category="${item.categoryId}">
-              <h4>${item.title}</h4>
-            </div>`
-          )}
-        </div>`,
+        render: ({ html, context, core }) =>
+          html`<div class="dashboard">
+            ${context.categories.map((cat: any) => html`<span class="category">${cat.name}</span>`)}
+            ${core.items.map(
+              (item: any) =>
+                html`<div class="item" data-category="${item.categoryId}">
+                  <h4>${item.title}</h4>
+                </div>`
+            )}
+          </div>`,
       })
 
       it("парсинг", () => {
@@ -581,9 +596,10 @@ describe("массивы", () => {
   describe("edge cases массивов", () => {
     describe("пустой элемент в массиве", () => {
       const view = new View({
-        render: ({ html, context }) => html`<ul>
-          ${context.items.map((item: any) => html`<li></li>`)}
-        </ul>`,
+        render: ({ html, context }) =>
+          html`<ul>
+            ${context.items.map((item: any) => html`<li></li>`)}
+          </ul>`,
       })
       it("парсинг", () => {
         expect(view.schema, "пустой элемент в массиве").toEqual([
@@ -609,9 +625,10 @@ describe("массивы", () => {
 
     describe("самозакрывающиеся теги в массиве", () => {
       const view = new View({
-        render: ({ html, core }) => html`<div class="images">
-          ${core.images.map((img: any) => html`<img src="${img.url}" alt="${img.alt}" />`)}
-        </div>`,
+        render: ({ html, core }) =>
+          html`<div class="images">
+            ${core.images.map((img: any) => html`<img src="${img.url}" alt="${img.alt}" />`)}
+          </div>`,
       })
       it("парсинг", () => {
         expect(view.schema, "самозакрывающиеся теги в массиве").toEqual([
@@ -649,9 +666,10 @@ describe("массивы", () => {
 
     describe("только текст в элементе массива", () => {
       const view = new View({
-        render: ({ html, context }) => html`<ol>
-          ${context.steps.map((step: any) => html`<li>${step}</li>`)}
-        </ol>`,
+        render: ({ html, context }) =>
+          html`<ol>
+            ${context.steps.map((step: any) => html`<li>${step}</li>`)}
+          </ol>`,
       })
       it("парсинг", () => {
         expect(view.schema, "только текст в элементе массива").toEqual([
@@ -693,11 +711,12 @@ describe("массивы", () => {
       }[]
     }
     const view = new View({
-      render: ({ html, core }) => html`<ul>
-        ${core.items.map(
-          (item: any) => html`<li>${item.children.map((child: any) => html`<span>${child}</span>`)}</li>`
-        )}
-      </ul>`,
+      render: ({ html, core }) =>
+        html`<ul>
+          ${core.items.map(
+            (item: any) => html`<li>${item.children.map((child: any) => html`<span>${child}</span>`)}</li>`
+          )}
+        </ul>`,
     })
 
     it("парсинг", () => {
@@ -750,16 +769,17 @@ describe("массивы", () => {
       }[]
     }
     const view = new View({
-      render: ({ html, core }) => html`<ul>
-        ${core.items.map(
-          (item: any) =>
-            html`<li>
-              ${item.children.map(
-                (child: any) => html`<div>${child.tags.map((tag: any) => html`<span>${tag}</span>`)}</div>`
-              )}
-            </li>`
-        )}
-      </ul>`,
+      render: ({ html, core }) =>
+        html`<ul>
+          ${core.items.map(
+            (item: any) =>
+              html`<li>
+                ${item.children.map(
+                  (child: any) => html`<div>${child.tags.map((tag: any) => html`<span>${tag}</span>`)}</div>`
+                )}
+              </li>`
+          )}
+        </ul>`,
     })
 
     it("парсинг", () => {

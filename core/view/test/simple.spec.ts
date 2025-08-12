@@ -116,10 +116,11 @@ describe("TemplateParser", () => {
     })
     describe("вложенные элементы", () => {
       const view = new View({
-        render: ({ html }) => html`<div>
-          <h1>Title</h1>
-          <p>Description</p>
-        </div>`,
+        render: ({ html }) =>
+          html`<div>
+            <h1>Title</h1>
+            <p>Description</p>
+          </div>`,
       })
       it("парсинг", () =>
         expect(view.schema, "вложенные элементы").toEqual([
@@ -245,9 +246,8 @@ describe("TemplateParser", () => {
               {
                 type: "text",
                 value: {
-                  src: "context",
-                  key: "count",
-                  result: "Total: ${context.count}",
+                  items: [{ src: "context", key: "count" }],
+                  template: "Total: ${0}",
                 },
               },
             ],

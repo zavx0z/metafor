@@ -152,7 +152,7 @@ describe("текстовые узлы", () => {
   describe("составной ключ объекта ядра с шаблонной строкой", () => {
     const core = { framework: { name: "MetaFor" } } as const
     const view = new View<any, typeof core>({
-      render: ({ html, core }) => html` <span>Лучший фреймворк - ${core.framework.name}</span> `,
+      render: ({ html, core }) => html` <span>Best framework - ${core.framework.name}</span> `,
     })
     it("парсинг", () => {
       expect(
@@ -166,11 +166,13 @@ describe("текстовые узлы", () => {
             {
               type: "text",
               value: {
-                src: "core",
-                key: ["framework", "name"],
-                result:
-                  "\\u041B\\u0443\\u0447\\u0448\\u0438\\u0439 \\u0444\\u0440\\u0435\\u0439\\u043C\\u0432\\u043E\\u0440\\u043A - " +
-                  "${core.framework.name}",
+                items: [
+                  {
+                    src: "core",
+                    key: ["framework", "name"],
+                  },
+                ],
+                template: "Best framework - ${0}",
               },
             },
           ],
@@ -181,11 +183,51 @@ describe("текстовые узлы", () => {
       const element = document.createElement("div")
       view.render({ core, element })
       expect(element.innerHTML, "шаблонная строка вычисляется и подставляется").toMatchStringHTML(html`
-        <span>${Bun.escapeHTML("Лучший фреймворк - ")}${core.framework.name}</span>
+        <span>Best framework - ${core.framework.name}</span>
       `)
     })
   })
-
+  describe("множественные значения в шаблоне", () => {
+    const state = "A" as const
+    const core = { one: 1, two: 2 } as const
+    const view = new View<any, typeof core, typeof state>({
+      render: ({ html, state, core }) => html`<span>In state: ${state} in core: ${core.one} ${core.two}</span>`,
+    })
+    it("парсинг", () => {
+      expect(view.schema, "шаблон с множественными значениями в тексте").toEqual([
+        {
+          tag: "span",
+          type: "el",
+          child: [
+            {
+              type: "text",
+              value: {
+                items: [
+                  { src: "state" },
+                  {
+                    src: "core",
+                    key: "one",
+                  },
+                  {
+                    src: "core",
+                    key: "two",
+                  },
+                ],
+                template: "In state: ${0} in core: ${1} ${2}",
+              },
+            },
+          ],
+        },
+      ])
+    })
+    it("рендер", () => {
+      const element = document.createElement("div")
+      view.render({ core, element, state })
+      expect(element.innerHTML, "шаблонная строка вычисляется и подставляется").toMatchStringHTML(html`
+        <span>In state: ${state} in core: ${core.one} ${core.two}</span>
+      `)
+    })
+  })
   describe("ключ объекта в массиве ядра", () => {
     const core = { users: [{ name: "A" }, { name: "B" }] } as const
     const view = new View<any, typeof core>({

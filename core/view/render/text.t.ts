@@ -36,6 +36,28 @@ export type TextValue =
    */
   | { src: string[] }
   /**
+   * Шаблон со списком значений (унифицированный формат для смешанного текста).
+   *
+   * Правила:
+   * - Индексы в шаблоне `${0}`, `${1}`, ... соответствуют элементам в `items` по порядку
+   * - Для `state` используется элемент `{ src: "state" }`
+   * - Для полей контекста/ядра используйте `{ src: "context"|"core", key }`
+   * - Для глобального пути используйте `{ src: ["context"|"core"|"state", ...], key? }`
+   *
+   * Примеры:
+   * - Один элемент: { template: "Hello ${0}", items: [{ src: "context", key: "name" }] }
+   * - Несколько элементов: { template: "A=${0} B=${1}", items: [{ src: "state" }, { src: "core", key: "id" }] }
+   */
+  | {
+      template: string
+      items: Array<
+        | { src: "state" }
+        | { src: "context" | "core"; key: string | string[] }
+        | { src: string[]; key?: string | string[] }
+        | { src: "item"; key?: string | string[] }
+      >
+    }
+  /**
    * Значение по составному пути с ключом (для массивов).
    * Пример шаблона: html`<li>${item.name}</li>` в массиве
    * Пример схемы: { type: "text", value: { src: ["core", "users"], key: "name" } }

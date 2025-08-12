@@ -554,22 +554,36 @@ export class TemplateParser {
     const parts = processedText.split("SIMPLE_PLACEHOLDER")
     let interpolationIndex = 0
 
-    // Специальный случай: одна интерполяция и есть окружение текстом — объединяем в один узел с result
+    // Специальный случай: одна интерполяция и есть окружение текстом — объединяем в один узел с template
     if (interpolations.length === 1 && parts.length === 2) {
       const beforeRaw = parts[0] ?? ""
       const afterRaw = parts[1] ?? ""
       const onlyInterpolation = interpolations[0]!
       const { src, key } = onlyInterpolation.info
-      const keyStr = key
-      const placeholderExpr = keyStr ? `\${${src}.${keyStr}}` : `\${${src}}`
+      // Единый шаблонный формат с индексом
       child.push({
         type: "text",
         value: {
-          src,
-          ...(key ? { key: key.includes(".") ? key.split(".") : key } : {}),
-          result: `${beforeRaw}${placeholderExpr}${afterRaw}`,
-        },
+          template: `${beforeRaw}\${0}${afterRaw}`,
+          items: [key ? { src, key: key.includes(".") ? key.split(".") : key } : { src }],
+        } as any,
       })
+      return
+    }
+
+    // Общий случай: несколько интерполяций или смешанный текст → собираем единый шаблон
+    const hasAnyText = parts.some((p) => (p ?? "").length > 0)
+    if (interpolations.length >= 1 && (hasAnyText || interpolations.length > 1)) {
+      const template = parts.map((p, i) => (i < parts.length - 1 ? `${p}\${${i}}` : (p ?? ""))).join("")
+      const items = interpolations.map(({ info }) => {
+        const k = info.key
+        if (info.src === "state" && !k) return { src: "state" as const }
+        return {
+          src: info.src,
+          ...(k ? { key: k.includes(".") ? k.split(".") : k } : {}),
+        }
+      })
+      child.push({ type: "text", value: { template, items } as any })
       return
     }
 

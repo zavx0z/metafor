@@ -238,6 +238,29 @@ ${context.count > 0 && html`<span>...</span>`} ${context.role === core.requiredR
   type: "text",
   value: { src: "core", key: ["profile", "info", "title"] }
 }
+
+// Смешанный текст с интерполяциями — унифицированный шаблонный формат
+// Один элемент
+{
+  type: "text",
+  value: {
+    template: "Best framework - ${0}",
+    items: [{ src: "core", key: ["framework", "name"] }]
+  }
+}
+
+// Несколько элементов
+{
+  type: "text",
+  value: {
+    template: "In state: ${0} in core: ${1} ${2}",
+    items: [
+      { src: "state" },
+      { src: "core", key: "one" },
+      { src: "core", key: "two" }
+    ]
+  }
+}
 ```
 
 ## Типы
