@@ -65,7 +65,7 @@ describe("текстовые узлы", () => {
         {
           tag: "b",
           type: "el",
-          child: [{ type: "text", value: { src: "core", key: "profile.info.title" } }],
+          child: [{ type: "text", value: { src: "core", key: ["profile", "info", "title"] } }],
         },
       ])
     })
@@ -148,8 +148,6 @@ describe("текстовые узлы", () => {
       `)
     })
   })
-
-
 
   describe("составной ключ объекта ядра с шаблонной строкой", () => {
     const core = { framework: { name: "MetaFor" } } as const
@@ -244,7 +242,7 @@ describe("текстовые узлы", () => {
               tag: "li",
               type: "el",
               item: { src: "core", key: "list" },
-              child: [{ type: "text", value: { src: ["core", "list"], key: "profile.title" } }],
+              child: [{ type: "text", value: { src: ["core", "list"], key: ["profile", "title"] } }],
             },
           ],
         },

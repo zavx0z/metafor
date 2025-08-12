@@ -26,11 +26,7 @@ export function renderText<C extends ContextSchema, S extends string, I extends 
     if (arrayContext) {
       const keyMaybe = (text.value as any).key as string | string[] | undefined
       if (keyMaybe) {
-        const path: string[] = Array.isArray(keyMaybe)
-          ? keyMaybe
-          : typeof keyMaybe === "string" && keyMaybe.includes(".")
-            ? keyMaybe.split(".")
-            : [keyMaybe as string]
+        const path: string[] = Array.isArray(keyMaybe) ? keyMaybe : [String(keyMaybe)]
 
         let current: unknown = arrayContext.item as Record<string, unknown>
         for (const segment of path) {
@@ -84,11 +80,7 @@ export function renderText<C extends ContextSchema, S extends string, I extends 
       valueToRender = evaluateInterpolation(text.value.result, state, context, core, arrayContext)
     } else if (rootObject && key) {
       // 3) Прямая интерполяция по ключу
-      const path: string[] = Array.isArray(key)
-        ? key
-        : typeof key === "string" && key.includes(".")
-          ? key.split(".")
-          : [key as string]
+      const path: string[] = Array.isArray(key) ? key : [String(key)]
 
       let current: unknown = rootObject
       for (const segment of path) {

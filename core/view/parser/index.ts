@@ -301,9 +301,13 @@ export class TemplateParser {
         // Простая интерполяция
         const interpolationInfo = interpolationMap.get(content.trim())
         if (interpolationInfo) {
+          const normalized = {
+            src: interpolationInfo.src,
+            key: interpolationInfo.key.includes(".") ? interpolationInfo.key.split(".") : interpolationInfo.key,
+          }
           child.push({
             type: "text",
-            value: interpolationInfo,
+            value: normalized,
           })
         }
       } else if (content.trim()) {
@@ -915,7 +919,10 @@ export class TemplateParser {
           const hasKey = interpolationInfo.key !== undefined
           const srcVal: any = currentPath.length ? currentPath : interpolationInfo.src
           const value: any = { src: srcVal }
-          if (hasKey) value.key = interpolationInfo.key
+          if (hasKey) {
+            const k = interpolationInfo.key
+            value.key = typeof k === "string" && k.includes(".") ? k.split(".") : k
+          }
           child.push({ type: "text", value })
         } else {
           child.push({
@@ -930,7 +937,10 @@ export class TemplateParser {
           const hasKey = info.key !== undefined
           const srcVal: any = currentPath.length ? currentPath : info.src
           const value: any = { src: srcVal }
-          if (hasKey) value.key = info.key
+          if (hasKey) {
+            const k = info.key
+            value.key = typeof k === "string" && k.includes(".") ? k.split(".") : k
+          }
           child.push({ type: "text", value })
         } else {
           // Это обычный SIMPLE_PLACEHOLDER без информации об источнике
@@ -1088,9 +1098,10 @@ export class TemplateParser {
           const value: any = { src: srcVal }
           if (hasKey) {
             // Разбиваем ключ по точкам, если это строка
-            const key = typeof interpolation.key === 'string' && interpolation.key.includes('.') 
-              ? interpolation.key.split('.') 
-              : interpolation.key
+            const key =
+              typeof interpolation.key === "string" && interpolation.key.includes(".")
+                ? interpolation.key.split(".")
+                : interpolation.key
             value.key = key
           }
           child.push({ type: "text", value })

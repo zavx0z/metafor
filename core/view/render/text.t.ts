@@ -16,11 +16,16 @@ export type TextValue =
   | string
   /**
    * Прямая интерполяция значения по ключу из источника.
-   * Источник: "context" | "core". Ключ может быть строкой (в т.ч. составной через точку)
-   * или массивом строк (нормализованный путь).
+   * Источник: "context" | "core".
+   *
+   * Правила ключей:
+   * - для простого поля допускается строка: `"name"`
+   * - для составного пути ключ ДОЛЖЕН быть массивом строк: `["user", "name"]`
+   * - парсер никогда не возвращает составные ключи в виде строки с точками
+   *
    * Пример шаблона: html`<span>${context.user.name}</span>`
    * Пример схем:
-   *  - { type: "text", value: { src: "context", key: "user.name" } }
+   *  - { type: "text", value: { src: "context", key: "name" } }
    *  - { type: "text", value: { src: "context", key: ["user", "name"] } }
    */
   | { src: string; key: string | string[] }
@@ -33,11 +38,12 @@ export type TextValue =
   /**
    * Смешанный вариант с шаблоном результата.
    * Источник: "context" | "core". Ключ — путь в источнике (string | string[]).
+   * Для составных ключей используйте массив строк; парсер нормализует их в массивы.
    * Если указан result, он вычисляется при рендеринге как шаблонная строка
    * с доступом к state, context, core.
    * Пример шаблона: html`<span>${context.user.name}</span>`
    * Пример схем:
-   *  - { type: "text", value: { src: "context", key: "user.name", result: "User: ${context.user.name}" } }
+   *  - { type: "text", value: { src: "context", key: "name", result: "User: ${context.user.name}" } }
    *  - { type: "text", value: { src: "context", key: ["user", "name"], result: "User: ${context.user.name}" } }
    */
   | { src: string; key: string | string[]; result?: string } /**

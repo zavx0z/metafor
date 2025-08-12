@@ -84,7 +84,7 @@ function createTagName(tag: HtmlParseTag, core: Core): string {
  * Вычисляет значения context и core объектов для meta-элементов
  */
 export function evaluateMetaObject<C extends ContextSchema, I extends Core>(
-  obj: Record<string, string | number | boolean | null | { src: "context" | "core"; key: string }>,
+  obj: Record<string, string | number | boolean | null | { src: "context" | "core"; key: string | string[] }>,
   context: ExtractValues<C>,
   core: I
 ): Record<string, any> {
@@ -93,11 +93,14 @@ export function evaluateMetaObject<C extends ContextSchema, I extends Core>(
   for (const [key, value] of Object.entries(obj)) {
     if (typeof value === "object" && value !== null && "src" in value) {
       // Это ссылка на context или core
-      const { src, key: sourceKey } = value as { src: "context" | "core"; key: string }
+      const { src, key: sourceKey } = value as {
+        src: "context" | "core"
+        key: string | string[]
+      }
       const source = src === "context" ? context : core
 
       // Получаем значение по пути (например, "user.family")
-      const keys = sourceKey.split(".")
+      const keys = Array.isArray(sourceKey) ? sourceKey : sourceKey.split(".")
       let currentValue: any = source
 
       for (const k of keys) {

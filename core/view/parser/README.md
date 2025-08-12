@@ -115,7 +115,7 @@ ${context.count > 0 && html`<span>...</span>`} ${context.role === core.requiredR
 Пример:
 
 ```html
-<button onclick=${() => console.log('hi')}>OK</button>
+<button onclick="${()" ="">console.log('hi')}>OK</button>
 ```
 
 Схема:
@@ -136,21 +136,19 @@ ${context.count > 0 && html`<span>...</span>`} ${context.role === core.requiredR
 
 - `${context.name}` → `{ src: "context", key: "name" }`
 - `${core.settings}` → `{ src: "core", key: "settings" }`
+- `${core.user.name}` → `{ src: "core", key: ["user", "name"] }` ← составные ключи всегда массив
 
 ### Интерполяции внутри массивов (адресация путями и ${VALUE})
 
 - Источник для элементов массива — не `item`, а путь от корня до текущего уровня:
-
   - 1-й уровень: `["context", "items"]` или `["core", "list"]`
   - 2-й уровень: `["context", "items", "children"]`, и т.д.
 
 - Текстовые узлы:
-
   - `${item.name}` → `{ src: ["context", "items"], key: "name" }`
   - `${child}` (вложенный item целиком) → `{ src: ["core", "items", "children"] }`
 
 - Атрибуты внутри элементов массивов:
-
   - Простая интерполяция: `data-id="${item.id}"` → `{ src: ["context", "items"], key: "id" }`
   - Смешанный контент: `class="item-${item.type}"` → `{ src: ["context", "items"], key: "type", result: "item-${VALUE}" }`
   - Если в значении несколько `${item.*}`, все они нормализуются в `result` как `${VALUE}`.
@@ -232,6 +230,12 @@ ${context.count > 0 && html`<span>...</span>`} ${context.role === core.requiredR
 {
   type: "text",
   value: { src: "context", key: "title" }
+}
+
+// Составной ключ вне массива
+{
+  type: "text",
+  value: { src: "core", key: ["profile", "info", "title"] }
 }
 ```
 
