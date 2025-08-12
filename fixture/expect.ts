@@ -24,6 +24,16 @@ export const normalizeHTML = (str: string) => {
       .trim()
       // Нормализуем самозакрывающиеся теги (img, br, input, etc.) - убираем слэш
       .replace(/<([^>]+)\/>/g, "<$1>")
+      // Нормализуем булевы атрибуты: disabled="" -> disabled (и др.)
+      .replace(
+        /\s(disabled|readonly|required|checked|selected|multiple|autofocus|autoplay|controls|default|defer|formnovalidate|hidden|loop|muted|open|playsinline|reversed|ismap|allowfullscreen|inert|nomodule|async|loading)=""/g,
+        " $1"
+      )
+      // Приводим одинарные кавычки атрибутов к двойным и экранируем внутренние двойные кавычки
+      .replace(/(\s[^\s=]+)='([^']*)'/g, (_m, name, val) => {
+        const escaped = String(val).replace(/\"/g, '"').replace(/"/g, "&quot;")
+        return `${name}="${escaped}"`
+      })
       // Удаляем лишние пробелы внутри тегов, но сохраняем один пробел между атрибутами
       .replace(/\s+/g, " ")
       // Удаляем пробелы перед закрывающими скобками в тегах

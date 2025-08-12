@@ -1,14 +1,19 @@
 import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
+import { Context } from "../../context/index.ts"
 
 describe("массивы", () => {
+  const html = String.raw
   describe("массивы из context", () => {
+    const { context, schema } = new Context((t) => ({ ids: t.array.required([1, 2]) }))
+
     describe("простой массив с одним элементом", () => {
-      const view = new View({
-        render: ({ html, context }) =>
-          html`<ul>
-            ${context.ids.map((id: string) => html`<li>${id}</li>`)}
-          </ul>`,
+      const view = new View<typeof schema>({
+        render: ({ html, context }) => html`
+          <ul>
+            ${context.ids.map((id) => html`<li>${id}</li>`)}
+          </ul>
+        `,
       })
       it("парсинг", () => {
         expect(view.schema, "простой массив из контекста").toEqual([
@@ -37,16 +42,26 @@ describe("массивы", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ context, element })
+        expect(element.innerHTML, "простой массив из контекста").toMatchStringHTML(html`
+          <ul>
+            <li>${context.ids[0]}</li>
+            <li>${context.ids[1]}</li>
+          </ul>
+        `)
+      })
     })
     describe("простой массив с одним элементом вложенный в другой элемент", () => {
-      const view = new View({
-        render: ({ html, context }) =>
-          html`<div>
+      const view = new View<typeof schema>({
+        render: ({ html, context }) => html`
+          <div>
             <ul>
-              ${context.ids.map((id: string) => html`<li>${id}</li>`)}
+              ${context.ids.map((id) => html`<li>${id}</li>`)}
             </ul>
-          </div>`,
+          </div>
+        `,
       })
       it("парсинг", () => {
         expect(view.schema, "простой массив из контекста").toEqual([
@@ -61,19 +76,8 @@ describe("массивы", () => {
                   {
                     tag: "li",
                     type: "el",
-                    item: {
-                      src: "context",
-                      key: "ids",
-                    },
-
-                    child: [
-                      {
-                        type: "text",
-                        value: {
-                          src: ["context", "ids"],
-                        },
-                      },
-                    ],
+                    item: { src: "context", key: "ids" },
+                    child: [{ type: "text", value: { src: ["context", "ids"] } }],
                   },
                 ],
               },
@@ -81,29 +85,47 @@ describe("массивы", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ context, element })
+        expect(element.innerHTML, "простой массив из контекста").toMatchStringHTML(html`
+          <div>
+            <ul>
+              <li>${context.ids[0]}</li>
+              <li>${context.ids[1]}</li>
+            </ul>
+          </div>
+        `)
+      })
     })
 
     describe("массив с множественными свойствами", () => {
-      const view = new View({
-        render: ({ html, context }) =>
-          html`<div>
-            ${context.users.map(
-              (user: any) =>
-                html`<div class="user">
+      const core = {
+        users: [
+          { name: "John", email: "john@example.com", role: "admin" },
+          { name: "Jane", email: "jane@example.com", role: "user" },
+        ],
+      } as const
+      const view = new View<any, typeof core>({
+        render: ({ html, core }) => html`
+          <div>
+            ${core.users.map(
+              (user) => html`
+                <div class="user">
                   <h3>${user.name}</h3>
                   <p>${user.email}</p>
                   <span>${user.role}</span>
-                </div>`
+                </div>
+              `
             )}
-          </div>`,
+          </div>
+        `,
       })
       it("парсинг", () => {
         expect(view.schema, "массив с множественными свойствами").toEqual([
           {
             tag: "div",
             type: "el",
-
             child: [
               {
                 tag: "div",
@@ -112,51 +134,22 @@ describe("массивы", () => {
                   src: "context",
                   key: "users",
                 },
-                attrs: {
-                  class: "user",
-                },
+                attrs: { class: "user" },
                 child: [
                   {
                     tag: "h3",
                     type: "el",
-
-                    child: [
-                      {
-                        type: "text",
-                        value: {
-                          src: ["context", "users"],
-                          key: "name",
-                        },
-                      },
-                    ],
+                    child: [{ type: "text", value: { src: ["core", "users"], key: "name" } }],
                   },
                   {
                     tag: "p",
                     type: "el",
-
-                    child: [
-                      {
-                        type: "text",
-                        value: {
-                          src: ["context", "users"],
-                          key: "email",
-                        },
-                      },
-                    ],
+                    child: [{ type: "text", value: { src: ["core", "users"], key: "email" } }],
                   },
                   {
                     tag: "span",
                     type: "el",
-
-                    child: [
-                      {
-                        type: "text",
-                        value: {
-                          src: ["context", "users"],
-                          key: "role",
-                        },
-                      },
-                    ],
+                    child: [{ type: "text", value: { src: ["core", "users"], key: "role" } }],
                   },
                 ],
               },
@@ -164,20 +157,45 @@ describe("массивы", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ core, element })
+        expect(element.innerHTML, "массив с множественными свойствами").toMatchStringHTML(html`
+          <div>
+            <div class="user">
+              <h3>${core.users[0].name}</h3>
+              <p>${core.users[0].email}</p>
+              <span>${core.users[0].role}</span>
+            </div>
+            <div class="user">
+              <h3>${core.users[1].name}</h3>
+              <p>${core.users[1].email}</p>
+              <span>${core.users[1].role}</span>
+            </div>
+          </div>
+        `)
+      })
     })
 
     describe("массив с динамическими атрибутами", () => {
-      const view = new View({
-        render: ({ html, context }) =>
-          html`<section>
-            ${context.items.map(
-              (item: any) =>
-                html`<article data-id="${item.id}" class="item-${item.type}">
+      const core = {
+        items: [
+          { id: 1, type: "item", title: "Item 1" },
+          { id: 2, type: "item", title: "Item 2" },
+        ],
+      } as const
+      const view = new View<any, typeof core>({
+        render: ({ html, core }) => html`
+          <section>
+            ${core.items.map(
+              (item) => html`
+                <article data-id="${item.id}" class="item-${item.type}">
                   <h2>${item.title}</h2>
-                </article>`
+                </article>
+              `
             )}
-          </section>`,
+          </section>
+        `,
       })
 
       it("парсинг", () => {
@@ -191,16 +209,16 @@ describe("массивы", () => {
                 tag: "article",
                 type: "el",
                 item: {
-                  src: "context",
+                  src: "core",
                   key: "items",
                 },
                 attrs: {
                   "data-id": {
-                    src: ["context", "items"],
+                    src: ["core", "items"],
                     key: "id",
                   },
                   class: {
-                    src: ["context", "items"],
+                    src: ["core", "items"],
                     key: "type",
                     result: "item-${VALUE}",
                   },
@@ -209,15 +227,7 @@ describe("массивы", () => {
                   {
                     tag: "h2",
                     type: "el",
-                    child: [
-                      {
-                        type: "text",
-                        value: {
-                          src: ["context", "items"],
-                          key: "title",
-                        },
-                      },
-                    ],
+                    child: [{ type: "text", value: { src: ["core", "items"], key: "title" } }],
                   },
                 ],
               },
@@ -225,7 +235,20 @@ describe("массивы", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ core, element })
+        expect(element.innerHTML, "массив с динамическими атрибутами").toMatchStringHTML(html`
+          <section>
+            <article data-id="${core.items[0].id}" class="item-${core.items[0].type}">
+              <h2>${core.items[0].title}</h2>
+            </article>
+            <article data-id="${core.items[1].id}" class="item-${core.items[1].type}">
+              <h2>${core.items[1].title}</h2>
+            </article>
+          </section>
+        `)
+      })
     })
   })
 

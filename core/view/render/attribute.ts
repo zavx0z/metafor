@@ -16,22 +16,67 @@ export function applyAttributes<C extends ContextSchema, S extends string, I ext
   core: I,
   arrayContext?: ArrayRenderContext
 ): void {
+  const decodeHtmlEntities = (input: string): string => {
+    return input
+      .replace(/&quot;/g, '"')
+      .replace(/&#34;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/&#39;/g, "'")
+      .replace(/&lt;/g, "<")
+      .replace(/&#60;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&#62;/g, ">")
+      .replace(/&amp;/g, "&")
+      .replace(/&#38;/g, "&")
+  }
+  const BOOLEAN_ATTRIBUTES = new Set([
+    "disabled",
+    "readonly",
+    "required",
+    "checked",
+    "selected",
+    "multiple",
+    "autofocus",
+    "autoplay",
+    "controls",
+    "default",
+    "defer",
+    "formnovalidate",
+    "hidden",
+    "loop",
+    "muted",
+    "open",
+    "playsinline",
+    "reversed",
+    "ismap",
+    "allowfullscreen",
+    "inert",
+    "nomodule",
+    "async",
+  ])
   for (const [name, value] of Object.entries(attrs)) {
     // Не устанавливаем on*-атрибуты напрямую (Happy DOM интерпретирует их как код)
     if (name.startsWith("on")) {
+      continue
+    }
+
+    // Статический булев атрибут: в схеме хранится как пустая строка
+    if (typeof value === "string" && value === "" && BOOLEAN_ATTRIBUTES.has(name)) {
+      element.toggleAttribute(name, true)
       continue
     }
     const evaluatedValue = evaluateAttribute(state, context, core, value, arrayContext)
 
     if (evaluatedValue === true) {
       // Булев атрибут
-      element.setAttribute(name, "")
+      element.toggleAttribute(name, true)
     } else if (evaluatedValue === false || evaluatedValue === undefined) {
       // Пропускаем false/undefined атрибуты
       continue
     } else {
       // Обычный атрибут
-      element.setAttribute(name, String(evaluatedValue))
+      const decoded = typeof evaluatedValue === "string" ? decodeHtmlEntities(evaluatedValue) : evaluatedValue
+      element.setAttribute(name, String(decoded))
     }
   }
 }

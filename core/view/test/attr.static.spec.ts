@@ -2,6 +2,7 @@ import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
 
 describe("статические атрибуты", () => {
+  const html = String.raw
   describe("простые статические атрибуты", () => {
     describe("один статический атрибут", () => {
       const view = new View({
@@ -24,7 +25,13 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element })
+        expect(element.innerHTML, "один статический атрибут").toMatchStringHTML(html`
+          <div class="container">Content</div>
+        `)
+      })
     })
 
     describe("несколько статических атрибутов", () => {
@@ -50,7 +57,13 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element })
+        expect(element.innerHTML, "несколько статических атрибутов").toMatchStringHTML(html`
+          <button type="submit" class="btn" disabled>Submit</button>
+        `)
+      })
     })
 
     describe("атрибуты с дефисами", () => {
@@ -75,7 +88,13 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element })
+        expect(element.innerHTML, "атрибуты с дефисами").toMatchStringHTML(html`
+          <div data-test-id="test" aria-label="description">Content</div>
+        `)
+      })
     })
   })
 
@@ -97,7 +116,13 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element })
+        expect(element.innerHTML, "input с атрибутами").toMatchStringHTML(html`
+          <input type="text" placeholder="Enter name" required />
+        `)
+      })
     })
 
     describe("img с атрибутами", () => {
@@ -117,7 +142,13 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element })
+        expect(element.innerHTML, "img с атрибутами").toMatchStringHTML(html`
+          <img src="image.jpg" alt="Description" loading />
+        `)
+      })
     })
 
     describe("meta с атрибутами", () => {
@@ -137,7 +168,13 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element })
+        expect(element.innerHTML, "meta с атрибутами").toMatchStringHTML(html`
+          <meta charset="utf-8" name="viewport" content="width=device-width" />
+        `)
+      })
     })
   })
 
@@ -188,7 +225,16 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element })
+        expect(element.innerHTML, "вложенные элементы с атрибутами").toMatchStringHTML(html`
+          <form class="form" method="post">
+            <input type="text" name="username" required />
+            <button type="submit" class="btn">Submit</button>
+          </form>
+        `)
+      })
     })
 
     describe("сложная структура с атрибутами", () => {
@@ -322,7 +368,28 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element })
+        expect(element.innerHTML, "сложная структура с атрибутами").toMatchStringHTML(html`
+          <div class="container">
+            <header class="header">
+              <h1 class="title">Title</h1>
+            </header>
+            <main class="main">
+              <section class="section">
+                <article class="article">
+                  <h2 class="subtitle">Subtitle</h2>
+                  <p class="text">Content</p>
+                </article>
+              </section>
+            </main>
+            <footer class="footer">
+              <p class="copyright">Copyright</p>
+            </footer>
+          </div>
+        `)
+      })
     })
   })
 
@@ -349,7 +416,11 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element })
+        expect(element.innerHTML, "пустые атрибуты").toMatchStringHTML(html` <div class="" id="">Content</div> `)
+      })
     })
 
     describe("атрибуты с пробелами", () => {
@@ -374,7 +445,13 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element })
+        expect(element.innerHTML, "атрибуты с пробелами").toMatchStringHTML(html`
+          <div class="  spaced  " title="  title  ">Content</div>
+        `)
+      })
     })
 
     describe("атрибуты с специальными символами", () => {
@@ -399,7 +476,13 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element })
+        expect(element.innerHTML, "атрибуты с специальными символами").toMatchStringHTML(html`
+          <div data-value='"quoted"' title="'single' &amp; &quot;double&quot;">Content</div>
+        `)
+      })
     })
   })
 })
