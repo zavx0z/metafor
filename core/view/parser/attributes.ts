@@ -161,12 +161,14 @@ export function parseAttributes(
               break
             }
             if (value.includes(placeholder)) {
-              // Смешанный контент — не формируем result, оставляем conditional
+              // Смешанный контент — разворачиваем префикс/суффикс в значения ветвей
+              const trueStr = value.replace(placeholder, info.trueValue || "")
+              const falseStr = value.replace(placeholder, info.falseValue || "")
               attrs[name] = {
                 src: info.src,
                 key: info.key,
-                trueValue: info.trueValue,
-                falseValue: info.falseValue,
+                trueValue: trueStr,
+                falseValue: falseStr,
                 type: "conditional",
               }
               foundPlaceholder = true
@@ -234,7 +236,7 @@ export function parseAttributes(
         let matchedPlaceholder = false
         for (const [placeholder, info] of conditionalAttributeMap) {
           if (name === placeholder) {
-            const attrName = info.trueValue || name
+            const attrName = info.trueValue && info.trueValue.length > 0 ? info.trueValue : info.falseValue || name
             attrs[attrName] = {
               src: info.src,
               key: info.key,
@@ -316,7 +318,7 @@ export function parseConditionalAttributes(
     }
   }
 
-  // Отрицание: ${!context.key && 'value'}
+  // Отрицание: ${!context.key && 'value'} => trueValue = '', falseValue = 'value'
   const notAndPattern = /\$\{!\s*((?:context|core|item)\.(?:\w+))\s*&&\s*['"]([^'"]*)['"]\}/g
   while ((match = notAndPattern.exec(htmlString)) !== null) {
     const [fullMatch, conditionExpr, falseValue] = match
@@ -658,7 +660,7 @@ export function parseAttributesForArray(
           if (name === placeholder) {
             const attrName = info.trueValue || name
             attrs[attrName] = {
-              src: info.src,
+              src: info.src === "item" && currentPath ? (currentPath as any) : info.src,
               key: info.key,
               trueValue: info.trueValue,
               falseValue: info.falseValue,
@@ -722,6 +724,22 @@ export function parseConditionalAttributesForArray(
     if (!key) continue
     const placeholder = `CONDITIONAL_ATTR_ITEM_${conditionalIndex++}`
     itemConditionalAttributeMap.set(placeholder, { src: "item", key, trueValue: trueValue || "" })
+    processedTemplate = processedTemplate.replace(fullMatch, placeholder)
+  }
+
+  // Отрицание: ${!item.key && 'value'} => trueValue = 'value', falseValue = ''
+  const notAndPattern = /\$\{!\s*(\w+)\.(\w+)\s*&&\s*['"]([^'"]*)['"]\}/g
+  while ((match = notAndPattern.exec(template)) !== null) {
+    const [fullMatch, _itemName, key, trueValue] = match
+    if (!key) continue
+    const placeholder = `CONDITIONAL_ATTR_ITEM_${conditionalIndex++}`
+    itemConditionalAttributeMap.set(placeholder, {
+      src: "item",
+      key,
+      trueValue: trueValue || "",
+      falseValue: "",
+      result: "not",
+    })
     processedTemplate = processedTemplate.replace(fullMatch, placeholder)
   }
 

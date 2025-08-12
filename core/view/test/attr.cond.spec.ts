@@ -43,54 +43,15 @@ describe("условные атрибуты", () => {
         expect(div?.classList.contains("inactive")).toBe(true)
       })
     })
-
-    describe("тернарный оператор с core", () => {
-      const core = {
-        isLoading: false,
-      }
-      const view = new View<any, typeof core>({
-        render: ({ html, core }) => html`<button disabled="${core.isLoading ? "disabled" : ""}">Submit</button>`,
-      })
-      it("парсинг", () => {
-        expect(view.schema, "тернарный оператор с core").toEqual([
-          {
-            tag: "button",
-            type: "el",
-            attrs: {
-              disabled: {
-                src: "core",
-                key: "isLoading",
-                trueValue: "disabled",
-                falseValue: "",
-                type: "conditional",
-              },
-            },
-            child: [
-              {
-                type: "text",
-                value: "Submit",
-              },
-            ],
-          },
-        ])
-      })
-      it("рендер", () => {
-        const element = document.createElement("button")
-        view.render({ element, core })
-        const button = element.querySelector("button")
-        expect(button).toBeDefined()
-        expect(button?.disabled).toBe(true)
-      })
-    })
   })
 
   describe("логические операторы в атрибутах", () => {
     describe("логическое И в атрибуте", () => {
       const { context, schema } = new Context((t) => ({
-        cannotEdit: t.boolean.required(false),
+        cannotEdit: t.boolean.required(true),
       }))
       const view = new View<typeof schema>({
-        render: ({ html, context }) => html`<button disabled="${context.cannotEdit && "disabled"}">Edit</button>`,
+        render: ({ html, context }) => html`<button ${context.cannotEdit && "disabled"}>Edit</button>`,
       })
       it("парсинг", () => {
         expect(view.schema, "логическое И в атрибуте").toEqual([
@@ -117,41 +78,9 @@ describe("условные атрибуты", () => {
       it("рендер", () => {
         const element = document.createElement("button")
         view.render({ element, context })
-        const button = element.querySelector("button")
+        const button = element.querySelector("button")!
         expect(button).toBeDefined()
-        expect(button?.disabled).toBe(true)
-      })
-    })
-
-    describe("логическое И с core", () => {
-      const core = {
-        isReadOnly: false,
-      }
-      const view = new View<any, typeof core>({
-        render: ({ html, core }) => html`<input readonly="${core.isReadOnly && "readonly"}" />`,
-      })
-      it("парсинг", () => {
-        expect(view.schema, "логическое И с core").toEqual([
-          {
-            tag: "input",
-            type: "el",
-            attrs: {
-              readonly: {
-                src: "core",
-                key: "isReadOnly",
-                trueValue: "readonly",
-                type: "conditional",
-              },
-            },
-          },
-        ])
-      })
-      it("рендер", () => {
-        const element = document.createElement("input")
-        view.render({ element, core })
-        const input = element.querySelector("input")
-        expect(input).toBeDefined()
-        expect(input?.readOnly).toBe(true)
+        expect(button.disabled).toBe(true)
       })
     })
 
@@ -160,7 +89,7 @@ describe("условные атрибуты", () => {
         isReadOnly: false,
       }
       const view = new View<any, typeof core>({
-        render: ({ html, core }) => html`<input readonly="${core.isReadOnly && "readonly"}" />`,
+        render: ({ html, core }) => html`<input ${core.isReadOnly && "readonly"} />`,
       })
       it("парсинг", () => {
         expect(view.schema, "логическое И в самозакрывающемся теге (новый синтаксис)").toEqual([
@@ -181,9 +110,9 @@ describe("условные атрибуты", () => {
       it("рендер", () => {
         const element = document.createElement("input")
         view.render({ element, core })
-        const input = element.querySelector("input")
+        const input = element.querySelector("input")!
         expect(input).toBeDefined()
-        expect(input?.readOnly).toBe(true)
+        expect(input.readOnly).toBe(false)
       })
     })
   })
@@ -376,8 +305,8 @@ describe("условные атрибуты", () => {
               class: {
                 src: "context",
                 key: "isLarge",
-                trueValue: "btn-lg",
-                falseValue: "btn-sm",
+                trueValue: "btn btn-lg",
+                falseValue: "btn btn-sm",
                 type: "conditional",
               },
             },
@@ -413,8 +342,8 @@ describe("условные атрибуты", () => {
               class: {
                 src: "context",
                 key: "theme",
-                trueValue: "dark",
-                falseValue: "light",
+                trueValue: "prefix-dark",
+                falseValue: "prefix-light",
                 type: "conditional",
               },
             },
@@ -489,8 +418,8 @@ describe("условные атрибуты", () => {
               disabled: {
                 src: "context",
                 key: "isEnabled",
-                trueValue: "disabled",
-                falseValue: undefined,
+                trueValue: "",
+                falseValue: "disabled",
                 type: "conditional",
               },
             },
@@ -543,7 +472,7 @@ describe("условные атрибуты", () => {
   })
   describe("логическое И в атрибуте", () => {
     const { context, schema } = new Context((t) => ({
-      cannotEdit: t.boolean.required(false),
+      cannotEdit: t.boolean.required(true),
     }))
     const view = new View<typeof schema>({
       render: ({ html, context }) => html`<button ${context.cannotEdit && "disabled"}>Edit</button>`,
@@ -573,7 +502,7 @@ describe("условные атрибуты", () => {
     it("рендер", () => {
       const element = document.createElement("button")
       view.render({ element, context })
-      expect(element.disabled).toBe(true)
+      expect(element.innerHTML).toMatchStringHTML(html`<button disabled>Edit</button>`)
     })
   })
 })

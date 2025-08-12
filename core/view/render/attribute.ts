@@ -67,14 +67,34 @@ export function applyAttributes<C extends ContextSchema, S extends string, I ext
     }
     const evaluatedValue = evaluateAttribute(state, context, core, value, arrayContext)
 
-    if (evaluatedValue === true) {
-      // Булев атрибут
-      element.toggleAttribute(name, true)
-    } else if (evaluatedValue === false || evaluatedValue === undefined) {
+    // Обработка булевых атрибутов
+    if (BOOLEAN_ATTRIBUTES.has(name)) {
+      if (evaluatedValue === true) {
+        element.toggleAttribute(name, true)
+        continue
+      }
+      if (typeof evaluatedValue === "string") {
+        if (evaluatedValue.length > 0) {
+          element.toggleAttribute(name, true)
+          continue
+        }
+        // пустая строка для булевого атрибута — не устанавливаем
+        continue
+      }
+      if (evaluatedValue === false || evaluatedValue === undefined) {
+        continue
+      }
+    }
+
+    if (evaluatedValue === false || evaluatedValue === undefined) {
       // Пропускаем false/undefined атрибуты
       continue
     } else {
       // Обычный атрибут
+      if (typeof evaluatedValue === "string" && evaluatedValue.length === 0) {
+        // пустая строка для небулевых атрибутов — пропускаем (не устанавливаем name="")
+        continue
+      }
       const decoded = typeof evaluatedValue === "string" ? decodeHtmlEntities(evaluatedValue) : evaluatedValue
       element.setAttribute(name, String(decoded))
     }
@@ -98,26 +118,101 @@ export function evaluateAttribute<C extends ContextSchema, S extends string, I e
 
   // Условный атрибут (проверяем первым)
   if ("type" in attribute && attribute.type === "conditional" && "trueValue" in attribute) {
-    const conditionalAttr = attribute as { src: string; key: string; trueValue: string; falseValue?: string }
-
-    // Для условных атрибутов в массивах используем arrayContext
-    if (conditionalAttr.src === "item" && arrayContext) {
-      // Для item.* используем прямое сравнение
-      if (conditionalAttr.key) {
-        const value = arrayContext.item[conditionalAttr.key]
-        const isTrue = Boolean(value)
-        return isTrue ? conditionalAttr.trueValue : conditionalAttr.falseValue || ""
-      }
-      return conditionalAttr.falseValue || ""
-    } else {
-      const condition = {
-        src: conditionalAttr.src,
-        key: conditionalAttr.key || "",
-        eq: true,
-      }
-      const isTrue = evaluateCondition(state, condition, context, core, arrayContext)
-      return isTrue ? conditionalAttr.trueValue : conditionalAttr.falseValue || ""
+    const conditionalAttr = attribute as {
+      src: string | string[]
+      key: string | string[]
+      trueValue: string
+      falseValue?: string
+      result?: "not"
     }
+
+    const resolveSourceAndValue = (): any => {
+      // Путь как массив: используем механику из блока ниже
+      if (Array.isArray(conditionalAttr.src)) {
+        const srcPath = conditionalAttr.src as string[]
+        // Переиспользуем логику traversal из обычного src: string[]
+        const [root, ...rest] = srcPath
+        let rootObj: any =
+          root === "context" ? context : root === "core" ? core : root === "state" ? (state as any) : undefined
+        let current: any = rootObj
+        const getContextChain = (ctx?: ArrayRenderContext): ArrayRenderContext[] => {
+          const chain: ArrayRenderContext[] = []
+          let cur = ctx
+          while (cur) {
+            chain.push(cur)
+            cur = cur.parent
+          }
+          return chain
+        }
+        const findContextForArray = (arr: any[]): ArrayRenderContext | undefined => {
+          if (!arrayContext) return undefined
+          const chain = getContextChain(arrayContext)
+          return chain.find((c) => c.array === arr)
+        }
+        for (const seg of rest) {
+          if (current == null) break
+          current = current[seg as any]
+          if (Array.isArray(current)) {
+            const ctx = findContextForArray(current)
+            if (ctx) current = ctx.item
+          }
+        }
+        // key может быть тоже путём
+        if (conditionalAttr.key) {
+          const path = Array.isArray(conditionalAttr.key) ? conditionalAttr.key : [conditionalAttr.key]
+          for (const seg of path) {
+            if (current == null) break
+            current = current[seg as any]
+          }
+        }
+        return current
+      }
+
+      // item
+      if (conditionalAttr.src === "item") {
+        if (!arrayContext) return undefined
+        let current: any = arrayContext.item
+        if (conditionalAttr.key) {
+          const path = Array.isArray(conditionalAttr.key) ? conditionalAttr.key : [conditionalAttr.key]
+          for (const seg of path) {
+            if (current == null) break
+            current = current[seg as any]
+          }
+        }
+        return current
+      }
+
+      // context/core/state
+      let source: any
+      switch (conditionalAttr.src) {
+        case "context":
+          source = context
+          break
+        case "core":
+          source = core
+          break
+        case "state":
+          source = state
+          break
+        default:
+          return undefined
+      }
+      if (conditionalAttr.key) {
+        const path = Array.isArray(conditionalAttr.key) ? conditionalAttr.key : [conditionalAttr.key]
+        let current: any = source
+        for (const seg of path) {
+          if (current == null) break
+          current = current[seg as any]
+        }
+        return current
+      }
+      return source
+    }
+
+    const val = resolveSourceAndValue()
+    const base = val === true
+    const isTrue = conditionalAttr.result === "not" ? !base : base
+    return isTrue ? conditionalAttr.trueValue : (conditionalAttr.falseValue ?? "")
   }
 
   // Простой источник (src/key) или глобальный путь (src: string[])
