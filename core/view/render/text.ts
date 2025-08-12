@@ -48,7 +48,9 @@ export function renderText<C extends ContextSchema, S extends string, I extends 
           ? (context as unknown as Record<string, unknown>)
           : root === "core"
             ? (core as unknown as Record<string, unknown>)
-            : undefined
+            : root === "state"
+              ? (state as unknown as Record<string, unknown>)
+              : undefined
 
       if (rootObject) {
         let current: unknown = rootObject
@@ -71,9 +73,11 @@ export function renderText<C extends ContextSchema, S extends string, I extends 
         ? (context as unknown as Record<string, unknown>)
         : src === "core"
           ? (core as unknown as Record<string, unknown>)
-          : src === "item" && arrayContext
-            ? (arrayContext.item as unknown as Record<string, unknown>)
-            : undefined
+          : src === "state"
+            ? (state as unknown as Record<string, unknown>)
+            : src === "item" && arrayContext
+              ? (arrayContext.item as unknown as Record<string, unknown>)
+              : undefined
 
     // 4) Если указан result — вычисляем шаблон напрямую
     if ("result" in text.value && text.value.result) {
@@ -89,7 +93,12 @@ export function renderText<C extends ContextSchema, S extends string, I extends 
       }
       valueToRender = String(current ?? "")
     } else {
-      valueToRender = ""
+      // Специальный случай: ${state} без ключа → вставляем текущее значение состояния
+      if (src === "state") {
+        valueToRender = String(state ?? "")
+      } else {
+        valueToRender = ""
+      }
     }
   }
 

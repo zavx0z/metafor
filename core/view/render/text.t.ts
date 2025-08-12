@@ -16,7 +16,7 @@ export type TextValue =
   | string
   /**
    * Прямая интерполяция значения по ключу из источника.
-   * Источник: "context" | "core".
+   * Источник: "context" | "core" | "state".
    *
    * Правила ключей:
    * - для простого поля допускается строка: `"name"`
@@ -36,8 +36,14 @@ export type TextValue =
    */
   | { src: string[] }
   /**
+   * Значение по составному пути с ключом (для массивов).
+   * Пример шаблона: html`<li>${item.name}</li>` в массиве
+   * Пример схемы: { type: "text", value: { src: ["core", "users"], key: "name" } }
+   */
+  | { src: string[]; key: string | string[] }
+  /**
    * Смешанный вариант с шаблоном результата.
-   * Источник: "context" | "core". Ключ — путь в источнике (string | string[]).
+   * Источник: "context" | "core" | "state". Ключ — путь в источнике (string | string[]).
    * Для составных ключей используйте массив строк; парсер нормализует их в массивы.
    * Если указан result, он вычисляется при рендеринге как шаблонная строка
    * с доступом к state, context, core.
@@ -47,5 +53,11 @@ export type TextValue =
    *  - { type: "text", value: { src: "context", key: ["user", "name"], result: "User: ${context.user.name}" } }
    */
   | { src: string; key: string | string[]; result?: string } /**
- * Схема текстового узла
- */
+   * Схема текстового узла
+   */
+  /**
+   * Значение текущего состояния без ключа.
+   * Пример шаблона: html`<span>${state}</span>`
+   * Пример схемы: { type: "text", value: { src: "state" } }
+   */
+  | { src: "state" }

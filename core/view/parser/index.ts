@@ -32,7 +32,7 @@ export class TemplateParser {
     // Сначала находим и обрабатываем массивы из контекста и core
     let processedHtml = htmlString
     const arrayInfo: ArrayInfo[] = []
-    const interpolationMap = new Map<string, { src: string; key: string }>()
+    const interpolationMap = new Map<string, { src: string; key?: string }>()
     const dynamicMetaTagMap = new Map<string, { src: "core"; key: string | string[] }>()
 
     // Используем более умный парсер для массивов с вложенными backticks
@@ -82,9 +82,16 @@ export class TemplateParser {
 
     // Обрабатываем простые интерполяции и сохраняем их информацию
     let interpolationIndex = 0
-    processedHtml = processedHtml.replace(/\$\{(context|core)\.([\w\.]+)\}/g, (match, src, key) => {
+    // ${context.key}, ${core.key}, ${state.key}
+    processedHtml = processedHtml.replace(/\$\{(context|core|state)\.([\w\.]+)\}/g, (match, src, key) => {
       const placeholder = `INTERPOLATION_${interpolationIndex++}`
       interpolationMap.set(placeholder, { src, key })
+      return placeholder
+    })
+    // ${state} без ключа
+    processedHtml = processedHtml.replace(/\$\{state\}/g, () => {
+      const placeholder = `INTERPOLATION_${interpolationIndex++}`
+      interpolationMap.set(placeholder, { src: "state" })
       return placeholder
     })
 
@@ -239,7 +246,7 @@ export class TemplateParser {
   private parseChildren(
     content: string,
     arrayInfo: ArrayInfo[] = [],
-    interpolationMap?: Map<string, { src: string; key: string }>,
+    interpolationMap?: Map<string, { src: string; key?: string }>,
     conditionalInfo: ConditionalInfo[] = [],
     conditionalAttributeMap?: Map<
       string,
@@ -301,14 +308,12 @@ export class TemplateParser {
         // Простая интерполяция
         const interpolationInfo = interpolationMap.get(content.trim())
         if (interpolationInfo) {
-          const normalized = {
-            src: interpolationInfo.src,
-            key: interpolationInfo.key.includes(".") ? interpolationInfo.key.split(".") : interpolationInfo.key,
+          const k = interpolationInfo.key
+          const normalized: any = { src: interpolationInfo.src }
+          if (k !== undefined) {
+            normalized.key = k.includes(".") ? k.split(".") : k
           }
-          child.push({
-            type: "text",
-            value: normalized,
-          })
+          child.push({ type: "text", value: normalized })
         }
       } else if (content.trim()) {
         // Обрабатываем смешанный текст с плейсхолдерами массивов и условных блоков
@@ -474,7 +479,7 @@ export class TemplateParser {
   private parseTextWithPlaceholders(
     text: string,
     child: Array<ElementSchema | TextSchema>,
-    interpolationMap?: Map<string, { src: string; key: string }>,
+    interpolationMap?: Map<string, { src: string; key?: string }>,
     conditionalInfo: ConditionalInfo[] = []
   ) {
     // Раскладываем плейсхолдеры массивов/условий даже если их несколько подряд
@@ -532,7 +537,7 @@ export class TemplateParser {
     // Затем обрабатываем простые интерполяции
     const interpolationPattern = /INTERPOLATION_\d+/g
     let processedText = text
-    const interpolations: Array<{ index: number; info: { src: string; key: string } }> = []
+    const interpolations: Array<{ index: number; info: { src: string; key?: string } }> = []
 
     let match
     while ((match = interpolationPattern.exec(text)) !== null) {
@@ -582,13 +587,12 @@ export class TemplateParser {
         if (interpolationIndex < interpolations.length) {
           const interpolation = interpolations[interpolationIndex]
           if (interpolation) {
-            child.push({
-              type: "text",
-              value: {
-                src: interpolation.info.src,
-                key: interpolation.info.key.includes(".") ? interpolation.info.key.split(".") : interpolation.info.key,
-              },
-            })
+            const info = interpolation.info
+            const val: any = { src: info.src }
+            if (info.key !== undefined) {
+              val.key = info.key.includes(".") ? info.key.split(".") : info.key
+            }
+            child.push({ type: "text", value: val })
           }
           interpolationIndex++
         } else {

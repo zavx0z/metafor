@@ -137,6 +137,7 @@ ${context.count > 0 && html`<span>...</span>`} ${context.role === core.requiredR
 - `${context.name}` → `{ src: "context", key: "name" }`
 - `${core.settings}` → `{ src: "core", key: "settings" }`
 - `${core.user.name}` → `{ src: "core", key: ["user", "name"] }` ← составные ключи всегда массив
+- `${state}` → `{ src: "state" }`
 
 ### Интерполяции внутри массивов (адресация путями и ${VALUE})
 

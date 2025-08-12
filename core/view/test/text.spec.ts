@@ -259,4 +259,30 @@ describe("текстовые узлы", () => {
       )
     })
   })
+
+  describe("ключ состояния", () => {
+    const state = "loading" as const
+    const view = new View<any, any, typeof state>({
+      render: ({ html, state }) => html`<span>${state}</span>`,
+    })
+    it("парсинг", () => {
+      expect(view.schema, "src - состояние без ключа").toEqual([
+        {
+          tag: "span",
+          type: "el",
+          child: [
+            {
+              type: "text",
+              value: { src: "state" },
+            },
+          ],
+        },
+      ])
+    })
+    it("рендер", () => {
+      const element = document.createElement("div")
+      view.render({ element, state })
+      expect(element.innerHTML, "state подставляется как строка").toMatchStringHTML(html`<span>${state}</span>`)
+    })
+  })
 })
