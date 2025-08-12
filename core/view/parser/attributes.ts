@@ -161,10 +161,7 @@ export function parseAttributes(
               break
             }
             if (value.includes(placeholder)) {
-              const originalConditional = info.falseValue
-                ? `\${${info.src}.${info.key} ? '${info.trueValue}' : '${info.falseValue}'}`
-                : `\${${info.src}.${info.key} && '${info.trueValue}'}`
-              const resultValue = value.replace(placeholder, originalConditional)
+              // Смешанный контент — не формируем result, оставляем conditional
               attrs[name] = {
                 src: info.src,
                 key: info.key,
@@ -212,10 +209,7 @@ export function parseAttributes(
               break
             }
             if (value.includes(placeholder)) {
-              const originalConditional = info.falseValue
-                ? `\${${info.src}.${info.key} ? '${info.trueValue}' : '${info.falseValue}'}`
-                : `\${${info.src}.${info.key} && '${info.trueValue}'}`
-              const resultValue = value.replace(placeholder, originalConditional)
+              // Смешанный контент — не формируем result, оставляем conditional
               attrs[name] = {
                 src: info.src,
                 key: info.key,
@@ -317,6 +311,23 @@ export function parseConditionalAttributes(
       if (key) {
         const placeholder = `CONDITIONAL_ATTR_${conditionalIndex++}`
         conditionalAttributeMap.set(placeholder, { src, key, trueValue: trueValue || "" })
+        processedHtml = processedHtml.replace(fullMatch, placeholder)
+      }
+    }
+  }
+
+  // Отрицание: ${!context.key && 'value'}
+  const notAndPattern = /\$\{!\s*((?:context|core|item)\.(?:\w+))\s*&&\s*['"]([^'"]*)['"]\}/g
+  while ((match = notAndPattern.exec(htmlString)) !== null) {
+    const [fullMatch, conditionExpr, falseValue] = match
+    if (!conditionExpr) continue
+    const conditionParts = conditionExpr.split(".")
+    if (conditionParts.length >= 2) {
+      const src = conditionParts[0] as "context" | "core" | "item"
+      const key = conditionParts[1]
+      if (key) {
+        const placeholder = `CONDITIONAL_ATTR_${conditionalIndex++}`
+        conditionalAttributeMap.set(placeholder, { src, key, trueValue: "", falseValue: falseValue || "" })
         processedHtml = processedHtml.replace(fullMatch, placeholder)
       }
     }
@@ -508,11 +519,7 @@ export function parseAttributesForArray(
               break
             }
             if (value.includes(placeholder)) {
-              const srcForCond = info.src === "item" && currentPath ? "VALUE" : `${info.src}.${info.key}`
-              const originalConditional = info.falseValue
-                ? `\${${srcForCond} ? '${info.trueValue}' : '${info.falseValue}'}`
-                : `\${${srcForCond} && '${info.trueValue}'}`
-              const resultValue = value.replace(placeholder, originalConditional)
+              // Смешанный контент — не формируем result, оставляем conditional
               attrs[name] = {
                 src: info.src === "item" && currentPath ? (currentPath as any) : info.src,
                 key: info.key,
@@ -594,11 +601,7 @@ export function parseAttributesForArray(
               break
             }
             if (value.includes(placeholder)) {
-              const srcForCond = info.src === "item" && currentPath ? "VALUE" : `${info.src}.${info.key}`
-              const originalConditional = info.falseValue
-                ? `\${${srcForCond} ? '${info.trueValue}' : '${info.falseValue}'}`
-                : `\${${srcForCond} && '${info.trueValue}'}`
-              const resultValue = value.replace(placeholder, originalConditional)
+              // Смешанный контент — не формируем result, оставляем conditional
               attrs[name] = {
                 src: info.src === "item" && currentPath ? (currentPath as any) : info.src,
                 key: info.key,
