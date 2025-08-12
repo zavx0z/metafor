@@ -12,7 +12,7 @@
 - ✅ Атрибуты с дефисами (`data-*`, `aria-*`)
 - ✅ Сериализуемый JSON формат
   // ... existing code ...
-- ✅ Условные атрибуты: тернарный оператор и логическое И, в т.ч. без знака `=` и в массивах (тип `conditional`)
+- ✅ Условные атрибуты: тернарный оператор и логическое И, в т.ч. без знака `=` и в массивах (`true/false` и выражения)
 - ✅ Условия элементов (`cond`) с операторами сравнения: `===`, `!==`, `>`, `>=`, `<`, `<=`
 - ✅ Сравнения значений между `context`/`core`/`item`
 - ✅ События `on*`: парсинг и сериализация обработчиков в строку, поддержка синтаксиса без кавычек и стрелочных функций
@@ -57,16 +57,14 @@ const schema = parser.parseHtmlToSchema(htmlString)
 <button ${context.isDisabled && "disabled"}>...</button>
 ```
 
-Результат нормализуется в `attrs["disabled"]` со схемой типа `conditional`:
+Результат нормализуется в один из новых форматов:
 
 ```typescript
-{
-  type: "el",
-  tag: "button",
-  attrs: {
-    disabled: { type: "conditional", trueValue: "disabled", falseValue: "" }
-  }
-}
+// Короткая форма по источнику
+{ tag: "button", type: "el", attrs: { disabled: { src: "context", key: "isDisabled", true: "disabled" } } }
+
+// Через выражение
+{ tag: "button", type: "el", attrs: { class: { items:[{src:"core",key:"a"},{src:"context",key:"b"}], template:"${0}===${1}", true:"active", false:"inactive" } } }
 ```
 
 Работает одинаково внутри элементов массивов и на самозакрывающихся тегах.

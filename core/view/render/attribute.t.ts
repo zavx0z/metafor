@@ -1,11 +1,19 @@
 /**
- * Значение атрибута — статическое, простая интерполяция или унифицированный шаблон (template/items).
+ * Значение атрибута — статическое, интерполяция, шаблон или условное значение.
  *
- * Правила:
- * - Для смешанного контента используется `{ template, items }`, где `${0}`, `${1}`... соответствуют items по порядку
- * - В items допускаются источники: `state`, `context|core` с `key`, глобальный путь `string[]` с `key?`, и `item` с `key?`
- * - Для простой интерполяции допустим `{ src, key? }` (в массивах src может быть `string[]` — накопленный путь)
- * - Условные атрибуты представлены типом `conditional`
+ * Базовые правила:
+ * - Для смешанного контента используется унифицированный формат `{ template, items }`, где `${0}`, `${1}`, ...
+ *   соответствуют элементам массива `items` по порядку
+ * - В `items` допускаются источники: `state`, `context|core` c `key`, глобальный путь `string[]` с `key?`, `item` с `key?`
+ * - Для простой интерполяции используйте `{ src, key? }` (в массивах `src` может быть `string[]` — накопленный путь)
+ *
+ * Условные значения атрибутов поддерживаются двумя способами:
+ * 1) По источнику: `{ src, key?, true, false? }` — условие трактуется как строго `value === true`
+ * 2) По выражению: `{ template, items, true, false? }` — логическое выражение над позиционными значениями из `items`
+ *
+ * Упрощения синтаксиса (рекомендации):
+ * - Если выражение — это просто значение одной переменной (эквивалент шаблона `"${0}"`), `template` опускаем
+ * - Если в выражении используется ровно одна переменная, `items` опускаем и используйте форму по источнику `{ src, key? }`
  */
 
 export type AttributeValue =
@@ -31,10 +39,81 @@ export type AttributeValue =
         | { src: "item"; key?: string | string[] }
       >
     } // смешанный контент (шаблон)
+  /**
+   * Условное значение по источнику.
+   * Истина определяется как строгое равенство `value === true`.
+   *
+   * Ветви `true` и `false` могут быть строкой или шаблоном `{ template, items }`.
+   * Рекомендация: для булевых атрибутов (disabled, readonly, ...) строка `"disabled"/"readonly"` включает атрибут; пустая строка — не устанавливает.
+   */
   | {
+      /** Источник значения условия: context/core/state/item или глобальный путь */
       src: string | string[]
-      key: string | string[]
-      trueValue: string
-      falseValue?: string
-      type: "conditional"
-    } // условный атрибут
+      /** Ключ/путь внутри источника (для составных путей используйте массив строк) */
+      key?: string | string[]
+      /** Значение ветви при true: строка или шаблон */
+      true:
+        | string
+        | {
+            template: string
+            items: Array<
+              | { src: "state" }
+              | { src: "context" | "core"; key: string | string[] }
+              | { src: string[]; key?: string | string[] }
+              | { src: "item"; key?: string | string[] }
+            >
+          }
+      /** Значение ветви при false: строка или шаблон (может отсутствовать) */
+      false?:
+        | string
+        | {
+            template: string
+            items: Array<
+              | { src: "state" }
+              | { src: "context" | "core"; key: string | string[] }
+              | { src: string[]; key?: string | string[] }
+              | { src: "item"; key?: string | string[] }
+            >
+          }
+    }
+  /**
+   * Условное значение по выражению.
+   * `template` — логическое выражение над позиционными значениями из `items`.
+   * Пример: `template: "${0}===${1}"`, где `items` содержит два источника.
+   * Ветви `true`/`false` аналогично могут быть строкой или шаблоном.
+   */
+  | {
+      /** Логическое выражение над позиционными значениями items */
+      template: string
+      /** Источники переменных для выражения */
+      items: Array<
+        | { src: "state" }
+        | { src: "context" | "core"; key: string | string[] }
+        | { src: string[]; key?: string | string[] }
+        | { src: "item"; key?: string | string[] }
+      >
+      /** Значение ветви при true: строка или шаблон */
+      true:
+        | string
+        | {
+            template: string
+            items: Array<
+              | { src: "state" }
+              | { src: "context" | "core"; key: string | string[] }
+              | { src: string[]; key?: string | string[] }
+              | { src: "item"; key?: string | string[] }
+            >
+          }
+      /** Значение ветви при false: строка или шаблон (может отсутствовать) */
+      false?:
+        | string
+        | {
+            template: string
+            items: Array<
+              | { src: "state" }
+              | { src: "context" | "core"; key: string | string[] }
+              | { src: string[]; key?: string | string[] }
+              | { src: "item"; key?: string | string[] }
+            >
+          }
+    }
