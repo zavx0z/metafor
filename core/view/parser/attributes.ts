@@ -489,29 +489,43 @@ export function parseAttributesForArray(
           if (!foundPlaceholder) {
             {
               const parsed = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
-              if (typeof parsed === "string") attrs[name] = parsed
-              else if (hasSrc(parsed)) {
+              if (typeof parsed === "string") {
+                attrs[name] = parsed
+              } else if ((parsed as any) && typeof parsed === "object" && "template" in (parsed as any)) {
+                const p: any = parsed as any
+                const items = Array.isArray(p.items)
+                  ? p.items.map((it: any) =>
+                      it && it.src === "item" && currentPath ? { ...it, src: currentPath } : it
+                    )
+                  : []
+                attrs[name] = { template: p.template, items }
+              } else if (hasSrc(parsed)) {
                 const out: any = { ...parsed }
-                if (parsed.src === "item" && currentPath) out.src = currentPath as any
-                if ("result" in parsed && parsed.result && parsed.src === "item") {
-                  out.result = parsed.result.replace(/\$\{item\.[^}]+\}/g, "${VALUE}")
-                }
+                if ((parsed as any).src === "item" && currentPath) out.src = currentPath as any
                 attrs[name] = out
-              } else attrs[name] = parsed
+              } else {
+                attrs[name] = parsed
+              }
             }
           }
         } else {
           {
             const parsed = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
-            if (typeof parsed === "string") attrs[name] = parsed
-            else if (hasSrc(parsed)) {
+            if (typeof parsed === "string") {
+              attrs[name] = parsed
+            } else if ((parsed as any) && typeof parsed === "object" && "template" in (parsed as any)) {
+              const p: any = parsed as any
+              const items = Array.isArray(p.items)
+                ? p.items.map((it: any) => (it && it.src === "item" && currentPath ? { ...it, src: currentPath } : it))
+                : []
+              attrs[name] = { template: p.template, items }
+            } else if (hasSrc(parsed)) {
               const out: any = { ...parsed }
-              if (parsed.src === "item" && currentPath) out.src = currentPath as any
-              if ("result" in parsed && parsed.result && parsed.src === "item") {
-                out.result = parsed.result.replace(/\$\{item\.[^}]+\}/g, "${VALUE}")
-              }
+              if ((parsed as any).src === "item" && currentPath) out.src = currentPath as any
               attrs[name] = out
-            } else attrs[name] = parsed
+            } else {
+              attrs[name] = parsed
+            }
           }
         }
       } else {
@@ -562,12 +576,17 @@ export function parseAttributesForArray(
             {
               const parsed = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
               if (typeof parsed === "string") attrs[name] = parsed
-              else if (hasSrc(parsed)) {
+              else if ((parsed as any) && typeof parsed === "object" && "template" in (parsed as any)) {
+                const p: any = parsed as any
+                const items = Array.isArray(p.items)
+                  ? p.items.map((it: any) =>
+                      it && it.src === "item" && currentPath ? { ...it, src: currentPath } : it
+                    )
+                  : []
+                attrs[name] = { template: p.template, items }
+              } else if (hasSrc(parsed)) {
                 const out: any = { ...parsed }
-                if (parsed.src === "item" && currentPath) out.src = currentPath as any
-                if ("result" in parsed && parsed.result && parsed.src === "item") {
-                  out.result = parsed.result.replace(/\$\{item\.[^}]+\}/g, "${VALUE}")
-                }
+                if ((parsed as any).src === "item" && currentPath) out.src = currentPath as any
                 attrs[name] = out
               } else attrs[name] = parsed
             }
@@ -576,12 +595,15 @@ export function parseAttributesForArray(
           {
             const parsed = parseAttributeValueForArray(value, itemInterpolationMap, itemConditionalAttributeMap)
             if (typeof parsed === "string") attrs[name] = parsed
-            else if (hasSrc(parsed)) {
+            else if ((parsed as any) && typeof parsed === "object" && "template" in (parsed as any)) {
+              const p: any = parsed as any
+              const items = Array.isArray(p.items)
+                ? p.items.map((it: any) => (it && it.src === "item" && currentPath ? { ...it, src: currentPath } : it))
+                : []
+              attrs[name] = { template: p.template, items }
+            } else if (hasSrc(parsed)) {
               const out: any = { ...parsed }
-              if (parsed.src === "item" && currentPath) out.src = currentPath as any
-              if ("result" in parsed && parsed.result && parsed.src === "item") {
-                out.result = parsed.result.replace(/\$\{item\.[^}]+\}/g, "${VALUE}")
-              }
+              if ((parsed as any).src === "item" && currentPath) out.src = currentPath as any
               attrs[name] = out
             } else attrs[name] = parsed
           }

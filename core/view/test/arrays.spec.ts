@@ -218,9 +218,8 @@ describe("массивы", () => {
                     key: "id",
                   },
                   class: {
-                    src: ["core", "items"],
-                    key: "type",
-                    result: "item-${VALUE}",
+                    items: [{ src: ["core", "items"], key: "type" }],
+                    template: "item-${0}",
                   },
                 },
                 child: [

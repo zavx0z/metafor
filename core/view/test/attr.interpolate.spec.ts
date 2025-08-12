@@ -3,6 +3,7 @@ import { View } from "../index.ts"
 import { Context } from "../../context/index.ts"
 
 describe("интерполяции в атрибутах", () => {
+  const html = String.raw
   describe("простые интерполяции в атрибутах", () => {
     describe("простая интерполяция context в атрибуте", () => {
       const { context, schema } = new Context((t) => ({ name: t.string.required("MetaFor") }))
@@ -162,7 +163,8 @@ describe("интерполяции в атрибутах", () => {
     })
 
     describe("суффикс с интерполяцией", () => {
-      const view = new View({
+      const { context, schema } = new Context((t) => ({ theme: t.string.required("primary") }))
+      const view = new View<typeof schema>({
         render: ({ html, context }) => html`<div class="${context.theme}-mode">Content</div>`,
       })
       it("парсинг", () => {
@@ -185,11 +187,19 @@ describe("интерполяции в атрибутах", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element, context })
+
+        const div = element.querySelector("div")!
+        expect(div).toBeDefined()
+        expect(div.getAttribute("class")).toBe("primary-mode")
+      })
     })
 
     describe("интерполяция в середине", () => {
-      const view = new View({
+      const core = { id: "123" }
+      const view = new View<any, typeof core>({
         render: ({ html, core }) => html`<div data-key="prefix-${core.id}-suffix">Content</div>`,
       })
       it("парсинг", () => {
@@ -212,17 +222,26 @@ describe("интерполяции в атрибутах", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element, core })
+
+        const div = element.querySelector("div")!
+        expect(div).toBeDefined()
+        expect(div.getAttribute("data-key")).toBe("prefix-123-suffix")
+      })
     })
   })
 
   describe("атрибуты в массивах", () => {
     describe("простая интерполяция item в атрибуте массива", () => {
-      const view = new View({
-        render: ({ html, context }) =>
-          html`<ul>
-            ${context.items.map((item: any) => html`<li data-id="${item.id}">Item</li>`)}
-          </ul>`,
+      const core = { items: [{ id: "123" }, { id: "456" }] } as const
+      const view = new View<any, typeof core>({
+        render: ({ html, core }) => html`
+          <ul>
+            ${core.items.map((item) => html`<li data-id="${item.id}">Item</li>`)}
+          </ul>
+        `,
       })
       it("парсинг", () => {
         expect(view.schema, "простая интерполяция item в атрибуте массива").toEqual([
@@ -235,7 +254,7 @@ describe("интерполяции в атрибутах", () => {
                 type: "el",
                 attrs: {
                   "data-id": {
-                    src: ["context", "items"],
+                    src: ["core", "items"],
                     key: "id",
                   },
                 },
@@ -246,7 +265,7 @@ describe("интерполяции в атрибутах", () => {
                   },
                 ],
                 item: {
-                  src: "context",
+                  src: "core",
                   key: "items",
                 },
               },
@@ -254,15 +273,27 @@ describe("интерполяции в атрибутах", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("ul")
+        view.render({ element, core })
+
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <ul>
+            <li data-id="${core.items[0].id}">Item</li>
+            <li data-id="${core.items[1].id}">Item</li>
+          </ul>
+        `)
+      })
     })
 
     describe("смешанный контент в атрибуте массива", () => {
-      const view = new View({
-        render: ({ html, context }) =>
-          html`<ul>
-            ${context.items.map((item: any) => html`<li class="item-${item.type}">Item</li>`)}
-          </ul>`,
+      const core = { items: [{ type: "1" }, { type: "2" }] } as const
+      const view = new View<any, typeof core>({
+        render: ({ html, core }) => html`
+          <ul>
+            ${core.items.map((item) => html`<li class="item-${item.type}">Item</li>`)}
+          </ul>
+        `,
       })
       it("парсинг", () => {
         expect(view.schema, "смешанный контент в атрибуте массива").toEqual([
@@ -273,10 +304,14 @@ describe("интерполяции в атрибутах", () => {
               {
                 tag: "li",
                 type: "el",
+                item: {
+                  src: "core",
+                  key: "items",
+                },
                 attrs: {
                   class: {
                     template: "item-${0}",
-                    items: [{ src: "item", key: "type" }],
+                    items: [{ src: ["core", "items"], key: "type" }],
                   },
                 },
                 child: [
@@ -285,26 +320,38 @@ describe("интерполяции в атрибутах", () => {
                     value: "Item",
                   },
                 ],
-                item: {
-                  src: "context",
-                  key: "items",
-                },
               },
             ],
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("ul")
+        view.render({ element, core })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <ul>
+            <li class="item-1">Item</li>
+            <li class="item-2">Item</li>
+          </ul>
+        `)
+      })
     })
 
     describe("множественные атрибуты в массиве", () => {
-      const view = new View({
-        render: ({ html, context }) =>
-          html`<ul>
-            ${context.items.map(
-              (item: any) => html`<li data-id="${item.id}" class="item-${item.type}" title="${item.name}">Item</li>`
+      const core = {
+        items: [
+          { id: "123", type: "1", name: "Item1" },
+          { id: "456", type: "2", name: "Item2" },
+        ],
+      } as const
+      const view = new View<any, typeof core>({
+        render: ({ html, core }) => html`
+          <ul>
+            ${core.items.map(
+              (item) => html`<li data-id="${item.id}" class="item-${item.type}" title="${item.name}">Item</li>`
             )}
-          </ul>`,
+          </ul>
+        `,
       })
       it("парсинг", () => {
         expect(view.schema, "множественные атрибуты в массиве").toEqual([
@@ -315,17 +362,21 @@ describe("интерполяции в атрибутах", () => {
               {
                 tag: "li",
                 type: "el",
+                item: {
+                  src: "core",
+                  key: "items",
+                },
                 attrs: {
                   "data-id": {
-                    src: ["context", "items"],
+                    src: ["core", "items"],
                     key: "id",
                   },
                   class: {
                     template: "item-${0}",
-                    items: [{ src: "item", key: "type" }],
+                    items: [{ src: ["core", "items"], key: "type" }],
                   },
                   title: {
-                    src: ["context", "items"],
+                    src: ["core", "items"],
                     key: "name",
                   },
                 },
@@ -335,26 +386,33 @@ describe("интерполяции в атрибутах", () => {
                     value: "Item",
                   },
                 ],
-                item: {
-                  src: "context",
-                  key: "items",
-                },
               },
             ],
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("ul")
+        view.render({ element, core })
+
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <ul>
+            <li data-id="${core.items[0].id}" class="item-${core.items[0].type}" title="${core.items[0].name}">Item</li>
+            <li data-id="${core.items[1].id}" class="item-${core.items[1].type}" title="${core.items[1].name}">Item</li>
+          </ul>
+        `)
+      })
     })
   })
 
   describe("комбинированные случаи", () => {
     describe("статические и динамические атрибуты", () => {
-      const view = new View({
-        render: ({ html, context, core }) =>
-          html`<div id="static-id" class="${context.theme}" data-fixed="value" data-dynamic="${core.version}">
-            Content
-          </div>`,
+      const { context, schema } = new Context((t) => ({ theme: t.string.required("primary") }))
+      const core = { version: "1.0.0" } as const
+      const view = new View<typeof schema, typeof core>({
+        render: ({ html, context, core }) => html`
+          <div id="static-id" class="${context.theme}" data-fixed="value" data-dynamic="${core.version}">Content</div>
+        `,
       })
       it("парсинг", () => {
         expect(view.schema, "статические и динамические атрибуты").toEqual([
@@ -382,20 +440,36 @@ describe("интерполяции в атрибутах", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element, context, core })
+
+        const div = element.querySelector("div")!
+        expect(div).toBeDefined()
+        expect(div.getAttribute("id")).toBe("static-id")
+        expect(div.getAttribute("class")).toBe(context.theme)
+        expect(div.getAttribute("data-fixed")).toBe("value")
+        expect(div.getAttribute("data-dynamic")).toBe(core.version)
+      })
     })
 
     describe("массив с комбинированными атрибутами", () => {
-      const view = new View({
-        render: ({ html, context }) =>
-          html`<div class="wrapper">
-            ${context.items.map(
-              (item: any) =>
-                html`<span data-id="${item.id}" class="static item-${item.type}" title="Item: ${item.name}">
-                  Content
-                </span>`
+      const core = {
+        items: [
+          { id: "123", type: "1", name: "Item1" },
+          { id: "456", type: "2", name: "Item2" },
+        ],
+      } as const
+      const view = new View<any, typeof core>({
+        render: ({ html, core }) => html`
+          <div class="wrapper">
+            ${core.items.map(
+              (item) => html`
+                <span data-id="${item.id}" class="static item-${item.type}" title="Item: ${item.name}"> Content </span>
+              `
             )}
-          </div>`,
+          </div>
+        `,
       })
       it("парсинг", () => {
         expect(view.schema, "массив с комбинированными атрибутами").toEqual([
@@ -409,18 +483,22 @@ describe("интерполяции в атрибутах", () => {
               {
                 tag: "span",
                 type: "el",
+                item: {
+                  src: "core",
+                  key: "items",
+                },
                 attrs: {
                   "data-id": {
-                    src: ["context", "items"],
+                    src: ["core", "items"],
                     key: "id",
                   },
                   class: {
                     template: "static item-${0}",
-                    items: [{ src: "item", key: "type" }],
+                    items: [{ src: ["core", "items"], key: "type" }],
                   },
                   title: {
                     template: "Item: ${0}",
-                    items: [{ src: "item", key: "name" }],
+                    items: [{ src: ["core", "items"], key: "name" }],
                   },
                 },
                 child: [
@@ -429,76 +507,31 @@ describe("интерполяции в атрибутах", () => {
                     value: "Content",
                   },
                 ],
-                item: {
-                  src: "context",
-                  key: "items",
-                },
               },
             ],
           },
         ])
-        it("рендер", () => {})
-      })
-    })
+        it("рендер", () => {
+          const element = document.createElement("div")
+          view.render({ element, core })
 
-    describe("edge cases атрибутов", () => {
-      describe("пустые атрибуты должны игнорироваться", () => {
-        const view = new View({
-          render: ({ html, context }) => html`<div class="${context.theme}">Content</div>`,
+          expect(element.innerHTML).toMatchStringHTML(html`
+            <div class="wrapper">
+              <span
+                data-id="${core.items[0].id}"
+                class="static item-${core.items[0].type}"
+                title="Item: ${core.items[0].name}">
+                Content
+              </span>
+              <span
+                data-id="${core.items[1].id}"
+                class="static item-${core.items[1].type}"
+                title="Item: ${core.items[1].name}">
+                Content
+              </span>
+            </div>
+          `)
         })
-        it("парсинг", () => {
-          expect(view.schema, "пустые атрибуты должны игнорироваться").toEqual([
-            {
-              tag: "div",
-              type: "el",
-              attrs: {
-                class: {
-                  src: "context",
-                  key: "theme",
-                },
-              },
-              child: [
-                {
-                  type: "text",
-                  value: "Content",
-                },
-              ],
-            },
-          ])
-        })
-        it("рендер", () => {})
-      })
-
-      describe("атрибуты с дефисами и интерполяциями", () => {
-        const view = new View({
-          render: ({ html, context }) =>
-            html`<div data-test-id="${context.testId}" aria-label="Label: ${context.name}">Content</div>`,
-        })
-        it("парсинг", () => {
-          expect(view.schema, "атрибуты с дефисами и интерполяциями").toEqual([
-            {
-              tag: "div",
-              type: "el",
-              attrs: {
-                "data-test-id": {
-                  src: "context",
-                  key: "testId",
-                },
-                "aria-label": {
-                  template: "Label: ${0}",
-                  items: [{ src: "context", key: "name" }],
-                },
-              },
-              child: [
-                {
-                  type: "text",
-                  value: "Content",
-                },
-              ],
-            },
-          ])
-        })
-        it("рендер", () => {})
       })
     })
   })

@@ -830,12 +830,6 @@ export class TemplateParser {
       },
     }
 
-    // Парсим атрибуты с заменой ITEM_INTERPOLATION на SIMPLE_PLACEHOLDER
-    let processedAttributesStr = attributesStr || ""
-    for (const [placeholder] of itemInterpolationMap) {
-      processedAttributesStr = processedAttributesStr.replace(new RegExp(placeholder, "g"), "SIMPLE_PLACEHOLDER")
-    }
-
     const attrs = parseAttributesForArray(
       attributesStr || "",
       itemInterpolationMap,
@@ -900,14 +894,30 @@ export class TemplateParser {
     }
 
     // Обрабатываем вложенные массивы: плейсхолдеры NESTED_ARRAY_*
-    for (const nested of nestedInfos) {
-      const { placeholder, sourcePath, contextKey, itemTemplate } = nested
-      if (content.trim().includes(placeholder)) {
-        // Превращаем плейсхолдер в элемент с item= { src: [...sourcePath], key: contextKey }
-        const nestedElement = this.parseArrayItemTemplate(itemTemplate, sourcePath, contextKey)
-        child.push(nestedElement)
-        // Удаляем плейсхолдер из контента для дальнейшей текстовой обработки
-        content = content.replace(placeholder, "")
+    {
+      // Быстрая обработка случаев, когда контент состоит только из плейсхолдеров вложенных массивов и пробелов
+      const tokenRe = /NESTED_ARRAY_\d+/g
+      const onlyTokens = content.trim().length > 0 && content.trim().replace(tokenRe, "").trim().length === 0
+      if (onlyTokens) {
+        let matchTok: RegExpExecArray | null
+        while ((matchTok = tokenRe.exec(content)) !== null) {
+          const ph = matchTok[0]!
+          const info = nestedInfos.find((n) => n.placeholder === ph)
+          if (info) {
+            const nestedElement = this.parseArrayItemTemplate(info.itemTemplate, info.sourcePath, info.contextKey)
+            child.push(nestedElement)
+          }
+        }
+        return child
+      }
+      // Иначе точечно заменим одиночный плейсхолдер на элемент и продолжим парсинг оставшегося текста
+      for (const nested of nestedInfos) {
+        const { placeholder, sourcePath, contextKey, itemTemplate } = nested
+        if (content.includes(placeholder)) {
+          const nestedElement = this.parseArrayItemTemplate(itemTemplate, sourcePath, contextKey)
+          child.push(nestedElement)
+          content = content.replace(placeholder, "")
+        }
       }
     }
 

@@ -194,6 +194,11 @@ export function evaluateAttribute<C extends ContextSchema, S extends string, I e
           if (current == null) break
           current = current[seg as any]
         }
+        // Если путь указывает на массив и мы находимся внутри рендеринга этого массива,
+        // используем текущий элемент массива как базу для применения key
+        if (Array.isArray(current) && arrayContext && arrayContext.array === current) {
+          current = arrayContext.item
+        }
         if ((it as any).key) {
           const path = Array.isArray((it as any).key) ? (it as any).key : [(it as any).key]
           for (const seg of path) {
