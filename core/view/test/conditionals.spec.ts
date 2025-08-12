@@ -45,7 +45,10 @@ describe("условные блоки", () => {
                 tag: "img",
                 type: "el",
                 attrs: {
-                  class: { src: "context", key: "className", result: "image ${context.className}-image" },
+                  class: {
+                    items: [{ src: "context", key: "className" }],
+                    template: "image ${0}-image",
+                  },
                   src: "test.jpg",
                   visible: {
                     src: "context",
@@ -63,9 +66,17 @@ describe("условные блоки", () => {
                 type: "el",
                 attrs: {
                   class: {
-                    src: "context",
-                    key: "className",
-                    result: "button-${context.className} ${context.className}-button",
+                    items: [
+                      {
+                        key: "className",
+                        src: "context",
+                      },
+                      {
+                        key: "className",
+                        src: "context",
+                      },
+                    ],
+                    template: "button-${0} ${1}-button",
                   },
                   disabled: {
                     src: "context",

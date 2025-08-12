@@ -268,30 +268,28 @@ describe("условные атрибуты", () => {
   describe("смешанный контент с условиями", () => {
     describe("смешанный контент с условием в атрибуте", () => {
       const result = parseTemplate(`<div class="btn \${context.isLarge ? 'btn-lg' : 'btn-sm'}">Button</div>`)
-      const expected: Schema = [
-        {
-          tag: "div",
-          type: "el",
-          attrs: {
-            class: {
-              src: "context",
-              key: "isLarge",
-              trueValue: "btn-lg",
-              falseValue: "btn-sm",
-              result: "btn ${context.isLarge ? 'btn-lg' : 'btn-sm'}",
-              type: "conditional",
-            },
-          },
-          child: [
-            {
-              type: "text",
-              value: "Button",
-            },
-          ],
-        },
-      ] as const
       it("парсинг", () => {
-        expect(result, "смешанный контент с условием в атрибуте").toEqual(expected)
+        expect(result, "смешанный контент с условием в атрибуте").toEqual([
+          {
+            tag: "div",
+            type: "el",
+            attrs: {
+              class: {
+                src: "context",
+                key: "isLarge",
+                trueValue: "btn-lg",
+                falseValue: "btn-sm",
+                type: "conditional",
+              },
+            },
+            child: [
+              {
+                type: "text",
+                value: "Button",
+              },
+            ],
+          },
+        ])
       })
       it("рендер", () => {})
     })
@@ -308,7 +306,6 @@ describe("условные атрибуты", () => {
               key: "theme",
               trueValue: "dark",
               falseValue: "light",
-              result: "prefix-${context.theme ? 'dark' : 'light'}",
               type: "conditional",
             },
           },
@@ -338,7 +335,6 @@ describe("условные атрибуты", () => {
               key: "status",
               trueValue: "active",
               falseValue: "inactive",
-              result: "${context.status ? 'active' : 'inactive'}-status",
               type: "conditional",
             },
           },
