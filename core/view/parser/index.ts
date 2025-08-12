@@ -115,7 +115,7 @@ export class TemplateParser {
         const beforeChildren = this.parseChildren(
           textBefore,
           arrayInfo,
-          (interpolationMap as unknown as Map<string, { src: string; key: string }>),
+          interpolationMap as unknown as Map<string, { src: string; key: string }>,
           conditionalInfo,
           conditionalAttributeMap,
           dynamicMetaTagMap
@@ -172,7 +172,12 @@ export class TemplateParser {
       // Парсим атрибуты
       // Для атрибутов допускаем только интерполяции с ключом
       const attrInterpolationMap = interpolationMap as unknown as Map<string, { src: string; key: string }>
-      const attrs = parseAttributes(attributesStr || "", attrInterpolationMap, conditionalAttributeMap, eventAttributeMap)
+      const attrs = parseAttributes(
+        attributesStr || "",
+        attrInterpolationMap,
+        conditionalAttributeMap,
+        eventAttributeMap
+      )
 
       if (Object.keys(attrs).length > 0) {
         element.attrs = attrs
@@ -182,7 +187,7 @@ export class TemplateParser {
       if (element.type === "meta" && attributesStr) {
         const { metaContext, metaCore } = this.parseMetaObjects(
           attributesStr,
-          (interpolationMap as unknown as Map<string, { src: string; key: string }>)
+          interpolationMap as unknown as Map<string, { src: string; key: string }>
         )
         if (metaContext) (element as any).context = metaContext
         if (metaCore) (element as any).core = metaCore
@@ -205,7 +210,7 @@ export class TemplateParser {
         const child = this.parseChildren(
           innerContent.trim(),
           arrayInfo,
-          (interpolationMap as unknown as Map<string, { src: string; key: string }>),
+          interpolationMap as unknown as Map<string, { src: string; key: string }>,
           conditionalInfo,
           conditionalAttributeMap,
           dynamicMetaTagMap
@@ -228,7 +233,7 @@ export class TemplateParser {
       const afterChildren = this.parseChildren(
         textAfter,
         arrayInfo,
-        (interpolationMap as unknown as Map<string, { src: string; key: string }>),
+        interpolationMap as unknown as Map<string, { src: string; key: string }>,
         conditionalInfo,
         conditionalAttributeMap,
         dynamicMetaTagMap
@@ -278,7 +283,7 @@ export class TemplateParser {
         const conditionalElements = this.parseConditionalElements(
           conditionalItem,
           arrayInfo,
-          (interpolationMap as unknown as Map<string, { src: string; key: string }>),
+          interpolationMap as unknown as Map<string, { src: string; key: string }>,
           conditionalInfo
         )
         child.push(...conditionalElements)
@@ -347,12 +352,12 @@ export class TemplateParser {
           } else if (token.startsWith("CONDITIONAL_")) {
             const cond = conditionalInfo.find((c) => c.placeholder === token)
             if (cond) {
-          const condElements = this.parseConditionalElements(
-            cond,
-            arrayInfo,
-            (interpolationMap as unknown as Map<string, { src: string; key: string }>),
-            conditionalInfo
-          )
+              const condElements = this.parseConditionalElements(
+                cond,
+                arrayInfo,
+                interpolationMap as unknown as Map<string, { src: string; key: string }>,
+                conditionalInfo
+              )
               child.push(...condElements)
             }
           }
@@ -425,7 +430,7 @@ export class TemplateParser {
       if (element.type === "meta" && attributesStr) {
         const { metaContext, metaCore } = this.parseMetaObjects(
           attributesStr,
-          (interpolationMap as unknown as Map<string, { src: string; key: string }>)
+          interpolationMap as unknown as Map<string, { src: string; key: string }>
         )
         if (metaContext) (element as any).context = metaContext
         if (metaCore) (element as any).core = metaCore
@@ -493,7 +498,7 @@ export class TemplateParser {
   private parseTextWithPlaceholders(
     text: string,
     child: Array<ElementSchema | TextSchema>,
-    interpolationMap?: Map<string, { src: string; key: string }> ,
+    interpolationMap?: Map<string, { src: string; key: string }>,
     conditionalInfo: ConditionalInfo[] = []
   ) {
     // Раскладываем плейсхолдеры массивов/условий даже если их несколько подряд
@@ -923,7 +928,14 @@ export class TemplateParser {
       string,
       { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
     >,
-     nestedInfos: Array<{ placeholder: string; sourcePath: string[]; contextKey: string; itemTemplate: string; parentVarName?: string; varEnv?: Record<string, string[]> }> = [],
+    nestedInfos: Array<{
+      placeholder: string
+      sourcePath: string[]
+      contextKey: string
+      itemTemplate: string
+      parentVarName?: string
+      varEnv?: Record<string, string[]>
+    }> = [],
     currentPath: string[] = []
   ): Array<ElementSchema | TextSchema> {
     const child: Array<ElementSchema | TextSchema> = []
