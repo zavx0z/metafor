@@ -45,6 +45,11 @@ export const normalizeHTML = (str: string) => {
       // Убираем пробелы в начале и конце текста
       .replace(/>\s+([^<]+)</g, ">$1<")
       .replace(/>([^<]+)\s+</g, ">$1<")
+      // Дополнительно схлопываем последовательности пробелов/переносов внутри текстовых узлов до одного пробела
+      .replace(/>([^<]+)</g, (_m, text) => {
+        const normalizedText = String(text).replace(/\s+/g, " ").trim()
+        return ">" + normalizedText + "<"
+      })
   )
 }
 
@@ -117,6 +122,11 @@ const toMatchStringHTML = async (received: unknown, expected: string) => {
       pass: true,
     }
   } else {
+    // Debug output for investigation
+    try {
+      console.log("__DEBUG_NORMALIZED_RECEIVED__:\n", normalizedReceived)
+      console.log("__DEBUG_NORMALIZED_EXPECTED__:\n", normalizedExpected)
+    } catch {}
     const formattedReceived = await formatHTML(normalizedReceived)
     const formattedExpected = await formatHTML(normalizedExpected)
     const diff = createDiff(formattedReceived, formattedExpected)

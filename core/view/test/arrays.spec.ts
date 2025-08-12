@@ -131,7 +131,7 @@ describe("массивы", () => {
                 tag: "div",
                 type: "el",
                 item: {
-                  src: "context",
+                  src: "core",
                   key: "users",
                 },
                 attrs: { class: "user" },
@@ -238,6 +238,7 @@ describe("массивы", () => {
       it("рендер", () => {
         const element = document.createElement("div")
         view.render({ core, element })
+        console.log(element.innerHTML)
         expect(element.innerHTML, "массив с динамическими атрибутами").toMatchStringHTML(html`
           <section>
             <article data-id="${core.items[0].id}" class="item-${core.items[0].type}">

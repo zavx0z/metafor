@@ -122,9 +122,38 @@ export function evaluateAttribute<C extends ContextSchema, S extends string, I e
 
   // Интерполяция
   if ("src" in attribute && "key" in attribute) {
-    let source: any
+    // src может быть строкой (context|core|item) или путём string[] к массиву
+    const srcVal: any = (attribute as any).src
 
-    switch (attribute.src) {
+    // Случай: src - путь к массиву (например, ["core", "items"]) в контексте рендера массива
+    if (Array.isArray(srcVal)) {
+      if (!arrayContext) return ""
+      // Если задан result вида "item-${VALUE}", подставляем текущее значение вместо ${VALUE}
+      const computeFromItem = () => {
+        if (!("key" in attribute) || attribute.key == null) return arrayContext.item
+        const path = Array.isArray(attribute.key) ? attribute.key : [attribute.key]
+        let current: any = arrayContext.item
+        for (const p of path) {
+          if (current == null) break
+          current = current[p as any]
+        }
+        return current
+      }
+      if ("result" in attribute && (attribute as any).result) {
+        const value = computeFromItem()
+        const str = String(value ?? "")
+        const templ: string = (attribute as any).result
+        // Подставляем ${VALUE} значением, оставшиеся интерполяции (context/core/state) вычислим отдельно
+        const replaced = templ.replaceAll("${VALUE}", str)
+        return evaluateInterpolation(replaced, state, context, core, arrayContext)
+      }
+      // Без result возвращаем конкретное значение ключа текущего элемента
+      return computeFromItem()
+    }
+
+    // Обычный случай: src строкой
+    let source: any
+    switch (srcVal) {
       case "context":
         source = context
         break
@@ -139,7 +168,8 @@ export function evaluateAttribute<C extends ContextSchema, S extends string, I e
         return ""
     }
     if (attribute.key) {
-      if ("result" in attribute) return evaluateInterpolation(attribute.result, state, context, core, arrayContext)
+      if ("result" in attribute)
+        return evaluateInterpolation((attribute as any).result, state, context, core, arrayContext)
       const path = Array.isArray(attribute.key) ? attribute.key : [attribute.key]
       let current: any = source
       for (const p of path) {
