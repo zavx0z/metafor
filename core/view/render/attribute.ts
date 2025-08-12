@@ -125,20 +125,52 @@ export function evaluateAttribute<C extends ContextSchema, S extends string, I e
     // src может быть строкой (context|core|item) или путём string[] к массиву
     const srcVal: any = (attribute as any).src
 
-    // Случай: src - путь к массиву (например, ["core", "items"]) в контексте рендера массива
+    // Случай: src - путь к массиву (например, ["core", "groups"]) в контексте рендера массива
     if (Array.isArray(srcVal)) {
       if (!arrayContext) return ""
-      const computeFromItem = () => {
-        if (!("key" in attribute) || attribute.key == null) return arrayContext.item
-        const path = Array.isArray(attribute.key) ? attribute.key : [attribute.key]
-        let current: any = arrayContext.item
-        for (const p of path) {
-          if (current == null) break
-          current = current[p as any]
+
+      const getContextChain = (ctx?: ArrayRenderContext): ArrayRenderContext[] => {
+        const chain: ArrayRenderContext[] = []
+        let current = ctx
+        while (current) {
+          chain.push(current)
+          current = current.parent
         }
-        return current
+        return chain
       }
-      return computeFromItem()
+
+      const findContextForArray = (arr: any[]): ArrayRenderContext | undefined => {
+        const chain = getContextChain(arrayContext)
+        return chain.find((c) => c.array === arr)
+      }
+
+      // 1) Разворачиваем путь от корня (context/core/state) до нужного узла
+      const [root, ...rest] = srcVal as string[]
+      let rootObj: any =
+        root === "context" ? context : root === "core" ? core : root === "state" ? (state as any) : undefined
+      let current: any = rootObj
+      for (const seg of rest) {
+        if (current == null) break
+        current = current[seg as any]
+        if (Array.isArray(current)) {
+          const ctx = findContextForArray(current)
+          if (ctx) current = ctx.item
+        }
+      }
+      // 2) Если после полного пути остался массив (например, items), привязываем к текущему контексту
+      if (Array.isArray(current)) {
+        const ctx = findContextForArray(current)
+        if (ctx) current = ctx.item
+      }
+      // 3) Применяем key (если задан)
+      if ((attribute as any).key) {
+        const path = Array.isArray((attribute as any).key) ? (attribute as any).key : [(attribute as any).key]
+        for (const seg of path) {
+          if (current == null) break
+          current = current[seg as any]
+        }
+      }
+      return current
     }
 
     // Обычный случай: src строкой
@@ -186,6 +218,20 @@ export function evaluateAttribute<C extends ContextSchema, S extends string, I e
       if ((it as any).src === "state") return String(state ?? "")
       // глобальный путь
       if (Array.isArray((it as any).src)) {
+        if (!arrayContext) return ""
+        const getContextChain = (ctx?: ArrayRenderContext): ArrayRenderContext[] => {
+          const chain: ArrayRenderContext[] = []
+          let current = ctx
+          while (current) {
+            chain.push(current)
+            current = current.parent
+          }
+          return chain
+        }
+        const findContextForArray = (arr: any[]): ArrayRenderContext | undefined => {
+          const chain = getContextChain(arrayContext)
+          return chain.find((c) => c.array === arr)
+        }
         const [root, ...rest] = (it as any).src as string[]
         let rootObj: any =
           root === "context" ? context : root === "core" ? core : root === "state" ? (state as any) : undefined
@@ -193,18 +239,21 @@ export function evaluateAttribute<C extends ContextSchema, S extends string, I e
         for (const seg of rest) {
           if (current == null) break
           current = current[seg as any]
+          if (Array.isArray(current)) {
+            const ctx = findContextForArray(current)
+            if (ctx) current = ctx.item
+          }
         }
-        // Если путь указывает на массив и мы находимся внутри рендеринга этого массива,
-        // используем текущий элемент массива как базу для применения key
-        if (Array.isArray(current) && arrayContext && arrayContext.array === current) {
-          current = arrayContext.item
-        }
+        const baseObject = current
         if ((it as any).key) {
           const path = Array.isArray((it as any).key) ? (it as any).key : [(it as any).key]
           for (const seg of path) {
             if (current == null) break
             current = current[seg as any]
           }
+        }
+        if (Array.isArray(current)) {
+          current = baseObject
         }
         return String(current ?? "")
       }

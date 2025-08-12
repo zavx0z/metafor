@@ -356,55 +356,93 @@ export function parseAttributeValueForArray(
     }
   }
 
-  const simpleItemMatch = value.match(/^\$\{item\.([\w\.]+)\}$/)
+  const simpleItemMatch = value.match(/^\$\{(\w+)\.([\w\.]+)\}$/)
   if (simpleItemMatch) {
-    const [, key] = simpleItemMatch
-    if (key) return { src: "item", key: key.includes(".") ? key.split(".") : key }
+    const [, varName, key] = simpleItemMatch
+    if (key) return { src: varName, key: key.includes(".") ? key.split(".") : key }
   }
 
   const simpleVarMatch = value.match(/^\$\{(\w+)\}$/)
-  if (simpleVarMatch) return { src: "item" }
+  if (simpleVarMatch) {
+    const [, varName] = simpleVarMatch
+    return { src: varName }
+  }
 
-  for (const [placeholder, info] of itemInterpolationMap) {
-    if (value.includes(placeholder)) {
-      if (value === placeholder) {
-        return info.key
-          ? {
-              src: info.src,
-              key: Array.isArray(info.key) ? info.key : info.key.includes(".") ? info.key.split(".") : info.key,
-            }
-          : { src: info.src }
-      }
-      // Строим шаблонный формат { template, items }
-      const items: any[] = []
-      const replaced = value.replaceAll(placeholder, () => {
+  // Если значение атрибута — это ровно один плейсхолдер ITEM_INTERPOLATION_X,
+  // вернем простую интерполяцию без template/items
+  {
+    const m = value.match(/^ITEM_INTERPOLATION_\d+$/)
+    if (m) {
+      const info = itemInterpolationMap.get(value)
+      if (info) {
         const normalizedKey = Array.isArray(info.key)
           ? (info.key as string[])
           : info.key && typeof info.key === "string" && info.key.includes(".")
             ? (info.key as string).split(".")
             : info.key
-        const idx = items.push(info.key ? { src: "item", key: normalizedKey as any } : { src: "item" }) - 1
-        return `\${${idx}}`
-      })
-      return { template: replaced, items } as any
+        return info.key
+          ? ({ src: info.src as any, key: normalizedKey as any } as any)
+          : ({ src: info.src as any } as any)
+      }
     }
   }
 
-  const hasItemInterpolation = /\$\{item\.([\w\.]+)\}/.test(value)
+  // Мульти-интерполяции: собираем ВСЕ ITEM_INTERPOLATION_* плейсхолдеры в порядке появления
+  {
+    const seen = new Map<string, number>()
+    const items: any[] = []
+    let templ = value
+    let foundAny = false
+    const re = /ITEM_INTERPOLATION_\d+/g
+    let m: RegExpExecArray | null
+    while ((m = re.exec(value)) !== null) {
+      const ph = m[0]!
+      if (!seen.has(ph)) {
+        const info = itemInterpolationMap.get(ph)
+        if (info) {
+          const normalizedKey = Array.isArray(info.key)
+            ? (info.key as string[])
+            : info.key && typeof info.key === "string" && info.key.includes(".")
+              ? (info.key as string).split(".")
+              : info.key
+          const idx = items.push(info.key ? { src: info.src, key: normalizedKey as any } : { src: info.src }) - 1
+          seen.set(ph, idx)
+          foundAny = true
+        }
+      }
+    }
+    if (foundAny) {
+      templ = templ.replace(re, (ph) => {
+        const idx = seen.get(ph)
+        return idx !== undefined ? `\${${idx}}` : ph
+      })
+      return { template: templ, items } as any
+    }
+  }
+
+  const hasItemInterpolation = /\$\{\w+\.([\w\.]+)\}/.test(value)
   if (hasItemInterpolation) {
     const items: any[] = []
-    const replaced = value.replace(/\$\{item\.([\w\.]+)\}/g, (_m, key) => {
+    const replaced = value.replace(/\$\{(\w+)\.([\w\.]+)\}/g, (_m, varName, key) => {
       const normalizedKey = String(key)
       const idx =
-        items.push({ src: "item", key: normalizedKey.includes(".") ? normalizedKey.split(".") : normalizedKey }) - 1
+        items.push({ src: varName, key: normalizedKey.includes(".") ? normalizedKey.split(".") : normalizedKey }) - 1
       return `\${${idx}}`
     })
     return { template: replaced, items } as any
   }
 
   const hasSimpleVar = /\$\{(\w+)\}/.test(value)
-  if (hasSimpleVar)
-    return { template: value.replace(/\$\{(\w+)\}/g, (_m, _n, _i) => "${0}"), items: [{ src: "item" }] } as any
+  if (hasSimpleVar) {
+    const items: any[] = []
+    let idxCounter = 0
+    const replaced = value.replace(/\$\{(\w+)\}/g, (_m, varName) => {
+      const idx = idxCounter++
+      items.push({ src: varName })
+      return `\${${idx}}`
+    })
+    return { template: replaced, items } as any
+  }
 
   return value
 }

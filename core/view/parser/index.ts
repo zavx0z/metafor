@@ -727,7 +727,13 @@ export class TemplateParser {
   /**
    * Парсит шаблон элемента массива
    */
-  private parseArrayItemTemplate(template: string, source: string | string[], contextKey: string): ElementSchema {
+  private parseArrayItemTemplate(
+    template: string,
+    source: string | string[],
+    contextKey: string,
+    parentVarName?: string,
+    varEnv: Record<string, string[]> = {}
+  ): ElementSchema {
     // Создаем карту интерполяций внутри элемента массива
     const itemInterpolationMap = new Map<string, { src: string; key?: string | string[] }>()
     let interpolationIndex = 0
@@ -740,7 +746,14 @@ export class TemplateParser {
     const basePath: string[] = Array.isArray(source) ? [...source, contextKey] : [source, contextKey]
 
     // Ищем вложенные map внутри элемента массива: ${var.childKey.map((x) => html`...`)}
-    type NestedInfo = { placeholder: string; sourcePath: string[]; contextKey: string; itemTemplate: string }
+    type NestedInfo = {
+      placeholder: string
+      sourcePath: string[]
+      contextKey: string
+      itemTemplate: string
+      parentVarName?: string
+      varEnv: Record<string, string[]>
+    }
     const nestedInfos: NestedInfo[] = []
     let nestedIndex = 0
     const nestedRe = /\$\{(\w+)\.(\w+)\.map\(/g
@@ -756,7 +769,16 @@ export class TemplateParser {
       if (closing === -1) continue
       const fullMatch = cleanTemplate.substring(startIndex, closing + 1)
       const placeholder = `NESTED_ARRAY_${nestedIndex++}`
-      nestedInfos.push({ placeholder, sourcePath: basePath, contextKey: nm[2]!, itemTemplate: content })
+      const thisBasePath: string[] = Array.isArray(source) ? [...source, contextKey] : [source, contextKey]
+      const nextEnv: Record<string, string[]> = { ...varEnv, [nm[1] as string]: thisBasePath }
+      nestedInfos.push({
+        placeholder,
+        sourcePath: basePath,
+        contextKey: nm[2]!,
+        itemTemplate: content,
+        parentVarName: nm[1]!,
+        varEnv: nextEnv,
+      })
       cleanTemplate = cleanTemplate.replace(fullMatch, placeholder)
     }
 
@@ -768,17 +790,37 @@ export class TemplateParser {
     cleanTemplate = parseConditionalAttributesForArray(cleanTemplate, itemConditionalAttributeMap)
 
     // Заменяем интерполяции внутри массива на плейсхолдеры с извлечением ключей
+    // Подготовим локальное окружение для этого уровня
+    const thisBasePath: string[] = Array.isArray(source) ? [...source, contextKey] : [source, contextKey]
+    const localEnv: Record<string, string[]> = { ...varEnv }
+    if (parentVarName) {
+      const parentPath: string[] = Array.isArray(source) ? [...(source as string[])] : [source]
+      localEnv[parentVarName] = parentPath
+    }
+
     cleanTemplate = cleanTemplate
-      // Сначала обрабатываем `item.key` формат
-      .replace(/\$\{(\w+)\.([\w\.]+)\}/g, (_m: string, _itemName: string, key: string) => {
+      // Сначала обрабатываем `varName.key` формат
+      .replace(/\$\{(\w+)\.([\w\.]+)\}/g, (_m: string, varName: string, key: string) => {
         const placeholder = `ITEM_INTERPOLATION_${interpolationIndex++}`
-        itemInterpolationMap.set(placeholder, { src: "item", key })
+        if (varName === "core" || varName === "context" || varName === "state") {
+          itemInterpolationMap.set(placeholder, { src: varName as any, key })
+          return placeholder
+        }
+        const resolvedSrcPath = localEnv[varName] || thisBasePath
+        const resolvedSrc: any = resolvedSrcPath
+        itemInterpolationMap.set(placeholder, { src: resolvedSrc as any, key })
         return placeholder
       })
       // Затем обрабатываем простые переменные без ключа (как ${id})
-      .replace(/\$\{(\w+)\}/g, (_m: string, _itemName: string) => {
+      .replace(/\$\{(\w+)\}/g, (_m: string, varName: string) => {
         const placeholder = `ITEM_INTERPOLATION_${interpolationIndex++}`
-        itemInterpolationMap.set(placeholder, { src: "item" })
+        if (varName === "core" || varName === "context" || varName === "state") {
+          itemInterpolationMap.set(placeholder, { src: varName as any })
+          return placeholder
+        }
+        const resolvedSrcPath = localEnv[varName] || thisBasePath
+        const resolvedSrc: any = resolvedSrcPath
+        itemInterpolationMap.set(placeholder, { src: resolvedSrc as any })
         return placeholder
       })
 
@@ -904,7 +946,13 @@ export class TemplateParser {
           const ph = matchTok[0]!
           const info = nestedInfos.find((n) => n.placeholder === ph)
           if (info) {
-            const nestedElement = this.parseArrayItemTemplate(info.itemTemplate, info.sourcePath, info.contextKey)
+            const nestedElement = this.parseArrayItemTemplate(
+              info.itemTemplate,
+              info.sourcePath,
+              info.contextKey,
+              info.parentVarName,
+              info.varEnv
+            )
             child.push(nestedElement)
           }
         }
@@ -914,7 +962,7 @@ export class TemplateParser {
       for (const nested of nestedInfos) {
         const { placeholder, sourcePath, contextKey, itemTemplate } = nested
         if (content.includes(placeholder)) {
-          const nestedElement = this.parseArrayItemTemplate(itemTemplate, sourcePath, contextKey)
+          const nestedElement = this.parseArrayItemTemplate(itemTemplate, sourcePath, contextKey, parentVarName, varEnv)
           child.push(nestedElement)
           content = content.replace(placeholder, "")
         }

@@ -16,20 +16,28 @@ export function renderArrayElement<C extends ContextSchema, S extends string, I 
   context: ExtractValues<C>,
   core: I,
   parentElement: HTMLElement | DocumentFragment,
-  update: Update<any>
+  update: Update<any>,
+  parentArrayContext?: ArrayRenderContext
 ): void {
   if (!element.item) return
 
   let source: any
-  switch (element.item.src) {
-    case "context":
-      source = context[element.item.key]
-      break
-    case "core":
-      source = core[element.item.key]
-      break
-    default:
-      return
+  const itemSrc: any = element.item.src as any
+  if (Array.isArray(itemSrc)) {
+    // Вложенные массивы: берем массив у текущего элемента родительского массива
+    if (!parentArrayContext) return
+    source = parentArrayContext.item[(element.item as any).key]
+  } else {
+    switch (itemSrc) {
+      case "context":
+        source = (context as any)[(element.item as any).key]
+        break
+      case "core":
+        source = (core as any)[(element.item as any).key]
+        break
+      default:
+        return
+    }
   }
 
   if (!Array.isArray(source)) return
@@ -39,6 +47,7 @@ export function renderArrayElement<C extends ContextSchema, S extends string, I 
       item,
       index,
       array: source,
+      parent: parentArrayContext,
     }
 
     // Проверяем условие

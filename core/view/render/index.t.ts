@@ -46,6 +46,7 @@ export interface ArrayRenderContext {
   item: any
   index: number
   array: any[]
+  parent?: ArrayRenderContext
 }
 
 /**

@@ -28,7 +28,7 @@ export function renderElement<C extends ContextSchema, S extends string, I exten
 
   // Если это элемент массива, рендерим его как массив
   if (schema.item) {
-    renderArrayElement(state, schema, context, core, parentElement, update)
+    renderArrayElement(state, schema, context, core, parentElement, update, arrayContext)
     return
   }
 
