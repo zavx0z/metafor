@@ -1,7 +1,9 @@
 import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
+import { Context } from "../../context/index.ts"
 
-describe("TemplateParser", () => {
+describe("парсинг/рендер простых элементов", () => {
+  const html = String.raw
   describe("парсинг элементов", () => {
     describe("простой HTML элемент", () => {
       const view = new View({
@@ -23,14 +25,8 @@ describe("TemplateParser", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          element,
-          context: {},
-        })
-        expect(element.innerHTML).toEqual("<div>Hello, world!</div>")
+        view.render({ element })
+        expect(element.innerHTML).toMatchStringHTML(html`<div>Hello, world!</div>`)
       })
     })
     describe("web-component", () => {
@@ -47,14 +43,8 @@ describe("TemplateParser", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          element,
-          context: {},
-        })
-        expect(element.innerHTML).toEqual("<web-component></web-component>")
+        view.render({ element })
+        expect(element.innerHTML).toMatchStringHTML(html`<web-component></web-component>`)
       })
     })
     describe("web-component с самозакрывающимся тегом", () => {
@@ -71,14 +61,8 @@ describe("TemplateParser", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          element,
-          context: {},
-        })
-        expect(element.innerHTML).toEqual("<web-component></web-component>")
+        view.render({ element })
+        expect(element.innerHTML).toMatchStringHTML(html`<web-component></web-component>`)
       })
     })
     describe("элемент с атрибутами", () => {
@@ -104,23 +88,18 @@ describe("TemplateParser", () => {
         ]))
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          element,
-          context: {},
-        })
-        expect(element.innerHTML).toEqual('<div class="container" id="main">Content</div>')
+        view.render({ element })
+        expect(element.innerHTML).toMatchStringHTML(html`<div class="container" id="main">Content</div>`)
       })
     })
     describe("вложенные элементы", () => {
       const view = new View({
-        render: ({ html }) =>
-          html`<div>
+        render: ({ html }) => html`
+          <div>
             <h1>Title</h1>
             <p>Description</p>
-          </div>`,
+          </div>
+        `,
       })
       it("парсинг", () =>
         expect(view.schema, "вложенные элементы").toEqual([
@@ -155,22 +134,22 @@ describe("TemplateParser", () => {
         ]))
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          element,
-          context: {},
-        })
-        expect(element.innerHTML).toEqual("<div><h1>Title</h1><p>Description</p></div>")
+        view.render({ element })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <div>
+            <h1>Title</h1>
+            <p>Description</p>
+          </div>
+        `)
       })
     })
 
     it("пустые элементы", () => {
       const view = new View({
-        render: ({ html }) =>
-          html`<div></div>
-            <span></span>`,
+        render: ({ html }) => html`
+          <div></div>
+          <span></span>
+        `,
       })
       it("парсинг", () =>
         expect(view.schema, "пустые элементы").toEqual([
@@ -185,21 +164,21 @@ describe("TemplateParser", () => {
         ]))
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          element,
-          context: {},
-        })
-        expect(element.innerHTML).toEqual("<div></div><span></span>")
+        view.render({ element })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <div></div>
+          <span></span>
+        `)
       })
     })
   })
 
   describe("интерполяции", () => {
     describe("простая интерполяция", () => {
-      const view = new View({
+      const { context, schema } = new Context((t) => ({
+        name: t.string.required("test"),
+      }))
+      const view = new View<typeof schema>({
         render: ({ html, context }) => html`<div>${context.name}</div>`,
       })
       it("парсинг", () =>
@@ -220,21 +199,16 @@ describe("TemplateParser", () => {
         ]))
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          element,
-          context: {
-            name: "test",
-          },
-        })
-        expect(element.innerHTML).toEqual("<div>test</div>")
+        view.render({ element, context })
+        expect(element.innerHTML).toMatchStringHTML(html`<div>${context.name}</div>`)
       })
     })
 
     describe("смешанный текст с интерполяцией", () => {
-      const view = new View({
+      const { context, schema } = new Context((t) => ({
+        count: t.number.required(10),
+      }))
+      const view = new View<typeof schema>({
         render: ({ html, context }) => html`<div>Total: ${context.count}</div>`,
       })
       it("парсинг", () =>
@@ -255,16 +229,8 @@ describe("TemplateParser", () => {
         ]))
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          element,
-          context: {
-            count: 10,
-          },
-        })
-        expect(element.innerHTML).toEqual("<div>Total: 10</div>")
+        view.render({ element, context })
+        expect(element.innerHTML).toMatchStringHTML(html`<div>Total: ${context.count}</div>`)
       })
     })
   })
@@ -297,14 +263,8 @@ describe("TemplateParser", () => {
         ]))
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          element,
-          context: {},
-        })
-        expect(element.innerHTML).toEqual('<div><img src="image.jpg" alt="Image"><br></div>')
+        view.render({ element })
+        expect(element.innerHTML).toMatchStringHTML(html`<div><img src="image.jpg" alt="Image" /><br /></div>`)
       })
     })
 
@@ -331,22 +291,17 @@ describe("TemplateParser", () => {
         ]))
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          element,
-          context: {},
-        })
-        expect(element.innerHTML).toEqual('<div data-test="value" aria-label="test">Content</div>')
+        view.render({ element })
+        expect(element.innerHTML).toMatchStringHTML(html`<div data-test="value" aria-label="test">Content</div>`)
       })
     })
 
     describe("множественные корневые элементы", () => {
       const view = new View({
-        render: ({ html }) =>
-          html`<header>Header</header>
-            <main>Main</main>`,
+        render: ({ html }) => html`
+          <header>Header</header>
+          <main>Main</main>
+        `,
       })
       it("парсинг", () =>
         expect(view.schema, "несколько корневых элементов").toEqual([
@@ -375,14 +330,11 @@ describe("TemplateParser", () => {
         ]))
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          element,
-          context: {},
-        })
-        expect(element.innerHTML).toEqual("<header>Header</header><main>Main</main>")
+        view.render({ element })
+        expect(element.innerHTML).toMatchStringHTML(
+          html`<header>Header</header>
+            <main>Main</main>`
+        )
       })
     })
   })
