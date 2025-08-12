@@ -7,18 +7,14 @@
 import type { ExtractValues, Update } from "../context/index.t.ts"
 import type { ContextSchema } from "../context/types.t.ts"
 import type { Core } from "../index.t.ts"
-import type { ViewDeclaration, ViewDefinitionParams } from "./index.t.ts"
+import type { ViewDeclaration } from "./index.t.ts"
 import { parseTemplate } from "./parser/index.ts"
 import type { Schema } from "./parser/index.t.ts"
 import { render } from "./render/index.ts"
 
 export type { ViewDeclaration }
 
-export class View<
-  C extends ContextSchema,
-  S extends string = string,
-  I extends Core = Record<string, any>,
-> {
+export class View<C extends ContextSchema, I extends Core = Record<string, any>, S extends string = string> {
   #style: ((params: { css: (strings: TemplateStringsArray, ...values: unknown[]) => void }) => void) | null = null
   schema: Schema = []
 

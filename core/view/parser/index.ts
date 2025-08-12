@@ -1086,7 +1086,13 @@ export class TemplateParser {
           const hasKey = interpolation.key !== undefined
           const srcVal: any = currentPath.length ? currentPath : interpolation.src
           const value: any = { src: srcVal }
-          if (hasKey) value.key = interpolation.key
+          if (hasKey) {
+            // Разбиваем ключ по точкам, если это строка
+            const key = typeof interpolation.key === 'string' && interpolation.key.includes('.') 
+              ? interpolation.key.split('.') 
+              : interpolation.key
+            value.key = key
+          }
           child.push({ type: "text", value })
         }
         interpolationIndex++
