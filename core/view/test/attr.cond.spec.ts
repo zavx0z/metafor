@@ -325,29 +325,28 @@ describe("условные атрибуты", () => {
 
     describe("суффикс с условием", () => {
       const result = parseTemplate(`<div class="\${context.status ? 'active' : 'inactive'}-status">Status</div>`)
-      const expected: Schema = [
-        {
-          tag: "div",
-          type: "el",
-          attrs: {
-            class: {
-              src: "context",
-              key: "status",
-              trueValue: "active",
-              falseValue: "inactive",
-              type: "conditional",
-            },
-          },
-          child: [
-            {
-              type: "text",
-              value: "Status",
-            },
-          ],
-        },
-      ] as const
       it("парсинг", () => {
-        expect(result, "суффикс с условием").toEqual(expected)
+        expect(result, "суффикс с условием").toEqual([
+          {
+            tag: "div",
+            type: "el",
+            attrs: {
+              class: {
+                src: "context",
+                key: "status",
+                trueValue: "active",
+                falseValue: "inactive",
+                type: "conditional",
+              },
+            },
+            child: [
+              {
+                type: "text",
+                value: "Status",
+              },
+            ],
+          },
+        ])
       })
       it("рендер", () => {})
     })
