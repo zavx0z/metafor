@@ -115,7 +115,7 @@ export class TemplateParser {
         const beforeChildren = this.parseChildren(
           textBefore,
           arrayInfo,
-          interpolationMap,
+          (interpolationMap as unknown as Map<string, { src: string; key: string }>),
           conditionalInfo,
           conditionalAttributeMap,
           dynamicMetaTagMap
@@ -170,7 +170,9 @@ export class TemplateParser {
           }
 
       // Парсим атрибуты
-      const attrs = parseAttributes(attributesStr || "", interpolationMap, conditionalAttributeMap, eventAttributeMap)
+      // Для атрибутов допускаем только интерполяции с ключом
+      const attrInterpolationMap = interpolationMap as unknown as Map<string, { src: string; key: string }>
+      const attrs = parseAttributes(attributesStr || "", attrInterpolationMap, conditionalAttributeMap, eventAttributeMap)
 
       if (Object.keys(attrs).length > 0) {
         element.attrs = attrs
@@ -178,7 +180,10 @@ export class TemplateParser {
 
       // Специальная обработка meta-* тегов: объектные атрибуты context/core
       if (element.type === "meta" && attributesStr) {
-        const { metaContext, metaCore } = this.parseMetaObjects(attributesStr, interpolationMap)
+        const { metaContext, metaCore } = this.parseMetaObjects(
+          attributesStr,
+          (interpolationMap as unknown as Map<string, { src: string; key: string }>)
+        )
         if (metaContext) (element as any).context = metaContext
         if (metaCore) (element as any).core = metaCore
         // Удаляем исходные атрибуты context/core из attrs и возможные разложенные ключи объекта
@@ -200,7 +205,7 @@ export class TemplateParser {
         const child = this.parseChildren(
           innerContent.trim(),
           arrayInfo,
-          interpolationMap,
+          (interpolationMap as unknown as Map<string, { src: string; key: string }>),
           conditionalInfo,
           conditionalAttributeMap,
           dynamicMetaTagMap
@@ -223,7 +228,7 @@ export class TemplateParser {
       const afterChildren = this.parseChildren(
         textAfter,
         arrayInfo,
-        interpolationMap,
+        (interpolationMap as unknown as Map<string, { src: string; key: string }>),
         conditionalInfo,
         conditionalAttributeMap,
         dynamicMetaTagMap
@@ -246,7 +251,7 @@ export class TemplateParser {
   private parseChildren(
     content: string,
     arrayInfo: ArrayInfo[] = [],
-    interpolationMap?: Map<string, { src: string; key?: string }>,
+    interpolationMap?: Map<string, { src: string; key: string }>,
     conditionalInfo: ConditionalInfo[] = [],
     conditionalAttributeMap?: Map<
       string,
@@ -273,7 +278,7 @@ export class TemplateParser {
         const conditionalElements = this.parseConditionalElements(
           conditionalItem,
           arrayInfo,
-          interpolationMap,
+          (interpolationMap as unknown as Map<string, { src: string; key: string }>),
           conditionalInfo
         )
         child.push(...conditionalElements)
@@ -302,18 +307,18 @@ export class TemplateParser {
         // Интерполяция - добавляем заглушку для текста
         child.push({
           type: "text",
-          value: { src: "item" },
+          value: { src: "item" } as any,
         })
       } else if (content.trim().startsWith("INTERPOLATION_") && interpolationMap) {
         // Простая интерполяция
-        const interpolationInfo = interpolationMap.get(content.trim())
+        const interpolationInfo = interpolationMap.get(content.trim()) as any
         if (interpolationInfo) {
           const k = interpolationInfo.key
           const normalized: any = { src: interpolationInfo.src }
           if (k !== undefined) {
             normalized.key = k.includes(".") ? k.split(".") : k
           }
-          child.push({ type: "text", value: normalized })
+          child.push({ type: "text", value: normalized as any })
         }
       } else if (content.trim()) {
         // Обрабатываем смешанный текст с плейсхолдерами массивов и условных блоков
@@ -342,7 +347,12 @@ export class TemplateParser {
           } else if (token.startsWith("CONDITIONAL_")) {
             const cond = conditionalInfo.find((c) => c.placeholder === token)
             if (cond) {
-              const condElements = this.parseConditionalElements(cond, arrayInfo, interpolationMap, conditionalInfo)
+          const condElements = this.parseConditionalElements(
+            cond,
+            arrayInfo,
+            (interpolationMap as unknown as Map<string, { src: string; key: string }>),
+            conditionalInfo
+          )
               child.push(...condElements)
             }
           }
@@ -406,13 +416,17 @@ export class TemplateParser {
             type: tagName.startsWith("meta-") ? "meta" : tagName.includes("-") ? "wc" : "el",
           }
 
-      const attrs = parseAttributes(attributesStr || "", interpolationMap, conditionalAttributeMap)
+      const attrInterpolationMap2 = interpolationMap as unknown as Map<string, { src: string; key: string }>
+      const attrs = parseAttributes(attributesStr || "", attrInterpolationMap2, conditionalAttributeMap)
       if (Object.keys(attrs).length > 0) {
         element.attrs = attrs
       }
 
       if (element.type === "meta" && attributesStr) {
-        const { metaContext, metaCore } = this.parseMetaObjects(attributesStr, interpolationMap)
+        const { metaContext, metaCore } = this.parseMetaObjects(
+          attributesStr,
+          (interpolationMap as unknown as Map<string, { src: string; key: string }>)
+        )
         if (metaContext) (element as any).context = metaContext
         if (metaCore) (element as any).core = metaCore
         if (element.attrs) {
@@ -479,7 +493,7 @@ export class TemplateParser {
   private parseTextWithPlaceholders(
     text: string,
     child: Array<ElementSchema | TextSchema>,
-    interpolationMap?: Map<string, { src: string; key?: string }>,
+    interpolationMap?: Map<string, { src: string; key: string }> ,
     conditionalInfo: ConditionalInfo[] = []
   ) {
     // Раскладываем плейсхолдеры массивов/условий даже если их несколько подряд
@@ -537,7 +551,7 @@ export class TemplateParser {
     // Затем обрабатываем простые интерполяции
     const interpolationPattern = /INTERPOLATION_\d+/g
     let processedText = text
-    const interpolations: Array<{ index: number; info: { src: string; key?: string } }> = []
+    const interpolations: Array<{ index: number; info: { src: string; key: string } }> = []
 
     let match
     while ((match = interpolationPattern.exec(text)) !== null) {
@@ -606,14 +620,11 @@ export class TemplateParser {
             if (info.key !== undefined) {
               val.key = info.key.includes(".") ? info.key.split(".") : info.key
             }
-            child.push({ type: "text", value: val })
+            child.push({ type: "text", value: val as any })
           }
           interpolationIndex++
         } else {
-          child.push({
-            type: "text",
-            value: { src: "item" },
-          })
+          child.push({ type: "text", value: { src: "item" } as any })
         }
       }
     }
@@ -912,7 +923,7 @@ export class TemplateParser {
       string,
       { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
     >,
-    nestedInfos: Array<{ placeholder: string; sourcePath: string[]; contextKey: string; itemTemplate: string }> = [],
+     nestedInfos: Array<{ placeholder: string; sourcePath: string[]; contextKey: string; itemTemplate: string; parentVarName?: string; varEnv?: Record<string, string[]> }> = [],
     currentPath: string[] = []
   ): Array<ElementSchema | TextSchema> {
     const child: Array<ElementSchema | TextSchema> = []
@@ -962,7 +973,13 @@ export class TemplateParser {
       for (const nested of nestedInfos) {
         const { placeholder, sourcePath, contextKey, itemTemplate } = nested
         if (content.includes(placeholder)) {
-          const nestedElement = this.parseArrayItemTemplate(itemTemplate, sourcePath, contextKey, parentVarName, varEnv)
+          const nestedElement = this.parseArrayItemTemplate(
+            itemTemplate,
+            sourcePath,
+            contextKey,
+            undefined as any,
+            {} as any
+          )
           child.push(nestedElement)
           content = content.replace(placeholder, "")
         }
@@ -999,11 +1016,11 @@ export class TemplateParser {
             const k = interpolationInfo.key
             value.key = typeof k === "string" && k.includes(".") ? k.split(".") : k
           }
-          child.push({ type: "text", value })
+          child.push({ type: "text", value: value as any })
         } else {
           child.push({
             type: "text",
-            value: { src: currentPath.length ? currentPath : "item" },
+            value: { src: currentPath.length ? currentPath : "item" } as any,
           })
         }
       } else if (processedContent.trim() === "SIMPLE_PLACEHOLDER") {
@@ -1017,12 +1034,12 @@ export class TemplateParser {
             const k = info.key
             value.key = typeof k === "string" && k.includes(".") ? k.split(".") : k
           }
-          child.push({ type: "text", value })
+          child.push({ type: "text", value: value as any })
         } else {
           // Это обычный SIMPLE_PLACEHOLDER без информации об источнике
           child.push({
             type: "text",
-            value: { src: currentPath.length ? currentPath : "item" },
+            value: { src: currentPath.length ? currentPath : "item" } as any,
           })
         }
       } else {

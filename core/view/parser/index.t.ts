@@ -3,8 +3,8 @@
  * @module TemplateParserTypes
  */
 
-import type { AttributeValue } from "../render/attribute.t"
-import type { TextSchema } from "../render/text.t"
+export type { AttributeValue } from "../render/attribute.t"
+export type { TextSchema } from "../render/text.t"
 
 /**
  * Информация о массиве из контекста или core
