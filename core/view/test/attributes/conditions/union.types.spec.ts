@@ -1,70 +1,192 @@
-import { describe, it } from "bun:test"
+import { describe, it, expect } from "bun:test"
+import { View } from "../../../index.ts"
+import { Context } from "../../../../context/index.ts"
 
-describe.each([
-  ["корневой", "нет", "без условия"],
-  ["корневой", "нет", "по условию"],
-  ["корневой", "да", "без условия"],
-  ["корневой", "да", "по условию"],
-  ["вложенный", "нет", "без условия"],
-  ["вложенный", "нет", "по условию"],
-  ["вложенный", "да", "без условия"],
-  ["вложенный", "да", "по условию"],
-])("DOM: уровень: %s, итерация: %s, появление: %s", (domLevel, iteration, appearance) => {
-  describe("схема: attrs", () => {
-    describe("адрес: attrs.<имя>", () => {
-      describe("контейнер: объект", () => {
-        describe("семантика: presence", () => {
-          describe("способ: источник", () => {
-            it.todo("булевый: { src, key?, true: name, false? } — короткая форма")
-          })
-          describe("способ: выражение", () => {
-            it.todo("булевый: { template, items, true: name, false? } — без массива")
-          })
-          describe("ветка false: нет", () => {
-            it.todo("false опущена — не записывается")
-          })
-          describe("ветка false: есть", () => {
-            it.todo("false строка или шаблон — допускается")
-          })
-        })
-        describe("семантика: scalar", () => {
-          describe("представление: единичное", () => {
-            describe("источник: статический", () => {
-              it.todo("скаляр: статическая строка — минимальная запись")
-            })
-            describe("источник: по пути", () => {
-              it.todo("скаляр: { src, key? } — короткая форма")
-            })
-          })
-          describe("представление: шаблонное", () => {
-            it.todo("скаляр: { template, items } — несколько переменных")
-          })
-          describe("условие: по источнику", () => {
-            it.todo("скаляр: { src, key?, true|false } — ветви строка/шаблон")
-          })
-          describe("условие: по выражению", () => {
-            it.todo("скаляр: { template, items, true|false }")
-          })
-        })
-      })
-      describe("контейнер: массив", () => {
-        describe("элемент: строка", () => {
-          it.todo("токен-лист: статический фрагмент — строка")
-        })
-        describe("элемент: представление", () => {
-          describe("представление: единичное", () => {
-            it.todo("элемент: { src, key? } или статическая строка")
-          })
-          describe("представление: шаблонное", () => {
-            it.todo("элемент: { template, items }")
-          })
-          describe("условие: по источнику", () => {
-            it.todo("элемент: { src, key?, true|false }")
-          })
-          describe("условие: по выражению", () => {
-            it.todo("элемент: { template, items, true|false }")
-          })
-        })
+describe.each(["корневой", "вложенный"])("%s", (domLevel) => {
+  describe.each(["в массиве", "не в массиве"])("%s", (inArray) => {
+    describe.each(["в условии", "не в условии"])("%s", (condition) => {
+      describe.each(["одиночный", "список"])("%s", (type) => {
+        const params = `${domLevel} > ${inArray} > ${condition} > ${type}`
+        switch (params) {
+          case "корневой > в массиве > в условии > одиночный":
+            {
+              const { context, schema } = new Context((t) => ({}))
+              const core = {} as const
+              const view = new View<typeof schema, typeof core>({ render: ({ html, core, context, state }) => html`` })
+              describe.todo("", () => {
+                it.todo("парсер", () => {})
+                it.todo("рендер", () => {})
+              })
+            }
+            break
+          case "корневой > в массиве > в условии > список":
+            {
+              const { context, schema } = new Context((t) => ({}))
+              const core = {} as const
+              const view = new View<typeof schema, typeof core>({ render: ({ html, core, context, state }) => html`` })
+              describe.todo("", () => {
+                it.todo("парсер", () => {})
+                it.todo("рендер", () => {})
+              })
+            }
+            break
+          case "корневой > в массиве > не в условии > одиночный":
+            {
+              const { context, schema } = new Context((t) => ({}))
+              const core = {} as const
+              const view = new View<typeof schema, typeof core>({ render: ({ html, core, context, state }) => html`` })
+              describe.todo("", () => {
+                it.todo("парсер", () => {})
+                it.todo("рендер", () => {})
+              })
+            }
+            break
+          case "корневой > в массиве > не в условии > список":
+            {
+              const { context, schema } = new Context((t) => ({}))
+              const core = {} as const
+              const view = new View<typeof schema, typeof core>({ render: ({ html, core, context, state }) => html`` })
+              describe.todo("", () => {
+                it.todo("парсер", () => {})
+                it.todo("рендер", () => {})
+              })
+            }
+            break
+          case "корневой > не в массиве > в условии > одиночный":
+            {
+              const { context, schema } = new Context((t) => ({}))
+              const core = {} as const
+              const view = new View<typeof schema, typeof core>({ render: ({ html, core, context, state }) => html`` })
+              describe.todo("", () => {
+                it.todo("парсер", () => {})
+                it.todo("рендер", () => {})
+              })
+            }
+            break
+          case "корневой > не в массиве > в условии > список":
+            {
+              const { context, schema } = new Context((t) => ({}))
+              const core = {} as const
+              const view = new View<typeof schema, typeof core>({ render: ({ html, core, context, state }) => html`` })
+              describe.todo("", () => {
+                it.todo("парсер", () => {})
+                it.todo("рендер", () => {})
+              })
+            }
+            break
+          case "корневой > не в массиве > не в условии > одиночный":
+            {
+              const { context, schema } = new Context((t) => ({}))
+              const core = {} as const
+              const view = new View<typeof schema, typeof core>({ render: ({ html, core, context, state }) => html`` })
+              describe.todo("", () => {
+                it.todo("парсер", () => {})
+                it.todo("рендер", () => {})
+              })
+            }
+            break
+          case "корневой > не в массиве > не в условии > список":
+            {
+              const { context, schema } = new Context((t) => ({}))
+              const core = {} as const
+              const view = new View<typeof schema, typeof core>({ render: ({ html, core, context, state }) => html`` })
+              describe.todo("", () => {
+                it.todo("парсер", () => {})
+                it.todo("рендер", () => {})
+              })
+            }
+            break
+          case "вложенный > в массиве > в условии > одиночный":
+            {
+              const { context, schema } = new Context((t) => ({}))
+              const core = {} as const
+              const view = new View<typeof schema, typeof core>({ render: ({ html, core, context, state }) => html`` })
+              describe.todo("", () => {
+                it.todo("парсер", () => {})
+                it.todo("рендер", () => {})
+              })
+            }
+            break
+          case "вложенный > в массиве > в условии > список":
+            {
+              const { context, schema } = new Context((t) => ({}))
+              const core = {} as const
+              const view = new View<typeof schema, typeof core>({ render: ({ html, core, context, state }) => html`` })
+              describe.todo("", () => {
+                it.todo("парсер", () => {})
+                it.todo("рендер", () => {})
+              })
+            }
+            break
+          case "вложенный > в массиве > не в условии > одиночный":
+            {
+              const { context, schema } = new Context((t) => ({}))
+              const core = {} as const
+              const view = new View<typeof schema, typeof core>({ render: ({ html, core, context, state }) => html`` })
+              describe.todo("", () => {
+                it.todo("парсер", () => {})
+                it.todo("рендер", () => {})
+              })
+            }
+            break
+          case "вложенный > в массиве > не в условии > список":
+            {
+              const { context, schema } = new Context((t) => ({}))
+              const core = {} as const
+              const view = new View<typeof schema, typeof core>({ render: ({ html, core, context, state }) => html`` })
+              describe.todo("", () => {
+                it.todo("парсер", () => {})
+                it.todo("рендер", () => {})
+              })
+            }
+            break
+          case "вложенный > не в массиве > в условии > одиночный":
+            {
+              const { context, schema } = new Context((t) => ({}))
+              const core = {} as const
+              const view = new View<typeof schema, typeof core>({ render: ({ html, core, context, state }) => html`` })
+              describe.todo("", () => {
+                it.todo("парсер", () => {})
+                it.todo("рендер", () => {})
+              })
+            }
+            break
+          case "вложенный > не в массиве > в условии > список":
+            {
+              const { context, schema } = new Context((t) => ({}))
+              const core = {} as const
+              const view = new View<typeof schema, typeof core>({ render: ({ html, core, context, state }) => html`` })
+              describe.todo("", () => {
+                it.todo("парсер", () => {})
+                it.todo("рендер", () => {})
+              })
+            }
+            break
+          case "вложенный > не в массиве > не в условии > одиночный":
+            {
+              const { context, schema } = new Context((t) => ({}))
+              const core = {} as const
+              const view = new View<typeof schema, typeof core>({ render: ({ html, core, context, state }) => html`` })
+              describe.todo("", () => {
+                it.todo("парсер", () => {})
+                it.todo("рендер", () => {})
+              })
+            }
+            break
+          case "вложенный > не в массиве > не в условии > список":
+            {
+              const { context, schema } = new Context((t) => ({}))
+              const core = {} as const
+              const view = new View<typeof schema, typeof core>({ render: ({ html, core, context, state }) => html`` })
+              describe.todo("", () => {
+                it.todo("парсер", () => {})
+                it.todo("рендер", () => {})
+              })
+            }
+            break
+          default:
+            console.log("отсутствует", params)
+        }
       })
     })
   })
