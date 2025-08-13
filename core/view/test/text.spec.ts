@@ -21,7 +21,7 @@ describe("текстовые узлы", () => {
       ]))
     it("рендер", () => {
       const element = document.createElement("div")
-      view.render({ element })
+      view.render({ container: element })
       expect(element.innerHTML, "статический текст рендерится как есть").toMatchStringHTML(html`<div>Hello</div>`)
     })
   })
@@ -48,7 +48,7 @@ describe("текстовые узлы", () => {
     })
     it("рендер", () => {
       const element = document.createElement("div")
-      view.render({ context, element })
+      view.render({ context, container: element })
       expect(element.innerHTML, "context.framework подставляется").toMatchStringHTML(html`
         <span>${context.framework}</span>
       `)
@@ -71,7 +71,7 @@ describe("текстовые узлы", () => {
     })
     it("рендер", () => {
       const element = document.createElement("div")
-      view.render({ core, element })
+      view.render({ core, container: element })
       expect(element.innerHTML, "core.profile.info.title подставляется").toMatchStringHTML(html`
         <b>${core.profile.info.title}</b>
       `)
@@ -104,7 +104,7 @@ describe("текстовые узлы", () => {
       ]))
     it("рендер", () => {
       const element = document.createElement("div")
-      view.render({ context, element })
+      view.render({ context, container: element })
       expect(element.innerHTML, "каждый li получает текущее примитивное значение id контекста").toMatchStringHTML(html`
         <ul>
           <li>${context.ids[0]}</li>
@@ -139,7 +139,7 @@ describe("текстовые узлы", () => {
       ]))
     it("рендер", () => {
       const element = document.createElement("div")
-      view.render({ core, element })
+      view.render({ core, container: element })
       expect(element.innerHTML, "каждый li получает свойство name объекта из массива ядра").toMatchStringHTML(html`
         <ul>
           <li>${core.users[0].name}</li>
@@ -181,7 +181,7 @@ describe("текстовые узлы", () => {
     })
     it("рендер", () => {
       const element = document.createElement("div")
-      view.render({ core, element })
+      view.render({ core, container: element })
       expect(element.innerHTML, "шаблонная строка вычисляется и подставляется").toMatchStringHTML(html`
         <span>Best framework - ${core.framework.name}</span>
       `)
@@ -222,7 +222,7 @@ describe("текстовые узлы", () => {
     })
     it("рендер", () => {
       const element = document.createElement("div")
-      view.render({ core, element, state })
+      view.render({ core, container: element, state })
       expect(element.innerHTML, "шаблонная строка вычисляется и подставляется").toMatchStringHTML(html`
         <span>In state: ${state} in core: ${core.one} ${core.two}</span>
       `)
@@ -255,7 +255,7 @@ describe("текстовые узлы", () => {
     })
     it("рендер", () => {
       const element = document.createElement("div")
-      view.render({ core, element })
+      view.render({ core, container: element })
       expect(element.innerHTML, "каждый li получает свойство name объекта из массива ядра").toMatchStringHTML(html`
         <ul>
           <li>${core.users[0].name}</li>
@@ -292,7 +292,7 @@ describe("текстовые узлы", () => {
     })
     it("рендер", () => {
       const element = document.createElement("div")
-      view.render({ core, element })
+      view.render({ core, container: element })
       expect(element.innerHTML, "каждый li получает свойство title объекта из массива ядра").toMatchStringHTML(
         html` <ul>
           <li>${core.list[0].profile.title}</li>
@@ -323,7 +323,7 @@ describe("текстовые узлы", () => {
     })
     it("рендер", () => {
       const element = document.createElement("div")
-      view.render({ element, state })
+      view.render({ container: element, state })
       expect(element.innerHTML, "state подставляется как строка").toMatchStringHTML(html`<span>${state}</span>`)
     })
   })

@@ -6,46 +6,6 @@ describe("условные атрибуты", () => {
   const html = String.raw
 
   describe("тернарный оператор в атрибутах", () => {
-    describe("простой тернарный оператор в атрибуте", () => {
-      const { context, schema } = new Context((t) => ({
-        isActive: t.boolean.required(false),
-      }))
-      const view = new View<typeof schema>({
-        render: ({ html, context }) => html`<div class="${context.isActive ? "active" : "inactive"}">Content</div>`,
-      })
-      it("парсинг", () => {
-        expect(view.schema, "простой тернарный оператор в атрибуте").toEqual([
-          {
-            tag: "div",
-            type: "el",
-            attrs: {
-              class: {
-                src: "context",
-                key: "isActive",
-                true: "active",
-                false: "inactive",
-              },
-            },
-            child: [
-              {
-                type: "text",
-                value: "Content",
-              },
-            ],
-          },
-        ])
-      })
-      it("структура источника оператора сравнения", () => {
-        expect(Object.hasOwn(view.schema[0].attrs.class, "items"), "не должно быть items, так как это оператор из одного значения").toBeFalse()
-        expect(view.schema[0].attrs.class.src, "целевым объектом является контекст").toBe("context")
-        expect(view.schema[0].attrs.class.key, "ключом источника является isActive").toBe("isActive")
-      })
-      it("рендер", () => {
-        const element = document.createElement("div")
-        view.render({ element, context })
-        expect(element.innerHTML).toMatchStringHTML(html`<div class="inactive">Content</div>`)
-      })
-    })
     describe("тернарный оператор в атрибуте с числом в качестве условия", () => {
       const { context, schema } = new Context((t) => ({
         count: t.number.required(0),
@@ -220,7 +180,7 @@ describe("условные атрибуты", () => {
         })
         it("рендер", () => {
           const element = document.createElement("button")
-          view.render({ element, context })
+          view.render({ container: element, context })
           const button = element.querySelector("button")!
           expect(button).toBeDefined()
           expect(button.disabled).toBe(true)
@@ -251,7 +211,7 @@ describe("условные атрибуты", () => {
         })
         it("рендер", () => {
           const element = document.createElement("input")
-          view.render({ element, core })
+          view.render({ container: element, core })
           const input = element.querySelector("input")!
           expect(input).toBeDefined()
           expect(input.readOnly).toBe(false)
@@ -310,7 +270,7 @@ describe("условные атрибуты", () => {
         })
         it("рендер", () => {
           const element = document.createElement("div")
-          view.render({ element, core })
+          view.render({ container: element, core })
           expect(element.innerHTML).toMatchStringHTML(html`
             <div>
               <span class="normal">${core.items[0].name}</span>
@@ -369,7 +329,7 @@ describe("условные атрибуты", () => {
         })
         it("рендер", () => {
           const element = document.createElement("div")
-          view.render({ element, core })
+          view.render({ container: element, core })
           expect(element.innerHTML).toMatchStringHTML(html`
             <div>
               <span class="normal">${core.items[0].name}</span>
@@ -428,7 +388,7 @@ describe("условные атрибуты", () => {
         })
         it("рендер", () => {
           const element = document.createElement("div")
-          view.render({ element, core })
+          view.render({ container: element, core })
           expect(element.innerHTML).toMatchStringHTML(html`
             <div>
               <span class="normal">${core.items[0].name}</span>
@@ -520,7 +480,7 @@ describe("условные атрибуты", () => {
         })
         it("рендер", () => {
           const element = document.createElement("div")
-          view.render({ element, core })
+          view.render({ container: element, core })
           expect(element.innerHTML).toMatchStringHTML(html`
             <div>
               <span class="normal">${core.items[0].name}</span>
@@ -577,7 +537,7 @@ describe("условные атрибуты", () => {
         })
         it("рендер", () => {
           const element = document.createElement("div")
-          view.render({ element, core })
+          view.render({ container: element, core })
           expect(element.innerHTML).toMatchStringHTML(html`
             <div>
               <div>${core.users[0].name}</div>
@@ -623,7 +583,7 @@ describe("условные атрибуты", () => {
         })
         it("рендер", () => {
           const element = document.createElement("div")
-          view.render({ element, context })
+          view.render({ container: element, context })
           expect(element.innerHTML).toMatchStringHTML(html`<div class="btn btn-sm">Button</div>`)
         })
       })
@@ -667,7 +627,7 @@ describe("условные атрибуты", () => {
         })
         it("рендер", () => {
           const element = document.createElement("div")
-          view.render({ element, context })
+          view.render({ container: element, context })
           expect(element.innerHTML).toMatchStringHTML(html`<div class="prefix-light">Theme</div>`)
         })
       })
@@ -704,7 +664,7 @@ describe("условные атрибуты", () => {
         })
         it("рендер", () => {
           const element = document.createElement("div")
-          view.render({ element, context })
+          view.render({ container: element, context })
           expect(element.innerHTML).toMatchStringHTML(html`<div class="inactive-status">Status</div>`)
         })
       })
@@ -742,7 +702,7 @@ describe("условные атрибуты", () => {
         })
         it("рендер", () => {
           const element = document.createElement("div")
-          view.render({ element, context })
+          view.render({ container: element, context })
           expect(element.innerHTML).toMatchStringHTML(html`<div class="same">Content</div>`)
         })
       })

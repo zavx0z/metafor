@@ -53,20 +53,20 @@ export class View<C extends ContextSchema, I extends Core = Record<string, any>,
     this.onDestroy = config.onDestroy || (() => {})
   }
   render({
-    element,
+    container,
     state = "" as S,
     context = {} as ExtractValues<C>,
     core = {} as I,
     update = () => ({}),
   }: {
-    element: HTMLElement | DocumentFragment
+    container: HTMLElement | DocumentFragment
     state?: S
     context?: ExtractValues<C>
     core?: I
     update?: Update<C>
   }) {
     if (!this.schema) return
-    render({ schema: this.schema, element, state, context, core, update })
+    render({ schema: this.schema, container, state, context, core, update })
   }
   get snapshot() {
     const result: { render?: string; style?: string } = {}

@@ -13,18 +13,18 @@ export function render<C extends ContextSchema, S extends string, I extends Core
   state,
   context,
   core,
-  element,
+  container,
   update,
   schema,
 }: RenderParams<C, S, I>): void {
   if (!schema) return
 
   // Очищаем элемент
-  if ("innerHTML" in element) {
-    ;(element as HTMLElement).innerHTML = ""
+  if ("innerHTML" in container) {
+    ;(container as HTMLElement).innerHTML = ""
   } else {
-    while (element.firstChild) {
-      element.removeChild(element.firstChild)
+    while (container.firstChild) {
+      container.removeChild(container.firstChild)
     }
   }
 
@@ -35,14 +35,14 @@ export function render<C extends ContextSchema, S extends string, I extends Core
   for (const item of prepared) {
     switch (item.type) {
       case "text":
-        renderText(state, item, context, core, element)
+        renderText(state, item, context, core, container)
         break
       case "wc":
       case "el":
-        renderElement(state, item, context, core, element, update)
+        renderElement(state, item, context, core, container, update)
         break
       case "meta":
-        renderMetaElement(state, item, context, core, element, update)
+        renderMetaElement(state, item, context, core, container, update)
         break
     }
   }

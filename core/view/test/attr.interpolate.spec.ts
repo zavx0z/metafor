@@ -32,7 +32,7 @@ describe("интерполяции в атрибутах", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element, context })
+        view.render({ container: element, context })
 
         const div = element.querySelector("div")!
         expect(div).toBeDefined()
@@ -67,7 +67,7 @@ describe("интерполяции в атрибутах", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element, core })
+        view.render({ container: element, core })
 
         const div = element.querySelector("div")!
         expect(div).toBeDefined()
@@ -116,7 +116,7 @@ describe("интерполяции в атрибутах", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element, context, core })
+        view.render({ container: element, context, core })
 
         const div = element.querySelector("div")!
         expect(div).toBeDefined()
@@ -154,7 +154,7 @@ describe("интерполяции в атрибутах", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element, context })
+        view.render({ container: element, context })
 
         const div = element.querySelector("div")!
         expect(div).toBeDefined()
@@ -189,7 +189,7 @@ describe("интерполяции в атрибутах", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element, context })
+        view.render({ container: element, context })
 
         const div = element.querySelector("div")!
         expect(div).toBeDefined()
@@ -224,7 +224,7 @@ describe("интерполяции в атрибутах", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element, core })
+        view.render({ container: element, core })
 
         const div = element.querySelector("div")!
         expect(div).toBeDefined()
@@ -275,7 +275,7 @@ describe("интерполяции в атрибутах", () => {
       })
       it("рендер", () => {
         const element = document.createElement("ul")
-        view.render({ element, core })
+        view.render({ container: element, core })
 
         expect(element.innerHTML).toMatchStringHTML(html`
           <ul>
@@ -327,7 +327,7 @@ describe("интерполяции в атрибутах", () => {
       })
       it("рендер", () => {
         const element = document.createElement("ul")
-        view.render({ element, core })
+        view.render({ container: element, core })
         expect(element.innerHTML).toMatchStringHTML(html`
           <ul>
             <li class="item-1">Item</li>
@@ -393,7 +393,7 @@ describe("интерполяции в атрибутах", () => {
       })
       it("рендер", () => {
         const element = document.createElement("ul")
-        view.render({ element, core })
+        view.render({ container: element, core })
 
         expect(element.innerHTML).toMatchStringHTML(html`
           <ul>
@@ -442,7 +442,7 @@ describe("интерполяции в атрибутах", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element, context, core })
+        view.render({ container: element, context, core })
 
         const div = element.querySelector("div")!
         expect(div).toBeDefined()
@@ -513,7 +513,7 @@ describe("интерполяции в атрибутах", () => {
         ])
         it("рендер", () => {
           const element = document.createElement("div")
-          view.render({ element, core })
+          view.render({ container: element, core })
 
           expect(element.innerHTML).toMatchStringHTML(html`
             <div class="wrapper">

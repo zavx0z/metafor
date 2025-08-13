@@ -84,7 +84,7 @@ export function MetaForFabric(params: FabricParams) {
           states<S extends string>(states: StatesConfig<S, C>) {
             validateNoUnconditionalCycles(states)
             return {
-              core<I extends Core>(coreBuilder: (() => I) | I = () => ({} as I)) {
+              core<I extends Core>(coreBuilder: (() => I) | I = () => ({}) as I) {
                 const core = typeof coreBuilder === "function" ? coreBuilder() : coreBuilder
                 return {
                   processes(process: ProcessesDeclaration<C, S, I> = () => ({})) {
@@ -173,7 +173,7 @@ export function MetaForFabric(params: FabricParams) {
                                       state: this.#state,
                                       context: this.#context.getSnapshot(),
                                       core: this.#core,
-                                      element: this.#shadow,
+                                      container: this.#shadow,
                                       update: this.update,
                                     })
                                     this.setAttribute("state", this.#state)
@@ -212,7 +212,7 @@ export function MetaForFabric(params: FabricParams) {
                                         state: this.#state,
                                         context: this.#context.getSnapshot(),
                                         core: this.#core,
-                                        element: this.#shadow,
+                                        container: this.#shadow,
                                         update: this.update,
                                       })
                                     }
@@ -317,7 +317,7 @@ export function MetaForFabric(params: FabricParams) {
                                       state: this.#state,
                                       context: this.#context.getSnapshot(),
                                       core: this.#core,
-                                      element: this.#shadow,
+                                      container: this.#shadow,
                                       update: this.update,
                                     })
                                   }

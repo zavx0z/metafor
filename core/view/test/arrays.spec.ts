@@ -44,7 +44,7 @@ describe("массивы", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ context, element })
+        view.render({ context, container: element })
         expect(element.innerHTML, "простой массив из контекста").toMatchStringHTML(html`
           <ul>
             <li>${context.ids[0]}</li>
@@ -87,7 +87,7 @@ describe("массивы", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ context, element })
+        view.render({ context, container: element })
         expect(element.innerHTML, "простой массив из контекста").toMatchStringHTML(html`
           <div>
             <ul>
@@ -159,7 +159,7 @@ describe("массивы", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ core, element })
+        view.render({ core, container: element })
         expect(element.innerHTML, "массив с множественными свойствами").toMatchStringHTML(html`
           <div>
             <div class="user">
@@ -236,7 +236,7 @@ describe("массивы", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ core, element })
+        view.render({ core, container: element })
         console.log(element.innerHTML)
         expect(element.innerHTML, "массив с динамическими атрибутами").toMatchStringHTML(html`
           <section>

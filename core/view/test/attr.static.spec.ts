@@ -27,7 +27,7 @@ describe("статические атрибуты", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element })
+        view.render({ container: element })
         expect(element.innerHTML, "один статический атрибут").toMatchStringHTML(html`
           <div class="container">Content</div>
         `)
@@ -59,7 +59,7 @@ describe("статические атрибуты", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element })
+        view.render({ container: element })
         expect(element.innerHTML, "несколько статических атрибутов").toMatchStringHTML(html`
           <button type="submit" class="btn" disabled>Submit</button>
         `)
@@ -90,7 +90,7 @@ describe("статические атрибуты", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element })
+        view.render({ container: element })
         expect(element.innerHTML, "атрибуты с дефисами").toMatchStringHTML(html`
           <div data-test-id="test" aria-label="description">Content</div>
         `)
@@ -118,7 +118,7 @@ describe("статические атрибуты", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element })
+        view.render({ container: element })
         expect(element.innerHTML, "input с атрибутами").toMatchStringHTML(html`
           <input type="text" placeholder="Enter name" required />
         `)
@@ -144,7 +144,7 @@ describe("статические атрибуты", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element })
+        view.render({ container: element })
         expect(element.innerHTML, "img с атрибутами").toMatchStringHTML(html`
           <img src="image.jpg" alt="Description" loading />
         `)
@@ -170,7 +170,7 @@ describe("статические атрибуты", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element })
+        view.render({ container: element })
         expect(element.innerHTML, "meta с атрибутами").toMatchStringHTML(html`
           <meta charset="utf-8" name="viewport" content="width=device-width" />
         `)
@@ -227,7 +227,7 @@ describe("статические атрибуты", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element })
+        view.render({ container: element })
         expect(element.innerHTML, "вложенные элементы с атрибутами").toMatchStringHTML(html`
           <form class="form" method="post">
             <input type="text" name="username" required />
@@ -370,7 +370,7 @@ describe("статические атрибуты", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element })
+        view.render({ container: element })
         expect(element.innerHTML, "сложная структура с атрибутами").toMatchStringHTML(html`
           <div class="container">
             <header class="header">
@@ -418,7 +418,7 @@ describe("статические атрибуты", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element })
+        view.render({ container: element })
         expect(element.innerHTML, "пустые атрибуты").toMatchStringHTML(html` <div class="" id="">Content</div> `)
       })
     })
@@ -447,7 +447,7 @@ describe("статические атрибуты", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element })
+        view.render({ container: element })
         expect(element.innerHTML, "атрибуты с пробелами").toMatchStringHTML(html`
           <div class="  spaced  " title="  title  ">Content</div>
         `)
@@ -456,7 +456,7 @@ describe("статические атрибуты", () => {
 
     describe("атрибуты с специальными символами", () => {
       const view = new View({
-        render: ({ html }) => html`<div data-value="&quot;quoted&quot;" title="'single' &amp; &quot;double&quot;">Content</div>`,
+        render: ({ html }) => html`<div data-value='"quoted"' title="'single' &amp; &quot;double&quot;">Content</div>`,
       })
       it("парсинг", () => {
         expect(view.schema, "атрибуты с специальными символами").toEqual([
@@ -478,7 +478,7 @@ describe("статические атрибуты", () => {
       })
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ element })
+        view.render({ container: element })
         expect(element.innerHTML, "атрибуты с специальными символами").toMatchStringHTML(html`
           <div data-value='"quoted"' title="'single' &amp; &quot;double&quot;">Content</div>
         `)

@@ -53,7 +53,7 @@ describe("атрибуты в массивах - вложенность", () => 
     })
     it("рендер", () => {
       const element = document.createElement("div")
-      view.render({ element, core })
+      view.render({ container: element, core })
       expect(element.innerHTML).toMatchStringHTML(html`
         <ul>
           <li class="item-${core.items[0].type}" title="${core.items[0].name}">x</li>
@@ -135,7 +135,7 @@ describe("атрибуты в массивах - вложенность", () => 
     })
     it("рендер", () => {
       const element = document.createElement("div")
-      view.render({ element, core })
+      view.render({ container: element, core })
       expect(element.innerHTML).toMatchStringHTML(
         html`<div>
           <section>
@@ -225,7 +225,7 @@ describe("атрибуты в массивах - вложенность", () => 
     })
     it("рендер", () => {
       const element = document.createElement("div")
-      view.render({ element, core })
+      view.render({ container: element, core })
       expect(element.innerHTML).toMatchStringHTML(html`
         <div>
           <section>
@@ -363,7 +363,7 @@ describe("атрибуты в массивах - вложенность", () => 
     })
     it("рендер", () => {
       const element = document.createElement("div")
-      view.render({ element, core })
+      view.render({ container: element, core })
       expect(element.innerHTML).toMatchStringHTML(html`
         <div>
           <section data-g="${core.list[0].gid}">

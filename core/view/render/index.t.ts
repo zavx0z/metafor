@@ -17,7 +17,7 @@ export interface RenderParams<C extends ContextSchema, S extends string, I exten
   state: S
   context: ExtractValues<C>
   core: I
-  element: HTMLElement | DocumentFragment
+  container: HTMLElement | DocumentFragment
   update: Update<C>
   schema: Schema
 }

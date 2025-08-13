@@ -130,7 +130,7 @@ describe("условные блоки", () => {
           core: {},
           update: () => ({}),
           state: "",
-          element,
+          container: element,
           context: {
             className: "test",
             list: ["1", "2", "3"],
@@ -202,7 +202,7 @@ describe("условные блоки", () => {
           core: {},
           update: () => ({}),
           state: "",
-          element,
+          container: element,
           context: {
             isVisible: true,
           },
@@ -280,7 +280,7 @@ describe("условные блоки", () => {
           core: {},
           update: () => ({}),
           state: "",
-          element,
+          container: element,
           context: {
             isVisible: true,
           },
@@ -344,7 +344,7 @@ describe("условные блоки", () => {
           core: {},
           update: () => ({}),
           state: "",
-          element,
+          container: element,
           context: {
             isVisible: true,
           },
@@ -408,7 +408,7 @@ describe("условные блоки", () => {
           },
           update: () => ({}),
           state: "",
-          element,
+          container: element,
           context: {},
         })
         expect(element.innerHTML).toMatchStringHTML(html`<div><nav>Menu</nav></div>`)
@@ -496,7 +496,7 @@ describe("условные блоки", () => {
           core: {},
           update: () => ({}),
           state: "",
-          element,
+          container: element,
           context: {
             userRole: "admin",
           },
@@ -544,7 +544,7 @@ describe("условные блоки", () => {
           },
           update: () => ({}),
           state: "",
-          element,
+          container: element,
           context: {
             a: 10,
           },
@@ -588,7 +588,7 @@ describe("условные блоки", () => {
           },
           update: () => ({}),
           state: "",
-          element,
+          container: element,
           context: {
             a: 3,
           },
@@ -630,7 +630,7 @@ describe("условные блоки", () => {
           },
           update: () => ({}),
           state: "",
-          element,
+          container: element,
           context: {
             role: "admin",
           },
@@ -680,7 +680,7 @@ describe("условные блоки", () => {
           core: {},
           update: () => ({}),
           state: "",
-          element,
+          container: element,
           context: {
             isLoggedIn: true,
           },
@@ -727,7 +727,7 @@ describe("условные блоки", () => {
           core: {},
           update: () => ({}),
           state: "",
-          element,
+          container: element,
           context: {
             userName: null,
           },
@@ -811,7 +811,7 @@ describe("условные блоки", () => {
           core: {},
           update: () => ({}),
           state: "",
-          element,
+          container: element,
           context: {
             items: [
               { isVisible: true, name: "Item 1" },
@@ -900,7 +900,7 @@ describe("условные блоки", () => {
           core: {},
           update: () => ({}),
           state: "",
-          element,
+          container: element,
           context: {
             notifications: [
               { message: "Hello", hasAction: true },
@@ -968,7 +968,7 @@ describe("условные блоки", () => {
           core: {},
           update: () => ({}),
           state: "",
-          element,
+          container: element,
           context: {
             items: [{ name: "Item 1" }, { name: "Item 2" }],
             flag: true,
@@ -1020,7 +1020,7 @@ describe("условные блоки", () => {
           core: {},
           update: () => ({}),
           state: "",
-          element,
+          container: element,
           context: {
             showEmpty: false,
           },
@@ -1126,7 +1126,7 @@ describe("условные блоки", () => {
           core: {},
           update: () => ({}),
           state: "",
-          element,
+          container: element,
           context: {
             hasPermission: true,
             isAdmin: true,
