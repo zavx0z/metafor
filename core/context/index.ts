@@ -129,7 +129,7 @@ export abstract class ContextBase<C extends ContextSchema> implements ContextIns
         serializedDefinition.title = definition.title
       }
 
-      if ("values" in definition && definition.values) {
+      if ("values" in definition) {
         serializedDefinition.values = definition.values
       }
 

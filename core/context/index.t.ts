@@ -23,30 +23,30 @@ export * from "./types.t"
 export type ExtractValue<T> = T extends RequiredStringDefinition
   ? string
   : T extends OptionalStringDefinition
-  ? string | null
-  : T extends RequiredNumberDefinition
-  ? number
-  : T extends OptionalNumberDefinition
-  ? number | null
-  : T extends RequiredBooleanDefinition
-  ? boolean
-  : T extends OptionalBooleanDefinition
-  ? boolean | null
-  : T extends RequiredArrayDefinition<infer U>
-  ? U[]
-  : T extends OptionalArrayDefinition<infer U>
-  ? U[] | null
-  : T extends RequiredEnumDefinition<infer U>
-  ? U[number]
-  : T extends OptionalEnumDefinition<infer U>
-  ? U[number] | null
-  : T extends { type: "array"; required: true; default?: number[] }
-  ? number[]
-  : T extends { type: "array"; required: true; default?: string[] }
-  ? string[]
-  : T extends { type: "array"; required: true; default?: boolean[] }
-  ? boolean[]
-  : never
+    ? string | null
+    : T extends RequiredNumberDefinition
+      ? number
+      : T extends OptionalNumberDefinition
+        ? number | null
+        : T extends RequiredBooleanDefinition
+          ? boolean
+          : T extends OptionalBooleanDefinition
+            ? boolean | null
+            : T extends RequiredArrayDefinition<infer U>
+              ? U[]
+              : T extends OptionalArrayDefinition<infer U>
+                ? U[] | null
+                : T extends RequiredEnumDefinition<infer U>
+                  ? U[number]
+                  : T extends OptionalEnumDefinition<infer U>
+                    ? U[number] | null
+                    : T extends { type: "array"; required: true; default?: number[] }
+                      ? number[]
+                      : T extends { type: "array"; required: true; default?: string[] }
+                        ? string[]
+                        : T extends { type: "array"; required: true; default?: boolean[] }
+                          ? boolean[]
+                          : never
 
 export type ExtractValues<C extends ContextSchema> = { [K in keyof C]: ExtractValue<C[K]> }
 export type UpdateValues<T> = { [K in keyof T]?: T[K] }
@@ -73,7 +73,7 @@ export type SerializedSchema<T extends ContextSchema> = {
     required: T[K]["required"]
     default: T[K]["default"]
     title?: T[K]["title"]
-    values?: T[K] extends { values: any } ? T[K]["values"] : never
+    values: T[K] extends { values: any } ? T[K]["values"] : never
   }
 }
 /**
