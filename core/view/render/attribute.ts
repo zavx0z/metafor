@@ -65,7 +65,29 @@ export function applyAttributes<C extends ContextSchema, S extends string, I ext
       element.toggleAttribute(name, true)
       continue
     }
-    const evaluatedValue = evaluateAttribute(state, context, core, value, arrayContext)
+    // Специальная обработка для массивов значений (например, class: ["btn", {...}, ...])
+    if (Array.isArray(value)) {
+      const parts: string[] = []
+      for (const part of value as any[]) {
+        if (typeof part === "string") {
+          if (part.trim().length > 0) parts.push(part.trim())
+          continue
+        }
+        // Шаблон { template, items }
+        if (part && typeof part === "object" && "template" in part && !("true" in part)) {
+          const rendered = evaluateAttribute(state, context, core, part as any, arrayContext)
+          if (typeof rendered === "string" && rendered.length > 0) parts.push(rendered)
+          continue
+        }
+        const evaluated = evaluateAttribute(state, context, core, part as any, arrayContext)
+        if (typeof evaluated === "string" && evaluated.length > 0) parts.push(evaluated)
+      }
+      const finalClass = parts.filter((s) => s && s.length > 0).join(" ")
+      if (finalClass.length > 0) element.setAttribute(name, finalClass)
+      continue
+    }
+
+    const evaluatedValue = evaluateAttribute(state, context, core, value as any, arrayContext)
 
     // Обработка булевых атрибутов
     if (BOOLEAN_ATTRIBUTES.has(name)) {
@@ -116,8 +138,131 @@ export function evaluateAttribute<C extends ContextSchema, S extends string, I e
     return attribute
   }
 
+  // Новый формат: условное значение по источнику/выражению
+  if (attribute && typeof attribute === "object" && "true" in (attribute as any)) {
+    const obj: any = attribute
+
+    const readRaw = (ref: any): any => {
+      // { src, key? } или { src: string[]; key? } или { src: "state" }
+      // Возвращает сырое значение без преобразования в строку
+      const resolvePath = (rootObj: any, path?: string | string[]) => {
+        if (!path) return rootObj
+        const steps = Array.isArray(path) ? path : [path]
+        let cur: any = rootObj
+        for (const seg of steps) {
+          if (cur == null) break
+          cur = cur[seg as any]
+        }
+        return cur
+      }
+      if (Array.isArray(ref?.src)) {
+        // Глобальный путь
+        const [root, ...rest] = ref.src as string[]
+        let base: any =
+          root === "context" ? context : root === "core" ? core : root === "state" ? (state as any) : undefined
+        let current: any = base
+        const getChain = (ctx?: ArrayRenderContext) => {
+          const chain: ArrayRenderContext[] = []
+          let c = ctx
+          while (c) {
+            chain.push(c)
+            c = c.parent
+          }
+          return chain
+        }
+        const findCtx = (arr: any[]): ArrayRenderContext | undefined => {
+          if (!arrayContext) return undefined
+          const chain = getChain(arrayContext)
+          return chain.find((c) => c.array === arr)
+        }
+        for (const seg of rest) {
+          if (current == null) break
+          current = current[seg as any]
+          if (Array.isArray(current)) {
+            const ctx = findCtx(current)
+            if (ctx) current = ctx.item
+          }
+        }
+        return resolvePath(current, ref.key)
+      }
+      switch (ref?.src) {
+        case "context":
+          return resolvePath(context, ref.key)
+        case "core":
+          return resolvePath(core, ref.key)
+        case "state":
+          return state as any
+        case "item": {
+          if (!arrayContext) return undefined
+          return resolvePath(arrayContext.item, ref.key)
+        }
+        default:
+          return undefined
+      }
+    }
+
+    const evalTemplateToString = (tplObj: any): string => {
+      if (!tplObj || typeof tplObj !== "object" || typeof tplObj.template !== "string") return ""
+      const template: string = tplObj.template
+      // Вариант A: { template, items }
+      if (Array.isArray((tplObj as any).items)) {
+        const items = (tplObj as any).items as any[]
+        const values = (items || []).map((it) => {
+          const v = readRaw(it)
+          return v == null ? "" : String(v)
+        })
+        return template.replace(/\$\{(\d+)\}/g, (_m, idx) => values[Number(idx)] ?? "")
+      }
+      // Вариант B: { src, key, template } — одна переменная под ${0}
+      if ("src" in (tplObj as any)) {
+        const v = readRaw(tplObj)
+        const s = v == null ? "" : String(v)
+        return template.replace(/\$\{0\}/g, s)
+      }
+      return template
+    }
+
+    const evalExprToBool = (tpl: string, items: any[]): boolean => {
+      // Заменяем ${i} на v[i] и исполняем
+      const expr = tpl.replace(/\$\{(\d+)\}/g, (_m, idx) => `v[${Number(idx)}]`)
+      const rawValues = (items || []).map((it) => readRaw(it))
+      try {
+        // eslint-disable-next-line no-new-func
+        const fn = new Function("v", `return (${expr});`)
+        const res = fn(rawValues)
+        return Boolean(res)
+      } catch {
+        return false
+      }
+    }
+
+    // Вариант 1: по источнику `{ src, key?, true, false? }`
+    if ("src" in obj && !("items" in obj && typeof obj.template === "string")) {
+      const raw = readRaw(obj)
+      const isTrue = raw === true
+      const branch = isTrue ? obj.true : obj.false
+      if (branch == null) return ""
+      if (typeof branch === "string") return branch
+      return evalTemplateToString(branch)
+    }
+
+    // Вариант 2: по выражению `{ template, items, true, false? }`
+    if (typeof obj.template === "string" && Array.isArray(obj.items)) {
+      const ok = evalExprToBool(obj.template, obj.items)
+      const branch = ok ? obj.true : obj.false
+      if (branch == null) return ""
+      if (typeof branch === "string") return branch
+      return evalTemplateToString(branch)
+    }
+  }
+
   // Условный атрибут (проверяем первым)
-  if ("type" in attribute && attribute.type === "conditional" && "trueValue" in attribute) {
+  if (
+    (attribute as any) &&
+    "type" in (attribute as any) &&
+    (attribute as any).type === "conditional" &&
+    "trueValue" in (attribute as any)
+  ) {
     const conditionalAttr = attribute as {
       src: string | string[]
       key: string | string[]
@@ -216,7 +361,11 @@ export function evaluateAttribute<C extends ContextSchema, S extends string, I e
   }
 
   // Простой источник (src/key) или глобальный путь (src: string[])
-  if ("src" in attribute && ("key" in attribute || Array.isArray((attribute as any).src))) {
+  if (
+    (attribute as any) &&
+    "src" in (attribute as any) &&
+    ("key" in (attribute as any) || Array.isArray((attribute as any).src))
+  ) {
     // src может быть строкой (context|core|item) или путём string[] к массиву
     const srcVal: any = (attribute as any).src
 

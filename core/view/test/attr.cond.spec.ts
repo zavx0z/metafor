@@ -20,15 +20,10 @@ describe("условные атрибуты", () => {
             type: "el",
             attrs: {
               class: {
-                items: [
-                  {
-                    src: "context",
-                    key: "isActive",
-                  },
-                ],
+                src: "context",
+                key: "isActive",
                 true: "active",
                 false: "inactive",
-                template: "${0}",
               },
             },
             child: [
@@ -39,6 +34,16 @@ describe("условные атрибуты", () => {
             ],
           },
         ])
+      })
+      it("структура источника оператора сравнения", () => {
+        expect(Object.hasOwn(view.schema[0].attrs.class, "items"), "не должно быть items, так как это оператор из одного значения").toBeFalse()
+        expect(view.schema[0].attrs.class.src, "целевым объектом является контекст").toBe("context")
+        expect(view.schema[0].attrs.class.key, "ключом источника является isActive").toBe("isActive")
+      })
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ element, context })
+        expect(element.innerHTML).toMatchStringHTML(html`<div class="inactive">Content</div>`)
       })
     })
     describe("тернарный оператор в атрибуте с числом в качестве условия", () => {
@@ -667,7 +672,7 @@ describe("условные атрибуты", () => {
         })
       })
 
-      describe.todo("суффикс с условием", () => {
+      describe("суффикс с условием и статическими значениями", () => {
         const { context, schema } = new Context((t) => ({
           status: t.boolean.required(false),
         }))

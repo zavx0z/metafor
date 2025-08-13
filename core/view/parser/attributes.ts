@@ -120,6 +120,55 @@ export function parseAttributes(
         const value = attributesStr.slice(valueStart, currentIndex)
         currentIndex++
 
+        // Локальная обработка сложного тернария с backtick-ветвью прямо в значении атрибута: ${ expr ? `...` : "..." }
+        {
+          const m = value.match(/^\$\{\s*([^?]+?)\s*\?\s*`([^`]*)`\s*:\s*['"]([^'"]*)['"]\s*\}$/)
+          if (m) {
+            const [, exprBody, trueRaw, falseLiteral] = m
+            const varRe = /(item|context|core|state)\.([\w\.]+)/g
+            const seen = new Map<string, number>()
+            const items: any[] = []
+            let idxI = 0
+            let mm: RegExpExecArray | null
+            while ((mm = varRe.exec(exprBody)) !== null) {
+              const id = `${mm[1]!}.${mm[2]!}`
+              if (!seen.has(id)) {
+                const key: any = mm[2]!.includes(".") ? mm[2]!.split(".") : mm[2]!
+                const srcRaw: any = mm[1] === "item" && Array.isArray(currentPath) ? currentPath : mm[1]
+                items.push(mm[2] ? { src: srcRaw, key } : { src: srcRaw })
+                seen.set(id, idxI++)
+              }
+            }
+            const exprTemplate = exprBody
+              .replace(varRe, (_s: string, a: string, b: string) => `\${${seen.get(`${a}.${b}`)!}}`)
+              .replace(/\s+/g, "")
+
+            const trueSeen = new Map<string, number>()
+            const trueItems: any[] = []
+            let tIdx = 0
+            const trueTpl = trueRaw.replace(/\$\{(item|context|core|state)\.([\w\.]+)\}/g, (_m, a, b) => {
+              const id = `${a}.${b}`
+              if (!trueSeen.has(id)) {
+                const key: any = (b as string).includes(".") ? (b as string).split(".") : (b as string)
+                const srcRaw: any = a === "item" && Array.isArray(currentPath) ? currentPath : a
+                trueItems.push(b ? { src: srcRaw, key } : { src: srcRaw })
+                trueSeen.set(id, tIdx++)
+              }
+              return `\${${trueSeen.get(id)!}}`
+            })
+
+            // Если trueRaw/falseLiteral — это один и тот же статический шаблон с ${0} и речь про class-атрибут
+            // но здесь falseLiteral — строковый литерал, оставляем как строку
+            ;(attrs as any)[name] = {
+              items,
+              template: exprTemplate,
+              true: { template: trueTpl, items: trueItems },
+              false: falseLiteral,
+            }
+            continue
+          }
+        }
+
         // Событийные атрибуты: сериализуем функцию в строку (восстанавливаем из плейсхолдера, если есть)
         if (isEventAttr(name)) {
           if (eventAttributeMap && eventAttributeMap.has(value)) {
@@ -148,28 +197,126 @@ export function parseAttributes(
             continue
           }
           let foundPlaceholder = false
-          for (const [placeholder, info] of conditionalAttributeMap) {
+          for (const [placeholder, infoAny] of conditionalAttributeMap) {
+            const info: any = infoAny as any
             if (value === placeholder) {
-              attrs[name] = {
-                src: info.src,
-                key: info.key,
-                trueValue: info.trueValue,
-                falseValue: info.falseValue,
-                type: "conditional",
+              if ((info as any).items && typeof (info as any).template === "string") {
+                const i: any = info as any
+                const isSingleVar = Array.isArray(i.items) && i.items.length === 1 && i.template === "${0}"
+                if (isSingleVar) {
+                  const single = i.items[0]
+                  ;(attrs as any)[name] = {
+                    src: single.src,
+                    key: single.key,
+                    true: i.trueValue ?? i.true ?? "",
+                    ...(i.falseValue !== undefined || i.false !== undefined ? { false: i.falseValue ?? i.false } : {}),
+                  }
+                } else {
+                  ;(attrs as any)[name] = {
+                    items: i.items,
+                    template: i.template,
+                    true: i.trueValue ?? i.true ?? "",
+                    false: i.falseValue ?? i.false ?? "",
+                  }
+                }
+              } else {
+                ;(attrs as any)[name] = {
+                  src: (info as any).src,
+                  key: (info as any).key,
+                  true: (info as any).trueValue ?? (info as any).true,
+                  ...((info as any).falseValue !== undefined || (info as any).false !== undefined
+                    ? { false: (info as any).falseValue ?? (info as any).false }
+                    : {}),
+                }
               }
               foundPlaceholder = true
               break
             }
             if (value.includes(placeholder)) {
-              // Смешанный контент — разворачиваем префикс/суффикс в значения ветвей
-              const trueStr = value.replace(placeholder, info.trueValue || "")
-              const falseStr = value.replace(placeholder, info.falseValue || "")
-              attrs[name] = {
-                src: info.src,
-                key: info.key,
-                trueValue: trueStr,
-                falseValue: falseStr,
-                type: "conditional",
+              const infoAny: any = info as any
+              if (name === "class") {
+                const idxPh = value.indexOf(placeholder)
+                const before = value.slice(0, idxPh).trim()
+                const after = value.slice(idxPh + placeholder.length).trim()
+                const hasSpaceAround =
+                  /\s$/.test(value.slice(0, idxPh)) || /^\s/.test(value.slice(idxPh + placeholder.length))
+                // Если это expr с одним item и template === "${0}", можно деградировать до source-based
+                if (infoAny.items && typeof infoAny.template === "string") {
+                  const isSingleVar =
+                    Array.isArray(infoAny.items) && infoAny.items.length === 1 && infoAny.template === "${0}"
+                  const single = isSingleVar ? infoAny.items[0] : undefined
+                  if (isSingleVar && hasSpaceAround) {
+                    // массив частей: статическое + объект по источнику
+                    const parts: any[] = []
+                    if (before) before.split(/\s+/).forEach((t) => t && parts.push(t))
+                    parts.push({
+                      src: single.src,
+                      key: single.key,
+                      true: infoAny.trueValue ?? infoAny.true,
+                      ...(infoAny.falseValue !== undefined || infoAny.false !== undefined
+                        ? { false: infoAny.falseValue ?? infoAny.false }
+                        : {}),
+                    })
+                    if (after) after.split(/\s+/).forEach((t) => t && parts.push(t))
+                    ;(attrs as any)[name] = parts
+                  } else if (isSingleVar) {
+                    // Префикс/суффикс слеплен: обе ветви как шаблоны с тем же src/key
+                    const tpl = `${value.slice(0, idxPh)}${"${0}"}${value.slice(idxPh + placeholder.length)}`
+                    ;(attrs as any)[name] = {
+                      src: single.src,
+                      key: single.key,
+                      true: { src: single.src, key: single.key, template: tpl },
+                      false: { src: single.src, key: single.key, template: tpl },
+                    }
+                  } else {
+                    // Общее выражение: собираем единый template с выражением
+                    const idx = value.indexOf(placeholder)
+                    const beforeRaw = value.slice(0, idx)
+                    const afterRaw = value.slice(idx + placeholder.length)
+                    ;(attrs as any)[name] = {
+                      items: infoAny.items,
+                      template: `${beforeRaw}${"${0}"}${afterRaw}`,
+                      true: infoAny.trueValue ?? infoAny.true ?? "",
+                      false: infoAny.falseValue ?? infoAny.false ?? "",
+                    }
+                  }
+                } else {
+                  // Старый source-based: массив частей
+                  const parts: any[] = []
+                  if (before) before.split(/\s+/).forEach((t) => t && parts.push(t))
+                  parts.push({
+                    src: (info as any).src,
+                    key: (info as any).key,
+                    true: (info as any).trueValue ?? (info as any).true,
+                    ...((info as any).falseValue !== undefined || (info as any).false !== undefined
+                      ? { false: (info as any).falseValue ?? (info as any).false }
+                      : {}),
+                  })
+                  if (after) after.split(/\s+/).forEach((t) => t && parts.push(t))
+                  ;(attrs as any)[name] = parts
+                }
+              } else {
+                if (infoAny.items && typeof infoAny.template === "string") {
+                  const idx = value.indexOf(placeholder)
+                  const beforeRaw = value.slice(0, idx)
+                  const afterRaw = value.slice(idx + placeholder.length)
+                  ;(attrs as any)[name] = {
+                    items: infoAny.items,
+                    template: `${beforeRaw}${"${0}"}${afterRaw}`,
+                    true: infoAny.trueValue ?? infoAny.true ?? "",
+                    false: infoAny.falseValue ?? infoAny.false ?? "",
+                  }
+                } else {
+                  const idxPh = value.indexOf(placeholder)
+                  const beforeRaw = value.slice(0, idxPh)
+                  const afterRaw = value.slice(idxPh + placeholder.length)
+                  ;(attrs as any)[name] = {
+                    items: [{ src: (info as any).src, key: (info as any).key }],
+                    template: `${beforeRaw}${"${0}"}${afterRaw}`,
+                    true: (info as any).trueValue ?? (info as any).true,
+                    false: (info as any).falseValue ?? (info as any).false ?? "",
+                  }
+                }
               }
               foundPlaceholder = true
               break
@@ -200,24 +347,25 @@ export function parseAttributes(
           let foundPlaceholder = false
           for (const [placeholder, info] of conditionalAttributeMap) {
             if (value === placeholder) {
-              attrs[name] = {
-                src: info.src,
-                key: info.key,
-                trueValue: info.trueValue,
-                falseValue: info.falseValue,
-                type: "conditional",
+              ;(attrs as any)[name] = {
+                items: [{ src: info.src, key: info.key }],
+                template: "${0}",
+                true: info.trueValue,
+                false: info.falseValue ?? "",
               }
               foundPlaceholder = true
               break
             }
             if (value.includes(placeholder)) {
               // Смешанный контент — не формируем result, оставляем conditional
-              attrs[name] = {
-                src: info.src,
-                key: info.key,
-                trueValue: info.trueValue,
-                falseValue: info.falseValue,
-                type: "conditional",
+              const idx = value.indexOf(placeholder)
+              const beforeRaw = value.slice(0, idx)
+              const afterRaw = value.slice(idx + placeholder.length)
+              ;(attrs as any)[name] = {
+                items: [{ src: info.src, key: info.key }],
+                template: `${beforeRaw}${"${0}"}${afterRaw}`,
+                true: info.trueValue,
+                false: info.falseValue ?? "",
               }
               foundPlaceholder = true
               break
@@ -237,12 +385,11 @@ export function parseAttributes(
         for (const [placeholder, info] of conditionalAttributeMap) {
           if (name === placeholder) {
             const attrName = info.trueValue && info.trueValue.length > 0 ? info.trueValue : info.falseValue || name
-            attrs[attrName] = {
+            ;(attrs as any)[attrName] = {
               src: info.src,
               key: info.key,
-              trueValue: info.trueValue,
-              falseValue: info.falseValue,
-              type: "conditional" as const,
+              true: info.trueValue,
+              ...(info.falseValue !== undefined ? { false: info.falseValue } : {}),
             }
             matchedPlaceholder = true
             break
@@ -268,19 +415,177 @@ export function parseAttributes(
   return attrs
 }
 
-export function parseConditionalAttributes(
-  htmlString: string,
-  conditionalAttributeMap: Map<
-    string,
-    { src: string; key: string; trueValue: string; falseValue?: string; result?: string }
-  >
-): string {
+export function parseConditionalAttributes(htmlString: string, conditionalAttributeMap: Map<string, any>): string {
   let processedHtml = htmlString
   let conditionalIndex = 0
 
-  const ternaryPattern = /\$\{((?:context|core|item)\.(?:\w+))\s*\?\s*['"]([^'"]*)['"]\s*:\s*['"]([^'"]*)['"]\}/g
+  // Специальный случай: ${ expr ? `template` : "literal" }
+  {
+    const startRe = /\$\{/g
+    let m: RegExpExecArray | null
+    while ((m = startRe.exec(processedHtml)) !== null) {
+      const startIndex = m.index
+      // Найти закрывающую скобку для этой конструкции
+      // Простой балансировочный поиск
+      let depth = 0
+      let inBacktick = false
+      let i = startIndex
+      let endIndex = -1
+      while (i < processedHtml.length) {
+        const ch = processedHtml[i]!
+        const prev = i > 0 ? processedHtml[i - 1] : ""
+        if (ch === "`" && prev !== "\\") {
+          inBacktick = !inBacktick
+          i++
+          continue
+        }
+        if (!inBacktick) {
+          if (ch === "{") depth++
+          if (ch === "}") {
+            depth--
+            if (depth === 0) {
+              endIndex = i
+              break
+            }
+          }
+        }
+        i++
+      }
+      if (endIndex === -1) break
+      const full = processedHtml.slice(startIndex, endIndex + 1)
+      const body = processedHtml.slice(startIndex + 2, endIndex)
+      const qPos = body.indexOf("?")
+      if (qPos === -1) {
+        startRe.lastIndex = endIndex + 1
+        continue
+      }
+      const exprBody = body.slice(0, qPos).trim()
+      // Найти начало true-ветви в оригинальной строке
+      const absAfterQ = startIndex + 2 + qPos + 1
+      // Пропустить пробелы
+      let tStart = absAfterQ
+      while (tStart < processedHtml.length && /\s/.test(processedHtml[tStart]!)) tStart++
+      if (processedHtml[tStart] !== "`") {
+        startRe.lastIndex = endIndex + 1
+        continue
+      }
+      // Считать содержимое до следующего backtick
+      let tEnd = tStart + 1
+      while (tEnd < processedHtml.length && processedHtml[tEnd] !== "`") tEnd++
+      if (tEnd >= processedHtml.length) {
+        startRe.lastIndex = endIndex + 1
+        continue
+      }
+      const trueRaw = processedHtml.slice(tStart + 1, tEnd)
+      // Найти ':' после true-ветви
+      let colonPos = tEnd + 1
+      while (colonPos < endIndex && processedHtml[colonPos] !== ":") colonPos++
+      if (colonPos >= endIndex) {
+        startRe.lastIndex = endIndex + 1
+        continue
+      }
+      // Найти false-ветвь (предполагаем строковый литерал в кавычках)
+      let fStart = colonPos + 1
+      while (fStart < endIndex && /\s/.test(processedHtml[fStart]!)) fStart++
+      const quote = processedHtml[fStart]
+      if (quote !== '"' && quote !== "'") {
+        startRe.lastIndex = endIndex + 1
+        continue
+      }
+      let fEnd = fStart + 1
+      while (fEnd < endIndex && processedHtml[fEnd] !== quote) fEnd++
+      const falseLiteral = processedHtml.slice(fStart + 1, fEnd)
+
+      // Построить items/template для expr
+      const varRe = /(item|context|core|state)\.([\w\.]+)/g
+      const exprSeen = new Map<string, number>()
+      const exprItems: Array<{ src: string; key?: string | string[] }> = []
+      let exprIdx = 0
+      let tmp: RegExpExecArray | null
+      while ((tmp = varRe.exec(exprBody)) !== null) {
+        const id = `${tmp[1]!}.${tmp[2]!}`
+        if (!exprSeen.has(id)) {
+          const key = tmp[2]!.includes(".") ? tmp[2]!.split(".") : tmp[2]!
+          exprItems.push({ src: tmp[1]!, ...(tmp[2] ? { key } : {}) } as any)
+          exprSeen.set(id, exprIdx++)
+        }
+      }
+      let exprTemplate = exprBody.replace(varRe, (_s: string, a: string, b: string) => {
+        const id = `${a}.${b}`
+        const iRepl = exprSeen.get(id)!
+        return `\${${iRepl}}`
+      })
+      exprTemplate = exprTemplate.replace(/\s+/g, "")
+
+      // Построить items/template для true-ветви
+      const trueSeen = new Map<string, number>()
+      const trueItems: Array<{ src: string; key?: string | string[] }> = []
+      let tIdx = 0
+      const trueTpl = trueRaw.replace(/\$\{(item|context|core|state)\.([\w\.]+)\}/g, (_m, a, b) => {
+        const id = `${a}.${b}`
+        if (!trueSeen.has(id)) {
+          const key = (b as string).includes(".") ? (b as string).split(".") : (b as string)
+          trueItems.push({ src: a as string, ...(b ? { key } : {}) } as any)
+          trueSeen.set(id, tIdx++)
+        }
+        const idx = trueSeen.get(id)!
+        return `\${${idx}}`
+      })
+
+      const placeholder = `CONDITIONAL_ATTR_${conditionalIndex++}`
+      conditionalAttributeMap.set(placeholder, {
+        items: exprItems,
+        template: exprTemplate,
+        true: { template: trueTpl, items: trueItems },
+        false: falseLiteral,
+      })
+      processedHtml = processedHtml.replace(full, placeholder)
+      startRe.lastIndex = startIndex + placeholder.length
+    }
+  }
+
+  // Общий тернарный: ${ <expr> ? 'true' : 'false' }
+  const genericTernary = /\$\{\s*([^?]+?)\s*\?\s*['"]([^'"]*)['"]\s*:\s*['"]([^'"]*)['"]\s*\}/g
 
   let match
+  while ((match = genericTernary.exec(htmlString)) !== null) {
+    const [fullMatch, expr, tVal, fVal] = match
+    if (!expr) continue
+    // Собираем переменные только из context|core|state
+    const varRe = /(context|core|state)\.([\w\.]+)/g
+    const seen = new Map<string, number>()
+    const items: Array<{ src: string; key?: string | string[] }> = []
+    let idx = 0
+    let m: RegExpExecArray | null
+    while ((m = varRe.exec(expr)) !== null) {
+      const id = `${m[1]!}.${m[2]!}`
+      if (!seen.has(id)) {
+        const key = m[2]!.includes(".") ? m[2]!.split(".") : m[2]!
+        items.push({ src: m[1]!, ...(m[2] ? { key } : {}) } as any)
+        seen.set(id, idx++)
+      }
+    }
+    // Строим template, заменяя ссылки на ${i}
+    let template = expr.replace(varRe, (_s: string, a: string, b: string) => {
+      const id = `${a}.${b}`
+      const i = seen.get(id)!
+      return `\${${i}}`
+    })
+    template = template.replace(/\s+/g, "")
+    const placeholder = `CONDITIONAL_ATTR_${conditionalIndex++}`
+    conditionalAttributeMap.set(placeholder, {
+      kind: "expr",
+      items,
+      template,
+      trueValue: tVal || "",
+      falseValue: fVal || "",
+    })
+    processedHtml = processedHtml.replace(fullMatch, placeholder)
+  }
+
+  const ternaryPattern = /\$\{((?:context|core|item)\.(?:\w+))\s*\?\s*['"]([^'"]*)['"]\s*:\s*['"]([^'"]*)['"]\}/g
+
+  // Простой тернарий по источнику
   while ((match = ternaryPattern.exec(htmlString)) !== null) {
     const [fullMatch, conditionExpr, trueValue, falseValue] = match
     if (!conditionExpr) continue
@@ -290,13 +595,13 @@ export function parseConditionalAttributes(
       const key = conditionParts[1]
       if (key) {
         const placeholder = `CONDITIONAL_ATTR_${conditionalIndex++}`
-        const conditionalInfo: { src: string; key: string; trueValue: string; falseValue?: string } = {
-          src,
-          key,
+        const itemObj: any = { src, key }
+        conditionalAttributeMap.set(placeholder, {
+          items: [itemObj],
+          template: "${0}",
           trueValue: trueValue || "",
-        }
-        if (falseValue !== undefined) conditionalInfo.falseValue = falseValue
-        conditionalAttributeMap.set(placeholder, conditionalInfo)
+          falseValue: falseValue || "",
+        })
         processedHtml = processedHtml.replace(fullMatch, placeholder)
       }
     }
@@ -312,7 +617,7 @@ export function parseConditionalAttributes(
       const key = conditionParts[1]
       if (key) {
         const placeholder = `CONDITIONAL_ATTR_${conditionalIndex++}`
-        conditionalAttributeMap.set(placeholder, { src, key, trueValue: trueValue || "" })
+        conditionalAttributeMap.set(placeholder, { kind: "source", src, key, trueValue: trueValue || "" })
         processedHtml = processedHtml.replace(fullMatch, placeholder)
       }
     }
@@ -329,7 +634,14 @@ export function parseConditionalAttributes(
       const key = conditionParts[1]
       if (key) {
         const placeholder = `CONDITIONAL_ATTR_${conditionalIndex++}`
-        conditionalAttributeMap.set(placeholder, { src, key, trueValue: "", falseValue: falseValue || "" })
+        // Инверсия: !A && 'v' => true: '', false: 'v'
+        conditionalAttributeMap.set(placeholder, {
+          kind: "source",
+          src,
+          key,
+          trueValue: "",
+          falseValue: falseValue || "",
+        })
         processedHtml = processedHtml.replace(fullMatch, placeholder)
       }
     }
@@ -510,24 +822,56 @@ export function parseAttributesForArray(
           let foundPlaceholder = false
           for (const [placeholder, info] of itemConditionalAttributeMap) {
             if (value === placeholder) {
-              attrs[name] = {
-                src: info.src === "item" && currentPath ? (currentPath as any) : info.src,
-                key: info.key,
-                trueValue: info.trueValue,
-                falseValue: info.falseValue,
-                type: "conditional",
+              const srcOut: any = info.src === "item" && currentPath ? (currentPath as any) : info.src
+              // Поддержка expr-плейсхолдеров с items/template (в том числе 1 переменная)
+              const anyInfo: any = info as any
+              if (anyInfo.items && typeof anyInfo.template === "string") {
+                ;(attrs as any)[name] = {
+                  items: anyInfo.items.map((it: any) =>
+                    it && it.src === "item" && currentPath ? { ...it, src: currentPath } : it
+                  ),
+                  template: anyInfo.template,
+                  true: anyInfo.trueValue ?? anyInfo.true ?? "",
+                  false: anyInfo.falseValue ?? anyInfo.false ?? "",
+                }
+              } else {
+                ;(attrs as any)[name] = {
+                  src: srcOut,
+                  key: info.key,
+                  true: info.trueValue,
+                  ...(info.falseValue !== undefined ? { false: info.falseValue } : {}),
+                }
               }
               foundPlaceholder = true
               break
             }
             if (value.includes(placeholder)) {
               // Смешанный контент — не формируем result, оставляем conditional
-              attrs[name] = {
-                src: info.src === "item" && currentPath ? (currentPath as any) : info.src,
-                key: info.key,
-                trueValue: info.trueValue,
-                falseValue: info.falseValue,
-                type: "conditional",
+              const srcOut: any = info.src === "item" && currentPath ? (currentPath as any) : info.src
+              const idx = value.indexOf(placeholder)
+              const beforeRaw = value.slice(0, idx)
+              const afterRaw = value.slice(idx + placeholder.length)
+              // Если вокруг есть пробелы — массив частей class, иначе шаблон с template
+              if (name === "class") {
+                const parts: any[] = []
+                const before = beforeRaw.trim()
+                const after = afterRaw.trim()
+                if (before) before.split(/\s+/).forEach((t) => t && parts.push(t))
+                parts.push({
+                  src: srcOut,
+                  key: info.key,
+                  true: info.trueValue,
+                  ...(info.falseValue !== undefined ? { false: info.falseValue } : {}),
+                })
+                if (after) after.split(/\s+/).forEach((t) => t && parts.push(t))
+                ;(attrs as any)[name] = parts
+              } else {
+                ;(attrs as any)[name] = {
+                  items: [{ src: srcOut, key: info.key }],
+                  template: `${beforeRaw}${"${0}"}${afterRaw}`,
+                  true: info.trueValue,
+                  false: info.falseValue ?? "",
+                }
               }
               foundPlaceholder = true
               break
@@ -659,12 +1003,11 @@ export function parseAttributesForArray(
         for (const [placeholder, info] of itemConditionalAttributeMap) {
           if (name === placeholder) {
             const attrName = info.trueValue || name
-            attrs[attrName] = {
+            ;(attrs as any)[attrName] = {
               src: info.src === "item" && currentPath ? (currentPath as any) : info.src,
               key: info.key,
-              trueValue: info.trueValue,
-              falseValue: info.falseValue,
-              type: "conditional" as const,
+              true: info.trueValue,
+              ...(info.falseValue !== undefined ? { false: info.falseValue } : {}),
             }
             matchedPlaceholder = true
             break
@@ -701,6 +1044,115 @@ export function parseConditionalAttributesForArray(
 ): string {
   let processedTemplate = template
   let conditionalIndex = 0
+  // Обработка общего тернария с backtick в true-ветви: ${ expr ? `...` : "..." }
+  {
+    const startRe = /\$\{/g
+    let m: RegExpExecArray | null
+    while ((m = startRe.exec(processedTemplate)) !== null) {
+      const startIndex = m.index
+      // найти конец \}
+      let depth = 0
+      let i = startIndex
+      let endIndex = -1
+      while (i < processedTemplate.length) {
+        const ch = processedTemplate[i]!
+        if (ch === "{") depth++
+        if (ch === "}") {
+          depth--
+          if (depth === 0) {
+            endIndex = i
+            break
+          }
+        }
+        i++
+      }
+      if (endIndex === -1) break
+      const full = processedTemplate.slice(startIndex, endIndex + 1)
+      const body = processedTemplate.slice(startIndex + 2, endIndex)
+      const qPos = body.indexOf("?")
+      if (qPos === -1) {
+        startRe.lastIndex = endIndex + 1
+        continue
+      }
+      const exprBody = body.slice(0, qPos).trim()
+      const absAfterQ = startIndex + 2 + qPos + 1
+      let tStart = absAfterQ
+      while (tStart < processedTemplate.length && /\s/.test(processedTemplate[tStart]!)) tStart++
+      if (processedTemplate[tStart] !== "`") {
+        startRe.lastIndex = endIndex + 1
+        continue
+      }
+      let tEnd = tStart + 1
+      while (tEnd < processedTemplate.length && processedTemplate[tEnd] !== "`") tEnd++
+      if (tEnd >= processedTemplate.length) {
+        startRe.lastIndex = endIndex + 1
+        continue
+      }
+      const trueRaw = processedTemplate.slice(tStart + 1, tEnd)
+      let colonPos = tEnd + 1
+      while (colonPos < endIndex && processedTemplate[colonPos] !== ":") colonPos++
+      if (colonPos >= endIndex) {
+        startRe.lastIndex = endIndex + 1
+        continue
+      }
+      let fStart = colonPos + 1
+      while (fStart < endIndex && /\s/.test(processedTemplate[fStart]!)) fStart++
+      const quote = processedTemplate[fStart]
+      if (quote !== '"' && quote !== "'") {
+        startRe.lastIndex = endIndex + 1
+        continue
+      }
+      let fEnd = fStart + 1
+      while (fEnd < endIndex && processedTemplate[fEnd] !== quote) fEnd++
+      const falseLiteral = processedTemplate.slice(fStart + 1, fEnd)
+
+      // expr items: допускаем item|context|core|state
+      const varRe = /(item|context|core|state)\.([\w\.]+)/g
+      const exprSeen = new Map<string, number>()
+      const exprItems: Array<{ src: string; key?: string | string[] }> = []
+      let idxExpr = 0
+      let mm: RegExpExecArray | null
+      while ((mm = varRe.exec(exprBody)) !== null) {
+        const id = `${mm[1]!}.${mm[2]!}`
+        if (!exprSeen.has(id)) {
+          const key = mm[2]!.includes(".") ? mm[2]!.split(".") : mm[2]!
+          exprItems.push({ src: mm[1]!, ...(mm[2] ? { key } : {}) } as any)
+          exprSeen.set(id, idxExpr++)
+        }
+      }
+      let exprTemplate = exprBody
+        .replace(varRe, (_s: string, a: string, b: string) => {
+          const id = `${a}.${b}`
+          const iRepl = exprSeen.get(id)!
+          return `\${${iRepl}}`
+        })
+        .replace(/\s+/g, "")
+
+      const trueSeen = new Map<string, number>()
+      const trueItems: Array<{ src: string; key?: string | string[] }> = []
+      let tIdx = 0
+      const trueTpl = trueRaw.replace(/\$\{(item|context|core|state)\.([\w\.]+)\}/g, (_m, a, b) => {
+        const id = `${a}.${b}`
+        if (!trueSeen.has(id)) {
+          const key = (b as string).includes(".") ? (b as string).split(".") : (b as string)
+          trueItems.push({ src: a as string, ...(b ? { key } : {}) } as any)
+          trueSeen.set(id, tIdx++)
+        }
+        const idx = trueSeen.get(id)!
+        return `\${${idx}}`
+      })
+
+      const ph = `CONDITIONAL_ATTR_ITEM_${conditionalIndex++}`
+      ;(itemConditionalAttributeMap as any).set(ph, {
+        items: exprItems,
+        template: exprTemplate,
+        true: { template: trueTpl, items: trueItems },
+        false: falseLiteral,
+      })
+      processedTemplate = processedTemplate.replace(full, ph)
+      startRe.lastIndex = startIndex + ph.length
+    }
+  }
   const ternaryPattern = /\$\{(\w+)\.(\w+)\s*\?\s*['"]([^'"]*)['"]\s*:\s*['"]([^'"]*)['"]\}/g
 
   let match
