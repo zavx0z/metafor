@@ -9,20 +9,48 @@ describe.each([
     { label: "в массиве", path: "array" },
     { label: "не в массиве", path: null },
   ])("в массиве", (inArray) => {
-    describe.each([
-      { label: "в условии", path: "cond" },
-      { label: "не в условии", path: null },
-    ])(`в условии`, (condition) => {
+    const depthCases: { label: string; path: string | null }[] = inArray.path
+      ? [
+          { label: "вложенность: одна", path: "d1" },
+          { label: "вложенность: две", path: "d2" },
+        ]
+      : [{ label: "вложенность: нет", path: null }]
+    describe.each(depthCases)("вложенность массива", (depth) => {
       describe.each([
-        { label: "одиночный", path: "single" },
-        { label: "список", path: "list" },
-      ])("значение атрибута", (type) => {
-        it("generate", async () => {
-          await generate({
-            mode: "create",
-            path: "../conditions",
-            params: [domLevel, inArray, condition, type],
-            template: ({ label, generateRelativePath }) => template({ label, generateRelativePath }),
+        { label: "семантика: presence", path: "presence" },
+        { label: "семантика: scalar", path: "scalar" },
+      ])("семантика", (semantic) => {
+        describe.each([
+          { label: "в условии", path: "cond" },
+          { label: "не в условии", path: null },
+        ])("в условии", (condition) => {
+          describe.each([
+            { label: "тип: по источнику", path: "by-source" },
+            { label: "тип: по выражению", path: "by-expr" },
+          ])("тип условия", (condType) => {
+            describe.each([
+              { label: "оператор: ?:", path: "ternary" },
+              { label: "оператор: &&", path: "and" },
+            ])("оператор", (operator) => {
+              describe.each([
+                { label: "отрицание: да", path: "not" },
+                { label: "отрицание: нет", path: null },
+              ])("отрицание", (negation) => {
+                describe.each([
+                  { label: "значение атрибута: одиночный", path: "single" },
+                  { label: "значение атрибута: список", path: "list" },
+                ])("значение атрибута", (type) => {
+                  it("generate", async () => {
+                    await generate({
+                      mode: "create",
+                      path: "../conditions",
+                      params: [domLevel, inArray, depth, semantic, condition, condType, operator, negation, type],
+                      template: ({ label, generateRelativePath }) => template({ label, generateRelativePath }),
+                    })
+                  })
+                })
+              })
+            })
           })
         })
       })
