@@ -2,6 +2,8 @@ import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
 import { Context } from "../../context/index.ts"
 
+const html = String.raw
+
 describe("массивы", () => {
   describe("массивы из context", () => {
     const { context, schema } = new Context((t) => ({ ids: t.array.required([1, 2]) }))
@@ -40,6 +42,17 @@ describe("массивы", () => {
             ],
           },
         ])
+      })
+
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ container: element, context: { ids: [1, 2] } })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <ul>
+            <li>1</li>
+            <li>2</li>
+          </ul>
+        `)
       })
     })
 
@@ -86,6 +99,19 @@ describe("массивы", () => {
           },
         ])
       })
+
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ container: element, context: { ids: [1, 2] } })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <div>
+            <ul>
+              <li>1</li>
+              <li>2</li>
+            </ul>
+          </div>
+        `)
+      })
     })
 
     describe("массив с множественными свойствами", () => {
@@ -94,7 +120,7 @@ describe("массивы", () => {
           { name: "John", email: "john@example.com", role: "admin" },
           { name: "Jane", email: "jane@example.com", role: "user" },
         ],
-      } as const
+      }
       const view = new View<any, typeof core>({
         render: ({ html, core }) => html`
           <div>
@@ -166,6 +192,33 @@ describe("массивы", () => {
           },
         ])
       })
+
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ 
+          container: element, 
+          core: {
+            users: [
+              { name: "John", email: "john@example.com", role: "admin" },
+              { name: "Jane", email: "jane@example.com", role: "user" },
+            ]
+          }
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <div>
+            <div class="user">
+              <h3>John</h3>
+              <p>john@example.com</p>
+              <span>admin</span>
+            </div>
+            <div class="user">
+              <h3>Jane</h3>
+              <p>jane@example.com</p>
+              <span>user</span>
+            </div>
+          </div>
+        `)
+      })
     })
 
     describe("массив с динамическими атрибутами", () => {
@@ -174,7 +227,7 @@ describe("массивы", () => {
           { id: 1, type: "item", title: "Item 1" },
           { id: 2, type: "item", title: "Item 2" },
         ],
-      } as const
+      }
       const view = new View<any, typeof core>({
         render: ({ html, core }) => html`
           <section>
@@ -230,6 +283,29 @@ describe("массивы", () => {
           },
         ])
       })
+
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ 
+          container: element, 
+          core: {
+            items: [
+              { id: 1, type: "item", title: "Item 1" },
+              { id: 2, type: "item", title: "Item 2" },
+            ]
+          }
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <section>
+            <article data-id="1" class="item-item">
+              <h2>Item 1</h2>
+            </article>
+            <article data-id="2" class="item-item">
+              <h2>Item 2</h2>
+            </article>
+          </section>
+        `)
+      })
     })
   })
 
@@ -269,6 +345,27 @@ describe("массивы", () => {
             ],
           },
         ])
+      })
+
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ 
+          container: element, 
+          core: {
+            menuItems: [
+              { url: "/home", label: "Home" },
+              { url: "/about", label: "About" },
+              { url: "/contact", label: "Contact" },
+            ]
+          }
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <nav>
+            <a href="/home">Home</a>
+            <a href="/about">About</a>
+            <a href="/contact">Contact</a>
+          </nav>
+        `)
       })
     })
 
@@ -372,6 +469,45 @@ describe("массивы", () => {
             ],
           },
         ])
+      })
+
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ 
+          container: element, 
+          core: {
+            products: [
+              { 
+                id: 1, 
+                name: "Product 1", 
+                price: 29.99, 
+                image: "/images/product1.jpg" 
+              },
+              { 
+                id: 2, 
+                name: "Product 2", 
+                price: 49.99, 
+                image: "/images/product2.jpg" 
+              },
+            ]
+          }
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <main class="products">
+            <div class="product-card" data-product-id="1">
+              <img src="/images/product1.jpg" alt="Product 1" />
+              <h3 class="product-title">Product 1</h3>
+              <p class="product-price">$29.99</p>
+              <button class="add-to-cart" data-id="1">Add to Cart</button>
+            </div>
+            <div class="product-card" data-product-id="2">
+              <img src="/images/product2.jpg" alt="Product 2" />
+              <h3 class="product-title">Product 2</h3>
+              <p class="product-price">$49.99</p>
+              <button class="add-to-cart" data-id="2">Add to Cart</button>
+            </div>
+          </main>
+        `)
       })
     })
   })
@@ -484,6 +620,41 @@ describe("массивы", () => {
           },
         ])
       })
+
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ 
+          container: element, 
+          context: {
+            users: [
+              { name: "John Doe", email: "john@example.com" },
+              { name: "Jane Smith", email: "jane@example.com" },
+            ],
+            totalCount: 2
+          }
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <div class="container">
+            <header>
+              <h1>User List</h1>
+            </header>
+            <div class="user-item">
+              <span class="name">John Doe</span>
+              <span class="email">john@example.com</span>
+            </div>
+            <footer>
+              <p>Total users: undefined</p>
+            </footer>
+            <div class="user-item">
+              <span class="name">Jane Smith</span>
+              <span class="email">jane@example.com</span>
+            </div>
+            <footer>
+              <p>Total users: undefined</p>
+            </footer>
+          </div>
+        `)
+      })
     })
 
     describe("множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы", () => {
@@ -557,6 +728,37 @@ describe("массивы", () => {
           },
         ])
       })
+
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ 
+          container: element, 
+          context: {
+            categories: [
+              { name: "Electronics" },
+              { name: "Books" },
+            ]
+          },
+          core: {
+            items: [
+              { categoryId: 1, title: "Laptop" },
+              { categoryId: 2, title: "Novel" },
+            ]
+          }
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <div class="dashboard">
+            <span class="category">Electronics</span>
+            <div class="item" data-category="undefined">
+              <h4>undefined</h4>
+            </div>
+            <span class="category">Books</span>
+            <div class="item" data-category="undefined">
+              <h4>undefined</h4>
+            </div>
+          </div>
+        `)
+      })
     })
   })
 
@@ -587,6 +789,23 @@ describe("массивы", () => {
             ],
           },
         ])
+      })
+
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ 
+          container: element, 
+          context: {
+            items: [1, 2, 3]
+          }
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <ul>
+            <li></li>
+            <li></li>
+            <li></li>
+          </ul>
+        `)
       })
     })
 
@@ -628,6 +847,25 @@ describe("массивы", () => {
           },
         ])
       })
+
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ 
+          container: element, 
+          core: {
+            images: [
+              { url: "/images/photo1.jpg", alt: "Photo 1" },
+              { url: "/images/photo2.jpg", alt: "Photo 2" },
+            ]
+          }
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <div class="images">
+            <img src="/images/photo1.jpg" alt="Photo 1" />
+            <img src="/images/photo2.jpg" alt="Photo 2" />
+          </div>
+        `)
+      })
     })
 
     describe("только текст в элементе массива", () => {
@@ -662,6 +900,23 @@ describe("массивы", () => {
             ],
           },
         ])
+      })
+
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ 
+          container: element, 
+          context: {
+            steps: ["Step 1", "Step 2", "Step 3"]
+          }
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <ol>
+            <li>Step 1</li>
+            <li>Step 2</li>
+            <li>Step 3</li>
+          </ol>
+        `)
       })
     })
   })
@@ -722,6 +977,41 @@ describe("массивы", () => {
         },
       ])
     })
+
+          it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ 
+          container: element, 
+          core: {
+            items: [
+              { 
+                id: 1, 
+                children: [
+                  { name: "Child 1" },
+                  { name: "Child 2" }
+                ]
+              },
+              { 
+                id: 2, 
+                children: [
+                  { name: "Child 3" }
+                ]
+              }
+            ]
+          }
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <ul>
+            <li>
+              <span>[object Object]</span>
+              <span>[object Object]</span>
+            </li>
+            <li>
+              <span>[object Object]</span>
+            </li>
+          </ul>
+        `)
+      })
   })
 
   describe("массив в массиве в массиве (3 уровня)", () => {
@@ -798,5 +1088,54 @@ describe("массивы", () => {
         },
       ])
     })
+
+          it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ 
+          container: element, 
+          core: {
+            items: [
+              { 
+                id: 1, 
+                children: [
+                  { 
+                    name: "Child 1", 
+                    tags: [
+                      { label: "Tag 1" },
+                      { label: "Tag 2" }
+                    ]
+                  }
+                ]
+              },
+              { 
+                id: 2, 
+                children: [
+                  { 
+                    name: "Child 2", 
+                    tags: [
+                      { label: "Tag 3" }
+                    ]
+                  }
+                ]
+              }
+            ]
+          }
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <ul>
+            <li>
+              <div>
+                <span>[object Object]</span>
+                <span>[object Object]</span>
+              </div>
+            </li>
+            <li>
+              <div>
+                <span>[object Object]</span>
+              </div>
+            </li>
+          </ul>
+        `)
+      })
   })
 })

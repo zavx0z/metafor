@@ -83,7 +83,21 @@ function renderElement<C extends ContextSchema>(
   // Добавляем строковые атрибуты
   if (node.string) {
     for (const [key, value] of Object.entries(node.string)) {
-      element.setAttribute(key, String(value))
+      if (typeof value === "object" && value !== null) {
+        // Динамический атрибут
+        if ("data" in value && "expr" in value) {
+          // Атрибут с выражением
+          const attrValue = evaluateExpression(value.expr, value.data, params)
+          element.setAttribute(key, attrValue)
+        } else if ("data" in value) {
+          // Простой динамический атрибут
+          const attrValue = getValueByPath(value.data, params)
+          element.setAttribute(key, String(attrValue))
+        }
+      } else {
+        // Статический атрибут
+        element.setAttribute(key, String(value))
+      }
     }
   }
 
@@ -154,6 +168,46 @@ function renderMap<C extends ContextSchema>(
 }
 
 /**
+ * Рендерит map узел с контекстом элемента массива
+ */
+function renderMapWithItem<C extends ContextSchema>(
+  node: NodeMap,
+  params: {
+    state: string
+    context: ExtractValues<C>
+    core: Record<string, any>
+    update: Update<C>
+  },
+  item: any
+): DocumentFragment {
+  const fragment = document.createDocumentFragment()
+
+  // Получаем массив данных из элемента
+  const array = getNestedValueWithItem(node.data, item)
+
+  if (Array.isArray(array)) {
+    // Рендерим каждый элемент массива
+    for (const subItem of array) {
+      for (const childNode of node.child) {
+        const childElement = renderNodeWithItem(childNode, params, subItem)
+        if (childElement) {
+          if (childElement instanceof DocumentFragment) {
+            // Для DocumentFragment добавляем все дочерние элементы
+            while (childElement.firstChild) {
+              fragment.appendChild(childElement.firstChild)
+            }
+          } else {
+            fragment.appendChild(childElement)
+          }
+        }
+      }
+    }
+  }
+
+  return fragment
+}
+
+/**
  * Рендерит узел с контекстом элемента массива
  */
 function renderNodeWithItem<C extends ContextSchema>(
@@ -165,12 +219,14 @@ function renderNodeWithItem<C extends ContextSchema>(
     update: Update<C>
   },
   item: any
-): HTMLElement | Text | null {
+): HTMLElement | Text | DocumentFragment | null {
   switch (node.type) {
     case "el":
       return renderElementWithItem(node as NodeElement, params, item)
     case "text":
       return renderTextWithItem(node as NodeText, params, item)
+    case "map":
+      return renderMapWithItem(node as NodeMap, params, item)
     default:
       return null
   }
@@ -194,7 +250,21 @@ function renderElementWithItem<C extends ContextSchema>(
   // Добавляем строковые атрибуты
   if (node.string) {
     for (const [key, value] of Object.entries(node.string)) {
-      element.setAttribute(key, String(value))
+      if (typeof value === "object" && value !== null) {
+        // Динамический атрибут
+        if ("data" in value && "expr" in value) {
+          // Атрибут с выражением
+          const attrValue = evaluateExpressionWithItem(value.expr, value.data, item)
+          element.setAttribute(key, attrValue)
+        } else if ("data" in value) {
+          // Простой динамический атрибут
+          const attrValue = getValueByPathWithItem(value.data, item)
+          element.setAttribute(key, String(attrValue))
+        }
+      } else {
+        // Статический атрибут
+        element.setAttribute(key, String(value))
+      }
     }
   }
 
@@ -217,7 +287,14 @@ function renderElementWithItem<C extends ContextSchema>(
     for (const childNode of node.child) {
       const childElement = renderNodeWithItem(childNode, params, item)
       if (childElement) {
-        element.appendChild(childElement)
+        if (childElement instanceof DocumentFragment) {
+          // Для DocumentFragment добавляем все дочерние элементы
+          while (childElement.firstChild) {
+            element.appendChild(childElement.firstChild)
+          }
+        } else {
+          element.appendChild(childElement)
+        }
       }
     }
   }
