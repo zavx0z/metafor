@@ -4,11 +4,13 @@ import { Context } from "../../context/index.ts"
 
 describe("парсинг/рендер простых элементов", () => {
   const html = String.raw
+
   describe("парсинг элементов", () => {
     describe("простой HTML элемент", () => {
       const view = new View({
         render: ({ html }) => html`<div>Hello, world!</div>`,
       })
+
       it("парсинг", () => {
         expect(view.schema, "простой div с текстом").toEqual([
           {
@@ -23,7 +25,8 @@ describe("парсинг/рендер простых элементов", () => 
           },
         ])
       })
-      it.skip("рендер", () => {
+
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
         expect(element.innerHTML).toMatchStringHTML(html`<div>Hello, world!</div>`)
@@ -41,7 +44,7 @@ describe("парсинг/рендер простых элементов", () => 
           },
         ])
       })
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
         expect(element.innerHTML).toMatchStringHTML(html`<web-component></web-component>`)
@@ -59,7 +62,7 @@ describe("парсинг/рендер простых элементов", () => 
           },
         ])
       })
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
         expect(element.innerHTML).toMatchStringHTML(html`<web-component></web-component>`)
@@ -86,7 +89,7 @@ describe("парсинг/рендер простых элементов", () => 
             ],
           },
         ]))
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
         expect(element.innerHTML).toMatchStringHTML(html`<div class="container" id="main">Content</div>`)
@@ -132,7 +135,7 @@ describe("парсинг/рендер простых элементов", () => 
             ],
           },
         ]))
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
         expect(element.innerHTML).toMatchStringHTML(html`
@@ -162,7 +165,7 @@ describe("парсинг/рендер простых элементов", () => 
             type: "el",
           },
         ]))
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
         expect(element.innerHTML).toMatchStringHTML(html`
@@ -195,7 +198,7 @@ describe("парсинг/рендер простых элементов", () => 
           },
         ])
       })
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element, context })
         expect(element.innerHTML).toMatchStringHTML(html`<div>${context.name}</div>`)
@@ -223,7 +226,7 @@ describe("парсинг/рендер простых элементов", () => 
             ],
           },
         ]))
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element, context })
         expect(element.innerHTML).toMatchStringHTML(html`<div>Total: ${context.count}</div>`)
@@ -257,7 +260,7 @@ describe("парсинг/рендер простых элементов", () => 
             ],
           },
         ]))
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
         expect(element.innerHTML).toMatchStringHTML(html`<div><img src="image.jpg" alt="Image" /><br /></div>`)
@@ -285,7 +288,7 @@ describe("парсинг/рендер простых элементов", () => 
             ],
           },
         ]))
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
         expect(element.innerHTML).toMatchStringHTML(html`<div data-test="value" aria-label="test">Content</div>`)
@@ -324,13 +327,13 @@ describe("парсинг/рендер простых элементов", () => 
             ],
           },
         ]))
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML).toMatchStringHTML(
-          html`<header>Header</header>
-            <main>Main</main>`
-        )
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <header>Header</header>
+          <main>Main</main>
+        `)
       })
     })
   })
