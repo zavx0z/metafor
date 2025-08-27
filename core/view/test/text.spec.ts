@@ -3,6 +3,8 @@ import { View } from "../index.ts"
 import { Context } from "../../context/index.ts"
 
 describe("текстовые узлы", () => {
+  const html = String.raw
+
   describe("статический текст без интерполяций", () => {
     const view = new View({
       render: ({ html }) => html`<div>Static text content</div>`,
@@ -21,10 +23,10 @@ describe("текстовые узлы", () => {
         },
       ])
     })
-    it.skip("рендер", () => {
+    it("рендер", () => {
       const element = document.createElement("div")
       view.render({ container: element })
-      expect(element.innerHTML).toMatchStringHTML(`<div>Static text content</div>`)
+      expect(element.innerHTML).toMatchStringHTML(html`<div>Static text content</div>`)
     })
   })
 
@@ -50,10 +52,10 @@ describe("текстовые узлы", () => {
         },
       ])
     })
-    it.skip("рендер", () => {
+    it("рендер", () => {
       const element = document.createElement("div")
       view.render({ context, container: element })
-      expect(element.innerHTML).toMatchStringHTML(`<span>${context.framework}</span>`)
+      expect(element.innerHTML).toMatchStringHTML(html`<span>${context.framework}</span>`)
     })
   })
 
@@ -76,10 +78,10 @@ describe("текстовые узлы", () => {
         },
       ])
     })
-    it.skip("рендер", () => {
+    it("рендер", () => {
       const element = document.createElement("div")
       view.render({ core, container: element })
-      expect(element.innerHTML).toMatchStringHTML(`<b>${core.profile.info.title}</b>`)
+      expect(element.innerHTML).toMatchStringHTML(html`<b>${core.profile.info.title}</b>`)
     })
   })
 
@@ -121,10 +123,10 @@ describe("текстовые узлы", () => {
         },
       ])
     })
-    it.skip("рендер", () => {
+    it("рендер", () => {
       const element = document.createElement("div")
       view.render({ context, container: element })
-      expect(element.innerHTML).toMatchStringHTML(`
+      expect(element.innerHTML).toMatchStringHTML(html`
         <ul>
           <li>${context.ids[0]}</li>
           <li>${context.ids[1]}</li>
@@ -174,10 +176,10 @@ describe("текстовые узлы", () => {
         },
       ])
     })
-    it.skip("рендер", () => {
+    it("рендер", () => {
       const element = document.createElement("div")
       view.render({ core, container: element })
-      expect(element.innerHTML).toMatchStringHTML(`
+      expect(element.innerHTML).toMatchStringHTML(html`
         <ul>
           <li>${core.users[0].name}</li>
           <li>${core.users[1].name}</li>
@@ -209,10 +211,10 @@ describe("текстовые узлы", () => {
         },
       ])
     })
-    it.skip("рендер", () => {
+    it("рендер", () => {
       const element = document.createElement("div")
       view.render({ core, container: element })
-      expect(element.innerHTML).toMatchStringHTML(`<span>Best framework - ${core.framework.name}</span>`)
+      expect(element.innerHTML).toMatchStringHTML(html`<span>Best framework - ${core.framework.name}</span>`)
     })
   })
 
@@ -230,21 +232,19 @@ describe("текстовые узлы", () => {
           child: [
             {
               type: "text",
-              data: [
-                "/state",
-                "/core/one",
-                "/core/two",
-              ],
+              data: ["/state", "/core/one", "/core/two"],
               expr: "In state: ${0} in core: ${1} ${2}",
             },
           ],
         },
       ])
     })
-    it.skip("рендер", () => {
+    it("рендер", () => {
       const element = document.createElement("div")
       view.render({ state, core, container: element })
-      expect(element.innerHTML).toMatchStringHTML(`<span>In state: ${state} in core: ${core.one} ${core.two}</span>`)
+      expect(element.innerHTML).toMatchStringHTML(html`
+        <span>In state: ${state} in core: ${core.one} ${core.two}</span>
+      `)
     })
   })
 
@@ -258,7 +258,7 @@ describe("текстовые узлы", () => {
     const view = new View<any, typeof core>({
       render: ({ html, core }) => html`
         <ul>
-          ${core.users.map((it: { name: string }) => html` <li>${it.name}</li> `)}
+          ${core.users.map((it) => html` <li>${it.name}</li> `)}
         </ul>
       `,
     })
@@ -288,10 +288,10 @@ describe("текстовые узлы", () => {
         },
       ])
     })
-    it.skip("рендер", () => {
+    it("рендер", () => {
       const element = document.createElement("div")
       view.render({ core, container: element })
-      expect(element.innerHTML).toMatchStringHTML(`
+      expect(element.innerHTML).toMatchStringHTML(html`
         <ul>
           <li>${core.users[0].name}</li>
           <li>${core.users[1].name}</li>
@@ -302,15 +302,12 @@ describe("текстовые узлы", () => {
 
   describe("составной ключ объекта в массиве ядра", () => {
     const core = {
-      list: [
-        { profile: { title: "Admin" } },
-        { profile: { title: "User" } },
-      ],
+      list: [{ profile: { title: "Admin" } }, { profile: { title: "User" } }],
     } as const
     const view = new View<any, typeof core>({
       render: ({ html, core }) => html`
         <ul>
-          ${core.list.map((it: { profile: { title: string } }) => html`<li>${it.profile.title}</li>`)}
+          ${core.list.map((it) => html`<li>${it.profile.title}</li>`)}
         </ul>
       `,
     })
@@ -340,10 +337,10 @@ describe("текстовые узлы", () => {
         },
       ])
     })
-    it.skip("рендер", () => {
+    it("рендер", () => {
       const element = document.createElement("div")
       view.render({ core, container: element })
-      expect(element.innerHTML).toMatchStringHTML(`
+      expect(element.innerHTML).toMatchStringHTML(html`
         <ul>
           <li>${core.list[0].profile.title}</li>
           <li>${core.list[1].profile.title}</li>
@@ -371,10 +368,10 @@ describe("текстовые узлы", () => {
         },
       ])
     })
-    it.skip("рендер", () => {
+    it("рендер", () => {
       const element = document.createElement("div")
       view.render({ state, container: element })
-      expect(element.innerHTML).toMatchStringHTML(`<span>${state}</span>`)
+      expect(element.innerHTML).toMatchStringHTML(html`<span>${state}</span>`)
     })
   })
 })
