@@ -1,5 +1,6 @@
 import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
+
 const html = String.raw
 
 describe("условные блоки", () => {
@@ -44,36 +45,50 @@ describe("условные блоки", () => {
               {
                 tag: "img",
                 type: "el",
-                string: {
-                  class: {
-                    data: "/context/className",
-                    expr: "image ${0}-image",
-                  },
-                  src: "test.jpg",
-                  alt: { data: "/context/text" },
+                array: {
+                  class: [
+                    {
+                      value: "image",
+                    },
+                    {
+                      data: "/context/className",
+                      expr: "${0}-image",
+                    },
+                  ],
                 },
-                boolean: {
-                  visible: {
-                    data: "/context/visible",
-                  },
+                string: {
+                  alt: { data: "/context/text" },
+                  src: "test.jpg",
                 },
               },
               { tag: "br", type: "el" },
               {
                 tag: "button",
                 type: "el",
-                string: {
-                  class: {
-                    data: ["/context/className", "/context/className"],
-                    expr: "button-${0} ${1}-button",
-                  },
+                array: {
+                  class: [
+                    {
+                      data: "/context/className",
+                      expr: "button-${0}",
+                    },
+                    {
+                      data: "/context/className",
+                      expr: "${0}-button",
+                    },
+                  ],
                 },
                 boolean: {
                   disabled: {
                     data: "/context/disabled",
                   },
                 },
-                child: [{ type: "text", data: "/context/text" }],
+                child: [
+                  {
+                    type: "text",
+                    data: "/context/text",
+                    expr: "${0}",
+                  },
+                ],
               },
               {
                 tag: "ul",
@@ -93,10 +108,24 @@ describe("условные блоки", () => {
                 ],
               },
               {
+                tag: "div",
+                type: "el",
+                string: {
+                  class: "enum",
+                },
+                child: [
+                  {
+                    type: "text",
+                    value: "enum element div",
+                  },
+                ],
+              },
+              {
                 type: "cond",
-                data: "/context/enum",
+                data: ["/context/enum", "/div"],
+                expr: '${0} === "${1}"',
                 true: {
-                  tag: "div",
+                  tag: "span",
                   type: "el",
                   string: {
                     class: "enum",
@@ -104,47 +133,22 @@ describe("условные блоки", () => {
                   child: [
                     {
                       type: "text",
-                      value: "enum element div",
+                      value: "enum element span",
                     },
                   ],
                 },
                 false: {
-                  type: "cond",
-                  data: "/context/enum",
-                  true: {
-                    tag: "span",
-                    type: "el",
-                    string: {
-                      class: "enum",
-                    },
-                    child: [
-                      {
-                        type: "text",
-                        value: "enum element span",
-                      },
-                    ],
+                  tag: "p",
+                  type: "el",
+                  string: {
+                    class: "enum",
                   },
-                  false: {
-                    type: "cond",
-                    data: "/context/enum",
-                    true: {
-                      tag: "p",
-                      type: "el",
-                      string: {
-                        class: "enum",
-                      },
-                      child: [
-                        {
-                          type: "text",
-                          value: "enum element p",
-                        },
-                      ],
-                    },
-                    false: {
+                  child: [
+                    {
                       type: "text",
-                      value: "",
+                      value: "enum element p",
                     },
-                  },
+                  ],
                 },
               },
             ],
@@ -220,19 +224,19 @@ describe("условные блоки", () => {
                 ],
               },
               {
+                tag: "span",
+                type: "el",
+                child: [
+                  {
+                    type: "text",
+                    value: "Active",
+                  },
+                ],
+              },
+              {
                 type: "cond",
                 data: "/context/isActive",
                 true: {
-                  tag: "span",
-                  type: "el",
-                  child: [
-                    {
-                      type: "text",
-                      value: "Active",
-                    },
-                  ],
-                },
-                false: {
                   tag: "span",
                   type: "el",
                   child: [
@@ -242,16 +246,16 @@ describe("условные блоки", () => {
                     },
                   ],
                 },
-              },
-              {
-                tag: "footer",
-                type: "el",
-                child: [
-                  {
-                    type: "text",
-                    value: "Footer",
-                  },
-                ],
+                false: {
+                  tag: "footer",
+                  type: "el",
+                  child: [
+                    {
+                      type: "text",
+                      value: "Footer",
+                    },
+                  ],
+                },
               },
             ],
           },
@@ -296,8 +300,8 @@ describe("условные блоки", () => {
 
     describe("тернарный оператор с core", () => {
       const view = new View({
-        render: ({ html, core }) =>
-          html`<div>${core.showMenu ? html`<nav>Menu</nav>` : html`<div>No menu</div>`}</div>`,
+        render: ({ html, context, core }) =>
+          html`<div>${context.userRole === core.requiredRole ? html`<h1>match</h1>` : html`<h1>mismatch</h1>`}</div>`,
       })
       it("парсинг", () => {
         expect(view.schema, "тернарный оператор с core").toEqual([
@@ -307,24 +311,25 @@ describe("условные блоки", () => {
             child: [
               {
                 type: "cond",
-                data: "/core/showMenu",
+                data: ["/context/userRole", "/core/requiredRole"],
+                expr: "${0} === ${1}",
                 true: {
-                  tag: "nav",
+                  tag: "h1",
                   type: "el",
                   child: [
                     {
                       type: "text",
-                      value: "Menu",
+                      value: "match",
                     },
                   ],
                 },
                 false: {
-                  tag: "div",
+                  tag: "h1",
                   type: "el",
                   child: [
                     {
                       type: "text",
-                      value: "No menu",
+                      value: "mismatch",
                     },
                   ],
                 },
@@ -360,7 +365,8 @@ describe("условные блоки", () => {
             child: [
               {
                 type: "cond",
-                data: "/context/userRole",
+                data: ["/context/userRole", "/admin"],
+                expr: '${0} === "${1}"',
                 true: {
                   tag: "section",
                   type: "el",
@@ -420,6 +426,7 @@ describe("условные блоки", () => {
               {
                 type: "cond",
                 data: ["/context/a", "/core/b"],
+                expr: "${0} > ${1}",
                 true: {
                   tag: "span",
                   type: "el",
@@ -461,6 +468,7 @@ describe("условные блоки", () => {
               {
                 type: "cond",
                 data: ["/core/b", "/context/a"],
+                expr: "${0} <= ${1}",
                 true: {
                   tag: "p",
                   type: "el",
@@ -501,6 +509,7 @@ describe("условные блоки", () => {
             {
               type: "cond",
               data: ["/context/role", "/core/requiredRole"],
+              expr: "${0} === ${1}",
               true: {
                 tag: "h1",
                 type: "el",
@@ -541,25 +550,17 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                type: "cond",
-                data: "/context/isLoggedIn",
-                true: {
-                  tag: "span",
-                  type: "el",
-                  string: {
-                    class: "user",
+                tag: "span",
+                type: "el",
+                string: {
+                  class: "user",
+                },
+                child: [
+                  {
+                    type: "text",
+                    value: "Welcome!",
                   },
-                  child: [
-                    {
-                      type: "text",
-                      value: "Welcome!",
-                    },
-                  ],
-                },
-                false: {
-                  type: "text",
-                  value: "",
-                },
+                ],
               },
             ],
           },
@@ -578,25 +579,17 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                type: "cond",
-                data: "/context/userName",
-                true: {
-                  type: "text",
-                  value: "",
+                tag: "span",
+                type: "el",
+                string: {
+                  class: "guest",
                 },
-                false: {
-                  tag: "span",
-                  type: "el",
-                  string: {
-                    class: "guest",
+                child: [
+                  {
+                    type: "text",
+                    value: "Guest",
                   },
-                  child: [
-                    {
-                      type: "text",
-                      value: "Guest",
-                    },
-                  ],
-                },
+                ],
               },
             ],
           },
@@ -608,20 +601,19 @@ describe("условные блоки", () => {
   describe("условия в массивах", () => {
     describe("условный рендеринг элементов массива", () => {
       const view = new View({
-        render: ({ html, context }) => html`
-          <ul>
-            ${context.items.map(
-              (item: { name: string; isVisible: boolean }) => html`
-                <li>${item.isVisible ? html`<span>${item.name}</span>` : html`<span class="hidden">Hidden</span>`}</li>
-              `
+        render: ({ html, context }) =>
+          html`<div>
+            ${context.items.map((item: { name: string; isActive: boolean }) =>
+              item.isActive
+                ? html`<span class="active">${item.name}</span>`
+                : html`<span class="inactive">${item.name}</span>`
             )}
-          </ul>
-        `,
+          </div>`,
       })
       it("парсинг", () => {
         expect(view.schema, "условный рендеринг элементов массива").toEqual([
           {
-            tag: "ul",
+            tag: "div",
             type: "el",
             child: [
               {
@@ -629,35 +621,28 @@ describe("условные блоки", () => {
                 data: "/context/items",
                 child: [
                   {
-                    tag: "li",
+                    tag: "span",
                     type: "el",
+                    string: {
+                      class: "active",
+                    },
                     child: [
                       {
-                        type: "cond",
-                        data: "[item]/isVisible",
-                        true: {
-                          tag: "span",
-                          type: "el",
-                          child: [
-                            {
-                              type: "text",
-                              data: "[item]/name",
-                            },
-                          ],
-                        },
-                        false: {
-                          tag: "span",
-                          type: "el",
-                          string: {
-                            class: "hidden",
-                          },
-                          child: [
-                            {
-                              type: "text",
-                              value: "Hidden",
-                            },
-                          ],
-                        },
+                        type: "text",
+                        data: "[item]/name",
+                      },
+                    ],
+                  },
+                  {
+                    tag: "span",
+                    type: "el",
+                    string: {
+                      class: "inactive",
+                    },
+                    child: [
+                      {
+                        type: "text",
+                        data: "[item]/name",
                       },
                     ],
                   },
@@ -712,22 +697,14 @@ describe("условные блоки", () => {
                         ],
                       },
                       {
-                        type: "cond",
-                        data: "[item]/hasAction",
-                        true: {
-                          tag: "button",
-                          type: "el",
-                          child: [
-                            {
-                              type: "text",
-                              value: "Action",
-                            },
-                          ],
-                        },
-                        false: {
-                          type: "text",
-                          value: "",
-                        },
+                        tag: "button",
+                        type: "el",
+                        child: [
+                          {
+                            type: "text",
+                            value: "Action",
+                          },
+                        ],
                       },
                     ],
                   },
@@ -768,31 +745,27 @@ describe("условные блоки", () => {
                       },
                     ],
                   },
+                  {
+                    tag: "p",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        value: "Yes",
+                      },
+                    ],
+                  },
+                  {
+                    tag: "p",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        value: "No",
+                      },
+                    ],
+                  },
                 ],
-              },
-              {
-                type: "cond",
-                data: "/context/flag",
-                true: {
-                  tag: "p",
-                  type: "el",
-                  child: [
-                    {
-                      type: "text",
-                      value: "Yes",
-                    },
-                  ],
-                },
-                false: {
-                  tag: "p",
-                  type: "el",
-                  child: [
-                    {
-                      type: "text",
-                      value: "No",
-                    },
-                  ],
-                },
               },
             ],
           },
@@ -813,22 +786,14 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                type: "cond",
-                data: "/context/showEmpty",
-                true: {
-                  type: "text",
-                  value: "",
-                },
-                false: {
-                  tag: "span",
-                  type: "el",
-                  child: [
-                    {
-                      type: "text",
-                      value: "Not empty",
-                    },
-                  ],
-                },
+                tag: "span",
+                type: "el",
+                child: [
+                  {
+                    type: "text",
+                    value: "Not empty",
+                  },
+                ],
               },
             ],
           },
@@ -863,49 +828,45 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
+                tag: "div",
+                type: "el",
+                child: [
+                  {
+                    tag: "button",
+                    type: "el",
+                    string: {
+                      class: "admin",
+                    },
+                    child: [
+                      {
+                        type: "text",
+                        value: "Admin Action",
+                      },
+                    ],
+                  },
+                ],
+              },
+              {
                 type: "cond",
                 data: "/context/hasPermission",
                 true: {
-                  type: "cond",
-                  data: "/context/isAdmin",
-                  true: {
-                    tag: "div",
-                    type: "el",
-                    child: [
-                      {
-                        tag: "button",
-                        type: "el",
-                        string: {
-                          class: "admin",
-                        },
-                        child: [
-                          {
-                            type: "text",
-                            value: "Admin Action",
-                          },
-                        ],
+                  tag: "div",
+                  type: "el",
+                  child: [
+                    {
+                      tag: "button",
+                      type: "el",
+                      string: {
+                        class: "user",
                       },
-                    ],
-                  },
-                  false: {
-                    tag: "div",
-                    type: "el",
-                    child: [
-                      {
-                        tag: "button",
-                        type: "el",
-                        string: {
-                          class: "user",
+                      child: [
+                        {
+                          type: "text",
+                          value: "User Action",
                         },
-                        child: [
-                          {
-                            type: "text",
-                            value: "User Action",
-                          },
-                        ],
-                      },
-                    ],
-                  },
+                      ],
+                    },
+                  ],
                 },
                 false: {
                   tag: "div",
