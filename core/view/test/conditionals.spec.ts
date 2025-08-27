@@ -35,126 +35,127 @@ describe("условные блоки", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
-              class: { src: "context", key: "className" },
-              id: { src: "context", key: "id" },
-              "data-text": { src: "context", key: "text" },
+            string: {
+              class: { data: "/context/className" },
+              id: { data: "/context/id" },
+              "data-text": { data: "/context/text" },
             },
             child: [
               {
                 tag: "img",
                 type: "el",
-                attrs: {
+                string: {
                   class: {
-                    items: [{ src: "context", key: "className" }],
-                    template: "image ${0}-image",
+                    data: "/context/className",
+                    expr: "image ${0}-image",
                   },
                   src: "test.jpg",
+                  alt: { data: "/context/text" },
+                },
+                boolean: {
                   visible: {
-                    src: "context",
-                    key: "visible",
-                    trueValue: "visible",
-                    falseValue: "hidden",
-                    type: "conditional",
+                    data: "/context/visible",
                   },
-                  alt: { src: "context", key: "text" },
                 },
               },
               { tag: "br", type: "el" },
               {
                 tag: "button",
                 type: "el",
-                attrs: {
+                string: {
                   class: {
-                    items: [
-                      {
-                        key: "className",
-                        src: "context",
-                      },
-                      {
-                        key: "className",
-                        src: "context",
-                      },
-                    ],
-                    template: "button-${0} ${1}-button",
-                  },
-                  disabled: {
-                    src: "context",
-                    key: "disabled",
-                    trueValue: "disabled",
-                    falseValue: undefined,
-                    type: "conditional",
+                    data: ["/context/className", "/context/className"],
+                    expr: "button-${0} ${1}-button",
                   },
                 },
-                child: [{ type: "text", value: { src: "context", key: "text" } }],
+                boolean: {
+                  disabled: {
+                    data: "/context/disabled",
+                  },
+                },
+                child: [{ type: "text", data: "/context/text" }],
               },
               {
                 tag: "ul",
                 type: "el",
                 child: [
                   {
-                    tag: "li",
-                    type: "el",
-                    item: { src: "context", key: "list" },
-                    child: [{ type: "text", value: { src: ["context", "list"] } }],
+                    type: "map",
+                    data: "/context/list",
+                    child: [
+                      {
+                        tag: "li",
+                        type: "el",
+                        child: [{ type: "text", data: "[item]" }],
+                      },
+                    ],
                   },
                 ],
               },
               {
-                tag: "div",
-                type: "el",
-                attrs: { class: "enum" },
-                child: [{ type: "text", value: "enum element div" }],
-                cond: { src: "context", key: "enum", eq: "div" },
-              },
-              {
-                tag: "span",
-                type: "el",
-                attrs: { class: "enum" },
-                child: [{ type: "text", value: "enum element span" }],
-                cond: { src: "context", key: "enum", eq: "span" },
-              },
-              {
-                tag: "p",
-                type: "el",
-                attrs: { class: "enum" },
-                child: [{ type: "text", value: "enum element p" }],
-                cond: { src: "context", key: "enum", eq: "p" },
+                type: "cond",
+                data: "/context/enum",
+                true: {
+                  tag: "div",
+                  type: "el",
+                  string: {
+                    class: "enum",
+                  },
+                  child: [
+                    {
+                      type: "text",
+                      value: "enum element div",
+                    },
+                  ],
+                },
+                false: {
+                  type: "cond",
+                  data: "/context/enum",
+                  true: {
+                    tag: "span",
+                    type: "el",
+                    string: {
+                      class: "enum",
+                    },
+                    child: [
+                      {
+                        type: "text",
+                        value: "enum element span",
+                      },
+                    ],
+                  },
+                  false: {
+                    type: "cond",
+                    data: "/context/enum",
+                    true: {
+                      tag: "p",
+                      type: "el",
+                      string: {
+                        class: "enum",
+                      },
+                      child: [
+                        {
+                          type: "text",
+                          value: "enum element p",
+                        },
+                      ],
+                    },
+                    false: {
+                      type: "text",
+                      value: "",
+                    },
+                  },
+                },
               },
             ],
           },
         ]))
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          container: element,
-          context: {
-            className: "test",
-            list: ["1", "2", "3"],
-            id: "test",
-            text: "test",
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(
-          html`<div class="test" id="test" data-text="test">
-            <img class="image test-image" src="test.jpg" visible="hidden" alt="test" /><br />
-            <button class="button-test test-button" disabled="">test</button>
-            <ul>
-              <li>1</li>
-              <li>2</li>
-              <li>3</li>
-            </ul>
-          </div>`
-        )
-      })
     })
+
     describe("простой тернарный оператор с context", () => {
       const view = new View({
         render: ({ html, context }) =>
-          html`<div>${context.isVisible ? html`<span>Visible</span>` : html`<span>Hidden</span>`}</div>`,
+          html`<div>${context.isActive ? html`<span>Active</span>` : html`<span>Inactive</span>`}</div>`,
       })
       it("парсинг", () => {
         expect(view.schema, "простой тернарный оператор с context").toEqual([
@@ -163,61 +164,44 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                tag: "span",
-                type: "el",
-                cond: {
-                  src: "context",
-                  key: "isVisible",
-                  eq: true,
+                type: "cond",
+                data: "/context/isActive",
+                true: {
+                  tag: "span",
+                  type: "el",
+                  child: [
+                    {
+                      type: "text",
+                      value: "Active",
+                    },
+                  ],
                 },
-                child: [
-                  {
-                    type: "text",
-                    value: "Visible",
-                  },
-                ],
-              },
-              {
-                tag: "span",
-                type: "el",
-                cond: {
-                  src: "context",
-                  key: "isVisible",
-                  eq: false,
+                false: {
+                  tag: "span",
+                  type: "el",
+                  child: [
+                    {
+                      type: "text",
+                      value: "Inactive",
+                    },
+                  ],
                 },
-                child: [
-                  {
-                    type: "text",
-                    value: "Hidden",
-                  },
-                ],
               },
             ],
           },
         ])
       })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          container: element,
-          context: {
-            isVisible: true,
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(html`<div><span>Visible</span></div>`)
-      })
     })
+
     describe("простой тернарный оператор с context с оберткой и соседними элементами", () => {
       const view = new View({
-        render: ({ html, context }) =>
-          html`<div>
-            <span>1</span>
-            <div>2</div>
-            ${context.isVisible ? html`<span>Visible</span>` : html`<span>Hidden</span>`}<span>3</span>
-          </div>`,
+        render: ({ html, context }) => html`
+          <div>
+            <header>Header</header>
+            ${context.isActive ? html`<span>Active</span>` : html`<span>Inactive</span>`}
+            <footer>Footer</footer>
+          </div>
+        `,
       })
       it("парсинг", () => {
         expect(view.schema, "простой тернарный оператор с context с оберткой и соседними элементами").toEqual([
@@ -226,135 +210,90 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                tag: "span",
+                tag: "header",
                 type: "el",
-                child: [{ type: "text", value: "1" }],
-              },
-              {
-                tag: "div",
-                type: "el",
-                child: [{ type: "text", value: "2" }],
-              },
-              {
-                tag: "span",
-                type: "el",
-                cond: {
-                  src: "context",
-                  key: "isVisible",
-                  eq: true,
-                },
                 child: [
                   {
                     type: "text",
-                    value: "Visible",
+                    value: "Header",
                   },
                 ],
               },
               {
-                tag: "span",
-                type: "el",
-                cond: {
-                  src: "context",
-                  key: "isVisible",
-                  eq: false,
+                type: "cond",
+                data: "/context/isActive",
+                true: {
+                  tag: "span",
+                  type: "el",
+                  child: [
+                    {
+                      type: "text",
+                      value: "Active",
+                    },
+                  ],
                 },
+                false: {
+                  tag: "span",
+                  type: "el",
+                  child: [
+                    {
+                      type: "text",
+                      value: "Inactive",
+                    },
+                  ],
+                },
+              },
+              {
+                tag: "footer",
+                type: "el",
                 child: [
                   {
                     type: "text",
-                    value: "Hidden",
+                    value: "Footer",
                   },
                 ],
-              },
-              {
-                tag: "span",
-                type: "el",
-                child: [{ type: "text", value: "3" }],
               },
             ],
           },
         ])
       })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          container: element,
-          context: {
-            isVisible: true,
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(
-          html`<div>
-            <span>1</span>
-            <div>2</div>
-            <span>Visible</span><span>3</span>
-          </div>`
-        )
-      })
     })
+
     describe("простой тернарный оператор с context без обертки", () => {
       const view = new View({
         render: ({ html, context }) =>
-          html`<div></div>
-            ${context.isVisible ? html`<span>Visible</span>` : html`<span>Hidden</span>`}`,
+          html`${context.isActive ? html`<span>Active</span>` : html`<span>Inactive</span>`}`,
       })
       it("парсинг", () => {
         expect(view.schema, "простой тернарный оператор с context без обертки").toEqual([
           {
-            tag: "div",
-            type: "el",
-          },
-          {
-            tag: "span",
-            type: "el",
-            cond: {
-              src: "context",
-              key: "isVisible",
-              eq: true,
+            type: "cond",
+            data: "/context/isActive",
+            true: {
+              tag: "span",
+              type: "el",
+              child: [
+                {
+                  type: "text",
+                  value: "Active",
+                },
+              ],
             },
-            child: [
-              {
-                type: "text",
-                value: "Visible",
-              },
-            ],
-          },
-          {
-            tag: "span",
-            type: "el",
-            cond: {
-              src: "context",
-              key: "isVisible",
-              eq: false,
+            false: {
+              tag: "span",
+              type: "el",
+              child: [
+                {
+                  type: "text",
+                  value: "Inactive",
+                },
+              ],
             },
-            child: [
-              {
-                type: "text",
-                value: "Hidden",
-              },
-            ],
           },
         ])
       })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          container: element,
-          context: {
-            isVisible: true,
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(
-          html`<div></div>
-            <span>Visible</span>`
-        )
-      })
     })
+
     describe("тернарный оператор с core", () => {
       const view = new View({
         render: ({ html, core }) =>
@@ -367,58 +306,39 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                tag: "nav",
-                type: "el",
-                cond: {
-                  src: "core",
-                  key: "showMenu",
-                  eq: true,
+                type: "cond",
+                data: "/core/showMenu",
+                true: {
+                  tag: "nav",
+                  type: "el",
+                  child: [
+                    {
+                      type: "text",
+                      value: "Menu",
+                    },
+                  ],
                 },
-                child: [
-                  {
-                    type: "text",
-                    value: "Menu",
-                  },
-                ],
-              },
-              {
-                tag: "div",
-                type: "el",
-                cond: {
-                  src: "core",
-                  key: "showMenu",
-                  eq: false,
+                false: {
+                  tag: "div",
+                  type: "el",
+                  child: [
+                    {
+                      type: "text",
+                      value: "No menu",
+                    },
+                  ],
                 },
-                child: [
-                  {
-                    type: "text",
-                    value: "No menu",
-                  },
-                ],
               },
             ],
           },
         ])
-      })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          core: {
-            showMenu: true,
-          },
-          update: () => ({}),
-          state: "",
-          container: element,
-          context: {},
-        })
-        expect(element.innerHTML).toMatchStringHTML(html`<div><nav>Menu</nav></div>`)
       })
     })
 
     describe("сравнение с определенным значением", () => {
       const view = new View({
         render: ({ html, context }) =>
-          html`<main>
+          html` <main>
             ${context.userRole === "admin"
               ? html`
                   <section class="admin-panel">
@@ -439,73 +359,50 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                tag: "section",
-                type: "el",
-                cond: {
-                  src: "context",
-                  key: "userRole",
-                  eq: "admin",
-                },
-                attrs: {
-                  class: "admin-panel",
-                },
-                child: [
-                  {
-                    tag: "h2",
-                    type: "el",
-                    child: [
-                      {
-                        type: "text",
-                        value: "Admin Panel",
-                      },
-                    ],
+                type: "cond",
+                data: "/context/userRole",
+                true: {
+                  tag: "section",
+                  type: "el",
+                  string: {
+                    class: "admin-panel",
                   },
-                ],
-              },
-              {
-                tag: "section",
-                type: "el",
-                cond: {
-                  src: "context",
-                  key: "userRole",
-                  notEq: "admin",
+                  child: [
+                    {
+                      tag: "h2",
+                      type: "el",
+                      child: [
+                        {
+                          type: "text",
+                          value: "Admin Panel",
+                        },
+                      ],
+                    },
+                  ],
                 },
-                attrs: {
-                  class: "user-panel",
-                },
-                child: [
-                  {
-                    tag: "h2",
-                    type: "el",
-                    child: [
-                      {
-                        type: "text",
-                        value: "User Panel",
-                      },
-                    ],
+                false: {
+                  tag: "section",
+                  type: "el",
+                  string: {
+                    class: "user-panel",
                   },
-                ],
+                  child: [
+                    {
+                      tag: "h2",
+                      type: "el",
+                      child: [
+                        {
+                          type: "text",
+                          value: "User Panel",
+                        },
+                      ],
+                    },
+                  ],
+                },
               },
             ],
           },
         ])
-      })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          container: element,
-          context: {
-            userRole: "admin",
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(
-          html`<main>
-            <section class="admin-panel"><h2>Admin Panel</h2></section>
-          </main>`
-        )
       })
     })
 
@@ -521,35 +418,32 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                tag: "span",
-                type: "el",
-                cond: { src: "context", key: "a", gt: { src: "core", key: "b" } as any },
-                child: [{ type: "text", value: "A>B" }],
-              },
-              {
-                tag: "span",
-                type: "el",
-                cond: { src: "context", key: "a", lte: { src: "core", key: "b" } as any },
-                child: [{ type: "text", value: "B>=A" }],
+                type: "cond",
+                data: ["/context/a", "/core/b"],
+                true: {
+                  tag: "span",
+                  type: "el",
+                  child: [
+                    {
+                      type: "text",
+                      value: "A>B",
+                    },
+                  ],
+                },
+                false: {
+                  tag: "span",
+                  type: "el",
+                  child: [
+                    {
+                      type: "text",
+                      value: "B>=A",
+                    },
+                  ],
+                },
               },
             ],
           },
         ])
-      })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          core: {
-            b: 5,
-          },
-          update: () => ({}),
-          state: "",
-          container: element,
-          context: {
-            a: 10,
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(html`<div></div>`)
       })
     })
 
@@ -565,35 +459,32 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                tag: "p",
-                type: "el",
-                cond: { src: "core", key: "b", lte: { src: "context", key: "a" } as any },
-                child: [{ type: "text", value: "ok" }],
-              },
-              {
-                tag: "p",
-                type: "el",
-                cond: { src: "core", key: "b", gt: { src: "context", key: "a" } as any },
-                child: [{ type: "text", value: "no" }],
+                type: "cond",
+                data: ["/core/b", "/context/a"],
+                true: {
+                  tag: "p",
+                  type: "el",
+                  child: [
+                    {
+                      type: "text",
+                      value: "ok",
+                    },
+                  ],
+                },
+                false: {
+                  tag: "p",
+                  type: "el",
+                  child: [
+                    {
+                      type: "text",
+                      value: "no",
+                    },
+                  ],
+                },
               },
             ],
           },
         ])
-      })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          core: {
-            b: 5,
-          },
-          update: () => ({}),
-          state: "",
-          container: element,
-          context: {
-            a: 3,
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(html`<section></section>`)
       })
     })
 
@@ -608,35 +499,32 @@ describe("условные блоки", () => {
           type: "el",
           child: [
             {
-              tag: "h1",
-              type: "el",
-              cond: { src: "context", key: "role", eq: { src: "core", key: "requiredRole" } as any },
-              child: [{ type: "text", value: "match" }],
-            },
-            {
-              tag: "h1",
-              type: "el",
-              cond: { src: "context", key: "role", notEq: { src: "core", key: "requiredRole" } as any },
-              child: [{ type: "text", value: "mismatch" }],
+              type: "cond",
+              data: ["/context/role", "/core/requiredRole"],
+              true: {
+                tag: "h1",
+                type: "el",
+                child: [
+                  {
+                    type: "text",
+                    value: "match",
+                  },
+                ],
+              },
+              false: {
+                tag: "h1",
+                type: "el",
+                child: [
+                  {
+                    type: "text",
+                    value: "mismatch",
+                  },
+                ],
+              },
             },
           ],
         },
       ])
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          core: {
-            requiredRole: "admin",
-          },
-          update: () => ({}),
-          state: "",
-          container: element,
-          context: {
-            role: "admin",
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(html`<div><h1>match</h1></div>`)
-      })
     })
   })
 
@@ -653,39 +541,29 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                tag: "span",
-                type: "el",
-                cond: {
-                  src: "context",
-                  key: "isLoggedIn",
-                  eq: true,
-                },
-                attrs: {
-                  class: "user",
-                },
-                child: [
-                  {
-                    type: "text",
-                    value: "Welcome!",
+                type: "cond",
+                data: "/context/isLoggedIn",
+                true: {
+                  tag: "span",
+                  type: "el",
+                  string: {
+                    class: "user",
                   },
-                ],
+                  child: [
+                    {
+                      type: "text",
+                      value: "Welcome!",
+                    },
+                  ],
+                },
+                false: {
+                  type: "text",
+                  value: "",
+                },
               },
             ],
           },
         ])
-      })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          container: element,
-          context: {
-            isLoggedIn: true,
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(html`<div><span class="user">Welcome!</span></div>`)
       })
     })
 
@@ -700,39 +578,29 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                tag: "span",
-                type: "el",
-                cond: {
-                  src: "context",
-                  key: "userName",
-                  eq: null, // fallback когда userName пустой
+                type: "cond",
+                data: "/context/userName",
+                true: {
+                  type: "text",
+                  value: "",
                 },
-                attrs: {
-                  class: "guest",
-                },
-                child: [
-                  {
-                    type: "text",
-                    value: "Guest",
+                false: {
+                  tag: "span",
+                  type: "el",
+                  string: {
+                    class: "guest",
                   },
-                ],
+                  child: [
+                    {
+                      type: "text",
+                      value: "Guest",
+                    },
+                  ],
+                },
               },
             ],
           },
         ])
-      })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          container: element,
-          context: {
-            userName: null,
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(html`<div><span class="guest">Guest</span></div>`)
       })
     })
   })
@@ -740,14 +608,15 @@ describe("условные блоки", () => {
   describe("условия в массивах", () => {
     describe("условный рендеринг элементов массива", () => {
       const view = new View({
-        render: ({ html, context }) =>
-          html`<ul>
+        render: ({ html, context }) => html`
+          <ul>
             ${context.items.map(
-              (item: { isVisible: boolean; name: string }) => html`
+              (item: { name: string; isVisible: boolean }) => html`
                 <li>${item.isVisible ? html`<span>${item.name}</span>` : html`<span class="hidden">Hidden</span>`}</li>
               `
             )}
-          </ul> `,
+          </ul>
+        `,
       })
       it("парсинг", () => {
         expect(view.schema, "условный рендеринг элементов массива").toEqual([
@@ -756,75 +625,47 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                tag: "li",
-                type: "el",
+                type: "map",
+                data: "/context/items",
                 child: [
                   {
-                    tag: "span",
+                    tag: "li",
                     type: "el",
-                    cond: {
-                      src: "item",
-                      key: "isVisible",
-                      eq: true,
-                    },
                     child: [
                       {
-                        type: "text",
-                        value: {
-                          src: "item",
-                          key: "name",
+                        type: "cond",
+                        data: "[item]/isVisible",
+                        true: {
+                          tag: "span",
+                          type: "el",
+                          child: [
+                            {
+                              type: "text",
+                              data: "[item]/name",
+                            },
+                          ],
+                        },
+                        false: {
+                          tag: "span",
+                          type: "el",
+                          string: {
+                            class: "hidden",
+                          },
+                          child: [
+                            {
+                              type: "text",
+                              value: "Hidden",
+                            },
+                          ],
                         },
                       },
                     ],
                   },
-                  {
-                    tag: "span",
-                    type: "el",
-                    cond: {
-                      src: "item",
-                      key: "isVisible",
-                      eq: false,
-                    },
-                    attrs: {
-                      class: "hidden",
-                    },
-                    child: [
-                      {
-                        type: "text",
-                        value: "Hidden",
-                      },
-                    ],
-                  },
                 ],
-                item: {
-                  src: "context",
-                  key: "items",
-                },
               },
             ],
           },
         ])
-      })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          container: element,
-          context: {
-            items: [
-              { isVisible: true, name: "Item 1" },
-              { isVisible: false, name: "Item 2" },
-            ],
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(
-          html`<ul>
-            <li><span>Item 1</span></li>
-            <li><span class="hidden">Hidden</span></li>
-          </ul>`
-        )
       })
     })
 
@@ -833,10 +674,10 @@ describe("условные блоки", () => {
         render: ({ html, context }) => html`
           <div>
             ${context.notifications.map(
-              (notification: { message: string; hasAction: boolean }) => html`
+              (item: { message: string; hasAction: boolean }) => html`
                 <div class="notification">
-                  <p>${notification.message}</p>
-                  ${notification.hasAction && html`<button>Action</button>`}
+                  <p>${item.message}</p>
+                  ${item.hasAction && html`<button>Action</button>`}
                 </div>
               `
             )}
@@ -850,73 +691,51 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                tag: "div",
-                type: "el",
-                attrs: {
-                  class: "notification",
-                },
+                type: "map",
+                data: "/context/notifications",
                 child: [
                   {
-                    tag: "p",
+                    tag: "div",
                     type: "el",
+                    string: {
+                      class: "notification",
+                    },
                     child: [
                       {
-                        type: "text",
-                        value: {
-                          src: ["context", "notifications"],
-                          key: "message",
+                        tag: "p",
+                        type: "el",
+                        child: [
+                          {
+                            type: "text",
+                            data: "[item]/message",
+                          },
+                        ],
+                      },
+                      {
+                        type: "cond",
+                        data: "[item]/hasAction",
+                        true: {
+                          tag: "button",
+                          type: "el",
+                          child: [
+                            {
+                              type: "text",
+                              value: "Action",
+                            },
+                          ],
+                        },
+                        false: {
+                          type: "text",
+                          value: "",
                         },
                       },
                     ],
                   },
-                  {
-                    tag: "button",
-                    type: "el",
-                    cond: {
-                      src: "item",
-                      key: "hasAction",
-                      eq: true,
-                    },
-                    child: [
-                      {
-                        type: "text",
-                        value: "Action",
-                      },
-                    ],
-                  },
                 ],
-                item: {
-                  src: "context",
-                  key: "notifications",
-                },
               },
             ],
           },
         ])
-      })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          container: element,
-          context: {
-            notifications: [
-              { message: "Hello", hasAction: true },
-              { message: "World", hasAction: false },
-            ],
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(html`
-          <div>
-            <div class="notification">
-              <p>Hello</p>
-              <button>Action</button>
-            </div>
-            <div class="notification"><p>World</p></div>
-          </div>
-        `)
       })
     })
 
@@ -936,54 +755,52 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                tag: "span",
-                type: "el",
+                type: "map",
+                data: "/context/items",
                 child: [
                   {
-                    type: "text",
-                    value: { src: ["context", "items"], key: "name" },
+                    tag: "span",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        data: "[item]/name",
+                      },
+                    ],
                   },
                 ],
-                item: { src: "context", key: "items" },
               },
               {
-                tag: "p",
-                type: "el",
-                cond: { src: "context", key: "flag", eq: true },
-                child: [{ type: "text", value: "Yes" }],
-              },
-              {
-                tag: "p",
-                type: "el",
-                cond: { src: "context", key: "flag", eq: false },
-                child: [{ type: "text", value: "No" }],
+                type: "cond",
+                data: "/context/flag",
+                true: {
+                  tag: "p",
+                  type: "el",
+                  child: [
+                    {
+                      type: "text",
+                      value: "Yes",
+                    },
+                  ],
+                },
+                false: {
+                  tag: "p",
+                  type: "el",
+                  child: [
+                    {
+                      type: "text",
+                      value: "No",
+                    },
+                  ],
+                },
               },
             ],
           },
         ])
       })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          container: element,
-          context: {
-            items: [{ name: "Item 1" }, { name: "Item 2" }],
-            flag: true,
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(html`
-          <div>
-            <span> Item 1 </span>
-            <span> Item 2 </span>
-            <p>Yes</p>
-          </div>
-        `)
-      })
     })
   })
+
   describe("edge cases условий", () => {
     describe("пустые условные блоки", () => {
       const view = new View({
@@ -996,36 +813,26 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                tag: "span",
-                type: "el",
-                cond: {
-                  src: "context",
-                  key: "showEmpty",
-                  eq: false,
+                type: "cond",
+                data: "/context/showEmpty",
+                true: {
+                  type: "text",
+                  value: "",
                 },
-                child: [
-                  {
-                    type: "text",
-                    value: "Not empty",
-                  },
-                ],
+                false: {
+                  tag: "span",
+                  type: "el",
+                  child: [
+                    {
+                      type: "text",
+                      value: "Not empty",
+                    },
+                  ],
+                },
               },
             ],
           },
         ])
-      })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          container: element,
-          context: {
-            showEmpty: false,
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(html`<div><span>Not empty</span></div>`)
       })
     })
 
@@ -1034,13 +841,17 @@ describe("условные блоки", () => {
         render: ({ html, context }) => html`
           <div>
             ${context.hasPermission
-              ? html`
-                  <div>
-                    ${context.isAdmin
-                      ? html`<button class="admin">Admin Action</button>`
-                      : html`<button class="user">User Action</button>`}
-                  </div>
-                `
+              ? context.isAdmin
+                ? html`
+                    <div>
+                      <button class="admin">Admin Action</button>
+                    </div>
+                  `
+                : html`
+                    <div>
+                      <button class="user">User Action</button>
+                    </div>
+                  `
               : html`<div class="no-access">Access Denied</div>`}
           </div>
         `,
@@ -1052,93 +863,67 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                tag: "div",
-                type: "el",
-                cond: {
-                  src: "context",
-                  key: "hasPermission",
-                  eq: true,
-                },
-                child: [
-                  {
-                    tag: "button",
+                type: "cond",
+                data: "/context/hasPermission",
+                true: {
+                  type: "cond",
+                  data: "/context/isAdmin",
+                  true: {
+                    tag: "div",
                     type: "el",
-                    cond: {
-                      src: "context",
-                      key: "isAdmin",
-                      eq: true,
-                    },
-                    attrs: {
-                      class: "admin",
-                    },
                     child: [
                       {
-                        type: "text",
-                        value: "Admin Action",
+                        tag: "button",
+                        type: "el",
+                        string: {
+                          class: "admin",
+                        },
+                        child: [
+                          {
+                            type: "text",
+                            value: "Admin Action",
+                          },
+                        ],
                       },
                     ],
                   },
-                  {
-                    tag: "button",
+                  false: {
+                    tag: "div",
                     type: "el",
-                    cond: {
-                      src: "context",
-                      key: "isAdmin",
-                      eq: false,
-                    },
-                    attrs: {
-                      class: "user",
-                    },
                     child: [
                       {
-                        type: "text",
-                        value: "User Action",
+                        tag: "button",
+                        type: "el",
+                        string: {
+                          class: "user",
+                        },
+                        child: [
+                          {
+                            type: "text",
+                            value: "User Action",
+                          },
+                        ],
                       },
                     ],
                   },
-                ],
-              },
-              {
-                tag: "div",
-                type: "el",
-                cond: {
-                  src: "context",
-                  key: "hasPermission",
-                  eq: false,
                 },
-                attrs: {
-                  class: "no-access",
-                },
-                child: [
-                  {
-                    type: "text",
-                    value: "Access Denied",
+                false: {
+                  tag: "div",
+                  type: "el",
+                  string: {
+                    class: "no-access",
                   },
-                ],
+                  child: [
+                    {
+                      type: "text",
+                      value: "Access Denied",
+                    },
+                  ],
+                },
               },
             ],
           },
         ])
-      })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          core: {},
-          update: () => ({}),
-          state: "",
-          container: element,
-          context: {
-            hasPermission: true,
-            isAdmin: true,
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(html`
-          <div>
-            <div>
-              <button class="admin">Admin Action</button>
-            </div>
-          </div>
-        `)
       })
     })
   })

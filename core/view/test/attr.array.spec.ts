@@ -24,26 +24,27 @@ describe("атрибуты в массивах - вложенность", () => 
           type: "el",
           child: [
             {
-              tag: "li",
-              type: "el",
-              item: {
-                src: "core",
-                key: "items",
-              },
-              attrs: {
-                class: {
-                  template: "item-${0}",
-                  items: [{ src: ["core", "items"], key: "type" }],
-                },
-                title: {
-                  src: ["core", "items"],
-                  key: "name",
-                },
-              },
+              type: "map",
+              data: "/core/items",
               child: [
                 {
-                  type: "text",
-                  value: "x",
+                  tag: "li",
+                  type: "el",
+                  string: {
+                    class: {
+                      data: "[item]/type",
+                      expr: "item-${0}",
+                    },
+                    title: {
+                      data: "[item]/name",
+                    },
+                  },
+                  child: [
+                    {
+                      type: "text",
+                      value: "x",
+                    },
+                  ],
                 },
               ],
             },
@@ -94,36 +95,40 @@ describe("атрибуты в массивах - вложенность", () => 
           type: "el",
           child: [
             {
-              tag: "section",
-              type: "el",
-              item: {
-                src: "core",
-                key: "groups",
-              },
+              type: "map",
+              data: "/core/groups",
               child: [
                 {
-                  tag: "span",
+                  tag: "section",
                   type: "el",
-                  item: {
-                    src: ["core", "groups"],
-                    key: "items",
-                  },
-                  attrs: {
-                    class: {
-                      template: "g-${0} i-${1}",
-                      items: [
-                        { src: ["core", "groups"], key: "id" },
-                        { src: ["core", "groups", "items"], key: "id" },
-                      ],
-                    },
-                  },
                   child: [
                     {
-                      type: "text",
-                      value: {
-                        key: "label",
-                        src: ["core", "groups", "items"],
-                      },
+                      type: "map",
+                      data: "[item]/items",
+                      child: [
+                        {
+                          tag: "span",
+                          type: "el",
+                          array: {
+                            class: [
+                              {
+                                data: "../[item]/id",
+                                expr: "g-${0}",
+                              },
+                              {
+                                data: "[item]/id",
+                                expr: "i-${0}",
+                              },
+                            ],
+                          },
+                          child: [
+                            {
+                              type: "text",
+                              data: "[item]/label",
+                            },
+                          ],
+                        },
+                      ],
                     },
                   ],
                 },
@@ -176,42 +181,54 @@ describe("атрибуты в массивах - вложенность", () => 
           type: "el",
           child: [
             {
-              tag: "section",
-              type: "el",
-              item: {
-                src: "core",
-                key: "a",
-              },
+              type: "map",
+              data: "/core/a",
               child: [
                 {
-                  tag: "ul",
+                  tag: "section",
                   type: "el",
-                  item: {
-                    src: ["core", "a"],
-                    key: "b",
-                  },
                   child: [
                     {
-                      tag: "li",
-                      type: "el",
-                      item: {
-                        src: ["core", "a", "b"],
-                        key: "c",
-                      },
-                      attrs: {
-                        class: {
-                          items: [
-                            { src: "core", key: "a" },
-                            { src: ["core", "a", "b"], key: "c" },
-                            { src: ["core", "a", "b", "c"], key: "id" },
-                          ],
-                          template: "a-${0} b-${1} c-${2}",
-                        },
-                      },
+                      type: "map",
+                      data: "[item]/b",
                       child: [
                         {
-                          type: "text",
-                          value: "x",
+                          tag: "ul",
+                          type: "el",
+                          child: [
+                            {
+                              type: "map",
+                              data: "[item]/c",
+                              child: [
+                                {
+                                  tag: "li",
+                                  type: "el",
+                                  array: {
+                                    class: [
+                                      {
+                                        data: "/core/a",
+                                        expr: "a-${0}",
+                                      },
+                                      {
+                                        data: "../[item]/c",
+                                        expr: "b-${0}",
+                                      },
+                                      {
+                                        data: "[item]/id",
+                                        expr: "c-${0}",
+                                      },
+                                    ],
+                                  },
+                                  child: [
+                                    {
+                                      type: "text",
+                                      value: "x",
+                                    },
+                                  ],
+                                },
+                              ],
+                            },
+                          ],
                         },
                       ],
                     },
@@ -304,52 +321,64 @@ describe("атрибуты в массивах - вложенность", () => 
           type: "el",
           child: [
             {
-              tag: "section",
-              type: "el",
-              item: {
-                src: "core",
-                key: "list",
-              },
-              attrs: {
-                "data-g": {
-                  src: ["core", "list"],
-                  key: "gid",
-                },
-              },
+              type: "map",
+              data: "/core/list",
               child: [
                 {
-                  tag: "ul",
+                  tag: "section",
                   type: "el",
-                  item: {
-                    src: ["core", "list"],
-                    key: "children",
+                  string: {
+                    "data-g": {
+                      data: "[item]/gid",
+                    },
                   },
                   child: [
                     {
-                      tag: "li",
-                      type: "el",
-                      item: {
-                        src: ["core", "list", "children"],
-                        key: "items",
-                      },
-                      attrs: {
-                        class: {
-                          items: [
-                            { src: ["core", "list"], key: "gid" },
-                            { src: ["core", "list", "children"], key: "cid" },
-                            { src: ["core", "list", "children", "items"], key: "id" },
-                          ],
-                          template: "g-${0} ch-${1} i-${2}",
-                        },
-                        title: {
-                          src: ["core", "list", "children", "items"],
-                          key: "name",
-                        },
-                      },
+                      type: "map",
+                      data: "[item]/children",
                       child: [
                         {
-                          type: "text",
-                          value: "ok",
+                          tag: "ul",
+                          type: "el",
+                          child: [
+                            {
+                              type: "map",
+                              data: "[item]/items",
+                              child: [
+                                {
+                                  tag: "li",
+                                  type: "el",
+                                  array: {
+                                    class: [
+                                      {
+                                        data: "../../[item]/gid",
+                                        expr: "g-${0}",
+                                      },
+                                      {
+                                        data: "../[item]/cid",
+                                        expr: "ch-${0}",
+                                      },
+                                      {
+                                        data: "[item]/id",
+                                        expr: "i-${0}",
+                                      },
+                                    ],
+                                  },
+                                  child: [
+                                    {
+                                      type: "text",
+                                      value: "ok",
+                                    },
+                                  ],
+                                  string: {
+                                    title: {
+                                      data: "[item]/name",
+                                    },
+                                  },
+                                },
+                              ],
+                            },
+                          ],
                         },
                       ],
                     },

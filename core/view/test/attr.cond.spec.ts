@@ -20,17 +20,10 @@ describe("условные атрибуты", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               class: {
-                items: [
-                  {
-                    src: "context",
-                    key: "count",
-                  },
-                ],
-                true: "active",
-                false: "inactive",
-                template: "10>${0}&&${0}<3",
+                data: "/context/count",
+                expr: '10 > ${0} && ${0} < 3 ? "active" : "inactive"',
               },
             },
             child: [
@@ -59,21 +52,10 @@ describe("условные атрибуты", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               class: {
-                items: [
-                  {
-                    src: "core",
-                    key: "isActive",
-                  },
-                  {
-                    src: "context",
-                    key: "isActive",
-                  },
-                ],
-                true: "active",
-                false: "inactive",
-                template: "${0}===${1}",
+                data: ["/core/isActive", "/context/isActive"],
+                expr: '${0} === ${1} ? "active" : "inactive"',
               },
             },
             child: [
@@ -109,33 +91,10 @@ describe("условные атрибуты", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               class: {
-                items: [
-                  {
-                    src: "core",
-                    key: "isActive",
-                  },
-                  {
-                    src: "context",
-                    key: "isActive",
-                  },
-                ],
-                true: {
-                  items: [
-                    {
-                      src: "context",
-                      key: "item",
-                    },
-                    {
-                      src: "context",
-                      key: "status",
-                    },
-                  ],
-                  template: "${0}-active-${1}",
-                },
-                false: "inactive",
-                template: "${0}===${1}",
+                data: ["/core/isActive", "/context/isActive", "/context/item", "/active", "/context/status"],
+                expr: '${0} === ${1} ? `${${2}}-${3}-${${4}}` : "inactive"',
               },
             },
             child: [
@@ -162,11 +121,9 @@ describe("условные атрибуты", () => {
             {
               tag: "button",
               type: "el",
-              attrs: {
+              boolean: {
                 disabled: {
-                  src: "context",
-                  key: "cannotEdit",
-                  true: "disabled",
+                  data: "/context/cannotEdit",
                 },
               },
               child: [
@@ -199,11 +156,9 @@ describe("условные атрибуты", () => {
             {
               tag: "input",
               type: "el",
-              attrs: {
+              boolean: {
                 readonly: {
-                  src: "core",
-                  key: "isReadOnly",
-                  true: "readonly",
+                  data: "/core/isReadOnly",
                 },
               },
             },
@@ -243,24 +198,24 @@ describe("условные атрибуты", () => {
               type: "el",
               child: [
                 {
-                  tag: "span",
-                  type: "el",
-                  item: {
-                    src: "core",
-                    key: "items",
-                  },
-                  attrs: {
-                    class: {
-                      src: ["core", "items"],
-                      key: "isSpecial",
-                      true: "special",
-                      false: "normal",
-                    },
-                  },
+                  type: "map",
+                  data: "/core/items",
                   child: [
                     {
-                      type: "text",
-                      value: { src: ["core", "items"], key: "name" },
+                      tag: "span",
+                      type: "el",
+                      string: {
+                        class: {
+                          data: "[item]/isSpecial",
+                          expr: '${0} ? "special" : "normal"',
+                        },
+                      },
+                      child: [
+                        {
+                          type: "text",
+                          data: "[item]/name",
+                        },
+                      ],
                     },
                   ],
                 },
@@ -302,24 +257,24 @@ describe("условные атрибуты", () => {
               type: "el",
               child: [
                 {
-                  tag: "span",
-                  type: "el",
-                  item: {
-                    src: "core",
-                    key: "items",
-                  },
-                  attrs: {
-                    class: {
-                      src: ["core", "items"],
-                      key: "isSpecial",
-                      true: "special",
-                      false: "normal",
-                    },
-                  },
+                  type: "map",
+                  data: "/core/items",
                   child: [
                     {
-                      type: "text",
-                      value: { src: ["core", "items"], key: "name" },
+                      tag: "span",
+                      type: "el",
+                      string: {
+                        class: {
+                          data: "[item]/isSpecial",
+                          expr: '${0} ? "special" : "normal"',
+                        },
+                      },
+                      child: [
+                        {
+                          type: "text",
+                          data: "[item]/name",
+                        },
+                      ],
                     },
                   ],
                 },
@@ -361,24 +316,24 @@ describe("условные атрибуты", () => {
               type: "el",
               child: [
                 {
-                  tag: "span",
-                  type: "el",
-                  item: {
-                    src: "core",
-                    key: "items",
-                  },
-                  attrs: {
-                    class: {
-                      src: ["core", "items"],
-                      key: "isSpecial",
-                      true: "special",
-                      false: "normal",
-                    },
-                  },
+                  type: "map",
+                  data: "/core/items",
                   child: [
                     {
-                      type: "text",
-                      value: { src: ["core", "items"], key: "name" },
+                      tag: "span",
+                      type: "el",
+                      string: {
+                        class: {
+                          data: "[item]/isSpecial",
+                          expr: '${0} ? "special" : "normal"',
+                        },
+                      },
+                      child: [
+                        {
+                          type: "text",
+                          data: "[item]/name",
+                        },
+                      ],
                     },
                   ],
                 },
@@ -432,45 +387,30 @@ describe("условные атрибуты", () => {
               type: "el",
               child: [
                 {
-                  tag: "span",
-                  type: "el",
-                  item: {
-                    src: "core",
-                    key: "items",
-                  },
-                  attrs: {
-                    class: {
-                      items: [
-                        {
-                          src: ["core", "items"],
-                          key: "isSpecial",
-                        },
-                        {
-                          src: "context",
-                          key: "isActive",
-                        },
-                      ],
-                      true: {
-                        items: [
-                          {
-                            src: ["core", "items"],
-                            key: "name",
-                          },
-                          {
-                            src: "context",
-                            key: "status",
-                          },
-                        ],
-                        template: "${0}-active-${1}",
-                      },
-                      false: "normal",
-                      template: "${0}===${1}",
-                    },
-                  },
+                  type: "map",
+                  data: "/core/items",
                   child: [
                     {
-                      type: "text",
-                      value: { src: ["core", "items"], key: "name" },
+                      tag: "div",
+                      type: "el",
+                      string: {
+                        class: {
+                          data: [
+                            "[item]/isSpecial",
+                            "[item]/context/isActive",
+                            "[item]/name",
+                            "[item]/active",
+                            "[item]/context/status",
+                          ],
+                          expr: '${0} === ${1} ? `${${2}}-${3}-${${4}}` : "inactive"',
+                        },
+                      },
+                      child: [
+                        {
+                          type: "text",
+                          value: "Content",
+                        },
+                      ],
                     },
                   ],
                 },
@@ -511,23 +451,24 @@ describe("условные атрибуты", () => {
               type: "el",
               child: [
                 {
-                  tag: "div",
-                  type: "el",
-                  item: {
-                    src: "core",
-                    key: "users",
-                  },
-                  attrs: {
-                    class: {
-                      src: ["core", "users"],
-                      key: "isAdmin",
-                      true: "admin-user",
-                    },
-                  },
+                  type: "map",
+                  data: "/core/users",
                   child: [
                     {
-                      type: "text",
-                      value: { src: ["core", "users"], key: "name" },
+                      tag: "div",
+                      type: "el",
+                      string: {
+                        class: {
+                          data: "[item]/isAdmin",
+                          expr: '${0} && "admin-user"',
+                        },
+                      },
+                      child: [
+                        {
+                          type: "text",
+                          data: "[item]/name",
+                        },
+                      ],
                     },
                   ],
                 },
@@ -561,14 +502,14 @@ describe("условные атрибуты", () => {
             {
               tag: "div",
               type: "el",
-              attrs: {
+              array: {
                 class: [
-                  "btn",
                   {
-                    src: "context",
-                    key: "isLarge",
-                    true: "btn-lg",
-                    false: "btn-sm",
+                    value: "btn",
+                  },
+                  {
+                    data: "/context/isLarge",
+                    expr: '${0} ? "btn-lg" : "btn-sm"',
                   },
                 ],
               },
@@ -600,20 +541,10 @@ describe("условные атрибуты", () => {
             {
               tag: "div",
               type: "el",
-              attrs: {
+              string: {
                 class: {
-                  src: "context",
-                  key: "theme",
-                  true: {
-                    src: "context",
-                    key: "theme",
-                    template: "prefix-${0}",
-                  },
-                  false: {
-                    src: "context",
-                    key: "theme",
-                    template: "prefix-${0}",
-                  },
+                  data: "/context/theme",
+                  expr: 'prefix-${0 ? "dark" : "light"}',
                 },
               },
               child: [
@@ -645,12 +576,10 @@ describe("условные атрибуты", () => {
             {
               tag: "div",
               type: "el",
-              attrs: {
+              string: {
                 class: {
-                  src: "context",
-                  key: "status",
-                  true: "active-status",
-                  false: "inactive-status",
+                  data: "/context/status",
+                  expr: '${0 ? "active" : "inactive"}-status',
                 },
               },
               child: [
@@ -683,12 +612,10 @@ describe("условные атрибуты", () => {
             {
               tag: "div",
               type: "el",
-              attrs: {
+              string: {
                 class: {
-                  src: "context",
-                  key: "always",
-                  true: "same",
-                  false: "same",
+                  data: "/context/always",
+                  expr: '${0} ? "same" : "same"',
                 },
               },
               child: [

@@ -11,8 +11,11 @@ describe("стандартные события on*", () => {
         {
           tag: "button",
           type: "el",
-          attrs: {
-            onclick: "${() => context.onClick()}",
+          event: {
+            onclick: {
+              data: "/context/onClick",
+              expr: "() => ${0}()",
+            },
           },
           child: [
             {
@@ -35,8 +38,11 @@ describe("стандартные события on*", () => {
         {
           tag: "button",
           type: "el",
-          attrs: {
-            onclick: "${() => context.onClick()}",
+          event: {
+            onclick: {
+              data: "/context/onClick",
+              expr: "() => ${0}()",
+            },
           },
           child: [{ type: "text", value: "OK" }],
         },
@@ -54,9 +60,6 @@ describe("стандартные события on*", () => {
         {
           tag: "button",
           type: "el",
-          attrs: {
-            onclick: "",
-          },
           child: [{ type: "text", value: "OK" }],
         },
       ])
@@ -74,9 +77,15 @@ describe("стандартные события on*", () => {
         {
           tag: "input",
           type: "el",
-          attrs: {
-            onclick: "${() => core.onClick()}",
-            oninput: "${(e) => core.onInput(e)}",
+          event: {
+            onclick: {
+              data: "/core/onClick",
+              expr: "() => ${0}()",
+            },
+            oninput: {
+              data: "/core/onInput",
+              expr: "(e) => ${0}(e)",
+            },
           },
         },
       ])
@@ -93,7 +102,12 @@ describe("стандартные события on*", () => {
         {
           tag: "input",
           type: "el",
-          attrs: { oninput: "${(e) => core.onInput(e)}" },
+          event: {
+            oninput: {
+              data: "/core/onInput",
+              expr: "(e) => ${0}(e)",
+            },
+          },
         },
       ])
     })
@@ -115,22 +129,24 @@ describe("стандартные события on*", () => {
           type: "el",
           child: [
             {
-              tag: "li",
-              type: "el",
-              item: {
-                src: "context",
-                key: "items",
-              },
-              attrs: {
-                onclick: "",
-              },
+              type: "map",
+              data: "/context/items",
               child: [
                 {
-                  type: "text",
-                  value: {
-                    src: ["context", "items"],
-                    key: "name",
+                  tag: "li",
+                  type: "el",
+                  event: {
+                    onclick: {
+                      data: "[item]/onClick",
+                      expr: "() => ${0}()",
+                    },
                   },
+                  child: [
+                    {
+                      type: "text",
+                      data: "[item]/name",
+                    },
+                  ],
                 },
               ],
             },
@@ -158,22 +174,24 @@ describe("стандартные события on*", () => {
           type: "el",
           child: [
             {
-              tag: "button",
-              type: "el",
-              item: {
-                src: "context",
-                key: "buttons",
-              },
-              attrs: {
-                onclick: "",
-              },
+              type: "map",
+              data: "/context/buttons",
               child: [
                 {
-                  type: "text",
-                  value: {
-                    src: ["context", "buttons"],
-                    key: "text",
+                  tag: "button",
+                  type: "el",
+                  event: {
+                    onclick: {
+                      data: ["[item]/handleClick", "[item]/id"],
+                      expr: "(e) => ${0}(e, ${1})",
+                    },
                   },
+                  child: [
+                    {
+                      type: "text",
+                      data: "[item]/text",
+                    },
+                  ],
                 },
               ],
             },
@@ -186,21 +204,24 @@ describe("стандартные события on*", () => {
 
   describe("смешанные события и обычные атрибуты", () => {
     const view = new View({
-      render: ({ html, context }) => html`<form
-        onsubmit="${(e: Event) => context.handleSubmit(e)}"
-        class="form"
-        method="post">
-        <input type="text" onchange="${(e: Event) => context.handleChange(e)}" />
-        <button type="submit" onclick="${() => context.onClick()}">Submit</button>
-      </form>`,
+      render: ({ html, context }) =>
+        html`<form onsubmit="${(e: Event) => context.handleSubmit(e)}" class="form" method="post">
+          <input type="text" onchange="${(e: Event) => context.handleChange(e)}" />
+          <button type="submit" onclick="${() => context.onClick()}">Submit</button>
+        </form>`,
     })
     it("парсинг", () => {
       expect(view.schema, "смешанные события и обычные атрибуты").toEqual([
         {
           tag: "form",
           type: "el",
-          attrs: {
-            onsubmit: "${(e) => context.handleSubmit(e)}",
+          event: {
+            onsubmit: {
+              data: "/context/handleSubmit",
+              expr: "(e) => ${0}(e)",
+            },
+          },
+          string: {
             class: "form",
             method: "post",
           },
@@ -208,17 +229,27 @@ describe("стандартные события on*", () => {
             {
               tag: "input",
               type: "el",
-              attrs: {
+              event: {
+                onchange: {
+                  data: "/context/handleChange",
+                  expr: "(e) => ${0}(e)",
+                },
+              },
+              string: {
                 type: "text",
-                onchange: "EVENT_ATTR_1",
               },
             },
             {
               tag: "button",
               type: "el",
-              attrs: {
+              event: {
+                onclick: {
+                  data: "/context/onClick",
+                  expr: "() => ${0}()",
+                },
+              },
+              string: {
                 type: "submit",
-                onclick: "EVENT_ATTR_2",
               },
               child: [
                 {
@@ -244,14 +275,15 @@ describe("стандартные события on*", () => {
         {
           tag: "button",
           type: "el",
-          attrs: {
-            onclick: "${() => context.onClick()}",
+          event: {
+            onclick: {
+              data: "/context/onClick",
+              expr: "() => ${0}()",
+            },
+          },
+          boolean: {
             disabled: {
-              src: "context",
-              key: "isDisabled",
-              trueValue: "disabled",
-              falseValue: undefined,
-              type: "conditional",
+              data: "/context/isDisabled",
             },
           },
           child: [

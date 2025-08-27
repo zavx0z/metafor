@@ -15,10 +15,9 @@ describe("интерполяции в атрибутах", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               "data-user": {
-                src: "context",
-                key: "name",
+                data: "/context/name",
               },
             },
             child: [
@@ -50,10 +49,9 @@ describe("интерполяции в атрибутах", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               "data-config": {
-                src: "core",
-                key: "settings",
+                data: "/core/settings",
               },
             },
             child: [
@@ -91,18 +89,15 @@ describe("интерполяции в атрибутах", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               id: {
-                src: "context",
-                key: "userId",
+                data: "/context/userId",
               },
               class: {
-                src: "context",
-                key: "role",
+                data: "/context/role",
               },
               "data-name": {
-                src: "core",
-                key: "userName",
+                data: "/core/userName",
               },
             },
             child: [
@@ -137,10 +132,10 @@ describe("интерполяции в атрибутах", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               class: {
-                template: "btn-${0}",
-                items: [{ src: "context", key: "type" }],
+                data: "/context/type",
+                expr: "btn-${0}",
               },
             },
             child: [
@@ -172,10 +167,10 @@ describe("интерполяции в атрибутах", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               class: {
-                template: "${0}-mode",
-                items: [{ src: "context", key: "theme" }],
+                data: "/context/theme",
+                expr: "${0}-mode",
               },
             },
             child: [
@@ -207,10 +202,10 @@ describe("интерполяции в атрибутах", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               "data-key": {
-                template: "prefix-${0}-suffix",
-                items: [{ src: "core", key: "id" }],
+                data: "/core/id",
+                expr: "prefix-${0}-suffix",
               },
             },
             child: [
@@ -250,24 +245,25 @@ describe("интерполяции в атрибутах", () => {
             type: "el",
             child: [
               {
-                tag: "li",
-                type: "el",
-                attrs: {
-                  "data-id": {
-                    src: ["core", "items"],
-                    key: "id",
-                  },
-                },
+                type: "map",
+                data: "/core/items",
                 child: [
                   {
-                    type: "text",
-                    value: "Item",
+                    tag: "li",
+                    type: "el",
+                    string: {
+                      "data-id": {
+                        data: "[item]/id",
+                      },
+                    },
+                    child: [
+                      {
+                        type: "text",
+                        value: "Item",
+                      },
+                    ],
                   },
                 ],
-                item: {
-                  src: "core",
-                  key: "items",
-                },
               },
             ],
           },
@@ -302,22 +298,24 @@ describe("интерполяции в атрибутах", () => {
             type: "el",
             child: [
               {
-                tag: "li",
-                type: "el",
-                item: {
-                  src: "core",
-                  key: "items",
-                },
-                attrs: {
-                  class: {
-                    template: "item-${0}",
-                    items: [{ src: ["core", "items"], key: "type" }],
-                  },
-                },
+                type: "map",
+                data: "/core/items",
                 child: [
                   {
-                    type: "text",
-                    value: "Item",
+                    tag: "li",
+                    type: "el",
+                    string: {
+                      class: {
+                        data: "[item]/type",
+                        expr: "item-${0}",
+                      },
+                    },
+                    child: [
+                      {
+                        type: "text",
+                        value: "Item",
+                      },
+                    ],
                   },
                 ],
               },
@@ -360,30 +358,30 @@ describe("интерполяции в атрибутах", () => {
             type: "el",
             child: [
               {
-                tag: "li",
-                type: "el",
-                item: {
-                  src: "core",
-                  key: "items",
-                },
-                attrs: {
-                  "data-id": {
-                    src: ["core", "items"],
-                    key: "id",
-                  },
-                  class: {
-                    template: "item-${0}",
-                    items: [{ src: ["core", "items"], key: "type" }],
-                  },
-                  title: {
-                    src: ["core", "items"],
-                    key: "name",
-                  },
-                },
+                type: "map",
+                data: "/core/items",
                 child: [
                   {
-                    type: "text",
-                    value: "Item",
+                    tag: "li",
+                    type: "el",
+                    string: {
+                      "data-id": {
+                        data: "[item]/id",
+                      },
+                      class: {
+                        data: "[item]/type",
+                        expr: "item-${0}",
+                      },
+                      title: {
+                        data: "[item]/name",
+                      },
+                    },
+                    child: [
+                      {
+                        type: "text",
+                        value: "Item",
+                      },
+                    ],
                   },
                 ],
               },
@@ -419,16 +417,14 @@ describe("интерполяции в атрибутах", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               id: "static-id",
               class: {
-                src: "context",
-                key: "theme",
+                data: "/context/theme",
               },
               "data-fixed": "value",
               "data-dynamic": {
-                src: "core",
-                key: "version",
+                data: "/core/version",
               },
             },
             child: [
@@ -476,62 +472,70 @@ describe("интерполяции в атрибутах", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               class: "wrapper",
             },
             child: [
               {
-                tag: "span",
-                type: "el",
-                item: {
-                  src: "core",
-                  key: "items",
-                },
-                attrs: {
-                  "data-id": {
-                    src: ["core", "items"],
-                    key: "id",
-                  },
-                  class: {
-                    template: "static item-${0}",
-                    items: [{ src: ["core", "items"], key: "type" }],
-                  },
-                  title: {
-                    template: "Item: ${0}",
-                    items: [{ src: ["core", "items"], key: "name" }],
-                  },
-                },
+                type: "map",
+                data: "/core/items",
                 child: [
                   {
-                    type: "text",
-                    value: "Content",
+                    tag: "span",
+                    type: "el",
+                    array: {
+                      class: [
+                        {
+                          value: "static",
+                        },
+                        {
+                          data: "[item]/type",
+                          expr: "item-${0}",
+                        },
+                      ],
+                    },
+                    child: [
+                      {
+                        type: "text",
+                        value: " Content ",
+                      },
+                    ],
+                    string: {
+                      "data-id": {
+                        data: "[item]/id",
+                      },
+                      title: {
+                        data: ["[item]/Item", "[item]/name"],
+                        expr: "${0}: ${${1}}",
+                      },
+                    },
                   },
                 ],
               },
             ],
           },
         ])
-        it.skip("рендер", () => {
-          const element = document.createElement("div")
-          view.render({ container: element, core })
+      })
+      it.skip("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ container: element, core })
 
-          expect(element.innerHTML).toMatchStringHTML(html`
-            <div class="wrapper">
-              <span
-                data-id="${core.items[0].id}"
-                class="static item-${core.items[0].type}"
-                title="Item: ${core.items[0].name}">
-                Content
-              </span>
-              <span
-                data-id="${core.items[1].id}"
-                class="static item-${core.items[1].type}"
-                title="Item: ${core.items[1].name}">
-                Content
-              </span>
-            </div>
-          `)
-        })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <div class="wrapper">
+            <span
+              data-id="${core.items[0].id}"
+              class="static item-${core.items[0].type}"
+              title="Item: ${core.items[0].name}">
+              Content
+            </span>
+            <span
+              data-id="${core.items[1].id}"
+              class="static item-${core.items[1].type}"
+              title="Item: ${core.items[1].name}">
+              Content
+            </span>
+          </div>
+        `)
       })
     })
   })

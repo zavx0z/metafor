@@ -12,8 +12,8 @@ describe("булевы атрибуты", () => {
           {
             tag: "input",
             type: "el",
-            attrs: {
-              disabled: "",
+            boolean: {
+              disabled: true,
             },
           },
         ])
@@ -30,10 +30,10 @@ describe("булевы атрибуты", () => {
           {
             tag: "input",
             type: "el",
-            attrs: {
-              disabled: "",
-              readonly: "",
-              required: "",
+            boolean: {
+              disabled: true,
+              readonly: true,
+              required: true,
             },
           },
         ])
@@ -50,9 +50,11 @@ describe("булевы атрибуты", () => {
           {
             tag: "input",
             type: "el",
-            attrs: {
-              "data-required": "",
-              "aria-hidden": "",
+            boolean: {
+              "data-required": true,
+            },
+            array: {
+              "aria-hidden": [],
             },
           },
         ])
@@ -71,9 +73,11 @@ describe("булевы атрибуты", () => {
           {
             tag: "input",
             type: "el",
-            attrs: {
+            boolean: {
+              disabled: true,
+            },
+            string: {
               type: "text",
-              disabled: "",
             },
           },
         ])
@@ -90,9 +94,8 @@ describe("булевы атрибуты", () => {
           {
             tag: "button",
             type: "el",
-            attrs: {
-              disabled: "",
-              class: "btn",
+            boolean: {
+              disabled: true,
             },
             child: [
               {
@@ -100,6 +103,9 @@ describe("булевы атрибуты", () => {
                 value: "Submit",
               },
             ],
+            string: {
+              class: "btn",
+            },
           },
         ])
       })
@@ -115,11 +121,13 @@ describe("булевы атрибуты", () => {
           {
             tag: "input",
             type: "el",
-            attrs: {
+            boolean: {
+              checked: true,
+              disabled: true,
+              "data-test": true,
+            },
+            string: {
               type: "checkbox",
-              checked: "",
-              disabled: "",
-              "data-test": "",
             },
           },
         ])
@@ -138,10 +146,12 @@ describe("булевы атрибуты", () => {
           {
             tag: "input",
             type: "el",
-            attrs: {
+            boolean: {
+              required: true,
+            },
+            string: {
               type: "text",
               placeholder: "Enter name",
-              required: "",
             },
           },
         ])
@@ -158,10 +168,12 @@ describe("булевы атрибуты", () => {
           {
             tag: "img",
             type: "el",
-            attrs: {
+            boolean: {
+              loading: true,
+            },
+            string: {
               src: "image.jpg",
               alt: "Description",
-              loading: "",
             },
           },
         ])
@@ -189,17 +201,18 @@ describe("булевы атрибуты", () => {
               {
                 tag: "input",
                 type: "el",
-                attrs: {
+                boolean: {
+                  required: true,
+                },
+                string: {
                   type: "text",
-                  required: "",
                 },
               },
               {
                 tag: "button",
                 type: "el",
-                attrs: {
-                  type: "submit",
-                  disabled: "",
+                boolean: {
+                  disabled: true,
                 },
                 child: [
                   {
@@ -207,6 +220,9 @@ describe("булевы атрибуты", () => {
                     value: "Submit",
                   },
                 ],
+                string: {
+                  type: "submit",
+                },
               },
             ],
           },
@@ -226,9 +242,11 @@ describe("булевы атрибуты", () => {
           {
             tag: "input",
             type: "el",
-            attrs: {
+            boolean: {
+              disabled: true,
+            },
+            string: {
               type: "text",
-              disabled: "",
             },
           },
         ])
@@ -245,8 +263,10 @@ describe("булевы атрибуты", () => {
           {
             tag: "input",
             type: "el",
-            attrs: {
-              disabled: "",
+            boolean: {
+              disabled: true,
+            },
+            string: {
               type: "text",
             },
           },
@@ -264,10 +284,10 @@ describe("булевы атрибуты", () => {
           {
             tag: "input",
             type: "el",
-            attrs: {
-              disabled: "",
-              readonly: "",
-              required: "",
+            boolean: {
+              disabled: true,
+              readonly: true,
+              required: true,
             },
           },
         ])
