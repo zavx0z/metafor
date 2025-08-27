@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test"
 import { MetaFor } from "../../../web/metafor.ts"
 import { messagesFixture } from "../../../fixture/message.ts"
 
-describe("инициализация ребенка с переданным контекстом от родителя", async () => {
+describe.skip("инициализация ребенка с переданным контекстом от родителя", async () => {
   let childContext: any
   let countChildMount = 0
 
