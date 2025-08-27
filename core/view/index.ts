@@ -8,15 +8,15 @@ import type { ExtractValues, Update } from "../context/index.t.ts"
 import type { ContextSchema } from "../context/types.t.ts"
 import type { Core } from "../index.t.ts"
 import type { ViewDeclaration } from "./index.t.ts"
-import { parseTemplate } from "./parser/index.ts"
-import type { Schema } from "./parser/index.t.ts"
+import { parse } from "./parser/index.ts"
+import type { Node } from "./parser/index.t.ts"
 import { render } from "./render/index.ts"
 
 export type { ViewDeclaration }
 
 export class View<C extends ContextSchema, I extends Core = Record<string, any>, S extends string = string> {
   #style: ((params: { css: (strings: TemplateStringsArray, ...values: unknown[]) => void }) => void) | null = null
-  schema: Schema = []
+  schema: Node[] = []
 
   sheet: CSSStyleSheet | null = null
   path: string[] = []
@@ -42,8 +42,7 @@ export class View<C extends ContextSchema, I extends Core = Record<string, any>,
     }
     if (config.render) {
       try {
-        const htmlString = extractTemplateLiteral(config.render)
-        this.schema = parseTemplate(htmlString)
+        this.schema = parse(config.render)
       } catch (error) {
         console.warn("Не удалось распарсить шаблон:", error)
         this.schema = []
@@ -93,21 +92,6 @@ export class View<C extends ContextSchema, I extends Core = Record<string, any>,
 }
 
 /**
- * Извлекает template literal из view функции
- */
-export function extractTemplateLiteral(fn: Function): string {
-  const fnString = fn.toString()
-
-  // Извлекаем template literal через regex
-  const match = fnString.match(/html`([\s\S]*)`/)
-  if (!match) {
-    throw new Error("Не удалось найти template literal в функции")
-  }
-
-  return match[1]!
-}
-
-/**
  * Извлекает CSS template literal из style функции
  */
 export function extractCSSTemplateLiteral(fn: Function): string {
@@ -138,49 +122,4 @@ export function restoreCSSFunction(template: string) {
   // Создаем функцию через eval с фиксированными параметрами
   const functionString = `({ css }) => css\`${template}\``
   return eval(functionString)
-}
-
-/**
- * Создает статическую view функцию с заменой нескольких динамических хешей мет
- *
- * @param originalView - оригинальная view функция с динамическими хешами мет
- * @param replacements - объект с заменами { childHash: 'child-123', parentHash: 'parent-456' }
- * @returns новая view функция со статическими хешами мет
- *
- * @example
- * ```typescript
- * const originalView = ({ context, html }) => html`
- *   <div>
- *     <meta-${parentTag}>
- *       <meta-${childTag} context=${context}></meta-${childTag}>
- *     </meta-${parentTag}>
- *   </div>
- * `
- *
- * const staticView = createStaticViewFunctionWithReplacements(originalView, {
- *   parentHash: 'parent-123',
- *   childHash: 'child-456'
- * })
- * ```
- */
-export function createStaticViewFunctionWithReplacements(
-  originalView: Function,
-  replacements: Record<string, string>
-): Function {
-  // 1. Извлекаем template literal из оригинальной функции
-  const template = extractTemplateLiteral(originalView)
-
-  // 2. Заменяем все динамические хеши мет на статические
-  let staticTemplate = template
-  for (const [variableName, hashName] of Object.entries(replacements)) {
-    // Заменяем переменные в meta- элементах
-    // Ищем как переменные, так и их значения в кавычках
-    const regex1 = new RegExp(`meta-\\$\\{${variableName}\\}`, "g")
-    const regex2 = new RegExp(`meta-\\$\\{"${hashName}"\\}`, "g")
-    staticTemplate = staticTemplate.replace(regex1, `meta-${hashName}`)
-    staticTemplate = staticTemplate.replace(regex2, `meta-${hashName}`)
-  }
-
-  // 3. Создаем новую функцию с замененным шаблоном
-  return restoreViewFunction(staticTemplate)
 }

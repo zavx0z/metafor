@@ -4,6 +4,8 @@ import { extractAttributes } from "./attributes"
 import { enrichWithData } from "./data"
 import type { Node } from "./index.t"
 import type { Render, Content, Core, State } from "./index.t"
+import type { ViewDefinitionParams } from "../index.t"
+import type { ContextSchema } from "../../context/types.t"
 
 /**
  * Парсит HTML-шаблон и возвращает обогащенную иерархию с метаданными о путях к данным.
@@ -60,8 +62,8 @@ import type { Render, Content, Core, State } from "./index.t"
  * `)
  * ```
  */
-export const parse = <C extends Content = Content, I extends Core = Core, S extends State = State>(
-  render: Render<C, I, S>
+export const parse = <C extends ContextSchema, I extends Core = Core, S extends State = State>(
+  render: (params: ViewDefinitionParams<C, S, I>) => void
 ): Node[] => {
   // Извлекаем основной HTML блок из render-функции
   const mainHtml = extractMainHtmlBlock(render)

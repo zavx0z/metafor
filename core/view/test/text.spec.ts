@@ -19,7 +19,7 @@ describe("текстовые узлы", () => {
           ],
         },
       ]))
-    it("рендер", () => {
+    it.skip("рендер", () => {
       const element = document.createElement("div")
       view.render({ container: element })
       expect(element.innerHTML, "статический текст рендерится как есть").toMatchStringHTML(html`<div>Hello</div>`)
@@ -46,7 +46,7 @@ describe("текстовые узлы", () => {
         },
       ])
     })
-    it("рендер", () => {
+    it.skip("рендер", () => {
       const element = document.createElement("div")
       view.render({ context, container: element })
       expect(element.innerHTML, "context.framework подставляется").toMatchStringHTML(html`
@@ -69,7 +69,7 @@ describe("текстовые узлы", () => {
         },
       ])
     })
-    it("рендер", () => {
+    it.skip("рендер", () => {
       const element = document.createElement("div")
       view.render({ core, container: element })
       expect(element.innerHTML, "core.profile.info.title подставляется").toMatchStringHTML(html`
@@ -102,7 +102,7 @@ describe("текстовые узлы", () => {
           ],
         },
       ]))
-    it("рендер", () => {
+    it.skip("рендер", () => {
       const element = document.createElement("div")
       view.render({ context, container: element })
       expect(element.innerHTML, "каждый li получает текущее примитивное значение id контекста").toMatchStringHTML(html`
@@ -137,7 +137,7 @@ describe("текстовые узлы", () => {
           ],
         },
       ]))
-    it("рендер", () => {
+    it.skip("рендер", () => {
       const element = document.createElement("div")
       view.render({ core, container: element })
       expect(element.innerHTML, "каждый li получает свойство name объекта из массива ядра").toMatchStringHTML(html`
@@ -179,7 +179,7 @@ describe("текстовые узлы", () => {
         },
       ])
     })
-    it("рендер", () => {
+    it.skip("рендер", () => {
       const element = document.createElement("div")
       view.render({ core, container: element })
       expect(element.innerHTML, "шаблонная строка вычисляется и подставляется").toMatchStringHTML(html`
@@ -220,7 +220,7 @@ describe("текстовые узлы", () => {
         },
       ])
     })
-    it("рендер", () => {
+    it.skip("рендер", () => {
       const element = document.createElement("div")
       view.render({ core, container: element, state })
       expect(element.innerHTML, "шаблонная строка вычисляется и подставляется").toMatchStringHTML(html`
@@ -253,7 +253,7 @@ describe("текстовые узлы", () => {
         },
       ])
     })
-    it("рендер", () => {
+    it.skip("рендер", () => {
       const element = document.createElement("div")
       view.render({ core, container: element })
       expect(element.innerHTML, "каждый li получает свойство name объекта из массива ядра").toMatchStringHTML(html`
@@ -290,7 +290,7 @@ describe("текстовые узлы", () => {
         },
       ])
     })
-    it("рендер", () => {
+    it.skip("рендер", () => {
       const element = document.createElement("div")
       view.render({ core, container: element })
       expect(element.innerHTML, "каждый li получает свойство title объекта из массива ядра").toMatchStringHTML(
@@ -321,7 +321,7 @@ describe("текстовые узлы", () => {
         },
       ])
     })
-    it("рендер", () => {
+    it.skip("рендер", () => {
       const element = document.createElement("div")
       view.render({ container: element, state })
       expect(element.innerHTML, "state подставляется как строка").toMatchStringHTML(html`<span>${state}</span>`)

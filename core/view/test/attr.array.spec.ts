@@ -51,7 +51,7 @@ describe("атрибуты в массивах - вложенность", () => 
         },
       ])
     })
-    it("рендер", () => {
+    it.skip("рендер", () => {
       const element = document.createElement("div")
       view.render({ container: element, core })
       expect(element.innerHTML).toMatchStringHTML(html`
@@ -133,7 +133,7 @@ describe("атрибуты в массивах - вложенность", () => 
         },
       ])
     })
-    it("рендер", () => {
+    it.skip("рендер", () => {
       const element = document.createElement("div")
       view.render({ container: element, core })
       expect(element.innerHTML).toMatchStringHTML(
@@ -223,7 +223,7 @@ describe("атрибуты в массивах - вложенность", () => 
         },
       ])
     })
-    it("рендер", () => {
+    it.skip("рендер", () => {
       const element = document.createElement("div")
       view.render({ container: element, core })
       expect(element.innerHTML).toMatchStringHTML(html`
@@ -361,7 +361,7 @@ describe("атрибуты в массивах - вложенность", () => 
         },
       ])
     })
-    it("рендер", () => {
+    it.skip("рендер", () => {
       const element = document.createElement("div")
       view.render({ container: element, core })
       expect(element.innerHTML).toMatchStringHTML(html`

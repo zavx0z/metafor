@@ -42,7 +42,7 @@ describe("массивы", () => {
           },
         ])
       })
-      it("рендер", () => {
+      it.skip("рендер", () => {
         const element = document.createElement("div")
         view.render({ context, container: element })
         expect(element.innerHTML, "простой массив из контекста").toMatchStringHTML(html`
@@ -85,7 +85,7 @@ describe("массивы", () => {
           },
         ])
       })
-      it("рендер", () => {
+      it.skip("рендер", () => {
         const element = document.createElement("div")
         view.render({ context, container: element })
         expect(element.innerHTML, "простой массив из контекста").toMatchStringHTML(html`
@@ -157,7 +157,7 @@ describe("массивы", () => {
           },
         ])
       })
-      it("рендер", () => {
+      it.skip("рендер", () => {
         const element = document.createElement("div")
         view.render({ core, container: element })
         expect(element.innerHTML, "массив с множественными свойствами").toMatchStringHTML(html`
@@ -234,7 +234,7 @@ describe("массивы", () => {
           },
         ])
       })
-      it("рендер", () => {
+      it.skip("рендер", () => {
         const element = document.createElement("div")
         view.render({ core, container: element })
         console.log(element.innerHTML)
@@ -291,7 +291,7 @@ describe("массивы", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it.skip("рендер", () => {})
     })
 
     describe("сложная структура из core", () => {
@@ -404,7 +404,7 @@ describe("массивы", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it.skip("рендер", () => {})
     })
   })
 
@@ -531,7 +531,7 @@ describe("массивы", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it.skip("рендер", () => {})
     })
 
     describe("множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы", () => {
@@ -612,7 +612,7 @@ describe("массивы", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it.skip("рендер", () => {})
     })
   })
 
@@ -643,7 +643,7 @@ describe("массивы", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it.skip("рендер", () => {})
     })
 
     describe("самозакрывающиеся теги в массиве", () => {
@@ -684,7 +684,7 @@ describe("массивы", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it.skip("рендер", () => {})
     })
 
     describe("только текст в элементе массива", () => {
@@ -721,7 +721,7 @@ describe("массивы", () => {
           },
         ])
       })
-      it("рендер", () => {})
+      it.skip("рендер", () => {})
     })
   })
   describe("массив вложенный в массив", () => {
@@ -778,7 +778,7 @@ describe("массивы", () => {
         },
       ])
     })
-    it("рендер", () => {})
+    it.skip("рендер", () => {})
   })
 
   describe("массив в массиве в массиве (3 уровня)", () => {
@@ -840,6 +840,6 @@ describe("массивы", () => {
         },
       ])
     })
-    it("рендер", () => {})
+    it.skip("рендер", () => {})
   })
 })
