@@ -17,6 +17,7 @@ describe("meta", () => {
       })
       it.skip("рендер", () => {})
     })
+
     describe("актор web-component с самозакрывающимся тегом", () => {
       const view = new View({
         render: ({ html }) => html`<meta-hash />`,
@@ -31,6 +32,7 @@ describe("meta", () => {
       })
       it.skip("рендер", () => {})
     })
+
     describe("хеш-тег из core в самозакрывающемся теге", () => {
       const view = new View({
         render: ({ html, core }) => html`<meta-${core.actors.child} />`,
@@ -39,8 +41,8 @@ describe("meta", () => {
         expect(view.schema, "хеш-тег из core").toEqual([
           {
             tag: {
-              src: "core",
-              key: ["actors", "child"],
+              data: "/core/actors/child",
+              expr: "meta-${0}",
             },
             type: "meta",
           },
@@ -48,6 +50,7 @@ describe("meta", () => {
       })
       it.skip("рендер", () => {})
     })
+
     describe("хеш-тег из core", () => {
       const view = new View({
         render: ({ html, core }) => html`<meta-${core.actors.child}></meta-${core.actors.child}>`,
@@ -56,8 +59,8 @@ describe("meta", () => {
         expect(view.schema, "хеш-тег из core").toEqual([
           {
             tag: {
-              src: "core",
-              key: ["actors", "child"],
+              data: "/core/actors/child",
+              expr: "meta-${0}",
             },
             type: "meta",
           },
@@ -65,6 +68,7 @@ describe("meta", () => {
       })
       it.skip("рендер", () => {})
     })
+
     describe("meta-элемент с хеш-тегом из core и с передачей контекста", () => {
       const view = new View({
         render: ({ html, context, core }) => html`
@@ -78,27 +82,24 @@ describe("meta", () => {
       it("парсинг", () => {
         expect(view.schema, "meta-элемент с хеш-тегом из core и с передачей контекста").toEqual([
           {
+            object: {
+              context: {
+                count: "/context/parentCount",
+                message: "/context/parentMessage",
+              },
+            },
             tag: {
-              src: "core",
-              key: ["actors", "child"],
+              data: "/core/actors/child",
+              expr: "meta-${0}",
             },
             type: "meta",
-            context: {
-              message: {
-                src: "context",
-                key: "parentMessage",
-              },
-              count: {
-                src: "context",
-                key: "parentCount",
-              },
-            },
           },
         ])
       })
       it.skip("рендер", () => {})
     })
   })
+
   describe("объекты в атрибутах", () => {
     describe("интерполяция объекта context", () => {
       const view = new View({
@@ -113,18 +114,14 @@ describe("meta", () => {
       it("парсинг", () => {
         expect(view.schema, "интерполяция объекта context").toEqual([
           {
-            tag: "meta-hash",
-            type: "meta",
-            context: {
-              message: {
-                src: "context",
-                key: "parentMessage",
-              },
-              count: {
-                src: "context",
-                key: "parentCount",
+            object: {
+              context: {
+                count: "/context/parentCount",
+                message: "/context/parentMessage",
               },
             },
+            tag: "meta-hash",
+            type: "meta",
           },
         ])
       })
@@ -144,18 +141,14 @@ describe("meta", () => {
       it("парсинг", () => {
         expect(view.schema, "интерполяция объекта core").toEqual([
           {
-            tag: "meta-hash",
-            type: "meta",
-            core: {
-              socket: {
-                src: "core",
-                key: "socket",
-              },
-              apiService: {
-                src: "core",
-                key: "apiService",
+            object: {
+              core: {
+                apiService: "/core/apiService",
+                socket: "/core/socket",
               },
             },
+            tag: "meta-hash",
+            type: "meta",
           },
         ])
       })
@@ -179,28 +172,18 @@ describe("meta", () => {
       it("парсинг", () => {
         expect(view.schema, "смешанные объекты context и core").toEqual([
           {
+            object: {
+              context: {
+                count: "/context/parentCount",
+                message: "/context/parentMessage",
+              },
+              core: {
+                apiService: "/core/apiService",
+                socket: "/core/socket",
+              },
+            },
             tag: "meta-hash",
             type: "meta",
-            context: {
-              message: {
-                src: "context",
-                key: "parentMessage",
-              },
-              count: {
-                src: "context",
-                key: "parentCount",
-              },
-            },
-            core: {
-              socket: {
-                src: "core",
-                key: "socket",
-              },
-              apiService: {
-                src: "core",
-                key: "apiService",
-              },
-            },
           },
         ])
       })
@@ -222,22 +205,16 @@ describe("meta", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               class: "container",
             },
             child: [
               {
                 tag: {
-                  src: "core",
-                  key: ["actors", "child"],
+                  data: "/core/actors/child",
+                  expr: "meta-${0}",
                 },
                 type: "meta",
-                context: {
-                  message: {
-                    src: "context",
-                    key: "parentMessage",
-                  },
-                },
               },
             ],
           },
@@ -260,35 +237,23 @@ describe("meta", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               class: "container",
             },
             child: [
               {
                 tag: {
-                  src: "core",
-                  key: ["actors", "child1"],
+                  data: "/core/actors/child1",
+                  expr: "meta-${0}",
                 },
                 type: "meta",
-                context: {
-                  message: {
-                    src: "context",
-                    key: "message1",
-                  },
-                },
               },
               {
                 tag: {
-                  src: "core",
-                  key: ["actors", "child2"],
+                  data: "/core/actors/child2",
+                  expr: "meta-${0}",
                 },
                 type: "meta",
-                context: {
-                  message: {
-                    src: "context",
-                    key: "message2",
-                  },
-                },
               },
             ],
           },
@@ -321,10 +286,16 @@ describe("meta", () => {
       it("парсинг", () => {
         expect(view.schema, "meta-элемент с пустыми объектами").toEqual([
           {
+            object: {
+              context: {
+                context: "{}",
+              },
+              core: {
+                core: "{}",
+              },
+            },
             tag: "meta-hash",
             type: "meta",
-            context: {},
-            core: {},
           },
         ])
       })
@@ -338,15 +309,15 @@ describe("meta", () => {
       it("парсинг", () => {
         expect(view.schema, "meta-элемент с динамическим тегом и статическими атрибутами").toEqual([
           {
-            tag: {
-              src: "core",
-              key: ["actors", "child"],
-            },
-            type: "meta",
-            attrs: {
+            string: {
               class: "static-class",
               "data-test": "static-data",
             },
+            tag: {
+              data: "/core/actors/child",
+              expr: "meta-${0}",
+            },
+            type: "meta",
           },
         ])
       })
