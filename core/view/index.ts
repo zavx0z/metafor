@@ -9,7 +9,7 @@ import type { ContextSchema } from "../context/types.t.ts"
 import type { Core } from "../index.t.ts"
 import type { ViewDeclaration } from "./index.t.ts"
 import { parse } from "./parser/index.ts"
-import type { Node } from "./parser/index.t.ts"
+import type { Node, RenderParams } from "./parser/index.t.ts"
 import { render } from "./render/index.ts"
 
 export type { ViewDeclaration }
@@ -42,7 +42,7 @@ export class View<C extends ContextSchema, I extends Core = Record<string, any>,
     }
     if (config.render) {
       try {
-        this.schema = parse(config.render)
+        this.schema = parse(config.render as any)
       } catch (error) {
         console.warn("Не удалось распарсить шаблон:", error)
         this.schema = []

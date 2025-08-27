@@ -2,6 +2,7 @@ import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
 
 describe("булевы атрибуты", () => {
+  const html = String.raw
   describe("простые булевы атрибуты", () => {
     describe("один булев атрибут", () => {
       const view = new View({
@@ -18,7 +19,11 @@ describe("булевы атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ container: element })
+        expect(element.innerHTML).toMatchStringHTML(html`<input disabled />`)
+      })
     })
 
     describe("несколько булевых атрибутов", () => {
@@ -38,7 +43,12 @@ describe("булевы атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ container: element })
+        console.log(element.innerHTML)
+        expect(element.innerHTML).toMatchStringHTML(html`<input disabled readonly required />`)
+      })
     })
 
     describe("булевы атрибуты с дефисами", () => {
@@ -52,14 +62,16 @@ describe("булевы атрибуты", () => {
             type: "el",
             boolean: {
               "data-required": true,
-            },
-            array: {
-              "aria-hidden": [],
+              "aria-hidden": true,
             },
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ container: element })
+        expect(element.innerHTML).toMatchStringHTML(html`<input data-required aria-hidden />`)
+      })
     })
   })
 
@@ -82,7 +94,11 @@ describe("булевы атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ container: element })
+        expect(element.innerHTML).toMatchStringHTML(html`<input type="text" disabled />`)
+      })
     })
 
     describe("обычный атрибут с булевым", () => {
@@ -109,7 +125,11 @@ describe("булевы атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ container: element })
+        expect(element.innerHTML).toMatchStringHTML(html`<button disabled class="btn">Submit</button>`)
+      })
     })
 
     describe("смешанные атрибуты", () => {
@@ -132,7 +152,11 @@ describe("булевы атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ container: element })
+        expect(element.innerHTML).toMatchStringHTML(html`<input type="checkbox" checked disabled data-test />`)
+      })
     })
   })
 
@@ -156,7 +180,11 @@ describe("булевы атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ container: element })
+        expect(element.innerHTML).toMatchStringHTML(html`<input type="text" placeholder="Enter name" required />`)
+      })
     })
 
     describe("img с булевыми атрибутами", () => {
@@ -178,7 +206,11 @@ describe("булевы атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ container: element })
+        expect(element.innerHTML).toMatchStringHTML(html`<img src="image.jpg" alt="Description" loading />`)
+      })
     })
   })
 
@@ -228,7 +260,16 @@ describe("булевы атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ container: element })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <form>
+            <input type="text" required />
+            <button type="submit" disabled>Submit</button>
+          </form>
+        `)
+      })
     })
   })
 
@@ -251,7 +292,11 @@ describe("булевы атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ container: element })
+        expect(element.innerHTML).toMatchStringHTML(html`<input disabled type="text" />`)
+      })
     })
 
     describe("булев атрибут в начале", () => {
@@ -272,7 +317,11 @@ describe("булевы атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ container: element })
+        expect(element.innerHTML).toMatchStringHTML(html`<input disabled type="text" />`)
+      })
     })
 
     describe("только булевы атрибуты", () => {
@@ -292,7 +341,11 @@ describe("булевы атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({ container: element })
+        expect(element.innerHTML).toMatchStringHTML(html`<input disabled readonly required />`)
+      })
     })
   })
 })

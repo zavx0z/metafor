@@ -571,16 +571,6 @@ describe("комплексные тесты с множественными ат
         '<div class="" rel="" title="" disabled ${context.visible && "visible"} ${context.active && "active"}>'
       )
       expect(attrs).toEqual({
-        string: {
-          title: {
-            type: "static",
-            value: "",
-          },
-        },
-        array: {
-          class: [],
-          rel: [],
-        },
         boolean: {
           disabled: { type: "static", value: true },
           visible: { type: "dynamic", value: "context.visible" },

@@ -1,15 +1,15 @@
 // Входные данные
-export type Content = Record<string, string | number | boolean | null | Array<string | number | boolean | null>>
+export type Context = Record<string, string | number | boolean | null | Array<string | number | boolean | null>>
 export type Core = Record<string, any>
 export type State = string
 
-export type Render<C extends Content = Content, I extends Core = Core, S extends State = State> = (args: {
+export type RenderParams<C extends Context, I extends Core = Core, S extends State = State> = {
   html: (strings: TemplateStringsArray, ...values: any[]) => string
   core: I
   context: C
   state: State
   update: (context: Partial<C>) => void
-}) => void
+}
 
 import type { ParseAttributeResult } from "./data.t"
 

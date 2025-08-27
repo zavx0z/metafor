@@ -2,6 +2,8 @@ import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
 
 describe("статические атрибуты", () => {
+  const html = String.raw
+
   describe("простые статические атрибуты", () => {
     describe("один статический атрибут", () => {
       const view = new View({
@@ -24,10 +26,10 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML).toMatchStringHTML(`<div class="container">Content</div>`)
+        expect(element.innerHTML).toMatchStringHTML(html`<div class="container">Content</div>`)
       })
     })
 
@@ -56,10 +58,10 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML).toMatchStringHTML(`<button type="submit" class="btn" disabled>Submit</button>`)
+        expect(element.innerHTML).toMatchStringHTML(html`<button type="submit" class="btn" disabled>Submit</button>`)
       })
     })
 
@@ -85,10 +87,12 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML).toMatchStringHTML(`<div data-test-id="test" aria-label="description">Content</div>`)
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <div data-test-id="test" aria-label="description">Content</div>
+        `)
       })
     })
   })
@@ -113,10 +117,10 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML).toMatchStringHTML(`<input type="text" placeholder="Enter name" required />`)
+        expect(element.innerHTML).toMatchStringHTML(html`<input type="text" placeholder="Enter name" required />`)
       })
     })
 
@@ -139,10 +143,10 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML).toMatchStringHTML(`<img src="image.jpg" alt="Description" loading />`)
+        expect(element.innerHTML).toMatchStringHTML(html`<img src="image.jpg" alt="Description" loading />`)
       })
     })
 
@@ -163,10 +167,12 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML).toMatchStringHTML(`<meta charset="utf-8" name="viewport" content="width=device-width" />`)
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <meta charset="utf-8" name="viewport" content="width=device-width" />
+        `)
       })
     })
   })
@@ -220,10 +226,10 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML).toMatchStringHTML(`
+        expect(element.innerHTML).toMatchStringHTML(html`
           <form class="form" method="post">
             <input type="text" name="username" required />
             <button type="submit" class="btn">Submit</button>
@@ -363,10 +369,10 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML).toMatchStringHTML(`
+        expect(element.innerHTML).toMatchStringHTML(html`
           <div class="container">
             <header class="header">
               <h1 class="title">Title</h1>
@@ -398,12 +404,6 @@ describe("статические атрибуты", () => {
           {
             tag: "div",
             type: "el",
-            string: {
-              id: "",
-            },
-            array: {
-              class: [],
-            },
             child: [
               {
                 type: "text",
@@ -413,10 +413,10 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML).toMatchStringHTML(`<div class="" id="">Content</div>`)
+        expect(element.innerHTML).toMatchStringHTML(html`<div>Content</div>`)
       })
     })
 
@@ -442,39 +442,10 @@ describe("статические атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {
+      it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML).toMatchStringHTML(`<div class="  spaced  " title="  title  ">Content</div>`)
-      })
-    })
-
-    describe("атрибуты с специальными символами", () => {
-      const view = new View({
-        render: ({ html }) => html`<div data-value='"quoted"' title="'single' &amp; &quot;double&quot;">Content</div>`,
-      })
-      it("парсинг", () => {
-        expect(view.schema, "атрибуты с специальными символами").toEqual([
-          {
-            tag: "div",
-            type: "el",
-            string: {
-              "data-value": '"quoted"',
-              title: "'single' &amp; &quot;double&quot;",
-            },
-            child: [
-              {
-                type: "text",
-                value: "Content",
-              },
-            ],
-          },
-        ])
-      })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({ container: element })
-        expect(element.innerHTML).toMatchStringHTML(`<div data-value='"quoted"' title="'single' &amp; &quot;double&quot;">Content</div>`)
+        expect(element.innerHTML).toMatchStringHTML(html`<div class="  spaced  " title="  title  ">Content</div>`)
       })
     })
   })

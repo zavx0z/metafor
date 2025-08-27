@@ -85,6 +85,15 @@ function normalizeValueForOutput(token: string): string {
   return token
 }
 
+/** Проверить, является ли значение атрибута пустым */
+function isEmptyAttributeValue(value: string | null): boolean {
+  if (value === null) return false
+  // Если значение содержит динамические выражения, не считаем его пустым
+  if (value.includes("${")) return false
+  const normalized = normalizeValueForOutput(value)
+  return normalized === "" || normalized.trim() === ""
+}
+
 /** Резка по разделителю на верхнем уровне (вне кавычек и ${...}) */
 function splitTopLevel(raw: string, sep: string): string[] {
   const out: string[] = []
@@ -231,7 +240,8 @@ const BUILTIN_LIST_SPLITTERS: Record<string, SplitterResolved> = {
 
 function getBuiltinResolved(name: string): SplitterResolved | null {
   const lower = name.toLowerCase()
-  if (lower.startsWith("aria-")) return { fn: splitBySpace, delim: " " }
+  // aria-hidden является булевым атрибутом, а не списковым
+  if (lower.startsWith("aria-") && lower !== "aria-hidden") return { fn: splitBySpace, delim: " " }
   return BUILTIN_LIST_SPLITTERS[lower] || null
 }
 
@@ -567,6 +577,9 @@ export const parseAttributes = (
 
     // class — обрабатываем как обычный списковый атрибут
     if (name === "class") {
+      if (isEmptyAttributeValue(value)) {
+        continue
+      }
       const tokens = splitBySpace(value ?? "")
       // Если только одно значение, обрабатываем как строку
       if (tokens.length === 1) {
@@ -589,6 +602,9 @@ export const parseAttributes = (
     {
       const resolved = getBuiltinResolved(name)
       if (resolved) {
+        if (isEmptyAttributeValue(value)) {
+          continue
+        }
         const tokens = resolved.fn(value ?? "")
         // Если только одно значение, обрабатываем как строку
         if (tokens.length === 1) {
@@ -629,9 +645,11 @@ export const parseAttributes = (
     }
 
     // string
-    ensure.string()[name] = {
-      type: classifyValue(value ?? ""),
-      value: normalizeValueForOutput(value ?? ""),
+    if (!isEmptyAttributeValue(value)) {
+      ensure.string()[name] = {
+        type: classifyValue(value ?? ""),
+        value: normalizeValueForOutput(value ?? ""),
+      }
     }
   }
 

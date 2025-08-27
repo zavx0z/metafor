@@ -3,6 +3,7 @@ import { extractHtmlElements, extractMainHtmlBlock } from "../splitter"
 import { makeHierarchy } from "../hierarchy"
 import { enrichWithData } from "../data"
 import { extractAttributes } from "../attributes"
+import { parse } from "../index"
 
 describe("атрибуты", () => {
   describe("namespace", () => {
@@ -52,7 +53,22 @@ describe("атрибуты", () => {
         },
       ]))
   })
-
+  describe("пустые значения", () => {
+    const data = parse(({ html }) => html`<div class="" id="">Content</div>`)
+    it("data", () =>
+      expect(data).toEqual([
+        {
+          tag: "div",
+          type: "el",
+          child: [
+            {
+              type: "text",
+              value: "Content",
+            },
+          ],
+        },
+      ]))
+  })
   describe("двойные/одинарные кавычки", () => {
     const mainHtml = extractMainHtmlBlock(({ html }) => html`<a href="https://e.co" target="_blank">x</a>`)
 
@@ -174,6 +190,7 @@ describe("атрибуты", () => {
   })
 
   describe("условие в атрибуте", () => {
+    //@ts-ignore
     const mainHtml = extractMainHtmlBlock<{ flag: boolean }>(
       ({ html, context }) => html`<div title="${context.flag ? "a > b" : "c < d"}"></div>`
     )
@@ -227,6 +244,7 @@ describe("атрибуты", () => {
   })
 
   describe("условие в аттрибуте без кавычек", () => {
+    //@ts-ignore
     const mainHtml = extractMainHtmlBlock<{ flag: boolean }>(
       ({ html, context }) => html`<div title=${context.flag ? "a > b" : "c < d"}></div>`
     )
@@ -280,6 +298,7 @@ describe("атрибуты", () => {
   })
 
   describe("условие в аттрибуте с одинарными кавычками", () => {
+    //@ts-ignore
     const mainHtml = extractMainHtmlBlock<{ flag: boolean }>(
       // prettier-ignore
       ({ html, context }) => html`<div title='${context.flag ? "a > b" : "c < d"}'></div>`
@@ -335,6 +354,7 @@ describe("атрибуты", () => {
   })
 
   it("булевые атрибуты", () => {
+    //@ts-ignore
     const mainHtml = extractMainHtmlBlock<{ flag: boolean }>(
       ({ html, context }) => html`<button ${context.flag && "disabled"}></button>`
     )
@@ -508,6 +528,7 @@ describe("атрибуты", () => {
   })
 
   describe("сложные условные атрибуты class", () => {
+    //@ts-ignore
     const mainHtml = extractMainHtmlBlock<{ active: boolean }>(
       ({ html, core }) => html`<div class="div-${core.active ? "active" : "inactive"}">Content</div>`
     )

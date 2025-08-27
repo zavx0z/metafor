@@ -3,9 +3,7 @@ import { makeHierarchy } from "./hierarchy"
 import { extractAttributes } from "./attributes"
 import { enrichWithData } from "./data"
 import type { Node } from "./index.t"
-import type { Render, Content, Core, State } from "./index.t"
-import type { ViewDefinitionParams } from "../index.t"
-import type { ContextSchema } from "../../context/types.t"
+import type { RenderParams, Context, Core, State } from "./index.t"
 
 /**
  * Парсит HTML-шаблон и возвращает обогащенную иерархию с метаданными о путях к данным.
@@ -62,8 +60,8 @@ import type { ContextSchema } from "../../context/types.t"
  * `)
  * ```
  */
-export const parse = <C extends ContextSchema, I extends Core = Core, S extends State = State>(
-  render: (params: ViewDefinitionParams<C, S, I>) => void
+export const parse = <C extends Context, I extends Core, S extends State>(
+  render: (params: RenderParams<C, I, S>) => void
 ): Node[] => {
   // Извлекаем основной HTML блок из render-функции
   const mainHtml = extractMainHtmlBlock(render)

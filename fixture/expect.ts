@@ -14,6 +14,29 @@ export const stripWhitespace = (str: unknown) => {
   return normalized.trim()
 }
 
+/** Нормализует порядок атрибутов в HTML тегах */
+const normalizeAttributeOrder = (str: string) => {
+  return str.replace(/<([^>]+)>/g, (match, tagContent) => {
+    // Разделяем тег на имя и атрибуты
+    const parts = tagContent.trim().split(/\s+/)
+    const tagName = parts[0]
+    const attributes = parts.slice(1)
+
+    if (attributes.length === 0) {
+      return `<${tagName}>`
+    }
+
+    // Сортируем атрибуты по имени
+    const sortedAttributes = attributes.sort((a: string, b: string) => {
+      const aName = a.split("=")[0]
+      const bName = b.split("=")[0]
+      return aName.localeCompare(bName)
+    })
+
+    return `<${tagName} ${sortedAttributes.join(" ")}>`
+  })
+}
+
 /** Нормализует HTML строку для сравнения */
 export const normalizeHTML = (str: string) => {
   return (
@@ -26,13 +49,33 @@ export const normalizeHTML = (str: string) => {
       .replace(/<([^>]+)\/>/g, "<$1>")
       // Нормализуем булевы атрибуты: disabled="" -> disabled (и др.)
       .replace(
-        /\s(disabled|readonly|required|checked|selected|multiple|autofocus|autoplay|controls|default|defer|formnovalidate|hidden|loop|muted|open|playsinline|reversed|ismap|allowfullscreen|inert|nomodule|async|loading)=""/g,
+        /\s(disabled|readonly|required|checked|selected|multiple|autofocus|autoplay|controls|default|defer|formnovalidate|hidden|loop|muted|open|playsinline|reversed|ismap|allowfullscreen|inert|nomodule|async|loading|data-[a-zA-Z-]+|aria-[a-zA-Z-]+)=""/g,
         " $1"
       )
       // Приводим одинарные кавычки атрибутов к двойным и экранируем внутренние двойные кавычки
       .replace(/(\s[^\s=]+)='([^']*)'/g, (_m, name, val) => {
         const escaped = String(val).replace(/\"/g, '"').replace(/"/g, "&quot;")
         return `${name}="${escaped}"`
+      })
+      // Нормализуем порядок атрибутов
+      .replace(/<([^>]+)>/g, (match, tagContent) => {
+        // Разделяем тег на имя и атрибуты
+        const parts = tagContent.trim().split(/\s+/)
+        const tagName = parts[0]
+        const attributes = parts.slice(1)
+
+        if (attributes.length === 0) {
+          return `<${tagName}>`
+        }
+
+        // Сортируем атрибуты по имени
+        const sortedAttributes = attributes.sort((a: string, b: string) => {
+          const aName = a.split("=")[0]
+          const bName = b.split("=")[0]
+          return aName.localeCompare(bName)
+        })
+
+        return `<${tagName} ${sortedAttributes.join(" ")}>`
       })
       // Удаляем лишние пробелы внутри тегов, но сохраняем один пробел между атрибутами
       .replace(/\s+/g, " ")

@@ -1,7 +1,5 @@
 import type { TagKind, TagToken } from "./splitter.t"
-import type { Core, State } from "./index.t"
-import type { ViewDefinitionParams } from "../index.t"
-import type { ContextSchema } from "../../context/types.t"
+import type { Context, Core, State, RenderParams } from "./index.t"
 
 // ============================================================================
 // HTML EXTRACTION
@@ -60,8 +58,8 @@ const shouldIgnoreAt = (input: string, i: number) => input[i + 1] === "!" || inp
  * @param {Render<C,I,S>} render - функция вида ({ html, context, core, state }) => html`...`
  * @returns {string} сырой HTML-текст внутри template literal
  */
-export const extractMainHtmlBlock = <C extends ContextSchema, I extends Core = Core, S extends State = State>(
-  render: (params: ViewDefinitionParams<C, S, I>) => void
+export const extractMainHtmlBlock = <C extends Context = Context, I extends Core = Core, S extends State = State>(
+  render: (params: RenderParams<C, I, S>) => void
 ): string => {
   const src = Function.prototype.toString.call(render)
   const firstIndex = src.indexOf("html`")

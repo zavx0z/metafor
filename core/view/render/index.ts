@@ -80,10 +80,24 @@ function renderElement<C extends ContextSchema>(
 ): HTMLElement {
   const element = document.createElement(node.tag)
 
-  // Добавляем атрибуты
+  // Добавляем строковые атрибуты
   if (node.string) {
     for (const [key, value] of Object.entries(node.string)) {
       element.setAttribute(key, String(value))
+    }
+  }
+
+  // Добавляем булевы атрибуты
+  if (node.boolean) {
+    for (const [key, value] of Object.entries(node.boolean)) {
+      if (value === true) {
+        // Проверяем, не установлен ли уже этот атрибут как строковый
+        if (!node.string || !(key in node.string)) {
+          element.setAttribute(key, "")
+        }
+      } else if (value === false) {
+        element.removeAttribute(key)
+      }
     }
   }
 
@@ -177,10 +191,24 @@ function renderElementWithItem<C extends ContextSchema>(
 ): HTMLElement {
   const element = document.createElement(node.tag)
 
-  // Добавляем атрибуты
+  // Добавляем строковые атрибуты
   if (node.string) {
     for (const [key, value] of Object.entries(node.string)) {
       element.setAttribute(key, String(value))
+    }
+  }
+
+  // Добавляем булевы атрибуты
+  if (node.boolean) {
+    for (const [key, value] of Object.entries(node.boolean)) {
+      if (value === true) {
+        // Проверяем, не установлен ли уже этот атрибут как строковый
+        if (!node.string || !(key in node.string)) {
+          element.setAttribute(key, "")
+        }
+      } else if (value === false) {
+        element.removeAttribute(key)
+      }
     }
   }
 
