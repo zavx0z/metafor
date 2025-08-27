@@ -2,7 +2,6 @@ import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
 
 describe("статические атрибуты", () => {
-  const html = String.raw
   describe("простые статические атрибуты", () => {
     describe("один статический атрибут", () => {
       const view = new View({
@@ -13,7 +12,7 @@ describe("статические атрибуты", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               class: "container",
             },
             child: [
@@ -28,9 +27,7 @@ describe("статические атрибуты", () => {
       it.skip("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML, "один статический атрибут").toMatchStringHTML(html`
-          <div class="container">Content</div>
-        `)
+        expect(element.innerHTML).toMatchStringHTML(`<div class="container">Content</div>`)
       })
     })
 
@@ -43,10 +40,12 @@ describe("статические атрибуты", () => {
           {
             tag: "button",
             type: "el",
-            attrs: {
-              type: "submit",
+            string: {
               class: "btn",
-              disabled: "",
+              type: "submit",
+            },
+            boolean: {
+              disabled: true,
             },
             child: [
               {
@@ -60,9 +59,7 @@ describe("статические атрибуты", () => {
       it.skip("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML, "несколько статических атрибутов").toMatchStringHTML(html`
-          <button type="submit" class="btn" disabled>Submit</button>
-        `)
+        expect(element.innerHTML).toMatchStringHTML(`<button type="submit" class="btn" disabled>Submit</button>`)
       })
     })
 
@@ -75,7 +72,7 @@ describe("статические атрибуты", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               "data-test-id": "test",
               "aria-label": "description",
             },
@@ -91,9 +88,7 @@ describe("статические атрибуты", () => {
       it.skip("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML, "атрибуты с дефисами").toMatchStringHTML(html`
-          <div data-test-id="test" aria-label="description">Content</div>
-        `)
+        expect(element.innerHTML).toMatchStringHTML(`<div data-test-id="test" aria-label="description">Content</div>`)
       })
     })
   })
@@ -108,10 +103,12 @@ describe("статические атрибуты", () => {
           {
             tag: "input",
             type: "el",
-            attrs: {
+            string: {
               type: "text",
               placeholder: "Enter name",
-              required: "",
+            },
+            boolean: {
+              required: true,
             },
           },
         ])
@@ -119,9 +116,7 @@ describe("статические атрибуты", () => {
       it.skip("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML, "input с атрибутами").toMatchStringHTML(html`
-          <input type="text" placeholder="Enter name" required />
-        `)
+        expect(element.innerHTML).toMatchStringHTML(`<input type="text" placeholder="Enter name" required />`)
       })
     })
 
@@ -134,10 +129,12 @@ describe("статические атрибуты", () => {
           {
             tag: "img",
             type: "el",
-            attrs: {
+            string: {
               src: "image.jpg",
               alt: "Description",
-              loading: "",
+            },
+            boolean: {
+              loading: true,
             },
           },
         ])
@@ -145,9 +142,7 @@ describe("статические атрибуты", () => {
       it.skip("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML, "img с атрибутами").toMatchStringHTML(html`
-          <img src="image.jpg" alt="Description" loading />
-        `)
+        expect(element.innerHTML).toMatchStringHTML(`<img src="image.jpg" alt="Description" loading />`)
       })
     })
 
@@ -160,7 +155,7 @@ describe("статические атрибуты", () => {
           {
             tag: "meta",
             type: "el",
-            attrs: {
+            string: {
               charset: "utf-8",
               name: "viewport",
               content: "width=device-width",
@@ -171,9 +166,7 @@ describe("статические атрибуты", () => {
       it.skip("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML, "meta с атрибутами").toMatchStringHTML(html`
-          <meta charset="utf-8" name="viewport" content="width=device-width" />
-        `)
+        expect(element.innerHTML).toMatchStringHTML(`<meta charset="utf-8" name="viewport" content="width=device-width" />`)
       })
     })
   })
@@ -193,7 +186,7 @@ describe("статические атрибуты", () => {
           {
             tag: "form",
             type: "el",
-            attrs: {
+            string: {
               class: "form",
               method: "post",
             },
@@ -201,16 +194,18 @@ describe("статические атрибуты", () => {
               {
                 tag: "input",
                 type: "el",
-                attrs: {
+                string: {
                   type: "text",
                   name: "username",
-                  required: "",
+                },
+                boolean: {
+                  required: true,
                 },
               },
               {
                 tag: "button",
                 type: "el",
-                attrs: {
+                string: {
                   type: "submit",
                   class: "btn",
                 },
@@ -228,7 +223,7 @@ describe("статические атрибуты", () => {
       it.skip("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML, "вложенные элементы с атрибутами").toMatchStringHTML(html`
+        expect(element.innerHTML).toMatchStringHTML(`
           <form class="form" method="post">
             <input type="text" name="username" required />
             <button type="submit" class="btn">Submit</button>
@@ -263,21 +258,21 @@ describe("статические атрибуты", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               class: "container",
             },
             child: [
               {
                 tag: "header",
                 type: "el",
-                attrs: {
+                string: {
                   class: "header",
                 },
                 child: [
                   {
                     tag: "h1",
                     type: "el",
-                    attrs: {
+                    string: {
                       class: "title",
                     },
                     child: [
@@ -292,28 +287,28 @@ describe("статические атрибуты", () => {
               {
                 tag: "main",
                 type: "el",
-                attrs: {
+                string: {
                   class: "main",
                 },
                 child: [
                   {
                     tag: "section",
                     type: "el",
-                    attrs: {
+                    string: {
                       class: "section",
                     },
                     child: [
                       {
                         tag: "article",
                         type: "el",
-                        attrs: {
+                        string: {
                           class: "article",
                         },
                         child: [
                           {
                             tag: "h2",
                             type: "el",
-                            attrs: {
+                            string: {
                               class: "subtitle",
                             },
                             child: [
@@ -326,7 +321,7 @@ describe("статические атрибуты", () => {
                           {
                             tag: "p",
                             type: "el",
-                            attrs: {
+                            string: {
                               class: "text",
                             },
                             child: [
@@ -345,14 +340,14 @@ describe("статические атрибуты", () => {
               {
                 tag: "footer",
                 type: "el",
-                attrs: {
+                string: {
                   class: "footer",
                 },
                 child: [
                   {
                     tag: "p",
                     type: "el",
-                    attrs: {
+                    string: {
                       class: "copyright",
                     },
                     child: [
@@ -371,7 +366,7 @@ describe("статические атрибуты", () => {
       it.skip("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML, "сложная структура с атрибутами").toMatchStringHTML(html`
+        expect(element.innerHTML).toMatchStringHTML(`
           <div class="container">
             <header class="header">
               <h1 class="title">Title</h1>
@@ -403,9 +398,11 @@ describe("статические атрибуты", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
-              class: "",
+            string: {
               id: "",
+            },
+            array: {
+              class: [],
             },
             child: [
               {
@@ -419,7 +416,7 @@ describe("статические атрибуты", () => {
       it.skip("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML, "пустые атрибуты").toMatchStringHTML(html` <div class="" id="">Content</div> `)
+        expect(element.innerHTML).toMatchStringHTML(`<div class="" id="">Content</div>`)
       })
     })
 
@@ -432,7 +429,7 @@ describe("статические атрибуты", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               class: "  spaced  ",
               title: "  title  ",
             },
@@ -448,9 +445,7 @@ describe("статические атрибуты", () => {
       it.skip("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML, "атрибуты с пробелами").toMatchStringHTML(html`
-          <div class="  spaced  " title="  title  ">Content</div>
-        `)
+        expect(element.innerHTML).toMatchStringHTML(`<div class="  spaced  " title="  title  ">Content</div>`)
       })
     })
 
@@ -463,8 +458,8 @@ describe("статические атрибуты", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
-              "data-value": "&quot;quoted&quot;",
+            string: {
+              "data-value": '"quoted"',
               title: "'single' &amp; &quot;double&quot;",
             },
             child: [
@@ -479,9 +474,7 @@ describe("статические атрибуты", () => {
       it.skip("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML, "атрибуты с специальными символами").toMatchStringHTML(html`
-          <div data-value='"quoted"' title="'single' &amp; &quot;double&quot;">Content</div>
-        `)
+        expect(element.innerHTML).toMatchStringHTML(`<div data-value='"quoted"' title="'single' &amp; &quot;double&quot;">Content</div>`)
       })
     })
   })

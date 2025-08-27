@@ -3,7 +3,6 @@ import { View } from "../index.ts"
 import { Context } from "../../context/index.ts"
 
 describe("массивы", () => {
-  const html = String.raw
   describe("массивы из context", () => {
     const { context, schema } = new Context((t) => ({ ids: t.array.required([1, 2]) }))
 
@@ -15,6 +14,7 @@ describe("массивы", () => {
           </ul>
         `,
       })
+
       it("парсинг", () => {
         expect(view.schema, "простой массив из контекста").toEqual([
           {
@@ -22,19 +22,18 @@ describe("массивы", () => {
             type: "el",
             child: [
               {
-                tag: "li",
-                type: "el",
-                item: {
-                  src: "context",
-                  key: "ids",
-                },
-
+                type: "map",
+                data: "/context/ids",
                 child: [
                   {
-                    type: "text",
-                    value: {
-                      src: ["context", "ids"],
-                    },
+                    tag: "li",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        data: "[item]",
+                      },
+                    ],
                   },
                 ],
               },
@@ -42,17 +41,8 @@ describe("массивы", () => {
           },
         ])
       })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({ context, container: element })
-        expect(element.innerHTML, "простой массив из контекста").toMatchStringHTML(html`
-          <ul>
-            <li>${context.ids[0]}</li>
-            <li>${context.ids[1]}</li>
-          </ul>
-        `)
-      })
     })
+
     describe("простой массив с одним элементом вложенный в другой элемент", () => {
       const view = new View<typeof schema>({
         render: ({ html, context }) => html`
@@ -63,6 +53,7 @@ describe("массивы", () => {
           </div>
         `,
       })
+
       it("парсинг", () => {
         expect(view.schema, "простой массив из контекста").toEqual([
           {
@@ -74,28 +65,26 @@ describe("массивы", () => {
                 type: "el",
                 child: [
                   {
-                    tag: "li",
-                    type: "el",
-                    item: { src: "context", key: "ids" },
-                    child: [{ type: "text", value: { src: ["context", "ids"] } }],
+                    type: "map",
+                    data: "/context/ids",
+                    child: [
+                      {
+                        tag: "li",
+                        type: "el",
+                        child: [
+                          {
+                            type: "text",
+                            data: "[item]",
+                          },
+                        ],
+                      },
+                    ],
                   },
                 ],
               },
             ],
           },
         ])
-      })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({ context, container: element })
-        expect(element.innerHTML, "простой массив из контекста").toMatchStringHTML(html`
-          <div>
-            <ul>
-              <li>${context.ids[0]}</li>
-              <li>${context.ids[1]}</li>
-            </ul>
-          </div>
-        `)
       })
     })
 
@@ -121,6 +110,7 @@ describe("массивы", () => {
           </div>
         `,
       })
+
       it("парсинг", () => {
         expect(view.schema, "массив с множественными свойствами").toEqual([
           {
@@ -128,52 +118,53 @@ describe("массивы", () => {
             type: "el",
             child: [
               {
-                tag: "div",
-                type: "el",
-                item: {
-                  src: "core",
-                  key: "users",
-                },
-                attrs: { class: "user" },
+                type: "map",
+                data: "/core/users",
                 child: [
                   {
-                    tag: "h3",
+                    tag: "div",
                     type: "el",
-                    child: [{ type: "text", value: { src: ["core", "users"], key: "name" } }],
-                  },
-                  {
-                    tag: "p",
-                    type: "el",
-                    child: [{ type: "text", value: { src: ["core", "users"], key: "email" } }],
-                  },
-                  {
-                    tag: "span",
-                    type: "el",
-                    child: [{ type: "text", value: { src: ["core", "users"], key: "role" } }],
+                    string: {
+                      class: "user",
+                    },
+                    child: [
+                      {
+                        tag: "h3",
+                        type: "el",
+                        child: [
+                          {
+                            type: "text",
+                            data: "[item]/name",
+                          },
+                        ],
+                      },
+                      {
+                        tag: "p",
+                        type: "el",
+                        child: [
+                          {
+                            type: "text",
+                            data: "[item]/email",
+                          },
+                        ],
+                      },
+                      {
+                        tag: "span",
+                        type: "el",
+                        child: [
+                          {
+                            type: "text",
+                            data: "[item]/role",
+                          },
+                        ],
+                      },
+                    ],
                   },
                 ],
               },
             ],
           },
         ])
-      })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({ core, container: element })
-        expect(element.innerHTML, "массив с множественными свойствами").toMatchStringHTML(html`
-          <div>
-            <div class="user">
-              <h3>${core.users[0].name}</h3>
-              <p>${core.users[0].email}</p>
-              <span>${core.users[0].role}</span>
-            </div>
-            <div class="user">
-              <h3>${core.users[1].name}</h3>
-              <p>${core.users[1].email}</p>
-              <span>${core.users[1].role}</span>
-            </div>
-          </div>
-        `)
       })
     })
 
@@ -203,51 +194,41 @@ describe("массивы", () => {
           {
             tag: "section",
             type: "el",
-
             child: [
               {
-                tag: "article",
-                type: "el",
-                item: {
-                  src: "core",
-                  key: "items",
-                },
-                attrs: {
-                  "data-id": {
-                    src: ["core", "items"],
-                    key: "id",
-                  },
-                  class: {
-                    items: [{ src: ["core", "items"], key: "type" }],
-                    template: "item-${0}",
-                  },
-                },
+                type: "map",
+                data: "/core/items",
                 child: [
                   {
-                    tag: "h2",
+                    tag: "article",
                     type: "el",
-                    child: [{ type: "text", value: { src: ["core", "items"], key: "title" } }],
+                    string: {
+                      "data-id": {
+                        data: "[item]/id",
+                      },
+                      class: {
+                        data: "[item]/type",
+                        expr: "item-${0}",
+                      },
+                    },
+                    child: [
+                      {
+                        tag: "h2",
+                        type: "el",
+                        child: [
+                          {
+                            type: "text",
+                            data: "[item]/title",
+                          },
+                        ],
+                      },
+                    ],
                   },
                 ],
               },
             ],
           },
         ])
-      })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({ core, container: element })
-        console.log(element.innerHTML)
-        expect(element.innerHTML, "массив с динамическими атрибутами").toMatchStringHTML(html`
-          <section>
-            <article data-id="${core.items[0].id}" class="item-${core.items[0].type}">
-              <h2>${core.items[0].title}</h2>
-            </article>
-            <article data-id="${core.items[1].id}" class="item-${core.items[1].type}">
-              <h2>${core.items[1].title}</h2>
-            </article>
-          </section>
-        `)
       })
     })
   })
@@ -265,25 +246,23 @@ describe("массивы", () => {
             type: "el",
             child: [
               {
-                tag: "a",
-                type: "el",
-                item: {
-                  src: "core",
-                  key: "menuItems",
-                },
-                attrs: {
-                  href: {
-                    src: ["core", "menuItems"],
-                    key: "url",
-                  },
-                },
+                type: "map",
+                data: "/core/menuItems",
                 child: [
                   {
-                    type: "text",
-                    value: {
-                      src: ["core", "menuItems"],
-                      key: "label",
+                    tag: "a",
+                    type: "el",
+                    string: {
+                      href: {
+                        data: "[item]/url",
+                      },
                     },
+                    child: [
+                      {
+                        type: "text",
+                        data: "[item]/label",
+                      },
+                    ],
                   },
                 ],
               },
@@ -291,7 +270,6 @@ describe("массивы", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
     })
 
     describe("сложная структура из core", () => {
@@ -314,87 +292,78 @@ describe("массивы", () => {
           {
             tag: "main",
             type: "el",
-            attrs: { class: "products" },
+            string: {
+              class: "products",
+            },
             child: [
               {
-                tag: "div",
-                type: "el",
-                item: {
-                  src: "core",
-                  key: "products",
-                },
-                attrs: {
-                  class: "product-card",
-                  "data-product-id": {
-                    key: "id",
-                    src: ["core", "products"],
-                  },
-                },
+                type: "map",
+                data: "/core/products",
                 child: [
                   {
-                    tag: "img",
+                    tag: "div",
                     type: "el",
-                    attrs: {
-                      src: {
-                        src: ["core", "products"],
-                        key: "image",
+                    string: {
+                      class: "product-card",
+                      "data-product-id": {
+                        data: "[item]/id",
                       },
-                      alt: {
-                        src: ["core", "products"],
-                        key: "name",
-                      },
-                    },
-                  },
-                  {
-                    tag: "h3",
-                    type: "el",
-                    attrs: {
-                      class: "product-title",
                     },
                     child: [
                       {
-                        type: "text",
-                        value: {
-                          src: ["core", "products"],
-                          key: "name",
+                        tag: "img",
+                        type: "el",
+                        string: {
+                          src: {
+                            data: "[item]/image",
+                          },
+                          alt: {
+                            data: "[item]/name",
+                          },
                         },
                       },
-                    ],
-                  },
-                  {
-                    tag: "p",
-                    type: "el",
-                    attrs: {
-                      class: "product-price",
-                    },
-                    child: [
                       {
-                        type: "text",
-                        value: "$",
-                      },
-                      {
-                        type: "text",
-                        value: {
-                          src: ["core", "products"],
-                          key: "price",
+                        tag: "h3",
+                        type: "el",
+                        string: {
+                          class: "product-title",
                         },
+                        child: [
+                          {
+                            type: "text",
+                            data: "[item]/name",
+                          },
+                        ],
                       },
-                    ],
-                  },
-                  {
-                    tag: "button",
-                    type: "el",
-                    attrs: {
-                      class: "add-to-cart",
-                      "data-id": {
-                        src: ["core", "products"],
-                        key: "id",
-                      },
-                    },
-                    child: [
                       {
-                        type: "text",
-                        value: "Add to Cart",
+                        tag: "p",
+                        type: "el",
+                        string: {
+                          class: "product-price",
+                        },
+                        child: [
+                          {
+                            type: "text",
+                            data: "[item]/price",
+                            expr: "$${0}",
+                          },
+                        ],
+                      },
+                      {
+                        tag: "button",
+                        type: "el",
+                        string: {
+                          class: "add-to-cart",
+                          "data-id": {
+                            data: "[item]/id",
+                          },
+                        },
+                        child: [
+                          {
+                            type: "text",
+                            value: "Add to Cart",
+                          },
+                        ],
                       },
                     ],
                   },
@@ -404,7 +373,6 @@ describe("массивы", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
     })
   })
 
@@ -434,19 +402,17 @@ describe("массивы", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               class: "container",
             },
             child: [
               {
                 tag: "header",
                 type: "el",
-
                 child: [
                   {
                     tag: "h1",
                     type: "el",
-
                     child: [
                       {
                         type: "text",
@@ -457,71 +423,58 @@ describe("массивы", () => {
                 ],
               },
               {
-                tag: "div",
-                type: "el",
-                item: {
-                  src: "context",
-                  key: "users",
-                },
-                attrs: {
-                  class: "user-item",
-                },
+                type: "map",
+                data: "/context/users",
                 child: [
                   {
-                    tag: "span",
+                    tag: "div",
                     type: "el",
-                    attrs: {
-                      class: "name",
+                    string: {
+                      class: "user-item",
                     },
                     child: [
                       {
-                        type: "text",
-                        value: {
-                          src: ["context", "users"],
-                          key: "name",
+                        tag: "span",
+                        type: "el",
+                        string: {
+                          class: "name",
                         },
+                        child: [
+                          {
+                            type: "text",
+                            data: "[item]/name",
+                          },
+                        ],
+                      },
+                      {
+                        tag: "span",
+                        type: "el",
+                        string: {
+                          class: "email",
+                        },
+                        child: [
+                          {
+                            type: "text",
+                            data: "[item]/email",
+                          },
+                        ],
                       },
                     ],
                   },
                   {
-                    tag: "span",
+                    tag: "footer",
                     type: "el",
-                    attrs: {
-                      class: "email",
-                    },
                     child: [
                       {
-                        type: "text",
-                        value: {
-                          src: ["context", "users"],
-                          key: "email",
-                        },
-                      },
-                    ],
-                  },
-                ],
-              },
-              {
-                tag: "footer",
-                type: "el",
-
-                child: [
-                  {
-                    tag: "p",
-                    type: "el",
-
-                    child: [
-                      {
-                        type: "text",
-                        value: {
-                          items: [
-                            {
-                              src: "context",
-                              key: "totalCount",
-                            },
-                          ],
-                          template: "Total users: ${0}",
-                        },
+                        tag: "p",
+                        type: "el",
+                        child: [
+                          {
+                            type: "text",
+                            data: "[item]/context/totalCount",
+                            expr: "Total users: ${0}",
+                          },
+                        ],
                       },
                     ],
                   },
@@ -531,7 +484,6 @@ describe("массивы", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
     })
 
     describe("множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы", () => {
@@ -556,53 +508,46 @@ describe("массивы", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               class: "dashboard",
             },
             child: [
               {
-                tag: "span",
-                type: "el",
-                attrs: { class: "category" },
-                item: {
-                  src: "context",
-                  key: "categories",
-                },
+                type: "map",
+                data: "/context/categories",
                 child: [
                   {
-                    type: "text",
-                    value: {
-                      src: ["context", "categories"],
-                      key: "name",
-                    },
-                  },
-                ],
-              },
-              {
-                tag: "div",
-                type: "el",
-                item: {
-                  src: "core",
-                  key: "items",
-                },
-                attrs: {
-                  class: "item",
-                  "data-category": {
-                    src: ["core", "items"],
-                    key: "categoryId",
-                  },
-                },
-                child: [
-                  {
-                    tag: "h4",
+                    tag: "span",
                     type: "el",
+                    string: {
+                      class: "category",
+                    },
                     child: [
                       {
                         type: "text",
-                        value: {
-                          src: ["core", "items"],
-                          key: "title",
-                        },
+                        data: "[item]/name",
+                      },
+                    ],
+                  },
+                  {
+                    tag: "div",
+                    type: "el",
+                    string: {
+                      class: "item",
+                      "data-category": {
+                        data: "[item]/item/categoryId",
+                      },
+                    },
+                    child: [
+                      {
+                        tag: "h4",
+                        type: "el",
+                        child: [
+                          {
+                            type: "text",
+                            data: "[item]/item/title",
+                          },
+                        ],
                       },
                     ],
                   },
@@ -612,7 +557,6 @@ describe("массивы", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
     })
   })
 
@@ -629,21 +573,21 @@ describe("массивы", () => {
           {
             tag: "ul",
             type: "el",
-
             child: [
               {
-                tag: "li",
-                type: "el",
-                item: {
-                  src: "context",
-                  key: "items",
-                },
+                type: "map",
+                data: "/context/items",
+                child: [
+                  {
+                    tag: "li",
+                    type: "el",
+                  },
+                ],
               },
             ],
           },
         ])
       })
-      it.skip("рендер", () => {})
     })
 
     describe("самозакрывающиеся теги в массиве", () => {
@@ -658,33 +602,32 @@ describe("массивы", () => {
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               class: "images",
             },
             child: [
               {
-                tag: "img",
-                type: "el",
-                item: {
-                  src: "core",
-                  key: "images",
-                },
-                attrs: {
-                  src: {
-                    src: ["core", "images"],
-                    key: "url",
+                type: "map",
+                data: "/core/images",
+                child: [
+                  {
+                    tag: "img",
+                    type: "el",
+                    string: {
+                      src: {
+                        data: "[item]/url",
+                      },
+                      alt: {
+                        data: "[item]/alt",
+                      },
+                    },
                   },
-                  alt: {
-                    src: ["core", "images"],
-                    key: "alt",
-                  },
-                },
+                ],
               },
             ],
           },
         ])
       })
-      it.skip("рендер", () => {})
     })
 
     describe("только текст в элементе массива", () => {
@@ -701,19 +644,18 @@ describe("массивы", () => {
             type: "el",
             child: [
               {
-                tag: "li",
-                type: "el",
-                item: {
-                  src: "context",
-                  key: "steps",
-                },
-
+                type: "map",
+                data: "/context/steps",
                 child: [
                   {
-                    type: "text",
-                    value: {
-                      src: ["context", "steps"],
-                    },
+                    tag: "li",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        data: "[item]",
+                      },
+                    ],
                   },
                 ],
               },
@@ -721,9 +663,9 @@ describe("массивы", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
     })
   })
+
   describe("массив вложенный в массив", () => {
     type Core = {
       items: {
@@ -749,26 +691,28 @@ describe("массивы", () => {
           type: "el",
           child: [
             {
-              tag: "li",
-              type: "el",
-              item: {
-                src: "core",
-                key: "items",
-              },
+              type: "map",
+              data: "/core/items",
               child: [
                 {
-                  tag: "span",
+                  tag: "li",
                   type: "el",
-                  item: {
-                    src: ["core", "items"],
-                    key: "children",
-                  },
                   child: [
                     {
-                      type: "text",
-                      value: {
-                        src: ["core", "items", "children"],
-                      },
+                      type: "map",
+                      data: "[item]/children",
+                      child: [
+                        {
+                          tag: "span",
+                          type: "el",
+                          child: [
+                            {
+                              type: "text",
+                              data: "[item]",
+                            },
+                          ],
+                        },
+                      ],
                     },
                   ],
                 },
@@ -778,7 +722,6 @@ describe("массивы", () => {
         },
       ])
     })
-    it.skip("рендер", () => {})
   })
 
   describe("массив в массиве в массиве (3 уровня)", () => {
@@ -812,23 +755,38 @@ describe("массивы", () => {
           type: "el",
           child: [
             {
-              tag: "li",
-              type: "el",
-              item: { src: "core", key: "items" },
+              type: "map",
+              data: "/core/items",
               child: [
                 {
-                  tag: "div",
+                  tag: "li",
                   type: "el",
-                  item: { src: ["core", "items"], key: "children" },
                   child: [
                     {
-                      tag: "span",
-                      type: "el",
-                      item: { src: ["core", "items", "children"], key: "tags" },
+                      type: "map",
+                      data: "[item]/children",
                       child: [
                         {
-                          type: "text",
-                          value: { src: ["core", "items", "children", "tags"] },
+                          tag: "div",
+                          type: "el",
+                          child: [
+                            {
+                              type: "map",
+                              data: "[item]/tags",
+                              child: [
+                                {
+                                  tag: "span",
+                                  type: "el",
+                                  child: [
+                                    {
+                                      type: "text",
+                                      data: "[item]",
+                                    },
+                                  ],
+                                },
+                              ],
+                            },
+                          ],
                         },
                       ],
                     },
@@ -840,6 +798,5 @@ describe("массивы", () => {
         },
       ])
     })
-    it.skip("рендер", () => {})
   })
 })

@@ -37,7 +37,7 @@ describe("парсинг/рендер простых элементов", () => 
         expect(view.schema, "web-component").toEqual([
           {
             tag: "web-component",
-            type: "wc",
+            type: "el",
           },
         ])
       })
@@ -55,7 +55,7 @@ describe("парсинг/рендер простых элементов", () => 
         expect(view.schema, "web-component с самозакрывающимся тегом").toEqual([
           {
             tag: "web-component",
-            type: "wc",
+            type: "el",
           },
         ])
       })
@@ -74,7 +74,7 @@ describe("парсинг/рендер простых элементов", () => 
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               class: "container",
               id: "main",
             },
@@ -181,7 +181,7 @@ describe("парсинг/рендер простых элементов", () => 
       const view = new View<typeof schema>({
         render: ({ html, context }) => html`<div>${context.name}</div>`,
       })
-      it("парсинг", () =>
+      it("парсинг", () => {
         expect(view.schema, "простая интерполяция").toEqual([
           {
             tag: "div",
@@ -189,14 +189,12 @@ describe("парсинг/рендер простых элементов", () => 
             child: [
               {
                 type: "text",
-                value: {
-                  src: "context",
-                  key: "name",
-                },
+                data: "/context/name",
               },
             ],
           },
-        ]))
+        ])
+      })
       it.skip("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element, context })
@@ -219,10 +217,8 @@ describe("парсинг/рендер простых элементов", () => 
             child: [
               {
                 type: "text",
-                value: {
-                  items: [{ src: "context", key: "count" }],
-                  template: "Total: ${0}",
-                },
+                data: "/context/count",
+                expr: "Total: ${0}",
               },
             ],
           },
@@ -249,7 +245,7 @@ describe("парсинг/рендер простых элементов", () => 
               {
                 tag: "img",
                 type: "el",
-                attrs: {
+                string: {
                   src: "image.jpg",
                   alt: "Image",
                 },
@@ -277,7 +273,7 @@ describe("парсинг/рендер простых элементов", () => 
           {
             tag: "div",
             type: "el",
-            attrs: {
+            string: {
               "data-test": "value",
               "aria-label": "test",
             },
