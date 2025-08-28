@@ -67,7 +67,61 @@ describe("условные атрибуты", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер (false)", () => {
+        const element = document.createElement("div")
+        view.render({ container: element, context: { isActive: false }, core: { isActive: false } })
+        expect(element.innerHTML).toMatchStringHTML(html`<div class="active">Content</div>`)
+      })
+
+      it("рендер (true)", () => {
+        const element = document.createElement("div")
+        view.render({ container: element, context: { isActive: false }, core: { isActive: true } })
+        expect(element.innerHTML).toMatchStringHTML(html`<div class="inactive">Content</div>`)
+      })
+    })
+    describe("тернарный оператор сравнения через ===", () => {
+      const core = {
+        isActive: false,
+      }
+      const { context, schema } = new Context((t) => ({
+        isActive: t.boolean.required(false),
+      }))
+      const view = new View<typeof schema, typeof core>({
+        render: ({ html, context, core }) =>
+          html`<div class="${core.isActive === context.isActive ? "active" : "inactive"}">Content</div>`,
+      })
+      it("парсинг", () => {
+        expect(view.schema, "тернарный оператор сравнения").toEqual([
+          {
+            tag: "div",
+            type: "el",
+            string: {
+              class: {
+                data: ["/core/isActive", "/context/isActive"],
+                expr: '${0} === ${1} ? "active" : "inactive"',
+              },
+            },
+            child: [
+              {
+                type: "text",
+                value: "Content",
+              },
+            ],
+          },
+        ])
+      })
+      
+      it("рендер (false === false)", () => {
+        const element = document.createElement("div")
+        view.render({ container: element, context: { isActive: false }, core: { isActive: false } })
+        expect(element.innerHTML).toMatchStringHTML(html`<div class="active">Content</div>`)
+      })
+
+      it("рендер (false !== true)", () => {
+        const element = document.createElement("div")
+        view.render({ container: element, context: { isActive: false }, core: { isActive: true } })
+        expect(element.innerHTML).toMatchStringHTML(html`<div class="inactive">Content</div>`)
+      })
     })
     describe("тернарный оператор сравнения через === с динамическими результатами", () => {
       const core = {
@@ -106,6 +160,26 @@ describe("условные атрибуты", () => {
           },
         ])
       })
+      
+      it("рендер (условие true)", () => {
+        const element = document.createElement("div")
+        view.render({ 
+          container: element, 
+          context: { isActive: false, item: "test", status: "waiting" }, 
+          core: { isActive: false } 
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`<div class="test-active-waiting">Content</div>`)
+      })
+
+      it("рендер (условие false)", () => {
+        const element = document.createElement("div")
+        view.render({ 
+          container: element, 
+          context: { isActive: false, item: "test", status: "waiting" }, 
+          core: { isActive: true } 
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`<div class="inactive">Content</div>`)
+      })
     })
 
     describe("логические операторы в атрибутах", () => {
@@ -135,12 +209,16 @@ describe("условные атрибуты", () => {
             },
           ])
         })
-        it.skip("рендер", () => {
-          const element = document.createElement("button")
-          view.render({ container: element, context })
-          const button = element.querySelector("button")!
-          expect(button).toBeDefined()
-          expect(button.disabled).toBe(true)
+        it("рендер (true)", () => {
+          const element = document.createElement("div")
+          view.render({ container: element, context: { cannotEdit: true } })
+          expect(element.innerHTML).toMatchStringHTML(html`<button disabled>Edit</button>`)
+        })
+
+        it("рендер (false)", () => {
+          const element = document.createElement("div")
+          view.render({ container: element, context: { cannotEdit: false } })
+          expect(element.innerHTML).toMatchStringHTML(html`<button>Edit</button>`)
         })
       })
 
@@ -164,12 +242,16 @@ describe("условные атрибуты", () => {
             },
           ])
         })
-        it.skip("рендер", () => {
-          const element = document.createElement("input")
-          view.render({ container: element, core })
-          const input = element.querySelector("input")!
-          expect(input).toBeDefined()
-          expect(input.readOnly).toBe(false)
+        it("рендер (false)", () => {
+          const element = document.createElement("div")
+          view.render({ container: element, core: { isReadOnly: false } })
+          expect(element.innerHTML).toMatchStringHTML(html`<input />`)
+        })
+
+        it("рендер (true)", () => {
+          const element = document.createElement("div")
+          view.render({ container: element, core: { isReadOnly: true } })
+          expect(element.innerHTML).toMatchStringHTML(html`<input readonly />`)
         })
       })
     })
@@ -223,13 +305,13 @@ describe("условные атрибуты", () => {
             },
           ])
         })
-        it.skip("рендер", () => {
+        it("рендер", () => {
           const element = document.createElement("div")
           view.render({ container: element, core })
           expect(element.innerHTML).toMatchStringHTML(html`
             <div>
-              <span class="normal">${core.items[0].name}</span>
-              <span class="special">${core.items[1].name}</span>
+              <span class="normal">Item 1</span>
+              <span class="special">Item 2</span>
             </div>
           `)
         })
@@ -282,13 +364,13 @@ describe("условные атрибуты", () => {
             },
           ])
         })
-        it.skip("рендер", () => {
+        it("рендер", () => {
           const element = document.createElement("div")
           view.render({ container: element, core })
           expect(element.innerHTML).toMatchStringHTML(html`
             <div>
-              <span class="normal">${core.items[0].name}</span>
-              <span class="special">${core.items[1].name}</span>
+              <span class="normal">Item 1</span>
+              <span class="special">Item 2</span>
             </div>
           `)
         })
@@ -341,13 +423,13 @@ describe("условные атрибуты", () => {
             },
           ])
         })
-        it.skip("рендер", () => {
+        it("рендер", () => {
           const element = document.createElement("div")
           view.render({ container: element, core })
           expect(element.innerHTML).toMatchStringHTML(html`
             <div>
-              <span class="normal">${core.items[0].name}</span>
-              <span class="special">${core.items[1].name}</span>
+              <span class="normal">Item 1</span>
+              <span class="special">Item 2</span>
             </div>
           `)
         })
@@ -418,13 +500,13 @@ describe("условные атрибуты", () => {
             },
           ])
         })
-        it.skip("рендер", () => {
+        it("рендер", () => {
           const element = document.createElement("div")
-          view.render({ container: element, core })
+          view.render({ container: element, core, context: { isActive: false, status: "waiting" } })
           expect(element.innerHTML).toMatchStringHTML(html`
             <div>
-              <span class="normal">${core.items[0].name}</span>
-              <span class="special">${core.items[1].name}</span>
+              <div class="inactive">Content</div>
+              <div class="inactive">Content</div>
             </div>
           `)
         })
@@ -476,13 +558,13 @@ describe("условные атрибуты", () => {
             },
           ])
         })
-        it.skip("рендер", () => {
+        it("рендер", () => {
           const element = document.createElement("div")
           view.render({ container: element, core })
           expect(element.innerHTML).toMatchStringHTML(html`
             <div>
-              <div>${core.users[0].name}</div>
-              <div class="admin-user">${core.users[1].name}</div>
+              <div>User 1</div>
+              <div class="admin-user">User 2</div>
             </div>
           `)
         })
@@ -522,10 +604,16 @@ describe("условные атрибуты", () => {
             },
           ])
         })
-        it.skip("рендер", () => {
+        it("рендер (false)", () => {
           const element = document.createElement("div")
-          view.render({ container: element, context })
+          view.render({ container: element, context: { isLarge: false } })
           expect(element.innerHTML).toMatchStringHTML(html`<div class="btn btn-sm">Button</div>`)
+        })
+
+        it("рендер (true)", () => {
+          const element = document.createElement("div")
+          view.render({ container: element, context: { isLarge: true } })
+          expect(element.innerHTML).toMatchStringHTML(html`<div class="btn btn-lg">Button</div>`)
         })
       })
 
@@ -556,10 +644,16 @@ describe("условные атрибуты", () => {
             },
           ])
         })
-        it.skip("рендер", () => {
+        it("рендер (theme='light')", () => {
           const element = document.createElement("div")
-          view.render({ container: element, context })
+          view.render({ container: element, context: { theme: "light" } })
           expect(element.innerHTML).toMatchStringHTML(html`<div class="prefix-light">Theme</div>`)
+        })
+
+        it("рендер (theme='dark')", () => {
+          const element = document.createElement("div")
+          view.render({ container: element, context: { theme: "dark" } })
+          expect(element.innerHTML).toMatchStringHTML(html`<div class="prefix-dark">Theme</div>`)
         })
       })
 
@@ -591,10 +685,16 @@ describe("условные атрибуты", () => {
             },
           ])
         })
-        it.skip("рендер", () => {
+        it("рендер (false)", () => {
           const element = document.createElement("div")
-          view.render({ container: element, context })
+          view.render({ container: element, context: { status: false } })
           expect(element.innerHTML).toMatchStringHTML(html`<div class="inactive-status">Status</div>`)
+        })
+
+        it("рендер (true)", () => {
+          const element = document.createElement("div")
+          view.render({ container: element, context: { status: true } })
+          expect(element.innerHTML).toMatchStringHTML(html`<div class="active-status">Status</div>`)
         })
       })
     })
@@ -627,9 +727,15 @@ describe("условные атрибуты", () => {
             },
           ])
         })
-        it.skip("рендер", () => {
+        it("рендер (false)", () => {
           const element = document.createElement("div")
-          view.render({ container: element, context })
+          view.render({ container: element, context: { always: false } })
+          expect(element.innerHTML).toMatchStringHTML(html`<div class="same">Content</div>`)
+        })
+
+        it("рендер (true)", () => {
+          const element = document.createElement("div")
+          view.render({ container: element, context: { always: true } })
           expect(element.innerHTML).toMatchStringHTML(html`<div class="same">Content</div>`)
         })
       })

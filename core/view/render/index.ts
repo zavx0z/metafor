@@ -466,21 +466,38 @@ function getNestedValueWithItem(path: string, item: any, parentItem?: any, param
  * Вычисляет выражение с интерполяцией для элемента массива
  */
 function evaluateExpressionWithItem(expr: string, dataPath: string | string[], item: any, parentItem?: any, params?: any): string {
+  let result = expr
+
   if (Array.isArray(dataPath)) {
     // Для множественных значений заменяем ${0}, ${1}, ${2} и т.д.
-    let result = expr
     for (let i = 0; i < dataPath.length; i++) {
       const path = dataPath[i]
       if (path) {
         const value = getNestedValueWithItem(path, item, parentItem, params)
-        result = result.replace(new RegExp(`\\$\\{${i}\\}`, "g"), String(value))
+        result = result.replace(new RegExp(`\\$\\{${i}\\}`, "g"), JSON.stringify(value))
       }
     }
-    return result
   } else {
     // Для одного значения заменяем ${0}
     const value = getValueByPathWithItem(dataPath, item, parentItem, params)
-    return expr.replace(/\$\{0\}/g, String(value))
+    result = result.replace(/\$\{0\}/g, JSON.stringify(value))
+  }
+
+  try {
+    // Если выражение содержит шаблонный литерал, обрабатываем его как шаблонную строку
+    if (result.includes("${") && !result.startsWith("`")) {
+      // Превращаем в шаблонный литерал
+      const templateResult = "`" + result + "`"
+      const evalResult = Function(`"use strict"; return ${templateResult}`)()
+      return String(evalResult)
+    } else {
+      // Выполняем JavaScript выражение
+      const evalResult = Function(`"use strict"; return (${result})`)()
+      return String(evalResult)
+    }
+  } catch (error) {
+    console.warn("Failed to evaluate expression:", result, error)
+    return result
   }
 }
 
@@ -624,20 +641,37 @@ function evaluateExpression(
     core: Record<string, any>
   }
 ): string {
+  let result = expr
+
   if (Array.isArray(dataPath)) {
     // Для множественных значений заменяем ${0}, ${1}, ${2} и т.д.
-    let result = expr
     for (let i = 0; i < dataPath.length; i++) {
       const path = dataPath[i]
       if (path) {
         const value = getNestedValue(path, params)
-        result = result.replace(new RegExp(`\\$\\{${i}\\}`, "g"), String(value))
+        result = result.replace(new RegExp(`\\$\\{${i}\\}`, "g"), JSON.stringify(value))
       }
     }
-    return result
   } else {
     // Для одного значения заменяем ${0}
     const value = getValueByPath(dataPath, params)
-    return expr.replace(/\$\{0\}/g, String(value))
+    result = result.replace(/\$\{0\}/g, JSON.stringify(value))
+  }
+
+  try {
+    // Если выражение содержит шаблонный литерал, обрабатываем его как шаблонную строку
+    if (result.includes("${") && !result.startsWith("`")) {
+      // Превращаем в шаблонный литерал
+      const templateResult = "`" + result + "`"
+      const evalResult = Function(`"use strict"; return ${templateResult}`)()
+      return String(evalResult)
+    } else {
+      // Выполняем JavaScript выражение
+      const evalResult = Function(`"use strict"; return (${result})`)()
+      return String(evalResult)
+    }
+  } catch (error) {
+    console.warn("Failed to evaluate expression:", result, error)
+    return result
   }
 }
