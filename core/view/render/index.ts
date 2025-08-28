@@ -115,6 +115,34 @@ function renderElement<C extends ContextSchema>(
     }
   }
 
+  // Добавляем списковые атрибуты
+  if (node.array) {
+    for (const [key, values] of Object.entries(node.array)) {
+      const attrValues: string[] = []
+      
+      for (const value of values) {
+        if (typeof value === "object" && value !== null) {
+          if ("data" in value && "expr" in value) {
+            // Атрибут с выражением
+            const attrValue = evaluateExpression(value.expr, value.data, params)
+            attrValues.push(attrValue)
+          } else if ("data" in value) {
+            // Простой динамический атрибут
+            const attrValue = getValueByPath(value.data, params)
+            attrValues.push(String(attrValue))
+          } else if ("value" in value) {
+            // Статический атрибут
+            attrValues.push(value.value)
+          }
+        }
+      }
+      
+      if (attrValues.length > 0) {
+        element.setAttribute(key, attrValues.join(" "))
+      }
+    }
+  }
+
   // Рендерим дочерние элементы
   if (node.child) {
     for (const childNode of node.child) {
@@ -158,7 +186,14 @@ function renderMap<C extends ContextSchema>(
       for (const childNode of node.child) {
         const childElement = renderNodeWithItem(childNode, params, item)
         if (childElement) {
-          fragment.appendChild(childElement)
+          if (childElement instanceof DocumentFragment) {
+            // Для DocumentFragment добавляем все дочерние элементы
+            while (childElement.firstChild) {
+              fragment.appendChild(childElement.firstChild)
+            }
+          } else {
+            fragment.appendChild(childElement)
+          }
         }
       }
     }
@@ -178,7 +213,8 @@ function renderMapWithItem<C extends ContextSchema>(
     core: Record<string, any>
     update: Update<C>
   },
-  item: any
+  item: any,
+  parentItem?: any
 ): DocumentFragment {
   const fragment = document.createDocumentFragment()
 
@@ -189,7 +225,7 @@ function renderMapWithItem<C extends ContextSchema>(
     // Рендерим каждый элемент массива
     for (const subItem of array) {
       for (const childNode of node.child) {
-        const childElement = renderNodeWithItem(childNode, params, subItem)
+        const childElement = renderNodeWithItem(childNode, params, subItem, item)
         if (childElement) {
           if (childElement instanceof DocumentFragment) {
             // Для DocumentFragment добавляем все дочерние элементы
@@ -218,15 +254,16 @@ function renderNodeWithItem<C extends ContextSchema>(
     core: Record<string, any>
     update: Update<C>
   },
-  item: any
+  item: any,
+  parentItem?: any
 ): HTMLElement | Text | DocumentFragment | null {
   switch (node.type) {
     case "el":
-      return renderElementWithItem(node as NodeElement, params, item)
+      return renderElementWithItem(node as NodeElement, params, item, parentItem)
     case "text":
-      return renderTextWithItem(node as NodeText, params, item)
+      return renderTextWithItem(node as NodeText, params, item, parentItem)
     case "map":
-      return renderMapWithItem(node as NodeMap, params, item)
+      return renderMapWithItem(node as NodeMap, params, item, parentItem)
     default:
       return null
   }
@@ -243,7 +280,8 @@ function renderElementWithItem<C extends ContextSchema>(
     core: Record<string, any>
     update: Update<C>
   },
-  item: any
+  item: any,
+  parentItem?: any
 ): HTMLElement {
   const element = document.createElement(node.tag)
 
@@ -282,6 +320,34 @@ function renderElementWithItem<C extends ContextSchema>(
     }
   }
 
+  // Добавляем списковые атрибуты
+  if (node.array) {
+    for (const [key, values] of Object.entries(node.array)) {
+      const attrValues: string[] = []
+      
+      for (const value of values) {
+        if (typeof value === "object" && value !== null) {
+          if ("data" in value && "expr" in value) {
+            // Атрибут с выражением
+            const attrValue = evaluateExpressionWithItem(value.expr, value.data, item, parentItem, params)
+            attrValues.push(attrValue)
+          } else if ("data" in value) {
+            // Простой динамический атрибут
+            const attrValue = getValueByPathWithItem(value.data, item, parentItem, params)
+            attrValues.push(String(attrValue))
+          } else if ("value" in value) {
+            // Статический атрибут
+            attrValues.push(value.value)
+          }
+        }
+      }
+      
+      if (attrValues.length > 0) {
+        element.setAttribute(key, attrValues.join(" "))
+      }
+    }
+  }
+
   // Рендерим дочерние элементы
   if (node.child) {
     for (const childNode of node.child) {
@@ -313,7 +379,8 @@ function renderTextWithItem<C extends ContextSchema>(
     core: Record<string, any>
     update: Update<C>
   },
-  item: any
+  item: any,
+  parentItem?: any
 ): Text {
   let text = ""
 
@@ -322,10 +389,10 @@ function renderTextWithItem<C extends ContextSchema>(
     text = node.value
   } else if (node.data && node.expr) {
     // Смешанный текст с интерполяцией
-    text = evaluateExpressionWithItem(node.expr, node.data, item)
+    text = evaluateExpressionWithItem(node.expr, node.data, item, parentItem, params)
   } else if (node.data) {
     // Простая интерполяция
-    const value = getValueByPathWithItem(node.data, item)
+    const value = getValueByPathWithItem(node.data, item, parentItem, params)
     text = String(value)
   }
 
@@ -335,16 +402,16 @@ function renderTextWithItem<C extends ContextSchema>(
 /**
  * Получает значение по пути из элемента массива
  */
-function getValueByPathWithItem(path: string | string[], item: any): any {
+function getValueByPathWithItem(path: string | string[], item: any, parentItem?: any, params?: any): any {
   if (typeof path === "string") {
-    return getNestedValueWithItem(path, item)
+    return getNestedValueWithItem(path, item, parentItem, params)
   }
 
   // Для массива путей берем первый
   if (Array.isArray(path) && path.length > 0) {
     const firstPath = path[0]
     if (firstPath) {
-      return getNestedValueWithItem(firstPath, item)
+      return getNestedValueWithItem(firstPath, item, parentItem, params)
     }
   }
 
@@ -354,7 +421,27 @@ function getValueByPathWithItem(path: string | string[], item: any): any {
 /**
  * Получает вложенное значение по пути из элемента массива
  */
-function getNestedValueWithItem(path: string, item: any): any {
+function getNestedValueWithItem(path: string, item: any, parentItem?: any, params?: any): any {
+  // Обрабатываем абсолютные пути (начинающиеся с /)
+  if (path.startsWith("/")) {
+    if (!params) {
+      return undefined
+    }
+    // Убираем "/" и обрабатываем как обычный путь
+    const absolutePath = path.slice(1)
+    return getNestedValue(absolutePath, params)
+  }
+
+  // Обрабатываем относительные пути
+  if (path.startsWith("../")) {
+    if (!parentItem) {
+      return undefined
+    }
+    // Убираем "../" и обрабатываем как обычный путь
+    const relativePath = path.slice(3)
+    return getNestedValueWithItem(relativePath, parentItem, undefined, params)
+  }
+
   // Убираем префикс "[item]" если есть
   let cleanPath = path
   if (path.startsWith("[item]")) {
@@ -378,21 +465,21 @@ function getNestedValueWithItem(path: string, item: any): any {
 /**
  * Вычисляет выражение с интерполяцией для элемента массива
  */
-function evaluateExpressionWithItem(expr: string, dataPath: string | string[], item: any): string {
+function evaluateExpressionWithItem(expr: string, dataPath: string | string[], item: any, parentItem?: any, params?: any): string {
   if (Array.isArray(dataPath)) {
     // Для множественных значений заменяем ${0}, ${1}, ${2} и т.д.
     let result = expr
     for (let i = 0; i < dataPath.length; i++) {
       const path = dataPath[i]
       if (path) {
-        const value = getNestedValueWithItem(path, item)
+        const value = getNestedValueWithItem(path, item, parentItem, params)
         result = result.replace(new RegExp(`\\$\\{${i}\\}`, "g"), String(value))
       }
     }
     return result
   } else {
     // Для одного значения заменяем ${0}
-    const value = getValueByPathWithItem(dataPath, item)
+    const value = getValueByPathWithItem(dataPath, item, parentItem, params)
     return expr.replace(/\$\{0\}/g, String(value))
   }
 }

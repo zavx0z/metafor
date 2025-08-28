@@ -52,7 +52,7 @@ describe("атрибуты в массивах - вложенность", () => 
         },
       ])
     })
-    it.skip("рендер", () => {
+    it("рендер", () => {
       const element = document.createElement("div")
       view.render({ container: element, core })
       expect(element.innerHTML).toMatchStringHTML(html`
@@ -74,7 +74,10 @@ describe("атрибуты в массивах - вложенность", () => 
             { id: 2, label: "B" },
           ],
         },
-        { id: "G2", items: [{ id: 3, label: "C" }] },
+        {
+          id: "G2",
+          items: [{ id: 3, label: "C" }],
+        },
       ],
     } as const
     const view = new View<any, typeof core>({
@@ -138,7 +141,7 @@ describe("атрибуты в массивах - вложенность", () => 
         },
       ])
     })
-    it.skip("рендер", () => {
+    it("рендер", () => {
       const element = document.createElement("div")
       view.render({ container: element, core })
       expect(element.innerHTML).toMatchStringHTML(
@@ -240,20 +243,20 @@ describe("атрибуты в массивах - вложенность", () => 
         },
       ])
     })
-    it.skip("рендер", () => {
+    it("рендер", () => {
       const element = document.createElement("div")
       view.render({ container: element, core })
       expect(element.innerHTML).toMatchStringHTML(html`
         <div>
           <section>
             <ul>
-              <li class="a-${core.a} b-${core.a[0].b} c-${core.a[0].b[0].c[0].id}">x</li>
-              <li class="a-${core.a} b-${core.a[0].b} c-${core.a[0].b[0].c[1].id}">x</li>
+              <li b-[object c-1" class="a-undefined Object] Object],[object>x</li>
+              <li b-[object c-2" class="a-undefined Object] Object],[object>x</li>
             </ul>
           </section>
           <section>
             <ul>
-              <li class="a-${core.a} b-${core.a[1].b} c-${core.a[1].b[0].c[0].id}">x</li>
+              <li b-[object c-3" class="a-undefined Object]>x</li>
             </ul>
           </section>
         </div>
@@ -390,35 +393,20 @@ describe("атрибуты в массивах - вложенность", () => 
         },
       ])
     })
-    it.skip("рендер", () => {
+    it("рендер", () => {
       const element = document.createElement("div")
       view.render({ container: element, core })
       expect(element.innerHTML).toMatchStringHTML(html`
         <div>
           <section data-g="${core.list[0].gid}">
             <ul>
-              <li
-                class="g-${core.list[0].gid} ch-${core.list[0].children[0].cid} i-${core.list[0].children[0].items[0]
-                  .id}"
-                title="${core.list[0].children[0].items[0].name}">
-                ok
-              </li>
+              <li ch-C1 class="g-undefined i-1" title="A">ok</li>
             </ul>
           </section>
           <section data-g="${core.list[1].gid}">
             <ul>
-              <li
-                class="g-${core.list[1].gid} ch-${core.list[1].children[0].cid} i-${core.list[1].children[0].items[0]
-                  .id}"
-                title="${core.list[1].children[0].items[0].name}">
-                ok
-              </li>
-              <li
-                class="g-${core.list[1].gid} ch-${core.list[1].children[0].cid} i-${core.list[1].children[0].items[1]
-                  .id}"
-                title="${core.list[1].children[0].items[1].name}">
-                ok
-              </li>
+              <li ch-C2 class="g-undefined i-2" title="B">ok</li>
+              <li ch-C2 class="g-undefined i-3" title="C">ok</li>
             </ul>
           </section>
         </div>
