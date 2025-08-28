@@ -33,7 +33,7 @@ describe("атрибуты в массивах - вложенность", () => 
                   string: {
                     class: {
                       data: "[item]/type",
-                      expr: "item-${0}",
+                      expr: "item-${[0]}",
                     },
                     title: {
                       data: "[item]/name",
@@ -116,11 +116,11 @@ describe("атрибуты в массивах - вложенность", () => 
                             class: [
                               {
                                 data: "../[item]/id",
-                                expr: "g-${0}",
+                                expr: "g-${[0]}",
                               },
                               {
                                 data: "[item]/id",
-                                expr: "i-${0}",
+                                expr: "i-${[0]}",
                               },
                             ],
                           },
@@ -210,15 +210,15 @@ describe("атрибуты в массивах - вложенность", () => 
                                     class: [
                                       {
                                         data: "/core/a",
-                                        expr: "a-${0}",
+                                        expr: "a-${[0]}",
                                       },
                                       {
                                         data: "../[item]/c",
-                                        expr: "b-${0}",
+                                        expr: "b-${[0]}",
                                       },
                                       {
                                         data: "[item]/id",
-                                        expr: "c-${0}",
+                                        expr: "c-${[0]}",
                                       },
                                     ],
                                   },
@@ -355,15 +355,15 @@ describe("атрибуты в массивах - вложенность", () => 
                                     class: [
                                       {
                                         data: "../../[item]/gid",
-                                        expr: "g-${0}",
+                                        expr: "g-${[0]}",
                                       },
                                       {
                                         data: "../[item]/cid",
-                                        expr: "ch-${0}",
+                                        expr: "ch-${[0]}",
                                       },
                                       {
                                         data: "[item]/id",
-                                        expr: "i-${0}",
+                                        expr: "i-${[0]}",
                                       },
                                     ],
                                   },

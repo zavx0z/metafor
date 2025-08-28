@@ -52,7 +52,7 @@ describe("условные блоки", () => {
                     },
                     {
                       data: "/context/className",
-                      expr: "${0}-image",
+                      expr: "${[0]}-image",
                     },
                   ],
                 },
@@ -69,11 +69,11 @@ describe("условные блоки", () => {
                   class: [
                     {
                       data: "/context/className",
-                      expr: "button-${0}",
+                      expr: "button-${[0]}",
                     },
                     {
                       data: "/context/className",
-                      expr: "${0}-button",
+                      expr: "${[0]}-button",
                     },
                   ],
                 },
@@ -86,7 +86,7 @@ describe("условные блоки", () => {
                   {
                     type: "text",
                     data: "/context/text",
-                    expr: "${0}",
+                    expr: "${[0]}",
                   },
                 ],
               },
@@ -123,7 +123,7 @@ describe("условные блоки", () => {
               {
                 type: "cond",
                 data: ["/context/enum", "/div"],
-                expr: '${0} === "${1}"',
+                expr: '${[0]} === "${[1]}"',
                 true: {
                   tag: "span",
                   type: "el",
@@ -312,7 +312,7 @@ describe("условные блоки", () => {
               {
                 type: "cond",
                 data: ["/context/userRole", "/core/requiredRole"],
-                expr: "${0} === ${1}",
+                expr: "${[0]} === ${[1]}",
                 true: {
                   tag: "h1",
                   type: "el",
@@ -366,7 +366,7 @@ describe("условные блоки", () => {
               {
                 type: "cond",
                 data: ["/context/userRole", "/admin"],
-                expr: '${0} === "${1}"',
+                expr: '${[0]} === "${[1]}"',
                 true: {
                   tag: "section",
                   type: "el",
@@ -426,7 +426,7 @@ describe("условные блоки", () => {
               {
                 type: "cond",
                 data: ["/context/a", "/core/b"],
-                expr: "${0} > ${1}",
+                expr: "${[0]} > ${[1]}",
                 true: {
                   tag: "span",
                   type: "el",
@@ -468,7 +468,7 @@ describe("условные блоки", () => {
               {
                 type: "cond",
                 data: ["/core/b", "/context/a"],
-                expr: "${0} <= ${1}",
+                expr: "${[0]} <= ${[1]}",
                 true: {
                   tag: "p",
                   type: "el",
@@ -509,7 +509,7 @@ describe("условные блоки", () => {
             {
               type: "cond",
               data: ["/context/role", "/core/requiredRole"],
-              expr: "${0} === ${1}",
+              expr: "${[0]} === ${[1]}",
               true: {
                 tag: "h1",
                 type: "el",

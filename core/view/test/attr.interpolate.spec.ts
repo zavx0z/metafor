@@ -135,7 +135,7 @@ describe("интерполяции в атрибутах", () => {
             string: {
               class: {
                 data: "/context/type",
-                expr: "btn-${0}",
+                expr: "btn-${[0]}",
               },
             },
             child: [
@@ -170,7 +170,7 @@ describe("интерполяции в атрибутах", () => {
             string: {
               class: {
                 data: "/context/theme",
-                expr: "${0}-mode",
+                expr: "${[0]}-mode",
               },
             },
             child: [
@@ -205,7 +205,7 @@ describe("интерполяции в атрибутах", () => {
             string: {
               "data-key": {
                 data: "/core/id",
-                expr: "prefix-${0}-suffix",
+                expr: "prefix-${[0]}-suffix",
               },
             },
             child: [
@@ -307,7 +307,7 @@ describe("интерполяции в атрибутах", () => {
                     string: {
                       class: {
                         data: "[item]/type",
-                        expr: "item-${0}",
+                        expr: "item-${[0]}",
                       },
                     },
                     child: [
@@ -370,7 +370,7 @@ describe("интерполяции в атрибутах", () => {
                       },
                       class: {
                         data: "[item]/type",
-                        expr: "item-${0}",
+                        expr: "item-${[0]}",
                       },
                       title: {
                         data: "[item]/name",
@@ -490,7 +490,7 @@ describe("интерполяции в атрибутах", () => {
                         },
                         {
                           data: "[item]/type",
-                          expr: "item-${0}",
+                          expr: "item-${[0]}",
                         },
                       ],
                     },
@@ -506,7 +506,7 @@ describe("интерполяции в атрибутах", () => {
                       },
                       title: {
                         data: ["[item]/Item", "[item]/name"],
-                        expr: "${0}: ${${1}}",
+                        expr: "${[0]}: ${${[1]}}",
                       },
                     },
                   },

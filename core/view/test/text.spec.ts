@@ -194,22 +194,22 @@ describe("текстовые узлы", () => {
       render: ({ html, core }) => html`<span>Best framework - ${core.framework.name}</span>`,
     })
     it("парсинг", () => {
-      expect(
-        view.schema,
-        "src - ядро и ключ объекта в ядре, key - составной ключ объекта, result - шаблонная строка"
-      ).toEqual([
-        {
-          tag: "span",
-          type: "el",
-          child: [
-            {
-              type: "text",
-              data: "/core/framework/name",
-              expr: "Best framework - ${0}",
-            },
-          ],
-        },
-      ])
+              expect(
+          view.schema,
+          "src - ядро и ключ объекта в ядре, key - составной ключ объекта, result - шаблонная строка"
+        ).toEqual([
+          {
+            tag: "span",
+            type: "el",
+            child: [
+              {
+                type: "text",
+                data: "/core/framework/name",
+                expr: "Best framework - ${[0]}",
+              },
+            ],
+          },
+        ])
     })
     it("рендер", () => {
       const element = document.createElement("div")
@@ -233,7 +233,7 @@ describe("текстовые узлы", () => {
             {
               type: "text",
               data: ["/state", "/core/one", "/core/two"],
-              expr: "In state: ${0} in core: ${1} ${2}",
+              expr: "In state: ${[0]} in core: ${[1]} ${[2]}",
             },
           ],
         },

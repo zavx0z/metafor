@@ -261,7 +261,7 @@ describe("массивы", () => {
                       },
                       class: {
                         data: "[item]/type",
-                        expr: "item-${0}",
+                        expr: "item-${[0]}",
                       },
                     },
                     child: [
@@ -442,7 +442,7 @@ describe("массивы", () => {
                           {
                             type: "text",
                             data: "[item]/price",
-                            expr: "$${0}",
+                            expr: "$${[0]}",
                           },
                         ],
                       },
@@ -608,7 +608,7 @@ describe("массивы", () => {
                           {
                             type: "text",
                             data: "[item]/context/totalCount",
-                            expr: "Total users: ${0}",
+                            expr: "Total users: ${[0]}",
                           },
                         ],
                       },

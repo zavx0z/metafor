@@ -23,7 +23,7 @@ describe("условные атрибуты", () => {
             string: {
               class: {
                 data: "/context/count",
-                expr: '10 > ${0} && ${0} < 3 ? "active" : "inactive"',
+                expr: '10 > ${[0]} && ${[0]} < 3 ? "active" : "inactive"',
               },
             },
             child: [
@@ -55,7 +55,7 @@ describe("условные атрибуты", () => {
             string: {
               class: {
                 data: ["/core/isActive", "/context/isActive"],
-                expr: '${0} === ${1} ? "active" : "inactive"',
+                expr: '${[0]} === ${[1]} ? "active" : "inactive"',
               },
             },
             child: [
@@ -98,7 +98,7 @@ describe("условные атрибуты", () => {
             string: {
               class: {
                 data: ["/core/isActive", "/context/isActive"],
-                expr: '${0} === ${1} ? "active" : "inactive"',
+                expr: '${[0]} === ${[1]} ? "active" : "inactive"',
               },
             },
             child: [
@@ -110,7 +110,7 @@ describe("условные атрибуты", () => {
           },
         ])
       })
-      
+
       it("рендер (false === false)", () => {
         const element = document.createElement("div")
         view.render({ container: element, context: { isActive: false }, core: { isActive: false } })
@@ -148,7 +148,7 @@ describe("условные атрибуты", () => {
             string: {
               class: {
                 data: ["/core/isActive", "/context/isActive", "/context/item", "/active", "/context/status"],
-                expr: '${0} === ${1} ? `${${2}}-${3}-${${4}}` : "inactive"',
+                expr: '${[0]} === ${[1]} ? `${${[2]}}-${${[3]}}-${${[4]}}` : "inactive"',
               },
             },
             child: [
@@ -160,23 +160,23 @@ describe("условные атрибуты", () => {
           },
         ])
       })
-      
+
       it("рендер (условие true)", () => {
         const element = document.createElement("div")
-        view.render({ 
-          container: element, 
-          context: { isActive: false, item: "test", status: "waiting" }, 
-          core: { isActive: false } 
+        view.render({
+          container: element,
+          context: { isActive: false, item: "test", status: "waiting" },
+          core: { isActive: false },
         })
         expect(element.innerHTML).toMatchStringHTML(html`<div class="test-active-waiting">Content</div>`)
       })
 
       it("рендер (условие false)", () => {
         const element = document.createElement("div")
-        view.render({ 
-          container: element, 
-          context: { isActive: false, item: "test", status: "waiting" }, 
-          core: { isActive: true } 
+        view.render({
+          container: element,
+          context: { isActive: false, item: "test", status: "waiting" },
+          core: { isActive: true },
         })
         expect(element.innerHTML).toMatchStringHTML(html`<div class="inactive">Content</div>`)
       })
@@ -289,7 +289,7 @@ describe("условные атрибуты", () => {
                       string: {
                         class: {
                           data: "[item]/isSpecial",
-                          expr: '${0} ? "special" : "normal"',
+                          expr: '${[0]} ? "special" : "normal"',
                         },
                       },
                       child: [
@@ -348,7 +348,7 @@ describe("условные атрибуты", () => {
                       string: {
                         class: {
                           data: "[item]/isSpecial",
-                          expr: '${0} ? "special" : "normal"',
+                          expr: '${[0]} ? "special" : "normal"',
                         },
                       },
                       child: [
@@ -407,7 +407,7 @@ describe("условные атрибуты", () => {
                       string: {
                         class: {
                           data: "[item]/isSpecial",
-                          expr: '${0} ? "special" : "normal"',
+                          expr: '${[0]} ? "special" : "normal"',
                         },
                       },
                       child: [
@@ -484,7 +484,7 @@ describe("условные атрибуты", () => {
                             "[item]/active",
                             "[item]/context/status",
                           ],
-                          expr: '${0} === ${1} ? `${${2}}-${3}-${${4}}` : "inactive"',
+                          expr: '${[0]} === ${[1]} ? `${${[2]}}-${[3]}-${${[4]}}` : "inactive"',
                         },
                       },
                       child: [
@@ -542,7 +542,7 @@ describe("условные атрибуты", () => {
                       string: {
                         class: {
                           data: "[item]/isAdmin",
-                          expr: '${0} && "admin-user"',
+                          expr: '${[0]} && "admin-user"',
                         },
                       },
                       child: [
@@ -591,7 +591,7 @@ describe("условные атрибуты", () => {
                   },
                   {
                     data: "/context/isLarge",
-                    expr: '${0} ? "btn-lg" : "btn-sm"',
+                    expr: '${[0]} ? "btn-lg" : "btn-sm"',
                   },
                 ],
               },
@@ -715,7 +715,7 @@ describe("условные атрибуты", () => {
               string: {
                 class: {
                   data: "/context/always",
-                  expr: '${0} ? "same" : "same"',
+                  expr: '${[0]} ? "same" : "same"',
                 },
               },
               child: [

@@ -14,7 +14,7 @@ describe("стандартные события on*", () => {
           event: {
             onclick: {
               data: "/context/onClick",
-              expr: "() => ${0}()",
+              expr: "() => ${[0]}()",
             },
           },
           child: [
@@ -41,7 +41,7 @@ describe("стандартные события on*", () => {
           event: {
             onclick: {
               data: "/context/onClick",
-              expr: "() => ${0}()",
+              expr: "() => ${[0]}()",
             },
           },
           child: [{ type: "text", value: "OK" }],
@@ -80,11 +80,11 @@ describe("стандартные события on*", () => {
           event: {
             onclick: {
               data: "/core/onClick",
-              expr: "() => ${0}()",
+              expr: "() => ${[0]}()",
             },
             oninput: {
               data: "/core/onInput",
-              expr: "(e) => ${0}(e)",
+              expr: "(e) => ${[0]}(e)",
             },
           },
         },
@@ -105,7 +105,7 @@ describe("стандартные события on*", () => {
           event: {
             oninput: {
               data: "/core/onInput",
-              expr: "(e) => ${0}(e)",
+              expr: "(e) => ${[0]}(e)",
             },
           },
         },
@@ -138,7 +138,7 @@ describe("стандартные события on*", () => {
                   event: {
                     onclick: {
                       data: "[item]/onClick",
-                      expr: "() => ${0}()",
+                      expr: "() => ${[0]}()",
                     },
                   },
                   child: [
@@ -183,7 +183,7 @@ describe("стандартные события on*", () => {
                   event: {
                     onclick: {
                       data: ["[item]/handleClick", "[item]/id"],
-                      expr: "(e) => ${0}(e, ${1})",
+                      expr: "(e) => ${[0]}(e, ${[1]})",
                     },
                   },
                   child: [
@@ -218,7 +218,7 @@ describe("стандартные события on*", () => {
           event: {
             onsubmit: {
               data: "/context/handleSubmit",
-              expr: "(e) => ${0}(e)",
+              expr: "(e) => ${[0]}(e)",
             },
           },
           string: {
@@ -232,7 +232,7 @@ describe("стандартные события on*", () => {
               event: {
                 onchange: {
                   data: "/context/handleChange",
-                  expr: "(e) => ${0}(e)",
+                  expr: "(e) => ${[0]}(e)",
                 },
               },
               string: {
@@ -245,7 +245,7 @@ describe("стандартные события on*", () => {
               event: {
                 onclick: {
                   data: "/context/onClick",
-                  expr: "() => ${0}()",
+                  expr: "() => ${[0]}()",
                 },
               },
               string: {
@@ -278,7 +278,7 @@ describe("стандартные события on*", () => {
           event: {
             onclick: {
               data: "/context/onClick",
-              expr: "() => ${0}()",
+              expr: "() => ${[0]}()",
             },
           },
           boolean: {

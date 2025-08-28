@@ -42,7 +42,7 @@ describe("meta", () => {
           {
             tag: {
               data: "/core/actors/child",
-              expr: "meta-${0}",
+              expr: "meta-${[0]}",
             },
             type: "meta",
           },
@@ -60,7 +60,7 @@ describe("meta", () => {
           {
             tag: {
               data: "/core/actors/child",
-              expr: "meta-${0}",
+              expr: "meta-${[0]}",
             },
             type: "meta",
           },
@@ -90,7 +90,7 @@ describe("meta", () => {
             },
             tag: {
               data: "/core/actors/child",
-              expr: "meta-${0}",
+              expr: "meta-${[0]}",
             },
             type: "meta",
           },
@@ -212,7 +212,7 @@ describe("meta", () => {
               {
                 tag: {
                   data: "/core/actors/child",
-                  expr: "meta-${0}",
+                  expr: "meta-${[0]}",
                 },
                 type: "meta",
               },
@@ -244,14 +244,14 @@ describe("meta", () => {
               {
                 tag: {
                   data: "/core/actors/child1",
-                  expr: "meta-${0}",
+                  expr: "meta-${[0]}",
                 },
                 type: "meta",
               },
               {
                 tag: {
                   data: "/core/actors/child2",
-                  expr: "meta-${0}",
+                  expr: "meta-${[0]}",
                 },
                 type: "meta",
               },
@@ -315,7 +315,7 @@ describe("meta", () => {
             },
             tag: {
               data: "/core/actors/child",
-              expr: "meta-${0}",
+              expr: "meta-${[0]}",
             },
             type: "meta",
           },

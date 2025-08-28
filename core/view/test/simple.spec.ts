@@ -221,7 +221,7 @@ describe("парсинг/рендер простых элементов", () => 
               {
                 type: "text",
                 data: "/context/count",
-                expr: "Total: ${0}",
+                expr: "Total: ${[0]}",
               },
             ],
           },

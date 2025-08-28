@@ -119,7 +119,7 @@ function renderElement<C extends ContextSchema>(
   if (node.array) {
     for (const [key, values] of Object.entries(node.array)) {
       const attrValues: string[] = []
-      
+
       for (const value of values) {
         if (typeof value === "object" && value !== null) {
           if ("data" in value && "expr" in value) {
@@ -136,7 +136,7 @@ function renderElement<C extends ContextSchema>(
           }
         }
       }
-      
+
       if (attrValues.length > 0) {
         element.setAttribute(key, attrValues.join(" "))
       }
@@ -324,7 +324,7 @@ function renderElementWithItem<C extends ContextSchema>(
   if (node.array) {
     for (const [key, values] of Object.entries(node.array)) {
       const attrValues: string[] = []
-      
+
       for (const value of values) {
         if (typeof value === "object" && value !== null) {
           if ("data" in value && "expr" in value) {
@@ -341,7 +341,7 @@ function renderElementWithItem<C extends ContextSchema>(
           }
         }
       }
-      
+
       if (attrValues.length > 0) {
         element.setAttribute(key, attrValues.join(" "))
       }
@@ -465,22 +465,28 @@ function getNestedValueWithItem(path: string, item: any, parentItem?: any, param
 /**
  * Вычисляет выражение с интерполяцией для элемента массива
  */
-function evaluateExpressionWithItem(expr: string, dataPath: string | string[], item: any, parentItem?: any, params?: any): string {
+function evaluateExpressionWithItem(
+  expr: string,
+  dataPath: string | string[],
+  item: any,
+  parentItem?: any,
+  params?: any
+): string {
   let result = expr
 
   if (Array.isArray(dataPath)) {
-    // Для множественных значений заменяем ${0}, ${1}, ${2} и т.д.
+    // Для множественных значений заменяем [0], [1], [2] и т.д.
     for (let i = 0; i < dataPath.length; i++) {
       const path = dataPath[i]
       if (path) {
         const value = getNestedValueWithItem(path, item, parentItem, params)
-        result = result.replace(new RegExp(`\\$\\{${i}\\}`, "g"), JSON.stringify(value))
+        result = result.replace(new RegExp(`\\[${i}\\]`, "g"), JSON.stringify(value))
       }
     }
   } else {
-    // Для одного значения заменяем ${0}
+    // Для одного значения заменяем [0]
     const value = getValueByPathWithItem(dataPath, item, parentItem, params)
-    result = result.replace(/\$\{0\}/g, JSON.stringify(value))
+    result = result.replace(/\[0\]/g, JSON.stringify(value))
   }
 
   try {
@@ -644,18 +650,18 @@ function evaluateExpression(
   let result = expr
 
   if (Array.isArray(dataPath)) {
-    // Для множественных значений заменяем ${0}, ${1}, ${2} и т.д.
+    // Для множественных значений заменяем [0], [1], [2] и т.д.
     for (let i = 0; i < dataPath.length; i++) {
       const path = dataPath[i]
       if (path) {
         const value = getNestedValue(path, params)
-        result = result.replace(new RegExp(`\\$\\{${i}\\}`, "g"), JSON.stringify(value))
+        result = result.replace(new RegExp(`\\[${i}\\]`, "g"), JSON.stringify(value))
       }
     }
   } else {
-    // Для одного значения заменяем ${0}
+    // Для одного значения заменяем [0]
     const value = getValueByPath(dataPath, params)
-    result = result.replace(/\$\{0\}/g, JSON.stringify(value))
+    result = result.replace(/\[0\]/g, JSON.stringify(value))
   }
 
   try {
