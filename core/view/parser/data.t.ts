@@ -6,6 +6,8 @@ export type ParseMapContext = {
   path: string
   /** Параметры map */
   params: string[]
+  /** Является ли это деструктуризацией */
+  isDestructured: boolean
   /** Уровень map */
   level: number
 }

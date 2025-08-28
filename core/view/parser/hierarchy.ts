@@ -2,6 +2,92 @@ import type { ElementToken } from "./splitter"
 import type { PartMap, PartCondition, PartElement, PartMeta, PartHierarchy, StackItem, PartText } from "./hierarchy.t"
 
 /**
+ * Создает PartMap узел
+ */
+const createMapNode = (text: string, child: (PartElement | PartText | PartMeta)[]): PartMap => ({
+  type: "map",
+  text,
+  child,
+})
+
+/**
+ * Создает PartCondition узел
+ */
+const createConditionNode = (
+  text: string,
+  trueBranch: PartElement | PartMeta | PartText,
+  falseBranch: PartElement | PartMeta | PartText
+): PartCondition => ({
+  type: "cond",
+  text,
+  true: trueBranch as PartElement | PartMeta,
+  false: falseBranch as PartElement | PartMeta,
+})
+
+/**
+ * Фильтрует элементы, которые могут быть обработаны map/condition
+ */
+const getProcessableElements = (hierarchy: PartHierarchy): (PartElement | PartText | PartMeta)[] =>
+  hierarchy.filter((item) => item.type === "el" || item.type === "text" || item.type === "meta") as (
+    | PartElement
+    | PartText
+    | PartMeta
+  )[]
+
+/**
+ * Обрабатывает несколько map-выражений
+ */
+const processMultipleMaps = (
+  mapInfos: { parent: PartElement | PartMeta | null; text: string; startChildIndex: number }[],
+  processableElements: (PartElement | PartText | PartMeta)[]
+): PartMap[] => {
+  const elementsPerMap = Math.ceil(processableElements.length / mapInfos.length)
+  const mapNodes: PartMap[] = []
+
+  for (let i = 0; i < mapInfos.length; i++) {
+    const mapInfo = mapInfos[i]
+    const startIndex = i * elementsPerMap
+    const endIndex = Math.min(startIndex + elementsPerMap, processableElements.length)
+    const mapElements = processableElements.slice(startIndex, endIndex)
+
+    if (mapElements.length > 0 && mapInfo) {
+      mapNodes.push(createMapNode(mapInfo.text, mapElements))
+    }
+  }
+
+  return mapNodes
+}
+
+/**
+ * Обрабатывает несколько условий
+ */
+const processMultipleConditions = (
+  conditionInfos: { parent: PartElement | PartMeta | null; text: string }[],
+  processableElements: (PartElement | PartText | PartMeta)[]
+): PartCondition[] => {
+  const elementsPerCondition = Math.ceil(processableElements.length / conditionInfos.length)
+  const conditionNodes: PartCondition[] = []
+
+  for (let i = 0; i < conditionInfos.length; i++) {
+    const condInfo = conditionInfos[i]
+    const startIndex = i * elementsPerCondition
+    const endIndex = Math.min(startIndex + elementsPerCondition, processableElements.length)
+    const conditionElements = processableElements.slice(startIndex, endIndex)
+
+    if (conditionElements.length >= 2 && condInfo) {
+      const trueBranch = conditionElements[0]
+      const falseBranch = conditionElements[1]
+
+      if (trueBranch && falseBranch) {
+        conditionNodes.push(createConditionNode(condInfo.text, trueBranch, falseBranch))
+      }
+    }
+  }
+
+  return conditionNodes
+}
+
+/**
  * Формирует иерархию элементов на основе последовательности тегов.
  *
  * ПРОСТОЙ АЛГОРИТМ:
@@ -156,13 +242,7 @@ export const makeHierarchy = (html: string, elements: ElementToken[]): PartHiera
                 const beforeChildren = parentElement.child.slice(0, startIdx)
                 const mapChildren = parentElement.child.slice(startIdx) as (PartElement | PartText | PartMeta)[]
 
-                const mapNode: PartMap = {
-                  type: "map",
-                  text: mapInfo.text,
-                  child: mapChildren,
-                }
-
-                parentElement.child = [...beforeChildren, mapNode]
+                parentElement.child = [...beforeChildren, createMapNode(mapInfo.text, mapChildren)]
                 mapStack.splice(mapStack.indexOf(mapInfo), 1)
               }
             }
@@ -178,13 +258,7 @@ export const makeHierarchy = (html: string, elements: ElementToken[]): PartHiera
                   const falseBranch = parentElement.child[i]
 
                   if (trueBranch && falseBranch && trueBranch.type === "meta" && falseBranch.type === "meta") {
-                    const conditionNode: PartCondition = {
-                      type: "cond",
-                      text: condInfo.text,
-                      true: trueBranch as PartMeta,
-                      false: falseBranch as PartMeta,
-                    }
-                    parentElement.child.splice(i - 1, 2, conditionNode)
+                    parentElement.child.splice(i - 1, 2, createConditionNode(condInfo.text, trueBranch, falseBranch))
                     processedAnyCondition = true
                     break // Обрабатываем только одну пару для этого условия
                   }
@@ -209,20 +283,55 @@ export const makeHierarchy = (html: string, elements: ElementToken[]): PartHiera
 
           // Создаем PartMap если нужно (только для обычных элементов)
           if (parentElement.type === "el") {
-            const mapInfo = mapStack.find((m) => m.parent === parentElement)
-            if (mapInfo && parentElement.child && parentElement.child.length > 0) {
-              const startIdx = Math.max(0, mapInfo.startChildIndex)
-              const beforeChildren = parentElement.child.slice(0, startIdx)
-              const mapChildren = parentElement.child.slice(startIdx) as (PartElement | PartText)[]
+            const mapInfos = mapStack.filter((m) => m.parent === parentElement)
+            if (mapInfos.length > 0 && parentElement.child && parentElement.child.length > 0) {
+              // Если у нас несколько map-выражений, используем новую логику
+              if (mapInfos.length > 1) {
+                // Обрабатываем все map-выражения для этого родителя
+                const mapableElements = parentElement.child.filter(
+                  (item) => item.type === "el" || item.type === "text" || item.type === "meta"
+                ) as (PartElement | PartText | PartMeta)[]
 
-              const mapNode: PartMap = {
-                type: "map",
-                text: mapInfo.text,
-                child: mapChildren,
+                // Разделяем элементы между map-выражениями
+                const elementsPerMap = Math.ceil(mapableElements.length / mapInfos.length)
+                const newChildren: (PartElement | PartText | PartMeta | PartMap | PartCondition)[] = []
+
+                for (let i = 0; i < mapInfos.length; i++) {
+                  const mapInfo = mapInfos[i]
+                  if (!mapInfo) continue
+                  const startIndex = i * elementsPerMap
+                  const endIndex = Math.min(startIndex + elementsPerMap, mapableElements.length)
+                  const mapElements = mapableElements.slice(startIndex, endIndex)
+
+                  if (mapElements.length > 0) {
+                    newChildren.push(createMapNode(mapInfo.text, mapElements))
+                  }
+                }
+
+                // Добавляем элементы, которые не вошли в map
+                const nonMapElements = parentElement.child.filter(
+                  (item) => !(item.type === "el" || item.type === "text" || item.type === "meta")
+                )
+                newChildren.push(...nonMapElements)
+
+                parentElement.child = newChildren
+
+                // Удаляем обработанные map-выражения из стека
+                for (const mapInfo of mapInfos) {
+                  mapStack.splice(mapStack.indexOf(mapInfo), 1)
+                }
+              } else {
+                // Один map - используем старую логику
+                const mapInfo = mapInfos[0]
+                if (mapInfo && parentElement.child && parentElement.child.length > 0) {
+                  const startIdx = Math.max(0, mapInfo.startChildIndex)
+                  const beforeChildren = parentElement.child.slice(0, startIdx)
+                  const mapChildren = parentElement.child.slice(startIdx) as (PartElement | PartText)[]
+
+                  parentElement.child = [...beforeChildren, createMapNode(mapInfo.text, mapChildren)]
+                  mapStack.splice(mapStack.indexOf(mapInfo), 1)
+                }
               }
-
-              parentElement.child = [...beforeChildren, mapNode]
-              mapStack.splice(mapStack.indexOf(mapInfo), 1)
             }
           }
 
@@ -238,13 +347,7 @@ export const makeHierarchy = (html: string, elements: ElementToken[]): PartHiera
                   const falseBranch = parentElement.child[i]
 
                   if (trueBranch && falseBranch && trueBranch.type === "el" && falseBranch.type === "el") {
-                    const conditionNode: PartCondition = {
-                      type: "cond",
-                      text: condInfo.text,
-                      true: trueBranch as PartElement,
-                      false: falseBranch as PartElement,
-                    }
-                    parentElement.child.splice(i - 1, 2, conditionNode)
+                    parentElement.child.splice(i - 1, 2, createConditionNode(condInfo.text, trueBranch, falseBranch))
                     processedAnyCondition = true
                     break // Обрабатываем только одну пару для этого условия
                   }
@@ -279,52 +382,70 @@ export const makeHierarchy = (html: string, elements: ElementToken[]): PartHiera
   }
 
   // Обрабатываем map/condition на верхнем уровне
-  for (const mapInfo of mapStack) {
-    if (mapInfo.parent === null && hierarchy.length > 0) {
-      const mapNode: PartMap = {
-        type: "map",
-        text: mapInfo.text,
-        child: hierarchy.filter((item) => item.type === "el" || item.type === "text" || item.type === "meta") as (
-          | PartElement
-          | PartText
-          | PartMeta
-        )[],
-      }
-      hierarchy.splice(0, hierarchy.length, mapNode)
-    }
-  }
-
-  // Обрабатываем ВСЕ условия на верхнем уровне
+  const topLevelMapInfos = mapStack.filter((m) => m.parent === null)
   const topLevelConditions = conditionStack.filter((c) => c.parent === null)
-  for (const condInfo of topLevelConditions) {
-    if (hierarchy.length >= 2) {
-      // Ищем последовательные пары элементов, которые могут быть true/false ветками
-      let processedAnyCondition = false
-      for (let i = hierarchy.length - 1; i >= 1; i--) {
-        const trueBranch = hierarchy[i - 1]
-        const falseBranch = hierarchy[i]
 
-        if (
-          trueBranch &&
-          falseBranch &&
-          ((trueBranch.type === "el" && falseBranch.type === "el") ||
-            (trueBranch.type === "meta" && falseBranch.type === "meta"))
-        ) {
-          const conditionNode: PartCondition = {
-            type: "cond",
-            text: condInfo.text,
-            true: trueBranch as PartElement | PartMeta,
-            false: falseBranch as PartElement | PartMeta,
+  if (topLevelMapInfos.length > 0 || topLevelConditions.length > 0) {
+    const newHierarchy: PartHierarchy = []
+    const processableElements = getProcessableElements(hierarchy)
+
+    // Если у нас есть и map и condition, нужно правильно разделить элементы
+    if (topLevelMapInfos.length > 0 && topLevelConditions.length > 0) {
+      // Для случая map + condition на верхнем уровне
+      // Первый элемент идет в map, остальные в condition
+      if (processableElements.length > 0) {
+        // Первый элемент для map
+        const mapInfo = topLevelMapInfos[0]
+        const mapElement = processableElements[0]
+
+        if (mapInfo && mapElement) {
+          newHierarchy.push(createMapNode(mapInfo.text, [mapElement]))
+        }
+
+        // Остальные элементы для condition
+        const remainingElements = processableElements.slice(1)
+        if (remainingElements.length >= 2) {
+          const condInfo = topLevelConditions[0]
+          const trueBranch = remainingElements[0]
+          const falseBranch = remainingElements[1]
+
+          if (condInfo && trueBranch && falseBranch) {
+            newHierarchy.push(createConditionNode(condInfo.text, trueBranch, falseBranch))
           }
-          hierarchy.splice(i - 1, 2, conditionNode)
-          processedAnyCondition = true
-          break // Обрабатываем только одну пару для этого условия
         }
       }
-      if (processedAnyCondition) {
-        conditionStack.splice(conditionStack.indexOf(condInfo), 1)
+    } else if (topLevelMapInfos.length > 1) {
+      // Несколько map-выражений на верхнем уровне
+      newHierarchy.push(...processMultipleMaps(topLevelMapInfos, processableElements))
+    } else if (topLevelMapInfos.length === 1) {
+      // Один map - все элементы принадлежат ему
+      const mapInfo = topLevelMapInfos[0]
+      if (mapInfo && processableElements.length > 0) {
+        newHierarchy.push(createMapNode(mapInfo.text, processableElements))
+      }
+    } else if (topLevelConditions.length > 1) {
+      // Несколько условий на верхнем уровне
+      newHierarchy.push(...processMultipleConditions(topLevelConditions, processableElements))
+    } else if (topLevelConditions.length === 1) {
+      // Одно условие на верхнем уровне
+      const condInfo = topLevelConditions[0]
+      if (processableElements.length >= 2 && condInfo) {
+        const trueBranch = processableElements[0]
+        const falseBranch = processableElements[1]
+
+        if (trueBranch && falseBranch) {
+          newHierarchy.push(createConditionNode(condInfo.text, trueBranch, falseBranch))
+        }
       }
     }
+
+    // Добавляем элементы, которые не вошли в map или condition
+    const nonProcessableElements = hierarchy.filter(
+      (item) => !(item.type === "el" || item.type === "text" || item.type === "meta")
+    )
+    newHierarchy.push(...nonProcessableElements)
+
+    hierarchy.splice(0, hierarchy.length, ...newHierarchy)
   }
 
   return hierarchy

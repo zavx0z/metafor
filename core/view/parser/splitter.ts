@@ -228,6 +228,16 @@ export const extractHtmlElements = (input: string): ElementToken[] => {
       return // пропускаем куски, которые явно являются частями template literals
     }
 
+    // Проверяем, является ли кусок разделителем между map-выражениями
+    if (chunk.match(/^\s*`\)\}\s*\n\s*$/)) {
+      return // пропускаем разделители между map-выражениями
+    }
+
+    // Проверяем, содержит ли кусок конец map-выражения
+    if (chunk.includes("`)}")) {
+      return // пропускаем куски, содержащие конец map-выражения
+    }
+
     while (i < chunk.length) {
       if (chunk[i] === "$" && i + 1 < chunk.length && chunk[i + 1] === "{") {
         // Нашли начало template literal

@@ -37,28 +37,33 @@ describe("data-parser", () => {
 
   describe("extractMapParams", () => {
     it("парсит простой параметр", () => {
-      const params = extractMapParams("name")
+      const { params, isDestructured } = extractMapParams("name")
       expect(params).toEqual(["name"])
+      expect(isDestructured).toBe(false)
     })
 
     it("парсит несколько параметров", () => {
-      const params = extractMapParams("item, index")
+      const { params, isDestructured } = extractMapParams("item, index")
       expect(params).toEqual(["item", "index"])
+      expect(isDestructured).toBe(false)
     })
 
     it("парсит деструктуризацию", () => {
-      const params = extractMapParams("{ title, nested }")
+      const { params, isDestructured } = extractMapParams("{ title, nested }")
       expect(params).toEqual(["title", "nested"])
+      expect(isDestructured).toBe(true)
     })
 
     it("парсит деструктуризацию с пробелами", () => {
-      const params = extractMapParams("{ title , nested }")
+      const { params, isDestructured } = extractMapParams("{ title , nested }")
       expect(params).toEqual(["title", "nested"])
+      expect(isDestructured).toBe(true)
     })
 
     it("возвращает пустой массив для пустых параметров", () => {
-      const params = extractMapParams("")
+      const { params, isDestructured } = extractMapParams("")
       expect(params).toEqual([])
+      expect(isDestructured).toBe(false)
     })
   })
 

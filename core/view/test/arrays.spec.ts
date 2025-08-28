@@ -195,14 +195,14 @@ describe("массивы", () => {
 
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ 
-          container: element, 
+        view.render({
+          container: element,
           core: {
             users: [
               { name: "John", email: "john@example.com", role: "admin" },
               { name: "Jane", email: "jane@example.com", role: "user" },
-            ]
-          }
+            ],
+          },
         })
         expect(element.innerHTML).toMatchStringHTML(html`
           <div>
@@ -286,14 +286,14 @@ describe("массивы", () => {
 
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ 
-          container: element, 
+        view.render({
+          container: element,
           core: {
             items: [
               { id: 1, type: "item", title: "Item 1" },
               { id: 2, type: "item", title: "Item 2" },
-            ]
-          }
+            ],
+          },
         })
         expect(element.innerHTML).toMatchStringHTML(html`
           <section>
@@ -349,15 +349,15 @@ describe("массивы", () => {
 
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ 
-          container: element, 
+        view.render({
+          container: element,
           core: {
             menuItems: [
               { url: "/home", label: "Home" },
               { url: "/about", label: "About" },
               { url: "/contact", label: "Contact" },
-            ]
-          }
+            ],
+          },
         })
         expect(element.innerHTML).toMatchStringHTML(html`
           <nav>
@@ -473,24 +473,24 @@ describe("массивы", () => {
 
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ 
-          container: element, 
+        view.render({
+          container: element,
           core: {
             products: [
-              { 
-                id: 1, 
-                name: "Product 1", 
-                price: 29.99, 
-                image: "/images/product1.jpg" 
+              {
+                id: 1,
+                name: "Product 1",
+                price: 29.99,
+                image: "/images/product1.jpg",
               },
-              { 
-                id: 2, 
-                name: "Product 2", 
-                price: 49.99, 
-                image: "/images/product2.jpg" 
+              {
+                id: 2,
+                name: "Product 2",
+                price: 49.99,
+                image: "/images/product2.jpg",
               },
-            ]
-          }
+            ],
+          },
         })
         expect(element.innerHTML).toMatchStringHTML(html`
           <main class="products">
@@ -623,15 +623,15 @@ describe("массивы", () => {
 
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ 
-          container: element, 
+        view.render({
+          container: element,
           context: {
             users: [
               { name: "John Doe", email: "john@example.com" },
               { name: "Jane Smith", email: "jane@example.com" },
             ],
-            totalCount: 2
-          }
+            totalCount: 2,
+          },
         })
         expect(element.innerHTML).toMatchStringHTML(html`
           <div class="container">
@@ -658,19 +658,29 @@ describe("массивы", () => {
     })
 
     describe("множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы", () => {
-      const view = new View({
-        render: ({ html, context, core }) =>
-          html`<div class="dashboard">
-            ${context.categories.map((cat: any) => html`<span class="category">${cat.name}</span>`)}
+      const { context, schema } = new Context((t) => ({
+        categories: t.array.required(["Electronics", "Books"]),
+      }))
+      type Core = {
+        items: {
+          categoryId: number
+          title: string
+        }[]
+      }
+      const view = new View<typeof schema, Core>({
+        render: ({ html, context, core }) => html`
+          <div class="dashboard">
+            ${context.categories.map((cat) => html`<span class="category">${cat}</span>`)}
             ${core.items.map(
-              (item: any) =>
-                html`<div class="item" data-category="${item.categoryId}">
+              (item) => html`
+                <div class="item" data-category="${item.categoryId}">
                   <h4>${item.title}</h4>
-                </div>`
+                </div>
+              `
             )}
-          </div>`,
+          </div>
+        `,
       })
-
       it("парсинг", () => {
         expect(
           view.schema,
@@ -679,9 +689,6 @@ describe("массивы", () => {
           {
             tag: "div",
             type: "el",
-            string: {
-              class: "dashboard",
-            },
             child: [
               {
                 type: "map",
@@ -690,25 +697,25 @@ describe("массивы", () => {
                   {
                     tag: "span",
                     type: "el",
-                    string: {
-                      class: "category",
-                    },
                     child: [
                       {
                         type: "text",
-                        data: "[item]/name",
+                        data: "[item]",
                       },
                     ],
+                    string: {
+                      class: "category",
+                    },
                   },
+                ],
+              },
+              {
+                type: "map",
+                data: "/core/items",
+                child: [
                   {
                     tag: "div",
                     type: "el",
-                    string: {
-                      class: "item",
-                      "data-category": {
-                        data: "[item]/item/categoryId",
-                      },
-                    },
                     child: [
                       {
                         tag: "h4",
@@ -716,45 +723,51 @@ describe("массивы", () => {
                         child: [
                           {
                             type: "text",
-                            data: "[item]/item/title",
+                            data: "[item]/title",
                           },
                         ],
                       },
                     ],
+                    string: {
+                      class: "item",
+                      "data-category": {
+                        data: "[item]/categoryId",
+                      },
+                    },
                   },
                 ],
               },
             ],
+            string: {
+              class: "dashboard",
+            },
           },
         ])
       })
 
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ 
-          container: element, 
+        view.render({
+          container: element,
           context: {
-            categories: [
-              { name: "Electronics" },
-              { name: "Books" },
-            ]
+            categories: ["Electronics", "Books"],
           },
           core: {
             items: [
               { categoryId: 1, title: "Laptop" },
               { categoryId: 2, title: "Novel" },
-            ]
-          }
+            ],
+          },
         })
         expect(element.innerHTML).toMatchStringHTML(html`
           <div class="dashboard">
             <span class="category">Electronics</span>
-            <div class="item" data-category="undefined">
-              <h4>undefined</h4>
-            </div>
             <span class="category">Books</span>
-            <div class="item" data-category="undefined">
-              <h4>undefined</h4>
+            <div class="item" data-category="1">
+              <h4>Laptop</h4>
+            </div>
+            <div class="item" data-category="2">
+              <h4>Novel</h4>
             </div>
           </div>
         `)
@@ -793,11 +806,11 @@ describe("массивы", () => {
 
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ 
-          container: element, 
+        view.render({
+          container: element,
           context: {
-            items: [1, 2, 3]
-          }
+            items: [1, 2, 3],
+          },
         })
         expect(element.innerHTML).toMatchStringHTML(html`
           <ul>
@@ -850,14 +863,14 @@ describe("массивы", () => {
 
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ 
-          container: element, 
+        view.render({
+          container: element,
           core: {
             images: [
               { url: "/images/photo1.jpg", alt: "Photo 1" },
               { url: "/images/photo2.jpg", alt: "Photo 2" },
-            ]
-          }
+            ],
+          },
         })
         expect(element.innerHTML).toMatchStringHTML(html`
           <div class="images">
@@ -904,11 +917,11 @@ describe("массивы", () => {
 
       it("рендер", () => {
         const element = document.createElement("div")
-        view.render({ 
-          container: element, 
+        view.render({
+          container: element,
           context: {
-            steps: ["Step 1", "Step 2", "Step 3"]
-          }
+            steps: ["Step 1", "Step 2", "Step 3"],
+          },
         })
         expect(element.innerHTML).toMatchStringHTML(html`
           <ol>
@@ -930,11 +943,11 @@ describe("массивы", () => {
         }[]
       }[]
     }
-    const view = new View({
+    const view = new View<any, Core>({
       render: ({ html, core }) =>
         html`<ul>
           ${core.items.map(
-            (item: any) => html`<li>${item.children.map((child: any) => html`<span>${child}</span>`)}</li>`
+            (item) => html` <li>${item.children.map((child) => html`<span>${child.name}</span>`)}</li> `
           )}
         </ul>`,
     })
@@ -963,7 +976,7 @@ describe("массивы", () => {
                           child: [
                             {
                               type: "text",
-                              data: "[item]",
+                              data: "[item]/name",
                             },
                           ],
                         },
@@ -978,40 +991,35 @@ describe("массивы", () => {
       ])
     })
 
-          it("рендер", () => {
-        const element = document.createElement("div")
-        view.render({ 
-          container: element, 
-          core: {
-            items: [
-              { 
-                id: 1, 
-                children: [
-                  { name: "Child 1" },
-                  { name: "Child 2" }
-                ]
-              },
-              { 
-                id: 2, 
-                children: [
-                  { name: "Child 3" }
-                ]
-              }
-            ]
-          }
-        })
-        expect(element.innerHTML).toMatchStringHTML(html`
-          <ul>
-            <li>
-              <span>[object Object]</span>
-              <span>[object Object]</span>
-            </li>
-            <li>
-              <span>[object Object]</span>
-            </li>
-          </ul>
-        `)
+    it("рендер", () => {
+      const element = document.createElement("div")
+      view.render({
+        container: element,
+        core: {
+          items: [
+            {
+              id: 1,
+              children: [{ name: "Child 1" }, { name: "Child 2" }],
+            },
+            {
+              id: 2,
+              children: [{ name: "Child 3" }],
+            },
+          ],
+        },
       })
+      expect(element.innerHTML).toMatchStringHTML(html`
+        <ul>
+          <li>
+            <span>Child 1</span>
+            <span>Child 2</span>
+          </li>
+          <li>
+            <span>Child 3</span>
+          </li>
+        </ul>
+      `)
+    })
   })
 
   describe("массив в массиве в массиве (3 уровня)", () => {
@@ -1024,14 +1032,14 @@ describe("массивы", () => {
         }[]
       }[]
     }
-    const view = new View({
+    const view = new View<any, Core>({
       render: ({ html, core }) =>
         html`<ul>
           ${core.items.map(
-            (item: any) =>
+            (item) =>
               html`<li>
                 ${item.children.map(
-                  (child: any) => html`<div>${child.tags.map((tag: any) => html`<span>${tag}</span>`)}</div>`
+                  (child) => html` <div>${child.tags.map((tag) => html`<span>${tag.label}</span>`)}</div>`
                 )}
               </li>`
           )}
@@ -1070,7 +1078,7 @@ describe("массивы", () => {
                                   child: [
                                     {
                                       type: "text",
-                                      data: "[item]",
+                                      data: "[item]/label",
                                     },
                                   ],
                                 },
@@ -1089,53 +1097,48 @@ describe("массивы", () => {
       ])
     })
 
-          it("рендер", () => {
-        const element = document.createElement("div")
-        view.render({ 
-          container: element, 
-          core: {
-            items: [
-              { 
-                id: 1, 
-                children: [
-                  { 
-                    name: "Child 1", 
-                    tags: [
-                      { label: "Tag 1" },
-                      { label: "Tag 2" }
-                    ]
-                  }
-                ]
-              },
-              { 
-                id: 2, 
-                children: [
-                  { 
-                    name: "Child 2", 
-                    tags: [
-                      { label: "Tag 3" }
-                    ]
-                  }
-                ]
-              }
-            ]
-          }
-        })
-        expect(element.innerHTML).toMatchStringHTML(html`
-          <ul>
-            <li>
-              <div>
-                <span>[object Object]</span>
-                <span>[object Object]</span>
-              </div>
-            </li>
-            <li>
-              <div>
-                <span>[object Object]</span>
-              </div>
-            </li>
-          </ul>
-        `)
+    it("рендер", () => {
+      const element = document.createElement("div")
+      view.render({
+        container: element,
+        core: {
+          items: [
+            {
+              id: 1,
+              children: [
+                {
+                  name: "Child 1",
+                  tags: [{ label: "Tag 1" }, { label: "Tag 2" }],
+                },
+              ],
+            },
+            {
+              id: 2,
+              children: [
+                {
+                  name: "Child 2",
+                  tags: [{ label: "Tag 3" }],
+                },
+              ],
+            },
+          ],
+        },
       })
+      expect(element.innerHTML).toMatchStringHTML(html`
+        <ul>
+          <li>
+            <div>
+              <span>Tag 1</span>
+              <span>Tag 2</span>
+            </div>
+          </li>
+          <li>
+            <div>
+              <span>Tag 3</span>
+            </div>
+          </li>
+        </ul>
+      `)
+    })
   })
 })

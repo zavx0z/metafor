@@ -63,7 +63,8 @@ const findVariableInMapStack = (variable: string, context: ParseContext): string
     const prefix = "../".repeat(levelsUp)
     const paramIndex = mapContext.params.indexOf(variableName)
 
-    return paramIndex === 0 ? buildItemPath(prefix, variableParts, mapContext.params.length > 1) : `${prefix}[index]`
+    // Используем информацию о деструктуризации из контекста
+    return paramIndex === 0 ? buildItemPath(prefix, variableParts, mapContext.isDestructured) : `${prefix}[index]`
   }
 
   return null
@@ -159,13 +160,8 @@ const resolveDataPath = (variable: string, context: ParseContext): string => {
 
       if (paramIndex === 0) {
         // Первый параметр - элемент массива
-        if (context.mapParams.length === 1) {
-          // Простой параметр
-          return "[item]"
-        } else {
-          // Деструктурированное свойство
-          return `[item]/${variable.replace(/\./g, "/")}`
-        }
+        // Для деструктуризации всегда возвращаем [item]/property
+        return `[item]/${variable}`
       } else {
         // Второй и последующие параметры - индекс
         return "[index]"
@@ -296,7 +292,7 @@ const parseEventExpression = (
             .map((variable) => resolveDataPath(variable, context))
             .filter((path) => path && path.length > 0) as string[]
           if (paths.length > 0) {
-            result.data = paths.length === 1 ? paths[0] : paths
+            result.data = paths.length === 1 ? paths[0]! : paths
           }
         }
 
@@ -713,7 +709,7 @@ export const parseMap = (mapText: string, context: ParseContext = { pathStack: [
   const paramsText = mapMatch[2] || ""
 
   // Парсим параметры map-функции
-  const params = extractMapParams(paramsText.replace(/^\(|\)$/g, ""))
+  const { params, isDestructured } = extractMapParams(paramsText.replace(/^\(|\)$/g, ""))
 
   // Определяем тип пути
   if (dataPath.includes(".") && context.mapParams && context.mapParams.length > 0) {
@@ -724,6 +720,7 @@ export const parseMap = (mapText: string, context: ParseContext = { pathStack: [
     const newParseMapContext: ParseMapContext = {
       path: `[item]/${relativePath}`,
       params: params,
+      isDestructured: isDestructured,
       level: context.level + 1,
     }
 
@@ -748,6 +745,7 @@ export const parseMap = (mapText: string, context: ParseContext = { pathStack: [
     const newParseMapContext: ParseMapContext = {
       path: `[item]/${dataPath}`,
       params: params,
+      isDestructured: isDestructured,
       level: context.level + 1,
     }
 
@@ -772,6 +770,7 @@ export const parseMap = (mapText: string, context: ParseContext = { pathStack: [
     const newParseMapContext: ParseMapContext = {
       path: `[item]/${dataPath}`,
       params: params,
+      isDestructured: isDestructured,
       level: context.level + 1,
     }
 
@@ -797,6 +796,7 @@ export const parseMap = (mapText: string, context: ParseContext = { pathStack: [
   const newParseMapContext: ParseMapContext = {
     path: absolutePath,
     params: params,
+    isDestructured: isDestructured,
     level: context.level + 1,
   }
 
@@ -819,14 +819,17 @@ export const parseMap = (mapText: string, context: ParseContext = { pathStack: [
 /**
  * Парсит параметры map-функции.
  */
-export const extractMapParams = (paramsText: string): string[] => {
+export const extractMapParams = (paramsText: string): { params: string[]; isDestructured: boolean } => {
   const cleanParams = paramsText.replace(/\s+/g, "").trim()
-  if (!cleanParams) return []
+  if (!cleanParams) return { params: [], isDestructured: false }
 
   const destructureMatch = cleanParams.match(/\{([^}]+)\}/)
-  return destructureMatch?.[1]
+  const isDestructured = !!destructureMatch
+  const params = destructureMatch?.[1]
     ? destructureMatch[1].split(",").map((p) => p.trim())
     : cleanParams.split(",").map((p) => p.trim())
+
+  return { params, isDestructured }
 }
 
 /**
@@ -957,7 +960,7 @@ export const parseText = (text: string, context: ParseContext = { pathStack: [],
   if (hasConditionalOperators || hasLogicalOperators) {
     // Используем общую функцию для условных выражений и логических операторов
     const templateResult = parseTemplateLiteral(text, context)
-    if (templateResult) {
+    if (templateResult && templateResult.data) {
       return {
         type: "text",
         data: templateResult.data,
