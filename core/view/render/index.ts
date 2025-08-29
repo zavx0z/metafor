@@ -304,9 +304,10 @@ function renderMap<C extends ContextSchema>(
 
   if (Array.isArray(array)) {
     // Рендерим каждый элемент массива
-    for (const item of array) {
+    for (let index = 0; index < array.length; index++) {
+      const item = array[index]
       for (const childNode of node.child) {
-        const childElement = renderNodeWithItem(childNode, params, item, undefined, [item])
+        const childElement = renderNodeWithItem(childNode, params, item, undefined, [{ item, index }])
         if (childElement) {
           if (childElement instanceof DocumentFragment) {
             // Для DocumentFragment добавляем все дочерние элементы
@@ -337,7 +338,7 @@ function renderMapWithItem<C extends ContextSchema>(
   },
   item: any,
   parentItem?: any,
-  itemStack: any[] = []
+  itemStack: Array<{ item: any; index: number }> = []
 ): DocumentFragment {
   const fragment = document.createDocumentFragment()
 
@@ -346,8 +347,9 @@ function renderMapWithItem<C extends ContextSchema>(
 
   if (Array.isArray(array)) {
     // Рендерим каждый элемент массива
-    for (const subItem of array) {
-      const newStack = [...itemStack, item]
+    for (let index = 0; index < array.length; index++) {
+      const subItem = array[index]
+      const newStack = [...itemStack, { item, index }]
       for (const childNode of node.child) {
         const childElement = renderNodeWithItem(childNode, params, subItem, item, newStack)
         if (childElement) {
@@ -380,7 +382,7 @@ function renderNodeWithItem<C extends ContextSchema>(
   },
   item: any,
   parentItem?: any,
-  itemStack: any[] = []
+  itemStack: Array<{ item: any; index: number }> = []
 ): HTMLElement | Text | DocumentFragment | null {
   switch (node.type) {
     case "el":
@@ -407,7 +409,7 @@ function renderElementWithItem<C extends ContextSchema>(
   },
   item: any,
   parentItem?: any,
-  itemStack: any[] = []
+  itemStack: Array<{ item: any; index: number }> = []
 ): HTMLElement {
   const element = document.createElement(node.tag)
 
@@ -613,7 +615,7 @@ function renderTextWithItem<C extends ContextSchema>(
   },
   item: any,
   parentItem?: any,
-  itemStack: any[] = []
+  itemStack: Array<{ item: any; index: number }> = []
 ): Text {
   let text = ""
 
@@ -640,7 +642,7 @@ function getValueByPathWithItem(
   item: any,
   parentItem?: any,
   params?: any,
-  itemStack: any[] = []
+  itemStack: Array<{ item: any; index: number }> = []
 ): any {
   if (typeof path === "string") {
     return getNestedValueWithItem(path, item, parentItem, params, itemStack)
@@ -660,7 +662,7 @@ function getValueByPathWithItem(
 /**
  * Получает вложенное значение по пути из элемента массива
  */
-function getNestedValueWithItem(path: string, item: any, parentItem?: any, params?: any, itemStack: any[] = []): any {
+function getNestedValueWithItem(path: string, item: any, parentItem?: any, params?: any, itemStack: Array<{ item: any; index: number }> = []): any {
   // Обрабатываем абсолютные пути (начинающиеся с /)
   if (path.startsWith("/")) {
     if (!params) {
@@ -682,8 +684,8 @@ function getNestedValueWithItem(path: string, item: any, parentItem?: any, param
   if (depth > 0) {
     // Используем стек элементов для многоуровневых относительных путей
     if (itemStack.length >= depth) {
-      const targetItem = itemStack[itemStack.length - depth]
-      if (targetItem) {
+      const stackEntry = itemStack[itemStack.length - depth]
+      if (stackEntry) {
         // Убираем префикс "[item]" если есть в целевом пути
         let targetPath = cleanPath
         if (targetPath.startsWith("[item]")) {
@@ -692,12 +694,18 @@ function getNestedValueWithItem(path: string, item: any, parentItem?: any, param
 
         // Разбиваем путь на части и получаем значение
         const parts = targetPath.split("/").filter(Boolean)
-        let current = targetItem
+        let current = stackEntry.item
         for (const part of parts) {
           if (current === null || current === undefined) {
             return undefined
           }
-          current = current[part]
+          
+          // Проверяем, является ли часть пути индексом
+          if (part === "[index]") {
+            current = stackEntry.index
+          } else {
+            current = current[part]
+          }
         }
         return current
       }
@@ -718,7 +726,19 @@ function getNestedValueWithItem(path: string, item: any, parentItem?: any, param
     if (current === null || current === undefined) {
       return undefined
     }
-    current = current[part]
+    
+    // Проверяем, является ли часть пути индексом
+    if (part === "[index]") {
+      // Ищем индекс текущего элемента в стеке
+      const currentStackEntry = itemStack[itemStack.length - 1]
+      if (currentStackEntry) {
+        current = currentStackEntry.index
+      } else {
+        return undefined
+      }
+    } else {
+      current = current[part]
+    }
   }
 
   return current
@@ -733,7 +753,7 @@ function evaluateExpressionWithItem(
   item: any,
   parentItem?: any,
   params?: any,
-  itemStack: any[] = []
+  itemStack: Array<{ item: any; index: number }> = []
 ): any {
   let result = expr
 

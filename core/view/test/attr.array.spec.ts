@@ -486,4 +486,35 @@ describe("атрибуты в массивах - вложенность", () => 
       ])
     })
   })
+
+  describe("поддержка индексов в путях", () => {
+    const core = {
+      items: [
+        { id: 1, name: "Item 1" },
+        { id: 2, name: "Item 2" },
+        { id: 3, name: "Item 3" },
+      ],
+    } as const
+    const view = new View<any, typeof core>({
+      render: ({ html, core }) => html`
+        <ul>
+          ${core.items.map((item) => html`
+            <li class="item-${item.id} index-${item.id}">${item.name}</li>
+          `)}
+        </ul>
+      `,
+    })
+
+    it("рендер с индексами", () => {
+      const element = document.createElement("div")
+      view.render({ container: element, core })
+      expect(element.innerHTML).toMatchStringHTML(html`
+        <ul>
+          <li class="item-1 index-1">Item 1</li>
+          <li class="item-2 index-2">Item 2</li>
+          <li class="item-3 index-3">Item 3</li>
+        </ul>
+      `)
+    })
+  })
 })
