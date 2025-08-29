@@ -517,4 +517,82 @@ describe("атрибуты в массивах - вложенность", () => 
       `)
     })
   })
+
+  describe("многоуровневые относительные пути", () => {
+    const core = {
+      groups: [
+        {
+          id: "g1",
+          items: [
+            { id: 1, name: "Item 1" },
+            { id: 2, name: "Item 2" },
+          ],
+        },
+        {
+          id: "g2", 
+          items: [
+            { id: 3, name: "Item 3" },
+          ],
+        },
+      ],
+    } as const
+    const view = new View<any, typeof core>({
+      render: ({ html, core }) => html`
+        <div>
+          ${core.groups.map((group) => html`
+            <section>
+              ${group.items.map((item) => html`
+                <span class="g-${group.id} i-${item.id}">${item.name}</span>
+              `)}
+            </section>
+          `)}
+        </div>
+      `,
+    })
+
+    it("рендер с многоуровневыми относительными путями", () => {
+      const element = document.createElement("div")
+      view.render({ container: element, core })
+      expect(element.innerHTML).toMatchStringHTML(html`
+        <div>
+          <section>
+            <span class="g-g1 i-1">Item 1</span>
+            <span class="g-g1 i-2">Item 2</span>
+          </section>
+          <section>
+            <span class="g-g2 i-3">Item 3</span>
+          </section>
+        </div>
+      `)
+    })
+  })
+
+  describe("фильтрация мусорных токенов классов", () => {
+    const core = {
+      items: [
+        { id: 1, active: true, hidden: false, data: null, obj: { x: 1 }, arr: [1, 2] },
+        { id: 2, active: false, hidden: true, data: "", obj: {}, arr: [] },
+      ],
+    } as const
+    const view = new View<any, typeof core>({
+      render: ({ html, core }) => html`
+        <ul>
+          ${core.items.map((item) => html`
+            <li class="base item-${item.id}">Item ${item.id}</li>
+          `)}
+        </ul>
+      `,
+    })
+
+    it("рендер без мусорных токенов", () => {
+      const element = document.createElement("div")
+      view.render({ container: element, core })
+      expect(element.innerHTML).toMatchStringHTML(html`
+        <ul>
+          <li class="base item-1">Item 1</li>
+          <li class="base item-2">Item 2</li>
+        </ul>
+      `)
+    })
+  })
 })

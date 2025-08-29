@@ -22,8 +22,7 @@ function toBoolean(value: any): boolean {
  */
 function stringifyClassToken(v: unknown): string {
   if (v == null) return ""
-  if (typeof v === "boolean") return v ? "" : "" // булево в класс не пускаем
-  if (typeof v === "number") return Number.isFinite(v) ? String(v) : ""
+  if (typeof v === "boolean") return "" // булево в класс не пускаем
   const s = String(v).trim()
   // отсечём мусорные представления объектов/массивов
   if (s === "" || s === "[object Object]" || s === "[object Array]") return ""
@@ -350,8 +349,12 @@ function renderMapWithItem<C extends ContextSchema>(
     for (let index = 0; index < array.length; index++) {
       const subItem = array[index]
       const newStack = [...itemStack, { item, index }]
+      // Собираем цепочку предков для поддержки многоуровневых относительных путей
+      const parentChain = Array.isArray(parentItem)
+        ? [item, ...parentItem]
+        : (parentItem ? [item, parentItem] : [item])
       for (const childNode of node.child) {
-        const childElement = renderNodeWithItem(childNode, params, subItem, item, newStack)
+        const childElement = renderNodeWithItem(childNode, params, subItem, parentChain, newStack)
         if (childElement) {
           if (childElement instanceof DocumentFragment) {
             // Для DocumentFragment добавляем все дочерние элементы
@@ -674,52 +677,57 @@ function getNestedValueWithItem(path: string, item: any, parentItem?: any, param
   }
 
   // Обрабатываем относительные пути любой глубины
-  let depth = 0
-  let cleanPath = path
-  while (cleanPath.startsWith("../")) {
-    depth++
-    cleanPath = cleanPath.slice(3)
-  }
+  if (path.startsWith("../")) {
+    const ancestors = Array.isArray(parentItem) ? parentItem : (parentItem ? [parentItem] : [])
+    if (ancestors.length === 0) return undefined
+    
+    // Считаем, сколько ../ подряд
+    let rest = path
+    let hops = 0
+    while (rest.startsWith("../")) { 
+      hops++ 
+      rest = rest.slice(3) 
+    }
+    
+    const base = ancestors[hops - 1] // 1-й ../ → ancestors[0], 2-й → ancestors[1], ...
+    const nextAncestors = ancestors.slice(hops)
+    
+    // Убираем префикс "[item]" если есть в целевом пути
+    if (rest.startsWith("[item]")) {
+      rest = rest.slice(6)
+    }
 
-  if (depth > 0) {
-    // Используем стек элементов для многоуровневых относительных путей
-    if (itemStack.length >= depth) {
-      const stackEntry = itemStack[itemStack.length - depth]
-      if (stackEntry) {
-        // Убираем префикс "[item]" если есть в целевом пути
-        let targetPath = cleanPath
-        if (targetPath.startsWith("[item]")) {
-          targetPath = targetPath.slice(6)
+    // Разбиваем путь на части и получаем значение
+    const parts = rest.split("/").filter(Boolean)
+    let current = base
+    for (const part of parts) {
+      if (current === null || current === undefined) {
+        return undefined
+      }
+      
+      // Проверяем, является ли часть пути индексом
+      if (part === "[index]") {
+        // Ищем индекс в стеке элементов
+        const currentStackEntry = itemStack[itemStack.length - 1]
+        if (currentStackEntry) {
+          current = currentStackEntry.index
+        } else {
+          return undefined
         }
-
-        // Разбиваем путь на части и получаем значение
-        const parts = targetPath.split("/").filter(Boolean)
-        let current = stackEntry.item
-        for (const part of parts) {
-          if (current === null || current === undefined) {
-            return undefined
-          }
-          
-          // Проверяем, является ли часть пути индексом
-          if (part === "[index]") {
-            current = stackEntry.index
-          } else {
-            current = current[part]
-          }
-        }
-        return current
+      } else {
+        current = current[part]
       }
     }
-    return undefined
+    return current
   }
 
   // Убираем префикс "[item]" если есть
-  if (cleanPath.startsWith("[item]")) {
-    cleanPath = cleanPath.slice(6)
+  if (path.startsWith("[item]")) {
+    path = path.slice(6)
   }
 
   // Разбиваем путь на части
-  const parts = cleanPath.split("/").filter(Boolean)
+  const parts = path.split("/").filter(Boolean)
 
   let current = item
   for (const part of parts) {
