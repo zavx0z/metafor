@@ -1125,10 +1125,10 @@ function evaluateExpression(
       const path = dataPath[i]
       if (path) {
         const value = getNestedValue(path, params)
-        // Для core объектов создаем специальную функцию для получения реального объекта
+        // Для core объектов используем прямое обращение к params.core
         if (path.startsWith("/core/")) {
           const corePath = path.slice(6) // убираем "/core/"
-          result = result.replace(new RegExp(`\\[${i}\\]`, "g"), `(() => { return params.core.${corePath} })()`)
+          result = result.replace(new RegExp(`\\[${i}\\]`, "g"), `params.core.${corePath}`)
         } else {
           result = result.replace(new RegExp(`\\[${i}\\]`, "g"), JSON.stringify(value))
         }
@@ -1137,10 +1137,10 @@ function evaluateExpression(
   } else {
     // Для одного значения заменяем [0]
     const value = getValueByPath(dataPath, params)
-    // Для core объектов создаем специальную функцию для получения реального объекта
+    // Для core объектов используем прямое обращение к params.core
     if (dataPath.startsWith("/core/")) {
       const corePath = dataPath.slice(6) // убираем "/core/"
-      result = result.replace(/\[0\]/g, `(() => { return params.core.${corePath} })()`)
+      result = result.replace(/\[0\]/g, `params.core.${corePath}`)
     } else {
       result = result.replace(/\[0\]/g, JSON.stringify(value))
     }
