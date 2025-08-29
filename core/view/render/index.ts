@@ -183,7 +183,44 @@ function renderElement<C extends ContextSchema>(
 
   // Добавляем списковые атрибуты
   if (node.array) {
+    // Специальная обработка для class атрибута
+    if (node.array.class) {
+      const classValues: string[] = []
+
+      for (const value of node.array.class) {
+        if (typeof value === "string") {
+          classValues.push(value)
+        } else if (typeof value === "object" && value !== null) {
+          if ("value" in value) {
+            // Статический атрибут
+            if (value.value) classValues.push(String(value.value))
+          } else if ("data" in value) {
+            // Динамический атрибут
+            const attrValue = getValueByPath(value.data, params)
+            if (attrValue != null && attrValue !== "") {
+              if ("expr" in value) {
+                // Атрибут с выражением
+                const exprValue = evaluateExpression(value.expr, value.data, params)
+                if (exprValue != null && exprValue !== "") classValues.push(String(exprValue))
+              } else {
+                classValues.push(String(attrValue))
+              }
+            }
+          }
+        }
+      }
+
+      if (classValues.length > 0) {
+        const existingClass = element.getAttribute("class") || ""
+        const newClass = [existingClass, ...classValues].filter(Boolean).join(" ")
+        element.setAttribute("class", newClass)
+      }
+    }
+
+    // Обработка остальных array атрибутов
     for (const [key, values] of Object.entries(node.array)) {
+      if (key === "class") continue // Уже обработали
+
       const attrValues: string[] = []
 
       for (const value of values) {
@@ -250,7 +287,7 @@ function renderMap<C extends ContextSchema>(
     // Рендерим каждый элемент массива
     for (const item of array) {
       for (const childNode of node.child) {
-        const childElement = renderNodeWithItem(childNode, params, item)
+        const childElement = renderNodeWithItem(childNode, params, item, undefined, [item])
         if (childElement) {
           if (childElement instanceof DocumentFragment) {
             // Для DocumentFragment добавляем все дочерние элементы
@@ -280,18 +317,20 @@ function renderMapWithItem<C extends ContextSchema>(
     update: Update<C>
   },
   item: any,
-  parentItem?: any
+  parentItem?: any,
+  itemStack: any[] = []
 ): DocumentFragment {
   const fragment = document.createDocumentFragment()
 
   // Получаем массив данных из элемента
-  const array = getNestedValueWithItem(node.data, item)
+  const array = getNestedValueWithItem(node.data, item, parentItem, params, itemStack)
 
   if (Array.isArray(array)) {
     // Рендерим каждый элемент массива
     for (const subItem of array) {
+      const newStack = [...itemStack, item]
       for (const childNode of node.child) {
-        const childElement = renderNodeWithItem(childNode, params, subItem, item)
+        const childElement = renderNodeWithItem(childNode, params, subItem, item, newStack)
         if (childElement) {
           if (childElement instanceof DocumentFragment) {
             // Для DocumentFragment добавляем все дочерние элементы
@@ -321,15 +360,16 @@ function renderNodeWithItem<C extends ContextSchema>(
     update: Update<C>
   },
   item: any,
-  parentItem?: any
+  parentItem?: any,
+  itemStack: any[] = []
 ): HTMLElement | Text | DocumentFragment | null {
   switch (node.type) {
     case "el":
-      return renderElementWithItem(node as NodeElement, params, item, parentItem)
+      return renderElementWithItem(node as NodeElement, params, item, parentItem, itemStack)
     case "text":
-      return renderTextWithItem(node as NodeText, params, item, parentItem)
+      return renderTextWithItem(node as NodeText, params, item, parentItem, itemStack)
     case "map":
-      return renderMapWithItem(node as NodeMap, params, item, parentItem)
+      return renderMapWithItem(node as NodeMap, params, item, parentItem, itemStack)
     default:
       return null
   }
@@ -347,7 +387,8 @@ function renderElementWithItem<C extends ContextSchema>(
     update: Update<C>
   },
   item: any,
-  parentItem?: any
+  parentItem?: any,
+  itemStack: any[] = []
 ): HTMLElement {
   const element = document.createElement(node.tag)
 
@@ -358,11 +399,11 @@ function renderElementWithItem<C extends ContextSchema>(
         // Динамический атрибут
         if ("data" in value && "expr" in value) {
           // Атрибут с выражением
-          const attrValue = evaluateExpressionWithItem(value.expr, value.data, item, parentItem, params)
+          const attrValue = evaluateExpressionWithItem(value.expr, value.data, item, parentItem, params, itemStack)
           element.setAttribute(key, String(attrValue))
         } else if ("data" in value) {
           // Простой динамический атрибут
-          const attrValue = getValueByPathWithItem(value.data, item)
+          const attrValue = getValueByPathWithItem(value.data, item, parentItem, params, itemStack)
           element.setAttribute(key, String(attrValue))
         }
       } else {
@@ -384,7 +425,7 @@ function renderElementWithItem<C extends ContextSchema>(
       const hiddenValue = node.boolean.hidden
 
       if (visibleValue && typeof visibleValue === "object" && "data" in visibleValue) {
-        const isVisible = getValueByPathWithItem(visibleValue.data, item, parentItem, params)
+        const isVisible = getValueByPathWithItem(visibleValue.data, item, parentItem, params, itemStack)
         if (isVisible) {
           element.setAttribute("visible", "")
           element.removeAttribute("hidden")
@@ -394,7 +435,7 @@ function renderElementWithItem<C extends ContextSchema>(
         }
       } else if (hiddenValue && typeof hiddenValue === "object" && "data" in hiddenValue && "expr" in hiddenValue) {
         const isHidden = toBoolean(
-          evaluateExpressionWithItem(hiddenValue.expr, hiddenValue.data, item, parentItem, params)
+          evaluateExpressionWithItem(hiddenValue.expr, hiddenValue.data, item, parentItem, params, itemStack)
         )
         if (isHidden) {
           element.setAttribute("hidden", "")
@@ -414,7 +455,9 @@ function renderElementWithItem<C extends ContextSchema>(
         // Динамический булев атрибут
         if ("data" in value && "expr" in value) {
           // Атрибут с выражением
-          const boolValue = toBoolean(evaluateExpressionWithItem(value.expr, value.data, item, parentItem, params))
+          const boolValue = toBoolean(
+            evaluateExpressionWithItem(value.expr, value.data, item, parentItem, params, itemStack)
+          )
           if (boolValue) {
             element.setAttribute(key, "")
           } else {
@@ -422,7 +465,7 @@ function renderElementWithItem<C extends ContextSchema>(
           }
         } else if ("data" in value) {
           // Простой динамический булев атрибут
-          const boolValue = getValueByPathWithItem(value.data, item, parentItem, params)
+          const boolValue = getValueByPathWithItem(value.data, item, parentItem, params, itemStack)
           if (boolValue) {
             element.setAttribute(key, "")
           } else {
@@ -442,18 +485,62 @@ function renderElementWithItem<C extends ContextSchema>(
 
   // Добавляем списковые атрибуты
   if (node.array) {
+    // Специальная обработка для class атрибута
+    if (node.array.class) {
+      const classValues: string[] = []
+
+      for (const value of node.array.class) {
+        if (typeof value === "string") {
+          classValues.push(value)
+        } else if (typeof value === "object" && value !== null) {
+          if ("value" in value) {
+            // Статический атрибут
+            if (value.value) classValues.push(String(value.value))
+          } else if ("data" in value) {
+            // Динамический атрибут
+            const attrValue = getValueByPathWithItem(value.data, item, parentItem, params, itemStack)
+            if (attrValue != null && attrValue !== "") {
+              if ("expr" in value) {
+                // Атрибут с выражением
+                const exprValue = evaluateExpressionWithItem(
+                  value.expr,
+                  value.data,
+                  item,
+                  parentItem,
+                  params,
+                  itemStack
+                )
+                if (exprValue != null && exprValue !== "") classValues.push(String(exprValue))
+              } else {
+                classValues.push(String(attrValue))
+              }
+            }
+          }
+        }
+      }
+
+      if (classValues.length > 0) {
+        const existingClass = element.getAttribute("class") || ""
+        const newClass = [existingClass, ...classValues].filter(Boolean).join(" ")
+        element.setAttribute("class", newClass)
+      }
+    }
+
+    // Обработка остальных array атрибутов
     for (const [key, values] of Object.entries(node.array)) {
+      if (key === "class") continue // Уже обработали
+
       const attrValues: string[] = []
 
       for (const value of values) {
         if (typeof value === "object" && value !== null) {
           if ("data" in value && "expr" in value) {
             // Атрибут с выражением
-            const attrValue = evaluateExpressionWithItem(value.expr, value.data, item, parentItem, params)
+            const attrValue = evaluateExpressionWithItem(value.expr, value.data, item, parentItem, params, itemStack)
             attrValues.push(String(attrValue))
           } else if ("data" in value) {
             // Простой динамический атрибут
-            const attrValue = getValueByPathWithItem(value.data, item, parentItem, params)
+            const attrValue = getValueByPathWithItem(value.data, item, parentItem, params, itemStack)
             attrValues.push(String(attrValue))
           } else if ("value" in value) {
             // Статический атрибут
@@ -471,7 +558,7 @@ function renderElementWithItem<C extends ContextSchema>(
   // Рендерим дочерние элементы
   if (node.child) {
     for (const childNode of node.child) {
-      const childElement = renderNodeWithItem(childNode, params, item)
+      const childElement = renderNodeWithItem(childNode, params, item, parentItem, itemStack)
       if (childElement) {
         if (childElement instanceof DocumentFragment) {
           // Для DocumentFragment добавляем все дочерние элементы
@@ -500,7 +587,8 @@ function renderTextWithItem<C extends ContextSchema>(
     update: Update<C>
   },
   item: any,
-  parentItem?: any
+  parentItem?: any,
+  itemStack: any[] = []
 ): Text {
   let text = ""
 
@@ -509,10 +597,10 @@ function renderTextWithItem<C extends ContextSchema>(
     text = node.value
   } else if (node.data && node.expr) {
     // Смешанный текст с интерполяцией
-    text = String(evaluateExpressionWithItem(node.expr, node.data, item, parentItem, params))
+    text = String(evaluateExpressionWithItem(node.expr, node.data, item, parentItem, params, itemStack))
   } else if (node.data) {
     // Простая интерполяция
-    const value = getValueByPathWithItem(node.data, item, parentItem, params)
+    const value = getValueByPathWithItem(node.data, item, parentItem, params, itemStack)
     text = String(value)
   }
 
@@ -522,16 +610,22 @@ function renderTextWithItem<C extends ContextSchema>(
 /**
  * Получает значение по пути из элемента массива
  */
-function getValueByPathWithItem(path: string | string[], item: any, parentItem?: any, params?: any): any {
+function getValueByPathWithItem(
+  path: string | string[],
+  item: any,
+  parentItem?: any,
+  params?: any,
+  itemStack: any[] = []
+): any {
   if (typeof path === "string") {
-    return getNestedValueWithItem(path, item, parentItem, params)
+    return getNestedValueWithItem(path, item, parentItem, params, itemStack)
   }
 
   // Для массива путей берем первый
   if (Array.isArray(path) && path.length > 0) {
     const firstPath = path[0]
     if (firstPath) {
-      return getNestedValueWithItem(firstPath, item, parentItem, params)
+      return getNestedValueWithItem(firstPath, item, parentItem, params, itemStack)
     }
   }
 
@@ -541,7 +635,7 @@ function getValueByPathWithItem(path: string | string[], item: any, parentItem?:
 /**
  * Получает вложенное значение по пути из элемента массива
  */
-function getNestedValueWithItem(path: string, item: any, parentItem?: any, params?: any): any {
+function getNestedValueWithItem(path: string, item: any, parentItem?: any, params?: any, itemStack: any[] = []): any {
   // Обрабатываем абсолютные пути (начинающиеся с /)
   if (path.startsWith("/")) {
     if (!params) {
@@ -552,20 +646,43 @@ function getNestedValueWithItem(path: string, item: any, parentItem?: any, param
     return getNestedValue(absolutePath, params)
   }
 
-  // Обрабатываем относительные пути
-  if (path.startsWith("../")) {
-    if (!parentItem) {
-      return undefined
+  // Обрабатываем относительные пути любой глубины
+  let depth = 0
+  let cleanPath = path
+  while (cleanPath.startsWith("../")) {
+    depth++
+    cleanPath = cleanPath.slice(3)
+  }
+
+  if (depth > 0) {
+    // Используем стек элементов для многоуровневых относительных путей
+    if (itemStack.length >= depth) {
+      const targetItem = itemStack[itemStack.length - depth]
+      if (targetItem) {
+        // Убираем префикс "[item]" если есть в целевом пути
+        let targetPath = cleanPath
+        if (targetPath.startsWith("[item]")) {
+          targetPath = targetPath.slice(6)
+        }
+
+        // Разбиваем путь на части и получаем значение
+        const parts = targetPath.split("/").filter(Boolean)
+        let current = targetItem
+        for (const part of parts) {
+          if (current === null || current === undefined) {
+            return undefined
+          }
+          current = current[part]
+        }
+        return current
+      }
     }
-    // Убираем "../" и обрабатываем как обычный путь
-    const relativePath = path.slice(3)
-    return getNestedValueWithItem(relativePath, parentItem, undefined, params)
+    return undefined
   }
 
   // Убираем префикс "[item]" если есть
-  let cleanPath = path
-  if (path.startsWith("[item]")) {
-    cleanPath = path.slice(6)
+  if (cleanPath.startsWith("[item]")) {
+    cleanPath = cleanPath.slice(6)
   }
 
   // Разбиваем путь на части
@@ -590,7 +707,8 @@ function evaluateExpressionWithItem(
   dataPath: string | string[],
   item: any,
   parentItem?: any,
-  params?: any
+  params?: any,
+  itemStack: any[] = []
 ): any {
   let result = expr
 
@@ -599,32 +717,32 @@ function evaluateExpressionWithItem(
     for (let i = 0; i < dataPath.length; i++) {
       const path = dataPath[i]
       if (path) {
-        const value = getNestedValueWithItem(path, item, parentItem, params)
-        result = result.replace(new RegExp(`\\[${i}\\]`, "g"), JSON.stringify(value))
+        const value = getNestedValueWithItem(path, item, parentItem, params, itemStack)
+        // Если значение - массив, берем его длину или первый элемент
+        let stringValue = String(value)
+        if (Array.isArray(value)) {
+          stringValue = String(value.length)
+        }
+        // Экранируем значение для использования в шаблонной строке
+        const escapedValue = stringValue.replace(/`/g, "\\`").replace(/\$/g, "\\$")
+        result = result.replace(new RegExp(`\\[${i}\\]`, "g"), escapedValue)
       }
     }
   } else {
     // Для одного значения заменяем [0]
-    const value = getValueByPathWithItem(dataPath, item, parentItem, params)
-    result = result.replace(/\[0\]/g, JSON.stringify(value))
+    const value = getValueByPathWithItem(dataPath, item, parentItem, params, itemStack)
+    // Если значение - массив, берем его длину или первый элемент
+    let stringValue = String(value)
+    if (Array.isArray(value)) {
+      stringValue = String(value.length)
+    }
+    // Экранируем значение для использования в шаблонной строке
+    const escapedValue = stringValue.replace(/`/g, "\\`").replace(/\$/g, "\\$")
+    result = result.replace(/\[0\]/g, escapedValue)
   }
 
-  try {
-    // Если выражение содержит шаблонный литерал, обрабатываем его как шаблонную строку
-    if (result.includes("${") && !result.startsWith("`")) {
-      // Превращаем в шаблонный литерал
-      const templateResult = "`" + result + "`"
-      const evalResult = Function(`"use strict"; return ${templateResult}`)()
-      return evalResult
-    } else {
-      // Выполняем JavaScript выражение
-      const evalResult = Function(`"use strict"; return (${result})`)()
-      return evalResult
-    }
-  } catch (error) {
-    console.warn("Failed to evaluate expression:", result, error)
-    return result
-  }
+  // Убираем ${} из результата
+  return result.replace(/\$\{([^}]+)\}/g, "$1")
 }
 
 /**

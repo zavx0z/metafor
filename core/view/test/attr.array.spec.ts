@@ -144,8 +144,8 @@ describe("атрибуты в массивах - вложенность", () => 
     it("рендер", () => {
       const element = document.createElement("div")
       view.render({ container: element, core })
-      expect(element.innerHTML).toMatchStringHTML(
-        html`<div>
+      expect(element.innerHTML).toMatchStringHTML(html`
+        <div>
           <section>
             <span class="g-${core.groups[0].id} i-${core.groups[0].items[0].id}">${core.groups[0].items[0].label}</span>
             <span class="g-${core.groups[0].id} i-${core.groups[0].items[1].id}">${core.groups[0].items[1].label}</span>
@@ -153,30 +153,33 @@ describe("атрибуты в массивах - вложенность", () => 
           <section>
             <span class="g-${core.groups[1].id} i-${core.groups[1].items[0].id}">${core.groups[1].items[0].label}</span>
           </section>
-        </div>`
-      )
+        </div>
+      `)
     })
   })
 
   describe("трёхуровневый массив (core.a[].b[].c[])", () => {
     const core = { a: [{ b: [{ c: [{ id: 1 }, { id: 2 }] }] }, { b: [{ c: [{ id: 3 }] }] }] } as const
     const view = new View<any, typeof core>({
-      render: ({ html, core }) =>
-        html`<div>
+      render: ({ html, core }) => html`
+        <div>
           ${core.a.map(
-            (a) =>
-              html`<section>
+            (a) => html`
+              <section>
                 ${a.b.map(
-                  (b) =>
-                    html`<ul>
+                  (b) => html`
+                    <ul>
                       ${b.c.map((x) => html`<li class="a-${core.a} b-${b.c} c-${x.id}">x</li>`)}
-                    </ul>`
+                    </ul>
+                  `
                 )}
-              </section>`
+              </section>
+            `
           )}
-        </div>`,
+        </div>
+      `,
     })
-    // TODO: добавить методы (.length)
+
     it("парсинг", () => {
       expect(view.schema, "трёхуровневый массив (core.a[].b[].c[])").toEqual([
         {
@@ -250,13 +253,13 @@ describe("атрибуты в массивах - вложенность", () => 
         <div>
           <section>
             <ul>
-              <li b-[object c-1" class="a-undefined Object] Object],[object>x</li>
-              <li b-[object c-2" class="a-undefined Object] Object],[object>x</li>
+              <li class="b-2 c-1">x</li>
+              <li class="b-2 c-2">x</li>
             </ul>
           </section>
           <section>
             <ul>
-              <li b-[object c-3" class="a-undefined Object]>x</li>
+              <li class="b-1 c-3">x</li>
             </ul>
           </section>
         </div>
@@ -400,13 +403,13 @@ describe("атрибуты в массивах - вложенность", () => 
         <div>
           <section data-g="${core.list[0].gid}">
             <ul>
-              <li ch-C1 class="g-undefined i-1" title="A">ok</li>
+              <li class="g-G1 ch-C1 i-1" title="A">ok</li>
             </ul>
           </section>
           <section data-g="${core.list[1].gid}">
             <ul>
-              <li ch-C2 class="g-undefined i-2" title="B">ok</li>
-              <li ch-C2 class="g-undefined i-3" title="C">ok</li>
+              <li class="g-G2 ch-C2 i-2" title="B">ok</li>
+              <li class="g-G2 ch-C2 i-3" title="C">ok</li>
             </ul>
           </section>
         </div>
