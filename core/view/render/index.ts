@@ -18,6 +18,19 @@ function toBoolean(value: any): boolean {
 }
 
 /**
+ * Преобразует значение в валидный токен класса
+ */
+function stringifyClassToken(v: unknown): string {
+  if (v == null) return ""
+  if (typeof v === "boolean") return v ? "" : "" // булево в класс не пускаем
+  if (typeof v === "number") return Number.isFinite(v) ? String(v) : ""
+  const s = String(v).trim()
+  // отсечём мусорные представления объектов/массивов
+  if (s === "" || s === "[object Object]" || s === "[object Array]") return ""
+  return s
+}
+
+/**
  * Основная функция рендеринга
  */
 export function render<C extends ContextSchema, S extends string, I extends Core>({
@@ -189,11 +202,13 @@ function renderElement<C extends ContextSchema>(
 
       for (const value of node.array.class) {
         if (typeof value === "string") {
-          classValues.push(value)
+          const token = stringifyClassToken(value)
+          if (token) classValues.push(token)
         } else if (typeof value === "object" && value !== null) {
           if ("value" in value) {
             // Статический атрибут
-            if (value.value) classValues.push(String(value.value))
+            const token = stringifyClassToken(value.value)
+            if (token) classValues.push(token)
           } else if ("data" in value) {
             // Динамический атрибут
             const attrValue = getValueByPath(value.data, params)
@@ -201,9 +216,11 @@ function renderElement<C extends ContextSchema>(
               if ("expr" in value) {
                 // Атрибут с выражением
                 const exprValue = evaluateExpression(value.expr, value.data, params)
-                if (exprValue != null && exprValue !== "") classValues.push(String(exprValue))
+                const token = stringifyClassToken(exprValue)
+                if (token) classValues.push(token)
               } else {
-                classValues.push(String(attrValue))
+                const token = stringifyClassToken(attrValue)
+                if (token) classValues.push(token)
               }
             }
           }
@@ -211,8 +228,10 @@ function renderElement<C extends ContextSchema>(
       }
 
       if (classValues.length > 0) {
+        // Дедупликация токенов с сохранением порядка
+        const uniqueTokens = Array.from(new Set(classValues))
         const existingClass = element.getAttribute("class") || ""
-        const newClass = [existingClass, ...classValues].filter(Boolean).join(" ")
+        const newClass = [existingClass, ...uniqueTokens].filter(Boolean).join(" ")
         element.setAttribute("class", newClass)
       }
     }
@@ -491,11 +510,13 @@ function renderElementWithItem<C extends ContextSchema>(
 
       for (const value of node.array.class) {
         if (typeof value === "string") {
-          classValues.push(value)
+          const token = stringifyClassToken(value)
+          if (token) classValues.push(token)
         } else if (typeof value === "object" && value !== null) {
           if ("value" in value) {
             // Статический атрибут
-            if (value.value) classValues.push(String(value.value))
+            const token = stringifyClassToken(value.value)
+            if (token) classValues.push(token)
           } else if ("data" in value) {
             // Динамический атрибут
             const attrValue = getValueByPathWithItem(value.data, item, parentItem, params, itemStack)
@@ -510,9 +531,11 @@ function renderElementWithItem<C extends ContextSchema>(
                   params,
                   itemStack
                 )
-                if (exprValue != null && exprValue !== "") classValues.push(String(exprValue))
+                const token = stringifyClassToken(exprValue)
+                if (token) classValues.push(token)
               } else {
-                classValues.push(String(attrValue))
+                const token = stringifyClassToken(attrValue)
+                if (token) classValues.push(token)
               }
             }
           }
@@ -520,8 +543,10 @@ function renderElementWithItem<C extends ContextSchema>(
       }
 
       if (classValues.length > 0) {
+        // Дедупликация токенов с сохранением порядка
+        const uniqueTokens = Array.from(new Set(classValues))
         const existingClass = element.getAttribute("class") || ""
-        const newClass = [existingClass, ...classValues].filter(Boolean).join(" ")
+        const newClass = [existingClass, ...uniqueTokens].filter(Boolean).join(" ")
         element.setAttribute("class", newClass)
       }
     }

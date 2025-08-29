@@ -430,8 +430,8 @@ describe("статические атрибуты", () => {
             tag: "div",
             type: "el",
             string: {
-              class: "  spaced  ",
-              title: "  title  ",
+              class: "spaced",
+              title: "title",
             },
             child: [
               {
@@ -445,7 +445,7 @@ describe("статические атрибуты", () => {
       it("рендер", () => {
         const element = document.createElement("div")
         view.render({ container: element })
-        expect(element.innerHTML).toMatchStringHTML(html`<div class="  spaced  " title="  title  ">Content</div>`)
+        expect(element.innerHTML).toMatchStringHTML(html`<div class="spaced" title="title">Content</div>`)
       })
     })
   })

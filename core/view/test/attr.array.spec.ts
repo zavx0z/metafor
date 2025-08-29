@@ -416,4 +416,74 @@ describe("атрибуты в массивах - вложенность", () => 
       `)
     })
   })
+
+  describe("фильтрация и дедупликация токенов классов", () => {
+    const core = {
+      items: [
+        { id: 1, active: true, hidden: false, data: null, obj: { x: 1 }, arr: [1, 2] },
+        { id: 2, active: false, hidden: true, data: "", obj: {}, arr: [] },
+      ],
+    } as const
+    const view = new View<any, typeof core>({
+      render: ({ html, core }) => html`
+        <ul>
+          ${core.items.map((item) => html`
+            <li class="base item-${item.id}">
+              Item ${item.id}
+            </li>
+          `)}
+        </ul>
+      `,
+    })
+
+    it("рендер с базовыми классами", () => {
+      const element = document.createElement("div")
+      view.render({ container: element, core })
+      expect(element.innerHTML).toMatchStringHTML(html`
+        <ul>
+          <li class="base item-1">Item 1</li>
+          <li class="base item-2">Item 2</li>
+        </ul>
+      `)
+    })
+
+    it("парсинг с array.class", () => {
+      expect(view.schema, "фильтрация токенов в array.class").toEqual([
+        {
+          tag: "ul",
+          type: "el",
+          child: [
+            {
+              type: "map",
+              data: "/core/items",
+              child: [
+                {
+                  tag: "li",
+                  type: "el",
+                  array: {
+                    class: [
+                      {
+                        value: "base",
+                      },
+                      {
+                        data: "[item]/id",
+                        expr: "item-${[0]}",
+                      },
+                    ],
+                  },
+                  child: [
+                    {
+                      type: "text",
+                      data: "[item]/id",
+                      expr: "Item ${[0]}",
+                    },
+                  ],
+                },
+              ],
+            },
+          ],
+        },
+      ])
+    })
+  })
 })
