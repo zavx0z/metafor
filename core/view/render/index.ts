@@ -3,6 +3,60 @@ import type { ContextSchema } from "../../context/types.t.ts"
 import type { Core } from "../../index.t.ts"
 import type { Node, NodeElement, NodeText, NodeMap } from "@zavx0z/html-parser"
 
+type RenderParams = { context: any; core: any; state: string; development?: boolean }
+
+const VOID_TAGS = new Set(["area","base","br","col","embed","hr","img","input","link","meta","param","source","track","wbr"])
+
+const isVoidTag = (name: string) => VOID_TAGS.has(name.toLowerCase())
+
+/** Разрешаем динамический тег ТОЛЬКО если он meta-* (акторы). Иначе — ошибка в dev и fallback в 'div' в prod. */
+function resolveActorTagName(
+  tag: string | { value?: any; data?: string | string[]; expr?: string },
+  params: RenderParams,
+  item?: any,
+  parentItem?: any
+): string {
+  // статический — просто вернуть (но проверим правила кастомных элементов)
+  if (typeof tag === "string") return tag
+
+  // если "динамический" — вычисляем значение
+  let resolved = ""
+  if (tag?.value != null) {
+    resolved = String(tag.value ?? "")
+  } else if (tag?.data != null) {
+    const raw = item === undefined
+      ? getNestedValue(tag.data as string, params)
+      : getNestedValueWithItem(tag.data as string, item, parentItem, params)
+    resolved = tag.expr != null
+      ? String(item === undefined
+          ? evaluateExpression(tag.expr as string, tag.data as string | string[], params)
+          : evaluateExpressionWithItem(tag.expr as string, tag.data as string | string[], item, parentItem, params))
+      : String(raw ?? "")
+  }
+
+  const name = (resolved || "").trim().toLowerCase()
+
+  // Разрешаем только meta-*
+  const ok = name.startsWith("meta-")
+  if (!ok) {
+    if (params.development) {
+      console.error(`[render] Dynamic tag is forbidden for non-actors: "${name}". Only "meta-*" allowed.`)
+    }
+    return "div"
+  }
+
+  // "meta" — void-тег HTML, а "meta-..." — обычный кастомный элемент (не void)
+  // Нормализуем: имя должно содержать дефис и начинаться с буквы
+  if (!/^[a-z][a-z0-9.-]*-[a-z0-9.-]+$/.test(name)) {
+    if (params.development) {
+      console.error(`[render] Invalid custom element name: "${name}"`)
+    }
+    return "div"
+  }
+
+  return name
+}
+
 /**
  * Преобразует значение в boolean с учетом строковых "ложных" значений
  */
@@ -106,8 +160,8 @@ function renderMeta<C extends ContextSchema>(
     update: Update<C>
   }
 ): HTMLElement {
-  const tag = typeof node.tag === "string" ? node.tag : "div"
-  const element = document.createElement(tag)
+  const tagName = resolveActorTagName(node.tag, params)
+  const element = document.createElement(tagName)
 
   // Добавляем строковые атрибуты
   if (node.string) {
@@ -183,7 +237,8 @@ function renderElement<C extends ContextSchema>(
     update: Update<C>
   }
 ): HTMLElement {
-  const element = document.createElement(node.tag)
+  const tagName = resolveActorTagName(node.tag, params)
+  const element = document.createElement(tagName)
 
   // Добавляем строковые атрибуты
   if (node.string) {
@@ -429,9 +484,7 @@ function renderMapWithItem<C extends ContextSchema>(
       const subItem = array[index]
       const newStack = [...itemStack, { item, index }]
       // Собираем цепочку предков для поддержки многоуровневых относительных путей
-      const parentChain = Array.isArray(parentItem)
-        ? [item, ...parentItem]
-        : (parentItem ? [item, parentItem] : [item])
+      const parentChain = Array.isArray(parentItem) ? [item, ...parentItem] : parentItem ? [item, parentItem] : [item]
       for (const childNode of node.child) {
         const childElement = renderNodeWithItem(childNode, params, subItem, parentChain, newStack)
         if (childElement) {
@@ -493,7 +546,8 @@ function renderElementWithItem<C extends ContextSchema>(
   parentItem?: any,
   itemStack: Array<{ item: any; index: number }> = []
 ): HTMLElement {
-  const element = document.createElement(node.tag)
+  const tagName = resolveActorTagName(node.tag, params, item, parentItem)
+  const element = document.createElement(tagName)
 
   // Добавляем строковые атрибуты
   if (node.string) {
@@ -744,7 +798,13 @@ function getValueByPathWithItem(
 /**
  * Получает вложенное значение по пути из элемента массива
  */
-function getNestedValueWithItem(path: string, item: any, parentItem?: any, params?: any, itemStack: Array<{ item: any; index: number }> = []): any {
+function getNestedValueWithItem(
+  path: string,
+  item: any,
+  parentItem?: any,
+  params?: any,
+  itemStack: Array<{ item: any; index: number }> = []
+): any {
   // Обрабатываем абсолютные пути (начинающиеся с /)
   if (path.startsWith("/")) {
     if (!params) {
@@ -757,20 +817,20 @@ function getNestedValueWithItem(path: string, item: any, parentItem?: any, param
 
   // Обрабатываем относительные пути любой глубины
   if (path.startsWith("../")) {
-    const ancestors = Array.isArray(parentItem) ? parentItem : (parentItem ? [parentItem] : [])
+    const ancestors = Array.isArray(parentItem) ? parentItem : parentItem ? [parentItem] : []
     if (ancestors.length === 0) return undefined
-    
+
     // Считаем, сколько ../ подряд
     let rest = path
     let hops = 0
-    while (rest.startsWith("../")) { 
-      hops++ 
-      rest = rest.slice(3) 
+    while (rest.startsWith("../")) {
+      hops++
+      rest = rest.slice(3)
     }
-    
+
     const base = ancestors[hops - 1] // 1-й ../ → ancestors[0], 2-й → ancestors[1], ...
     const nextAncestors = ancestors.slice(hops)
-    
+
     // Убираем префикс "[item]" если есть в целевом пути
     if (rest.startsWith("[item]")) {
       rest = rest.slice(6)
@@ -783,7 +843,7 @@ function getNestedValueWithItem(path: string, item: any, parentItem?: any, param
       if (current === null || current === undefined) {
         return undefined
       }
-      
+
       // Проверяем, является ли часть пути индексом
       if (part === "[index]") {
         // Ищем индекс в стеке элементов
@@ -813,7 +873,7 @@ function getNestedValueWithItem(path: string, item: any, parentItem?: any, param
     if (current === null || current === undefined) {
       return undefined
     }
-    
+
     // Проверяем, является ли часть пути индексом
     if (part === "[index]") {
       // Ищем индекс текущего элемента в стеке

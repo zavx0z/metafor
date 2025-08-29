@@ -36,7 +36,11 @@ describe("meta", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const container = document.createElement("div")
+        view.render({ container })
+        expect(container.innerHTML).toMatchStringHTML(html`<meta-hash />`)
+      })
     })
 
     describe("хеш-тег из core в самозакрывающемся теге", () => {
@@ -54,7 +58,16 @@ describe("meta", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const core = {
+          actors: {
+            child: "child",
+          },
+        }
+        const container = document.createElement("div")
+        view.render({ container, core })
+        expect(container.innerHTML).toMatchStringHTML(html`<meta-${core.actors.child} />`)
+      })
     })
 
     describe("хеш-тег из core", () => {
@@ -328,6 +341,45 @@ describe("meta", () => {
         ])
       })
       it.skip("рендер", () => {})
+    })
+  })
+
+  describe("динамические теги", () => {
+    it("нелегальная динамика - не meta-* тег", () => {
+      const view = new View({
+        render: ({ html, context }) => html`<x-${context.kind} />`,
+      })
+      const container = document.createElement("div")
+      view.render({ container, context: { kind: "box" } })
+      expect(container.innerHTML).toMatchStringHTML("&lt;x-box /&gt;")
+    })
+
+    it("нелегальная динамика - не meta-* тег в map", () => {
+      const core = { actors: [{ name: "a" }, { name: "b" }] }
+      const view = new View<any, typeof core>({
+        render: ({ html, core }) => html`${core.actors.map((a) => html`<actor-${a.name} />`)}`,
+      })
+      const container = document.createElement("div")
+      view.render({ container, core })
+      expect(container.innerHTML).toMatchStringHTML("")
+    })
+
+    it("легальная динамика - meta-* тег", () => {
+      const view = new View({
+        render: ({ html, context }) => html`<meta-${context.kind} />`,
+      })
+      const container = document.createElement("div")
+      view.render({ container, context: { kind: "child" } })
+      expect(container.innerHTML).toMatchStringHTML("<meta-child></meta-child>")
+    })
+
+    it("meta-* не void тег", () => {
+      const view = new View({
+        render: ({ html }) => html`<meta-child />`,
+      })
+      const container = document.createElement("div")
+      view.render({ container })
+      expect(container.innerHTML).toMatchStringHTML("<meta-child></meta-child>")
     })
   })
 })
