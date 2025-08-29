@@ -1,12 +1,22 @@
 import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
-
-const html = String.raw
+import { Context } from "../../context/index.ts"
 
 describe("условные блоки", () => {
+  const html = String.raw
+
   describe("тернарный оператор", () => {
     describe("тернарий и && в атрибутах + сложные классы и enum после массива", () => {
-      const view = new View({
+      const { context, schema } = new Context((t) => ({
+        className: t.string.required("className"),
+        id: t.string.required("id"),
+        text: t.string.required("text"),
+        visible: t.boolean.required(true),
+        disabled: t.boolean.required(true),
+        list: t.array.required(["item1", "item2"]),
+        enum: t.enum("div", "span", "p").required("div"),
+      }))
+      const view = new View<typeof schema>({
         render: ({ html, context }) => html`
           <div class=${context.className} id="${context.id}" data-text="${context.text}">
             <img
@@ -19,7 +29,7 @@ describe("условные блоки", () => {
               ${context.text}
             </button>
             <ul>
-              ${context.list.map((item: string) => html`<li>${item}</li>`)}
+              ${context.list.map((item) => html`<li>${item}</li>`)}
             </ul>
             ${context.enum === "div"
               ? html`<div class="enum">enum element div</div>`
@@ -46,15 +56,16 @@ describe("условные блоки", () => {
                 tag: "img",
                 type: "el",
                 array: {
-                  class: [
-                    {
-                      value: "image",
-                    },
-                    {
-                      data: "/context/className",
-                      expr: "${[0]}-image",
-                    },
-                  ],
+                  class: [{ value: "image" }, { data: "/context/className", expr: "${[0]}-image" }],
+                },
+                boolean: {
+                  hidden: {
+                    data: "/context/visible",
+                    expr: "!${[0]}",
+                  },
+                  visible: {
+                    data: "/context/visible",
+                  },
                 },
                 string: {
                   alt: { data: "/context/text" },
@@ -67,28 +78,12 @@ describe("условные блоки", () => {
                 type: "el",
                 array: {
                   class: [
-                    {
-                      data: "/context/className",
-                      expr: "button-${[0]}",
-                    },
-                    {
-                      data: "/context/className",
-                      expr: "${[0]}-button",
-                    },
+                    { data: "/context/className", expr: "button-${[0]}" },
+                    { data: "/context/className", expr: "${[0]}-button" },
                   ],
                 },
-                boolean: {
-                  disabled: {
-                    data: "/context/disabled",
-                  },
-                },
-                child: [
-                  {
-                    type: "text",
-                    data: "/context/text",
-                    expr: "${[0]}",
-                  },
-                ],
+                boolean: { disabled: { data: "/context/disabled" } },
+                child: [{ type: "text", data: "/context/text" }],
               },
               {
                 tag: "ul",
@@ -154,6 +149,22 @@ describe("условные блоки", () => {
             ],
           },
         ]))
+      it("рендер", () => {
+        const container = document.createElement("div")
+        view.render({ container, context })
+        expect(container.innerHTML).toMatchStringHTML(html`
+          <div class="${context.className}" id="${context.id}" data-text="${context.text}">
+            <img class="image ${context.className}-image" visible src="test.jpg" alt="${context.text}" />
+            <br />
+            <button class="button-${context.className} ${context.className}-button" disabled>${context.text}</button>
+            <ul>
+              <li>item1</li>
+              <li>item2</li>
+            </ul>
+            <div class="enum">enum element div</div>
+          </div>
+        `)
+      })
     })
 
     describe("простой тернарный оператор с context", () => {

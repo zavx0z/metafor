@@ -16,7 +16,7 @@
     "prettier": "^3.6.2"
   },
   "peerDependencies": {
-    "typescript": "^5.8.3"
+    "typescript": "^5.9.2"
   },
   "scripts": {
     "upd": "bun update --latest && bun i",
@@ -30,6 +30,7 @@
     "doc:push": "bun run script/doc.push.ts"
   },
   "dependencies": {
+    "@zavx0z/html-parser": "^1.0.0",
     "spark-md5": "^3.0.2"
   }
 }

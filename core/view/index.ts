@@ -8,7 +8,7 @@ import type { ExtractValues, Update } from "../context/index.t.ts"
 import type { ContextSchema } from "../context/types.t.ts"
 import type { Core } from "../index.t.ts"
 import type { ViewDeclaration } from "./index.t.ts"
-import { type Node, parse } from "./parser"
+import { type Node, parse } from "@zavx0z/html-parser"
 import { render } from "./render/index.ts"
 
 export type { ViewDeclaration }

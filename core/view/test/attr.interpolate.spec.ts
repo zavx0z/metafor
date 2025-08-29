@@ -4,6 +4,7 @@ import { Context } from "../../context/index.ts"
 
 describe("интерполяции в атрибутах", () => {
   const html = String.raw
+
   describe("простые интерполяции в атрибутах", () => {
     describe("простая интерполяция context в атрибуте", () => {
       const { context, schema } = new Context((t) => ({ name: t.string.required("MetaFor") }))
@@ -29,20 +30,17 @@ describe("интерполяции в атрибутах", () => {
           },
         ])
       })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({ container: element, context })
-
-        const div = element.querySelector("div")!
-        expect(div).toBeDefined()
-        expect(div.getAttribute("data-user")).toBe(context.name)
+      it("рендер", () => {
+        const container = document.createElement("div")
+        view.render({ container, context })
+        expect(container.innerHTML).toMatchStringHTML(html`<div data-user="${context.name}">Content</div>`)
       })
     })
 
     describe("простая интерполяция core в атрибуте", () => {
       const core = { settings: "settings" }
       const view = new View<any, typeof core>({
-        render: ({ html, core }) => html`<div data-config="${core.settings}">Content</div>`,
+        render: ({ html, core }) => html` <div data-config="${core.settings}">Content</div> `,
       })
       it("парсинг", () => {
         expect(view.schema, "простая интерполяция core в атрибуте").toEqual([
@@ -50,26 +48,16 @@ describe("интерполяции в атрибутах", () => {
             tag: "div",
             type: "el",
             string: {
-              "data-config": {
-                data: "/core/settings",
-              },
+              "data-config": { data: "/core/settings" },
             },
-            child: [
-              {
-                type: "text",
-                value: "Content",
-              },
-            ],
+            child: [{ type: "text", value: "Content" }],
           },
         ])
       })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({ container: element, core })
-
-        const div = element.querySelector("div")!
-        expect(div).toBeDefined()
-        expect(div.getAttribute("data-config")).toBe(core.settings)
+      it("рендер", () => {
+        const container = document.createElement("div")
+        view.render({ container, core })
+        expect(container.innerHTML).toMatchStringHTML(html`<div data-config="${core.settings}">Content</div>`)
       })
     })
 
@@ -90,33 +78,20 @@ describe("интерполяции в атрибутах", () => {
             tag: "div",
             type: "el",
             string: {
-              id: {
-                data: "/context/userId",
-              },
-              class: {
-                data: "/context/role",
-              },
-              "data-name": {
-                data: "/core/userName",
-              },
+              id: { data: "/context/userId" },
+              class: { data: "/context/role" },
+              "data-name": { data: "/core/userName" },
             },
-            child: [
-              {
-                type: "text",
-                value: "Content",
-              },
-            ],
+            child: [{ type: "text", value: "Content" }],
           },
         ])
       })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({ container: element, context, core })
-
-        const div = element.querySelector("div")!
-        expect(div).toBeDefined()
-        expect(div.getAttribute("id")).toBe(context.userId.toString())
-        expect(div.getAttribute("class")).toBe(context.role)
+      it("рендер", () => {
+        const container = document.createElement("div")
+        view.render({ container, context, core })
+        expect(container.innerHTML).toMatchStringHTML(html`
+          <div id="${context.userId}" class="${context.role}" data-name="${core.userName}">Content</div>
+        `)
       })
     })
   })
@@ -133,27 +108,16 @@ describe("интерполяции в атрибутах", () => {
             tag: "div",
             type: "el",
             string: {
-              class: {
-                data: "/context/type",
-                expr: "btn-${[0]}",
-              },
+              class: { data: "/context/type", expr: "btn-${[0]}" },
             },
-            child: [
-              {
-                type: "text",
-                value: "Button",
-              },
-            ],
+            child: [{ type: "text", value: "Button" }],
           },
         ])
       })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({ container: element, context })
-
-        const div = element.querySelector("div")!
-        expect(div).toBeDefined()
-        expect(div.getAttribute("class")).toBe("btn-primary")
+      it("рендер", () => {
+        const container = document.createElement("div")
+        view.render({ container, context })
+        expect(container.innerHTML).toMatchStringHTML(html`<div class="btn-primary">Button</div>`)
       })
     })
 
@@ -168,27 +132,16 @@ describe("интерполяции в атрибутах", () => {
             tag: "div",
             type: "el",
             string: {
-              class: {
-                data: "/context/theme",
-                expr: "${[0]}-mode",
-              },
+              class: { data: "/context/theme", expr: "${[0]}-mode" },
             },
-            child: [
-              {
-                type: "text",
-                value: "Content",
-              },
-            ],
+            child: [{ type: "text", value: "Content" }],
           },
         ])
       })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({ container: element, context })
-
-        const div = element.querySelector("div")!
-        expect(div).toBeDefined()
-        expect(div.getAttribute("class")).toBe("primary-mode")
+      it("рендер", () => {
+        const container = document.createElement("div")
+        view.render({ container, context })
+        expect(container.innerHTML).toMatchStringHTML(html`<div class="primary-mode">Content</div>`)
       })
     })
 
@@ -203,27 +156,16 @@ describe("интерполяции в атрибутах", () => {
             tag: "div",
             type: "el",
             string: {
-              "data-key": {
-                data: "/core/id",
-                expr: "prefix-${[0]}-suffix",
-              },
+              "data-key": { data: "/core/id", expr: "prefix-${[0]}-suffix" },
             },
-            child: [
-              {
-                type: "text",
-                value: "Content",
-              },
-            ],
+            child: [{ type: "text", value: "Content" }],
           },
         ])
       })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({ container: element, core })
-
-        const div = element.querySelector("div")!
-        expect(div).toBeDefined()
-        expect(div.getAttribute("data-key")).toBe("prefix-123-suffix")
+      it("рендер", () => {
+        const container = document.createElement("div")
+        view.render({ container, core })
+        expect(container.innerHTML).toMatchStringHTML(html`<div data-key="prefix-123-suffix">Content</div>`)
       })
     })
   })
@@ -252,16 +194,9 @@ describe("интерполяции в атрибутах", () => {
                     tag: "li",
                     type: "el",
                     string: {
-                      "data-id": {
-                        data: "[item]/id",
-                      },
+                      "data-id": { data: "[item]/id" },
                     },
-                    child: [
-                      {
-                        type: "text",
-                        value: "Item",
-                      },
-                    ],
+                    child: [{ type: "text", value: "Item" }],
                   },
                 ],
               },
@@ -269,11 +204,10 @@ describe("интерполяции в атрибутах", () => {
           },
         ])
       })
-      it.skip("рендер", () => {
-        const element = document.createElement("ul")
-        view.render({ container: element, core })
-
-        expect(element.innerHTML).toMatchStringHTML(html`
+      it("рендер", () => {
+        const container = document.createElement("ul")
+        view.render({ container, core })
+        expect(container.innerHTML).toMatchStringHTML(html`
           <ul>
             <li data-id="${core.items[0].id}">Item</li>
             <li data-id="${core.items[1].id}">Item</li>
@@ -305,17 +239,9 @@ describe("интерполяции в атрибутах", () => {
                     tag: "li",
                     type: "el",
                     string: {
-                      class: {
-                        data: "[item]/type",
-                        expr: "item-${[0]}",
-                      },
+                      class: { data: "[item]/type", expr: "item-${[0]}" },
                     },
-                    child: [
-                      {
-                        type: "text",
-                        value: "Item",
-                      },
-                    ],
+                    child: [{ type: "text", value: "Item" }],
                   },
                 ],
               },
@@ -323,10 +249,10 @@ describe("интерполяции в атрибутах", () => {
           },
         ])
       })
-      it.skip("рендер", () => {
-        const element = document.createElement("ul")
-        view.render({ container: element, core })
-        expect(element.innerHTML).toMatchStringHTML(html`
+      it("рендер", () => {
+        const container = document.createElement("ul")
+        view.render({ container, core })
+        expect(container.innerHTML).toMatchStringHTML(html`
           <ul>
             <li class="item-1">Item</li>
             <li class="item-2">Item</li>
@@ -365,23 +291,11 @@ describe("интерполяции в атрибутах", () => {
                     tag: "li",
                     type: "el",
                     string: {
-                      "data-id": {
-                        data: "[item]/id",
-                      },
-                      class: {
-                        data: "[item]/type",
-                        expr: "item-${[0]}",
-                      },
-                      title: {
-                        data: "[item]/name",
-                      },
+                      "data-id": { data: "[item]/id" },
+                      class: { data: "[item]/type", expr: "item-${[0]}" },
+                      title: { data: "[item]/name" },
                     },
-                    child: [
-                      {
-                        type: "text",
-                        value: "Item",
-                      },
-                    ],
+                    child: [{ type: "text", value: "Item" }],
                   },
                 ],
               },
@@ -389,11 +303,10 @@ describe("интерполяции в атрибутах", () => {
           },
         ])
       })
-      it.skip("рендер", () => {
-        const element = document.createElement("ul")
-        view.render({ container: element, core })
-
-        expect(element.innerHTML).toMatchStringHTML(html`
+      it("рендер", () => {
+        const container = document.createElement("ul")
+        view.render({ container, core })
+        expect(container.innerHTML).toMatchStringHTML(html`
           <ul>
             <li data-id="${core.items[0].id}" class="item-${core.items[0].type}" title="${core.items[0].name}">Item</li>
             <li data-id="${core.items[1].id}" class="item-${core.items[1].type}" title="${core.items[1].name}">Item</li>
@@ -419,33 +332,20 @@ describe("интерполяции в атрибутах", () => {
             type: "el",
             string: {
               id: "static-id",
-              class: {
-                data: "/context/theme",
-              },
+              class: { data: "/context/theme" },
               "data-fixed": "value",
-              "data-dynamic": {
-                data: "/core/version",
-              },
+              "data-dynamic": { data: "/core/version" },
             },
-            child: [
-              {
-                type: "text",
-                value: "Content",
-              },
-            ],
+            child: [{ type: "text", value: "Content" }],
           },
         ])
       })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({ container: element, context, core })
-
-        const div = element.querySelector("div")!
-        expect(div).toBeDefined()
-        expect(div.getAttribute("id")).toBe("static-id")
-        expect(div.getAttribute("class")).toBe(context.theme)
-        expect(div.getAttribute("data-fixed")).toBe("value")
-        expect(div.getAttribute("data-dynamic")).toBe(core.version)
+      it("рендер", () => {
+        const container = document.createElement("div")
+        view.render({ container, context, core })
+        expect(container.innerHTML).toMatchStringHTML(html`
+          <div id="static-id" class="${context.theme}" data-fixed="value" data-dynamic="${core.version}">Content</div>
+        `)
       })
     })
 
@@ -484,30 +384,12 @@ describe("интерполяции в атрибутах", () => {
                     tag: "span",
                     type: "el",
                     array: {
-                      class: [
-                        {
-                          value: "static",
-                        },
-                        {
-                          data: "[item]/type",
-                          expr: "item-${[0]}",
-                        },
-                      ],
+                      class: [{ value: "static" }, { data: "[item]/type", expr: "item-${[0]}" }],
                     },
-                    child: [
-                      {
-                        type: "text",
-                        value: " Content ",
-                      },
-                    ],
+                    child: [{ type: "text", value: " Content " }],
                     string: {
-                      "data-id": {
-                        data: "[item]/id",
-                      },
-                      title: {
-                        data: ["[item]/Item", "[item]/name"],
-                        expr: "${[0]}: ${${[1]}}",
-                      },
+                      "data-id": { data: "[item]/id" },
+                      title: { data: "[item]/name", expr: "Item: ${[0]}" },
                     },
                   },
                 ],
@@ -516,11 +398,10 @@ describe("интерполяции в атрибутах", () => {
           },
         ])
       })
-      it.skip("рендер", () => {
-        const element = document.createElement("div")
-        view.render({ container: element, core })
-
-        expect(element.innerHTML).toMatchStringHTML(html`
+      it("рендер", () => {
+        const container = document.createElement("div")
+        view.render({ container, core })
+        expect(container.innerHTML).toMatchStringHTML(html`
           <div class="wrapper">
             <span
               data-id="${core.items[0].id}"

@@ -34,6 +34,7 @@
     "node_modules/**/*",
     ".idea/**/*",
     ".cursor/**/*",
-    ".vscode/**/*"
+    ".vscode/**/*",
+    "core/view/parser/*"
   ]
 }
