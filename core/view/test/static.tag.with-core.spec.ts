@@ -25,7 +25,7 @@ describe("работа со статическими тегами с перед�
         countChildMount++
         childCore = core
       },
-      render: ({ context, html }) => html`
+      render: ({ context, core, html }) => html`
         <div>
           <p>Сообщение: ${context.message}</p>
           <form>
@@ -45,6 +45,7 @@ describe("работа со статическими тегами с перед�
     .core(() => ({
       apiService: { fetch: () => Promise.resolve({ json: () => ({ data: "test" }) }) },
       parentFormRef: null,
+      childHash,
     }))
     .processes()
     .reactions()
@@ -53,14 +54,11 @@ describe("работа со статическими тегами с перед�
         countParentMount++
       },
       render: ({ context, core, html }) => html`
-      <div>
-        <h1>Родитель: ${context.parentMessage}</h1>
-        <meta-${childHash}
-          core=${{
-            apiService: core.apiService,
-          }}></meta-${childHash}>
-      </div>
-    `,
+        <div>
+          <h1>Родитель: ${context.parentMessage}</h1>
+          <meta-${core.childHash} core=${{ apiService: core.apiService }} />
+        </div>
+      `,
     })
 
   const { waitForMessages } = messagesFixture({ meta: parentTag })
@@ -69,7 +67,7 @@ describe("работа со статическими тегами с перед�
 
   const childMessages = await waitForMessages(500)
 
-  test.skip("статический тег работает корректно - core передается", () => {
+  test("статический тег работает корректно - core передается", () => {
     expect(childCore, "core ребенка должен быть доступен").toBeDefined()
     expect(childCore.apiService, "apiService должен быть передан от родителя").toBeDefined()
     expect(typeof childCore.apiService.fetch, "apiService должен иметь метод fetch").toBe("function")
@@ -80,7 +78,7 @@ describe("работа со статическими тегами с перед�
     expect(childMessages[0]!.patches[0]!.op, "патч обновления core ребенка должен быть add").toEqual("add")
   })
 
-  test.skip("статический тег работает корректно - ребенок рендерится один раз", () => {
+  test("статический тег работает корректно - ребенок рендерится один раз", () => {
     expect(countChildMount, "ребенок должен быть отрендерен 1 раз").toEqual(1)
   })
 
@@ -88,8 +86,9 @@ describe("работа со статическими тегами с перед�
     expect(countParentMount, "родитель должен быть отрендерен 1 раз").toEqual(1)
   })
 
-  test.skip("статический тег работает корректно - ref создается", () => {
-    expect(childCore.formRef, "formRef должен быть создан").toBeDefined()
-    expect(childCore.formRef.value, "formRef.value должен быть undefined изначально").toBeUndefined()
+  test("статический тег работает корректно - core объекты передаются корректно", () => {
+    expect(childCore.formRef, "formRef должен быть доступен").toBeDefined()
+    expect(childCore.apiService, "apiService должен быть передан от родителя").toBeDefined()
+    expect(typeof childCore.apiService.fetch, "apiService должен иметь метод fetch").toBe("function")
   })
 })

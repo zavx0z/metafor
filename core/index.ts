@@ -158,10 +158,11 @@ export function MetaForFabric(params: FabricParams) {
                                     this.#view = new View(view, [])
                                     this.#view.attachStyles(this.#shadow)
                                   }
-                                  /** @internal обновление ядра */
-                                  __updCore = (value: Partial<I>) =>
+                                  /** обновление ядра */
+                                  __updCore = (value: Partial<I>) => {
+                                    if (!value) return
                                     Object.entries(value).forEach(([key, val]) => (this.#core[key as keyof I] = val))
-
+                                  }
                                   connectedCallback() {
                                     this.#store = store.saveActorIsNotExist({
                                       meta: this.#meta,

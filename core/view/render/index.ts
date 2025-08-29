@@ -205,6 +205,8 @@ function renderMeta<C extends ContextSchema>(
 
   // Обрабатываем объектные атрибуты (context, core)
   let contextData: any = null
+  let coreData: any = null
+
   // Проверяем атрибут context как отдельное поле узла
   if ((node as any).context) {
     const contextValue = (node as any).context
@@ -219,9 +221,28 @@ function renderMeta<C extends ContextSchema>(
     }
   }
 
-  // Если есть данные контекста, устанавливаем их через update метод
+  // Проверяем атрибут core как отдельное поле узла
+  if ((node as any).core) {
+    const coreValue = (node as any).core
+    if (typeof coreValue === "object" && coreValue !== null) {
+      if ("data" in coreValue && "expr" in coreValue) {
+        // Атрибут с выражением
+        coreData = evaluateExpression(coreValue.expr as string, coreValue.data as string | string[], params)
+      } else if ("data" in coreValue) {
+        // Простой динамический атрибут
+        coreData = getValueByPath(coreValue.data as string | string[], params)
+      }
+    }
+  }
+
+  // Если есть данные контекста, устанавливаем их через update метод актора
   if (contextData && typeof (element as any).update === "function") {
     ;(element as any).update(contextData)
+  }
+
+  // Если есть данные core, устанавливаем их через __updCore метод актора
+  if (coreData && typeof (element as any).__updCore === "function") {
+    ;(element as any).__updCore(coreData)
   }
 
   // Рендерим дочерние элементы
@@ -1104,13 +1125,25 @@ function evaluateExpression(
       const path = dataPath[i]
       if (path) {
         const value = getNestedValue(path, params)
-        result = result.replace(new RegExp(`\\[${i}\\]`, "g"), JSON.stringify(value))
+        // Для core объектов создаем специальную функцию для получения реального объекта
+        if (path.startsWith("/core/")) {
+          const corePath = path.slice(6) // убираем "/core/"
+          result = result.replace(new RegExp(`\\[${i}\\]`, "g"), `(() => { return params.core.${corePath} })()`)
+        } else {
+          result = result.replace(new RegExp(`\\[${i}\\]`, "g"), JSON.stringify(value))
+        }
       }
     }
   } else {
     // Для одного значения заменяем [0]
     const value = getValueByPath(dataPath, params)
-    result = result.replace(/\[0\]/g, JSON.stringify(value))
+    // Для core объектов создаем специальную функцию для получения реального объекта
+    if (dataPath.startsWith("/core/")) {
+      const corePath = dataPath.slice(6) // убираем "/core/"
+      result = result.replace(/\[0\]/g, `(() => { return params.core.${corePath} })()`)
+    } else {
+      result = result.replace(/\[0\]/g, JSON.stringify(value))
+    }
   }
 
   try {
@@ -1118,11 +1151,11 @@ function evaluateExpression(
     if (result.includes("${") && !result.startsWith("`")) {
       // Превращаем в шаблонный литерал
       const templateResult = "`" + result + "`"
-      const evalResult = Function(`"use strict"; return ${templateResult}`)()
+      const evalResult = Function("params", `"use strict"; return ${templateResult}`)(params)
       return evalResult
     } else {
       // Выполняем JavaScript выражение
-      const evalResult = Function(`"use strict"; return (${result})`)()
+      const evalResult = Function("params", `"use strict"; return (${result})`)(params)
       return evalResult
     }
   } catch (error) {
