@@ -18,9 +18,11 @@ describe("MetaFor view", () => {
       .view({
         render: ({ html, update, context }) => {
           snapshot = `${context.param ? "true" : "false"}`
-          return html` <button ref=${btn} onclick=${() => update({ param: !context.param })}>
-            ${context.param ? "true" : "false"}
-          </button>`
+          return html`
+            <button ref=${btn} onclick=${() => update({ param: !context.param })}>
+              ${context.param ? "true" : "false"}
+            </button>
+          `
         },
         onMount() {
           if (btn) btn.click()

@@ -1,7 +1,7 @@
 import { describe, test, expect } from "bun:test"
 import { MetaFor } from "../../../web/metafor"
 
-describe.skip("работа со статическими тегами без передачи контекста", async () => {
+describe("работа со статическими тегами без передачи контекста", async () => {
   let countChildMount = 0
   let countParentMount = 0
 
