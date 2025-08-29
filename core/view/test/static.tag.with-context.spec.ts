@@ -2,7 +2,7 @@ import { describe, test, expect } from "bun:test"
 import { MetaFor } from "../../../web/metafor"
 import { messagesFixture } from "../../../fixture/message"
 
-describe.skip("работа со статическими тегами с передачей контекста", async () => {
+describe("работа со статическими тегами с передачей контекста", async () => {
   let childContext: any
   let countChildMount = 0
   let countParentMount = 0
@@ -62,11 +62,7 @@ describe.skip("работа со статическими тегами с пер
       render: ({ context, html, core }) => html`
         <div>
           <h1>Родитель: ${context.parentMessage}</h1>
-          <meta-${core.child}
-            context=${{
-              message: context.parentMessage,
-              count: context.parentCount,
-            }} />
+          <meta-${core.child} context=${{ message: context.parentMessage, count: context.parentCount }} />
         </div>
       `,
     })

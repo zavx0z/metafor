@@ -208,13 +208,13 @@ export function MetaForFabric(params: FabricParams) {
                                     const updated = this.#context.update(context)
                                     if (Object.keys(updated).length > 0) {
                                       this.#sendEvent(updateContextMessage(this.#meta, { index: 0 }, updated))
-                                      this.#view.render({
-                                        state: this.#state,
-                                        context: this.#context.getSnapshot(),
-                                        core: this.#core,
-                                        container: this.#shadow,
-                                        update: this.update,
-                                      })
+                                      // this.#view.render({
+                                      //   state: this.#state,
+                                      //   context: this.#context.getSnapshot(),
+                                      //   core: this.#core,
+                                      //   container: this.#shadow,
+                                      //   update: this.update,
+                                      // })
                                     }
                                     return updated
                                   }

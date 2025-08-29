@@ -5,7 +5,22 @@ import type { Node, NodeElement, NodeText, NodeMap } from "@zavx0z/html-parser"
 
 type RenderParams = { context: any; core: any; state: string; development?: boolean }
 
-const VOID_TAGS = new Set(["area","base","br","col","embed","hr","img","input","link","meta","param","source","track","wbr"])
+const VOID_TAGS = new Set([
+  "area",
+  "base",
+  "br",
+  "col",
+  "embed",
+  "hr",
+  "img",
+  "input",
+  "link",
+  "meta",
+  "param",
+  "source",
+  "track",
+  "wbr",
+])
 
 const isVoidTag = (name: string) => VOID_TAGS.has(name.toLowerCase())
 
@@ -24,14 +39,18 @@ function resolveActorTagName(
   if (tag?.value != null) {
     resolved = String(tag.value ?? "")
   } else if (tag?.data != null) {
-    const raw = item === undefined
-      ? getNestedValue(tag.data as string, params)
-      : getNestedValueWithItem(tag.data as string, item, parentItem, params)
-    resolved = tag.expr != null
-      ? String(item === undefined
-          ? evaluateExpression(tag.expr as string, tag.data as string | string[], params)
-          : evaluateExpressionWithItem(tag.expr as string, tag.data as string | string[], item, parentItem, params))
-      : String(raw ?? "")
+    const raw =
+      item === undefined
+        ? getNestedValue(tag.data as string, params)
+        : getNestedValueWithItem(tag.data as string, item, parentItem, params)
+    resolved =
+      tag.expr != null
+        ? String(
+            item === undefined
+              ? evaluateExpression(tag.expr as string, tag.data as string | string[], params)
+              : evaluateExpressionWithItem(tag.expr as string, tag.data as string | string[], item, parentItem, params)
+          )
+        : String(raw ?? "")
   }
 
   const name = (resolved || "").trim().toLowerCase()
@@ -184,25 +203,25 @@ function renderMeta<C extends ContextSchema>(
     }
   }
 
-  // Добавляем объектные атрибуты (context, core)
-  if (node.object) {
-    for (const [key, value] of Object.entries(node.object)) {
-      if (typeof value === "object" && value !== null) {
-        // Динамический объектный атрибут
-        if ("data" in value && "expr" in value) {
-          // Атрибут с выражением
-          const attrValue = evaluateExpression(value.expr as string, value.data as string | string[], params)
-          element.setAttribute(key, String(attrValue))
-        } else if ("data" in value) {
-          // Простой динамический объектный атрибут
-          const attrValue = getValueByPath(value.data as string | string[], params)
-          element.setAttribute(key, String(attrValue))
-        }
-      } else {
-        // Статический объектный атрибут
-        element.setAttribute(key, String(value))
+  // Обрабатываем объектные атрибуты (context, core)
+  let contextData: any = null
+  // Проверяем атрибут context как отдельное поле узла
+  if ((node as any).context) {
+    const contextValue = (node as any).context
+    if (typeof contextValue === "object" && contextValue !== null) {
+      if ("data" in contextValue && "expr" in contextValue) {
+        // Атрибут с выражением
+        contextData = evaluateExpression(contextValue.expr as string, contextValue.data as string | string[], params)
+      } else if ("data" in contextValue) {
+        // Простой динамический атрибут
+        contextData = getValueByPath(contextValue.data as string | string[], params)
       }
     }
+  }
+
+  // Если есть данные контекста, устанавливаем их через update метод
+  if (contextData && typeof (element as any).update === "function") {
+    ;(element as any).update(contextData)
   }
 
   // Рендерим дочерние элементы
