@@ -26,7 +26,7 @@ export class View<C extends ContextSchema, I extends Core = Record<string, any>,
   /**
    * @param config конфигурация представления {@linkcode ViewDeclaration} [опционально]
    */
-  constructor(config: ViewDeclaration<C, S, I> = {}, path: string[] = []) {
+  constructor(config: ViewDeclaration<C, I, S> = {}, path: string[] = []) {
     this.path = path
     if (config.style) {
       this.#style = config.style

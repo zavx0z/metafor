@@ -85,7 +85,16 @@ describe("meta", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const core = {
+          actors: {
+            child: "child",
+          },
+        }
+        const container = document.createElement("div")
+        view.render({ container, core })
+        expect(container.innerHTML).toMatchStringHTML(html`<meta-${core.actors.child}></meta-${core.actors.child}>`)
+      })
     })
 
     describe("meta-элемент с хеш-тегом из core и с передачей контекста", () => {
@@ -340,7 +349,18 @@ describe("meta", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const core = {
+          actors: {
+            child: "child",
+          },
+        }
+        const container = document.createElement("div")
+        view.render({ container, core })
+        expect(container.innerHTML).toMatchStringHTML(
+          html`<meta-${core.actors.child} class="static-class" data-test="static-data" />`
+        )
+      })
     })
   })
 

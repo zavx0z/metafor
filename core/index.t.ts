@@ -75,7 +75,7 @@ export type FabricParams = {
   // /** Реакции */
   // reaction: ReactionsDeclaration<C, S, I>
   // /** Конфигурация view */
-  // view: ViewDeclaration<C, S, I> | undefined
+  // view: ViewDeclaration<C, I, S> | undefined
   // /** Восстановление из последнего сохраненного состояния (snapshot) */
   // persist: boolean
 }
@@ -253,7 +253,7 @@ export type MetaForType = (
              * document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
              * ```
              */
-            view(view?: ViewDeclaration<C, S, I>): string
+            view(view?: ViewDeclaration<C, I, S>): string
           }
         }
       }

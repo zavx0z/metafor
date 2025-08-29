@@ -36,7 +36,7 @@ import type { Core } from "../index.t"
  * ```
  */
 
-export type ViewDefinitionParams<C extends ContextSchema, S extends string, I extends Core> = {
+export type ViewDefinitionParams<C extends ContextSchema, I extends Core, S extends string> = {
   /**
    * Функция для обновления контекста.
    * Вызывается с частичным объектом контекста для изменения состояния.
@@ -86,7 +86,7 @@ export type ViewDefinitionParams<C extends ContextSchema, S extends string, I ex
  * @includeExample view/test/context.init.spec.ts
  * @includeExample view/test/context.update.spec.ts
  */
-export interface ViewDeclaration<C extends ContextSchema, S extends string, I extends Core> {
+export interface ViewDeclaration<C extends ContextSchema, I extends Core, S extends string> {
   /**
    * Функция рендеринга компонента.
    * Получает параметры с контекстом, состоянием и утилитами для построения UI.
@@ -105,7 +105,7 @@ export interface ViewDeclaration<C extends ContextSchema, S extends string, I ex
    * `
    * ```
    */
-  render?: (params: ViewDefinitionParams<C, S, I>) => void
+  render?: (params: ViewDefinitionParams<C, I, S>) => void
   /**
    * Функция, вызываемая после монтирования компонента в DOM.
    * Используется для инициализации после рендера.

@@ -91,7 +91,7 @@ export function MetaForFabric(params: FabricParams) {
                     return {
                       reactions(reaction: ReactionsDeclaration<C, S, I> = () => []) {
                         return {
-                          view(view?: ViewDeclaration<C, S, I>): string {
+                          view(view?: ViewDeclaration<C, I, S>): string {
                             const fingerPrint: FingerPrint<C, S> = {
                               name,
                               states,
@@ -117,7 +117,7 @@ export function MetaForFabric(params: FabricParams) {
                                   #core: I
                                   #processes: Processes<C, S, I>
                                   #reactions: Reactions<C, S, I>
-                                  #view: View<C, S, I>
+                                  #view: View<C, I, S>
 
                                   #env = "browser"
                                   #name = name
@@ -250,13 +250,12 @@ export function MetaForFabric(params: FabricParams) {
                                               } else if (typeof error === "string") {
                                                 process.error({ update: this.update, error: new Error(error) })
                                               } else {
-                                                throw Error(
-                                                  `Передан неизвестный тип ошибки в состоянии: ${this.#state}`,
-                                                  error
+                                                throw new Error(
+                                                  `Передан неизвестный тип ошибки в состоянии: ${this.#state}`
                                                 )
                                               }
                                             } else
-                                              throw Error(
+                                              throw new Error(
                                                 `Обработчик ошибки не найден для состояния: ${this.#state} \n ${error}`
                                               )
                                           })
