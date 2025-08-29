@@ -14,6 +14,19 @@ export const stripWhitespace = (str: unknown) => {
   return normalized.trim()
 }
 
+/** Канонизирует HTML через сериализацию DOM (Happy DOM / браузер) */
+const canonicalizeViaDOM = (html: string) => {
+  try {
+    // Используем <template>, чтобы корректно держать произвольный фрагмент (несколько корневых узлов)
+    const tpl = document.createElement("template")
+    tpl.innerHTML = html
+    return tpl.innerHTML
+  } catch {
+    // Если DOM недоступен (не наш случай), возвращаем как есть
+    return html
+  }
+}
+
 /** Нормализует порядок атрибутов в HTML тегах */
 const normalizeAttributeOrder = (str: string) => {
   return str.replace(/<([^>]+)>/g, (match, tagContent) => {
@@ -28,8 +41,8 @@ const normalizeAttributeOrder = (str: string) => {
 
     // Сортируем атрибуты по имени
     const sortedAttributes = attributes.sort((a: string, b: string) => {
-      const aName = a.split("=")[0]
-      const bName = b.split("=")[0]
+      const aName = a.split("=")[0] || ""
+      const bName = b.split("=")[0] || ""
       return aName.localeCompare(bName)
     })
 
@@ -39,19 +52,17 @@ const normalizeAttributeOrder = (str: string) => {
 
 /** Нормализует HTML строку для сравнения */
 export const normalizeHTML = (str: string) => {
+  // 1) Канонизируем через DOM (чтобы убрать различия вида visible vs visible="")
+  const dom = canonicalizeViaDOM(str)
   return (
-    str
+    dom
       // Удаляем лишние пробелы и переносы строк между тегами
       .replace(/>\s+</g, "><")
       // Удаляем пробелы в начале и конце
       .trim()
       // Нормализуем самозакрывающиеся теги (img, br, input, etc.) - убираем слэш
       .replace(/<([^>]+)\/>/g, "<$1>")
-      // Нормализуем булевы атрибуты: disabled="" -> disabled (и др.)
-      .replace(
-        /\s(disabled|readonly|required|checked|selected|multiple|autofocus|autoplay|controls|default|defer|formnovalidate|hidden|loop|muted|open|playsinline|reversed|ismap|allowfullscreen|inert|nomodule|async|loading|data-[a-zA-Z-]+|aria-[a-zA-Z-]+)=""/g,
-        " $1"
-      )
+      // (!) БОЛЬШЕ НИЧЕГО НЕ ХАРДКОДИМ для булевых — за нас уже решил DOM-рантайм
       // Приводим одинарные кавычки атрибутов к двойным и экранируем внутренние двойные кавычки
       .replace(/(\s[^\s=]+)='([^']*)'/g, (_m, name, val) => {
         const escaped = String(val).replace(/\"/g, '"').replace(/"/g, "&quot;")
@@ -70,8 +81,8 @@ export const normalizeHTML = (str: string) => {
 
         // Сортируем атрибуты по имени
         const sortedAttributes = attributes.sort((a: string, b: string) => {
-          const aName = a.split("=")[0]
-          const bName = b.split("=")[0]
+          const aName = a.split("=")[0] || ""
+          const bName = b.split("=")[0] || ""
           return aName.localeCompare(bName)
         })
 
