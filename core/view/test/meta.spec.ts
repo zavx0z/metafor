@@ -2,6 +2,8 @@ import { describe, expect, it } from "bun:test"
 import { View } from "../index.ts"
 
 describe("meta", () => {
+  const html = String.raw
+
   describe("теги", () => {
     describe("актор web-component", () => {
       const view = new View({
@@ -15,7 +17,11 @@ describe("meta", () => {
           },
         ])
       })
-      it.skip("рендер", () => {})
+      it("рендер", () => {
+        const container = document.createElement("div")
+        view.render({ container })
+        expect(container.innerHTML).toMatchStringHTML(html`<meta-hash></meta-hash>`)
+      })
     })
 
     describe("актор web-component с самозакрывающимся тегом", () => {

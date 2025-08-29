@@ -87,9 +87,88 @@ function renderNode<C extends ContextSchema>(
       return renderText(node as NodeText, params)
     case "map":
       return renderMap(node as NodeMap, params)
+    case "meta":
+      return renderMeta(node, params)
     default:
       return null
   }
+}
+
+/**
+ * Рендерит meta элемент
+ */
+function renderMeta<C extends ContextSchema>(
+  node: any,
+  params: {
+    state: string
+    context: ExtractValues<C>
+    core: Record<string, any>
+    update: Update<C>
+  }
+): HTMLElement {
+  const tag = typeof node.tag === "string" ? node.tag : "div"
+  const element = document.createElement(tag)
+
+  // Добавляем строковые атрибуты
+  if (node.string) {
+    for (const [key, value] of Object.entries(node.string)) {
+      if (typeof value === "object" && value !== null) {
+        // Динамический атрибут
+        if ("data" in value && "expr" in value) {
+          // Атрибут с выражением
+          const attrValue = evaluateExpression(value.expr as string, value.data as string | string[], params)
+          element.setAttribute(key, String(attrValue))
+        } else if ("data" in value) {
+          // Простой динамический атрибут
+          const attrValue = getValueByPath(value.data as string | string[], params)
+          element.setAttribute(key, String(attrValue))
+        }
+      } else {
+        // Статический атрибут
+        element.setAttribute(key, String(value))
+      }
+    }
+  }
+
+  // Добавляем объектные атрибуты (context, core)
+  if (node.object) {
+    for (const [key, value] of Object.entries(node.object)) {
+      if (typeof value === "object" && value !== null) {
+        // Динамический объектный атрибут
+        if ("data" in value && "expr" in value) {
+          // Атрибут с выражением
+          const attrValue = evaluateExpression(value.expr as string, value.data as string | string[], params)
+          element.setAttribute(key, String(attrValue))
+        } else if ("data" in value) {
+          // Простой динамический объектный атрибут
+          const attrValue = getValueByPath(value.data as string | string[], params)
+          element.setAttribute(key, String(attrValue))
+        }
+      } else {
+        // Статический объектный атрибут
+        element.setAttribute(key, String(value))
+      }
+    }
+  }
+
+  // Рендерим дочерние элементы
+  if (node.child) {
+    for (const childNode of node.child) {
+      const childElement = renderNode(childNode, params)
+      if (childElement) {
+        if (childElement instanceof DocumentFragment) {
+          // Для DocumentFragment добавляем все дочерние элементы
+          while (childElement.firstChild) {
+            element.appendChild(childElement.firstChild)
+          }
+        } else {
+          element.appendChild(childElement)
+        }
+      }
+    }
+  }
+
+  return element
 }
 
 /**
