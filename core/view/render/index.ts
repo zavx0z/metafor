@@ -1,7 +1,21 @@
 import type { ExtractValues, Update } from "../../context/index.t"
 import type { ContextSchema } from "../../context/types.t.ts"
 import type { Core } from "../../index.t.ts"
-import type { Node, NodeElement, NodeText, NodeMap } from "../parser/index.t"
+import type { Node, NodeElement, NodeText, NodeMap } from "@zavx0z/html-parser"
+
+/**
+ * Преобразует значение в boolean с учетом строковых "ложных" значений
+ */
+function toBoolean(value: any): boolean {
+  if (typeof value === "boolean") return value
+  if (typeof value === "number") return value !== 0 && !Number.isNaN(value)
+  if (value == null) return false
+  if (typeof value === "string") {
+    const s = value.trim().toLowerCase()
+    return !(s === "" || s === "false" || s === "0" || s === "null" || s === "undefined" || s === "nan")
+  }
+  return !!value
+}
 
 /**
  * Основная функция рендеринга
@@ -88,7 +102,7 @@ function renderElement<C extends ContextSchema>(
         if ("data" in value && "expr" in value) {
           // Атрибут с выражением
           const attrValue = evaluateExpression(value.expr, value.data, params)
-          element.setAttribute(key, attrValue)
+          element.setAttribute(key, String(attrValue))
         } else if ("data" in value) {
           // Простой динамический атрибут
           const attrValue = getValueByPath(value.data, params)
@@ -103,8 +117,60 @@ function renderElement<C extends ContextSchema>(
 
   // Добавляем булевы атрибуты
   if (node.boolean) {
+    // Сначала обрабатываем взаимоисключающие атрибуты
+    const visibleAttrs = ["visible", "hidden"]
+    const hasVisibleConflict = visibleAttrs.some((attr) => node.boolean && attr in node.boolean)
+
+    if (hasVisibleConflict) {
+      // Если есть конфликт visible/hidden, обрабатываем их специально
+      const visibleValue = node.boolean.visible
+      const hiddenValue = node.boolean.hidden
+
+      if (visibleValue && typeof visibleValue === "object" && "data" in visibleValue) {
+        const isVisible = getValueByPath(visibleValue.data, params)
+        if (isVisible) {
+          element.setAttribute("visible", "")
+          element.removeAttribute("hidden")
+        } else {
+          element.removeAttribute("visible")
+          element.setAttribute("hidden", "")
+        }
+      } else if (hiddenValue && typeof hiddenValue === "object" && "data" in hiddenValue && "expr" in hiddenValue) {
+        const isHidden = toBoolean(evaluateExpression(hiddenValue.expr, hiddenValue.data, params))
+        if (isHidden) {
+          element.setAttribute("hidden", "")
+          element.removeAttribute("visible")
+        } else {
+          element.removeAttribute("hidden")
+          element.setAttribute("visible", "")
+        }
+      }
+    }
+
+    // Обрабатываем остальные булевы атрибуты
     for (const [key, value] of Object.entries(node.boolean)) {
-      if (value === true) {
+      if (visibleAttrs.includes(key)) continue // Пропускаем уже обработанные
+
+      if (typeof value === "object" && value !== null) {
+        // Динамический булев атрибут
+        if ("data" in value && "expr" in value) {
+          // Атрибут с выражением
+          const boolValue = toBoolean(evaluateExpression(value.expr, value.data, params))
+          if (boolValue) {
+            element.setAttribute(key, "")
+          } else {
+            element.removeAttribute(key)
+          }
+        } else if ("data" in value) {
+          // Простой динамический булев атрибут
+          const boolValue = getValueByPath(value.data, params)
+          if (boolValue) {
+            element.setAttribute(key, "")
+          } else {
+            element.removeAttribute(key)
+          }
+        }
+      } else if (value === true) {
         // Проверяем, не установлен ли уже этот атрибут как строковый
         if (!node.string || !(key in node.string)) {
           element.setAttribute(key, "")
@@ -125,7 +191,7 @@ function renderElement<C extends ContextSchema>(
           if ("data" in value && "expr" in value) {
             // Атрибут с выражением
             const attrValue = evaluateExpression(value.expr, value.data, params)
-            attrValues.push(attrValue)
+            attrValues.push(String(attrValue))
           } else if ("data" in value) {
             // Простой динамический атрибут
             const attrValue = getValueByPath(value.data, params)
@@ -292,8 +358,8 @@ function renderElementWithItem<C extends ContextSchema>(
         // Динамический атрибут
         if ("data" in value && "expr" in value) {
           // Атрибут с выражением
-          const attrValue = evaluateExpressionWithItem(value.expr, value.data, item)
-          element.setAttribute(key, attrValue)
+          const attrValue = evaluateExpressionWithItem(value.expr, value.data, item, parentItem, params)
+          element.setAttribute(key, String(attrValue))
         } else if ("data" in value) {
           // Простой динамический атрибут
           const attrValue = getValueByPathWithItem(value.data, item)
@@ -308,8 +374,62 @@ function renderElementWithItem<C extends ContextSchema>(
 
   // Добавляем булевы атрибуты
   if (node.boolean) {
+    // Сначала обрабатываем взаимоисключающие атрибуты
+    const visibleAttrs = ["visible", "hidden"]
+    const hasVisibleConflict = visibleAttrs.some((attr) => node.boolean && attr in node.boolean)
+
+    if (hasVisibleConflict) {
+      // Если есть конфликт visible/hidden, обрабатываем их специально
+      const visibleValue = node.boolean.visible
+      const hiddenValue = node.boolean.hidden
+
+      if (visibleValue && typeof visibleValue === "object" && "data" in visibleValue) {
+        const isVisible = getValueByPathWithItem(visibleValue.data, item, parentItem, params)
+        if (isVisible) {
+          element.setAttribute("visible", "")
+          element.removeAttribute("hidden")
+        } else {
+          element.removeAttribute("visible")
+          element.setAttribute("hidden", "")
+        }
+      } else if (hiddenValue && typeof hiddenValue === "object" && "data" in hiddenValue && "expr" in hiddenValue) {
+        const isHidden = toBoolean(
+          evaluateExpressionWithItem(hiddenValue.expr, hiddenValue.data, item, parentItem, params)
+        )
+        if (isHidden) {
+          element.setAttribute("hidden", "")
+          element.removeAttribute("visible")
+        } else {
+          element.removeAttribute("hidden")
+          element.setAttribute("visible", "")
+        }
+      }
+    }
+
+    // Обрабатываем остальные булевы атрибуты
     for (const [key, value] of Object.entries(node.boolean)) {
-      if (value === true) {
+      if (visibleAttrs.includes(key)) continue // Пропускаем уже обработанные
+
+      if (typeof value === "object" && value !== null) {
+        // Динамический булев атрибут
+        if ("data" in value && "expr" in value) {
+          // Атрибут с выражением
+          const boolValue = toBoolean(evaluateExpressionWithItem(value.expr, value.data, item, parentItem, params))
+          if (boolValue) {
+            element.setAttribute(key, "")
+          } else {
+            element.removeAttribute(key)
+          }
+        } else if ("data" in value) {
+          // Простой динамический булев атрибут
+          const boolValue = getValueByPathWithItem(value.data, item, parentItem, params)
+          if (boolValue) {
+            element.setAttribute(key, "")
+          } else {
+            element.removeAttribute(key)
+          }
+        }
+      } else if (value === true) {
         // Проверяем, не установлен ли уже этот атрибут как строковый
         if (!node.string || !(key in node.string)) {
           element.setAttribute(key, "")
@@ -330,7 +450,7 @@ function renderElementWithItem<C extends ContextSchema>(
           if ("data" in value && "expr" in value) {
             // Атрибут с выражением
             const attrValue = evaluateExpressionWithItem(value.expr, value.data, item, parentItem, params)
-            attrValues.push(attrValue)
+            attrValues.push(String(attrValue))
           } else if ("data" in value) {
             // Простой динамический атрибут
             const attrValue = getValueByPathWithItem(value.data, item, parentItem, params)
@@ -389,7 +509,7 @@ function renderTextWithItem<C extends ContextSchema>(
     text = node.value
   } else if (node.data && node.expr) {
     // Смешанный текст с интерполяцией
-    text = evaluateExpressionWithItem(node.expr, node.data, item, parentItem, params)
+    text = String(evaluateExpressionWithItem(node.expr, node.data, item, parentItem, params))
   } else if (node.data) {
     // Простая интерполяция
     const value = getValueByPathWithItem(node.data, item, parentItem, params)
@@ -471,7 +591,7 @@ function evaluateExpressionWithItem(
   item: any,
   parentItem?: any,
   params?: any
-): string {
+): any {
   let result = expr
 
   if (Array.isArray(dataPath)) {
@@ -495,11 +615,11 @@ function evaluateExpressionWithItem(
       // Превращаем в шаблонный литерал
       const templateResult = "`" + result + "`"
       const evalResult = Function(`"use strict"; return ${templateResult}`)()
-      return String(evalResult)
+      return evalResult
     } else {
       // Выполняем JavaScript выражение
       const evalResult = Function(`"use strict"; return (${result})`)()
-      return String(evalResult)
+      return evalResult
     }
   } catch (error) {
     console.warn("Failed to evaluate expression:", result, error)
@@ -526,7 +646,7 @@ function renderText<C extends ContextSchema>(
     text = node.value
   } else if (node.data && node.expr) {
     // Смешанный текст с интерполяцией
-    text = evaluateExpression(node.expr, node.data, params)
+    text = String(evaluateExpression(node.expr, node.data, params))
   } else if (node.data) {
     // Простая интерполяция
     const value = getValueByPath(node.data, params)
@@ -646,7 +766,7 @@ function evaluateExpression(
     context: Record<string, any>
     core: Record<string, any>
   }
-): string {
+): any {
   let result = expr
 
   if (Array.isArray(dataPath)) {
@@ -670,11 +790,11 @@ function evaluateExpression(
       // Превращаем в шаблонный литерал
       const templateResult = "`" + result + "`"
       const evalResult = Function(`"use strict"; return ${templateResult}`)()
-      return String(evalResult)
+      return evalResult
     } else {
       // Выполняем JavaScript выражение
       const evalResult = Function(`"use strict"; return (${result})`)()
-      return String(evalResult)
+      return evalResult
     }
   } catch (error) {
     console.warn("Failed to evaluate expression:", result, error)
