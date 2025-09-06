@@ -35,9 +35,7 @@ describe("условные блоки", () => {
               ? html`<div class="enum">enum element div</div>`
               : context.enum === "span"
                 ? html`<span class="enum">enum element span</span>`
-                : context.enum === "p"
-                  ? html`<p class="enum">enum element p</p>`
-                  : null}
+                : context.enum === "p" && html`<p class="enum">enum element p</p>`}
           </div>
         `,
       })
@@ -46,44 +44,65 @@ describe("условные блоки", () => {
           {
             tag: "div",
             type: "el",
-            string: {
-              class: { data: "/context/className" },
-              id: { data: "/context/id" },
-              "data-text": { data: "/context/text" },
-            },
             child: [
               {
                 tag: "img",
                 type: "el",
+                string: {
+                  src: "test.jpg",
+                  alt: {
+                    data: "/context/text",
+                  },
+                },
                 array: {
-                  class: [{ value: "image" }, { data: "/context/className", expr: "${[0]}-image" }],
+                  class: [
+                    "image",
+                    {
+                      data: "/context/className",
+                      expr: "${[0]}-image",
+                    },
+                  ],
                 },
                 boolean: {
+                  visible: {
+                    data: "/context/visible",
+                  },
                   hidden: {
                     data: "/context/visible",
                     expr: "!${[0]}",
                   },
-                  visible: {
-                    data: "/context/visible",
-                  },
-                },
-                string: {
-                  alt: { data: "/context/text" },
-                  src: "test.jpg",
                 },
               },
-              { tag: "br", type: "el" },
+              {
+                tag: "br",
+                type: "el",
+              },
               {
                 tag: "button",
                 type: "el",
+                child: [
+                  {
+                    type: "text",
+                    data: "/context/text",
+                  },
+                ],
                 array: {
                   class: [
-                    { data: "/context/className", expr: "button-${[0]}" },
-                    { data: "/context/className", expr: "${[0]}-button" },
+                    {
+                      data: "/context/className",
+                      expr: "button-${[0]}",
+                    },
+                    {
+                      data: "/context/className",
+                      expr: "${[0]}-button",
+                    },
                   ],
                 },
-                boolean: { disabled: { data: "/context/disabled" } },
-                child: [{ type: "text", data: "/context/text" }],
+                boolean: {
+                  disabled: {
+                    data: "/context/disabled",
+                  },
+                },
               },
               {
                 tag: "ul",
@@ -96,22 +115,14 @@ describe("условные блоки", () => {
                       {
                         tag: "li",
                         type: "el",
-                        child: [{ type: "text", data: "[item]" }],
+                        child: [
+                          {
+                            type: "text",
+                            data: "[item]",
+                          },
+                        ],
                       },
                     ],
-                  },
-                ],
-              },
-              {
-                tag: "div",
-                type: "el",
-                string: {
-                  class: "enum",
-                },
-                child: [
-                  {
-                    type: "text",
-                    value: "enum element div",
                   },
                 ],
               },
@@ -119,34 +130,67 @@ describe("условные блоки", () => {
                 type: "cond",
                 data: ["/context/enum", "/div"],
                 expr: '${[0]} === "${[1]}"',
-                true: {
-                  tag: "span",
-                  type: "el",
-                  string: {
-                    class: "enum",
-                  },
-                  child: [
-                    {
-                      type: "text",
-                      value: "enum element span",
+                child: [
+                  {
+                    tag: "div",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        value: "enum element div",
+                      },
+                    ],
+                    string: {
+                      class: "enum",
                     },
-                  ],
-                },
-                false: {
-                  tag: "p",
-                  type: "el",
-                  string: {
-                    class: "enum",
                   },
-                  child: [
-                    {
-                      type: "text",
-                      value: "enum element p",
-                    },
-                  ],
-                },
+                  {
+                    type: "cond",
+                    data: ["/context/enum", "/span"],
+                    expr: '${[0]} === "${[1]}"',
+                    child: [
+                      {
+                        tag: "span",
+                        type: "el",
+                        child: [
+                          {
+                            type: "text",
+                            value: "enum element span",
+                          },
+                        ],
+                        string: {
+                          class: "enum",
+                        },
+                      },
+                      {
+                        tag: "p",
+                        type: "el",
+                        child: [
+                          {
+                            type: "text",
+                            value: "enum element p",
+                          },
+                        ],
+                        string: {
+                          class: "enum",
+                        },
+                      },
+                    ],
+                  },
+                ],
               },
             ],
+            string: {
+              class: {
+                data: "/context/className",
+              },
+              id: {
+                data: "/context/id",
+              },
+              "data-text": {
+                data: "/context/text",
+              },
+            },
           },
         ]))
       it("рендер", () => {
@@ -161,16 +205,17 @@ describe("условные блоки", () => {
               <li>item1</li>
               <li>item2</li>
             </ul>
-            <div class="enum">enum element div</div>
           </div>
         `)
       })
     })
 
     describe("простой тернарный оператор с context", () => {
+      const { context, update } = new Context((t) => ({ isActive: t.boolean.required(true) }))
       const view = new View({
-        render: ({ html, context }) =>
-          html`<div>${context.isActive ? html`<span>Active</span>` : html`<span>Inactive</span>`}</div>`,
+        render: ({ html, context }) => html`
+          <div>${context.isActive ? html`<span>Active</span>` : html`<span>Inactive</span>`}</div>
+        `,
       })
       it("парсинг", () => {
         expect(view.schema, "простой тернарный оператор с context").toEqual([
@@ -181,34 +226,51 @@ describe("условные блоки", () => {
               {
                 type: "cond",
                 data: "/context/isActive",
-                true: {
-                  tag: "span",
-                  type: "el",
-                  child: [
-                    {
-                      type: "text",
-                      value: "Active",
-                    },
-                  ],
-                },
-                false: {
-                  tag: "span",
-                  type: "el",
-                  child: [
-                    {
-                      type: "text",
-                      value: "Inactive",
-                    },
-                  ],
-                },
+                child: [
+                  {
+                    tag: "span",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        value: "Active",
+                      },
+                    ],
+                  },
+                  {
+                    tag: "span",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        value: "Inactive",
+                      },
+                    ],
+                  },
+                ],
               },
             ],
           },
         ])
       })
+      it("рендер true", () => {
+        const container = document.createElement("div")
+        update({ isActive: true })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер при условии true").toMatchStringHTML(html`<div><span>Active</span></div>`)
+      })
+      it("рендер false", () => {
+        const container = document.createElement("div")
+        update({ isActive: false })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер при условии false").toMatchStringHTML(
+          html`<div><span>Inactive</span></div>`
+        )
+      })
     })
 
     describe("простой тернарный оператор с context с оберткой и соседними элементами", () => {
+      const { context, update } = new Context((t) => ({ isActive: t.boolean.required(true) }))
       const view = new View({
         render: ({ html, context }) => html`
           <div>
@@ -272,9 +334,34 @@ describe("условные блоки", () => {
           },
         ])
       })
+      it("рендер true", () => {
+        const container = document.createElement("div")
+        update({ isActive: true })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер при условии true").toMatchStringHTML(html`
+          <div>
+            <header>Header</header>
+            <span>Active</span>
+            <span>Inactive</span>
+          </div>
+        `)
+      })
+      it("рендер false", () => {
+        const container = document.createElement("div")
+        update({ isActive: false })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер при условии false").toMatchStringHTML(html`
+          <div>
+            <header>Header</header>
+            <span>Active</span>
+            <footer>Footer</footer>
+          </div>
+        `)
+      })
     })
 
     describe("простой тернарный оператор с context без обертки", () => {
+      const { context, update } = new Context((t) => ({ isActive: t.boolean.required(true) }))
       const view = new View({
         render: ({ html, context }) =>
           html`${context.isActive ? html`<span>Active</span>` : html`<span>Inactive</span>`}`,
@@ -307,9 +394,23 @@ describe("условные блоки", () => {
           },
         ])
       })
+      it("рендер true", () => {
+        const container = document.createElement("div")
+        update({ isActive: true })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер при условии true").toMatchStringHTML(html`<span>Active</span>`)
+      })
+      it("рендер false", () => {
+        const container = document.createElement("div")
+        update({ isActive: false })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер при условии false").toMatchStringHTML(html`<span>Inactive</span>`)
+      })
     })
 
     describe("тернарный оператор с core", () => {
+      const core = { requiredRole: "admin" }
+      const { context, update } = new Context((t) => ({ userRole: t.string.required("user") }))
       const view = new View({
         render: ({ html, context, core }) =>
           html`<div>${context.userRole === core.requiredRole ? html`<h1>match</h1>` : html`<h1>mismatch</h1>`}</div>`,
@@ -349,9 +450,24 @@ describe("условные блоки", () => {
           },
         ])
       })
+      it("рендер match", () => {
+        const container = document.createElement("div")
+        update({ userRole: "admin" })
+        view.render({ container, context, core })
+        expect(container.innerHTML, "рендер при совпадении ролей").toMatchStringHTML(html`<div><h1>match</h1></div>`)
+      })
+      it("рендер mismatch", () => {
+        const container = document.createElement("div")
+        update({ userRole: "user" })
+        view.render({ container, context, core })
+        expect(container.innerHTML, "рендер при несовпадении ролей").toMatchStringHTML(
+          html`<div><h1>mismatch</h1></div>`
+        )
+      })
     })
 
     describe("сравнение с определенным значением", () => {
+      const { context, update } = new Context((t) => ({ userRole: t.string.required("user") }))
       const view = new View({
         render: ({ html, context }) =>
           html` <main>
@@ -421,9 +537,35 @@ describe("условные блоки", () => {
           },
         ])
       })
+      it("рендер admin", () => {
+        const container = document.createElement("div")
+        update({ userRole: "admin" })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер для админа").toMatchStringHTML(html`
+          <main>
+            <section class="admin-panel">
+              <h2>Admin Panel</h2>
+            </section>
+          </main>
+        `)
+      })
+      it("рендер user", () => {
+        const container = document.createElement("div")
+        update({ userRole: "user" })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер для пользователя").toMatchStringHTML(html`
+          <main>
+            <section class="user-panel">
+              <h2>User Panel</h2>
+            </section>
+          </main>
+        `)
+      })
     })
 
     describe("сравнение context и core (>)", () => {
+      const core = { b: 5 }
+      const { context, update } = new Context((t) => ({ a: t.number.required(10) }))
       const view = new View({
         render: ({ html, context, core }) =>
           html`<div>${context.a > core.b ? html`<span>A>B</span>` : html`<span>B>=A</span>`}</div>`,
@@ -463,9 +605,25 @@ describe("условные блоки", () => {
           },
         ])
       })
+      it("рендер A>B", () => {
+        const container = document.createElement("div")
+        update({ a: 10 })
+        view.render({ container, context, core })
+        expect(container.innerHTML, "рендер когда A больше B").toMatchStringHTML(html`<div><span>A>B</span></div>`)
+      })
+      it("рендер B>=A", () => {
+        const container = document.createElement("div")
+        update({ a: 3 })
+        view.render({ container, context, core })
+        expect(container.innerHTML, "рендер когда B больше или равно A").toMatchStringHTML(
+          html`<div><span>B>=A</span></div>`
+        )
+      })
     })
 
     describe("сравнение core и context (<=)", () => {
+      const core = { b: 5 }
+      const { context, update } = new Context((t) => ({ a: t.number.required(10) }))
       const view = new View({
         render: ({ html, core, context }) =>
           html`<section>${core.b <= context.a ? html`<p>ok</p>` : html`<p>no</p>`}</section>`,
@@ -505,9 +663,27 @@ describe("условные блоки", () => {
           },
         ])
       })
+      it("рендер ok", () => {
+        const container = document.createElement("div")
+        update({ a: 10 })
+        view.render({ container, context, core })
+        expect(container.innerHTML, "рендер когда условие выполняется").toMatchStringHTML(
+          html`<section><p>ok</p></section>`
+        )
+      })
+      it("рендер no", () => {
+        const container = document.createElement("div")
+        update({ a: 3 })
+        view.render({ container, context, core })
+        expect(container.innerHTML, "рендер когда условие не выполняется").toMatchStringHTML(
+          html`<section><p>no</p></section>`
+        )
+      })
     })
 
     it("строковое сравнение между полями (===, !==)", () => {
+      const core = { requiredRole: "admin" }
+      const { context, update } = new Context((t) => ({ role: t.string.required("user") }))
       const view = new View({
         render: ({ html, context, core }) =>
           html`<div>${context.role === core.requiredRole ? html`<h1>match</h1>` : html`<h1>mismatch</h1>`}</div>`,
@@ -545,11 +721,26 @@ describe("условные блоки", () => {
           ],
         },
       ])
+      it("рендер match", () => {
+        const container = document.createElement("div")
+        update({ role: "admin" })
+        view.render({ container, context, core })
+        expect(container.innerHTML, "рендер при совпадении ролей").toMatchStringHTML(html`<div><h1>match</h1></div>`)
+      })
+      it("рендер mismatch", () => {
+        const container = document.createElement("div")
+        update({ role: "user" })
+        view.render({ container, context, core })
+        expect(container.innerHTML, "рендер при несовпадении ролей").toMatchStringHTML(
+          html`<div><h1>mismatch</h1></div>`
+        )
+      })
     })
   })
 
   describe("логические операторы", () => {
     describe("оператор && (логическое И)", () => {
+      const { context, update } = new Context((t) => ({ isLoggedIn: t.boolean.required(true) }))
       const view = new View({
         render: ({ html, context }) =>
           html`<div>${context.isLoggedIn && html`<span class="user">Welcome!</span>`}</div>`,
@@ -577,9 +768,24 @@ describe("условные блоки", () => {
           },
         ])
       })
+      it("рендер true", () => {
+        const container = document.createElement("div")
+        update({ isLoggedIn: true })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер при логическом И true").toMatchStringHTML(
+          html`<div><span class="user">Welcome!</span></div>`
+        )
+      })
+      it("рендер false", () => {
+        const container = document.createElement("div")
+        update({ isLoggedIn: false })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер при логическом И false").toMatchStringHTML(html`<div></div>`)
+      })
     })
 
     describe("оператор || с fallback", () => {
+      const { context, update } = new Context((t) => ({ userName: t.string.required("") }))
       const view = new View({
         render: ({ html, context }) => html`<div>${context.userName || html`<span class="guest">Guest</span>`}</div>`,
       })
@@ -606,15 +812,39 @@ describe("условные блоки", () => {
           },
         ])
       })
+      it("рендер с именем", () => {
+        const container = document.createElement("div")
+        update({ userName: "John" })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер когда есть имя пользователя").toMatchStringHTML(html`<div>John</div>`)
+      })
+      it("рендер fallback", () => {
+        const container = document.createElement("div")
+        update({ userName: "" })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер fallback для гостя").toMatchStringHTML(
+          html`<div><span class="guest">Guest</span></div>`
+        )
+      })
     })
   })
 
   describe("условия в массивах", () => {
     describe("условный рендеринг элементов массива", () => {
+      const core = {
+        items: [
+          { name: "Item 1", isActive: true },
+          { name: "Item 2", isActive: false },
+          { name: "Item 3", isActive: true },
+        ],
+      }
+      const { context, update } = new Context((t) => ({
+        itemNames: t.array.required(["Item 1", "Item 2", "Item 3"]),
+      }))
       const view = new View({
-        render: ({ html, context }) =>
+        render: ({ html, context, core }) =>
           html`<div>
-            ${context.items.map((item: { name: string; isActive: boolean }) =>
+            ${core.items.map((item: { name: string; isActive: boolean }) =>
               item.isActive
                 ? html`<span class="active">${item.name}</span>`
                 : html`<span class="inactive">${item.name}</span>`
@@ -629,7 +859,7 @@ describe("условные блоки", () => {
             child: [
               {
                 type: "map",
-                data: "/context/items",
+                data: "/core/items",
                 child: [
                   {
                     tag: "span",
@@ -663,13 +893,34 @@ describe("условные блоки", () => {
           },
         ])
       })
+      it("рендер", () => {
+        const container = document.createElement("div")
+        view.render({ container, context, core })
+        expect(container.innerHTML, "рендер условных элементов массива").toMatchStringHTML(html`
+          <div>
+            <span class="active">Item 1</span>
+            <span class="inactive">Item 2</span>
+            <span class="active">Item 3</span>
+          </div>
+        `)
+      })
     })
 
     describe("условие только с одной ветвью в массиве", () => {
+      const core = {
+        notifications: [
+          { message: "Notification 1", hasAction: true },
+          { message: "Notification 2", hasAction: false },
+          { message: "Notification 3", hasAction: true },
+        ],
+      }
+      const { context, update } = new Context((t) => ({
+        notificationCount: t.number.required(3),
+      }))
       const view = new View({
-        render: ({ html, context }) => html`
+        render: ({ html, context, core }) => html`
           <div>
-            ${context.notifications.map(
+            ${core.notifications.map(
               (item: { message: string; hasAction: boolean }) => html`
                 <div class="notification">
                   <p>${item.message}</p>
@@ -688,7 +939,7 @@ describe("условные блоки", () => {
             child: [
               {
                 type: "map",
-                data: "/context/notifications",
+                data: "/core/notifications",
                 child: [
                   {
                     tag: "div",
@@ -725,13 +976,38 @@ describe("условные блоки", () => {
           },
         ])
       })
+      it("рендер", () => {
+        const container = document.createElement("div")
+        view.render({ container, context, core })
+        expect(container.innerHTML, "рендер уведомлений с условными кнопками").toMatchStringHTML(html`
+          <div>
+            <div class="notification">
+              <p>Notification 1</p>
+              <button>Action</button>
+            </div>
+            <div class="notification">
+              <p>Notification 2</p>
+            </div>
+            <div class="notification">
+              <p>Notification 3</p>
+              <button>Action</button>
+            </div>
+          </div>
+        `)
+      })
     })
 
     describe("map затем тернарный оператор как сосед", () => {
+      const core = {
+        items: [{ name: "Item 1" }, { name: "Item 2" }],
+      }
+      const { context, update } = new Context((t) => ({
+        flag: t.boolean.required(true),
+      }))
       const view = new View({
-        render: ({ html, context }) => html`
+        render: ({ html, context, core }) => html`
           <div>
-            ${context.items.map((item: { name: string }) => html`<span>${item.name}</span>`)}
+            ${core.items.map((item: { name: string }) => html`<span>${item.name}</span>`)}
             ${context.flag ? html`<p>Yes</p>` : html`<p>No</p>`}
           </div>
         `,
@@ -744,7 +1020,7 @@ describe("условные блоки", () => {
             child: [
               {
                 type: "map",
-                data: "/context/items",
+                data: "/core/items",
                 child: [
                   {
                     tag: "span",
@@ -782,13 +1058,38 @@ describe("условные блоки", () => {
           },
         ])
       })
+      it("рендер true", () => {
+        const container = document.createElement("div")
+        update({ flag: true })
+        view.render({ container, context, core })
+        expect(container.innerHTML, "рендер при флаге true").toMatchStringHTML(html`
+          <div>
+            <span>Item 1</span>
+            <span>Item 2</span>
+            <p>Yes</p>
+          </div>
+        `)
+      })
+      it("рендер false", () => {
+        const container = document.createElement("div")
+        update({ flag: false })
+        view.render({ container, context, core })
+        expect(container.innerHTML, "рендер при флаге false").toMatchStringHTML(html`
+          <div>
+            <span>Item 1</span>
+            <span>Item 2</span>
+            <p>No</p>
+          </div>
+        `)
+      })
     })
   })
 
   describe("edge cases условий", () => {
     describe("пустые условные блоки", () => {
+      const { context, update } = new Context((t) => ({ showEmpty: t.boolean.required(false) }))
       const view = new View({
-        render: ({ html, context }) => html` <div>${context.showEmpty ? html`` : html`<span>Not empty</span>`}</div> `,
+        render: ({ html, context }) => html` <div>${context.showEmpty && html`<span>Not empty</span>`}</div> `,
       })
       it("парсинг", () => {
         expect(view.schema, "пустые условные блоки").toEqual([
@@ -810,9 +1111,25 @@ describe("условные блоки", () => {
           },
         ])
       })
+      it("рендер showEmpty true", () => {
+        const container = document.createElement("div")
+        update({ showEmpty: true })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер пустого блока").toMatchStringHTML(html`<div></div>`)
+      })
+      it("рендер showEmpty false", () => {
+        const container = document.createElement("div")
+        update({ showEmpty: false })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер непустого блока").toMatchStringHTML(html`<div><span>Not empty</span></div>`)
+      })
     })
 
     describe("вложенные условия", () => {
+      const { context, update } = new Context((t) => ({
+        hasPermission: t.boolean.required(true),
+        isAdmin: t.boolean.required(true),
+      }))
       const view = new View({
         render: ({ html, context }) => html`
           <div>
@@ -833,30 +1150,12 @@ describe("условные блоки", () => {
         `,
       })
       it("парсинг", () => {
+        console.log(view.schema)
         expect(view.schema, "вложенные условия").toEqual([
           {
             tag: "div",
             type: "el",
             child: [
-              {
-                tag: "div",
-                type: "el",
-                child: [
-                  {
-                    tag: "button",
-                    type: "el",
-                    string: {
-                      class: "admin",
-                    },
-                    child: [
-                      {
-                        type: "text",
-                        value: "Admin Action",
-                      },
-                    ],
-                  },
-                ],
-              },
               {
                 type: "cond",
                 data: "/context/hasPermission",
@@ -867,28 +1166,34 @@ describe("условные блоки", () => {
                     {
                       tag: "button",
                       type: "el",
-                      string: {
-                        class: "user",
-                      },
                       child: [
                         {
                           type: "text",
-                          value: "User Action",
+                          value: "Admin Action",
                         },
                       ],
+                      string: {
+                        class: "admin",
+                      },
                     },
                   ],
                 },
                 false: {
                   tag: "div",
                   type: "el",
-                  string: {
-                    class: "no-access",
-                  },
                   child: [
                     {
-                      type: "text",
-                      value: "Access Denied",
+                      tag: "button",
+                      type: "el",
+                      child: [
+                        {
+                          type: "text",
+                          value: "User Action",
+                        },
+                      ],
+                      string: {
+                        class: "user",
+                      },
                     },
                   ],
                 },
@@ -896,6 +1201,40 @@ describe("условные блоки", () => {
             ],
           },
         ])
+      })
+      it("рендер admin", () => {
+        const container = document.createElement("div")
+        update({ hasPermission: true, isAdmin: true })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер для админа").toMatchStringHTML(html`
+          <div>
+            <div>
+              <button class="admin">Admin Action</button>
+            </div>
+          </div>
+        `)
+      })
+      it("рендер user", () => {
+        const container = document.createElement("div")
+        update({ hasPermission: true, isAdmin: false })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер для пользователя").toMatchStringHTML(html`
+          <div>
+            <div>
+              <button class="user">User Action</button>
+            </div>
+          </div>
+        `)
+      })
+      it("рендер no access", () => {
+        const container = document.createElement("div")
+        update({ hasPermission: false, isAdmin: false })
+        view.render({ container, context })
+        expect(container.innerHTML, "рендер без доступа").toMatchStringHTML(html`
+          <div>
+            <div class="no-access">Access Denied</div>
+          </div>
+        `)
       })
     })
   })

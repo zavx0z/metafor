@@ -532,15 +532,11 @@ describe("массивы", () => {
             </footer>
           </div>`,
       })
-
       it("парсинг", () => {
         expect(view.schema, "массив между статическими элементами").toEqual([
           {
             tag: "div",
             type: "el",
-            string: {
-              class: "container",
-            },
             child: [
               {
                 tag: "header",
@@ -565,346 +561,424 @@ describe("массивы", () => {
                   {
                     tag: "div",
                     type: "el",
-                    string: {
-                      class: "user-item",
-                    },
                     child: [
                       {
                         tag: "span",
                         type: "el",
-                        string: {
-                          class: "name",
-                        },
                         child: [
                           {
                             type: "text",
                             data: "[item]/name",
                           },
                         ],
+                        string: {
+                          class: "name",
+                        },
                       },
                       {
                         tag: "span",
                         type: "el",
-                        string: {
-                          class: "email",
-                        },
                         child: [
                           {
                             type: "text",
                             data: "[item]/email",
                           },
                         ],
+                        string: {
+                          class: "email",
+                        },
                       },
                     ],
-                  },
-                  {
-                    tag: "footer",
-                    type: "el",
-                    child: [
-                      {
-                        tag: "p",
-                        type: "el",
-                        child: [
-                          {
-                            type: "text",
-                            data: "[item]/context/totalCount",
-                            expr: "Total users: ${[0]}",
-                          },
-                        ],
-                      },
-                    ],
+                    string: {
+                      class: "user-item",
+                    },
                   },
                 ],
               },
-            ],
-          },
-        ])
-      })
-
-      it("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          container: element,
-          context: {
-            users: [
-              { name: "John Doe", email: "john@example.com" },
-              { name: "Jane Smith", email: "jane@example.com" },
-            ],
-            totalCount: 2,
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(html`
-          <div class="container">
-            <header>
-              <h1>User List</h1>
-            </header>
-            <div class="user-item">
-              <span class="name">John Doe</span>
-              <span class="email">john@example.com</span>
-            </div>
-            <footer>
-              <p>Total users: undefined</p>
-            </footer>
-            <div class="user-item">
-              <span class="name">Jane Smith</span>
-              <span class="email">jane@example.com</span>
-            </div>
-            <footer>
-              <p>Total users: undefined</p>
-            </footer>
-          </div>
-        `)
-      })
-    })
-
-    describe("множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы", () => {
-      const { context, schema } = new Context((t) => ({
-        categories: t.array.required(["Electronics", "Books"]),
-      }))
-      type Core = {
-        items: {
-          categoryId: number
-          title: string
-        }[]
-      }
-      const view = new View<typeof schema, Core>({
-        render: ({ html, context, core }) => html`
-          <div class="dashboard">
-            ${context.categories.map((cat) => html`<span class="category">${cat}</span>`)}
-            ${core.items.map(
-              (item) => html`
-                <div class="item" data-category="${item.categoryId}">
-                  <h4>${item.title}</h4>
-                </div>
-              `
-            )}
-          </div>
-        `,
-      })
-      it("парсинг", () => {
-        expect(
-          view.schema,
-          "множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы"
-        ).toEqual([
-          {
-            tag: "div",
-            type: "el",
-            child: [
               {
-                type: "map",
-                data: "/context/categories",
+                tag: "footer",
+                type: "el",
                 child: [
                   {
-                    tag: "span",
+                    tag: "p",
                     type: "el",
                     child: [
                       {
                         type: "text",
-                        data: "[item]",
+                        data: "/context/totalCount",
+                        expr: "Total users: ${[0]}",
                       },
                     ],
-                    string: {
-                      class: "category",
-                    },
-                  },
-                ],
-              },
-              {
-                type: "map",
-                data: "/core/items",
-                child: [
-                  {
-                    tag: "div",
-                    type: "el",
-                    child: [
-                      {
-                        tag: "h4",
-                        type: "el",
-                        child: [
-                          {
-                            type: "text",
-                            data: "[item]/title",
-                          },
-                        ],
-                      },
-                    ],
-                    string: {
-                      class: "item",
-                      "data-category": {
-                        data: "[item]/categoryId",
-                      },
-                    },
                   },
                 ],
               },
             ],
             string: {
-              class: "dashboard",
+              class: "container",
             },
           },
         ])
+
+        it("рендер", () => {
+          const element = document.createElement("div")
+          view.render({
+            container: element,
+            context: {
+              users: [
+                { name: "John Doe", email: "john@example.com" },
+                { name: "Jane Smith", email: "jane@example.com" },
+              ],
+              totalCount: 2,
+            },
+          })
+          expect(element.innerHTML).toMatchStringHTML(html`
+            <div class="container">
+              <header>
+                <h1>User List</h1>
+              </header>
+              <div class="user-item">
+                <span class="name">John Doe</span>
+                <span class="email">john@example.com</span>
+              </div>
+              <footer>
+                <p>Total users: undefined</p>
+              </footer>
+              <div class="user-item">
+                <span class="name">Jane Smith</span>
+                <span class="email">jane@example.com</span>
+              </div>
+              <footer>
+                <p>Total users: undefined</p>
+              </footer>
+            </div>
+          `)
+        })
       })
 
-      it("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          container: element,
-          context: {
-            categories: ["Electronics", "Books"],
-          },
-          core: {
-            items: [
-              { categoryId: 1, title: "Laptop" },
-              { categoryId: 2, title: "Novel" },
-            ],
-          },
+      describe("множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы", () => {
+        const { context, schema } = new Context((t) => ({
+          categories: t.array.required(["Electronics", "Books"]),
+        }))
+        type Core = {
+          items: {
+            categoryId: number
+            title: string
+          }[]
+        }
+        const view = new View<typeof schema, Core>({
+          render: ({ html, context, core }) => html`
+            <div class="dashboard">
+              ${context.categories.map((cat) => html`<span class="category">${cat}</span>`)}
+              ${core.items.map(
+                (item) => html`
+                  <div class="item" data-category="${item.categoryId}">
+                    <h4>${item.title}</h4>
+                  </div>
+                `
+              )}
+            </div>
+          `,
         })
-        expect(element.innerHTML).toMatchStringHTML(html`
-          <div class="dashboard">
-            <span class="category">Electronics</span>
-            <span class="category">Books</span>
-            <div class="item" data-category="1">
-              <h4>Laptop</h4>
+        it("парсинг", () => {
+          expect(
+            view.schema,
+            "множественные массивы в одном шаблоне - оба массива парсятся как соседние элементы"
+          ).toEqual([
+            {
+              tag: "div",
+              type: "el",
+              child: [
+                {
+                  type: "map",
+                  data: "/context/categories",
+                  child: [
+                    {
+                      tag: "span",
+                      type: "el",
+                      child: [
+                        {
+                          type: "text",
+                          data: "[item]",
+                        },
+                      ],
+                      string: {
+                        class: "category",
+                      },
+                    },
+                  ],
+                },
+                {
+                  type: "map",
+                  data: "/core/items",
+                  child: [
+                    {
+                      tag: "div",
+                      type: "el",
+                      child: [
+                        {
+                          tag: "h4",
+                          type: "el",
+                          child: [
+                            {
+                              type: "text",
+                              data: "[item]/title",
+                            },
+                          ],
+                        },
+                      ],
+                      string: {
+                        class: "item",
+                        "data-category": {
+                          data: "[item]/categoryId",
+                        },
+                      },
+                    },
+                  ],
+                },
+              ],
+              string: {
+                class: "dashboard",
+              },
+            },
+          ])
+        })
+
+        it("рендер", () => {
+          const element = document.createElement("div")
+          view.render({
+            container: element,
+            context: {
+              categories: ["Electronics", "Books"],
+            },
+            core: {
+              items: [
+                { categoryId: 1, title: "Laptop" },
+                { categoryId: 2, title: "Novel" },
+              ],
+            },
+          })
+          expect(element.innerHTML).toMatchStringHTML(html`
+            <div class="dashboard">
+              <span class="category">Electronics</span>
+              <span class="category">Books</span>
+              <div class="item" data-category="1">
+                <h4>Laptop</h4>
+              </div>
+              <div class="item" data-category="2">
+                <h4>Novel</h4>
+              </div>
             </div>
-            <div class="item" data-category="2">
-              <h4>Novel</h4>
-            </div>
-          </div>
-        `)
+          `)
+        })
       })
     })
-  })
 
-  describe("edge cases массивов", () => {
-    describe("пустой элемент в массиве", () => {
-      const view = new View({
-        render: ({ html, context }) =>
+    describe("edge cases массивов", () => {
+      describe("пустой элемент в массиве", () => {
+        const view = new View({
+          render: ({ html, context }) =>
+            html`<ul>
+              ${context.items.map((item: any) => html`<li></li>`)}
+            </ul>`,
+        })
+        it("парсинг", () => {
+          expect(view.schema, "пустой элемент в массиве").toEqual([
+            {
+              tag: "ul",
+              type: "el",
+              child: [
+                {
+                  type: "map",
+                  data: "/context/items",
+                  child: [
+                    {
+                      tag: "li",
+                      type: "el",
+                    },
+                  ],
+                },
+              ],
+            },
+          ])
+        })
+
+        it("рендер", () => {
+          const element = document.createElement("div")
+          view.render({
+            container: element,
+            context: {
+              items: [1, 2, 3],
+            },
+          })
+          expect(element.innerHTML).toMatchStringHTML(html`
+            <ul>
+              <li></li>
+              <li></li>
+              <li></li>
+            </ul>
+          `)
+        })
+      })
+
+      describe("самозакрывающиеся теги в массиве", () => {
+        const view = new View({
+          render: ({ html, core }) =>
+            html`<div class="images">
+              ${core.images.map((img: any) => html`<img src="${img.url}" alt="${img.alt}" />`)}
+            </div>`,
+        })
+        it("парсинг", () => {
+          expect(view.schema, "самозакрывающиеся теги в массиве").toEqual([
+            {
+              tag: "div",
+              type: "el",
+              string: {
+                class: "images",
+              },
+              child: [
+                {
+                  type: "map",
+                  data: "/core/images",
+                  child: [
+                    {
+                      tag: "img",
+                      type: "el",
+                      string: {
+                        src: {
+                          data: "[item]/url",
+                        },
+                        alt: {
+                          data: "[item]/alt",
+                        },
+                      },
+                    },
+                  ],
+                },
+              ],
+            },
+          ])
+        })
+
+        it("рендер", () => {
+          const element = document.createElement("div")
+          view.render({
+            container: element,
+            core: {
+              images: [
+                { url: "/images/photo1.jpg", alt: "Photo 1" },
+                { url: "/images/photo2.jpg", alt: "Photo 2" },
+              ],
+            },
+          })
+          expect(element.innerHTML).toMatchStringHTML(html`
+            <div class="images">
+              <img src="/images/photo1.jpg" alt="Photo 1" />
+              <img src="/images/photo2.jpg" alt="Photo 2" />
+            </div>
+          `)
+        })
+      })
+
+      describe("только текст в элементе массива", () => {
+        const view = new View({
+          render: ({ html, context }) =>
+            html`<ol>
+              ${context.steps.map((step: any) => html`<li>${step}</li>`)}
+            </ol>`,
+        })
+        it("парсинг", () => {
+          expect(view.schema, "только текст в элементе массива").toEqual([
+            {
+              tag: "ol",
+              type: "el",
+              child: [
+                {
+                  type: "map",
+                  data: "/context/steps",
+                  child: [
+                    {
+                      tag: "li",
+                      type: "el",
+                      child: [
+                        {
+                          type: "text",
+                          data: "[item]",
+                        },
+                      ],
+                    },
+                  ],
+                },
+              ],
+            },
+          ])
+        })
+
+        it("рендер", () => {
+          const element = document.createElement("div")
+          view.render({
+            container: element,
+            context: {
+              steps: ["Step 1", "Step 2", "Step 3"],
+            },
+          })
+          expect(element.innerHTML).toMatchStringHTML(html`
+            <ol>
+              <li>Step 1</li>
+              <li>Step 2</li>
+              <li>Step 3</li>
+            </ol>
+          `)
+        })
+      })
+    })
+
+    describe("массив вложенный в массив", () => {
+      type Core = {
+        items: {
+          id: number
+          children: {
+            name: string
+          }[]
+        }[]
+      }
+      const view = new View<any, Core>({
+        render: ({ html, core }) =>
           html`<ul>
-            ${context.items.map((item: any) => html`<li></li>`)}
+            ${core.items.map(
+              (item) => html` <li>${item.children.map((child) => html`<span>${child.name}</span>`)}</li> `
+            )}
           </ul>`,
       })
+
       it("парсинг", () => {
-        expect(view.schema, "пустой элемент в массиве").toEqual([
+        expect(view.schema, "массив вложенный в массив").toEqual([
           {
             tag: "ul",
             type: "el",
             child: [
               {
                 type: "map",
-                data: "/context/items",
-                child: [
-                  {
-                    tag: "li",
-                    type: "el",
-                  },
-                ],
-              },
-            ],
-          },
-        ])
-      })
-
-      it("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          container: element,
-          context: {
-            items: [1, 2, 3],
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(html`
-          <ul>
-            <li></li>
-            <li></li>
-            <li></li>
-          </ul>
-        `)
-      })
-    })
-
-    describe("самозакрывающиеся теги в массиве", () => {
-      const view = new View({
-        render: ({ html, core }) =>
-          html`<div class="images">
-            ${core.images.map((img: any) => html`<img src="${img.url}" alt="${img.alt}" />`)}
-          </div>`,
-      })
-      it("парсинг", () => {
-        expect(view.schema, "самозакрывающиеся теги в массиве").toEqual([
-          {
-            tag: "div",
-            type: "el",
-            string: {
-              class: "images",
-            },
-            child: [
-              {
-                type: "map",
-                data: "/core/images",
-                child: [
-                  {
-                    tag: "img",
-                    type: "el",
-                    string: {
-                      src: {
-                        data: "[item]/url",
-                      },
-                      alt: {
-                        data: "[item]/alt",
-                      },
-                    },
-                  },
-                ],
-              },
-            ],
-          },
-        ])
-      })
-
-      it("рендер", () => {
-        const element = document.createElement("div")
-        view.render({
-          container: element,
-          core: {
-            images: [
-              { url: "/images/photo1.jpg", alt: "Photo 1" },
-              { url: "/images/photo2.jpg", alt: "Photo 2" },
-            ],
-          },
-        })
-        expect(element.innerHTML).toMatchStringHTML(html`
-          <div class="images">
-            <img src="/images/photo1.jpg" alt="Photo 1" />
-            <img src="/images/photo2.jpg" alt="Photo 2" />
-          </div>
-        `)
-      })
-    })
-
-    describe("только текст в элементе массива", () => {
-      const view = new View({
-        render: ({ html, context }) =>
-          html`<ol>
-            ${context.steps.map((step: any) => html`<li>${step}</li>`)}
-          </ol>`,
-      })
-      it("парсинг", () => {
-        expect(view.schema, "только текст в элементе массива").toEqual([
-          {
-            tag: "ol",
-            type: "el",
-            child: [
-              {
-                type: "map",
-                data: "/context/steps",
+                data: "/core/items",
                 child: [
                   {
                     tag: "li",
                     type: "el",
                     child: [
                       {
-                        type: "text",
-                        data: "[item]",
+                        type: "map",
+                        data: "[item]/children",
+                        child: [
+                          {
+                            tag: "span",
+                            type: "el",
+                            child: [
+                              {
+                                type: "text",
+                                data: "[item]/name",
+                              },
+                            ],
+                          },
+                        ],
                       },
                     ],
                   },
@@ -919,226 +993,151 @@ describe("массивы", () => {
         const element = document.createElement("div")
         view.render({
           container: element,
-          context: {
-            steps: ["Step 1", "Step 2", "Step 3"],
+          core: {
+            items: [
+              {
+                id: 1,
+                children: [{ name: "Child 1" }, { name: "Child 2" }],
+              },
+              {
+                id: 2,
+                children: [{ name: "Child 3" }],
+              },
+            ],
           },
         })
         expect(element.innerHTML).toMatchStringHTML(html`
-          <ol>
-            <li>Step 1</li>
-            <li>Step 2</li>
-            <li>Step 3</li>
-          </ol>
+          <ul>
+            <li>
+              <span>Child 1</span>
+              <span>Child 2</span>
+            </li>
+            <li>
+              <span>Child 3</span>
+            </li>
+          </ul>
         `)
       })
     })
-  })
 
-  describe("массив вложенный в массив", () => {
-    type Core = {
-      items: {
-        id: number
-        children: {
-          name: string
+    describe("массив в массиве в массиве (3 уровня)", () => {
+      type Core = {
+        items: {
+          id: number
+          children: {
+            name: string
+            tags: { label: string }[]
+          }[]
         }[]
-      }[]
-    }
-    const view = new View<any, Core>({
-      render: ({ html, core }) =>
-        html`<ul>
-          ${core.items.map(
-            (item) => html` <li>${item.children.map((child) => html`<span>${child.name}</span>`)}</li> `
-          )}
-        </ul>`,
-    })
-
-    it("парсинг", () => {
-      expect(view.schema, "массив вложенный в массив").toEqual([
-        {
-          tag: "ul",
-          type: "el",
-          child: [
-            {
-              type: "map",
-              data: "/core/items",
-              child: [
-                {
-                  tag: "li",
-                  type: "el",
-                  child: [
-                    {
-                      type: "map",
-                      data: "[item]/children",
-                      child: [
-                        {
-                          tag: "span",
-                          type: "el",
-                          child: [
-                            {
-                              type: "text",
-                              data: "[item]/name",
-                            },
-                          ],
-                        },
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ])
-    })
-
-    it("рендер", () => {
-      const element = document.createElement("div")
-      view.render({
-        container: element,
-        core: {
-          items: [
-            {
-              id: 1,
-              children: [{ name: "Child 1" }, { name: "Child 2" }],
-            },
-            {
-              id: 2,
-              children: [{ name: "Child 3" }],
-            },
-          ],
-        },
+      }
+      const view = new View<any, Core>({
+        render: ({ html, core }) =>
+          html`<ul>
+            ${core.items.map(
+              (item) =>
+                html`<li>
+                  ${item.children.map(
+                    (child) => html` <div>${child.tags.map((tag) => html`<span>${tag.label}</span>`)}</div>`
+                  )}
+                </li>`
+            )}
+          </ul>`,
       })
-      expect(element.innerHTML).toMatchStringHTML(html`
-        <ul>
-          <li>
-            <span>Child 1</span>
-            <span>Child 2</span>
-          </li>
-          <li>
-            <span>Child 3</span>
-          </li>
-        </ul>
-      `)
-    })
-  })
 
-  describe("массив в массиве в массиве (3 уровня)", () => {
-    type Core = {
-      items: {
-        id: number
-        children: {
-          name: string
-          tags: { label: string }[]
-        }[]
-      }[]
-    }
-    const view = new View<any, Core>({
-      render: ({ html, core }) =>
-        html`<ul>
-          ${core.items.map(
-            (item) =>
-              html`<li>
-                ${item.children.map(
-                  (child) => html` <div>${child.tags.map((tag) => html`<span>${tag.label}</span>`)}</div>`
-                )}
-              </li>`
-          )}
-        </ul>`,
-    })
-
-    it("парсинг", () => {
-      expect(view.schema, "массив в массиве в массиве (3 уровня)").toEqual([
-        {
-          tag: "ul",
-          type: "el",
-          child: [
-            {
-              type: "map",
-              data: "/core/items",
-              child: [
-                {
-                  tag: "li",
-                  type: "el",
-                  child: [
-                    {
-                      type: "map",
-                      data: "[item]/children",
-                      child: [
-                        {
-                          tag: "div",
-                          type: "el",
-                          child: [
-                            {
-                              type: "map",
-                              data: "[item]/tags",
-                              child: [
-                                {
-                                  tag: "span",
-                                  type: "el",
-                                  child: [
-                                    {
-                                      type: "text",
-                                      data: "[item]/label",
-                                    },
-                                  ],
-                                },
-                              ],
-                            },
-                          ],
-                        },
-                      ],
-                    },
-                  ],
-                },
-              ],
-            },
-          ],
-        },
-      ])
-    })
-
-    it("рендер", () => {
-      const element = document.createElement("div")
-      view.render({
-        container: element,
-        core: {
-          items: [
-            {
-              id: 1,
-              children: [
-                {
-                  name: "Child 1",
-                  tags: [{ label: "Tag 1" }, { label: "Tag 2" }],
-                },
-              ],
-            },
-            {
-              id: 2,
-              children: [
-                {
-                  name: "Child 2",
-                  tags: [{ label: "Tag 3" }],
-                },
-              ],
-            },
-          ],
-        },
+      it("парсинг", () => {
+        expect(view.schema, "массив в массиве в массиве (3 уровня)").toEqual([
+          {
+            tag: "ul",
+            type: "el",
+            child: [
+              {
+                type: "map",
+                data: "/core/items",
+                child: [
+                  {
+                    tag: "li",
+                    type: "el",
+                    child: [
+                      {
+                        type: "map",
+                        data: "[item]/children",
+                        child: [
+                          {
+                            tag: "div",
+                            type: "el",
+                            child: [
+                              {
+                                type: "map",
+                                data: "[item]/tags",
+                                child: [
+                                  {
+                                    tag: "span",
+                                    type: "el",
+                                    child: [
+                                      {
+                                        type: "text",
+                                        data: "[item]/label",
+                                      },
+                                    ],
+                                  },
+                                ],
+                              },
+                            ],
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
+              },
+            ],
+          },
+        ])
       })
-      expect(element.innerHTML).toMatchStringHTML(html`
-        <ul>
-          <li>
-            <div>
-              <span>Tag 1</span>
-              <span>Tag 2</span>
-            </div>
-          </li>
-          <li>
-            <div>
-              <span>Tag 3</span>
-            </div>
-          </li>
-        </ul>
-      `)
+
+      it("рендер", () => {
+        const element = document.createElement("div")
+        view.render({
+          container: element,
+          core: {
+            items: [
+              {
+                id: 1,
+                children: [
+                  {
+                    name: "Child 1",
+                    tags: [{ label: "Tag 1" }, { label: "Tag 2" }],
+                  },
+                ],
+              },
+              {
+                id: 2,
+                children: [
+                  {
+                    name: "Child 2",
+                    tags: [{ label: "Tag 3" }],
+                  },
+                ],
+              },
+            ],
+          },
+        })
+        expect(element.innerHTML).toMatchStringHTML(html`
+          <ul>
+            <li>
+              <div>
+                <span>Tag 1</span>
+                <span>Tag 2</span>
+              </div>
+            </li>
+            <li>
+              <div>
+                <span>Tag 3</span>
+              </div>
+            </li>
+          </ul>
+        `)
+      })
     })
   })
 })

@@ -6,7 +6,6 @@ import {
   stringifyClassToken,
   getValueByPath,
   evaluateExpression,
-  getNestedValueWithItem,
   evaluateExpressionWithItem,
 } from "./utils.ts"
 
@@ -109,6 +108,102 @@ export function getNestedValue(
 }
 
 /**
+ * Получает вложенное значение по пути из элемента массива
+ */
+export function getNestedValueWithItem(
+  path: string,
+  item: any,
+  parentItem?: any,
+  params?: any,
+  itemStack: Array<{ item: any; index: number }> = []
+): any {
+  // Обрабатываем абсолютные пути (начинающиеся с /)
+  if (path.startsWith("/")) {
+    if (!params) {
+      return undefined
+    }
+    // Убираем "/" и обрабатываем как обычный путь
+    const absolutePath = path.slice(1)
+    return getNestedValue(absolutePath, params)
+  }
+
+  // Обрабатываем относительные пути любой глубины
+  if (path.startsWith("../")) {
+    const ancestors = Array.isArray(parentItem) ? parentItem : parentItem ? [parentItem] : []
+    if (ancestors.length === 0) return undefined
+
+    // Считаем, сколько ../ подряд
+    let rest = path
+    let hops = 0
+    while (rest.startsWith("../")) {
+      hops++
+      rest = rest.slice(3)
+    }
+
+    const base = ancestors[hops - 1] // 1-й ../ → ancestors[0], 2-й → ancestors[1], ...
+    const nextAncestors = ancestors.slice(hops)
+
+    // Убираем префикс "[item]" если есть в целевом пути
+    if (rest.startsWith("[item]")) {
+      rest = rest.slice(6)
+    }
+
+    // Разбиваем путь на части и получаем значение
+    const parts = rest.split("/").filter(Boolean)
+    let current = base
+    for (const part of parts) {
+      if (current === null || current === undefined) {
+        return undefined
+      }
+
+      // Проверяем, является ли часть пути индексом
+      if (part === "[index]") {
+        // Ищем индекс в стеке элементов
+        const currentStackEntry = itemStack[itemStack.length - 1]
+        if (currentStackEntry) {
+          current = currentStackEntry.index
+        } else {
+          return undefined
+        }
+      } else {
+        current = current[part]
+      }
+    }
+    return current
+  }
+
+  // Убираем префикс "[item]" если есть
+  if (path.startsWith("[item]")) {
+    path = path.slice(6)
+  }
+
+  // Разбиваем путь на части
+  const parts = path.split("/").filter(Boolean)
+
+  let current = item
+  for (const part of parts) {
+    if (current === null || current === undefined) {
+      return undefined
+    }
+
+    // Проверяем, является ли часть пути индексом
+    if (part === "[index]") {
+      // Ищем индекс текущего элемента в стеке
+      const currentStackEntry = itemStack[itemStack.length - 1]
+      if (currentStackEntry) {
+        current = currentStackEntry.index
+      } else {
+        return undefined
+      }
+    } else {
+      current = current[part]
+    }
+  }
+
+  return current
+}
+
+/**
  * Рендерит атрибуты элемента (общая логика)
  */
 export function renderElementAttributes(
@@ -150,6 +245,34 @@ export function renderElementAttributes(
     }
   }
 
+  // Добавляем события
+  if (node.event) {
+    for (const [key, value] of Object.entries(node.event)) {
+      if (typeof value === "object" && value !== null) {
+        // Динамическое событие
+        if ("data" in value && "expr" in value) {
+          // Событие с выражением
+          const eventHandler =
+            item === undefined
+              ? evaluateExpression(value.expr, value.data, params)
+              : evaluateExpressionWithItem(value.expr, value.data, item, parentItem, params, itemStack)
+          if (typeof eventHandler === "function") {
+            element.addEventListener(key.slice(2), eventHandler) // убираем "on" префикс
+          }
+        } else if ("data" in value) {
+          // Простое динамическое событие
+          const eventHandler =
+            item === undefined
+              ? getValueByPath(String(value.data), params)
+              : getNestedValueWithItem(String(value.data), item, parentItem, params, itemStack)
+          if (typeof eventHandler === "function") {
+            element.addEventListener(key.slice(2), eventHandler) // убираем "on" префикс
+          }
+        }
+      }
+    }
+  }
+
   // Добавляем булевы атрибуты
   if (node.boolean) {
     // Сначала обрабатываем взаимоисключающие атрибуты
@@ -164,8 +287,8 @@ export function renderElementAttributes(
       if (visibleValue && typeof visibleValue === "object" && "data" in visibleValue) {
         const isVisible =
           item === undefined
-            ? getValueByPath(visibleValue.data, params)
-            : getNestedValueWithItem(visibleValue.data, item, parentItem, params, itemStack)
+            ? getValueByPath(String(visibleValue.data), params)
+            : getNestedValueWithItem(String(visibleValue.data), item, parentItem, params, itemStack)
         if (isVisible) {
           element.setAttribute("visible", "")
           element.removeAttribute("hidden")
@@ -249,8 +372,8 @@ export function renderElementAttributes(
             // Динамический атрибут
             const attrValue =
               item === undefined
-                ? getValueByPath(value.data, params)
-                : getNestedValueWithItem(value.data, item, parentItem, params, itemStack)
+                ? getValueByPath(String(value.data), params)
+                : getNestedValueWithItem(String(value.data), item, parentItem, params, itemStack)
             if (attrValue != null && attrValue !== "") {
               if ("expr" in value) {
                 // Атрибут с выражением
@@ -297,12 +420,12 @@ export function renderElementAttributes(
             // Простой динамический атрибут
             const attrValue =
               item === undefined
-                ? getValueByPath(value.data, params)
-                : getNestedValueWithItem(value.data, item, parentItem, params, itemStack)
+                ? getValueByPath(String(value.data), params)
+                : getNestedValueWithItem(String(value.data), item, parentItem, params, itemStack)
             attrValues.push(String(attrValue))
           } else if ("value" in value) {
             // Статический атрибут
-            attrValues.push(value.value)
+            attrValues.push(String((value as any).value))
           }
         }
       }

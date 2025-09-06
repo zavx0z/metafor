@@ -1,7 +1,6 @@
 ---
-alwaysApply: true
+alwaysApply: false
 ---
-
 # Правила MetaFor для AI агента
 
 ## Концепция фреймворка
@@ -246,7 +245,7 @@ const childFormHash = "def456..." // хеш дочернего form компон
 
 ```typescript
 .view({
-  render: ({ context, state, core, html, when, repeat, choose, ref, update }) => {
+  render: ({ context, state, core, html, update }) => {
     return html`
       <div class="component state-${state}">
         <!-- Отображение в зависимости от состояния -->

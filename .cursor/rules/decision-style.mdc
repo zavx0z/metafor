@@ -1,6 +1,5 @@
 ---
-description: Decision style for structuring tests and schemas (binary axes, canon, TDD)
-alwaysApply: true
+alwaysApply: false
 ---
 
 # Decision Style: бинарные оси, канонизация, TDD

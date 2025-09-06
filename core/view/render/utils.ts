@@ -296,29 +296,46 @@ export function evaluateExpressionWithItem(
       const path = dataPath[i]
       if (path) {
         const value = getNestedValueWithItem(path, item, parentItem, params, itemStack)
-        // Если значение - массив, берем его длину или первый элемент
-        let stringValue = String(value)
-        if (Array.isArray(value)) {
-          stringValue = String(value.length)
+        // Для core объектов используем прямое обращение к params.core
+        if (path.startsWith("/core/")) {
+          const corePath = path.slice(6) // убираем "/core/"
+          // Заменяем слэши на точки для правильного доступа к свойствам
+          const dotPath = corePath.replace(/\//g, ".")
+          result = result.replace(new RegExp(`\\[${i}\\]`, "g"), `params.core.${dotPath}`)
+        } else {
+          result = result.replace(new RegExp(`\\[${i}\\]`, "g"), JSON.stringify(value))
         }
-        // Экранируем значение для использования в шаблонной строке
-        const escapedValue = stringValue.replace(/`/g, "\\`").replace(/\$/g, "\\$")
-        result = result.replace(new RegExp(`\\[${i}\\]`, "g"), escapedValue)
       }
     }
   } else {
     // Для одного значения заменяем [0]
     const value = getValueByPathWithItem(dataPath, item, parentItem, params, itemStack)
-    // Если значение - массив, берем его длину или первый элемент
-    let stringValue = String(value)
-    if (Array.isArray(value)) {
-      stringValue = String(value.length)
+    // Для core объектов используем прямое обращение к params.core
+    if (dataPath.startsWith("/core/")) {
+      const corePath = dataPath.slice(6) // убираем "/core/"
+      // Заменяем слэши на точки для правильного доступа к свойствам
+      const dotPath = corePath.replace(/\//g, ".")
+      result = result.replace(/\[0\]/g, `params.core.${dotPath}`)
+    } else {
+      result = result.replace(/\[0\]/g, JSON.stringify(value))
     }
-    // Экранируем значение для использования в шаблонной строке
-    const escapedValue = stringValue.replace(/`/g, "\\`").replace(/\$/g, "\\$")
-    result = result.replace(/\[0\]/g, escapedValue)
   }
 
-  // Убираем ${} из результата
-  return result.replace(/\$\{([^}]+)\}/g, "$1")
+  try {
+    // Если выражение содержит шаблонный литерал, обрабатываем его как шаблонную строку
+    if (result.includes("${") && !result.startsWith("`")) {
+      // Превращаем в шаблонный литерал
+      const templateResult = "`" + result + "`"
+      const evalResult = Function("params", `"use strict"; return ${templateResult}`)(params)
+      return evalResult
+    } else {
+      // Выполняем JavaScript выражение
+      const evalResult = Function("params", `"use strict"; return (${result})`)(params)
+      return evalResult
+    }
+  } catch (error) {
+    console.warn("Failed to evaluate expression:", result, error)
+    // Возвращаем исходное выражение без замен, если не удалось выполнить
+    return expr
+  }
 }
