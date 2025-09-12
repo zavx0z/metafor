@@ -1,4 +1,4 @@
-import type { NodeElement } from "@zavx0z/html-parser"
+import type { NodeElement } from "@zavx0z/template"
 import {
   toBoolean,
   stringifyClassToken,

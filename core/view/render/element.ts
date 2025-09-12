@@ -1,5 +1,5 @@
 import type { Values, Update, Schema } from "@zavx0z/context"
-import type { NodeElement } from "@zavx0z/html-parser"
+import type { NodeElement } from "@zavx0z/template"
 import { renderNode, renderNodeWithItem } from "./index.ts"
 import { resolveActorTagName, renderElementAttributes } from "./shared.ts"
 

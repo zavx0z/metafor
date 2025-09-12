@@ -1,5 +1,5 @@
 import type { Values, Update, Schema } from "@zavx0z/context"
-import type { NodeMap } from "@zavx0z/html-parser"
+import type { NodeMap } from "@zavx0z/template"
 import { getNestedValue, getNestedValueWithItem } from "./utils.ts"
 import { renderNodeWithItem } from "./index.ts"
 

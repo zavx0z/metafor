@@ -5,7 +5,7 @@
       "name": "metafor",
       "dependencies": {
         "@zavx0z/context": "1.0.2",
-        "@zavx0z/html-parser": "^2.3.2",
+        "@zavx0z/template": "^2.3.4",
         "spark-md5": "^3.0.2",
       },
       "devDependencies": {
@@ -56,7 +56,7 @@
 
     "@zavx0z/context": ["@zavx0z/context@1.0.2", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-Wb6Hkg3HBvcHW9F4SofTrjtGFUWshFLew8kyPQHHERAtgs999hCRMbTpp1xJHgZRCNjVtp38Gow9KKb9bzgePw=="],
 
-    "@zavx0z/html-parser": ["@zavx0z/html-parser@2.3.2", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-2AnGzITlkGaWbMS71+Rm0VUac2Ot4W1C/EzpKdL14ZlaZi0Tpp+9FJwGXFycvbu/jKfw4iL5ptJhLBeMcwOyow=="],
+    "@zavx0z/template": ["@zavx0z/template@2.3.4", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-erSEAne4db9FCTJqIgjudWzKJs7/fLWCVLlC8729GI3e32mm0Q9ERovOSJzCjh9EjgDe1XRmOS3Te8S4hFGRHw=="],
 
     "ansi-regex": ["ansi-regex@5.0.1", "", {}, "sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ=="],
 

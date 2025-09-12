@@ -1,6 +1,6 @@
 import type { Values, Update, Schema } from "@zavx0z/context"
 import type { Core } from "../../index.t.ts"
-import type { Node, NodeElement, NodeText, NodeMap } from "@zavx0z/html-parser"
+import type { Node, NodeElement, NodeText, NodeMap } from "@zavx0z/template"
 import { renderElement, renderElementWithItem } from "./element.ts"
 import { renderText, renderTextWithItem } from "./text.ts"
 import { renderMap, renderMapWithItem } from "./map.ts"

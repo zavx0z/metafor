@@ -7,7 +7,7 @@
 import type { Values, Schema, Update } from "@zavx0z/context"
 import type { Core } from "../index.t.ts"
 import type { ViewDeclaration } from "./index.t.ts"
-import { type Node, parse } from "@zavx0z/html-parser"
+import { type Node, parse } from "@zavx0z/template"
 import { render } from "./render/index.ts"
 
 export type { ViewDeclaration }

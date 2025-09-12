@@ -1,5 +1,5 @@
 import type { Values, Update, Schema } from "@zavx0z/context"
-import type { NodeText } from "@zavx0z/html-parser"
+import type { NodeText } from "@zavx0z/template"
 import { getValueByPath, evaluateExpression, getValueByPathWithItem, evaluateExpressionWithItem } from "./utils.ts"
 
 /**
