@@ -31,6 +31,7 @@
   },
   "dependencies": {
     "@zavx0z/html-parser": "^2.3.2",
+    "@zavx0z/context": "1.0.2",
     "spark-md5": "^3.0.2"
   }
 }

@@ -1,10 +1,14 @@
 import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
+import { Context } from "@zavx0z/context"
 
 describe("стандартные события on*", () => {
   describe("onclick с выражением", () => {
-    const view = new View({
-      render: ({ html, context }) => html`<button onclick="${() => context.onClick()}">OK</button>`,
+    const core = {
+      onClick: () => {},
+    }
+    const view = new View<any, typeof core>({
+      render: ({ html, core }) => html`<button onclick="${() => core.onClick()}">OK</button>`,
     })
     it("парсинг", () => {
       expect(view.schema, "должен распознать onclick и не сериализовать функцию").toEqual([
@@ -30,8 +34,11 @@ describe("стандартные события on*", () => {
   })
 
   describe("onclick без кавычек со стрелочной функцией", () => {
-    const view = new View({
-      render: ({ html, context }) => html`<button onclick=${() => context.onClick()}>OK</button>`,
+    const core = {
+      onClick: () => {},
+    }
+    const view = new View<any, typeof core>({
+      render: ({ html, core }) => html`<button onclick=${() => core.onClick()}>OK</button>`,
     })
     it("парсинг", () => {
       expect(view.schema, "onclick без кавычек со стрелочной функцией").toEqual([
@@ -40,7 +47,7 @@ describe("стандартные события on*", () => {
           type: "el",
           event: {
             onclick: {
-              data: "/context/onClick",
+              data: "/core/onClick",
               expr: "() => ${[0]}()",
             },
           },
@@ -115,10 +122,13 @@ describe("стандартные события on*", () => {
   })
 
   describe("событие внутри массива", () => {
-    const view = new View({
-      render: ({ html, context }) => html`
+    const core = {
+      items: [{ name: "Item 1", onClick: () => {} }],
+    }
+    const view = new View<any, typeof core>({
+      render: ({ html, core }) => html`
         <ul>
-          ${context.items.map((item: any) => html`<li onclick="${() => item.onClick()}">${item.name}</li>`)}
+          ${core.items.map((item) => html`<li onclick="${() => item.onClick()}">${item.name}</li>`)}
         </ul>
       `,
     })
@@ -130,7 +140,7 @@ describe("стандартные события on*", () => {
           child: [
             {
               type: "map",
-              data: "/context/items",
+              data: "/core/items",
               child: [
                 {
                   tag: "li",
@@ -158,11 +168,14 @@ describe("стандартные события on*", () => {
   })
 
   describe("событие с параметрами в массиве", () => {
-    const view = new View({
-      render: ({ html, context }) => html`
+    const core = {
+      buttons: [{ text: "Button 1", handleClick: (e: Event, id: number) => {}, id: 1 }],
+    }
+    const view = new View<any, typeof core>({
+      render: ({ html, core }) => html`
         <div>
-          ${context.buttons.map(
-            (btn: any) => html`<button onclick="${(e: Event) => btn.handleClick(e, btn.id)}">${btn.text}</button>`
+          ${core.buttons.map(
+            (btn) => html`<button onclick="${(e: Event) => btn.handleClick(e, btn.id)}">${btn.text}</button>`
           )}
         </div>
       `,
@@ -175,7 +188,7 @@ describe("стандартные события on*", () => {
           child: [
             {
               type: "map",
-              data: "/context/buttons",
+              data: "/core/buttons",
               child: [
                 {
                   tag: "button",
@@ -203,11 +216,16 @@ describe("стандартные события on*", () => {
   })
 
   describe("смешанные события и обычные атрибуты", () => {
-    const view = new View({
-      render: ({ html, context }) =>
-        html`<form onsubmit="${(e: Event) => context.handleSubmit(e)}" class="form" method="post">
-          <input type="text" onchange="${(e: Event) => context.handleChange(e)}" />
-          <button type="submit" onclick="${() => context.onClick()}">Submit</button>
+    const core = {
+      handleSubmit: (e: Event) => {},
+      handleChange: (e: Event) => {},
+      onClick: () => {},
+    }
+    const view = new View<any, typeof core>({
+      render: ({ html, core }) =>
+        html`<form onsubmit="${(e: Event) => core.handleSubmit(e)}" class="form" method="post">
+          <input type="text" onchange="${(e: Event) => core.handleChange(e)}" />
+          <button type="submit" onclick="${() => core.onClick()}">Submit</button>
         </form>`,
     })
     it("парсинг", () => {
@@ -217,7 +235,7 @@ describe("стандартные события on*", () => {
           type: "el",
           event: {
             onsubmit: {
-              data: "/context/handleSubmit",
+              data: "/core/handleSubmit",
               expr: "(e) => ${[0]}(e)",
             },
           },
@@ -231,7 +249,7 @@ describe("стандартные события on*", () => {
               type: "el",
               event: {
                 onchange: {
-                  data: "/context/handleChange",
+                  data: "/core/handleChange",
                   expr: "(e) => ${[0]}(e)",
                 },
               },
@@ -244,7 +262,7 @@ describe("стандартные события on*", () => {
               type: "el",
               event: {
                 onclick: {
-                  data: "/context/onClick",
+                  data: "/core/onClick",
                   expr: "() => ${[0]}()",
                 },
               },
@@ -266,9 +284,13 @@ describe("стандартные события on*", () => {
   })
 
   describe("события с условными атрибутами", () => {
-    const view = new View({
+    const core = {
+      onClick: () => {},
+      isDisabled: false,
+    }
+    const view = new View<any, typeof core>({
       render: ({ html, context }) =>
-        html`<button onclick="${() => context.onClick()}" ${context.isDisabled && "disabled"}>Click me</button>`,
+        html`<button onclick="${() => core.onClick()}" ${core.isDisabled && "disabled"}>Click me</button>`,
     })
     it("парсинг", () => {
       expect(view.schema, "события с условными атрибутами").toEqual([
@@ -277,13 +299,13 @@ describe("стандартные события on*", () => {
           type: "el",
           event: {
             onclick: {
-              data: "/context/onClick",
+              data: "/core/onClick",
               expr: "() => ${[0]}()",
             },
           },
           boolean: {
             disabled: {
-              data: "/context/isDisabled",
+              data: "/core/isDisabled",
             },
           },
           child: [

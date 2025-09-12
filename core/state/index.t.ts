@@ -4,15 +4,7 @@
  * @module States
  */
 
-import type {
-  ContextSchema,
-  ExtractValues,
-  RequiredArrayDefinition,
-  RequiredBooleanDefinition,
-  RequiredEnumDefinition,
-  RequiredNumberDefinition,
-  RequiredStringDefinition,
-} from "../context/index.t.ts"
+import type { Schema, Values, Types } from "@zavx0z/context"
 
 /** 
  * # Условия для булевых значений (required)
@@ -436,14 +428,14 @@ export type CondArrayRequired<T = any> =
       every?: T extends number
         ? { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number }
         : T extends string
-        ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
-        : never
+          ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
+          : never
       /** Хотя бы один элемент удовлетворяет условию */
       some?: T extends number
         ? { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number }
         : T extends string
-        ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
-        : never
+          ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
+          : never
       /** Является ли массив пустым */
       isEmpty?: boolean
     }
@@ -494,14 +486,14 @@ export type CondArrayOptional<T = any> =
       every?: T extends number
         ? { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number }
         : T extends string
-        ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
-        : never
+          ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
+          : never
       /** Хотя бы один элемент удовлетворяет условию */
       some?: T extends number
         ? { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number }
         : T extends string
-        ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
-        : never
+          ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
+          : never
       /** Является ли массив пустым */
       isEmpty?: boolean
     }
@@ -512,16 +504,16 @@ export type CondArrayOptional<T = any> =
 export type Condition<T> = T extends boolean
   ? CondBooleanRequired
   : T extends string
-  ? CondStringRequired
-  : T extends number
-  ? CondNumberRequired
-  : T extends (infer U)[]
-  ? CondArrayRequired<U>
-  : T extends readonly (infer U)[]
-  ? CondArrayRequired<U>
-  : T extends null
-  ? null
-  : never
+    ? CondStringRequired
+    : T extends number
+      ? CondNumberRequired
+      : T extends (infer U)[]
+        ? CondArrayRequired<U>
+        : T extends readonly (infer U)[]
+          ? CondArrayRequired<U>
+          : T extends null
+            ? null
+            : never
 
 /**
  * Условие для опционального поля контекста
@@ -529,42 +521,37 @@ export type Condition<T> = T extends boolean
 export type ConditionOptional<T> = T extends boolean
   ? CondBooleanOptional
   : T extends string
-  ? CondStringOptional
-  : T extends number
-  ? CondNumberOptional
-  : T extends (infer U)[]
-  ? CondArrayOptional<U>
-  : T extends readonly (infer U)[]
-  ? CondArrayOptional<U>
-  : T extends null
-  ? null
-  : never
+    ? CondStringOptional
+    : T extends number
+      ? CondNumberOptional
+      : T extends (infer U)[]
+        ? CondArrayOptional<U>
+        : T extends readonly (infer U)[]
+          ? CondArrayOptional<U>
+          : T extends null
+            ? null
+            : never
 
 /**
  * Условия переходов для всех полей контекста
  */
-export type TransitionConditions<T extends ContextSchema> = {
-  [K in keyof T]?: T[K] extends
-    | RequiredStringDefinition
-    | RequiredNumberDefinition
-    | RequiredBooleanDefinition
-    | RequiredArrayDefinition<any>
-    | RequiredEnumDefinition<any>
-    ? Condition<ExtractValues<T>[K]>
-    : ConditionOptional<ExtractValues<T>[K]>
+export type TransitionConditions<T extends Schema> = {
+  [K in keyof T]?: T[K] extends Types["string"] | Types["number"] | Types["boolean"] | Types["array"] | Types["enum"]
+    ? Condition<Values<T>[K]>
+    : ConditionOptional<Values<T>[K]>
 }
 
 /**
  * Переходы из одного состояния в другие
  */
-export type StateTransitions<T extends string, C extends ContextSchema> = {
+export type StateTransitions<T extends string, C extends Schema> = {
   [K in T]?: TransitionConditions<C>
 }
 
 /**
  * Определение состояния с возможными переходами
  */
-export type StateDefinition<T extends string, C extends ContextSchema> = StateTransitions<T, C>
+export type StateDefinition<T extends string, C extends Schema> = StateTransitions<T, C>
 
 /**
  * Конфигурация всех состояний системы
@@ -574,4 +561,4 @@ export type StateDefinition<T extends string, C extends ContextSchema> = StateTr
  * @includeExample ./state/test/states.config.numeric.spec.ts
  * @includeExample ./state/test/states.config.multiple.spec.ts
  */
-export type StatesConfig<S extends string, C extends ContextSchema> = Record<S, StateDefinition<S, C>>
+export type StatesConfig<S extends string, C extends Schema> = Record<S, StateDefinition<S, C>>

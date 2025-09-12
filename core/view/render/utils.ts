@@ -48,6 +48,10 @@ export function getNestedValue(
   } else if (path.startsWith("/state")) {
     dataSource = { state: params.state }
     cleanPath = "state"
+  } else if (path.startsWith("/") && !path.includes("/", 1)) {
+    // Это может быть литеральное значение типа "/admin", "/user", etc.
+    // Возвращаем строку без начального слеша
+    return path.slice(1)
   } else {
     // По умолчанию используем context
     dataSource = params.context
@@ -108,51 +112,62 @@ export function evaluateExpression(
 ): any {
   let result = expr
 
+  // Проверяем, является ли это простым шаблоном строки (содержит только плейсхолдеры и текст, без операторов)
+  const isSimpleTemplate = /^[^+\-*/()&|!=<>]+$/.test(expr) && expr.includes("${[")
+
   if (Array.isArray(dataPath)) {
     // Для множественных значений заменяем [0], [1], [2] и т.д.
     for (let i = 0; i < dataPath.length; i++) {
       const path = dataPath[i]
       if (path) {
         const value = getNestedValue(path, params)
-        // Для core объектов используем прямое обращение к params.core
-        if (path.startsWith("/core/")) {
-          const corePath = path.slice(6) // убираем "/core/"
-          result = result.replace(new RegExp(`\\[${i}\\]`, "g"), `params.core.${corePath}`)
+
+        if (isSimpleTemplate) {
+          // Для простых шаблонов просто заменяем плейсхолдеры на значения без кавычек
+          result = result.replace(new RegExp(`\\$\\{\\[${i}\\]\\}`, "g"), String(value))
         } else {
-          result = result.replace(new RegExp(`\\[${i}\\]`, "g"), JSON.stringify(value))
+          // Для JavaScript выражений обрабатываем кавычки
+          const hasQuotes = result.includes(`"\${[${i}]}"`)
+
+          if (hasQuotes) {
+            // Если плейсхолдер уже в кавычках, заменяем без добавления кавычек
+            const replacement = typeof value === "string" ? value : JSON.stringify(value)
+            result = result.replace(new RegExp(`"\\$\\{\\[${i}\\]\\}"`, "g"), `"${replacement}"`)
+          } else {
+            // Если плейсхолдера нет в кавычках, добавляем кавычки для строк
+            const replacement = typeof value === "string" ? `"${value}"` : JSON.stringify(value)
+            result = result.replace(new RegExp(`\\$\\{\\[${i}\\]\\}`, "g"), replacement)
+          }
         }
       }
     }
   } else {
     // Для одного значения заменяем [0]
     const value = getValueByPath(dataPath, params)
-    // Для core объектов используем прямое обращение к params.core
-    if (dataPath.startsWith("/core/")) {
-      const corePath = dataPath.slice(6) // убираем "/core/"
-      // Заменяем слэши на точки для правильного доступа к свойствам
-      const dotPath = corePath.replace(/\//g, ".")
-      result = result.replace(/\[0\]/g, `params.core.${dotPath}`)
+
+    if (isSimpleTemplate) {
+      // Для простых шаблонов просто заменяем плейсхолдеры на значения без кавычек
+      result = result.replace(/\$\{\[0\]\}/g, String(value))
     } else {
-      result = result.replace(/\[0\]/g, JSON.stringify(value))
+      // Заменяем плейсхолдер на значение, правильно экранируя строки
+      const replacement = typeof value === "string" ? `"${value}"` : JSON.stringify(value)
+      result = result.replace(/\$\{\[0\]\}/g, replacement)
     }
   }
 
-  try {
-    // Если выражение содержит шаблонный литерал, обрабатываем его как шаблонную строку
-    if (result.includes("${") && !result.startsWith("`")) {
-      // Превращаем в шаблонный литерал
-      const templateResult = "`" + result + "`"
-      const evalResult = Function("params", `"use strict"; return ${templateResult}`)(params)
-      return evalResult
-    } else {
+  if (isSimpleTemplate) {
+    // Для простых шаблонов возвращаем результат как есть
+    return result
+  } else {
+    try {
       // Выполняем JavaScript выражение
       const evalResult = Function("params", `"use strict"; return (${result})`)(params)
       return evalResult
+    } catch (error) {
+      console.warn("Failed to evaluate expression:", result, error)
+      // Возвращаем исходное выражение без замен, если не удалось выполнить
+      return expr
     }
-  } catch (error) {
-    console.warn("Failed to evaluate expression:", result, error)
-    // Возвращаем исходное выражение без замен, если не удалось выполнить
-    return expr
   }
 }
 
@@ -296,43 +311,23 @@ export function evaluateExpressionWithItem(
       const path = dataPath[i]
       if (path) {
         const value = getNestedValueWithItem(path, item, parentItem, params, itemStack)
-        // Для core объектов используем прямое обращение к params.core
-        if (path.startsWith("/core/")) {
-          const corePath = path.slice(6) // убираем "/core/"
-          // Заменяем слэши на точки для правильного доступа к свойствам
-          const dotPath = corePath.replace(/\//g, ".")
-          result = result.replace(new RegExp(`\\[${i}\\]`, "g"), `params.core.${dotPath}`)
-        } else {
-          result = result.replace(new RegExp(`\\[${i}\\]`, "g"), JSON.stringify(value))
-        }
+        // Заменяем плейсхолдер на значение, правильно экранируя строки
+        const replacement = typeof value === "string" ? `"${value}"` : JSON.stringify(value)
+        result = result.replace(new RegExp(`\\$\\{\\[${i}\\]\\}`, "g"), replacement)
       }
     }
   } else {
     // Для одного значения заменяем [0]
     const value = getValueByPathWithItem(dataPath, item, parentItem, params, itemStack)
-    // Для core объектов используем прямое обращение к params.core
-    if (dataPath.startsWith("/core/")) {
-      const corePath = dataPath.slice(6) // убираем "/core/"
-      // Заменяем слэши на точки для правильного доступа к свойствам
-      const dotPath = corePath.replace(/\//g, ".")
-      result = result.replace(/\[0\]/g, `params.core.${dotPath}`)
-    } else {
-      result = result.replace(/\[0\]/g, JSON.stringify(value))
-    }
+    // Заменяем плейсхолдер на значение, правильно экранируя строки
+    const replacement = typeof value === "string" ? `"${value}"` : JSON.stringify(value)
+    result = result.replace(/\$\{\[0\]\}/g, replacement)
   }
 
   try {
-    // Если выражение содержит шаблонный литерал, обрабатываем его как шаблонную строку
-    if (result.includes("${") && !result.startsWith("`")) {
-      // Превращаем в шаблонный литерал
-      const templateResult = "`" + result + "`"
-      const evalResult = Function("params", `"use strict"; return ${templateResult}`)(params)
-      return evalResult
-    } else {
-      // Выполняем JavaScript выражение
-      const evalResult = Function("params", `"use strict"; return (${result})`)(params)
-      return evalResult
-    }
+    // Выполняем JavaScript выражение
+    const evalResult = Function("params", `"use strict"; return (${result})`)(params)
+    return evalResult
   } catch (error) {
     console.warn("Failed to evaluate expression:", result, error)
     // Возвращаем исходное выражение без замен, если не удалось выполнить

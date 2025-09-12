@@ -1,9 +1,9 @@
 import { test, expect } from "bun:test"
 import { Processes, ProcessesClone, ProcessesBase } from "../index.ts"
-import { types } from "../../context"
+import { Context } from "@zavx0z/context"
 
 test("наследование - базовый класс содержит общие методы", () => {
-  const schema = { name: types.string.required("anon") }
+  const { schema } = new Context((t) => ({ name: t.string.required("anon") }))
   type S = typeof schema
 
   const processes = new Processes<S, "guest">((process) => ({
@@ -22,7 +22,7 @@ test("наследование - базовый класс содержит об
 })
 
 test("наследование - ProcessesClone создается из snapshot", () => {
-  const schema = { name: types.string.required("anon") }
+  const { schema } = new Context((t) => ({ name: t.string.required("anon") }))
   type S = typeof schema
 
   const snapshot = {
@@ -42,7 +42,7 @@ test("наследование - ProcessesClone создается из snapshot
 })
 
 test("наследование - Processes и ProcessesClone имеют одинаковый интерфейс", () => {
-  const schema = { name: types.string.required("anon") }
+  const { schema } = new Context((t) => ({ name: t.string.required("anon") }))
   type S = typeof schema
 
   const processes = new Processes<S, "guest">((process) => ({

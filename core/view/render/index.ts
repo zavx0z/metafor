@@ -1,17 +1,16 @@
-import type { ExtractValues, Update } from "../../context/index.t"
-import type { ContextSchema } from "../../context/types.t.ts"
+import type { Values, Update, Schema } from "@zavx0z/context"
 import type { Core } from "../../index.t.ts"
 import type { Node, NodeElement, NodeText, NodeMap } from "@zavx0z/html-parser"
 import { renderElement, renderElementWithItem } from "./element.ts"
 import { renderText, renderTextWithItem } from "./text.ts"
 import { renderMap, renderMapWithItem } from "./map.ts"
 import { renderMeta, renderMetaWithItem } from "./meta.ts"
-import { renderCondition, renderConditionWithItem } from "./cond.ts"
+import { renderCondition, renderConditionWithItem, renderLog, renderLogWithItem } from "./cond.ts"
 
 /**
  * Основная функция рендеринга
  */
-export function render<C extends ContextSchema, S extends string, I extends Core>({
+export function render<C extends Schema, S extends string, I extends Core>({
   state,
   context,
   core,
@@ -20,7 +19,7 @@ export function render<C extends ContextSchema, S extends string, I extends Core
   schema,
 }: {
   state: S
-  context: ExtractValues<C>
+  context: Values<C>
   core: I
   container: HTMLElement | DocumentFragment
   update: Update<C>
@@ -50,11 +49,11 @@ export function render<C extends ContextSchema, S extends string, I extends Core
 /**
  * Рендерит отдельный узел
  */
-export function renderNode<C extends ContextSchema>(
+export function renderNode<C extends Schema>(
   node: Node,
   params: {
     state: string
-    context: ExtractValues<C>
+    context: Values<C>
     core: Record<string, any>
     update: Update<C>
   }
@@ -70,6 +69,8 @@ export function renderNode<C extends ContextSchema>(
       return renderMeta(node, params)
     case "cond":
       return renderCondition(node, params)
+    case "log":
+      return renderLog(node, params)
     default:
       return null
   }
@@ -78,11 +79,11 @@ export function renderNode<C extends ContextSchema>(
 /**
  * Рендерит отдельный узел с контекстом элемента массива
  */
-export function renderNodeWithItem<C extends ContextSchema>(
+export function renderNodeWithItem<C extends Schema>(
   node: Node,
   params: {
     state: string
-    context: ExtractValues<C>
+    context: Values<C>
     core: Record<string, any>
     update: Update<C>
   },
@@ -101,6 +102,8 @@ export function renderNodeWithItem<C extends ContextSchema>(
       return renderMetaWithItem(node, params, item, parentItem, itemStack)
     case "cond":
       return renderConditionWithItem(node, params, item, parentItem, itemStack)
+    case "log":
+      return renderLogWithItem(node, params, item, parentItem, itemStack)
     default:
       return null
   }

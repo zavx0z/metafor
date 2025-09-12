@@ -1,15 +1,14 @@
 import { test, expect } from "bun:test"
 import { Processes } from "../index.ts"
-import { types } from "../../context"
+import { Context } from "@zavx0z/context"
 
 test("Базовый chain API для действий", () => {
-  const ctxSchema = {
-    name: types.string.required("anon"),
-    age: types.number.required(18),
-  }
-  type CtxSchema = typeof ctxSchema
+  const { schema } = new Context((t) => ({
+    name: t.string.required("anon"),
+    age: t.number.required(18),
+  }))
 
-  const processes = new Processes<CtxSchema, "guest" | "user">((process) => ({
+  const processes = new Processes<typeof schema, "guest" | "user">((process) => ({
     guest: process()
       .action(({ context }) => ({ name: context.name, age: context.age + 1 }))
       .success(({ update, data }) => {

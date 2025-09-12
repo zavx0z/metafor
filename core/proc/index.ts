@@ -3,7 +3,7 @@
  * @module Processes
  */
 
-import type { ContextSchema, ExtractValues } from "../context"
+import type { Schema, Update } from "@zavx0z/context"
 import type { ActionChain, ProcessesDeclaration, Process, ProcessChain, ActionParams, ProcessesType } from "./index.t"
 import type { Core } from "../../core/index.t"
 import { getSnapshotProcesses } from "./parser.ts"
@@ -16,7 +16,7 @@ export type { Process, ProcessesDeclaration } from "./index.t"
  * @typeParam S - Строковые ключи состояний/процессов
  * @typeParam I - Тип ядра
  */
-export abstract class ProcessesBase<C extends ContextSchema, S extends string, I extends Core = {}> {
+export abstract class ProcessesBase<C extends Schema, S extends string, I extends Core = {}> {
   protected processes: ProcessesType<C, S, I> = {} as ProcessesType<C, S, I>
 
   /**
@@ -75,7 +75,7 @@ export abstract class ProcessesBase<C extends ContextSchema, S extends string, I
  * processes.getProcess("login") // получение процесса
  * processes.hasProcess("login") // проверка наличия процесса
  */
-export class Processes<C extends ContextSchema, S extends string, I extends Core = {}> extends ProcessesBase<C, S, I> {
+export class Processes<C extends Schema, S extends string, I extends Core = {}> extends ProcessesBase<C, S, I> {
   private processesDeclaration: ProcessesDeclaration<C, S, I>
 
   constructor(processesDeclaration: ProcessesDeclaration<C, S, I>) {
@@ -97,22 +97,22 @@ export class Processes<C extends ContextSchema, S extends string, I extends Core
         action: <Res>(fn: (params: ActionParams<C, I>) => Res | Promise<Res>): ActionChain<C, I, Res> => {
           // Храним текущие success/error handler'ы (последний вызов перезаписывает предыдущий)
           let successHandler:
-            | ((params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void)
+            | ((params: { update: Update<C>; data: Res }) => void)
             | undefined
           let errorHandler:
-            | ((params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void)
+            | ((params: { update: Update<C>; error: Error }) => void)
             | undefined
           // Chain API: каждый метод возвращает тот же объект, чтобы можно было строить цепочку
           const chain: ActionChain<C, I, Res> = {
             // Основная функция процесса
             action: fn,
             // Добавляет/перезаписывает success handler
-            success(handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void) {
+            success(handler: (params: { update: Update<C>; data: Res }) => void) {
               successHandler = handler
               return chain
             },
             // Добавляет/перезаписывает error handler
-            error(handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void) {
+            error(handler: (params: { update: Update<C>; error: Error }) => void) {
               errorHandler = handler
               return chain
             },
@@ -167,7 +167,7 @@ export class Processes<C extends ContextSchema, S extends string, I extends Core
  * @typeParam S - Строковые ключи состояний/процессов
  * @typeParam I - Тип ядра
  */
-export class ProcessesClone<C extends ContextSchema, S extends string, I extends Core = {}> extends ProcessesBase<
+export class ProcessesClone<C extends Schema, S extends string, I extends Core = {}> extends ProcessesBase<
   C,
   S,
   I
@@ -181,7 +181,7 @@ export class ProcessesClone<C extends ContextSchema, S extends string, I extends
    * @param snapshot - снимок процессов
    * @returns экземпляр ProcessesClone
    */
-  static fromSnapshot<C extends ContextSchema, S extends string, I extends Core = {}>(
+  static fromSnapshot<C extends Schema, S extends string, I extends Core = {}>(
     snapshot: Record<string, any>
   ): ProcessesClone<C, S, I> {
     const clone = new ProcessesClone<C, S, I>()

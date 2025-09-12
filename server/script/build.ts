@@ -7,7 +7,6 @@ async function build(dev: boolean, distDir: string, entrypoint: string) {
     outdir: distDir,
     target: "bun",
     sourcemap: "none",
-    splitting: false,
     minify: !dev,
     external: ["happy-dom"],
     naming: "[dir]/[name].[ext]",

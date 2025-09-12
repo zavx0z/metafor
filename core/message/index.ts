@@ -3,12 +3,12 @@
  * @module Messages
  */
 
-import type { ContextSchema, ExtractValues } from "../context"
+import type { Schema, Values } from "@zavx0z/context"
 import type { Snapshot } from "../../core/index.t"
 import type { Message, JsonPatch, ActorInfo } from "./index.t"
 export type { Message, JsonPatch, ActorInfo }
 
-export const initMessage = <C extends ContextSchema, S extends string>(
+export const initMessage = <C extends Schema, S extends string>(
   meta: string,
   actor: ActorInfo,
   snapshot: Snapshot<C, S>,
@@ -22,10 +22,10 @@ export const initMessage = <C extends ContextSchema, S extends string>(
   }
 }
 
-export const updateContextMessage = <C extends ContextSchema>(
+export const updateContextMessage = <C extends Schema>(
   meta: string,
   actor: ActorInfo,
-  updated: Partial<ExtractValues<C>>
+  updated: Partial<Values<C>>
 ): Message => {
   return {
     meta,

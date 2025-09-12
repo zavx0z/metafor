@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
-import { Context } from "../../context/index.ts"
+import { Context } from "@zavx0z/context"
 
 describe("интерполяции в атрибутах", () => {
   const html = String.raw
@@ -384,7 +384,7 @@ describe("интерполяции в атрибутах", () => {
                     tag: "span",
                     type: "el",
                     array: {
-                      class: [{ value: "static" }, { data: "[item]/type", expr: "item-${[0]}" }],
+                      class: ["static", { data: "[item]/type", expr: "item-${[0]}" }],
                     },
                     child: [{ type: "text", value: " Content " }],
                     string: {

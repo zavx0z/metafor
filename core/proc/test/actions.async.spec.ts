@@ -1,9 +1,9 @@
 import { test, expect } from "bun:test"
 import { Processes } from "../index.ts"
-import { types } from "../../context"
+import { Context } from "@zavx0z/context"
 
 test("chain API — поддержка async action", async () => {
-  const schema = { name: types.string.required("anon") }
+  const { schema } = new Context((t) => ({ name: t.string.required("anon") }))
   type S = typeof schema
 
   const processes = new Processes<S, "guest">((process) => ({

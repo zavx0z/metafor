@@ -4,8 +4,7 @@
  * @module View
  */
 
-import type { ExtractValues, Update } from "../context/index.t.ts"
-import type { ContextSchema } from "../context/types.t.ts"
+import type { Values, Schema, Update } from "@zavx0z/context"
 import type { Core } from "../index.t.ts"
 import type { ViewDeclaration } from "./index.t.ts"
 import { type Node, parse } from "@zavx0z/html-parser"
@@ -13,7 +12,7 @@ import { render } from "./render/index.ts"
 
 export type { ViewDeclaration }
 
-export class View<C extends ContextSchema, I extends Core = Record<string, any>, S extends string = string> {
+export class View<C extends Schema, I extends Core = Record<string, any>, S extends string = string> {
   #style: ((params: { css: (strings: TemplateStringsArray, ...values: unknown[]) => void }) => void) | null = null
   schema: Node[] = []
 
@@ -53,13 +52,13 @@ export class View<C extends ContextSchema, I extends Core = Record<string, any>,
   render({
     container,
     state = "" as S,
-    context = {} as ExtractValues<C>,
+    context = {} as Values<C>,
     core = {} as I,
-    update = () => ({}),
+    update = (() => ({})) as unknown as Update<C>,
   }: {
     container: HTMLElement | DocumentFragment
     state?: S
-    context?: ExtractValues<C>
+    context?: Values<C>
     core?: I
     update?: Update<C>
   }) {

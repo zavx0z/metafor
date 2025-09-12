@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
-import { Context } from "../../context/index.ts"
+import { Context } from "@zavx0z/context"
 
 describe("условные блоки", () => {
   const html = String.raw
@@ -297,38 +297,40 @@ describe("условные блоки", () => {
                 ],
               },
               {
-                tag: "span",
-                type: "el",
+                type: "cond",
+                data: "/context/isActive",
                 child: [
                   {
-                    type: "text",
-                    value: "Active",
+                    tag: "span",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        value: "Active",
+                      },
+                    ],
+                  },
+                  {
+                    tag: "span",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        value: "Inactive",
+                      },
+                    ],
                   },
                 ],
               },
               {
-                type: "cond",
-                data: "/context/isActive",
-                true: {
-                  tag: "span",
-                  type: "el",
-                  child: [
-                    {
-                      type: "text",
-                      value: "Inactive",
-                    },
-                  ],
-                },
-                false: {
-                  tag: "footer",
-                  type: "el",
-                  child: [
-                    {
-                      type: "text",
-                      value: "Footer",
-                    },
-                  ],
-                },
+                tag: "footer",
+                type: "el",
+                child: [
+                  {
+                    type: "text",
+                    value: "Footer",
+                  },
+                ],
               },
             ],
           },
@@ -342,7 +344,7 @@ describe("условные блоки", () => {
           <div>
             <header>Header</header>
             <span>Active</span>
-            <span>Inactive</span>
+            <footer>Footer</footer>
           </div>
         `)
       })
@@ -353,7 +355,7 @@ describe("условные блоки", () => {
         expect(container.innerHTML, "рендер при условии false").toMatchStringHTML(html`
           <div>
             <header>Header</header>
-            <span>Active</span>
+            <span>Inactive</span>
             <footer>Footer</footer>
           </div>
         `)
@@ -371,26 +373,28 @@ describe("условные блоки", () => {
           {
             type: "cond",
             data: "/context/isActive",
-            true: {
-              tag: "span",
-              type: "el",
-              child: [
-                {
-                  type: "text",
-                  value: "Active",
-                },
-              ],
-            },
-            false: {
-              tag: "span",
-              type: "el",
-              child: [
-                {
-                  type: "text",
-                  value: "Inactive",
-                },
-              ],
-            },
+            child: [
+              {
+                tag: "span",
+                type: "el",
+                child: [
+                  {
+                    type: "text",
+                    value: "Active",
+                  },
+                ],
+              },
+              {
+                tag: "span",
+                type: "el",
+                child: [
+                  {
+                    type: "text",
+                    value: "Inactive",
+                  },
+                ],
+              },
+            ],
           },
         ])
       })
@@ -425,26 +429,28 @@ describe("условные блоки", () => {
                 type: "cond",
                 data: ["/context/userRole", "/core/requiredRole"],
                 expr: "${[0]} === ${[1]}",
-                true: {
-                  tag: "h1",
-                  type: "el",
-                  child: [
-                    {
-                      type: "text",
-                      value: "match",
-                    },
-                  ],
-                },
-                false: {
-                  tag: "h1",
-                  type: "el",
-                  child: [
-                    {
-                      type: "text",
-                      value: "mismatch",
-                    },
-                  ],
-                },
+                child: [
+                  {
+                    tag: "h1",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        value: "match",
+                      },
+                    ],
+                  },
+                  {
+                    tag: "h1",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        value: "mismatch",
+                      },
+                    ],
+                  },
+                ],
               },
             ],
           },
@@ -494,44 +500,46 @@ describe("условные блоки", () => {
                 type: "cond",
                 data: ["/context/userRole", "/admin"],
                 expr: '${[0]} === "${[1]}"',
-                true: {
-                  tag: "section",
-                  type: "el",
-                  string: {
-                    class: "admin-panel",
-                  },
-                  child: [
-                    {
-                      tag: "h2",
-                      type: "el",
-                      child: [
-                        {
-                          type: "text",
-                          value: "Admin Panel",
-                        },
-                      ],
+                child: [
+                  {
+                    tag: "section",
+                    type: "el",
+                    string: {
+                      class: "admin-panel",
                     },
-                  ],
-                },
-                false: {
-                  tag: "section",
-                  type: "el",
-                  string: {
-                    class: "user-panel",
+                    child: [
+                      {
+                        tag: "h2",
+                        type: "el",
+                        child: [
+                          {
+                            type: "text",
+                            value: "Admin Panel",
+                          },
+                        ],
+                      },
+                    ],
                   },
-                  child: [
-                    {
-                      tag: "h2",
-                      type: "el",
-                      child: [
-                        {
-                          type: "text",
-                          value: "User Panel",
-                        },
-                      ],
+                  {
+                    tag: "section",
+                    type: "el",
+                    string: {
+                      class: "user-panel",
                     },
-                  ],
-                },
+                    child: [
+                      {
+                        tag: "h2",
+                        type: "el",
+                        child: [
+                          {
+                            type: "text",
+                            value: "User Panel",
+                          },
+                        ],
+                      },
+                    ],
+                  },
+                ],
               },
             ],
           },
@@ -565,8 +573,8 @@ describe("условные блоки", () => {
 
     describe("сравнение context и core (>)", () => {
       const core = { b: 5 }
-      const { context, update } = new Context((t) => ({ a: t.number.required(10) }))
-      const view = new View({
+      const { context, update, schema } = new Context((t) => ({ a: t.number.required(10) }))
+      const view = new View<typeof schema>({
         render: ({ html, context, core }) =>
           html`<div>${context.a > core.b ? html`<span>A>B</span>` : html`<span>B>=A</span>`}</div>`,
       })
@@ -580,26 +588,28 @@ describe("условные блоки", () => {
                 type: "cond",
                 data: ["/context/a", "/core/b"],
                 expr: "${[0]} > ${[1]}",
-                true: {
-                  tag: "span",
-                  type: "el",
-                  child: [
-                    {
-                      type: "text",
-                      value: "A>B",
-                    },
-                  ],
-                },
-                false: {
-                  tag: "span",
-                  type: "el",
-                  child: [
-                    {
-                      type: "text",
-                      value: "B>=A",
-                    },
-                  ],
-                },
+                child: [
+                  {
+                    tag: "span",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        value: "A>B",
+                      },
+                    ],
+                  },
+                  {
+                    tag: "span",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        value: "B>=A",
+                      },
+                    ],
+                  },
+                ],
               },
             ],
           },
@@ -623,8 +633,8 @@ describe("условные блоки", () => {
 
     describe("сравнение core и context (<=)", () => {
       const core = { b: 5 }
-      const { context, update } = new Context((t) => ({ a: t.number.required(10) }))
-      const view = new View({
+      const { context, update, schema } = new Context((t) => ({ a: t.number.required(10) }))
+      const view = new View<typeof schema>({
         render: ({ html, core, context }) =>
           html`<section>${core.b <= context.a ? html`<p>ok</p>` : html`<p>no</p>`}</section>`,
       })
@@ -638,26 +648,28 @@ describe("условные блоки", () => {
                 type: "cond",
                 data: ["/core/b", "/context/a"],
                 expr: "${[0]} <= ${[1]}",
-                true: {
-                  tag: "p",
-                  type: "el",
-                  child: [
-                    {
-                      type: "text",
-                      value: "ok",
-                    },
-                  ],
-                },
-                false: {
-                  tag: "p",
-                  type: "el",
-                  child: [
-                    {
-                      type: "text",
-                      value: "no",
-                    },
-                  ],
-                },
+                child: [
+                  {
+                    tag: "p",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        value: "ok",
+                      },
+                    ],
+                  },
+                  {
+                    tag: "p",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        value: "no",
+                      },
+                    ],
+                  },
+                ],
               },
             ],
           },
@@ -697,26 +709,28 @@ describe("условные блоки", () => {
               type: "cond",
               data: ["/context/role", "/core/requiredRole"],
               expr: "${[0]} === ${[1]}",
-              true: {
-                tag: "h1",
-                type: "el",
-                child: [
-                  {
-                    type: "text",
-                    value: "match",
-                  },
-                ],
-              },
-              false: {
-                tag: "h1",
-                type: "el",
-                child: [
-                  {
-                    type: "text",
-                    value: "mismatch",
-                  },
-                ],
-              },
+              child: [
+                {
+                  tag: "h1",
+                  type: "el",
+                  child: [
+                    {
+                      type: "text",
+                      value: "match",
+                    },
+                  ],
+                },
+                {
+                  tag: "h1",
+                  type: "el",
+                  child: [
+                    {
+                      type: "text",
+                      value: "mismatch",
+                    },
+                  ],
+                },
+              ],
             },
           ],
         },
@@ -752,15 +766,21 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                tag: "span",
-                type: "el",
-                string: {
-                  class: "user",
-                },
+                type: "log",
+                data: "/context/isLoggedIn",
                 child: [
                   {
-                    type: "text",
-                    value: "Welcome!",
+                    tag: "span",
+                    type: "el",
+                    string: {
+                      class: "user",
+                    },
+                    child: [
+                      {
+                        type: "text",
+                        value: "Welcome!",
+                      },
+                    ],
                   },
                 ],
               },
@@ -862,28 +882,34 @@ describe("условные блоки", () => {
                 data: "/core/items",
                 child: [
                   {
-                    tag: "span",
-                    type: "el",
-                    string: {
-                      class: "active",
-                    },
+                    type: "cond",
+                    data: "[item]/isActive",
                     child: [
                       {
-                        type: "text",
-                        data: "[item]/name",
+                        tag: "span",
+                        type: "el",
+                        string: {
+                          class: "active",
+                        },
+                        child: [
+                          {
+                            type: "text",
+                            data: "[item]/name",
+                          },
+                        ],
                       },
-                    ],
-                  },
-                  {
-                    tag: "span",
-                    type: "el",
-                    string: {
-                      class: "inactive",
-                    },
-                    child: [
                       {
-                        type: "text",
-                        data: "[item]/name",
+                        tag: "span",
+                        type: "el",
+                        string: {
+                          class: "inactive",
+                        },
+                        child: [
+                          {
+                            type: "text",
+                            data: "[item]/name",
+                          },
+                        ],
                       },
                     ],
                   },
@@ -959,12 +985,18 @@ describe("условные блоки", () => {
                         ],
                       },
                       {
-                        tag: "button",
-                        type: "el",
+                        type: "log",
+                        data: "[item]/hasAction",
                         child: [
                           {
-                            type: "text",
-                            value: "Action",
+                            tag: "button",
+                            type: "el",
+                            child: [
+                              {
+                                type: "text",
+                                value: "Action",
+                              },
+                            ],
                           },
                         ],
                       },
@@ -1032,6 +1064,12 @@ describe("условные блоки", () => {
                       },
                     ],
                   },
+                ],
+              },
+              {
+                type: "cond",
+                data: "/context/flag",
+                child: [
                   {
                     tag: "p",
                     type: "el",
@@ -1098,12 +1136,18 @@ describe("условные блоки", () => {
             type: "el",
             child: [
               {
-                tag: "span",
-                type: "el",
+                type: "log",
+                data: "/context/showEmpty",
                 child: [
                   {
-                    type: "text",
-                    value: "Not empty",
+                    tag: "span",
+                    type: "el",
+                    child: [
+                      {
+                        type: "text",
+                        value: "Not empty",
+                      },
+                    ],
                   },
                 ],
               },
@@ -1115,13 +1159,13 @@ describe("условные блоки", () => {
         const container = document.createElement("div")
         update({ showEmpty: true })
         view.render({ container, context })
-        expect(container.innerHTML, "рендер пустого блока").toMatchStringHTML(html`<div></div>`)
+        expect(container.innerHTML, "рендер пустого блока").toMatchStringHTML(html`<div><span>Not empty</span></div>`)
       })
       it("рендер showEmpty false", () => {
         const container = document.createElement("div")
         update({ showEmpty: false })
         view.render({ container, context })
-        expect(container.innerHTML, "рендер непустого блока").toMatchStringHTML(html`<div><span>Not empty</span></div>`)
+        expect(container.innerHTML, "рендер непустого блока").toMatchStringHTML(html`<div></div>`)
       })
     })
 
@@ -1159,44 +1203,65 @@ describe("условные блоки", () => {
               {
                 type: "cond",
                 data: "/context/hasPermission",
-                true: {
-                  tag: "div",
-                  type: "el",
-                  child: [
-                    {
-                      tag: "button",
-                      type: "el",
-                      child: [
-                        {
-                          type: "text",
-                          value: "Admin Action",
-                        },
-                      ],
-                      string: {
-                        class: "admin",
+                child: [
+                  {
+                    type: "cond",
+                    data: "/context/isAdmin",
+                    child: [
+                      {
+                        tag: "div",
+                        type: "el",
+                        child: [
+                          {
+                            tag: "button",
+                            type: "el",
+                            child: [
+                              {
+                                type: "text",
+                                value: "Admin Action",
+                              },
+                            ],
+                            string: {
+                              class: "admin",
+                            },
+                          },
+                        ],
                       },
-                    },
-                  ],
-                },
-                false: {
-                  tag: "div",
-                  type: "el",
-                  child: [
-                    {
-                      tag: "button",
-                      type: "el",
-                      child: [
-                        {
-                          type: "text",
-                          value: "User Action",
-                        },
-                      ],
-                      string: {
-                        class: "user",
+                      {
+                        tag: "div",
+                        type: "el",
+                        child: [
+                          {
+                            tag: "button",
+                            type: "el",
+                            child: [
+                              {
+                                type: "text",
+                                value: "User Action",
+                              },
+                            ],
+                            string: {
+                              class: "user",
+                            },
+                          },
+                        ],
                       },
+                    ],
+                  },
+                  {
+                    tag: "div",
+                    type: "el",
+                    string: {
+                      class: "no-access",
                     },
-                  ],
-                },
+                    child: [
+                      {
+                        type: "text",
+                        value: "Access Denied",
+                      },
+                    ],
+                  },
+                ],
               },
             ],
           },

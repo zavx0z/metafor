@@ -1,5 +1,3 @@
-import type { ExtractValues, Update } from "../../context/index.t"
-import type { ContextSchema } from "../../context/types.t.ts"
 import type { NodeElement } from "@zavx0z/html-parser"
 import {
   toBoolean,

@@ -1,16 +1,15 @@
-import type { ExtractValues, Update } from "../../context/index.t"
-import type { ContextSchema } from "../../context/types.t.ts"
+import type { Values, Update, Schema } from "@zavx0z/context"
 import type { NodeText } from "@zavx0z/html-parser"
 import { getValueByPath, evaluateExpression, getValueByPathWithItem, evaluateExpressionWithItem } from "./utils.ts"
 
 /**
  * Рендерит текстовый узел
  */
-export function renderText<C extends ContextSchema>(
+export function renderText<C extends Schema>(
   node: NodeText,
   params: {
     state: string
-    context: ExtractValues<C>
+    context: Values<C>
     core: Record<string, any>
     update: Update<C>
   }
@@ -35,11 +34,11 @@ export function renderText<C extends ContextSchema>(
 /**
  * Рендерит текстовый узел с контекстом элемента массива
  */
-export function renderTextWithItem<C extends ContextSchema>(
+export function renderTextWithItem<C extends Schema>(
   node: NodeText,
   params: {
     state: string
-    context: ExtractValues<C>
+    context: Values<C>
     core: Record<string, any>
     update: Update<C>
   },

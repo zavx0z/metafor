@@ -1,17 +1,16 @@
-import type { ExtractValues, Update } from "../../context/index.t"
-import type { ContextSchema } from "../../context/types.t.ts"
+import type { Values, Update, Schema } from "@zavx0z/context"
 import type { NodeMap } from "@zavx0z/html-parser"
-import { getNestedValue, getNestedValueWithItem, getValueByPathWithItem, evaluateExpressionWithItem } from "./utils.ts"
-import { renderNode, renderNodeWithItem } from "./index.ts"
+import { getNestedValue, getNestedValueWithItem } from "./utils.ts"
+import { renderNodeWithItem } from "./index.ts"
 
 /**
  * Рендерит map узел
  */
-export function renderMap<C extends ContextSchema>(
+export function renderMap<C extends Schema>(
   node: NodeMap,
   params: {
     state: string
-    context: ExtractValues<C>
+    context: Values<C>
     core: Record<string, any>
     update: Update<C>
   }
@@ -47,11 +46,11 @@ export function renderMap<C extends ContextSchema>(
 /**
  * Рендерит map узел с контекстом элемента массива
  */
-export function renderMapWithItem<C extends ContextSchema>(
+export function renderMapWithItem<C extends Schema>(
   node: NodeMap,
   params: {
     state: string
-    context: ExtractValues<C>
+    context: Values<C>
     core: Record<string, any>
     update: Update<C>
   },

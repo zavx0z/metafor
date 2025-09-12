@@ -1,5 +1,5 @@
 import { Reactions, ReactionsClone } from "../index"
-import type { Update, ExtractValues } from "../../context/index.t"
+import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
 import type { JsonPatch } from "../../message"
 
@@ -8,7 +8,7 @@ type State = "idle" | "active"
 
 describe("ReactionRegistryClone", () => {
   const fakeUpdate: Update<Ctx> = (values) => values as any
-  const fakeContext: ExtractValues<Ctx> = { value: 10 }
+  const fakeContext: Values<Ctx> = { value: 10 }
   const fakePatch: JsonPatch = { op: "replace", path: "/context", value: 1 }
 
   it("создание из снимка", () => {
@@ -17,7 +17,7 @@ describe("ReactionRegistryClone", () => {
       [
         ["idle"],
         reaction({ title: "test_reaction" })
-          .filter({ tag: "test" })
+          .filter({ meta: "test" })
           .equal(() => {}),
       ],
       [
@@ -63,7 +63,9 @@ describe("ReactionRegistryClone", () => {
       state: "idle",
       context: fakeContext,
       core: {},
-      meta: { tag: "test", timestamp: Date.now(), index: 0 },
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: fakePatch,
       update: fakeUpdate,
     })
@@ -86,7 +88,7 @@ describe("ReactionRegistryClone", () => {
         reaction_1: {
           title: "test",
           desc: "description",
-          cond: { tag: "test" },
+          cond: { meta: "test" },
           read: ["value"],
           write: ["value"],
         },

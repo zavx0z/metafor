@@ -1,20 +1,22 @@
 import { Reactions } from "../index"
-import type { Update, ExtractValues } from "../../context/index.t"
+import type { Update, Values } from "@zavx0z/context"
 import { test, expect } from "bun:test"
-import type { Message } from "../../message"
+import type { Message, JsonPatch } from "../../message"
+import { Context } from "@zavx0z/context"
 
-type Ctx = {
-  value: { type: "number"; required: true }
-  name: { type: "string"; required: true }
-  isActive: { type: "boolean"; required: true }
-  tags: { type: "array"; required: true }
-}
+const { schema } = new Context((t) => ({
+  value: t.number.required(0),
+  name: t.string.required(""),
+  isActive: t.boolean.required(false),
+  tags: t.array.required([]),
+}))
+type Ctx = typeof schema
 type State = "idle" | "active" | "error"
 
 test("Выполнение реакций через run", () => {
   let called = false
   const fakeUpdate: Update<Ctx> = (values) => values as any
-  const fakeContext: ExtractValues<Ctx> = { value: 10, name: "test", isActive: true, tags: ["tag1", "tag2"] }
+  const fakeContext: Values<Ctx> = { value: 10, name: "test", isActive: true, tags: ["tag1", "tag2"] } as any
   const fakeMessage: Message = {
     meta: "test",
     actor: { index: 0 },
@@ -35,7 +37,7 @@ test("Выполнение реакций через run", () => {
     meta: fakeMessage.meta,
     actor: fakeMessage.actor,
     timestamp: fakeMessage.timestamp,
-    patch: fakeMessage.patch,
+    patch: fakeMessage.patches[0] as JsonPatch,
     context: fakeContext,
     state: "active",
     core: {},

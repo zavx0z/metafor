@@ -2,7 +2,7 @@
  * Реализация реакций
  * @module Reactions
  */
-import type { ContextSchema, ExtractValues, Update } from "../context/index.t"
+import type { Schema, Update, Values } from "@zavx0z/context"
 import type { Core } from "../index.t"
 import type { JsonPatch } from "../message"
 import type { ReactionsDeclaration, ReactionUpdate, Reaction, SnapshotReactions, ReactionMetadata } from "./index.t"
@@ -12,7 +12,7 @@ export type { ReactionsDeclaration }
 /**
  * Анализирует функцию update для извлечения полей
  */
-function extractFields<C extends ContextSchema, S extends string, I extends Core>(update: ReactionUpdate<C, S, I>) {
+function extractFields<C extends Schema, S extends string, I extends Core>(update: ReactionUpdate<C, S, I>) {
   const updateStr = update.toString()
   const read: string[] = []
   const write: string[] = []
@@ -53,7 +53,7 @@ function extractFields<C extends ContextSchema, S extends string, I extends Core
 }
 
 /** Базовый класс реестра реакций */
-export abstract class ReactionsBase<C extends ContextSchema, S extends string, I extends Core = {}> {
+export abstract class ReactionsBase<C extends Schema, S extends string, I extends Core = {}> {
   protected reactionsById: Map<string, Reaction<C, S, I>> = new Map()
   protected stateToReactionIds: Map<S, string[]> = new Map()
   protected reactionMetadata: Map<string, ReactionMetadata> = new Map()
@@ -67,7 +67,7 @@ export abstract class ReactionsBase<C extends ContextSchema, S extends string, I
   /** Исполнить все реакции для состояния */
   run(params: {
     state: S
-    context: ExtractValues<C>
+    context: Values<C>
     core: I
     meta: string
     actor: { index: number; parent?: string }
@@ -109,7 +109,7 @@ export abstract class ReactionsBase<C extends ContextSchema, S extends string, I
 }
 
 /** Оригинальный реестр реакций с методом toSnapshot */
-export class Reactions<C extends ContextSchema, S extends string, I extends Core = {}> extends ReactionsBase<C, S, I> {
+export class Reactions<C extends Schema, S extends string, I extends Core = {}> extends ReactionsBase<C, S, I> {
   private reactionAutoId = 0
 
   constructor(builder: ReactionsDeclaration<C, S, I>) {
@@ -203,7 +203,7 @@ export class Reactions<C extends ContextSchema, S extends string, I extends Core
 }
 
 /** Клонированный реестр реакций с методом fromSnapshot */
-export class ReactionsClone<C extends ContextSchema, S extends string, I extends Core = {}> extends ReactionsBase<
+export class ReactionsClone<C extends Schema, S extends string, I extends Core = {}> extends ReactionsBase<
   C,
   S,
   I
@@ -213,7 +213,7 @@ export class ReactionsClone<C extends ContextSchema, S extends string, I extends
   }
 
   /** Создание из снимка */
-  static fromSnapshot<C extends ContextSchema, S extends string, I extends Core = {}>(
+  static fromSnapshot<C extends Schema, S extends string, I extends Core = {}>(
     snapshot: SnapshotReactions
   ): ReactionsClone<C, S, I> {
     const registry = new ReactionsClone<C, S, I>()

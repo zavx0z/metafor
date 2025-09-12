@@ -1,20 +1,25 @@
 import { Reactions } from "../index"
-import type { Update, ExtractValues } from "../../context/index.t"
+import { Context, type Update, type Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
-import type { MetaDataMessage } from "../../message"
 
-type Ctx = { value: { type: "number"; required: true } }
+const { schema } = new Context((t) => ({
+  value: t.number.required(0),
+  name: t.string.required(""),
+  isActive: t.boolean.required(false),
+  tags: t.array.required([]),
+}))
+type Ctx = typeof schema
 type State = "idle" | "active"
 
 describe("Фильтрация по значению патча (value) - расширенные условия", () => {
   const fakeUpdate: Update<Ctx> = (values) => values as any
-  const fakeContext: ExtractValues<Ctx> = { value: 10 }
-  const fakeMeta: MetaDataMessage = { tag: "test", index: 0 }
+  const fakeContext: Values<Ctx> = { value: 10 } as any
+  const fakeMeta = "test"
 
   describe("Строковые значения", () => {
     it("прямое сравнение строки", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -25,6 +30,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "active" },
         context: fakeContext,
         state: "idle",
@@ -37,7 +44,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("регулярное выражение", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -48,6 +55,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "user_123" },
         context: fakeContext,
         state: "idle",
@@ -60,7 +69,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие eq", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -71,6 +80,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "active" },
         context: fakeContext,
         state: "idle",
@@ -83,7 +94,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие notEq", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -94,6 +105,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "active" },
         context: fakeContext,
         state: "idle",
@@ -106,7 +119,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие startsWith", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -117,6 +130,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "user_123" },
         context: fakeContext,
         state: "idle",
@@ -129,7 +144,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие endsWith", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -140,6 +155,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "user_active" },
         context: fakeContext,
         state: "idle",
@@ -152,7 +169,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие include", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -163,6 +180,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "user_error_123" },
         context: fakeContext,
         state: "idle",
@@ -175,7 +194,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие notInclude", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -186,6 +205,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "user_success" },
         context: fakeContext,
         state: "idle",
@@ -209,6 +230,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "123" },
         context: fakeContext,
         state: "idle",
@@ -221,7 +244,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие length (число)", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -232,6 +255,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "hello" },
         context: fakeContext,
         state: "idle",
@@ -244,7 +269,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие length (объект с min/max)", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -255,6 +280,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "hello" },
         context: fakeContext,
         state: "idle",
@@ -267,7 +294,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие between", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -278,6 +305,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "hello" },
         context: fakeContext,
         state: "idle",
@@ -292,7 +321,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Числовые значения", () => {
     it("прямое сравнение числа", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -303,6 +332,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 42 },
         context: fakeContext,
         state: "idle",
@@ -315,7 +346,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие eq", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -326,6 +357,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 42 },
         context: fakeContext,
         state: "idle",
@@ -338,7 +371,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие gt", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -349,6 +382,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 42 },
         context: fakeContext,
         state: "idle",
@@ -372,6 +407,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 42 },
         context: fakeContext,
         state: "idle",
@@ -384,7 +421,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие lt", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+        const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -395,6 +432,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 42 },
         context: fakeContext,
         state: "idle",
@@ -407,7 +446,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие lte", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -418,6 +457,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 42 },
         context: fakeContext,
         state: "idle",
@@ -430,7 +471,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие between", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -441,6 +482,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 42 },
         context: fakeContext,
         state: "idle",
@@ -455,7 +498,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Булевы значения", () => {
     it("прямое сравнение булева значения", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -466,6 +509,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: true },
         context: fakeContext,
         state: "idle",
@@ -478,7 +523,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие eq", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -489,6 +534,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: true },
         context: fakeContext,
         state: "idle",
@@ -501,7 +548,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие logicalEq", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -512,6 +559,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: true },
         context: fakeContext,
         state: "idle",
@@ -527,7 +576,7 @@ describe("Фильтрация по значению патча (value) - рас
     it("прямое сравнение массива", () => {
       let called = false
       const testArray = [1, 2, 3]
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -538,6 +587,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: testArray },
         context: fakeContext,
         state: "idle",
@@ -550,7 +601,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие length (число)", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -561,6 +612,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: [1, 2, 3] },
         context: fakeContext,
         state: "idle",
@@ -573,7 +626,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие includes", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -584,6 +637,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: ["item", "other"] },
         context: fakeContext,
         state: "idle",
@@ -596,7 +651,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие isEmpty", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -607,6 +662,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: [] },
         context: fakeContext,
         state: "idle",
@@ -619,7 +676,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие every для чисел", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -630,6 +687,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: [1, 2, 3] },
         context: fakeContext,
         state: "idle",
@@ -642,7 +701,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие some для строк", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+        const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -653,6 +712,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: ["success", "error_123", "other"] },
         context: fakeContext,
         state: "idle",
@@ -667,7 +728,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Null и undefined", () => {
     it("прямое сравнение null", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -678,6 +739,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: null },
         context: fakeContext,
         state: "idle",
@@ -690,7 +753,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("прямое сравнение undefined", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -701,6 +764,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: undefined },
         context: fakeContext,
         state: "idle",
@@ -713,7 +778,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие null в объекте", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -724,6 +789,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: null },
         context: fakeContext,
         state: "idle",
@@ -739,7 +806,7 @@ describe("Фильтрация по значению патча (value) - рас
     it("прямое сравнение объекта", () => {
       let called = false
       const testObject = { name: "test", value: 42 }
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -750,6 +817,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: testObject },
         context: fakeContext,
         state: "idle",
@@ -772,7 +841,7 @@ describe("Фильтрация по значению патча (value) - рас
           },
         },
       }
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -783,6 +852,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: complexObject },
         context: fakeContext,
         state: "idle",
@@ -797,7 +868,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Комбинированные условия", () => {
     it("комбинация с операцией и путем", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -812,6 +883,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 42 },
         context: fakeContext,
         state: "idle",
@@ -824,7 +897,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("комбинация строковых условий", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -837,6 +910,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: "user_active_123" },
         context: fakeContext,
         state: "idle",
@@ -851,7 +926,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Отрицательные тесты", () => {
     it("не срабатывает при несовпадении строки", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -862,6 +937,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "inactive" },
         context: fakeContext,
         state: "idle",
@@ -874,7 +951,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("не срабатывает при несовпадении числа", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -885,6 +962,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 50 },
         context: fakeContext,
         state: "idle",
@@ -897,7 +976,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("не срабатывает при несовпадении массива", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
+        const registry = new Reactions<typeof schema, State, {}>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -908,6 +987,8 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
+        actor: { index: 0 },
+        timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: [1, 2, 3] },
         context: fakeContext,
         state: "idle",

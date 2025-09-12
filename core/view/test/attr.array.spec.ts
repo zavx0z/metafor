@@ -427,11 +427,7 @@ describe("атрибуты в массивах - вложенность", () => 
     const view = new View<any, typeof core>({
       render: ({ html, core }) => html`
         <ul>
-          ${core.items.map((item) => html`
-            <li class="base item-${item.id}">
-              Item ${item.id}
-            </li>
-          `)}
+          ${core.items.map((item) => html` <li class="base item-${item.id}">Item ${item.id}</li> `)}
         </ul>
       `,
     })
@@ -462,9 +458,7 @@ describe("атрибуты в массивах - вложенность", () => 
                   type: "el",
                   array: {
                     class: [
-                      {
-                        value: "base",
-                      },
+                      "base",
                       {
                         data: "[item]/id",
                         expr: "item-${[0]}",
@@ -498,9 +492,7 @@ describe("атрибуты в массивах - вложенность", () => 
     const view = new View<any, typeof core>({
       render: ({ html, core }) => html`
         <ul>
-          ${core.items.map((item) => html`
-            <li class="item-${item.id} index-${item.id}">${item.name}</li>
-          `)}
+          ${core.items.map((item) => html` <li class="item-${item.id} index-${item.id}">${item.name}</li> `)}
         </ul>
       `,
     })
@@ -529,23 +521,21 @@ describe("атрибуты в массивах - вложенность", () => 
           ],
         },
         {
-          id: "g2", 
-          items: [
-            { id: 3, name: "Item 3" },
-          ],
+          id: "g2",
+          items: [{ id: 3, name: "Item 3" }],
         },
       ],
     } as const
     const view = new View<any, typeof core>({
       render: ({ html, core }) => html`
         <div>
-          ${core.groups.map((group) => html`
-            <section>
-              ${group.items.map((item) => html`
-                <span class="g-${group.id} i-${item.id}">${item.name}</span>
-              `)}
-            </section>
-          `)}
+          ${core.groups.map(
+            (group) => html`
+              <section>
+                ${group.items.map((item) => html` <span class="g-${group.id} i-${item.id}">${item.name}</span> `)}
+              </section>
+            `
+          )}
         </div>
       `,
     })
@@ -577,9 +567,7 @@ describe("атрибуты в массивах - вложенность", () => 
     const view = new View<any, typeof core>({
       render: ({ html, core }) => html`
         <ul>
-          ${core.items.map((item) => html`
-            <li class="base item-${item.id}">Item ${item.id}</li>
-          `)}
+          ${core.items.map((item) => html` <li class="base item-${item.id}">Item ${item.id}</li> `)}
         </ul>
       `,
     })

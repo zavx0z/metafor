@@ -1,9 +1,7 @@
-import type { ExtractValues, Update } from "../../context/index.t"
-import type { ContextSchema } from "../../context/types.t.ts"
+import type { Values, Update, Schema } from "@zavx0z/context"
 import {
   getValueByPath,
   evaluateExpression,
-  getNestedValueWithItem,
   evaluateExpressionWithItem,
   getValueByPathWithItem,
 } from "./utils.ts"
@@ -13,11 +11,11 @@ import { resolveActorTagName } from "./shared.ts"
 /**
  * Рендерит meta элемент
  */
-export function renderMeta<C extends ContextSchema>(
+export function renderMeta<C extends Schema>(
   node: any,
   params: {
     state: string
-    context: ExtractValues<C>
+    context: Values<C>
     core: Record<string, any>
     update: Update<C>
   }
@@ -111,11 +109,11 @@ export function renderMeta<C extends ContextSchema>(
 /**
  * Рендерит meta элемент с контекстом элемента массива
  */
-export function renderMetaWithItem<C extends ContextSchema>(
+export function renderMetaWithItem<C extends Schema>(
   node: any,
   params: {
     state: string
-    context: ExtractValues<C>
+    context: Values<C>
     core: Record<string, any>
     update: Update<C>
   },

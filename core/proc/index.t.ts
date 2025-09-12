@@ -20,7 +20,7 @@
  * @module Processes
  */
 
-import type { ContextSchema, ExtractValues, UpdateValues } from "../context"
+import type { Schema, Values, Update } from "@zavx0z/context"
 import type { Core } from "../../core/index.t"
 
 export type ProcessConfig = {
@@ -43,7 +43,7 @@ export type ProcessConfig = {
  * @includeExample ./proc/test/actions.basic.spec.ts
  * @includeExample ./proc/test/actions.types.spec.ts
  */
-export type ProcessesDeclaration<C extends ContextSchema, S extends string, I extends Core> = (
+export type ProcessesDeclaration<C extends Schema, S extends string, I extends Core> = (
   process: (config?: ProcessConfig) => ProcessChain<C, I>
 ) => Partial<Record<S, ActionChain<C, I, any>>>
 
@@ -67,7 +67,7 @@ export type ProcessesDeclaration<C extends ContextSchema, S extends string, I ex
  * chain.getResult() // { action, success, error, title?, description? }
  * ```
  */
-export type ProcessChain<C extends ContextSchema, I extends Core> = {
+export type ProcessChain<C extends Schema, I extends Core> = {
   /**
    * Добавляет основную функцию процесса.
    *
@@ -112,9 +112,9 @@ export type ProcessChain<C extends ContextSchema, I extends Core> = {
  * @template C - схема контекста автомата
  * @template I - тип ядра автомата
  */
-export type ActionParams<C extends ContextSchema, I extends Core> = {
+export type ActionParams<C extends Schema, I extends Core> = {
   /** Контекст */
-  context: ExtractValues<C>
+  context: Values<C>
   /** Ядро */
   core: I
   /** Элемент */
@@ -137,7 +137,7 @@ export type ActionParams<C extends ContextSchema, I extends Core> = {
  * chain.getResult() // { action, success, error }
  * ```
  */
-export type ActionChain<C extends ContextSchema, I extends Core, Res> = {
+export type ActionChain<C extends Schema, I extends Core, Res> = {
   /**
    * Основная функция процесса, вызывается автоматом.
    *
@@ -191,7 +191,7 @@ export type ActionChain<C extends ContextSchema, I extends Core, Res> = {
    * ```
    */
   success: (
-    handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; data: Res }) => void
+    handler: (params: { update: Update<C>; data: Res }) => void
   ) => ActionChain<C, I, Res>
 
   /**
@@ -225,7 +225,7 @@ export type ActionChain<C extends ContextSchema, I extends Core, Res> = {
    * ```
    */
   error: (
-    handler: (params: { update: (values: Partial<ExtractValues<C>>) => void; error: Error }) => void
+    handler: (params: { update: Update<C>; error: Error }) => void
   ) => ActionChain<C, I, Res>
 
   /**
@@ -277,13 +277,13 @@ export type ActionChain<C extends ContextSchema, I extends Core, Res> = {
  * }
  * ```
  */
-export type Process<C extends ContextSchema, I extends Core, Res = any> = {
+export type Process<C extends Schema, I extends Core, Res = any> = {
   /** Основная функция процесса */
   action: (params: ActionParams<C, I>) => Res | Promise<Res>
   /** Обработчик успешного завершения */
-  success?: (params: { update: (values: UpdateValues<ExtractValues<C>>) => void; data: Res }) => void
+  success?: (params: { update: Update<C>; data: Res }) => void
   /** Обработчик ошибки */
-  error?: (params: { update: (values: UpdateValues<ExtractValues<C>>) => void; error: Error }) => void
+  error?: (params: { update: Update<C>; error: Error }) => void
   /** Название процесса для документации */
   title?: string
   /** Описание процесса для документации */
@@ -326,6 +326,6 @@ export type Process<C extends ContextSchema, I extends Core, Res = any> = {
  * }
  * ```
  */
-export type ProcessesType<C extends ContextSchema, S extends string, I extends Core, Res = any> = Partial<
+export type ProcessesType<C extends Schema, S extends string, I extends Core, Res = any> = Partial<
   Record<S, Process<C, I, Res>>
 >

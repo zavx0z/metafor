@@ -4,7 +4,7 @@
  * @module Reactions
  */
 
-import type { ContextSchema, ExtractValues } from "../context/index.t"
+import type { Schema, Update, Values } from "@zavx0z/context"
 import type { Core } from "../index.t"
 import type { ActorInfo, JsonPatch } from "../message"
 import type { ReactionFilterConditions as ReactionConditions } from "./condition.t"
@@ -41,11 +41,11 @@ import type { ReactionFilterConditions as ReactionConditions } from "./condition
  * }
  * ```
  */
-export type ReactionUpdate<C extends ContextSchema, S extends string, I extends Core> = (args: {
+export type ReactionUpdate<C extends Schema, S extends string, I extends Core> = (args: {
   /** Функция для обновления контекста */
-  update: (values: Partial<ExtractValues<C>>) => void
+  update: Update<C>
   /** Текущий контекст */
-  context: ExtractValues<C>
+  context: Values<C>
   /** Core объект */
   core: I
   /** Хеш меты компонента-актора */
@@ -91,7 +91,7 @@ export type ReactionParams = {
  * }
  * ```
  */
-export type Reaction<C extends ContextSchema, S extends string, I extends Core> = {
+export type Reaction<C extends Schema, S extends string, I extends Core> = {
   /** Название реакции для документации */
   title: string
   /** Описание реакции для документации */
@@ -125,7 +125,7 @@ export type Reaction<C extends ContextSchema, S extends string, I extends Core> 
  * ]
  * ```
  */
-export type ReactionsDeclaration<C extends ContextSchema, S extends string, I extends Core> = (
+export type ReactionsDeclaration<C extends Schema, S extends string, I extends Core> = (
   reaction: (config?: {
     /** Название реакции */
     title?: string
@@ -144,7 +144,7 @@ export type ReactionsDeclaration<C extends ContextSchema, S extends string, I ex
 ) => ReactionsChainResult<C, S, I>
 
 /** Результат цепочки реакций */
-export type ReactionsChainResult<C extends ContextSchema, S extends string, I extends Core> = [
+export type ReactionsChainResult<C extends Schema, S extends string, I extends Core> = [
   S[],
   Reaction<C, S, I> & {
     /** Метод для регистрации состояний */
@@ -161,7 +161,7 @@ export type ReactionsChainResult<C extends ContextSchema, S extends string, I ex
  * @template S - строковые ключи состояний
  * @template Core - тип core объекта
  */
-export type ReactionsMap<C extends ContextSchema, S extends string, I extends Core> = Map<S, Reaction<C, S, I>[]>
+export type ReactionsMap<C extends Schema, S extends string, I extends Core> = Map<S, Reaction<C, S, I>[]>
 
 /** Снимок реакций */
 export type SnapshotReactions = {

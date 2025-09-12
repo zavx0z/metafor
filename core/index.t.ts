@@ -3,8 +3,7 @@
  * @packageDocumentation
  * @module Core
  */
-import type { ContextSchema } from "./context"
-import type { ContextSnapshot, ContextTypes } from "./context/index.t"
+import type { Schema, Types, Snapshot as ContextSnapshot } from "@zavx0z/context"
 import type { ProcessesDeclaration } from "./proc/index.t"
 import type { SnapshotProcesses } from "./proc/parser.t"
 import type { ReactionsDeclaration, SnapshotReactions } from "./react/index.t"
@@ -17,7 +16,7 @@ declare global {
 }
 export {}
 
-export interface FingerPrint<C extends ContextSchema, S extends string> {
+export interface FingerPrint<C extends Schema, S extends string> {
   /** Название компонента */
   name: string
   /** Описание компонента */
@@ -41,7 +40,7 @@ export interface FingerPrint<C extends ContextSchema, S extends string> {
  * @template C - схема контекста автомата
  * @template S - строковые ключи состояний
  */
-export interface Snapshot<C extends ContextSchema, S extends string> extends FingerPrint<C, S> {
+export interface Snapshot<C extends Schema, S extends string> extends FingerPrint<C, S> {
   /** Текущее состояние */
   state: S
   /** Индикатор выполнения процесса в текущем состоянии */
@@ -131,8 +130,8 @@ export type MetaForType = (
    * }))
    * ```
    */
-  context<C extends ContextSchema>(
-    schema: (types: ContextTypes) => C
+  context<C extends Schema>(
+    schema: (types: Types) => C
   ): {
     /**
      * Регистрирует переходы автомата между состояниями.

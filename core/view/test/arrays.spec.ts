@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
-import { Context } from "../../context/index.ts"
+import { Context } from "@zavx0z/context"
 
 const html = String.raw
 
@@ -514,14 +514,21 @@ describe("массивы", () => {
 
   describe("смешанный контент с массивами", () => {
     describe("массив между статическими элементами", () => {
-      const view = new View({
-        render: ({ html, context }) =>
+      const core = {
+        users: [
+          { name: "John Doe", email: "john@example.com" },
+          { name: "Jane Smith", email: "jane@example.com" },
+        ],
+        totalCount: 2,
+      }
+      const view = new View<any, typeof core>({
+        render: ({ html, context, core }) =>
           html`<div class="container">
             <header>
               <h1>User List</h1>
             </header>
-            ${context.users.map(
-              (user: any) =>
+            ${core.users.map(
+              (user) =>
                 html`<div class="user-item">
                   <span class="name">${user.name}</span>
                   <span class="email">${user.email}</span>
@@ -775,10 +782,13 @@ describe("массивы", () => {
 
     describe("edge cases массивов", () => {
       describe("пустой элемент в массиве", () => {
-        const view = new View({
+        const { context, schema } = new Context((t) => ({
+          items: t.array.required([1, 2, 3]),
+        }))
+        const view = new View<typeof schema>({
           render: ({ html, context }) =>
             html`<ul>
-              ${context.items.map((item: any) => html`<li></li>`)}
+              ${context.items.map((item) => html`<li></li>`)}
             </ul>`,
         })
         it("парсинг", () => {
@@ -821,10 +831,16 @@ describe("массивы", () => {
       })
 
       describe("самозакрывающиеся теги в массиве", () => {
-        const view = new View({
+        const core = {
+          images: [
+            { url: "/images/photo1.jpg", alt: "Photo 1" },
+            { url: "/images/photo2.jpg", alt: "Photo 2" },
+          ],
+        }
+        const view = new View<any, typeof core>({
           render: ({ html, core }) =>
             html`<div class="images">
-              ${core.images.map((img: any) => html`<img src="${img.url}" alt="${img.alt}" />`)}
+              ${core.images.map((img) => html`<img src="${img.url}" alt="${img.alt}" />`)}
             </div>`,
         })
         it("парсинг", () => {
@@ -880,10 +896,13 @@ describe("массивы", () => {
       })
 
       describe("только текст в элементе массива", () => {
-        const view = new View({
+        const { context, schema } = new Context((t) => ({
+          steps: t.array.required(["Step 1", "Step 2", "Step 3"]),
+        }))
+        const view = new View<typeof schema>({
           render: ({ html, context }) =>
             html`<ol>
-              ${context.steps.map((step: any) => html`<li>${step}</li>`)}
+              ${context.steps.map((step) => html`<li>${step}</li>`)}
             </ol>`,
         })
         it("парсинг", () => {

@@ -1,22 +1,24 @@
 import { test, expect, describe } from "bun:test"
 import { Reactions } from "../index"
+import { Context } from "@zavx0z/context"
 
 describe("снимок реакций", () => {
-  type Ctx = {
-    value: { type: "number"; required: true }
-    name: { type: "string"; required: true }
-    isActive: { type: "boolean"; required: true }
-    tags: { type: "array"; required: true }
-  }
+  const { schema } = new Context((t) => ({
+    value: t.number.required(0),
+    name: t.string.required(""),
+    isActive: t.boolean.required(false),
+    tags: t.array.required([]),
+  }))
+  type Ctx = typeof schema
   type State = "idle" | "active" | "error"
 
   test("Создание уникальных реакций", () => {
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<typeof schema, State, {}>((reaction) => [
       [
         ["idle", "active"],
         reaction({ title: "inc", description: "increment value" })
           .filter({
-            tag: "test",
+            meta: "test",
             op: "replace",
             path: "/context",
             value: 1,
@@ -26,7 +28,7 @@ describe("снимок реакций", () => {
       [
         ["error"],
         reaction({ title: "reset" })
-          .filter({ tag: "any" })
+          .filter({ meta: "any" })
           .equal(({ update }) => update({ value: 0 })),
       ],
     ])
@@ -38,7 +40,7 @@ describe("снимок реакций", () => {
           title: "inc",
           desc: "increment value",
           cond: {
-            tag: "test",
+            meta: "test",
             op: "replace",
             path: "/context",
             value: 1,
@@ -49,7 +51,7 @@ describe("снимок реакций", () => {
         reset_1: {
           title: "reset",
           cond: {
-            tag: "any",
+            meta: "any",
           },
           read: ["value"],
           write: ["value"],
@@ -64,11 +66,11 @@ describe("снимок реакций", () => {
   })
 
   test("Проверка структуры данных toSnapshot", () => {
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
+    const registry = new Reactions<typeof schema, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
-          .filter({ tag: "test" })
+          .filter({ meta: "test" })
           .equal(({ update }) => update({ value: 42 })),
       ],
     ])
@@ -86,7 +88,7 @@ describe("снимок реакций", () => {
     const reaction = snapshot.reactions[reactionId]!
 
     expect(reaction.title, "реакция должна иметь title").toBe("test")
-    expect(reaction.cond, "реакция должна иметь filter").toEqual({ tag: "test" })
+      expect(reaction.cond, "реакция должна иметь filter").toEqual({ meta: "test" })
     expect(reaction.read, "реакция должна иметь read").toEqual(["value"])
     expect(reaction.write, "реакция должна иметь write").toEqual(["value"])
 

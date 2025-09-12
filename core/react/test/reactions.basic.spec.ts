@@ -1,12 +1,14 @@
 import { Reactions } from "../index"
+import { Context } from "@zavx0z/context"
 import { test, expect } from "bun:test"
 
-type Ctx = {
-  value: { type: "number"; required: true }
-  name: { type: "string"; required: true }
-  isActive: { type: "boolean"; required: true }
-  tags: { type: "array"; required: true }
-}
+const { schema } = new Context((t) => ({
+  value: t.number.required(0),
+  name: t.string.required(""),
+  isActive: t.boolean.required(false),
+  tags: t.array.required([]),
+}))
+type Ctx = typeof schema
 type State = "idle" | "active" | "error"
 
 test("Создание уникальных реакций", () => {
@@ -15,7 +17,7 @@ test("Создание уникальных реакций", () => {
       ["idle", "active"],
       reaction({ title: "inc" })
         .filter({
-          tag: "test",
+          meta: "test",
           op: "replace",
           path: "/context",
           value: 1,
@@ -25,7 +27,7 @@ test("Создание уникальных реакций", () => {
     [
       ["error"],
       reaction({ title: "reset" })
-        .filter({ tag: "any" })
+        .filter({ meta: "any" })
         .equal(({ update }) => update({ value: 0 })),
     ],
   ])

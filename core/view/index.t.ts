@@ -4,7 +4,7 @@
  * @module View
  */
 
-import type { ContextSchema, Update, ExtractValues } from "../context"
+import type { Schema, Update, Values } from "@zavx0z/context"
 import type { Core } from "../index.t"
 
 /**
@@ -36,7 +36,7 @@ import type { Core } from "../index.t"
  * ```
  */
 
-export type ViewDefinitionParams<C extends ContextSchema, I extends Core, S extends string> = {
+export type ViewDefinitionParams<C extends Schema, I extends Core, S extends string> = {
   /**
    * Функция для обновления контекста.
    * Вызывается с частичным объектом контекста для изменения состояния.
@@ -54,7 +54,7 @@ export type ViewDefinitionParams<C extends ContextSchema, I extends Core, S exte
    * html`<div>${context.value}</div>`
    * ```
    */
-  context: ExtractValues<C>
+  context: Values<C>
   core: I
   /**
    * Текущее состояние автомата/актора.
@@ -86,7 +86,7 @@ export type ViewDefinitionParams<C extends ContextSchema, I extends Core, S exte
  * @includeExample view/test/context.init.spec.ts
  * @includeExample view/test/context.update.spec.ts
  */
-export interface ViewDeclaration<C extends ContextSchema, I extends Core, S extends string> {
+export interface ViewDeclaration<C extends Schema, I extends Core, S extends string> {
   /**
    * Функция рендеринга компонента.
    * Получает параметры с контекстом, состоянием и утилитами для построения UI.

@@ -1,5 +1,5 @@
 import { Reactions } from "../index"
-import type { Update, ExtractValues } from "../../context/index.t"
+import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
 import type { JsonPatch } from "../../message"
 
@@ -8,7 +8,7 @@ type State = "idle" | "active"
 
 describe("Фильтрация по мете актора (meta)", () => {
   const fakeUpdate: Update<Ctx> = (values) => values as any
-  const fakeContext: ExtractValues<Ctx> = { value: 10 }
+  const fakeContext: Values<Ctx> = { value: 10 }
   const fakePatch: JsonPatch = { op: "replace", path: "/context", value: 1 }
 
   it("простое сравнение хеша меты", () => {

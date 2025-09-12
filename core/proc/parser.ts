@@ -5,7 +5,7 @@
 
 import type { ParsedProcess, SnapshotProcesses } from "./parser.t"
 import type { Process, ProcessConfig, ProcessesDeclaration } from "./index.t"
-import type { ContextSchema } from "../context"
+import type { Schema } from "@zavx0z/context"
 import type { Core } from "../index.t"
 
 const pattern = {
@@ -108,7 +108,7 @@ export function parseFunction(fn: Function, allowWrite: boolean = true) {
  * // }
  * ```
  */
-export function parseProcess<C extends ContextSchema, I extends Core, Res = any>(
+export function parseProcess<C extends Schema, I extends Core, Res = any>(
   process: Process<C, I, Res>
 ): ParsedProcess {
   const result: ParsedProcess = {}
@@ -164,7 +164,7 @@ export function parseProcess<C extends ContextSchema, I extends Core, Res = any>
  * @param processes - конфигурация процессов
  * @returns объект с распарсенными процессами
  */
-export const getSnapshotProcesses = <C extends ContextSchema, S extends string, I extends Core>(
+export const getSnapshotProcesses = <C extends Schema, S extends string, I extends Core>(
   processes: ProcessesDeclaration<C, S, I>
 ): SnapshotProcesses => {
   // Вызываем processesDeclaration с mock process

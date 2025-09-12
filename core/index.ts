@@ -55,7 +55,7 @@
  * @packageDocumentation
  */
 
-import { Context, type ContextSchema, type ContextTypes, type ExtractValues } from "./context"
+import { Context, type Schema, type Types, type Values } from "@zavx0z/context"
 import { checkTransitionConditions, type StatesConfig, validateNoUnconditionalCycles } from "./state"
 import { Processes, type Process, type ProcessesDeclaration } from "./proc"
 import { Reactions, type ReactionsDeclaration } from "./react"
@@ -79,7 +79,7 @@ export function MetaForFabric(params: FabricParams) {
     const dev = config?.dev ?? globalThis.DEV ?? false
     const persist = config?.persist ?? false
     return {
-      context<C extends ContextSchema>(schema: (types: ContextTypes) => C) {
+      context<C extends Schema>(schema: (types: Types) => C) {
         return {
           states<S extends string>(states: StatesConfig<S, C>) {
             validateNoUnconditionalCycles(states)
@@ -172,7 +172,7 @@ export function MetaForFabric(params: FabricParams) {
                                     })
                                     this.#view.render({
                                       state: this.#state,
-                                      context: this.#context.getSnapshot(),
+                                      context: this.#context.context,
                                       core: this.#core,
                                       container: this.#shadow,
                                       update: this.update,
@@ -205,8 +205,8 @@ export function MetaForFabric(params: FabricParams) {
                                   }
 
                                   /** обновление контекста */
-                                  update = (context: Partial<ExtractValues<C>>) => {
-                                    const updated = this.#context.update(context)
+                                  update = (context: Partial<Values<C>>): Partial<Values<C>> => {
+                                    const updated = this.#context.update(context as any)
                                     if (Object.keys(updated).length > 0) {
                                       this.#sendEvent(updateContextMessage(this.#meta, { index: 0 }, updated))
                                       // this.#view.render({
@@ -235,7 +235,7 @@ export function MetaForFabric(params: FabricParams) {
                                         stateBeforeActionMessage(this.#meta, { index: 0 }, this.#state)
                                       )
                                       const result = process.action({
-                                        context: this.#context.getSnapshot(),
+                                        context: this.#context.context,
                                         core: this.#core,
                                         element: this,
                                       })
@@ -291,7 +291,7 @@ export function MetaForFabric(params: FabricParams) {
                                     const transition = this.#states[this.#state]
                                     if (!transition) return
                                     for (const [state, conditions] of Object.entries(transition)) {
-                                      if (checkTransitionConditions(conditions, this.#context.getSnapshot())) {
+                                      if (checkTransitionConditions(conditions, this.#context.snapshot)) {
                                         const process = this.#processes.getProcess(state as S)
                                         if (this.#process) return
                                         if (process) {
@@ -315,7 +315,7 @@ export function MetaForFabric(params: FabricParams) {
                                     this.#channel.postMessage(message)
                                     this.#view.render({
                                       state: this.#state,
-                                      context: this.#context.getSnapshot(),
+                                      context: this.#context.context,
                                       core: this.#core,
                                       container: this.#shadow,
                                       update: this.update,
@@ -345,7 +345,7 @@ export function MetaForFabric(params: FabricParams) {
                                     if (!this.#reactions.hasReactions()) return
                                     for (const patch of message.patches) {
                                       this.#reactions.run({
-                                        context: this.#context.getSnapshot(),
+                                        context: this.#context.context,
                                         core: this.#core,
                                         meta: message.meta,
                                         actor: message.actor,

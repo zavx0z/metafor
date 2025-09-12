@@ -1,3 +1,4 @@
+// @ts-nocheck
 const config = {
   active: true,
   // active: true,
@@ -110,8 +111,8 @@ export function log(message, core) {
         const stateValue = Array.isArray(patch.value)
           ? JSON.stringify(patch.value, null, 2)
           : typeof patch.value === "object" && patch.value !== null
-          ? JSON.stringify(patch.value, null, 2)
-          : patch.value
+            ? JSON.stringify(patch.value, null, 2)
+            : patch.value
 
         const msg = [
           `%c${metaStr}${index}%c | %c${op}%c | %c${path}%c %c${stateValue}`,

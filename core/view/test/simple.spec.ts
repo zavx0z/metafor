@@ -1,6 +1,6 @@
 import { describe, it, expect } from "bun:test"
 import { View } from "../index.ts"
-import { Context } from "../../context/index.ts"
+import { Context } from "@zavx0z/context"
 
 describe("парсинг/рендер простых элементов", () => {
   const html = String.raw

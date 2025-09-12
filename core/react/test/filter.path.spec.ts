@@ -1,15 +1,15 @@
 import { Reactions } from "../index"
-import type { Update, ExtractValues } from "../../context/index.t"
+import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
-import type { MetaDataMessage } from "../../message"
+  import type { JsonPatch } from "../../message"
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"
 
 describe("Фильтрация по пути патча (path)", () => {
   const fakeUpdate: Update<Ctx> = (values) => values as any
-  const fakeContext: ExtractValues<Ctx> = { value: 10 }
-  const fakeMeta: MetaDataMessage = { tag: "test", index: 0 }
+  const fakeContext: Values<Ctx> = { value: 10 }
+  const fakeMeta: string = "test"
 
   it("фильтрация по /context", () => {
     let called = false
@@ -24,6 +24,8 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: { op: "replace", path: "/context", value: 1 },
       context: fakeContext,
       state: "idle",
@@ -47,6 +49,8 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: { op: "replace", path: "/state", value: "active" },
       context: fakeContext,
       state: "idle",
@@ -70,6 +74,8 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: { op: "add", path: "/", value: { context: {}, state: "idle" } },
       context: fakeContext,
       state: "idle",
@@ -93,6 +99,8 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: { op: "replace", path: "/state", value: "active" },
       context: fakeContext,
       state: "idle",
@@ -119,6 +127,8 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: { op: "replace", path: "/context", value: 1 },
       context: fakeContext,
       state: "idle",
@@ -137,7 +147,7 @@ describe("Фильтрация по пути патча (path)", () => {
         reaction({ title: "test" })
           .filter({
             path: "/context",
-            tag: "test",
+            meta: "test",
           })
           .equal(() => (called = true)),
       ],
@@ -145,6 +155,8 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: { op: "replace", path: "/context", value: 1 },
       context: fakeContext,
       state: "idle",
@@ -171,6 +183,8 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: { op: "replace", path: "/context", value: 1 },
       context: fakeContext,
       state: "idle",
@@ -197,6 +211,8 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: { op: "add", path: "/context", value: 1 },
       context: fakeContext,
       state: "idle",
@@ -223,6 +239,8 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: { op: "remove", path: "/context" },
       context: fakeContext,
       state: "idle",
@@ -249,6 +267,8 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: { op: "test", path: "/context", value: 1 },
       context: fakeContext,
       state: "idle",
@@ -275,6 +295,8 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: { op: "replace", path: "/state", value: "active" },
       context: fakeContext,
       state: "idle",
@@ -301,6 +323,8 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
+      actor: { index: 0 },
+      timestamp: Date.now(),
       patch: { op: "add", path: "/", value: { context: {}, state: "idle" } },
       context: fakeContext,
       state: "idle",

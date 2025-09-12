@@ -1,5 +1,4 @@
-import type { ExtractValues, Update } from "../../context/index.t"
-import type { ContextSchema } from "../../context/types.t.ts"
+import type { Values, Update, Schema } from "@zavx0z/context"
 import type { NodeElement } from "@zavx0z/html-parser"
 import { renderNode, renderNodeWithItem } from "./index.ts"
 import { resolveActorTagName, renderElementAttributes } from "./shared.ts"
@@ -7,11 +6,11 @@ import { resolveActorTagName, renderElementAttributes } from "./shared.ts"
 /**
  * Рендерит HTML элемент
  */
-export function renderElement<C extends ContextSchema>(
+export function renderElement<C extends Schema>(
   node: NodeElement,
   params: {
     state: string
-    context: ExtractValues<C>
+    context: Values<C>
     core: Record<string, any>
     update: Update<C>
   }
@@ -45,11 +44,11 @@ export function renderElement<C extends ContextSchema>(
 /**
  * Рендерит HTML элемент с контекстом элемента массива
  */
-export function renderElementWithItem<C extends ContextSchema>(
+export function renderElementWithItem<C extends Schema>(
   node: NodeElement,
   params: {
     state: string
-    context: ExtractValues<C>
+    context: Values<C>
     core: Record<string, any>
     update: Update<C>
   },
