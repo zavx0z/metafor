@@ -3,7 +3,7 @@ import { validateNoUnconditionalCycles } from "../validator.ts"
 import type { StatesConfig } from "../index.t.ts"
 
 test("Валидация корректной конфигурации состояний", () => {
-  const validStates: StatesConfig<string, any> = {
+  const validStates: StatesConfig = {
     anonymous: { loading: {} },
     loading: {}, // Конечное состояние без переходов
   }
@@ -15,9 +15,9 @@ test("Валидация корректной конфигурации сост�
 })
 
 test("Валидация конфигурации с условными переходами", () => {
-  const conditionalStates: StatesConfig<string, any> = {
+  const conditionalStates: StatesConfig = {
     anonymous: {
-      loading: { userAction: true }, // Условный переход
+      loading: { userAction: null }, // Условный переход
     },
     loading: {
       authenticated: { authSuccess: true }, // Условный переход
@@ -32,7 +32,7 @@ test("Валидация конфигурации с условными пере
 })
 
 test("Валидация конфигурации с циклом безусловных переходов", () => {
-  const cyclicStates: StatesConfig<string, any> = {
+  const cyclicStates: StatesConfig = {
     anonymous: { loading: {} }, // Безусловный переход
     loading: { anonymous: {} }, // Безусловный переход обратно
   }
@@ -44,7 +44,7 @@ test("Валидация конфигурации с циклом безусло
 })
 
 test("Валидация сложной конфигурации с циклом", () => {
-  const complexCyclicStates: StatesConfig<string, any> = {
+  const complexCyclicStates: StatesConfig = {
     state1: { state2: {} },
     state2: { state3: {} },
     state3: { state1: {} }, // Замыкает цикл
@@ -59,7 +59,7 @@ test("Валидация сложной конфигурации с циклом
 })
 
 test("Валидация конфигурации с пустыми условиями", () => {
-  const emptyConditionsStates: StatesConfig<string, any> = {
+  const emptyConditionsStates: StatesConfig = {
     state1: { state2: { field: {} } }, // Пустое условие считается безусловным
     state2: { state3: { field: null } }, // null условие считается безусловным
     state3: {},
@@ -72,7 +72,7 @@ test("Валидация конфигурации с пустыми услови
 })
 
 test("Валидация конфигурации с условными и безусловными переходами", () => {
-  const mixedStates: StatesConfig<string, any> = {
+  const mixedStates: StatesConfig = {
     start: {
       processing: { action: true }, // Условный переход
       error: {}, // Безусловный переход

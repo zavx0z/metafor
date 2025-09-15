@@ -126,7 +126,7 @@ export type MetaForType = (
    *   userName: types.string.required("Anonymous"),
    *   selectedIds: types.array.required([]),
    *   isLoading: types.boolean.required(false),
-   *   theme: types.enum.required(["light", "dark"]),
+   *   theme: types.enum("light", "dark").required("dark"),
    * }))
    * ```
    */

@@ -2,7 +2,7 @@ import { test, expect } from "bun:test"
 import type { StatesConfig } from "../index.t.ts"
 
 test("Конфигурация состояний заказа", () => {
-  const orderStates: StatesConfig<"pending" | "confirmed" | "shipped" | "delivered", any> = {
+  const orderStates: StatesConfig = {
     pending: {
       confirmed: { paymentReceived: true },
     },

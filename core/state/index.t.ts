@@ -4,7 +4,7 @@
  * @module States
  */
 
-import type { Schema, Values, Types } from "@zavx0z/context"
+import type { Schema, Values, SchemaType } from "@zavx0z/context"
 
 /** 
  * # Условия для булевых значений (required)
@@ -511,9 +511,7 @@ export type Condition<T> = T extends boolean
         ? CondArrayRequired<U>
         : T extends readonly (infer U)[]
           ? CondArrayRequired<U>
-          : T extends null
-            ? null
-            : never
+          : never
 
 /**
  * Условие для опционального поля контекста
@@ -533,32 +531,27 @@ export type ConditionOptional<T> = T extends boolean
             : never
 
 /**
- * Условия переходов для всех полей контекста
+ * Условие контекстного поля
  */
-export type TransitionConditions<T extends Schema> = {
-  [K in keyof T]?: T[K] extends Types["string"] | Types["number"] | Types["boolean"] | Types["array"] | Types["enum"]
-    ? Condition<Values<T>[K]>
-    : ConditionOptional<Values<T>[K]>
+export type Conditions<C extends Schema> = {
+  [K in keyof Partial<C>]: C[K] extends SchemaType<any, any, true, any>
+    ? Condition<Values<C>[K]>
+    : ConditionOptional<Values<C>[K]>
 }
 
 /**
- * Переходы из одного состояния в другие
+ * Состояние в которое можно перейти с условиями
  */
-export type StateTransitions<T extends string, C extends Schema> = {
-  [K in T]?: TransitionConditions<C>
+export type Transitions<To extends string, C extends Schema> = {
+  [K in To]?: Conditions<C>
 }
 
-/**
- * Определение состояния с возможными переходами
- */
-export type StateDefinition<T extends string, C extends Schema> = StateTransitions<T, C>
-
-/**
- * Конфигурация всех состояний системы
+/**ƒ
+ * Конфигурация состояний
  *
  * @includeExample ./state/test/states.config.basic.spec.ts
  * @includeExample ./state/test/states.config.order.spec.ts
  * @includeExample ./state/test/states.config.numeric.spec.ts
  * @includeExample ./state/test/states.config.multiple.spec.ts
  */
-export type StatesConfig<S extends string, C extends Schema> = Record<S, StateDefinition<S, C>>
+export type StatesConfig<S extends string = string, C extends Schema = Schema> = Record<S, Transitions<S, C>>

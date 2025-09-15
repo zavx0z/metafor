@@ -2,7 +2,7 @@ import { test, expect } from "bun:test"
 import type { StatesConfig } from "../index.t.ts"
 
 test("Базовая конфигурация состояний пользователя", () => {
-  const userStates: StatesConfig<"guest" | "user" | "admin", any> = {
+  const userStates: StatesConfig = {
     guest: {
       user: {
         name: { length: { min: 2 } },

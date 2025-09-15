@@ -3,8 +3,8 @@
  * @module States
  */
 
-import type { ContextSchema, ExtractValues } from "../context"
-import type { Condition, StatesConfig } from "./index.t"
+import type { Schema, Values } from "@zavx0z/context"
+import type { Condition, Conditions, StatesConfig, Transitions } from "./index.t"
 export type { Condition, StatesConfig }
 
 // Экспортируем валидатор
@@ -37,24 +37,10 @@ export { validateNoUnconditionalCycles } from "./validator.ts"
  * // => true
  * ```
  */
-
-/**
- * Проверяет условия переходов между состояниями
- * @param conditions - условия перехода
- * @param context - текущий контекст
- * @returns true если все условия выполнены
- */
-export const checkTransitionConditions = <C extends ContextSchema>(
-  conditions: any,
-  context: Partial<ExtractValues<C>>
-): boolean => {
+export const checkTransition = <C extends Schema>(conditions: Conditions<C>, context: Values<C>): boolean => {
   for (const [field, condition] of Object.entries(conditions)) {
     const value = context[field]
-    if (field === "status") {
-    }
-    if (!evaluateCondition(condition, value)) {
-      return false
-    }
+    if (!evaluateCondition(condition, value)) return false
   }
   return true
 }

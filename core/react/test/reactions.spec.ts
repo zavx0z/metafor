@@ -7,7 +7,7 @@ describe.skip("реакции", () => {
     const childName = Bun.randomUUIDv7()
     const childHash = MetaFor(childName)
       .context((types) => ({
-        param: types.string.optional(),
+        param: types.string.required(""),
       }))
       .states({
         state_1: { state_2: { param: "param_1" } },

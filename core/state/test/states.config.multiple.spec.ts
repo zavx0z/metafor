@@ -2,7 +2,7 @@ import { test, expect } from "bun:test"
 import type { StatesConfig } from "../index.t.ts"
 
 test("Конфигурация состояний с множественными переходами", () => {
-  const authStates: StatesConfig<"anonymous" | "authenticated" | "verified" | "blocked", any> = {
+  const authStates: StatesConfig = {
     anonymous: {
       authenticated: {
         username: { length: { min: 3 } },
@@ -19,7 +19,9 @@ test("Конфигурация состояний с множественным�
     blocked: {}, // Конечное состояние
   }
 
+  // @ts-ignore
   expect(authStates.anonymous?.authenticated?.username?.length?.min, "проверка минимальной длины username").toBe(3)
+  // @ts-ignore
   expect(authStates.anonymous?.authenticated?.password?.length?.min, "проверка минимальной длины password").toBe(8)
   expect(authStates.authenticated?.verified?.emailVerified, "проверка перехода к verified").toBe(true)
   expect(authStates.authenticated?.blocked?.suspiciousActivity, "проверка перехода к blocked").toBe(true)

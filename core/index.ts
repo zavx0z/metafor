@@ -56,7 +56,7 @@
  */
 
 import { Context, type Schema, type Types, type Values } from "@zavx0z/context"
-import { checkTransitionConditions, type StatesConfig, validateNoUnconditionalCycles } from "./state"
+import { checkTransition, type StatesConfig, validateNoUnconditionalCycles } from "./state"
 import { Processes, type Process, type ProcessesDeclaration } from "./proc"
 import { Reactions, type ReactionsDeclaration } from "./react"
 import { View, type ViewDeclaration } from "./view"
@@ -70,6 +70,7 @@ import {
 } from "./message"
 
 import type { Core, FabricParams, FingerPrint, MetaForType, MetaForConfig, Snapshot } from "./index.t"
+import type { Conditions, Transitions } from "./state/index.t"
 export type { Core, FabricParams, Snapshot }
 
 export function MetaForFabric(params: FabricParams) {
@@ -288,10 +289,10 @@ export function MetaForFabric(params: FabricParams) {
                                    * - отправляет сообщение состояния если нет процесса (MSG)
                                    */
                                   #transition = () => {
-                                    const transition = this.#states[this.#state]
+                                    const transition: Transitions<S, C> = this.#states[this.#state]
                                     if (!transition) return
                                     for (const [state, conditions] of Object.entries(transition)) {
-                                      if (checkTransitionConditions(conditions, this.#context.snapshot)) {
+                                      if (checkTransition(conditions as Conditions<C>, this.#context.context)) {
                                         const process = this.#processes.getProcess(state as S)
                                         if (this.#process) return
                                         if (process) {

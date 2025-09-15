@@ -1,8 +1,9 @@
 import { test, expect } from "bun:test"
 import type { StatesConfig } from "../index.t.ts"
+import type { SchemaType } from "@zavx0z/context"
 
 test("Конфигурация состояний с числовыми условиями", () => {
-  const gameStates: StatesConfig<"menu" | "playing" | "paused" | "gameOver", any> = {
+  const gameStates: StatesConfig = {
     menu: {
       playing: { level: { gte: 1 } },
     },
