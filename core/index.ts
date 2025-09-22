@@ -73,6 +73,8 @@ import {
 import type { Core, FabricParams, FingerPrint, MetaForType, MetaForConfig, Snapshot } from "./index.t"
 import type { Conditions, Transitions } from "./state/index.t"
 import { getSnapshotProcesses } from "./proc/parser"
+import { parse } from "@zavx0z/template"
+import { render } from "@zavx0z/renderer"
 
 function MetaFor(name: string, config?: MetaForConfig) {
   const description = config?.description
@@ -102,6 +104,7 @@ function MetaFor(name: string, config?: MetaForConfig) {
                             ...(description ? { description } : {}),
                           }
                           if (view && "style" in view) fingerprint.style = extractCSSTemplateLiteral(view.style)
+                          if (view && "render" in view) fingerprint.render = parse(view.render as any)
                           if (processSnapshot) fingerprint.processes = processSnapshot
                           if (reactionsSnapshot) fingerprint.reactions = reactionsSnapshot
                           return fingerprint
@@ -136,6 +139,13 @@ export function MetaForFabric(params: FabricParams) {
       "meta-for",
       class extends HTMLElement {
         #shadow: ShadowRoot
+
+        #context!: Context<any>
+        #states!: StatesConfig<any, any>
+        #state!: string
+        #core = {}
+        #processes!: Processes<any, any, any>
+        #reactions!: Reactions<any, any, any>
         constructor() {
           super()
           this.#shadow = this.attachShadow({ mode: "closed" })
@@ -148,8 +158,23 @@ export function MetaForFabric(params: FabricParams) {
             if (!module) console.error(`Module: ${moduleId} is not defined`)
             else {
               // console.log(module.default)
-              const { context, style, reactions, states, render, processes } = module.default as FingerPrint<any, any>
-              console.log({ context, style, reactions, states, processes, render })
+              const { context, style, reactions, states, processes, name } = module.default as FingerPrint<any, any>
+              console.log({ context, style, reactions, states, processes, name })
+              this.#context = new Context(context)
+              this.#states = states
+              this.#state = Object.keys(states)[0] as string
+              if (style) {
+                const sheet = new CSSStyleSheet()
+                sheet.replaceSync(style)
+                this.#shadow.adoptedStyleSheets.push(sheet)
+              }
+              render({
+                core: this.#core,
+                ctx: this.#context,
+                el: this.#shadow as unknown as HTMLElement,
+                st: { state: this.#state, states: this.#states as unknown as string[] },
+                nodes: module.default.render,
+              })
             }
           }
         }

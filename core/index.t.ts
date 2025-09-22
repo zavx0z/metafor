@@ -10,6 +10,7 @@ import type { ReactionsDeclaration, SnapshotReactions } from "./react/index.t"
 import type { StatesConfig } from "./state"
 import type { ViewDeclaration } from "./view/index.t"
 import type { MetaStore } from "./store/index.t"
+import type {Node as ParseNode} from "@zavx0z/template"
 
 declare global {
   var DEV: boolean
@@ -36,7 +37,7 @@ export interface FingerPrint<C extends Schema, S extends string> {
   /** Схема контекста */
   context: Schema
   /** Сериализованный view как строка template literal */
-  render?: string
+  render?: ParseNode[]
   /** Стили компонента */
   style?: string
 }
