@@ -96,12 +96,8 @@ export class Processes<C extends Schema, S extends string, I extends Core = {}> 
       return {
         action: <Res>(fn: (params: ActionParams<C, I>) => Res | Promise<Res>): ActionChain<C, I, Res> => {
           // Храним текущие success/error handler'ы (последний вызов перезаписывает предыдущий)
-          let successHandler:
-            | ((params: { update: Update<C>; data: Res }) => void)
-            | undefined
-          let errorHandler:
-            | ((params: { update: Update<C>; error: Error }) => void)
-            | undefined
+          let successHandler: ((params: { update: Update<C>; data: Res }) => void) | undefined
+          let errorHandler: ((params: { update: Update<C>; error: Error }) => void) | undefined
           // Chain API: каждый метод возвращает тот же объект, чтобы можно было строить цепочку
           const chain: ActionChain<C, I, Res> = {
             // Основная функция процесса
@@ -151,7 +147,7 @@ export class Processes<C extends Schema, S extends string, I extends Core = {}> 
    * @returns сериализованный снимок процессов
    */
   toSnapshot(): Record<string, any> {
-    return getSnapshotProcesses(this.processesDeclaration)
+    return getSnapshotProcesses(this.processesDeclaration) ?? {}
   }
   get snapshot() {
     if (!Object.keys(this.processes).length) return {} as Record<string, any>
@@ -167,11 +163,7 @@ export class Processes<C extends Schema, S extends string, I extends Core = {}> 
  * @typeParam S - Строковые ключи состояний/процессов
  * @typeParam I - Тип ядра
  */
-export class ProcessesClone<C extends Schema, S extends string, I extends Core = {}> extends ProcessesBase<
-  C,
-  S,
-  I
-> {
+export class ProcessesClone<C extends Schema, S extends string, I extends Core = {}> extends ProcessesBase<C, S, I> {
   constructor() {
     super()
   }

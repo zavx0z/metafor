@@ -56,7 +56,7 @@
  */
 ;(globalThis as any).MetaFor = MetaFor
 
-import { Context, type Schema, type Types, type Values, type Update } from "@zavx0z/context"
+import { Context, contextDefinitionToSchema, type Schema, type Types, type Values, type Update } from "@zavx0z/context"
 import { checkTransition, type StatesConfig, validateNoUnconditionalCycles } from "./state"
 import { Processes, type Process, type ProcessesDeclaration } from "./proc"
 import { reactionDeclarationToSnapshot, Reactions, type ReactionsDeclaration } from "./react"
@@ -80,6 +80,7 @@ function MetaFor(name: string, config?: MetaForConfig) {
   const persist = config?.persist ?? false
   return {
     context<C extends Schema>(schema: (types: Types) => C) {
+      const contextSnapshot = contextDefinitionToSchema(schema)
       return {
         states<S extends string>(states: StatesConfig<S, C>) {
           validateNoUnconditionalCycles(states)
@@ -97,13 +98,12 @@ function MetaFor(name: string, config?: MetaForConfig) {
                           const fingerprint: FingerPrint<C, S> = {
                             name,
                             states,
-                            context: new Context(schema).snapshot,
+                            context: contextSnapshot,
                             ...(description ? { description } : {}),
                           }
                           if (view && "style" in view) fingerprint.style = extractCSSTemplateLiteral(view.style)
                           if (processSnapshot) fingerprint.processes = processSnapshot
                           if (reactionsSnapshot) fingerprint.reactions = reactionsSnapshot
-                          console.log(fingerprint)
                           return fingerprint
                           // return {
                           //   name,
@@ -148,8 +148,8 @@ export function MetaForFabric(params: FabricParams) {
             if (!module) console.error(`Module: ${moduleId} is not defined`)
             else {
               // console.log(module.default)
-              const { context, style, reactions, states, render } = module.default as FingerPrint<any, any>
-              console.log({ context, style, reactions, states, render })
+              const { context, style, reactions, states, render, processes } = module.default as FingerPrint<any, any>
+              console.log({ context, style, reactions, states, processes, render })
             }
           }
         }

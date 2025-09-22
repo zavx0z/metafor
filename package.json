@@ -30,8 +30,8 @@
     "doc:push": "bun run script/doc.push.ts"
   },
   "dependencies": {
-    "@zavx0z/template": "^2.5.0",
-    "@zavx0z/context": "1.0.3",
+    "@zavx0z/template": "^2.5.7",
+    "@zavx0z/context": "1.0.5",
     "spark-md5": "^3.0.2"
   }
 }

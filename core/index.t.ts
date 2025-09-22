@@ -33,8 +33,8 @@ export interface FingerPrint<C extends Schema, S extends string> {
   processes?: SnapshotProcesses
   /** Снимок реакций */
   reactions?: SnapshotReactions
-  /** Снимок контекста */
-  context: ContextSnapshot<C>
+  /** Схема контекста */
+  context: Schema
   /** Сериализованный view как строка template literal */
   render?: string
   /** Стили компонента */
@@ -46,11 +46,27 @@ export interface FingerPrint<C extends Schema, S extends string> {
  * @template C - схема контекста автомата
  * @template S - строковые ключи состояний
  */
-export interface Snapshot<C extends Schema, S extends string> extends FingerPrint<C, S> {
+export interface Snapshot<C extends Schema, S extends string> {
+  /** Название компонента */
+  name: string
+  /** Описание компонента */
+  description?: string
+  /** Карта состояний и переходов */
+  states: StatesConfig<S, C>
+  /** Снимок процессов */
+  processes?: SnapshotProcesses
+  /** Снимок реакций */
+  reactions?: SnapshotReactions
+  /** Сериализованный view как строка template literal */
+  render?: string
+  /** Стили компонента */
+  style?: string
   /** Текущее состояние */
   state: S
   /** Индикатор выполнения процесса в текущем состоянии */
   process: boolean
+  /** Снимок контекста */
+  context: ContextSnapshot<C>
 }
 
 /**
