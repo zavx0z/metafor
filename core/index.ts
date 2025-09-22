@@ -54,12 +54,13 @@
  *
  * @packageDocumentation
  */
+;(globalThis as any).MetaFor = MetaFor
 
-import { Context, type Schema, type Types, type Values } from "@zavx0z/context"
+import { Context, type Schema, type Types, type Values, type Update } from "@zavx0z/context"
 import { checkTransition, type StatesConfig, validateNoUnconditionalCycles } from "./state"
 import { Processes, type Process, type ProcessesDeclaration } from "./proc"
 import { Reactions, type ReactionsDeclaration } from "./react"
-import { View, type ViewDeclaration } from "./view"
+import { extractCSSTemplateLiteral, View, type ViewDeclaration } from "./view"
 
 import {
   initMessage,
@@ -71,7 +72,57 @@ import {
 
 import type { Core, FabricParams, FingerPrint, MetaForType, MetaForConfig, Snapshot } from "./index.t"
 import type { Conditions, Transitions } from "./state/index.t"
-export type { Core, FabricParams, Snapshot }
+
+function MetaFor(name: string, config?: MetaForConfig) {
+  const description = config?.description
+  const dev = config?.dev ?? globalThis.DEV ?? false
+  const persist = config?.persist ?? false
+  return {
+    context<C extends Schema>(schema: (types: Types) => C) {
+      return {
+        states<S extends string>(states: StatesConfig<S, C>) {
+          validateNoUnconditionalCycles(states)
+          return {
+            core<I extends Core>(coreBuilder: (() => I) | I = () => ({}) as I) {
+              const core = typeof coreBuilder === "function" ? coreBuilder() : coreBuilder
+              return {
+                processes(process: ProcessesDeclaration<C, S, I> = () => ({})) {
+                  return {
+                    reactions(reaction: ReactionsDeclaration<C, S, I> = () => []) {
+                      return {
+                        view(view?: ViewDeclaration<C, I, S>): FingerPrint<C, S> {
+                          const fingerprint: FingerPrint<C, S> = {
+                            name,
+                            states,
+                            context: new Context(schema).snapshot,
+                            ...new Processes(process).snapshot,
+                            ...(description ? { description } : {}),
+                          }
+                          if (view && "style" in view) fingerprint.style = extractCSSTemplateLiteral(view.style)
+                          console.log(fingerprint)
+                          return fingerprint
+                          // return {
+                          //   name,
+                          //   states,
+                          //   context: new Context(schema).snapshot,
+                          //   ...new Processes(process).snapshot,
+                          //   ...(description ? { description } : {}),
+                          //   ...new View(view).snapshot,
+                          //   ...new Reactions(reaction).snapshot,
+                          // }
+                        },
+                      }
+                    },
+                  }
+                },
+              }
+            },
+          }
+        },
+      }
+    },
+  }
+}
 
 export function MetaForFabric(params: FabricParams) {
   const { store } = params
@@ -101,46 +152,6 @@ export function MetaForFabric(params: FabricParams) {
       }
     )
   }
-  return function MetaFor(name: string, config?: MetaForConfig) {
-    const description = config?.description
-    const dev = config?.dev ?? globalThis.DEV ?? false
-    const persist = config?.persist ?? false
-    return {
-      context<C extends Schema>(schema: (types: Types) => C) {
-        return {
-          states<S extends string>(states: StatesConfig<S, C>) {
-            validateNoUnconditionalCycles(states)
-            return {
-              core<I extends Core>(coreBuilder: (() => I) | I = () => ({}) as I) {
-                const core = typeof coreBuilder === "function" ? coreBuilder() : coreBuilder
-                return {
-                  processes(process: ProcessesDeclaration<C, S, I> = () => ({})) {
-                    return {
-                      reactions(reaction: ReactionsDeclaration<C, S, I> = () => []) {
-                        return {
-                          view(view?: ViewDeclaration<C, I, S>): FingerPrint<C, S> {
-                            return {
-                              name,
-                              states,
-                              context: new Context(schema).snapshot,
-                              ...new Processes(process).snapshot,
-                              ...(description ? { description } : {}),
-                              ...new View(view).snapshot,
-                              ...new Reactions(reaction).snapshot,
-                            }
-                          },
-                        }
-                      },
-                    }
-                  },
-                }
-              },
-            }
-          },
-        }
-      },
-    }
-  } as MetaForType
 }
 
 // class Actor<C extends Schema, S extends string, I extends Core> {

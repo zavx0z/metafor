@@ -20,11 +20,17 @@
  * document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
  * ```
  */
-
-import { MetaForFabric } from "../core"
 import { Store } from "./store"
+import { MetaForFabric } from "../core"
 
-export const store = await Store()
-export const MetaFor = MetaForFabric({ store })
-;(window as any).MetaFor = MetaFor
+const store = await Store()
+MetaForFabric({ store })
 export type { Message } from "../core/message/index"
+export type {
+  Schema as ContextSchema,
+  Values as ContextValues,
+  Update as ContextUpdate,
+  Types as ContextTypes,
+  SchemaType as ContextSchemaType,
+  Snapshot as ContextSnapshot,
+} from "@zavx0z/context"

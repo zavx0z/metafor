@@ -85,7 +85,7 @@ export class View<C extends Schema, I extends Core = Record<string, any>, S exte
     const match = fnString.match(/css`([\s\S]*)`/)
     if (!match) return ""
 
-    return match[1]!
+    return match[1]!.replace(/\s+/g, "")
   }
 }
 
@@ -98,10 +98,11 @@ export function extractCSSTemplateLiteral(fn: Function): string {
   // Извлекаем CSS template literal через regex
   const match = fnString.match(/css`([\s\S]*)`/)
   if (!match) {
-    throw new Error("Не удалось найти CSS template literal в функции")
+    console.warn("Не удалось найти CSS template literal в функции")
+    return ""
   }
 
-  return match[1]!
+  return match[1]!.replace(/\s+/g, "")
 }
 
 /**
