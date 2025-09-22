@@ -141,8 +141,10 @@ export function MetaForFabric(params: FabricParams) {
         #shadow: ShadowRoot
 
         #context!: Context<any>
-        #states!: StatesConfig<any, any>
-        #state!: string
+        #st!: {
+          state: string
+          states: StatesConfig<any, any>
+        }
         #core = {}
         #processes!: Processes<any, any, any>
         #reactions!: Reactions<any, any, any>
@@ -152,31 +154,33 @@ export function MetaForFabric(params: FabricParams) {
         }
         async connectedCallback() {
           const moduleId = this.getAttribute("class")
-          if (!moduleId) console.warn(`Class: ${moduleId} is not defined`)
-          else {
-            const module = await store.import(moduleId, false)
-            if (!module) console.error(`Module: ${moduleId} is not defined`)
-            else {
-              // console.log(module.default)
-              const { context, style, reactions, states, processes, name } = module.default as FingerPrint<any, any>
-              console.log({ context, style, reactions, states, processes, name })
-              this.#context = new Context(context)
-              this.#states = states
-              this.#state = Object.keys(states)[0] as string
-              if (style) {
-                const sheet = new CSSStyleSheet()
-                sheet.replaceSync(style)
-                this.#shadow.adoptedStyleSheets.push(sheet)
-              }
-              render({
-                core: this.#core,
-                ctx: this.#context,
-                el: this.#shadow as unknown as HTMLElement,
-                st: { state: this.#state, states: this.#states as unknown as string[] },
-                nodes: module.default.render,
-              })
-            }
+          if (!moduleId) {
+            console.warn(`Class: ${moduleId} is not defined`)
+            return
           }
+
+          const module = await store.import(moduleId, false)
+          if (!module) {
+            console.error(`Module: ${moduleId} is not defined`)
+            return
+          }
+
+          // console.log(module.default)
+          const m = module.default as FingerPrint<any, any>
+          this.#context = new Context(m.context)
+          this.#st = { state: Object.keys(m.states)[0]!, states: m.states }
+          if (m.style) {
+            const sheet = new CSSStyleSheet()
+            sheet.replaceSync(m.style)
+            this.#shadow.adoptedStyleSheets.push(sheet)
+          }
+          render({
+            core: this.#core,
+            ctx: this.#context,
+            el: this.#shadow as unknown as HTMLElement,
+            st: this.#st as unknown as { state: string; states: string[] },
+            nodes: module.default.render,
+          })
         }
       }
     )
