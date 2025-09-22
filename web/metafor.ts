@@ -22,8 +22,9 @@
  */
 
 import { MetaForFabric } from "../core"
-import { IndexedDBStore } from "./store"
+import { Store } from "./store"
 
-export const store = new IndexedDBStore()
+export const store = await Store()
 export const MetaFor = MetaForFabric({ store })
+;(window as any).MetaFor = MetaFor
 export type { Message } from "../core/message/index"

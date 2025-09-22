@@ -1,6 +1,6 @@
 import { MetaFor } from "./dist/web/metafor.js"
 
-MetaFor("user")
+export default MetaFor("user")
   .context((types) => ({
     name: types.string.required("Anonymous"),
     email: types.string.required(""),

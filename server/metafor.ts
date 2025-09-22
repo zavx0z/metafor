@@ -1,7 +1,8 @@
 import "./windows.ts"
 import { MetaForFabric } from "../core"
-import { SQLiteStore } from "./store"
+import { Store } from "./store"
 
-export const store = new SQLiteStore()
+export const store = await Store()
 export const MetaFor = MetaForFabric({ store })
+;(window as any).MetaFor = MetaFor
 export type { Message } from "../core/message/index"

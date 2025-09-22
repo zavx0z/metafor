@@ -9,10 +9,16 @@ import type { SnapshotProcesses } from "./proc/parser.t"
 import type { ReactionsDeclaration, SnapshotReactions } from "./react/index.t"
 import type { StatesConfig } from "./state"
 import type { ViewDeclaration } from "./view/index.t"
-import type { Store } from "./store/index.t"
+import type { MetaStore } from "./store/index.t"
 
 declare global {
   var DEV: boolean
+  interface Window {
+    //@ts-ignore
+    MetaFor: MetaForType
+  }
+  //@ts-ignore
+  var MetaFor: MetaForType
 }
 export {}
 
@@ -58,7 +64,7 @@ export type Core = Record<string, any>
  * Тип параметров для создания web-компонента-актора конечного автомата (Actor)
  */
 export type FabricParams = {
-  store: Store
+  store: MetaStore
   // /** Название компонента */
   // name: string
   // /** Описание компонента */
@@ -252,7 +258,7 @@ export type MetaForType = (
              * document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
              * ```
              */
-            view(view?: ViewDeclaration<C, I, S>): string
+            view(view?: ViewDeclaration<C, I, S>): FingerPrint<C, S>
           }
         }
       }

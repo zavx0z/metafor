@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -10,13 +10,19 @@
       }
     </style>
   </head>
-  <script type="module">
-    import { enableMetaForDebug } from "./debug/config.js"
-    enableMetaForDebug()
+  <script type="importmap">
+    {
+      "imports": {
+        "metafor": "./dist/web/metafor.js"
+      }
+    }
   </script>
-  <script type="module" src="./dist/metafor.js"></script>
-  <script type="module" src="index.js"></script>
+  <script type="module">
+    // import { enableMetaForDebug } from "./debug/config.js"
+    // enableMetaForDebug()
+  </script>
+  <script type="module" src="./dist/web/metafor.js"></script>
   <body>
-    <meta-user></meta-user>
+    <meta-for class="zavx0z/app" id="1" />
   </body>
 </html>
