@@ -59,7 +59,7 @@
 import { Context, type Schema, type Types, type Values, type Update } from "@zavx0z/context"
 import { checkTransition, type StatesConfig, validateNoUnconditionalCycles } from "./state"
 import { Processes, type Process, type ProcessesDeclaration } from "./proc"
-import { Reactions, type ReactionsDeclaration } from "./react"
+import { reactionDeclarationToSnapshot, Reactions, type ReactionsDeclaration } from "./react"
 import { extractCSSTemplateLiteral, View, type ViewDeclaration } from "./view"
 
 import {
@@ -72,6 +72,7 @@ import {
 
 import type { Core, FabricParams, FingerPrint, MetaForType, MetaForConfig, Snapshot } from "./index.t"
 import type { Conditions, Transitions } from "./state/index.t"
+import { getSnapshotProcesses } from "./proc/parser"
 
 function MetaFor(name: string, config?: MetaForConfig) {
   const description = config?.description
@@ -87,18 +88,21 @@ function MetaFor(name: string, config?: MetaForConfig) {
               const core = typeof coreBuilder === "function" ? coreBuilder() : coreBuilder
               return {
                 processes(process: ProcessesDeclaration<C, S, I> = () => ({})) {
+                  const processSnapshot = getSnapshotProcesses(process)
                   return {
                     reactions(reaction: ReactionsDeclaration<C, S, I> = () => []) {
+                      const reactionsSnapshot = reactionDeclarationToSnapshot(reaction)
                       return {
                         view(view?: ViewDeclaration<C, I, S>): FingerPrint<C, S> {
                           const fingerprint: FingerPrint<C, S> = {
                             name,
                             states,
                             context: new Context(schema).snapshot,
-                            ...new Processes(process).snapshot,
                             ...(description ? { description } : {}),
                           }
                           if (view && "style" in view) fingerprint.style = extractCSSTemplateLiteral(view.style)
+                          if (processSnapshot) fingerprint.processes = processSnapshot
+                          if (reactionsSnapshot) fingerprint.reactions = reactionsSnapshot
                           console.log(fingerprint)
                           return fingerprint
                           // return {

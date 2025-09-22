@@ -108,9 +108,7 @@ export function parseFunction(fn: Function, allowWrite: boolean = true) {
  * // }
  * ```
  */
-export function parseProcess<C extends Schema, I extends Core, Res = any>(
-  process: Process<C, I, Res>
-): ParsedProcess {
+export function parseProcess<C extends Schema, I extends Core, Res = any>(process: Process<C, I, Res>): ParsedProcess {
   const result: ParsedProcess = {}
   if (process.title) result.title = process.title
   if (process.description) result.description = process.description
@@ -166,7 +164,7 @@ export function parseProcess<C extends Schema, I extends Core, Res = any>(
  */
 export const getSnapshotProcesses = <C extends Schema, S extends string, I extends Core>(
   processes: ProcessesDeclaration<C, S, I>
-): SnapshotProcesses => {
+): SnapshotProcesses | null => {
   // Вызываем processesDeclaration с mock process
   const chains = processes((config?: ProcessConfig) => {
     const chain = {
@@ -197,5 +195,6 @@ export const getSnapshotProcesses = <C extends Schema, S extends string, I exten
     }
   }
 
+  if (Object.keys(result).length === 0) return null
   return result
 }
