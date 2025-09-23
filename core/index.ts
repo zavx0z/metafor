@@ -10,14 +10,13 @@
  * Каждый компонент имеет типизированный контекст, состояния, процессы, реакции и представление.
  *
  * **ВАЖНО: Акторы MetaFor имеют полную изоляцию и используют shadow-dom closed**
- * Прямой доступ к акторам через экспорты не нужен и не рекомендуется
  * Все взаимодействия между акторами происходят через патчи в сообщениях
  * Акторы регистрируются автоматически при импорте файла, экспорт не требуется
  * Используйте систему сообщений и реакций для связи между компонентами
  *
  * @example
  * ```typescript
- * MetaFor("user-profile")
+ * export default MetaFor("user-profile")
  *   .context((types) => ({
  *     userId: types.number.required(0),
  *     userName: types.string.required(""),
@@ -54,7 +53,6 @@
  *
  * @packageDocumentation
  */
-globalThis.MetaFor = MetaFor
 
 import { Context, contextDefinitionToSchema, type Schema, type Types, type Values } from "@zavx0z/context"
 import { checkTransition, type StatesConfig, validateNoUnconditionalCycles } from "./state"
@@ -75,7 +73,7 @@ import type { Conditions, Transitions } from "./state/index.t"
 import { parse } from "@zavx0z/template"
 import { render } from "@zavx0z/renderer"
 
-function MetaFor(name: string, config?: MetaForConfig) {
+globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
   const description = config?.description
   const dev = config?.dev ?? globalThis.DEV ?? false
   const persist = config?.persist ?? false
@@ -130,18 +128,30 @@ export function MetaForFabric(params: FabricParams) {
         #name!: string
         #description!: string
         #context!: Context<C>
+        #core: I = {} as I
         /** ------------state-------------------------------- */
         #state!: {
           state: S
           states: StatesConfig<S, C>
         }
+        #stateListeners: Set<(state: S) => void> = new Set()
         #setState(state: S) {
           this.setAttribute("state", state)
           this.#state.state = state
+          if (this.#stateListeners.size > 0) {
+            for (const listener of this.#stateListeners) listener(state)
+          }
         }
-        #core: I = {} as I
-        #processes!: ReturnType<typeof deserializeProcesses<C, S, I>>
+        /** Подписка на обновление состояния. Возвращает функцию отписки */
+        onStateChange = (listener: (state: S) => void): (() => void) => {
+          this.#stateListeners.add(listener)
+          return () => this.#stateListeners.delete(listener)
+        }
+        get state(): S {
+          return this.#state.state
+        }
         /** ------------process-------------------------------- */
+        #processes!: ReturnType<typeof deserializeProcesses<C, S, I>>
         /** индикатор выполнения процесса */
         #process: boolean = false
         /**
@@ -187,19 +197,12 @@ export function MetaForFabric(params: FabricParams) {
             sheet.replaceSync(m.style)
             this.#shadow.adoptedStyleSheets.push(sheet)
           }
-          render({
-            core: this.#core,
-            ctx: this.#context,
-            el: this.#shadow,
-            st: { state: this.#state.state, states: Object.keys(this.#state.states) },
-            nodes: module.default.render,
-          })
           this.setAttribute("state", this.#state.state)
           this.#channel = new BroadcastChannel("channel")
 
           if (this.#reactions.hasReactions() && this.#channel)
             this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
-          this.#sendEvent(initMessage(this.#name, { index: 0 }, m as unknown as Snapshot<any, any>, this.__path))
+          this.#sendEvent(initMessage(this.#name, { index: 0 }, m as unknown as Snapshot<C, S>, this.__path))
           const transition = this.#state.states[this.#state.state]
           if (transition) {
             const process = this.#processes.getProcess(this.#state.state)
@@ -211,6 +214,13 @@ export function MetaForFabric(params: FabricParams) {
               this.#transition()
             }
           }
+          render({
+            core: this.#core,
+            ctx: this.#context,
+            el: this.#shadow,
+            st: { state: this.state, states: Object.keys(this.#state.states), onUpdate: this.onStateChange },
+            nodes: module.default.render,
+          })
           // this.#view.onMount({ core: this.#core })
         }
         disconnectedCallback() {
