@@ -34,7 +34,7 @@ describe("снимок реакций", () => {
     ])
 
     const snapshot = registry.toSnapshot()
-    expect(snapshot).toEqual({
+    expect(snapshot).toMatchObject({
       reactions: {
         inc_0: {
           title: "inc",
@@ -47,6 +47,7 @@ describe("снимок реакций", () => {
           },
           read: ["value"],
           write: ["value"],
+          src: expect.any(String),
         },
         reset_1: {
           title: "reset",
@@ -55,6 +56,7 @@ describe("снимок реакций", () => {
           },
           read: ["value"],
           write: ["value"],
+          src: expect.any(String),
         },
       },
       states: {
@@ -88,13 +90,31 @@ describe("снимок реакций", () => {
     const reaction = snapshot.reactions[reactionId]!
 
     expect(reaction.title, "реакция должна иметь title").toBe("test")
-      expect(reaction.cond, "реакция должна иметь filter").toEqual({ meta: "test" })
+    expect(reaction.cond, "реакция должна иметь filter").toEqual({ meta: "test" })
     expect(reaction.read, "реакция должна иметь read").toEqual(["value"])
     expect(reaction.write, "реакция должна иметь write").toEqual(["value"])
+    expect(reaction.src, "реакция должна иметь src").toEqual(expect.any(String))
 
     // Проверяем структуру states
     expect(snapshot.states, "states должен быть объектом").toEqual({
       idle: [reactionId],
     })
+  })
+
+  test("сохранение строкового представления функции equal", () => {
+    const updateFn = ({ update, context }: any) => update({ value: context.value * 2 })
+
+    const registry = new Reactions<typeof schema, State, {}>((reaction) => [
+      [["idle"], reaction({ title: "double" }).filter({ meta: "test" }).equal(updateFn)],
+    ])
+
+    const snapshot = registry.toSnapshot()
+    const reactionIds = Object.keys(snapshot.reactions)
+    const reactionId = reactionIds[0]!
+    const reaction = snapshot.reactions[reactionId]!
+
+    expect(reaction.src, "сохранено строковое представление функции equal").toBe(updateFn.toString())
+    expect(reaction.read, "прочитаны поля контекста").toEqual(["value"])
+    expect(reaction.write, "записаны поля контекста").toEqual(["value"])
   })
 })

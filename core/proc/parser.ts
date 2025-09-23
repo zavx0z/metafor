@@ -89,9 +89,10 @@ export function parseFunction(fn: Function, allowWrite: boolean = true) {
  *
  * Анализирует объект процесса, содержащий обработчики action, success и error.
  * Для каждого обработчика извлекает информацию о полях контекста.
+ * Для всех обработчиков сохраняет строковое представление функции для десериализации.
  *
  * @param process - объект процесса с обработчиками
- * @returns распарсенный процесс с информацией о полях
+ * @returns распарсенный процесс с информацией о полях и строковым представлением всех функций
  *
  * @example
  * ```ts
@@ -102,9 +103,9 @@ export function parseFunction(fn: Function, allowWrite: boolean = true) {
  * }
  * const result = parseProcess(process)
  * // => {
- * //   action: { read: ['data'] },
- * //   success: { read: [], write: ['result'] },
- * //   error: { read: [], write: ['error'] }
+ * //   action: { read: ['data'], src: '({ context }) => context.data' },
+ * //   success: { read: [], write: ['result'], src: '({ update, data }) => update({ result: data })' },
+ * //   error: { read: [], write: ['error'], src: '({ update, error }) => update({ error: error.message })' }
  * // }
  * ```
  */
@@ -114,23 +115,26 @@ export function parseProcess<C extends Schema, I extends Core, Res = any>(proces
   if (process.description) result.description = process.description
 
   const parsed = parseFunction(process.action, false)
-  if (parsed.read.length > 0) result.action = { read: parsed.read }
+  result.action = {
+    src: process.action.toString(),
+    ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
+  }
 
   if (process.success) {
     const parsed = parseFunction(process.success, true)
-    if (parsed.read.length > 0 || parsed.write.length > 0)
-      result.success = {
-        ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
-        ...(parsed.write.length > 0 ? { write: parsed.write } : {}),
-      }
+    result.success = {
+      src: process.success.toString(),
+      ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
+      ...(parsed.write.length > 0 ? { write: parsed.write } : {}),
+    }
   }
   if (process.error) {
     const parsed = parseFunction(process.error)
-    if (parsed.read.length > 0 || parsed.write.length > 0)
-      result.error = {
-        ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
-        ...(parsed.write.length > 0 ? { write: parsed.write } : {}),
-      }
+    result.error = {
+      src: process.error.toString(),
+      ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
+      ...(parsed.write.length > 0 ? { write: parsed.write } : {}),
+    }
   }
   return result
 }

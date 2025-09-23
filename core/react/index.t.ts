@@ -149,7 +149,7 @@ export type ReactionsChainResult<C extends Schema, S extends string, I extends C
   Reaction<C, S, I> & {
     /** Метод для регистрации состояний */
     registerStates: (states: S[]) => void
-  }
+  },
 ][]
 
 /**
@@ -173,6 +173,7 @@ export type SnapshotReactions = {
       cond: ReactionConditions
       read?: string[]
       write?: string[]
+      src: string
     }
   >
   states: Record<string, string[]>

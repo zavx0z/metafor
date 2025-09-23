@@ -58,8 +58,8 @@
 
 import { Context, contextDefinitionToSchema, type Schema, type Types, type Values, type Update } from "@zavx0z/context"
 import { checkTransition, type StatesConfig, validateNoUnconditionalCycles } from "./state"
-import { Processes, type Process, type ProcessesDeclaration } from "./proc"
-import { reactionDeclarationToSnapshot, Reactions, type ReactionsDeclaration } from "./react"
+import { Processes, ProcessesClone, type Process, type ProcessesDeclaration } from "./proc"
+import { reactionDeclarationToSnapshot, Reactions, ReactionsClone, type ReactionsDeclaration } from "./react"
 import { extractCSSTemplateLiteral, View, type ViewDeclaration } from "./view"
 
 import {
@@ -137,17 +137,41 @@ export function MetaForFabric(params: FabricParams) {
   if (!customElements.get("meta-for")) {
     customElements.define(
       "meta-for",
-      class extends HTMLElement {
+      class Actor<C extends Schema = Schema, S extends string = string, I extends Core = Core> extends HTMLElement {
         #shadow: ShadowRoot
-
-        #context!: Context<any>
+        #channel: BroadcastChannel | null = null
+        __path: string[] = []
+        #name!: string
+        #description!: string
+        #context!: Context<C>
+        //   /** ------------state-------------------------------- */
         #st!: {
-          state: string
-          states: StatesConfig<any, any>
+          state: S
+          states: StatesConfig<S, C>
         }
-        #core = {}
-        #processes!: Processes<any, any, any>
-        #reactions!: Reactions<any, any, any>
+        #setState(state: S) {
+          this.setAttribute("state", state)
+          this.#st.state = state
+        }
+        #core: I = {} as I
+        #processes!: Processes<C, S, I>
+        /** ------------process-------------------------------- */
+        /** индикатор выполнения процесса */
+        #process: boolean = false
+        /**
+         * 1. устанавливает состояние процесса
+         * 2. при отключении процесса (после завершения действия)
+         *  - обновляет контекст
+         *  - выполняет переходы
+         */
+        #setProcess(process: boolean) {
+          if (this.#process === process) return
+          this.#process = process
+          if (!process) {
+            this.#transition()
+          }
+        }
+        #reactions!: Reactions<C, S, I>
         constructor() {
           super()
           this.#shadow = this.attachShadow({ mode: "closed" })
@@ -165,10 +189,16 @@ export function MetaForFabric(params: FabricParams) {
             return
           }
 
-          // console.log(module.default)
+          console.log(module.default)
           const m = module.default as FingerPrint<any, any>
           this.#context = new Context(m.context)
-          this.#st = { state: Object.keys(m.states)[0]!, states: m.states }
+          this.#reactions = ReactionsClone.fromSnapshot(m.reactions || { reactions: {}, states: {} }) as Reactions<
+            C,
+            S,
+            I
+          >
+          this.#processes = ProcessesClone.fromSnapshot(m.processes) as Processes<C, S, I>
+          this.#st = { state: Object.keys(m.states)[0] as S, states: m.states }
           if (m.style) {
             const sheet = new CSSStyleSheet()
             sheet.replaceSync(m.style)
@@ -181,6 +211,157 @@ export function MetaForFabric(params: FabricParams) {
             st: this.#st as unknown as { state: string; states: string[] },
             nodes: module.default.render,
           })
+          this.setAttribute("state", this.#st.state)
+          this.#channel = new BroadcastChannel("channel")
+
+          if (this.#reactions.hasReactions() && this.#channel)
+            this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
+          this.#sendEvent(initMessage(this.#name, { index: 0 }, m as unknown as Snapshot<any, any>, this.__path))
+          const transition = this.#st.states[this.#st.state]
+          if (transition) {
+            const process = this.#processes.getProcess(this.#st.state)
+            if (process) {
+              this.#setProcess(true)
+              this.#executeAction(process)
+              this.#transition()
+            } else {
+              this.#transition()
+            }
+          }
+          // this.#view.onMount({ core: this.#core })
+        }
+        disconnectedCallback() {
+          // this.#view.onDestroy({ core: this.#core })
+        }
+
+        /** обновление контекста */
+        update = (context: Partial<Values<C>>): Partial<Values<C>> => {
+          const updated = this.#context.update(context as any)
+          if (Object.keys(updated).length > 0) {
+            this.#sendEvent(updateContextMessage(this.#name, { index: 0 }, updated))
+            // this.#view.render({
+            //   state: this.#state,
+            //   context: this.#context.getSnapshot(),
+            //   core: this.#core,
+            //   container: this.#shadow,
+            //   update: this.update,
+            // })
+          }
+          return updated
+        }
+        /**
+         * - выполняет действие, устанавливая состояние процесса в true
+         * - после успешной обработки действия, если есть success, то обновляет контекст
+         * - после ошибки в обработке действия, если есть error, то обновляет контекст
+         * - после завершения действия, устанавливает состояние процесса в false
+         * - отправляет сообщение о состоянии процесса в канал (MSG)
+         *
+         * @param process - конфигурация процесса состояния
+         * @throws {Error} - если обработчик ошибки не найден
+         */
+        #executeAction = (process: Process<C, I>) => {
+          try {
+            this.#broadcastMessage(stateBeforeActionMessage(this.#name, { index: 0 }, this.#st.state))
+            const result = process.action({
+              context: this.#context.context,
+              core: this.#core,
+              element: this,
+            })
+            if (result instanceof Promise) {
+              result
+                .then((data) => {
+                  if (process.success) process.success({ update: this.update, data })
+                })
+                .catch((error) => {
+                  if (process.error) {
+                    if (error instanceof Error) {
+                      process.error({ update: this.update, error })
+                    } else if (typeof error === "string") {
+                      process.error({ update: this.update, error: new Error(error) })
+                    } else {
+                      throw new Error(`Передан неизвестный тип ошибки в состоянии: ${this.#st.state}`)
+                    }
+                  } else throw new Error(`Обработчик ошибки не найден для состояния: ${this.#st.state} \n ${error}`)
+                })
+                .finally(() => {
+                  this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: 0 }, this.#st.state))
+                  this.#setProcess(false)
+                })
+            } else {
+              if (process.success) process.success({ update: this.update, data: result })
+              this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: 0 }, this.#st.state))
+              this.#setProcess(false)
+            }
+          } catch (error) {
+            if (error instanceof Error) process.error?.({ update: this.update, error })
+            this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: 0 }, this.#st.state))
+            this.#setProcess(false)
+          }
+        }
+
+        /**
+         * - выполняет переходы с установкой состояния
+         * - запускает процесс если есть
+         * - отправляет сообщение состояния если нет процесса (MSG)
+         */
+        #transition = () => {
+          const transition: Transitions<S, C> = this.#st.states[this.#st.state]
+          if (!transition) return
+          for (const [state, conditions] of Object.entries(transition)) {
+            if (checkTransition(conditions as Conditions<C>, this.#context.context)) {
+              const process = this.#processes.getProcess(state as S)
+              if (this.#process) return
+              if (process) {
+                this.#setProcess(true)
+                this.#setState(state as S)
+                this.#executeAction(process)
+              } else {
+                this.#setState(state as S)
+                this.#channel && this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: 0 }, state as S))
+                if (!this.#process) this.#transition()
+              }
+              break
+            }
+          }
+        }
+        #broadcastMessage = (message: Message) => {
+          if (!this.#channel) return
+          this.#channel.postMessage(message)
+        }
+        #sendEvent = (message: Message) => {
+          if (!this.#channel) return
+          this.#channel.postMessage(message)
+        }
+
+        get snapshot(): Snapshot<C, S> {
+          return {
+            name: this.#name,
+            state: this.#st.state,
+            process: this.#process,
+            states: this.#st.states,
+            context: this.#context.snapshot,
+            ...this.#processes.snapshot,
+            ...this.#reactions.snapshot,
+            // ...this.#view.snapshot,
+            ...(this.#description ? { description: this.#description } : {}),
+          }
+        }
+
+        /** Обработка входящих сообщений для реакций */
+        #handleReactionMessage = (message: Message) => {
+          if (!this.#reactions.hasReactions()) return
+          for (const patch of message.patches) {
+            this.#reactions.run({
+              context: this.#context.context,
+              core: this.#core,
+              meta: message.meta,
+              actor: message.actor,
+              timestamp: message.timestamp,
+              patch,
+              state: this.#st.state,
+              update: this.update,
+            })
+          }
         }
       }
     )

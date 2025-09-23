@@ -129,6 +129,7 @@ export const reactionDeclarationToSnapshot = <C extends Schema, S extends string
           cond: conditions,
           read,
           write,
+          src: update.toString(),
         }
 
         return {
@@ -234,6 +235,7 @@ export class Reactions<C extends Schema, S extends string, I extends Core = {}> 
         cond: metadata?.cond || {},
         read: metadata?.read || [],
         write: metadata?.write || [],
+        src: reaction.update.toString(),
       }
     }
 

@@ -91,6 +91,7 @@ describe("ReactionRegistryClone", () => {
           cond: { meta: "test" },
           read: ["value"],
           write: ["value"],
+          src: "({ update }) => update({ value: 42 })",
         },
       },
       states: {

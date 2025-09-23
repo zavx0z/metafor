@@ -174,7 +174,7 @@ export class ProcessesClone<C extends Schema, S extends string, I extends Core =
    * @returns экземпляр ProcessesClone
    */
   static fromSnapshot<C extends Schema, S extends string, I extends Core = {}>(
-    snapshot: Record<string, any>
+    snapshot?: Record<string, any>
   ): ProcessesClone<C, S, I> {
     const clone = new ProcessesClone<C, S, I>()
     // Здесь можно добавить логику восстановления процессов из snapshot

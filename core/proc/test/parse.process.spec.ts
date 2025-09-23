@@ -25,20 +25,20 @@ describe("parseChainsObject — разные варианты chain", () => {
     const snapshot = getSnapshotProcesses(actions)
     expect(snapshot).toMatchObject({
       onlyAction: {
-        action: { read: ["foo"] },
+        action: { read: ["foo"], src: expect.any(String) },
       },
       onlySuccess: {
-        action: { read: ["foo"] },
-        success: { write: ["foo"] },
+        action: { read: ["foo"], src: expect.any(String) },
+        success: { write: ["foo"], src: expect.any(String) },
       },
       onlyError: {
-        action: { read: ["foo"] },
-        error: { write: ["bar"] },
+        action: { read: ["foo"], src: expect.any(String) },
+        error: { write: ["bar"], src: expect.any(String) },
       },
       allHandlers: {
-        action: { read: ["foo"] },
-        success: { write: ["foo"] },
-        error: { write: ["bar"] },
+        action: { read: ["foo"], src: expect.any(String) },
+        success: { write: ["foo"], src: expect.any(String) },
+        error: { write: ["bar"], src: expect.any(String) },
       },
     })
   })
@@ -49,7 +49,7 @@ describe("parseChainsObject — разные варианты chain", () => {
     type S = never
     const actions: ProcessesDeclaration<C, S, {}> = (process) => ({})
     const snapshot = getSnapshotProcesses(actions)
-    expect(snapshot).toMatchObject({})
+    expect(snapshot, "пустой объект возвращает null").toBeNull()
   })
 
   test("один процесс", () => {
@@ -61,7 +61,7 @@ describe("parseChainsObject — разные варианты chain", () => {
     })
     const snapshot = getSnapshotProcesses(actions)
     expect(snapshot).toMatchObject({
-      single: { action: { read: ["foo"] } },
+      single: { action: { read: ["foo"], src: expect.any(String) } },
     })
   })
 
@@ -75,8 +75,8 @@ describe("parseChainsObject — разные варианты chain", () => {
     })
     const snapshot = getSnapshotProcesses(actions)
     expect(snapshot).toMatchObject({
-      first: { action: { read: ["foo"] } },
-      second: { action: { read: ["bar"] } },
+      first: { action: { read: ["foo"], src: expect.any(String) } },
+      second: { action: { read: ["bar"], src: expect.any(String) } },
     })
   })
 
@@ -91,9 +91,9 @@ describe("parseChainsObject — разные варианты chain", () => {
     })
     const snapshot = getSnapshotProcesses(actions)
     expect(snapshot).toMatchObject({
-      string: { action: { read: ["foo"] } },
-      number: { action: { read: ["bar"] } },
-      object: { action: { read: ["foo", "bar"] } },
+      string: { action: { read: ["foo"], src: expect.any(String) } },
+      number: { action: { read: ["bar"], src: expect.any(String) } },
+      object: { action: { read: ["foo", "bar"], src: expect.any(String) } },
     })
   })
 
@@ -109,7 +109,7 @@ describe("parseChainsObject — разные варианты chain", () => {
     })
     const snapshot = getSnapshotProcesses(actions)
     expect(snapshot).toMatchObject({
-      async: { action: { read: ["foo"] } },
+      async: { action: { read: ["foo"], src: expect.any(String) } },
     })
   })
 
@@ -126,9 +126,9 @@ describe("parseChainsObject — разные варианты chain", () => {
     const snapshot = getSnapshotProcesses(actions)
     expect(snapshot).toMatchObject({
       withHandlers: {
-        action: { read: ["foo"] },
-        success: { write: ["foo"] },
-        error: { write: ["bar"] },
+        action: { read: ["foo"], src: expect.any(String) },
+        success: { write: ["foo"], src: expect.any(String) },
+        error: { write: ["bar"], src: expect.any(String) },
       },
     })
   })
@@ -147,9 +147,45 @@ describe("parseChainsObject — разные варианты chain", () => {
       withMeta: {
         title: "test_process",
         description: "Test process description",
-        action: { read: ["foo"] },
+        action: { read: ["foo"], src: expect.any(String) },
       },
     })
+  })
+
+  test("сохранение строкового представления action функции", () => {
+    const { schema } = new Context((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
+    type C = typeof schema
+    type S = "sourceTest"
+
+    const actionFn = ({ context }: any) => context.foo + context.bar
+    const actions: ProcessesDeclaration<C, S, {}> = (process) => ({
+      sourceTest: process().action(actionFn),
+    })
+    const snapshot = getSnapshotProcesses(actions)
+
+    expect(snapshot?.sourceTest?.action?.src, "сохранено строковое представление action").toBe(actionFn.toString())
+    expect(snapshot?.sourceTest?.action?.read, "прочитаны поля контекста").toEqual(["foo", "bar"])
+  })
+
+  test("сохранение строкового представления всех обработчиков", () => {
+    const { schema } = new Context((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
+    type C = typeof schema
+    type S = "allHandlersTest"
+
+    const actionFn = ({ context }: any) => context.foo
+    const successFn = ({ update, data }: any) => update({ result: data })
+    const errorFn = ({ update, error }: any) => update({ error: error.message })
+
+    const actions: ProcessesDeclaration<C, S, {}> = (process) => ({
+      allHandlersTest: process().action(actionFn).success(successFn).error(errorFn),
+    })
+    const snapshot = getSnapshotProcesses(actions)
+
+    expect(snapshot?.allHandlersTest?.action?.src, "сохранено строковое представление action").toBe(actionFn.toString())
+    expect(snapshot?.allHandlersTest?.success?.src, "сохранено строковое представление success").toBe(
+      successFn.toString()
+    )
+    expect(snapshot?.allHandlersTest?.error?.src, "сохранено строковое представление error").toBe(errorFn.toString())
   })
 })
 
@@ -170,12 +206,12 @@ describe("parseChain — несколько chain", () => {
 
     expect(snapshot).toMatchObject({
       first: {
-        action: { read: ["foo"] },
-        success: { write: ["foo"] },
+        action: { read: ["foo"], src: expect.any(String) },
+        success: { write: ["foo"], src: expect.any(String) },
       },
       second: {
-        action: { read: ["bar"] },
-        error: { write: ["bar"] },
+        action: { read: ["bar"], src: expect.any(String) },
+        error: { write: ["bar"], src: expect.any(String) },
       },
     })
   })
@@ -197,13 +233,13 @@ describe("parseChain — несколько chain", () => {
     })
     const snapshot = getSnapshotProcesses(actions)
     expect(snapshot).toMatchObject({
-      simple: { action: { read: ["foo"] } },
+      simple: { action: { read: ["foo"], src: expect.any(String) } },
       complex: {
-        action: { read: ["foo", "bar"] },
-        success: { write: ["foo"] },
-        error: { write: ["bar"] },
+        action: { read: ["foo", "bar"], src: expect.any(String) },
+        success: { write: ["foo"], src: expect.any(String) },
+        error: { write: ["bar"], src: expect.any(String) },
       },
-      async: { action: { read: ["foo"] } },
+      async: { action: { read: ["foo"], src: expect.any(String) } },
     })
   })
 })
