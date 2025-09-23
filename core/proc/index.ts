@@ -3,12 +3,10 @@
  * @module Processes
  */
 
-import type { Schema, Update } from "@zavx0z/context"
-import type { ActionChain, ProcessesDeclaration, Process, ProcessChain, ActionParams, ProcessesType } from "./index.t"
+import type { Schema } from "@zavx0z/context"
+import type { Process } from "./index.t"
 import type { Core } from "../../core/index.t"
-import { getSnapshotProcesses } from "./parser.ts"
 export type { Process, ProcessesDeclaration } from "./index.t"
-
 
 /**
  * Десериализует процессы из snapshot и возвращает объект с функциями для работы с процессами.

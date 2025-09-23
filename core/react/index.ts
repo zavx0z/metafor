@@ -5,14 +5,7 @@
 import type { Schema, Update, Values } from "@zavx0z/context"
 import type { Core } from "../index.t"
 import type { JsonPatch, ActorInfo } from "../message"
-import type {
-  ReactionsDeclaration,
-  ReactionUpdate,
-  Reaction,
-  SnapshotReactions,
-  ReactionMetadata,
-  ReactionParams,
-} from "./index.t"
+import type { ReactionsDeclaration, ReactionUpdate, Reaction, SnapshotReactions, ReactionParams } from "./index.t"
 import type { ReactionFilterConditions } from "./condition.t"
 import { createFilterFn } from "./condition"
 export type { ReactionsDeclaration }
@@ -58,7 +51,6 @@ function extractFields<C extends Schema, S extends string, I extends Core>(updat
 
   return { read, write }
 }
-
 
 export const reactionDeclarationToSnapshot = <C extends Schema, S extends string, I extends Core = {}>(
   builder: ReactionsDeclaration<C, S, I>
@@ -117,7 +109,6 @@ export const createReactionsSnapshot = <C extends Schema, S extends string, I ex
 ): SnapshotReactions => {
   return reactionDeclarationToSnapshot(builder) || { reactions: {}, states: {} }
 }
-
 
 /**
  * Десериализует реакции из snapshot и возвращает объект с функциями для работы с реакциями.

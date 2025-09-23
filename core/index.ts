@@ -70,7 +70,7 @@ import {
   type Message,
 } from "./message"
 
-import type { Core, FabricParams, FingerPrint, MetaForType, MetaForConfig, Snapshot } from "./index.t"
+import type { Core, FabricParams, FingerPrint, MetaForConfig, Snapshot } from "./index.t"
 import type { Conditions, Transitions } from "./state/index.t"
 import { getSnapshotProcesses } from "./proc/parser"
 import { parse } from "@zavx0z/template"

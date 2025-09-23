@@ -18,8 +18,17 @@
     }
   </script>
   <script type="module">
-    // import { enableMetaForDebug } from "./debug/config.js"
-    // enableMetaForDebug()
+    import { log } from "./web/console.js"
+    new BroadcastChannel("channel").onmessage = (
+      /** @type {MessageEvent<import("./web/metafor.js").Message>} */ event
+    ) => {
+      const { data } = event
+      if (Object.hasOwn(data, "meta")) {
+        for (const patch of data.patches) log({ meta: data.meta, patch, timestamp: data.timestamp, actor: data.actor })
+      } else {
+        console.log(data)
+      }
+    }
   </script>
   <script type="module" src="./dist/web/metafor.js"></script>
   <body>

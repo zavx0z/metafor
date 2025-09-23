@@ -13,3 +13,4 @@ export type {
   SchemaType as ContextSchemaType,
   Snapshot as ContextSnapshot,
 } from "@zavx0z/context"
+export type { Node as ParsedNode } from "@zavx0z/template"
