@@ -4,10 +4,9 @@ __snapshots__
 .idea
 .DS_Store
 public
-/@zavx0z/
 docs
 .firebase/*
-*.sqlite
-*.sqlite-*
+*.sqlite*
+*.db*
 zavx0z
 .meta-modcache

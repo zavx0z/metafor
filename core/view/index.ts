@@ -21,5 +21,16 @@ export function serializeStyle(fn: Function): string {
     return ""
   }
 
-  return match[1]!.replace(/\s+/g, "")
+  // Минифицируем бережно: сохраняем необходимые пробелы между токенами
+  // 1) удаляем комментарии /* ... */
+  // 2) схлопываем последовательности пробелов в один пробел
+  // 3) удаляем пробелы вокруг пунктуации : ; , ( ) { } и /
+  // 4) обрезаем края
+  const rawCss = match[1]!
+  const withoutComments = rawCss.replace(/\/\*[\s\S]*?\*\//g, "")
+  const collapsedWhitespace = withoutComments.replace(/\s+/g, " ")
+  const tightPunct = collapsedWhitespace
+    .replace(/\s*([:;,{()} ,])\s*/g, (m, p1) => (p1 === " " ? " " : p1))
+    .replace(/\s*\/\s*/g, "/")
+  return tightPunct.trim()
 }
