@@ -1,4 +1,4 @@
-import { Reactions, deserializeReactions } from "../index"
+import { deserializeReactions } from "../index"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
 import type { JsonPatch } from "../../message"
@@ -12,24 +12,30 @@ describe("deserializeReactions", () => {
   const fakePatch: JsonPatch = { op: "replace", path: "/context", value: 1 }
 
   it("создание из снимка", () => {
-    // Создаем оригинальный реестр
-    const originalRegistry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test_reaction" })
-          .filter({ meta: "test" })
-          .equal(({ update }) => update({ value: 100 })),
-      ],
-      [
-        ["active"],
-        reaction({ title: "another_reaction", description: "Описание" })
-          .filter({ op: "add" })
-          .equal(({ update }) => update({ value: 200 })),
-      ],
-    ])
-
-    // Создаем снимок
-    const snapshot = originalRegistry.toSnapshot()
+    // Создаем снимок напрямую
+    const snapshot = {
+      reactions: {
+        test_reaction_0: {
+          title: "test_reaction",
+          cond: { meta: "test" },
+          read: ["value"],
+          write: ["value"],
+          src: "({ update }) => update({ value: 100 })",
+        },
+        another_reaction_1: {
+          title: "another_reaction",
+          desc: "Описание",
+          cond: { op: "add" },
+          read: ["value"],
+          write: ["value"],
+          src: "({ update }) => update({ value: 200 })",
+        },
+      },
+      states: {
+        idle: ["test_reaction_0"],
+        active: ["another_reaction_1"],
+      },
+    }
 
     // Создаем десериализованные реакции из снимка
     const deserializedReactions = deserializeReactions<Ctx, State, {}>(snapshot)

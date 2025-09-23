@@ -1,5 +1,5 @@
 import { test, expect, describe } from "bun:test"
-import { Reactions } from "../index"
+import { createReactionsSnapshot, deserializeReactions } from "../index"
 import { Context } from "@zavx0z/context"
 
 describe("снимок реакций", () => {
@@ -13,7 +13,7 @@ describe("снимок реакций", () => {
   type State = "idle" | "active" | "error"
 
   test("Создание уникальных реакций", () => {
-    const registry = new Reactions<typeof schema, State, {}>((reaction) => [
+    const snapshot = createReactionsSnapshot<typeof schema, State, {}>((reaction) => [
       [
         ["idle", "active"],
         reaction({ title: "inc", description: "increment value" })
@@ -32,8 +32,6 @@ describe("снимок реакций", () => {
           .equal(({ update }) => update({ value: 0 })),
       ],
     ])
-
-    const snapshot = registry.toSnapshot()
     expect(snapshot).toMatchObject({
       reactions: {
         inc_0: {
@@ -68,7 +66,7 @@ describe("снимок реакций", () => {
   })
 
   test("Проверка структуры данных toSnapshot", () => {
-    const registry = new Reactions<typeof schema, State, {}>((reaction) => [
+    const snapshot = createReactionsSnapshot<typeof schema, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
@@ -76,8 +74,6 @@ describe("снимок реакций", () => {
           .equal(({ update }) => update({ value: 42 })),
       ],
     ])
-
-    const snapshot = registry.toSnapshot()
 
     // Проверяем, что reactions - это объект, а не массив
     expect(typeof snapshot.reactions, "reactions должен быть объектом").toBe("object")
@@ -104,11 +100,9 @@ describe("снимок реакций", () => {
   test("сохранение строкового представления функции equal", () => {
     const updateFn = ({ update, context }: any) => update({ value: context.value * 2 })
 
-    const registry = new Reactions<typeof schema, State, {}>((reaction) => [
+    const snapshot = createReactionsSnapshot<typeof schema, State, {}>((reaction) => [
       [["idle"], reaction({ title: "double" }).filter({ meta: "test" }).equal(updateFn)],
     ])
-
-    const snapshot = registry.toSnapshot()
     const reactionIds = Object.keys(snapshot.reactions)
     const reactionId = reactionIds[0]!
     const reaction = snapshot.reactions[reactionId]!
