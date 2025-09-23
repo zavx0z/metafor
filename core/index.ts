@@ -58,8 +58,8 @@
 
 import { Context, contextDefinitionToSchema, type Schema, type Types, type Values, type Update } from "@zavx0z/context"
 import { checkTransition, type StatesConfig, validateNoUnconditionalCycles } from "./state"
-import { Processes, ProcessesClone, type Process, type ProcessesDeclaration } from "./proc"
-import { reactionDeclarationToSnapshot, Reactions, ReactionsClone, type ReactionsDeclaration } from "./react"
+import { Processes, deserializeProcesses, type Process, type ProcessesDeclaration } from "./proc"
+import { reactionDeclarationToSnapshot, Reactions, deserializeReactions, type ReactionsDeclaration } from "./react"
 import { extractCSSTemplateLiteral, View, type ViewDeclaration } from "./view"
 
 import {
@@ -154,7 +154,7 @@ export function MetaForFabric(params: FabricParams) {
           this.#st.state = state
         }
         #core: I = {} as I
-        #processes!: Processes<C, S, I>
+        #processes!: ReturnType<typeof deserializeProcesses<C, S, I>>
         /** ------------process-------------------------------- */
         /** индикатор выполнения процесса */
         #process: boolean = false
@@ -171,7 +171,7 @@ export function MetaForFabric(params: FabricParams) {
             this.#transition()
           }
         }
-        #reactions!: Reactions<C, S, I>
+        #reactions!: ReturnType<typeof deserializeReactions<C, S, I>>
         constructor() {
           super()
           this.#shadow = this.attachShadow({ mode: "closed" })
@@ -192,12 +192,8 @@ export function MetaForFabric(params: FabricParams) {
           console.log(module.default)
           const m = module.default as FingerPrint<any, any>
           this.#context = new Context(m.context)
-          this.#reactions = ReactionsClone.fromSnapshot(m.reactions || { reactions: {}, states: {} }) as Reactions<
-            C,
-            S,
-            I
-          >
-          this.#processes = ProcessesClone.fromSnapshot(m.processes) as Processes<C, S, I>
+          this.#reactions = deserializeReactions(m.reactions || { reactions: {}, states: {} })
+          this.#processes = deserializeProcesses(m.processes || {})
           this.#st = { state: Object.keys(m.states)[0] as S, states: m.states }
           if (m.style) {
             const sheet = new CSSStyleSheet()
@@ -340,8 +336,6 @@ export function MetaForFabric(params: FabricParams) {
             process: this.#process,
             states: this.#st.states,
             context: this.#context.snapshot,
-            ...this.#processes.snapshot,
-            ...this.#reactions.snapshot,
             // ...this.#view.snapshot,
             ...(this.#description ? { description: this.#description } : {}),
           }

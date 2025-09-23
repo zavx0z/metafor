@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import { Processes, ProcessesClone, ProcessesBase } from "../index.ts"
+import { Processes, deserializeProcesses, ProcessesBase } from "../index.ts"
 import { Context } from "@zavx0z/context"
 
 test("наследование - базовый класс содержит общие методы", () => {
@@ -21,27 +21,27 @@ test("наследование - базовый класс содержит об
   expect(processes.getAllProcesses(), "должен возвращать объект с процессами").toHaveProperty("guest")
 })
 
-test("наследование - ProcessesClone создается из snapshot", () => {
+test("наследование - deserializeProcesses создается из snapshot", () => {
   const { schema } = new Context((t) => ({ name: t.string.required("anon") }))
   type S = typeof schema
 
   const snapshot = {
     guest: {
       title: "guest",
-      action: { read: ["name"] },
-      success: { write: ["name"] },
+      action: { read: ["name"], src: "({ context }) => context.name" },
+      success: { write: ["name"], src: "({ update, data }) => update({ name: data })" },
     },
   }
 
-  const clone = ProcessesClone.fromSnapshot<S, "guest">(snapshot)
+  const processes = deserializeProcesses<S, "guest">(snapshot)
 
-  // Проверяем, что clone имеет базовые методы
-  expect(clone.getProcessNames(), "должен возвращать пустой массив").toEqual([])
-  expect(clone.size, "должен возвращать 0").toBe(0)
-  expect(clone.hasProcess("guest"), "должен возвращать false").toBe(false)
+  // Проверяем, что функции десериализации работают
+  expect(processes.getProcessNames(), "должен возвращать массив с guest").toEqual(["guest"])
+  expect(processes.hasProcess("guest"), "должен возвращать true").toBe(true)
+  expect(processes.hasProcess("nonexistent" as any), "должен возвращать false").toBe(false)
 })
 
-test("наследование - Processes и ProcessesClone имеют одинаковый интерфейс", () => {
+test("наследование - Processes и deserializeProcesses имеют одинаковый интерфейс", () => {
   const { schema } = new Context((t) => ({ name: t.string.required("anon") }))
   type S = typeof schema
 
@@ -49,17 +49,17 @@ test("наследование - Processes и ProcessesClone имеют один
     guest: process().action(({ context }) => context.name),
   }))
 
-  const clone = new ProcessesClone<S, "guest">()
+  const deserialized = deserializeProcesses<S, "guest">({})
 
-  // Проверяем, что оба класса имеют одинаковые методы
+  // Проверяем, что оба имеют одинаковые методы
   expect(typeof processes.getProcess, "должен иметь метод getProcess").toBe("function")
   expect(typeof processes.hasProcess, "должен иметь метод hasProcess").toBe("function")
   expect(typeof processes.getAllProcesses, "должен иметь метод getAllProcesses").toBe("function")
   expect(typeof processes.getProcessNames, "должен иметь метод getProcessNames").toBe("function")
   expect(typeof processes.toSnapshot, "должен иметь метод toSnapshot").toBe("function")
 
-  expect(typeof clone.getProcess, "clone должен иметь метод getProcess").toBe("function")
-  expect(typeof clone.hasProcess, "clone должен иметь метод hasProcess").toBe("function")
-  expect(typeof clone.getAllProcesses, "clone должен иметь метод getAllProcesses").toBe("function")
-  expect(typeof clone.getProcessNames, "clone должен иметь метод getProcessNames").toBe("function")
+  expect(typeof deserialized.getProcess, "deserializeProcesses должен иметь метод getProcess").toBe("function")
+  expect(typeof deserialized.hasProcess, "deserializeProcesses должен иметь метод hasProcess").toBe("function")
+  expect(typeof deserialized.getAllProcesses, "deserializeProcesses должен иметь метод getAllProcesses").toBe("function")
+  expect(typeof deserialized.getProcessNames, "deserializeProcesses должен иметь метод getProcessNames").toBe("function")
 })
