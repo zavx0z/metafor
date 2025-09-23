@@ -60,6 +60,10 @@ test("наследование - Processes и deserializeProcesses имеют о
 
   expect(typeof deserialized.getProcess, "deserializeProcesses должен иметь метод getProcess").toBe("function")
   expect(typeof deserialized.hasProcess, "deserializeProcesses должен иметь метод hasProcess").toBe("function")
-  expect(typeof deserialized.getAllProcesses, "deserializeProcesses должен иметь метод getAllProcesses").toBe("function")
-  expect(typeof deserialized.getProcessNames, "deserializeProcesses должен иметь метод getProcessNames").toBe("function")
+  expect(typeof deserialized.getAllProcesses, "deserializeProcesses должен иметь метод getAllProcesses").toBe(
+    "function"
+  )
+  expect(typeof deserialized.getProcessNames, "deserializeProcesses должен иметь метод getProcessNames").toBe(
+    "function"
+  )
 })

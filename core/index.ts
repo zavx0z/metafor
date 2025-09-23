@@ -108,15 +108,6 @@ function MetaFor(name: string, config?: MetaForConfig) {
                           if (processSnapshot) fingerprint.processes = processSnapshot
                           if (reactionsSnapshot) fingerprint.reactions = reactionsSnapshot
                           return fingerprint
-                          // return {
-                          //   name,
-                          //   states,
-                          //   context: new Context(schema).snapshot,
-                          //   ...new Processes(process).snapshot,
-                          //   ...(description ? { description } : {}),
-                          //   ...new View(view).snapshot,
-                          //   ...new Reactions(reaction).snapshot,
-                          // }
                         },
                       }
                     },
@@ -235,13 +226,6 @@ export function MetaForFabric(params: FabricParams) {
           const updated = this.#context.update(context as any)
           if (Object.keys(updated).length > 0) {
             this.#sendEvent(updateContextMessage(this.#name, { index: 0 }, updated))
-            // this.#view.render({
-            //   state: this.#state,
-            //   context: this.#context.getSnapshot(),
-            //   core: this.#core,
-            //   container: this.#shadow,
-            //   update: this.update,
-            // })
           }
           return updated
         }

@@ -14,33 +14,33 @@ describe("deserializeReactions", () => {
   test("десериализация реакций из snapshot", () => {
     const snapshot = {
       reactions: {
-        "increment_0": {
+        increment_0: {
           title: "increment",
           desc: "Increment value",
           cond: {
             meta: "test",
             op: "replace",
-            path: "/context"
+            path: "/context",
           },
           read: ["value"],
           write: ["value"],
-          src: "({ update, context }) => update({ value: context.value + 1 })"
+          src: "({ update, context }) => update({ value: context.value + 1 })",
         },
-        "reset_1": {
+        reset_1: {
           title: "reset",
           cond: {
-            meta: "admin"
+            meta: "admin",
           },
           read: ["value"],
           write: ["value"],
-          src: "({ update }) => update({ value: 0 })"
-        }
+          src: "({ update }) => update({ value: 0 })",
+        },
       },
       states: {
-        "idle": ["increment_0"],
-        "active": ["increment_0", "reset_1"],
-        "error": ["reset_1"]
-      }
+        idle: ["increment_0"],
+        active: ["increment_0", "reset_1"],
+        error: ["reset_1"],
+      },
     }
 
     const reactions = deserializeReactions<C, S, {}>(snapshot)
@@ -67,20 +67,20 @@ describe("deserializeReactions", () => {
   test("выполнение восстановленных реакций", () => {
     const snapshot = {
       reactions: {
-        "test_0": {
+        test_0: {
           title: "test",
           cond: {
             meta: "test",
-            op: "replace"
+            op: "replace",
           },
           read: ["value"],
           write: ["value"],
-          src: "({ update, context, patch }) => update({ value: context.value + patch.value })"
-        }
+          src: "({ update, context, patch }) => update({ value: context.value + patch.value })",
+        },
       },
       states: {
-        "idle": ["test_0"]
-      }
+        idle: ["test_0"],
+      },
     }
 
     const reactions = deserializeReactions<C, S, {}>(snapshot)
@@ -103,7 +103,7 @@ describe("deserializeReactions", () => {
       actor: { index: 0 },
       timestamp: Date.now(),
       patch: mockPatch,
-      update: mockUpdate
+      update: mockUpdate,
     })
 
     expect(updatedContext.value, "реакция должна обновить контекст").toBe(8)
@@ -112,28 +112,28 @@ describe("deserializeReactions", () => {
   test("фильтрация реакций по условиям", () => {
     const snapshot = {
       reactions: {
-        "meta_test_0": {
+        meta_test_0: {
           title: "meta_test",
           cond: {
-            meta: "specific_meta"
+            meta: "specific_meta",
           },
           read: [],
           write: ["value"],
-          src: "({ update }) => update({ value: 100 })"
+          src: "({ update }) => update({ value: 100 })",
         },
-        "op_test_1": {
+        op_test_1: {
           title: "op_test",
           cond: {
-            op: "add"
+            op: "add",
           },
           read: [],
           write: ["value"],
-          src: "({ update }) => update({ value: 200 })"
-        }
+          src: "({ update }) => update({ value: 200 })",
+        },
       },
       states: {
-        "idle": ["meta_test_0", "op_test_1"]
-      }
+        idle: ["meta_test_0", "op_test_1"],
+      },
     }
 
     const reactions = deserializeReactions<C, S, {}>(snapshot)
@@ -155,7 +155,7 @@ describe("deserializeReactions", () => {
       actor: { index: 0 },
       timestamp: Date.now(),
       patch: { op: "replace", path: "/context", value: 1 },
-      update: mockUpdate
+      update: mockUpdate,
     })
 
     expect(updatedContext.value, "реакция должна сработать при совпадении meta").toBe(100)
@@ -172,7 +172,7 @@ describe("deserializeReactions", () => {
       actor: { index: 0 },
       timestamp: Date.now(),
       patch: { op: "add", path: "/context", value: 1 },
-      update: mockUpdate
+      update: mockUpdate,
     })
 
     expect(updatedContext.value, "реакция должна сработать при совпадении op").toBe(200)
@@ -189,7 +189,7 @@ describe("deserializeReactions", () => {
       actor: { index: 0 },
       timestamp: Date.now(),
       patch: { op: "replace", path: "/context", value: 1 },
-      update: mockUpdate
+      update: mockUpdate,
     })
 
     expect(updatedContext.value, "реакции не должны сработать при несовпадении условий").toBeUndefined()
@@ -198,7 +198,7 @@ describe("deserializeReactions", () => {
   test("пустой snapshot", () => {
     const snapshot = {
       reactions: {},
-      states: {}
+      states: {},
     }
 
     const reactions = deserializeReactions<C, S, {}>(snapshot)

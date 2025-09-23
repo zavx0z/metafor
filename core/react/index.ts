@@ -5,7 +5,14 @@
 import type { Schema, Update, Values } from "@zavx0z/context"
 import type { Core } from "../index.t"
 import type { JsonPatch, ActorInfo } from "../message"
-import type { ReactionsDeclaration, ReactionUpdate, Reaction, SnapshotReactions, ReactionMetadata, ReactionParams } from "./index.t"
+import type {
+  ReactionsDeclaration,
+  ReactionUpdate,
+  Reaction,
+  SnapshotReactions,
+  ReactionMetadata,
+  ReactionParams,
+} from "./index.t"
 import type { ReactionFilterConditions } from "./condition.t"
 import { createFilterFn } from "./condition"
 export type { ReactionsDeclaration }
@@ -252,10 +259,10 @@ export class Reactions<C extends Schema, S extends string, I extends Core = {}> 
 
 /**
  * Десериализует реакции из snapshot и возвращает объект с функциями для работы с реакциями.
- * 
+ *
  * @param snapshot - сериализованный снимок реакций
  * @returns объект с функциями для работы с реакциями
- * 
+ *
  * @example
  * ```ts
  * const reactions = deserializeReactions(snapshot)
@@ -312,10 +319,10 @@ export function deserializeReactions<C extends Schema, S extends string, I exten
 
   // Восстанавливаем реакции из snapshot
   for (const [reactionId, reactionData] of Object.entries(snapshot.reactions)) {
-    if (reactionData && typeof reactionData === 'object') {
+    if (reactionData && typeof reactionData === "object") {
       // Восстанавливаем функцию equal из строки
-      const updateFn = new Function('return ' + reactionData.src)() as ReactionUpdate<C, S, I>
-      
+      const updateFn = new Function("return " + reactionData.src)() as ReactionUpdate<C, S, I>
+
       // Создаем функцию фильтра на основе условий
       const filterFn = createFilterFn(reactionData.cond)
 
@@ -324,7 +331,7 @@ export function deserializeReactions<C extends Schema, S extends string, I exten
         ...(reactionData.desc && { description: reactionData.desc }),
         update: updateFn,
         filter: filterFn,
-        states: [] as string[]
+        states: [] as string[],
       }
 
       reactions.push(reaction)
@@ -345,14 +352,16 @@ export function deserializeReactions<C extends Schema, S extends string, I exten
       for (const reaction of reactions) {
         // Проверяем, что реакция активна для текущего состояния
         if (!reaction.states.includes(params.state)) continue
-        
+
         // Проверяем фильтр
-        if (reaction.filter({
-          meta: params.meta,
-          actor: params.actor,
-          timestamp: params.timestamp,
-          patch: params.patch
-        })) {
+        if (
+          reaction.filter({
+            meta: params.meta,
+            actor: params.actor,
+            timestamp: params.timestamp,
+            patch: params.patch,
+          })
+        ) {
           // Выполняем реакцию
           reaction.update({
             update: params.update,
@@ -362,7 +371,7 @@ export function deserializeReactions<C extends Schema, S extends string, I exten
             actor: params.actor,
             timestamp: params.timestamp,
             patch: params.patch,
-            state: params.state
+            state: params.state,
           })
         }
       }
@@ -371,47 +380,9 @@ export function deserializeReactions<C extends Schema, S extends string, I exten
     getAllReactions: () => reactions.map(({ states, ...reaction }) => reaction),
     getReactions: (state: S) => {
       return reactions
-        .filter(reaction => reaction.states.includes(state as string))
+        .filter((reaction) => reaction.states.includes(state as string))
         .map(({ states, ...reaction }) => reaction)
-    }
+    },
   }
 }
 
-/** Клонированный реестр реакций с методом fromSnapshot */
-export class ReactionsClone<C extends Schema, S extends string, I extends Core = {}> extends ReactionsBase<C, S, I> {
-  constructor() {
-    super()
-  }
-
-  /** Создание из снимка */
-  static fromSnapshot<C extends Schema, S extends string, I extends Core = {}>(
-    snapshot: SnapshotReactions
-  ): ReactionsClone<C, S, I> {
-    const registry = new ReactionsClone<C, S, I>()
-
-    // Восстанавливаем реакции из снимка
-    for (const [id, reactionData] of Object.entries(snapshot.reactions)) {
-      // Создаем заглушку для реакции (без реальной функции update)
-      const reaction: Reaction<C, S, I> = {
-        title: reactionData.title,
-        filter: () => false, // Заглушка - не будет выполняться
-        update: () => {}, // Заглушка - не будет выполняться
-        ...(reactionData.desc && { description: reactionData.desc }),
-      }
-
-      registry.reactionsById.set(id, reaction)
-      registry.reactionMetadata.set(id, {
-        cond: reactionData.cond,
-        read: reactionData.read || [],
-        write: reactionData.write || [],
-      })
-    }
-
-    // Восстанавливаем состояния
-    for (const [state, ids] of Object.entries(snapshot.states)) {
-      registry.stateToReactionIds.set(state as S, ids)
-    }
-
-    return registry
-  }
-}

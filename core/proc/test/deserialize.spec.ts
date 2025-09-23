@@ -18,26 +18,26 @@ describe("deserializeProcesses", () => {
         description: "Increment value",
         action: {
           read: ["value"],
-          src: "({ context }) => context.value + 1"
-        }
+          src: "({ context }) => context.value + 1",
+        },
       },
       reset: {
         title: "reset",
         action: {
           read: ["value"],
-          src: "({ context }) => 0"
+          src: "({ context }) => 0",
         },
         success: {
           read: [],
           write: ["value"],
-          src: "({ update, data }) => update({ value: data })"
+          src: "({ update, data }) => update({ value: data })",
         },
         error: {
           read: [],
           write: ["value"],
-          src: "({ update, error }) => update({ value: 0 })"
-        }
-      }
+          src: "({ update, error }) => update({ value: 0 })",
+        },
+      },
     }
 
     const processes = deserializeProcesses<C, S, {}>(snapshot)
@@ -63,14 +63,14 @@ describe("deserializeProcesses", () => {
       multiply: {
         action: {
           read: ["value"],
-          src: "({ context }) => context.value * 2"
+          src: "({ context }) => context.value * 2",
         },
         success: {
           read: [],
           write: ["value"],
-          src: "({ update, data }) => update({ value: data })"
-        }
-      }
+          src: "({ update, data }) => update({ value: data })",
+        },
+      },
     }
 
     const processes = deserializeProcesses<C, S, {}>(snapshot)
@@ -98,7 +98,7 @@ describe("deserializeProcesses", () => {
     const snapshot = {
       process1: { action: { src: "() => 1" } },
       process2: { action: { src: "() => 2" } },
-      process3: { action: { src: "() => 3" } }
+      process3: { action: { src: "() => 3" } },
     }
 
     const processes = deserializeProcesses<C, S, {}>(snapshot)
