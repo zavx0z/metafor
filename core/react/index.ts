@@ -52,7 +52,7 @@ function extractFields<C extends Schema, S extends string, I extends Core>(updat
   return { read, write }
 }
 
-export const reactionDeclarationToSnapshot = <C extends Schema, S extends string, I extends Core = {}>(
+export const serializeReaction = <C extends Schema, S extends string, I extends Core = {}>(
   builder: ReactionsDeclaration<C, S, I>
 ): SnapshotReactions | null => {
   const reactions: Record<string, any> = {}
@@ -107,7 +107,7 @@ export const reactionDeclarationToSnapshot = <C extends Schema, S extends string
 export const createReactionsSnapshot = <C extends Schema, S extends string, I extends Core = {}>(
   builder: ReactionsDeclaration<C, S, I>
 ): SnapshotReactions => {
-  return reactionDeclarationToSnapshot(builder) || { reactions: {}, states: {} }
+  return serializeReaction(builder) || { reactions: {}, states: {} }
 }
 
 /**

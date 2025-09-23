@@ -8,11 +8,10 @@ import type { ViewDeclaration } from "./index.t.ts"
 
 export type { ViewDeclaration }
 
-
 /**
  * Извлекает CSS template literal из style функции
  */
-export function extractCSSTemplateLiteral(fn: Function): string {
+export function serializeStyle(fn: Function): string {
   const fnString = fn.toString()
 
   // Извлекаем CSS template literal через regex

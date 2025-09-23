@@ -166,7 +166,7 @@ export function parseProcess<C extends Schema, I extends Core, Res = any>(proces
  * @param processes - конфигурация процессов
  * @returns объект с распарсенными процессами
  */
-export const getSnapshotProcesses = <C extends Schema, S extends string, I extends Core>(
+export const serializeProcesses = <C extends Schema, S extends string, I extends Core>(
   processes: ProcessesDeclaration<C, S, I>
 ): SnapshotProcesses | null => {
   // Вызываем processesDeclaration с mock process

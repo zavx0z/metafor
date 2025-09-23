@@ -10,7 +10,7 @@ import type { ReactionsDeclaration, SnapshotReactions } from "./react/index.t"
 import type { StatesConfig } from "./state"
 import type { ViewDeclaration } from "./view/index.t"
 import type { MetaStore } from "./store/index.t"
-import type {Node as ParseNode} from "@zavx0z/template"
+import type { Node as ParseNode } from "@zavx0z/template"
 
 declare global {
   var DEV: boolean
@@ -23,7 +23,7 @@ declare global {
 }
 export {}
 
-export interface FingerPrint<C extends Schema, S extends string> {
+export interface MetaSchema<C extends Schema, S extends string> {
   /** Название компонента */
   name: string
   /** Описание компонента */
@@ -275,7 +275,7 @@ export type MetaForType = (
              * document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
              * ```
              */
-            view(view?: ViewDeclaration<C, I, S>): FingerPrint<C, S>
+            view(view?: ViewDeclaration<C, I, S>): MetaSchema<C, S>
           }
         }
       }

@@ -54,13 +54,13 @@
  *
  * @packageDocumentation
  */
-;(globalThis as any).MetaFor = MetaFor
+globalThis.MetaFor = MetaFor
 
-import { Context, contextDefinitionToSchema, type Schema, type Types, type Values, type Update } from "@zavx0z/context"
+import { Context, contextDefinitionToSchema, type Schema, type Types, type Values } from "@zavx0z/context"
 import { checkTransition, type StatesConfig, validateNoUnconditionalCycles } from "./state"
-import { deserializeProcesses, type Process, type ProcessesDeclaration } from "./proc"
-import { reactionDeclarationToSnapshot, deserializeReactions, type ReactionsDeclaration } from "./react"
-import { extractCSSTemplateLiteral, type ViewDeclaration } from "./view"
+import { serializeProcesses, deserializeProcesses, type Process, type ProcessesDeclaration } from "./proc"
+import { serializeReaction, deserializeReactions, type ReactionsDeclaration } from "./react"
+import { serializeStyle, type ViewDeclaration } from "./view"
 
 import {
   initMessage,
@@ -70,9 +70,8 @@ import {
   type Message,
 } from "./message"
 
-import type { Core, FabricParams, FingerPrint, MetaForConfig, Snapshot } from "./index.t"
+import type { Core, FabricParams, MetaSchema, MetaForConfig, Snapshot } from "./index.t"
 import type { Conditions, Transitions } from "./state/index.t"
-import { getSnapshotProcesses } from "./proc/parser"
 import { parse } from "@zavx0z/template"
 import { render } from "@zavx0z/renderer"
 
@@ -82,7 +81,7 @@ function MetaFor(name: string, config?: MetaForConfig) {
   const persist = config?.persist ?? false
   return {
     context<C extends Schema>(schema: (types: Types) => C) {
-      const contextSnapshot = contextDefinitionToSchema(schema)
+      const contextSchema = contextDefinitionToSchema(schema)
       return {
         states<S extends string>(states: StatesConfig<S, C>) {
           validateNoUnconditionalCycles(states)
@@ -91,23 +90,19 @@ function MetaFor(name: string, config?: MetaForConfig) {
               const core = typeof coreBuilder === "function" ? coreBuilder() : coreBuilder
               return {
                 processes(process: ProcessesDeclaration<C, S, I> = () => ({})) {
-                  const processSnapshot = getSnapshotProcesses(process)
+                  const processSchema = serializeProcesses(process)
                   return {
                     reactions(reaction: ReactionsDeclaration<C, S, I> = () => []) {
-                      const reactionsSnapshot = reactionDeclarationToSnapshot(reaction)
+                      const reactionsSchema = serializeReaction(reaction)
                       return {
-                        view(view?: ViewDeclaration<C, I, S>): FingerPrint<C, S> {
-                          const fingerprint: FingerPrint<C, S> = {
-                            name,
-                            states,
-                            context: contextSnapshot,
-                            ...(description ? { description } : {}),
-                          }
-                          if (view && "style" in view) fingerprint.style = extractCSSTemplateLiteral(view.style)
-                          if (view && "render" in view) fingerprint.render = parse(view.render as any)
-                          if (processSnapshot) fingerprint.processes = processSnapshot
-                          if (reactionsSnapshot) fingerprint.reactions = reactionsSnapshot
-                          return fingerprint
+                        view(view?: ViewDeclaration<C, I, S>): MetaSchema<C, S> {
+                          const metaSchema: MetaSchema<C, S> = { name, states, context: contextSchema }
+                          if (description) metaSchema.description = description
+                          if (view && "style" in view) metaSchema.style = serializeStyle(view.style)
+                          if (view && "render" in view) metaSchema.render = parse(view.render as any)
+                          if (processSchema) metaSchema.processes = processSchema
+                          if (reactionsSchema) metaSchema.reactions = reactionsSchema
+                          return metaSchema
                         },
                       }
                     },
@@ -135,14 +130,14 @@ export function MetaForFabric(params: FabricParams) {
         #name!: string
         #description!: string
         #context!: Context<C>
-        //   /** ------------state-------------------------------- */
-        #st!: {
+        /** ------------state-------------------------------- */
+        #state!: {
           state: S
           states: StatesConfig<S, C>
         }
         #setState(state: S) {
           this.setAttribute("state", state)
-          this.#st.state = state
+          this.#state.state = state
         }
         #core: I = {} as I
         #processes!: ReturnType<typeof deserializeProcesses<C, S, I>>
@@ -181,11 +176,12 @@ export function MetaForFabric(params: FabricParams) {
           }
 
           console.log(module.default)
-          const m = module.default as FingerPrint<any, any>
+          const m = module.default as MetaSchema<C, S>
+          this.#name = m.name
           this.#context = new Context(m.context)
           this.#reactions = deserializeReactions(m.reactions || { reactions: {}, states: {} })
           this.#processes = deserializeProcesses(m.processes || {})
-          this.#st = { state: Object.keys(m.states)[0] as S, states: m.states }
+          this.#state = { state: Object.keys(m.states)[0] as S, states: m.states }
           if (m.style) {
             const sheet = new CSSStyleSheet()
             sheet.replaceSync(m.style)
@@ -194,19 +190,19 @@ export function MetaForFabric(params: FabricParams) {
           render({
             core: this.#core,
             ctx: this.#context,
-            el: this.#shadow as unknown as HTMLElement,
-            st: this.#st as unknown as { state: string; states: string[] },
+            el: this.#shadow,
+            st: { state: this.#state.state, states: Object.keys(this.#state.states) },
             nodes: module.default.render,
           })
-          this.setAttribute("state", this.#st.state)
+          this.setAttribute("state", this.#state.state)
           this.#channel = new BroadcastChannel("channel")
 
           if (this.#reactions.hasReactions() && this.#channel)
             this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
           this.#sendEvent(initMessage(this.#name, { index: 0 }, m as unknown as Snapshot<any, any>, this.__path))
-          const transition = this.#st.states[this.#st.state]
+          const transition = this.#state.states[this.#state.state]
           if (transition) {
-            const process = this.#processes.getProcess(this.#st.state)
+            const process = this.#processes.getProcess(this.#state.state)
             if (process) {
               this.#setProcess(true)
               this.#executeAction(process)
@@ -241,7 +237,7 @@ export function MetaForFabric(params: FabricParams) {
          */
         #executeAction = (process: Process<C, I>) => {
           try {
-            this.#broadcastMessage(stateBeforeActionMessage(this.#name, { index: 0 }, this.#st.state))
+            this.#broadcastMessage(stateBeforeActionMessage(this.#name, { index: 0 }, this.#state.state))
             const result = process.action({
               context: this.#context.context,
               core: this.#core,
@@ -259,22 +255,22 @@ export function MetaForFabric(params: FabricParams) {
                     } else if (typeof error === "string") {
                       process.error({ update: this.update, error: new Error(error) })
                     } else {
-                      throw new Error(`Передан неизвестный тип ошибки в состоянии: ${this.#st.state}`)
+                      throw new Error(`Передан неизвестный тип ошибки в состоянии: ${this.#state.state}`)
                     }
-                  } else throw new Error(`Обработчик ошибки не найден для состояния: ${this.#st.state} \n ${error}`)
+                  } else throw new Error(`Обработчик ошибки не найден для состояния: ${this.#state.state} \n ${error}`)
                 })
                 .finally(() => {
-                  this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: 0 }, this.#st.state))
+                  this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: 0 }, this.#state.state))
                   this.#setProcess(false)
                 })
             } else {
               if (process.success) process.success({ update: this.update, data: result })
-              this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: 0 }, this.#st.state))
+              this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: 0 }, this.#state.state))
               this.#setProcess(false)
             }
           } catch (error) {
             if (error instanceof Error) process.error?.({ update: this.update, error })
-            this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: 0 }, this.#st.state))
+            this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: 0 }, this.#state.state))
             this.#setProcess(false)
           }
         }
@@ -285,7 +281,7 @@ export function MetaForFabric(params: FabricParams) {
          * - отправляет сообщение состояния если нет процесса (MSG)
          */
         #transition = () => {
-          const transition: Transitions<S, C> = this.#st.states[this.#st.state]
+          const transition: Transitions<S, C> = this.#state.states[this.#state.state]
           if (!transition) return
           for (const [state, conditions] of Object.entries(transition)) {
             if (checkTransition(conditions as Conditions<C>, this.#context.context)) {
@@ -316,9 +312,9 @@ export function MetaForFabric(params: FabricParams) {
         get snapshot(): Snapshot<C, S> {
           return {
             name: this.#name,
-            state: this.#st.state,
+            state: this.#state.state,
             process: this.#process,
-            states: this.#st.states,
+            states: this.#state.states,
             context: this.#context.snapshot,
             // ...this.#view.snapshot,
             ...(this.#description ? { description: this.#description } : {}),
@@ -336,7 +332,7 @@ export function MetaForFabric(params: FabricParams) {
               actor: message.actor,
               timestamp: message.timestamp,
               patch,
-              state: this.#st.state,
+              state: this.#state.state,
               update: this.update,
             })
           }
