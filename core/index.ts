@@ -54,7 +54,7 @@
  * @packageDocumentation
  */
 
-import { Context, contextDefinitionToSchema, type Schema, type Types, type Values } from "@zavx0z/context"
+import { contextSchema, contextFromSchema, type Context, type Schema, type Types, type Values } from "@zavx0z/context"
 import { checkTransition, type StatesConfig, validateNoUnconditionalCycles } from "./state"
 import { serializeProcesses, deserializeProcesses, type Process, type ProcessesDeclaration } from "./proc"
 import { serializeReaction, deserializeReactions, type ReactionsDeclaration } from "./react"
@@ -79,7 +79,7 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
   const persist = config?.persist ?? false
   return {
     context<C extends Schema>(schema: (types: Types) => C) {
-      const contextSchema = contextDefinitionToSchema(schema)
+      const context = contextSchema(schema)
       return {
         states<S extends string>(states: StatesConfig<S, C>) {
           validateNoUnconditionalCycles(states)
@@ -94,7 +94,7 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
                       const reactionsSchema = serializeReaction(reaction)
                       return {
                         view(view?: ViewDeclaration<C, I, S>): MetaSchema<C, S> {
-                          const metaSchema: MetaSchema<C, S> = { name, states, context: contextSchema }
+                          const metaSchema: MetaSchema<C, S> = { name, states, context }
                           if (description) metaSchema.description = description
                           if (view && "style" in view) metaSchema.style = serializeStyle(view.style)
                           if (view && "render" in view) metaSchema.render = parse(view.render as any)
@@ -189,7 +189,7 @@ export function MetaForFabric(params: FabricParams) {
           console.log(module.default)
           const m = module.default as MetaSchema<C, S>
           this.#name = m.name
-          this.#context = new Context(m.context)
+          this.#context = contextFromSchema<C>(m.context as C)
           this.#reactions = deserializeReactions(m.reactions || { reactions: {}, states: {} })
           this.#processes = deserializeProcesses(m.processes || {})
           this.#state = { state: Object.keys(m.states)[0] as S, states: m.states }
@@ -231,7 +231,7 @@ export function MetaForFabric(params: FabricParams) {
 
         /** обновление контекста */
         update = (context: Partial<Values<C>>): Partial<Values<C>> => {
-          const updated = this.#context.update(context as any)
+          const updated = this.#context.update(context)
           if (Object.keys(updated).length > 0) {
             this.#sendEvent(updateContextMessage(this.#name, { index: 0 }, updated))
           }
