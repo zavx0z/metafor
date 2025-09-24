@@ -31,7 +31,7 @@
   },
   "dependencies": {
     "@zavx0z/context": "1.0.5",
-    "@zavx0z/renderer": "^0.7.1",
+    "@zavx0z/renderer": "^0.7.2",
     "@zavx0z/template": "^2.5.7",
     "spark-md5": "^3.0.2"
   }
