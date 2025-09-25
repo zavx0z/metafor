@@ -13,14 +13,14 @@ describe("Фильтрация по операции патча (op)", () => {
   const fakeMeta: string = "test"
 
   it("фильтрация по replace", () => {
-    let called = false
+    const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction((reaction) => [
+      serializeReaction<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
             .filter({ op: "replace" })
-            .equal(() => (called = true)),
+            .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
     )
@@ -32,22 +32,22 @@ describe("Фильтрация по операции патча (op)", () => {
       patch: { op: "replace", path: "/context", value: 1 },
       context: fakeContext,
       state: "idle",
-      core: {},
+      core,
       update: fakeUpdate,
     })
 
-    expect(called, "реакция должна сработать при replace операции").toBe(true)
+    expect(core.called, "реакция должна сработать при replace операции").toBe(true)
   })
 
   it("фильтрация по add", () => {
-    let called = false
+    const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction((reaction) => [
+      serializeReaction<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
             .filter({ op: "add" })
-            .equal(() => (called = true)),
+            .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
     )
@@ -59,22 +59,22 @@ describe("Фильтрация по операции патча (op)", () => {
       patch: { op: "add", path: "/context", value: 1 },
       context: fakeContext,
       state: "idle",
-      core: {},
+      core,
       update: fakeUpdate,
     })
 
-    expect(called, "реакция должна сработать при add операции").toBe(true)
+    expect(core.called, "реакция должна сработать при add операции").toBe(true)
   })
 
   it("фильтрация по remove", () => {
-    let called = false
+    const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction((reaction) => [
+      serializeReaction<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
             .filter({ op: "remove" })
-            .equal(() => (called = true)),
+            .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
     )
@@ -86,22 +86,22 @@ describe("Фильтрация по операции патча (op)", () => {
       patch: { op: "remove", path: "/context" },
       context: fakeContext,
       state: "idle",
-      core: {},
+      core,
       update: fakeUpdate,
     })
 
-    expect(called, "реакция должна сработать при remove операции").toBe(true)
+    expect(core.called, "реакция должна сработать при remove операции").toBe(true)
   })
 
   it("фильтрация по test", () => {
-    let called = false
+    const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction((reaction) => [
+      serializeReaction<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
             .filter({ op: "test" })
-            .equal(() => (called = true)),
+            .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
     )
@@ -113,22 +113,22 @@ describe("Фильтрация по операции патча (op)", () => {
       patch: { op: "test", path: "/context", value: 1 },
       context: fakeContext,
       state: "idle",
-      core: {},
+      core,
       update: fakeUpdate,
     })
 
-    expect(called, "реакция должна сработать при test операции").toBe(true)
+    expect(core.called, "реакция должна сработать при test операции").toBe(true)
   })
 
   it("не срабатывает при несовпадении операции", () => {
-    let called = false
+    const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction((reaction) => [
+      serializeReaction<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
             .filter({ op: "replace" })
-            .equal(() => (called = true)),
+            .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
     )
@@ -140,17 +140,17 @@ describe("Фильтрация по операции патча (op)", () => {
       patch: { op: "add", path: "/context", value: 1 },
       context: fakeContext,
       state: "idle",
-      core: {},
+      core,
       update: fakeUpdate,
     })
 
-    expect(called, "реакция не должна сработать при несовпадении операции").toBe(false)
+    expect(core.called, "реакция не должна сработать при несовпадении операции").toBe(false)
   })
 
   it("комбинированная фильтрация с другими условиями", () => {
-    let called = false
+    const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction((reaction) => [
+      serializeReaction<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -159,7 +159,7 @@ describe("Фильтрация по операции патча (op)", () => {
               path: "/context",
               meta: "test",
             })
-            .equal(() => (called = true)),
+            .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
     )
@@ -171,17 +171,17 @@ describe("Фильтрация по операции патча (op)", () => {
       patch: { op: "replace", path: "/context", value: 1 },
       context: fakeContext,
       state: "idle",
-      core: {},
+      core,
       update: fakeUpdate,
     })
 
-    expect(called, "реакция должна сработать при комбинированной фильтрации").toBe(true)
+    expect(core.called, "реакция должна сработать при комбинированной фильтрации").toBe(true)
   })
 
   it("фильтрация по replace с path", () => {
-    let called = false
+    const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction((reaction) => [
+      serializeReaction<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -189,7 +189,7 @@ describe("Фильтрация по операции патча (op)", () => {
               op: "replace",
               path: "/context",
             })
-            .equal(() => (called = true)),
+            .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
     )
@@ -201,17 +201,17 @@ describe("Фильтрация по операции патча (op)", () => {
       patch: { op: "replace", path: "/context", value: 1 },
       context: fakeContext,
       state: "idle",
-      core: {},
+      core,
       update: fakeUpdate,
     })
 
-    expect(called, "реакция должна сработать при replace с path").toBe(true)
+    expect(core.called, "реакция должна сработать при replace с path").toBe(true)
   })
 
   it("фильтрация по add с path", () => {
-    let called = false
+    const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction((reaction) => [
+      serializeReaction<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -219,7 +219,7 @@ describe("Фильтрация по операции патча (op)", () => {
               op: "add",
               path: "/context",
             })
-            .equal(() => (called = true)),
+            .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
     )
@@ -231,17 +231,17 @@ describe("Фильтрация по операции патча (op)", () => {
       patch: { op: "add", path: "/context", value: 1 },
       context: fakeContext,
       state: "idle",
-      core: {},
+      core,
       update: fakeUpdate,
     })
 
-    expect(called, "реакция должна сработать при add с path").toBe(true)
+    expect(core.called, "реакция должна сработать при add с path").toBe(true)
   })
 
   it("фильтрация по remove с path", () => {
-    let called = false
+    const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction((reaction) => [
+      serializeReaction<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -249,7 +249,7 @@ describe("Фильтрация по операции патча (op)", () => {
               op: "remove",
               path: "/context",
             })
-            .equal(() => (called = true)),
+            .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
     )
@@ -261,17 +261,17 @@ describe("Фильтрация по операции патча (op)", () => {
       patch: { op: "remove", path: "/context" },
       context: fakeContext,
       state: "idle",
-      core: {},
+      core,
       update: fakeUpdate,
     })
 
-    expect(called, "реакция должна сработать при remove с path").toBe(true)
+    expect(core.called, "реакция должна сработать при remove с path").toBe(true)
   })
 
   it("фильтрация по test с path", () => {
-    let called = false
+    const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction((reaction) => [
+      serializeReaction<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -279,7 +279,7 @@ describe("Фильтрация по операции патча (op)", () => {
               op: "test",
               path: "/context",
             })
-            .equal(() => (called = true)),
+            .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
     )
@@ -291,10 +291,10 @@ describe("Фильтрация по операции патча (op)", () => {
       patch: { op: "test", path: "/context", value: 1 },
       context: fakeContext,
       state: "idle",
-      core: {},
+      core,
       update: fakeUpdate,
     })
 
-    expect(called, "реакция должна сработать при test с path").toBe(true)
+    expect(core.called, "реакция должна сработать при test с path").toBe(true)
   })
 })

@@ -15,7 +15,7 @@ type Ctx = typeof schema
 type State = "idle" | "active" | "error"
 
 test("Выполнение реакций через run", () => {
-  let called = false
+  const core: { called: boolean } = { called: false }
   const fakeUpdate: Update<Ctx> = (values) => values as any
   const fakeContext: Values<Ctx> = { value: 10, name: "test", isActive: true, tags: ["tag1", "tag2"] } as any
   const fakeMessage: Message = {
@@ -26,12 +26,12 @@ test("Выполнение реакций через run", () => {
   }
 
   const registry = deserializeReactions<Ctx, State, {}>(
-    serializeReaction<Ctx, State, {}>((reaction) => [
+    serializeReaction<Ctx, State, typeof core>((reaction) => [
       [
         ["active"],
         reaction({ title: "test" })
           .filter({ meta: "test" })
-          .equal(() => (called = true)),
+          .equal(({ core }) => (core.called = true)),
       ],
     ]) as any
   )
@@ -43,9 +43,9 @@ test("Выполнение реакций через run", () => {
     patch: fakeMessage.patches[0] as JsonPatch,
     context: fakeContext,
     state: "active",
-    core: {},
+    core,
     update: fakeUpdate,
   })
 
-  expect(called, "реакция вызвана").toBe(true)
+  expect(core.called, "реакция вызвана").toBe(true)
 })
