@@ -1,8 +1,10 @@
 import type { Schema } from "@zavx0z/context"
 import type { Core } from "../core/index.t"
-import type { Process, ProcessesDeclaration } from "../core/proc"
-import type { ProcessConfig } from "../core/proc/index.t"
-import type { ParsedProcess, SnapshotProcesses } from "./process.t"
+import type { Process } from "../core/proc"
+import type { ProcessConfig } from "./process.t"
+import type { ParsedProcess, ProcessesDeclaration, SnapshotProcesses } from "./process.t"
+
+export type { ProcessesDeclaration }
 
 const pattern = {
   dot: /context\.(\w+)/g,

@@ -23,30 +23,6 @@
 import type { Schema, Values, Update } from "@zavx0z/context"
 import type { Core } from "../../core/index.t"
 
-export type ProcessConfig = {
-  /** Название*/
-  title?: string
-  /** Описание */
-  description?: string
-}
-
-/**
- * Тип билдера для декларации набора процессов автомата.
- *
- * Позволяет создавать типизированные процессы с удобным API.
- *
- * @template C - схема контекста автомата
- * @template S - строковые ключи состояний/процессов
- * @param process - фабрика для создания цепочки ProcessChain
- * @returns объект, где ключи — имена процессов, а значения — цепочки ActionChain
- *
- * @includeExample ./proc/test/actions.basic.spec.ts
- * @includeExample ./proc/test/actions.types.spec.ts
- */
-export type ProcessesDeclaration<C extends Schema, S extends string, I extends Core> = (
-  process: (config?: ProcessConfig) => ProcessChain<C, I>
-) => Partial<Record<S, ActionChain<C, I, any>>>
-
 /**
  * Chain API для создания процесса с опциональными параметрами title и description.
  * Позволяет удобно и строго типизировано описывать обработчики процессов автомата.
@@ -190,9 +166,7 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
    * })
    * ```
    */
-  success: (
-    handler: (params: { update: Update<C>; data: Res }) => void
-  ) => ActionChain<C, I, Res>
+  success: (handler: (params: { update: Update<C>; data: Res }) => void) => ActionChain<C, I, Res>
 
   /**
    * Добавляет обработчик ошибки выполнения процесса.
@@ -224,9 +198,7 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
    * })
    * ```
    */
-  error: (
-    handler: (params: { update: Update<C>; error: Error }) => void
-  ) => ActionChain<C, I, Res>
+  error: (handler: (params: { update: Update<C>; error: Error }) => void) => ActionChain<C, I, Res>
 
   /**
    * Возвращает итоговый объект конфигурации процесса для автомата.

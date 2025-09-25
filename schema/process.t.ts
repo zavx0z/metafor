@@ -3,11 +3,15 @@
  * @module Processes
  */
 
+import type { Schema } from "@zavx0z/context"
+import type { Core } from "../core/index.t"
+import type { ProcessChain, ActionChain } from "../core/proc/index.t"
+
 /**
  * Обработчик действия процесса.
  * Содержит функцию и список полей контекста, которые читаются.
  */
-export type ParsedActionHandler = {
+type ParsedActionHandler = {
   /** Список полей контекста, которые читаются в обработчике */
   read?: string[]
   /** Строковое представление функции action для десериализации */
@@ -18,7 +22,7 @@ export type ParsedActionHandler = {
  * Обработчик успеха или ошибки процесса.
  * Содержит функцию, список полей для чтения и записи.
  */
-export type ParsedHandler = {
+type ParsedHandler = {
   /** Список полей контекста, которые читаются в обработчике */
   read?: string[]
   /** Список полей контекста, которые записываются в обработчике */
@@ -49,4 +53,27 @@ export type ParsedProcess = {
  * @description
  * Объект с распарсенными процессами
  */
-export type SnapshotProcesses = Record<string, ParsedProcess>
+export type SnapshotProcesses = Record<string, ParsedProcess> /**
+ * Тип билдера для декларации набора процессов автомата.
+ *
+ * Позволяет создавать типизированные процессы с удобным API.
+ *
+ * @template C - схема контекста автомата
+ * @template S - строковые ключи состояний/процессов
+ * @param process - фабрика для создания цепочки ProcessChain
+ * @returns объект, где ключи — имена процессов, а значения — цепочки ActionChain
+ *
+ * @includeExample ./proc/test/actions.basic.spec.ts
+ * @includeExample ./proc/test/actions.types.spec.ts
+ */
+
+export type ProcessesDeclaration<C extends Schema, S extends string, I extends Core> = (
+  process: (config?: ProcessConfig) => ProcessChain<C, I>
+) => Partial<Record<S, ActionChain<C, I, any>>>
+
+export type ProcessConfig = {
+  /** Название*/
+  title?: string
+  /** Описание */
+  description?: string
+}

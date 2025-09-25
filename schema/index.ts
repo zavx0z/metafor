@@ -51,11 +51,12 @@
 import { type Schema, type Types, contextSchema } from "@zavx0z/context"
 import { parse } from "@zavx0z/template"
 import type { MetaForConfig, Core, MetaSchema } from "../core/index.t"
-import { type ProcessesDeclaration } from "../core/proc"
 import { type ReactionsDeclaration, serializeReaction } from "../core/react"
 import { type StatesConfig, validateNoUnconditionalCycles } from "../core/state"
 import { type ViewDeclaration, serializeStyle } from "../core/view"
 import { serializeProcesses } from "./process"
+import type { ProcessesDeclaration } from "./process.t"
+export type { MetaForType } from "./index.t"
 
 globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
   const description = config?.description

@@ -1,11 +1,11 @@
 import { test, describe, expect } from "bun:test"
-import { serializeProcesses } from "../../../schema/process.ts"
-import { Context } from "@zavx0z/context"
-import type { ProcessesDeclaration } from "../index.t.ts"
+import { serializeProcesses } from "./process.ts"
+import { contextSchema } from "@zavx0z/context"
+import type { ProcessesDeclaration } from "./process.t.ts"
 
 describe("parseChainsObject — разные варианты chain", () => {
   test("action, success, error варианты", () => {
-    const { schema } = new Context((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
+    const schema = contextSchema((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
     type C = typeof schema
     type S = "onlyAction" | "onlySuccess" | "onlyError" | "allHandlers"
 
@@ -44,7 +44,7 @@ describe("parseChainsObject — разные варианты chain", () => {
   })
 
   test("пустой объект", () => {
-    const { schema } = new Context((t) => ({ foo: t.string.required("a") }))
+    const schema = contextSchema((t) => ({ foo: t.string.required("a") }))
     type C = typeof schema
     type S = never
     const actions: ProcessesDeclaration<C, S, {}> = (process) => ({})
@@ -53,7 +53,7 @@ describe("parseChainsObject — разные варианты chain", () => {
   })
 
   test("один процесс", () => {
-    const { schema } = new Context((t) => ({ foo: t.string.required("a") }))
+    const schema = contextSchema((t) => ({ foo: t.string.required("a") }))
     type C = typeof schema
     type S = "single"
     const actions: ProcessesDeclaration<C, S, {}> = (process) => ({
@@ -66,7 +66,7 @@ describe("parseChainsObject — разные варианты chain", () => {
   })
 
   test("несколько процессов", () => {
-    const { schema } = new Context((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
+    const schema = contextSchema((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
     type C = typeof schema
     type S = "first" | "second"
     const actions: ProcessesDeclaration<C, S, {}> = (process) => ({
@@ -81,7 +81,7 @@ describe("parseChainsObject — разные варианты chain", () => {
   })
 
   test("процессы с разными типами возвращаемых значений", () => {
-    const { schema } = new Context((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
+    const schema = contextSchema((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
     type C = typeof schema
     type S = "string" | "number" | "object"
     const actions: ProcessesDeclaration<C, S, {}> = (process) => ({
@@ -98,7 +98,7 @@ describe("parseChainsObject — разные варианты chain", () => {
   })
 
   test("процессы с async функциями", () => {
-    const { schema } = new Context((t) => ({ foo: t.string.required("a") }))
+    const schema = contextSchema((t) => ({ foo: t.string.required("a") }))
     type C = typeof schema
     type S = "async"
     const actions: ProcessesDeclaration<C, S, {}> = (process) => ({
@@ -114,7 +114,7 @@ describe("parseChainsObject — разные варианты chain", () => {
   })
 
   test("процессы с success и error обработчиками", () => {
-    const { schema } = new Context((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
+    const schema = contextSchema((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
     type C = typeof schema
     type S = "withHandlers"
     const actions: ProcessesDeclaration<C, S, {}> = (process) => ({
@@ -134,7 +134,7 @@ describe("parseChainsObject — разные варианты chain", () => {
   })
 
   test("процессы с title и description", () => {
-    const { schema } = new Context((t) => ({ foo: t.string.required("a") }))
+    const schema = contextSchema((t) => ({ foo: t.string.required("a") }))
     type C = typeof schema
     type S = "withMeta"
     const actions: ProcessesDeclaration<C, S, {}> = (process) => ({
@@ -153,7 +153,7 @@ describe("parseChainsObject — разные варианты chain", () => {
   })
 
   test("сохранение строкового представления action функции", () => {
-    const { schema } = new Context((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
+    const schema = contextSchema((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
     type C = typeof schema
     type S = "sourceTest"
 
@@ -168,7 +168,7 @@ describe("parseChainsObject — разные варианты chain", () => {
   })
 
   test("сохранение строкового представления всех обработчиков", () => {
-    const { schema } = new Context((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
+    const schema = contextSchema((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
     type C = typeof schema
     type S = "allHandlersTest"
 
@@ -191,7 +191,7 @@ describe("parseChainsObject — разные варианты chain", () => {
 
 describe("parseChain — несколько chain", () => {
   test("корректно парсит объект с несколькими chain", () => {
-    const { schema } = new Context((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
+    const schema = contextSchema((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
     type C = typeof schema
     type S = "first" | "second"
     const actions: ProcessesDeclaration<C, S, {}> = (process) => ({
@@ -217,7 +217,7 @@ describe("parseChain — несколько chain", () => {
   })
 
   test("смешанные типы процессов", () => {
-    const { schema } = new Context((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
+    const schema = contextSchema((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
     type C = typeof schema
     type S = "simple" | "complex" | "async"
     const actions: ProcessesDeclaration<C, S, {}> = (process) => ({
