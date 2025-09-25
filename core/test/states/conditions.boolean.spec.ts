@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import { checkTransition } from "../index.ts"
+import { checkTransition } from "../../states.ts"
 
 test("Простые условия для булевых значений", () => {
   const condition = { isActive: true }

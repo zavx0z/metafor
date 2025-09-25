@@ -1,8 +1,7 @@
-import { deserializeReactions } from "../index"
+import { reactionsFromSchema } from "../../reactions"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
 import type { JsonPatch } from "../../index.t"
-
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"
@@ -39,7 +38,7 @@ describe("deserializeReactions", () => {
     }
 
     // Создаем десериализованные реакции из снимка
-    const deserializedReactions = deserializeReactions<Ctx, State, {}>(snapshot as any)
+    const deserializedReactions = reactionsFromSchema<Ctx, State, {}>(snapshot as any)
 
     // Проверяем, что структура сохранена
     expect(deserializedReactions.hasReactions(), "десериализованные реакции должны содержать реакции").toBe(true)
@@ -83,9 +82,11 @@ describe("deserializeReactions", () => {
 
   it("пустой снимок", () => {
     const emptySnapshot = { reactions: {}, states: {} }
-    const deserializedReactions = deserializeReactions<Ctx, State, {}>(emptySnapshot)
+    const deserializedReactions = reactionsFromSchema<Ctx, State, {}>(emptySnapshot)
 
-    expect(deserializedReactions.hasReactions(), "пустые десериализованные реакции не должны содержать реакции").toBe(false)
+    expect(deserializedReactions.hasReactions(), "пустые десериализованные реакции не должны содержать реакции").toBe(
+      false
+    )
     expect(deserializedReactions.getAllReactions().length, "количество реакций должно быть 0").toBe(0)
   })
 
@@ -106,7 +107,7 @@ describe("deserializeReactions", () => {
       },
     }
 
-    const deserializedReactions = deserializeReactions<Ctx, State, {}>(snapshotWithMetadata)
+    const deserializedReactions = reactionsFromSchema<Ctx, State, {}>(snapshotWithMetadata)
 
     expect(deserializedReactions.hasReactions(), "десериализованные реакции должны содержать реакции").toBe(true)
 

@@ -1,4 +1,4 @@
-import { deserializeReactions } from "../index"
+import { reactionsFromSchema } from "../../reactions"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
 import type { JsonPatch } from "../../index.t"
@@ -14,7 +14,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("фильтрация по replace", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
@@ -41,7 +41,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("фильтрация по add", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
@@ -68,7 +68,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("фильтрация по remove", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
@@ -95,7 +95,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("фильтрация по test", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
@@ -122,7 +122,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("не срабатывает при несовпадении операции", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
@@ -149,7 +149,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("комбинированная фильтрация с другими условиями", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
@@ -180,7 +180,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("фильтрация по replace с path", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
@@ -210,7 +210,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("фильтрация по add с path", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
@@ -240,7 +240,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("фильтрация по remove с path", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
@@ -270,7 +270,7 @@ describe("Фильтрация по операции патча (op)", () => {
 
   it("фильтрация по test с path", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],

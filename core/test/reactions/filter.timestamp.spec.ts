@@ -1,25 +1,26 @@
+import { reactionsFromSchema } from "../../reactions"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
-import type { JsonPatch } from "../../index.t"
-import { deserializeReactions } from ".."
 import { reactionsSchema } from "../../../schema/reactions"
+import type { JsonPatch } from "../../index.t"
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"
 
-describe("Фильтрация по мете актора (meta)", () => {
+describe("Фильтрация по временной метке (timestamp)", () => {
   const fakeUpdate: Update<Ctx> = (values) => values as any
   const fakeContext: Values<Ctx> = { value: 10 }
   const fakePatch: JsonPatch = { op: "replace", path: "/context", value: 1 }
 
-  it("простое сравнение хеша меты", () => {
+  it("простое сравнение числа", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const timestamp = Date.now()
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ meta: "test" })
+            .filter({ timestamp })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -28,7 +29,7 @@ describe("Фильтрация по мете актора (meta)", () => {
     registry.run({
       meta: "test",
       actor: { index: 0 },
-      timestamp: Date.now(),
+      timestamp,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -41,21 +42,21 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("не срабатывает при несовпадении", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ meta: "test" })
+            .filter({ timestamp: 1000 })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
     )
 
     registry.run({
-      meta: "other",
+      meta: "test",
       actor: { index: 0 },
-      timestamp: Date.now(),
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -66,41 +67,15 @@ describe("Фильтрация по мете актора (meta)", () => {
     expect(core.called, "реакция не должна сработать при несовпадении").toBe(false)
   })
 
-  it("регулярное выражение", () => {
-    const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
-      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ meta: /^test_/ })
-            .equal(({ core }) => (core.called = true)),
-        ],
-      ]) as any
-    )
-
-    registry.run({
-      meta: "test_component",
-      actor: { index: 0 },
-      timestamp: Date.now(),
-      patch: fakePatch,
-      context: fakeContext,
-      state: "idle",
-      core,
-      update: fakeUpdate,
-    })
-
-    expect(core.called, "реакция должна сработать при совпадении с regex").toBe(true)
-  })
-
   it("условие eq", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const timestamp = Date.now()
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ meta: { eq: "test" } })
+            .filter({ timestamp: { eq: timestamp } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -109,7 +84,7 @@ describe("Фильтрация по мете актора (meta)", () => {
     registry.run({
       meta: "test",
       actor: { index: 0 },
-      timestamp: Date.now(),
+      timestamp,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -122,12 +97,12 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("условие notEq", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ meta: { notEq: "other" } })
+            .filter({ timestamp: { notEq: 1000 } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -136,7 +111,7 @@ describe("Фильтрация по мете актора (meta)", () => {
     registry.run({
       meta: "test",
       actor: { index: 0 },
-      timestamp: Date.now(),
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -147,203 +122,14 @@ describe("Фильтрация по мете актора (meta)", () => {
     expect(core.called, "реакция должна сработать при notEq условии").toBe(true)
   })
 
-  it("условие startsWith", () => {
+  it("условие gt (больше)", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ meta: { startsWith: "test" } })
-            .equal(({ core }) => (core.called = true)),
-        ],
-      ]) as any
-    )
-
-    registry.run({
-      meta: "test_component",
-      actor: { index: 0 },
-      timestamp: Date.now(),
-      patch: fakePatch,
-      context: fakeContext,
-      state: "idle",
-      core,
-      update: fakeUpdate,
-    })
-
-    expect(core.called, "реакция должна сработать при startsWith условии").toBe(true)
-  })
-
-  it("условие endsWith", () => {
-    const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
-      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ meta: { endsWith: "component" } })
-            .equal(({ core }) => (core.called = true)),
-        ],
-      ]) as any
-    )
-
-    registry.run({
-      meta: "test_component",
-      actor: { index: 0 },
-      timestamp: Date.now(),
-      patch: fakePatch,
-      context: fakeContext,
-      state: "idle",
-      core,
-      update: fakeUpdate,
-    })
-
-    expect(core.called, "реакция должна сработать при endsWith условии").toBe(true)
-  })
-
-  it("условие include", () => {
-    const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
-      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ meta: { include: "comp" } })
-            .equal(({ core }) => (core.called = true)),
-        ],
-      ]) as any
-    )
-
-    registry.run({
-      meta: "test_component",
-      actor: { index: 0 },
-      timestamp: Date.now(),
-      patch: fakePatch,
-      context: fakeContext,
-      state: "idle",
-      core,
-      update: fakeUpdate,
-    })
-
-    expect(core.called, "реакция должна сработать при include условии").toBe(true)
-  })
-
-  it("условие notInclude", () => {
-    const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
-      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ meta: { notInclude: "bad" } })
-            .equal(({ core }) => (core.called = true)),
-        ],
-      ]) as any
-    )
-
-    registry.run({
-      meta: "test_component",
-      actor: { index: 0 },
-      timestamp: Date.now(),
-      patch: fakePatch,
-      context: fakeContext,
-      state: "idle",
-      core,
-      update: fakeUpdate,
-    })
-
-    expect(core.called, "реакция должна сработать при notInclude условии").toBe(true)
-  })
-
-  it("условие notStartsWith", () => {
-    const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
-      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ meta: { notStartsWith: "bad" } })
-            .equal(({ core }) => (core.called = true)),
-        ],
-      ]) as any
-    )
-
-    registry.run({
-      meta: "test_component",
-      actor: { index: 0 },
-      timestamp: Date.now(),
-      patch: fakePatch,
-      context: fakeContext,
-      state: "idle",
-      core,
-      update: fakeUpdate,
-    })
-
-    expect(core.called, "реакция должна сработать при notStartsWith условии").toBe(true)
-  })
-
-  it("условие notEndsWith", () => {
-    const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
-      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ meta: { notEndsWith: "bad" } })
-            .equal(({ core }) => (core.called = true)),
-        ],
-      ]) as any
-    )
-
-    registry.run({
-      meta: "test_component",
-      actor: { index: 0 },
-      timestamp: Date.now(),
-      patch: fakePatch,
-      context: fakeContext,
-      state: "idle",
-      core,
-      update: fakeUpdate,
-    })
-
-    expect(core.called, "реакция должна сработать при notEndsWith условии").toBe(true)
-  })
-
-  it("условие pattern (regex)", () => {
-    const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
-      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ meta: { pattern: /^test_\d+$/ } })
-            .equal(({ core }) => (core.called = true)),
-        ],
-      ]) as any
-    )
-
-    registry.run({
-      meta: "test_123",
-      actor: { index: 0 },
-      timestamp: Date.now(),
-      patch: fakePatch,
-      context: fakeContext,
-      state: "idle",
-      core,
-      update: fakeUpdate,
-    })
-
-    expect(core.called, "реакция должна сработать при pattern условии").toBe(true)
-  })
-
-  it("условие length (число)", () => {
-    const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
-      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ meta: { length: 4 } })
+            .filter({ timestamp: { gt: 1000 } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -352,7 +138,7 @@ describe("Фильтрация по мете актора (meta)", () => {
     registry.run({
       meta: "test",
       actor: { index: 0 },
-      timestamp: Date.now(),
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -360,17 +146,18 @@ describe("Фильтрация по мете актора (meta)", () => {
       update: fakeUpdate,
     })
 
-    expect(core.called, "реакция должна сработать при length условии (число)").toBe(true)
+    expect(core.called, "реакция должна сработать при gt условии").toBe(true)
   })
 
-  it("условие length (объект с min/max)", () => {
+  it("условие gte (больше или равно)", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const timestamp = 2000
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ meta: { length: { min: 3, max: 10 } } })
+            .filter({ timestamp: { gte: timestamp } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -379,7 +166,7 @@ describe("Фильтрация по мете актора (meta)", () => {
     registry.run({
       meta: "test",
       actor: { index: 0 },
-      timestamp: Date.now(),
+      timestamp,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -387,17 +174,180 @@ describe("Фильтрация по мете актора (meta)", () => {
       update: fakeUpdate,
     })
 
-    expect(core.called, "реакция должна сработать при length условии (min/max)").toBe(true)
+    expect(core.called, "реакция должна сработать при gte условии").toBe(true)
+  })
+
+  it("условие lt (меньше)", () => {
+    const core: { called: boolean } = { called: false }
+    const registry = reactionsFromSchema(
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ timestamp: { lt: 3000 } })
+            .equal(({ core }) => (core.called = true)),
+        ],
+      ]) as any
+    )
+
+    registry.run({
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
+      patch: fakePatch,
+      context: fakeContext,
+      state: "idle",
+      core,
+      update: fakeUpdate,
+    })
+
+    expect(core.called, "реакция должна сработать при lt условии").toBe(true)
+  })
+
+  it("условие lte (меньше или равно)", () => {
+    const core: { called: boolean } = { called: false }
+    const timestamp = 2000
+    const registry = reactionsFromSchema(
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ timestamp: { lte: timestamp } })
+            .equal(({ core }) => (core.called = true)),
+        ],
+      ]) as any
+    )
+
+    registry.run({
+      meta: "test",
+      actor: { index: 0 },
+      timestamp,
+      patch: fakePatch,
+      context: fakeContext,
+      state: "idle",
+      core,
+      update: fakeUpdate,
+    })
+
+    expect(core.called, "реакция должна сработать при lte условии").toBe(true)
+  })
+
+  it("условие notGt (не больше)", () => {
+    const core: { called: boolean } = { called: false }
+    const registry = reactionsFromSchema(
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ timestamp: { notGt: 3000 } })
+            .equal(({ core }) => (core.called = true)),
+        ],
+      ]) as any
+    )
+
+    registry.run({
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
+      patch: fakePatch,
+      context: fakeContext,
+      state: "idle",
+      core,
+      update: fakeUpdate,
+    })
+
+    expect(core.called, "реакция должна сработать при notGt условии").toBe(true)
+  })
+
+  it("условие notGte (не больше или равно)", () => {
+    const core: { called: boolean } = { called: false }
+    const registry = reactionsFromSchema(
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ timestamp: { notGte: 3000 } })
+            .equal(({ core }) => (core.called = true)),
+        ],
+      ]) as any
+    )
+
+    registry.run({
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
+      patch: fakePatch,
+      context: fakeContext,
+      state: "idle",
+      core,
+      update: fakeUpdate,
+    })
+
+    expect(core.called, "реакция должна сработать при notGte условии").toBe(true)
+  })
+
+  it("условие notLt (не меньше)", () => {
+    const core: { called: boolean } = { called: false }
+    const registry = reactionsFromSchema(
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ timestamp: { notLt: 1000 } })
+            .equal(({ core }) => (core.called = true)),
+        ],
+      ]) as any
+    )
+
+    registry.run({
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
+      patch: fakePatch,
+      context: fakeContext,
+      state: "idle",
+      core,
+      update: fakeUpdate,
+    })
+
+    expect(core.called, "реакция должна сработать при notLt условии").toBe(true)
+  })
+
+  it("условие notLte (не меньше или равно)", () => {
+    const core: { called: boolean } = { called: false }
+    const registry = reactionsFromSchema(
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ timestamp: { notLte: 1000 } })
+            .equal(({ core }) => (core.called = true)),
+        ],
+      ]) as any
+    )
+
+    registry.run({
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
+      patch: fakePatch,
+      context: fakeContext,
+      state: "idle",
+      core,
+      update: fakeUpdate,
+    })
+
+    expect(core.called, "реакция должна сработать при notLte условии").toBe(true)
   })
 
   it("условие between", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ meta: { between: ["a", "z"] } })
+            .filter({ timestamp: { between: [1000, 3000] } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -406,7 +356,7 @@ describe("Фильтрация по мете актора (meta)", () => {
     registry.run({
       meta: "test",
       actor: { index: 0 },
-      timestamp: Date.now(),
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -419,16 +369,16 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("комбинированные условия", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
             .filter({
-              meta: {
-                startsWith: "test",
-                include: "comp",
-                length: { min: 10, max: 20 },
+              timestamp: {
+                gte: 1000,
+                lt: 3000,
+                notEq: 1500,
               },
             })
             .equal(({ core }) => (core.called = true)),
@@ -437,9 +387,9 @@ describe("Фильтрация по мете актора (meta)", () => {
     )
 
     registry.run({
-      meta: "test_component",
+      meta: "test",
       actor: { index: 0 },
-      timestamp: Date.now(),
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -448,5 +398,90 @@ describe("Фильтрация по мете актора (meta)", () => {
     })
 
     expect(core.called, "реакция должна сработать при комбинированных условиях").toBe(true)
+  })
+
+  it("обработка undefined значения", () => {
+    const core: { called: boolean } = { called: false }
+    const registry = reactionsFromSchema(
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ timestamp: { eq: 0 } })
+            .equal(({ core }) => (core.called = true)),
+        ],
+      ]) as any
+    )
+
+    registry.run({
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 0,
+      patch: fakePatch,
+      context: fakeContext,
+      state: "idle",
+      core,
+      update: fakeUpdate,
+    })
+
+    expect(core.called, "реакция должна сработать при undefined timestamp (преобразуется в 0)").toBe(true)
+  })
+
+  it("фильтрация по времени (последняя минута)", () => {
+    const core: { called: boolean } = { called: false }
+    const now = Date.now()
+    const oneMinuteAgo = now - 60000
+    const registry = reactionsFromSchema(
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ timestamp: { gte: oneMinuteAgo } })
+            .equal(({ core }) => (core.called = true)),
+        ],
+      ]) as any
+    )
+
+    registry.run({
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: now,
+      patch: fakePatch,
+      context: fakeContext,
+      state: "idle",
+      core,
+      update: fakeUpdate,
+    })
+
+    expect(core.called, "реакция должна сработать для сообщений последней минуты").toBe(true)
+  })
+
+  it("фильтрация по диапазону времени", () => {
+    const core: { called: boolean } = { called: false }
+    const startTime = 1000
+    const endTime = 3000
+    const registry = reactionsFromSchema(
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ timestamp: { between: [startTime, endTime] } })
+            .equal(({ core }) => (core.called = true)),
+        ],
+      ]) as any
+    )
+
+    registry.run({
+      meta: "test",
+      actor: { index: 0 },
+      timestamp: 2000,
+      patch: fakePatch,
+      context: fakeContext,
+      state: "idle",
+      core,
+      update: fakeUpdate,
+    })
+
+    expect(core.called, "реакция должна сработать для сообщений в диапазоне времени").toBe(true)
   })
 })

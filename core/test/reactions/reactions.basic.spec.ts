@@ -1,4 +1,4 @@
-import { deserializeReactions } from "../index"
+import { reactionsFromSchema } from "../../reactions"
 import { contextSchema } from "@zavx0z/context"
 import { test, expect } from "bun:test"
 import { reactionsSchema } from "../../../schema/reactions"
@@ -13,7 +13,7 @@ type Ctx = typeof schema
 type State = "idle" | "active" | "error"
 
 test("Создание уникальных реакций", () => {
-  const registry = deserializeReactions<Ctx, State, {}>(
+  const registry = reactionsFromSchema<Ctx, State, {}>(
     reactionsSchema<Ctx, State, {}>((reaction) => [
       [
         ["idle", "active"],

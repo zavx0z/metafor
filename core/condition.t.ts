@@ -1,5 +1,4 @@
-import type { Condition } from "../state"
-import type { CondStringRequired, CondNumberRequired, ConditionOptional } from "../state/index.t"
+import type { CondStringRequired, CondNumberRequired, ConditionOptional, Condition } from "./states.t"
 
 /**
  * Декларативные условия фильтрации реакций

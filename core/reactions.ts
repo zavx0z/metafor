@@ -3,20 +3,20 @@
  * @module Reactions
  */
 import type { Schema, Update, Values } from "@zavx0z/context"
-import type { ActorInfo, Core, JsonPatch } from "../index.t"
-import type { ReactionParams } from "./index.t"
-import type { ReactionUpdate, ReactionsSchema } from "../../schema/reactions.t"
+import type { ActorInfo, Core, JsonPatch } from "./index.t"
+import type { ReactionParams } from "./reactions.t"
+import type { ReactionUpdate, ReactionsSchema } from "../schema/reactions.t"
 import type { ReactionFilterConditions } from "./condition.t"
 
 /**
- * Десериализует реакции из snapshot и возвращает объект с функциями для работы с реакциями.
+ * Десериализует реакции из схемы и возвращает объект с функциями для работы с реакциями.
  *
- * @param snapshot - сериализованный снимок реакций
+ * @param schema - схема реакций
  * @returns объект с функциями для работы с реакциями
  *
  * @example
  * ```ts
- * const reactions = deserializeReactions(snapshot)
+ * const reactions = deserializeReactions(schema)
  * if (reactions.hasReactions()) {
  *   reactions.run({
  *     context,
@@ -31,8 +31,8 @@ import type { ReactionFilterConditions } from "./condition.t"
  * }
  * ```
  */
-export function deserializeReactions<C extends Schema, S extends string, I extends Core = {}>(
-  snapshot: ReactionsSchema
+export function reactionsFromSchema<C extends Schema, S extends string, I extends Core = {}>(
+  schema: ReactionsSchema
 ): {
   run: (params: {
     state: S
@@ -253,7 +253,7 @@ export function deserializeReactions<C extends Schema, S extends string, I exten
   }
 
   // Восстанавливаем реакции из snapshot
-  for (const [reactionId, reactionData] of Object.entries(snapshot.reactions)) {
+  for (const [reactionId, reactionData] of Object.entries(schema.reactions)) {
     if (reactionData && typeof reactionData === "object") {
       // Восстанавливаем функцию equal из строки
       const updateFn = new Function("return " + reactionData.src)() as ReactionUpdate<C, S, I>
@@ -272,7 +272,7 @@ export function deserializeReactions<C extends Schema, S extends string, I exten
       reactions.push(reaction)
 
       // Связываем реакции с состояниями
-      for (const [state, reactionIds] of Object.entries(snapshot.states)) {
+      for (const [state, reactionIds] of Object.entries(schema.states)) {
         if (reactionIds.includes(reactionId)) {
           reaction.states.push(state)
           if (!stateToReactions[state]) stateToReactions[state] = []

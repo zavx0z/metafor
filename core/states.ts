@@ -4,8 +4,8 @@
  */
 
 import type { Schema, Values } from "@zavx0z/context"
-import type { Condition, Conditions, Transitions } from "./index.t"
-export type { Condition, Conditions, Transitions }
+import type { Conditions, Transitions } from "./states.t"
+export type { Conditions, Transitions }
 
 /**
  * Проверяет условия переходов между состояниями
@@ -35,9 +35,7 @@ export type { Condition, Conditions, Transitions }
  * ```
  */
 export const checkTransition = <C extends Schema>(conditions: Conditions<C>, context: Values<C>): boolean => {
-  /**
-   * Оценивает одно условие
-   */
+  /** Оценивает одно условие */
   const evaluateCondition = (condition: any, value: any): boolean => {
     // Простые значения
     if (typeof condition === "string" || typeof condition === "number" || typeof condition === "boolean") {
@@ -62,9 +60,7 @@ export const checkTransition = <C extends Schema>(conditions: Conditions<C>, con
     return false
   }
 
-  /**
-   * Оценивает сложное условие с объектом параметров
-   */
+  /** Оценивает сложное условие с объектом параметров */
   const evaluateComplexCondition = (condition: any, value: any): boolean => {
     // Проверка на null
     if ("null" in condition) {

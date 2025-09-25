@@ -4,28 +4,28 @@
  */
 
 import type { Schema } from "@zavx0z/context"
-import type { Process } from "./index.t"
-import type { Core } from "../index.t"
-export type { Process } from "./index.t"
+import type { Process } from "./processes.t"
+import type { Core } from "./index.t"
+export type { Process } from "./processes.t"
 
 /**
- * Десериализует процессы из snapshot и возвращает объект с функциями для работы с процессами.
+ * Десериализует процессы из схемы и возвращает объект с функциями для работы с процессами.
  *
- * @param snapshot - сериализованный снимок процессов
+ * @param schema - схема процессов
  * @returns объект с функциями для работы с процессами
  *
  * @example
  * ```ts
- * const processes = deserializeProcesses(snapshot)
- * const process = processes.getProcess("login")
+ * const processes = deserializeProcesses(schema)
+ * const process = processes.getProcess("processName")
  * if (process) {
  *   const result = await process.action({ context, core, element })
  *   if (process.success) process.success({ update, data: result })
  * }
  * ```
  */
-export function deserializeProcesses<C extends Schema, S extends string, I extends Core = {}>(
-  snapshot: Record<string, any>
+export function processesFromSchema<C extends Schema, S extends string, I extends Core = {}>(
+  schema: Record<string, any>
 ): {
   getProcess: (name: S) => Process<C, I> | undefined
   hasProcess: (name: S) => boolean
@@ -34,8 +34,8 @@ export function deserializeProcesses<C extends Schema, S extends string, I exten
 } {
   const processes: Record<string, Process<C, I>> = {}
 
-  // Восстанавливаем процессы из snapshot
-  for (const [processName, processData] of Object.entries(snapshot)) {
+  // Восстанавливаем процессы из схемы
+  for (const [processName, processData] of Object.entries(schema)) {
     if (processData && typeof processData === "object") {
       const process: Process<C, I> = {
         // Восстанавливаем action функцию из строки

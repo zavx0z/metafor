@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import { Processes } from "../index.ts"
+import { Processes } from "../../processes.ts"
 import { Context } from "@zavx0z/context"
 
 test("Базовый chain API для действий", () => {

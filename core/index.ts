@@ -4,9 +4,9 @@
  */
 import { render } from "@zavx0z/renderer"
 import { contextFromSchema, type Context, type Schema, type Values } from "@zavx0z/context"
-import { checkTransition, type Conditions, type Transitions } from "./state"
-import { deserializeProcesses, type Process } from "./proc"
-import { deserializeReactions } from "./react"
+import { checkTransition, type Conditions, type Transitions } from "./states"
+import { processesFromSchema, type Process } from "./processes"
+import { reactionsFromSchema } from "./reactions"
 
 import type { Core, Snapshot, ActorInfo, Message } from "./index.t"
 import type { MetaStore } from "./store.t"
@@ -49,7 +49,7 @@ export function MetaForFabric(params: { store: MetaStore }) {
           return this.#state.state
         }
         /** ------------process-------------------------------- */
-        #processes!: ReturnType<typeof deserializeProcesses<C, S, I>>
+        #processes!: ReturnType<typeof processesFromSchema<C, S, I>>
         /** индикатор выполнения процесса */
         #process: boolean = false
         /**
@@ -65,7 +65,7 @@ export function MetaForFabric(params: { store: MetaStore }) {
             this.#transition()
           }
         }
-        #reactions!: ReturnType<typeof deserializeReactions<C, S, I>>
+        #reactions!: ReturnType<typeof reactionsFromSchema<C, S, I>>
         constructor() {
           super()
           this.#shadow = this.attachShadow({ mode: "closed" })
@@ -84,8 +84,8 @@ export function MetaForFabric(params: { store: MetaStore }) {
           }
           this.#name = m.name
           this.#context = contextFromSchema<C>(m.context as C)
-          this.#reactions = deserializeReactions(m.reactions || { reactions: {}, states: {} })
-          this.#processes = deserializeProcesses(m.processes || {})
+          this.#reactions = reactionsFromSchema(m.reactions || { reactions: {}, states: {} })
+          this.#processes = processesFromSchema(m.processes || {})
           this.#state = { state: Object.keys(m.states)[0] as S, states: m.states }
           if (m.style) {
             const sheet = new CSSStyleSheet()

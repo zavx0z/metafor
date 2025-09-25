@@ -1,26 +1,25 @@
-import { deserializeReactions } from "../index"
+import { reactionsFromSchema } from "../../reactions"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
-import { reactionsSchema } from "../../../schema/reactions"
 import type { JsonPatch } from "../../index.t"
+import { reactionsSchema } from "../../../schema/reactions"
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"
 
-describe("Фильтрация по временной метке (timestamp)", () => {
+describe("Фильтрация по индексу (index)", () => {
   const fakeUpdate: Update<Ctx> = (values) => values as any
   const fakeContext: Values<Ctx> = { value: 10 }
   const fakePatch: JsonPatch = { op: "replace", path: "/context", value: 1 }
 
   it("простое сравнение числа", () => {
     const core: { called: boolean } = { called: false }
-    const timestamp = Date.now()
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ timestamp })
+            .filter({ index: 5 })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -28,8 +27,8 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
-      timestamp,
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -42,12 +41,12 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("не срабатывает при несовпадении", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ timestamp: 1000 })
+            .filter({ index: 5 })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -55,8 +54,8 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
-      timestamp: 2000,
+      actor: { index: 10 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -69,13 +68,12 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие eq", () => {
     const core: { called: boolean } = { called: false }
-    const timestamp = Date.now()
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ timestamp: { eq: timestamp } })
+            .filter({ index: { eq: 5 } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -83,8 +81,8 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
-      timestamp,
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -97,12 +95,12 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие notEq", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ timestamp: { notEq: 1000 } })
+            .filter({ index: { notEq: 10 } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -110,8 +108,8 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
-      timestamp: 2000,
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -124,12 +122,12 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие gt (больше)", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ timestamp: { gt: 1000 } })
+            .filter({ index: { gt: 3 } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -137,8 +135,8 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
-      timestamp: 2000,
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -151,13 +149,12 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие gte (больше или равно)", () => {
     const core: { called: boolean } = { called: false }
-    const timestamp = 2000
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ timestamp: { gte: timestamp } })
+            .filter({ index: { gte: 5 } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -165,8 +162,8 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
-      timestamp,
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -179,12 +176,12 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие lt (меньше)", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ timestamp: { lt: 3000 } })
+            .filter({ index: { lt: 10 } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -192,8 +189,8 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
-      timestamp: 2000,
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -206,13 +203,12 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие lte (меньше или равно)", () => {
     const core: { called: boolean } = { called: false }
-    const timestamp = 2000
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ timestamp: { lte: timestamp } })
+            .filter({ index: { lte: 5 } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -220,8 +216,8 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
-      timestamp,
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -234,12 +230,12 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие notGt (не больше)", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ timestamp: { notGt: 3000 } })
+            .filter({ index: { notGt: 10 } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -247,8 +243,8 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
-      timestamp: 2000,
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -261,12 +257,12 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие notGte (не больше или равно)", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ timestamp: { notGte: 3000 } })
+            .filter({ index: { notGte: 10 } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -274,8 +270,8 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
-      timestamp: 2000,
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -288,12 +284,12 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие notLt (не меньше)", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ timestamp: { notLt: 1000 } })
+            .filter({ index: { notLt: 3 } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -301,8 +297,8 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
-      timestamp: 2000,
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -315,12 +311,12 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие notLte (не меньше или равно)", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ timestamp: { notLte: 1000 } })
+            .filter({ index: { notLte: 3 } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -328,8 +324,8 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
-      timestamp: 2000,
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -342,12 +338,12 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("условие between", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ timestamp: { between: [1000, 3000] } })
+            .filter({ index: { between: [1, 10] } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -355,8 +351,8 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
-      timestamp: 2000,
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -369,16 +365,16 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("комбинированные условия", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
             .filter({
-              timestamp: {
-                gte: 1000,
-                lt: 3000,
-                notEq: 1500,
+              index: {
+                gte: 1,
+                lt: 10,
+                notEq: 3,
               },
             })
             .equal(({ core }) => (core.called = true)),
@@ -388,8 +384,8 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
-      timestamp: 2000,
+      actor: { index: 5 },
+      timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
@@ -402,12 +398,12 @@ describe("Фильтрация по временной метке (timestamp)", 
 
   it("обработка undefined значения", () => {
     const core: { called: boolean } = { called: false }
-    const registry = deserializeReactions(
+    const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
-            .filter({ timestamp: { eq: 0 } })
+            .filter({ index: { eq: 0 } })
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -424,64 +420,6 @@ describe("Фильтрация по временной метке (timestamp)", 
       update: fakeUpdate,
     })
 
-    expect(core.called, "реакция должна сработать при undefined timestamp (преобразуется в 0)").toBe(true)
-  })
-
-  it("фильтрация по времени (последняя минута)", () => {
-    const core: { called: boolean } = { called: false }
-    const now = Date.now()
-    const oneMinuteAgo = now - 60000
-    const registry = deserializeReactions(
-      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ timestamp: { gte: oneMinuteAgo } })
-            .equal(({ core }) => (core.called = true)),
-        ],
-      ]) as any
-    )
-
-    registry.run({
-      meta: "test",
-      actor: { index: 0 },
-      timestamp: now,
-      patch: fakePatch,
-      context: fakeContext,
-      state: "idle",
-      core,
-      update: fakeUpdate,
-    })
-
-    expect(core.called, "реакция должна сработать для сообщений последней минуты").toBe(true)
-  })
-
-  it("фильтрация по диапазону времени", () => {
-    const core: { called: boolean } = { called: false }
-    const startTime = 1000
-    const endTime = 3000
-    const registry = deserializeReactions(
-      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ timestamp: { between: [startTime, endTime] } })
-            .equal(({ core }) => (core.called = true)),
-        ],
-      ]) as any
-    )
-
-    registry.run({
-      meta: "test",
-      actor: { index: 0 },
-      timestamp: 2000,
-      patch: fakePatch,
-      context: fakeContext,
-      state: "idle",
-      core,
-      update: fakeUpdate,
-    })
-
-    expect(core.called, "реакция должна сработать для сообщений в диапазоне времени").toBe(true)
+    expect(core.called, "реакция должна сработать при undefined index (преобразуется в 0)").toBe(true)
   })
 })

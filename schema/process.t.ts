@@ -5,7 +5,7 @@
 
 import type { Schema } from "@zavx0z/context"
 import type { Core } from "../core/index.t"
-import type { ProcessChain, ActionChain } from "../core/proc/index.t"
+import type { ProcessChain, ActionChain } from "../core/processes.t"
 
 /**
  * Обработчик действия процесса.

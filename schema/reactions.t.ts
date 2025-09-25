@@ -1,7 +1,44 @@
 import type { Schema, Update, Values } from "@zavx0z/context"
 import type { ActorInfo, Core, JsonPatch } from "../core/index.t"
-import type { ReactionFilterConditions } from "../core/react/condition.t"
-import type { Reaction, ReactionsChainResult } from "../core/react/index.t"
+import type { ReactionFilterConditions } from "../core/condition.t"
+import type { ReactionParams } from "../core/reactions.t"
+
+/**
+ * Конфигурация одной реакции
+ *
+ * Содержит название, описание, функцию фильтрации и функцию обновления.
+ *
+ * @template C - схема контекста
+ * @template S - строковые ключи состояний
+ * @template Core - тип core объекта
+ *
+ * @example
+ * ```typescript
+ * const reaction: Reaction<MyContext, "idle" | "loading"> = {
+ *   title: "Обработка сообщений",
+ *   description: "Обрабатывает входящие сообщения от пользователей",
+ *   filter: ({ meta, patch }) => {
+ *     return meta === "user" && patch.op === "replace"
+ *   },
+ *   update: ({ update, context, patch }) => {
+ *     update({
+ *       lastMessage: patch.value,
+ *       messageCount: context.messageCount + 1
+ *     })
+ *   }
+ * }
+ * ```
+ */
+export type Reaction<C extends Schema, S extends string, I extends Core> = {
+  /** Название реакции для документации */
+  title: string
+  /** Описание реакции для документации */
+  description?: string
+  /** Функция фильтрации событий */
+  filter: (args: ReactionParams) => boolean
+  /** Функция обработки события */
+  update: ReactionUpdate<C, S, I>
+}
 
 /**
  * Цепочка для создания массива реакций
@@ -109,4 +146,12 @@ export type ReactionUpdate<C extends Schema, S extends string, I extends Core> =
   patch: JsonPatch
   /** Текущее состояние */
   state: S
-}) => void
+}) => void /** Результат цепочки реакций */
+
+export type ReactionsChainResult<C extends Schema, S extends string, I extends Core> = [
+  S[],
+  Reaction<C, S, I> & {
+    /** Метод для регистрации состояний */
+    registerStates: (states: S[]) => void
+  },
+][]

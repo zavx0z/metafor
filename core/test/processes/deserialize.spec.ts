@@ -1,5 +1,5 @@
 import { test, describe, expect } from "bun:test"
-import { deserializeProcesses } from "../index.ts"
+import { processesFromSchema } from "../../processes.ts"
 import { Context } from "@zavx0z/context"
 
 describe("deserializeProcesses", () => {
@@ -40,7 +40,7 @@ describe("deserializeProcesses", () => {
       },
     }
 
-    const processes = deserializeProcesses<C, S, {}>(snapshot)
+    const processes = processesFromSchema<C, S, {}>(snapshot)
 
     expect(processes.hasProcess("increment"), "процесс increment должен существовать").toBe(true)
     expect(processes.hasProcess("reset"), "процесс reset должен существовать").toBe(true)
@@ -73,7 +73,7 @@ describe("deserializeProcesses", () => {
       },
     }
 
-    const processes = deserializeProcesses<C, S, {}>(snapshot)
+    const processes = processesFromSchema<C, S, {}>(snapshot)
     const process = processes.getProcess("multiply")
 
     expect(process, "процесс должен быть найден").toBeDefined()
@@ -101,7 +101,7 @@ describe("deserializeProcesses", () => {
       process3: { action: { src: "() => 3" } },
     }
 
-    const processes = deserializeProcesses<C, S, {}>(snapshot)
+    const processes = processesFromSchema<C, S, {}>(snapshot)
 
     const allProcesses = processes.getAllProcesses()
     expect(Object.keys(allProcesses).length, "должно быть 3 процесса").toBe(3)
@@ -114,7 +114,7 @@ describe("deserializeProcesses", () => {
   })
 
   test("пустой snapshot", () => {
-    const processes = deserializeProcesses<C, S, {}>({})
+    const processes = processesFromSchema<C, S, {}>({})
 
     expect(processes.hasProcess("any"), "не должно быть процессов").toBe(false)
     expect(processes.getProcess("any"), "не должно быть процессов").toBeUndefined()

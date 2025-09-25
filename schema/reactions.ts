@@ -1,11 +1,8 @@
 import type { Schema } from "@zavx0z/context"
 import type { Core } from "../core/index.t"
-import type { ReactionsDeclaration } from "./reactions.t"
-import type { ReactionFilterConditions } from "../core/react/condition.t"
-import type { Reaction } from "../core/react/index.t"
-import type { ReactionUpdate } from "./reactions.t"
-import type { ReactionsSchema as ReactionsSchema } from "./reactions.t"
-export type { ReactionsDeclaration }
+import type { ReactionFilterConditions } from "../core/condition.t"
+import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionUpdate } from "./reactions.t"
+export type { ReactionsDeclaration, ReactionsSchema }
 
 export const reactionsSchema = <C extends Schema, S extends string, I extends Core = {}>(
   builder: ReactionsDeclaration<C, S, I>

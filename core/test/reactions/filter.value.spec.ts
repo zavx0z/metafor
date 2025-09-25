@@ -1,4 +1,4 @@
-import { deserializeReactions } from "../index"
+import { reactionsFromSchema } from "../../reactions"
 import { contextSchema, type Update, type Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
 import { reactionsSchema } from "../../../schema/reactions"
@@ -20,7 +20,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Строковые значения", () => {
     it("прямое сравнение строки", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -47,7 +47,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("регулярное выражение", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -74,7 +74,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие eq", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -101,7 +101,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие notEq", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -128,7 +128,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие startsWith", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -155,7 +155,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие endsWith", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -182,7 +182,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие include", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -209,7 +209,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие notInclude", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -236,7 +236,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие pattern", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -263,7 +263,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие length (число)", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -290,7 +290,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие length (объект с min/max)", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -317,7 +317,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие between", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -346,7 +346,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Числовые значения", () => {
     it("прямое сравнение числа", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -373,7 +373,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие eq", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -400,7 +400,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие gt", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -427,7 +427,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие gte", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -454,7 +454,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие lt", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -481,7 +481,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие lte", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -508,7 +508,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие between", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -537,7 +537,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Булевы значения", () => {
     it("прямое сравнение булева значения", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -564,7 +564,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие eq", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -591,7 +591,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие logicalEq", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -621,7 +621,7 @@ describe("Фильтрация по значению патча (value) - рас
     it("прямое сравнение массива", () => {
       const core: { called: boolean } = { called: false }
       const testArray = [1, 2, 3]
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -648,7 +648,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие length (число)", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -675,7 +675,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие includes", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -702,7 +702,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие isEmpty", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -729,7 +729,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие every для чисел", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -756,7 +756,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие some для строк", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -785,7 +785,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Null и undefined", () => {
     it("прямое сравнение null", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -812,7 +812,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("прямое сравнение undefined", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -839,7 +839,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие null в объекте", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -869,7 +869,7 @@ describe("Фильтрация по значению патча (value) - рас
     it("прямое сравнение объекта", () => {
       const core: { called: boolean } = { called: false }
       const testObject = { name: "test", value: 42 }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -906,7 +906,7 @@ describe("Фильтрация по значению патча (value) - рас
           },
         },
       }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -935,7 +935,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Комбинированные условия", () => {
     it("комбинация с операцией и путем", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -966,7 +966,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("комбинация строковых условий", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -997,7 +997,7 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Отрицательные тесты", () => {
     it("не срабатывает при несовпадении строки", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -1024,7 +1024,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("не срабатывает при несовпадении числа", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
@@ -1051,7 +1051,7 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("не срабатывает при несовпадении массива", () => {
       const core: { called: boolean } = { called: false }
-      const registry = deserializeReactions(
+      const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],

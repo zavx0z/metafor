@@ -1,4 +1,4 @@
-import { deserializeReactions } from "../index"
+import { reactionsFromSchema } from "../../reactions"
 import type { Update, Values } from "@zavx0z/context"
 import { test, expect } from "bun:test"
 import type { JsonPatch, Message } from "../../index.t"
@@ -25,7 +25,7 @@ test("Выполнение реакций через run", () => {
     patches: [{ op: "replace", path: "/context", value: 1 }],
   }
 
-  const registry = deserializeReactions<Ctx, State, {}>(
+  const registry = reactionsFromSchema<Ctx, State, {}>(
     reactionsSchema<Ctx, State, typeof core>((reaction) => [
       [
         ["active"],

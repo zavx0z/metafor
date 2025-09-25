@@ -1,5 +1,5 @@
 import { test, describe, expect } from "bun:test"
-import { deserializeReactions } from "../index.ts"
+import { reactionsFromSchema } from "../../reactions.ts"
 import { contextSchema } from "@zavx0z/context"
 
 describe("deserializeReactions", () => {
@@ -43,7 +43,7 @@ describe("deserializeReactions", () => {
       },
     }
 
-    const reactions = deserializeReactions<C, S, {}>(snapshot)
+    const reactions = reactionsFromSchema<C, S, {}>(snapshot)
 
     expect(reactions.hasReactions(), "должны быть реакции").toBe(true)
 
@@ -83,7 +83,7 @@ describe("deserializeReactions", () => {
       },
     }
 
-    const reactions = deserializeReactions<C, S, {}>(snapshot)
+    const reactions = reactionsFromSchema<C, S, {}>(snapshot)
 
     let updatedContext: any = {}
     const mockUpdate = (updates: any) => {
@@ -136,7 +136,7 @@ describe("deserializeReactions", () => {
       },
     }
 
-    const reactions = deserializeReactions<C, S, {}>(snapshot)
+    const reactions = reactionsFromSchema<C, S, {}>(snapshot)
 
     let updatedContext: any = {}
     const mockUpdate = (updates: any) => {
@@ -201,7 +201,7 @@ describe("deserializeReactions", () => {
       states: {},
     }
 
-    const reactions = deserializeReactions<C, S, {}>(snapshot)
+    const reactions = reactionsFromSchema<C, S, {}>(snapshot)
 
     expect(reactions.hasReactions(), "не должно быть реакций").toBe(false)
     expect(reactions.getAllReactions(), "список реакций должен быть пустым").toEqual([])

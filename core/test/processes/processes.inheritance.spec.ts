@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import { deserializeProcesses } from "../index.ts"
+import { processesFromSchema } from "../../processes.ts"
 import { Context } from "@zavx0z/context"
 
 test("десериализация процессов работает корректно", () => {
@@ -14,7 +14,7 @@ test("десериализация процессов работает корр�
     },
   }
 
-  const processes = deserializeProcesses<S, "guest">(snapshot)
+  const processes = processesFromSchema<S, "guest">(snapshot)
 
   // Проверяем, что функции десериализации работают
   expect(processes.getProcess("guest"), "должен возвращать процесс").toBeDefined()
@@ -36,7 +36,7 @@ test("наследование - deserializeProcesses создается из sn
     },
   }
 
-  const processes = deserializeProcesses<S, "guest">(snapshot)
+  const processes = processesFromSchema<S, "guest">(snapshot)
 
   // Проверяем, что функции десериализации работают
   expect(processes.getProcessNames(), "должен возвращать массив с guest").toEqual(["guest"])
@@ -48,11 +48,15 @@ test("десериализация процессов имеет правиль�
   const { schema } = new Context((t) => ({ name: t.string.required("anon") }))
   type S = typeof schema
 
-  const deserialized = deserializeProcesses<S, "guest">({})
+  const deserialized = processesFromSchema<S, "guest">({})
 
   // Проверяем, что функции десериализации имеют правильные методы
   expect(typeof deserialized.getProcess, "deserializeProcesses должен иметь метод getProcess").toBe("function")
   expect(typeof deserialized.hasProcess, "deserializeProcesses должен иметь метод hasProcess").toBe("function")
-  expect(typeof deserialized.getAllProcesses, "deserializeProcesses должен иметь метод getAllProcesses").toBe("function")
-  expect(typeof deserialized.getProcessNames, "deserializeProcesses должен иметь метод getProcessNames").toBe("function")
+  expect(typeof deserialized.getAllProcesses, "deserializeProcesses должен иметь метод getAllProcesses").toBe(
+    "function"
+  )
+  expect(typeof deserialized.getProcessNames, "deserializeProcesses должен иметь метод getProcessNames").toBe(
+    "function"
+  )
 })

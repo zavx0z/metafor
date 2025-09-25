@@ -21,7 +21,7 @@
  */
 
 import type { Schema, Values, Update } from "@zavx0z/context"
-import type { Core } from "../../core/index.t"
+import type { Core } from "./index.t"
 
 /**
  * Chain API для создания процесса с опциональными параметрами title и description.
