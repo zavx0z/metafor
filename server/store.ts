@@ -1,37 +1,24 @@
 import path from "node:path"
 import { Database, Statement } from "bun:sqlite"
 import fs from "node:fs/promises"
-import crypto from "node:crypto"
 import { pathToFileURL } from "node:url"
 import type { MetaRecord, MetaStore } from "../core/store/index.t"
 
-/**
- * Импорт ESM из Uint8Array через файл-кэш (.meta-modcache).
- */
-async function importFromUint8AsModule(code: Uint8Array, id: string): Promise<{ default: any }> {
-  const cacheDir = path.join(process.cwd(), ".meta-modcache")
-  await fs.mkdir(cacheDir, { recursive: true })
-  const file = path.join(cacheDir, `${sanitize(id)}-${hash(code)}.mjs`)
-  await fs.writeFile(file, code)
-  return import(pathToFileURL(file).href) as Promise<{ default: any }>
+/** Получить абсолютный путь к файлу модуля: <cwd>/${id}.js */
+function getModuleFilePath(id: string): string {
+  return path.resolve(process.cwd(), `${id}`)
 }
 
-const sanitize = (s: string) => s.replace(/[^a-zA-Z0-9._-]/g, "_")
-const hash = (u8: Uint8Array) => crypto.createHash("sha256").update(u8).digest("hex").slice(0, 16)
+/** Прочитать размер файла без чтения содержимого. */
+async function getModuleFileSize(filePath: string): Promise<number> {
+  const st = await fs.stat(filePath)
+  return st.size
+}
 
-/**
- * Прочитать модуль из КОРНЯ проекта: <cwd>/${id}.js → Uint8Array.
- */
-async function readModuleFromRootAsUint8(id: string): Promise<Uint8Array> {
-  const filePath = path.resolve(process.cwd(), `${id}.js`)
-  const file = Bun.file(filePath)
-  const exists = await file.exists()
-  if (!exists) {
-    console.error(`MODULE_NOT_FOUND:"${id}" at ${filePath}`)
-    throw new Error(`MODULE_NOT_FOUND:"${id}"`)
-  }
-  const buf = await file.bytes()
-  return new Uint8Array(buf)
+/** Импортировать модуль напрямую с диска. Для инвалидации кеша добавляем query с токеном. */
+async function importModuleDefaultFromFile(filePath: string, bustToken: string | number): Promise<{ default: any }> {
+  const href = pathToFileURL(filePath).href + `?v=${bustToken}`
+  return import(href) as Promise<{ default: any }>
 }
 
 /**
@@ -46,18 +33,20 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
           (
               id        TEXT PRIMARY KEY,
               value     TEXT    NOT NULL,
+              size      INTEGER NOT NULL,
               updatedAt INTEGER NOT NULL
           );`)
 
   const stmtGet: Statement<[string]> = db.query(
-    `SELECT value, updatedAt
+    `SELECT value, size, updatedAt
      FROM ${table}
      WHERE id = ?;`
   )
-  const stmtUpsert: Statement<[string, string, number]> = db.query(
-    `INSERT INTO ${table}(id, value, updatedAt)
-     VALUES (?, ?, ?)
+  const stmtUpsert: Statement<[string, string, number, number]> = db.query(
+    `INSERT INTO ${table}(id, value, size, updatedAt)
+     VALUES (?, ?, ?, ?)
      ON CONFLICT(id) DO UPDATE SET value=excluded.value,
+                                   size=excluded.size,
                                    updatedAt=excluded.updatedAt;`
   )
   const stmtDel: Statement<[string]> = db.query(
@@ -67,7 +56,7 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
   )
 
   function getRow(id: string): MetaRecord | null {
-    const row = stmtGet.get(id) as { value: string; updatedAt: number } | null
+    const row = stmtGet.get(id) as { value: string; size: number; updatedAt: number } | null
     if (!row) return null
     // Парсим JSON
     let parsed: unknown
@@ -76,7 +65,7 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
     } catch {
       parsed = null
     }
-    return { id, value: parsed, updatedAt: row.updatedAt }
+    return { id, value: parsed, updatedAt: row.updatedAt, size: row.size }
   }
 
   async function importFromStore(id: string): Promise<{ default: any } | null> {
@@ -90,12 +79,13 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
       return { kind: "server", dbPath, table }
     },
 
-    async upsert(id, content) {
+    async upsert(id, content, sizeBytes?) {
       const json = JSON.stringify(content)
-      stmtUpsert.run(id, json, Date.now())
+      const size = typeof sizeBytes === "number" ? sizeBytes : Buffer.byteLength(json, "utf8")
+      stmtUpsert.run(id, json, size, Date.now())
       const rec = getRow(id)
       if (!rec) throw new Error(`UPSERT_FAILED:"${id}"`)
-      return Buffer.byteLength(json, "utf8")
+      return rec.size
     },
 
     async remove(id) {
@@ -113,12 +103,23 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
       }
 
       const readAndOptionallySave = async (shouldSave: boolean) => {
-        const u8 = await readModuleFromRootAsUint8(id)
-        const mod = await importFromUint8AsModule(u8, id)
+        const filePath = getModuleFilePath(id)
+        try {
+          await fs.access(filePath)
+        } catch {
+          console.error(`MODULE_NOT_FOUND:"${id}" at ${filePath}`)
+          throw new Error(`MODULE_NOT_FOUND:"${id}"`)
+        }
+        const size = await getModuleFileSize(filePath)
+        const cached = getRow(id)
+        if (cached && typeof cached.size === "number" && cached.size === size) {
+          return { default: cached.value }
+        }
+        const mod = await importModuleDefaultFromFile(filePath, size)
         const value = mod?.default
         if (shouldSave) {
           const now = Date.now()
-          stmtUpsert.run(id, JSON.stringify(value), now)
+          stmtUpsert.run(id, JSON.stringify(value), size, now)
         }
         return { default: value }
       }
@@ -128,8 +129,7 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
           return readAndOptionallySave(false)
         }
         case "cache-only": {
-          const mod = await fromCache()
-          return mod
+          return await fromCache()
         }
         case "network-first": {
           try {

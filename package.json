@@ -20,6 +20,7 @@
   },
   "scripts": {
     "upd": "bun update --latest && bun i",
+    "rebuild:dev": "bun run server:build:dev && bun run web:build:dev",
     "server:build:dev": "bun run server/script/build.ts --dev",
     "server:build:prod": "bun run server/script/build.ts --prod",
     "server:typegen": "bun run server/script/typegen.ts",

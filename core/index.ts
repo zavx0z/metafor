@@ -117,7 +117,6 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
 
 export function MetaForFabric(params: FabricParams) {
   const { store } = params
-
   if (!customElements.get("meta-for")) {
     customElements.define(
       "meta-for",
@@ -173,20 +172,18 @@ export function MetaForFabric(params: FabricParams) {
           this.#shadow = this.attachShadow({ mode: "closed" })
         }
         async connectedCallback() {
-          const moduleId = this.getAttribute("src")
-          if (!moduleId) {
-            console.warn(`Class: ${moduleId} is not defined`)
+          const src = this.getAttribute("src")
+          if (!src) {
+            console.warn(`src: ${src} is not defined`)
             return
           }
-          const url = new URL(moduleId, location.origin).toString()
           // const module = await import(url)
-          const module = await store.import(url, "network-first")
+          const module = await store.import(src, "network-first")
           if (!module) {
-            console.error(`Module: ${moduleId} is not defined`)
+            console.error(`Module: ${src} is not defined`)
             return
           }
 
-          console.log(module.default)
           const m = module.default as MetaSchema<C, S>
           this.#name = m.name
           this.#context = contextFromSchema<C>(m.context as C)

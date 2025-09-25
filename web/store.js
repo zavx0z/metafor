@@ -128,17 +128,14 @@ export async function Store(dbName = "meta", storeName = "modules") {
       return { kind: "web", dbName, storeName }
     },
 
-    async upsert(id, content) {
-      // Сохраняем декларативное значение (structured clone)
-      await put(db, storeName, { id, value: content, updatedAt: Date.now() })
+    async upsert(id, content, sizeBytes) {
+      // Сохраняем декларативное значение (structured clone) и размер JS-модуля (байты)
+      const size = typeof sizeBytes === "number" ? sizeBytes : 0
+      await put(db, storeName, { id, value: content, updatedAt: Date.now(), size })
       const rec = await get(db, storeName, id)
       if (!rec) throw new Error(`UPSERT_FAILED:"${id}"`)
-      // приблизительный размер: длина JSON-строки
-      try {
-        return new TextEncoder().encode(JSON.stringify(rec.value)).byteLength
-      } catch {
-        return 0
-      }
+      // возвращаем сохранённый размер
+      return typeof rec.size === "number" ? rec.size : size
     },
 
     async remove(id) {
@@ -146,10 +143,12 @@ export async function Store(dbName = "meta", storeName = "modules") {
     },
 
     /**
-     * @param {string} id
+     * @param {string} src
      * @param {import("../core/store/index.t").LoadPolicy} [policy]
      */
-    async import(id, policy = "cache-first") {
+    async import(src, policy = "cache-first") {
+      const url = new URL(src, location.origin).toString()
+
       // Поддерживаем политики в стиле Service Worker
       // cache-first: сначала кэш; если нет — сеть с сохранением
       // network-first: пробуем сеть; при ошибке/отсутствии сети — кэш
@@ -158,19 +157,29 @@ export async function Store(dbName = "meta", storeName = "modules") {
       // stale-while-revalidate: мгновенно кэш (если есть), параллельно обновляем кэш из сети (без ожидания)
 
       const fromCache = async () => {
-        const rec = await get(db, storeName, id)
+        const rec = await get(db, storeName, url)
         if (!rec) return null
         return { default: rec.value }
       }
 
-      /** @param {boolean} shouldSave */
+      /**
+       * Загрузить по сети, сверить размер с кэшем и при совпадении вернуть кэш без импорта.
+       * При различии — импортировать и (опционально) сохранить.
+       * @param {boolean} shouldSave
+       */
       const fetchAndOptionallySave = async (shouldSave) => {
-        const u8 = await fetchAsUint8(id)
+        const u8 = await fetchAsUint8(url)
+        const cached = await get(db, storeName, url)
+        if (cached && typeof cached.size === "number" && cached.size === u8.byteLength) {
+          // Размер не изменился — возвращаем сохранённое значение
+          return { default: cached.value }
+        }
+        // Размер изменился (или кэша нет) — импортируем и при необходимости сохраняем
         const mod = await importFromUint8AsModule(u8)
         const value = mod?.default
         if (shouldSave) {
           const now = Date.now()
-          await put(db, storeName, { id, value, updatedAt: now })
+          await put(db, storeName, { id: url, value, updatedAt: now, size: u8.byteLength })
         }
         return { default: value }
       }
