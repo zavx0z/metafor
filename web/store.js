@@ -31,6 +31,9 @@ export async function Store(dbName = "meta", storeName = "modules") {
         if (!db.objectStoreNames.contains(store)) {
           db.createObjectStore(store, { keyPath: "id" })
         }
+        if (!db.objectStoreNames.contains("schema")) {
+          db.createObjectStore("schema", { keyPath: "id" })
+        }
       }
       req.onerror = () => reject(req.error)
       req.onsuccess = () => resolve(req.result)
@@ -84,6 +87,27 @@ export async function Store(dbName = "meta", storeName = "modules") {
   }
 
   /**
+   * Записать метаданные и схему в одной транзакции.
+   * @param {IDBDatabase} db
+   * @param {string} metaStore
+   * @param {string} schemaStore
+   * @param {string} id
+   * @param {unknown} value
+   * @param {number} size
+   * @param {number} updatedAt
+   * @returns {Promise<void>}
+   */
+  function putBoth(db, metaStore, schemaStore, id, value, size, updatedAt) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction([metaStore, schemaStore], "readwrite")
+      tx.oncomplete = () => resolve(undefined)
+      tx.onerror = () => reject(tx.error)
+      tx.objectStore(metaStore).put({ id, size, updatedAt })
+      tx.objectStore(schemaStore).put({ id, value })
+    })
+  }
+
+  /**
    * @param {string} name
    * @returns {Promise<void>}
    */
@@ -129,12 +153,11 @@ export async function Store(dbName = "meta", storeName = "modules") {
     },
 
     async upsert(id, content, sizeBytes) {
-      // Сохраняем декларативное значение (structured clone) и размер JS-модуля (байты)
+      // Сохраняем декларативное значение в отдельном store `schema` и метаданные в `${storeName}`
       const size = typeof sizeBytes === "number" ? sizeBytes : 0
-      await put(db, storeName, { id, value: content, updatedAt: Date.now(), size })
+      await putBoth(db, storeName, "schema", id, content, size, Date.now())
       const rec = await get(db, storeName, id)
       if (!rec) throw new Error(`UPSERT_FAILED:"${id}"`)
-      // возвращаем сохранённый размер
       return typeof rec.size === "number" ? rec.size : size
     },
 
@@ -159,7 +182,8 @@ export async function Store(dbName = "meta", storeName = "modules") {
       const fromCache = async () => {
         const rec = await get(db, storeName, src)
         if (!rec) return null
-        return { default: rec.value }
+        const schemaRec = await get(db, "schema", src)
+        return { default: schemaRec ? schemaRec.value : undefined }
       }
 
       /**
@@ -171,15 +195,15 @@ export async function Store(dbName = "meta", storeName = "modules") {
         const u8 = await fetchAsUint8(url)
         const cached = await get(db, storeName, src)
         if (cached && typeof cached.size === "number" && cached.size === u8.byteLength) {
-          // Размер не изменился — возвращаем сохранённое значение
-          return { default: cached.value }
+          const schemaRec = await get(db, "schema", src)
+          return { default: schemaRec ? schemaRec.value : undefined }
         }
         // Размер изменился (или кэша нет) — импортируем и при необходимости сохраняем
         const mod = await importFromUint8AsModule(u8)
         const value = mod?.default
         if (shouldSave) {
           const now = Date.now()
-          await put(db, storeName, { id: src, value, updatedAt: now, size: u8.byteLength })
+          await putBoth(db, storeName, "schema", src, value, u8.byteLength, now)
         }
         return { default: value }
       }

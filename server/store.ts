@@ -29,50 +29,31 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
   const db = new Database(dbPath)
   db.run("PRAGMA journal_mode=WAL;")
   db.run("PRAGMA synchronous=FULL;")
-  // Гарантируем json_valid(value) через миграцию в транзакции
-  db.run("BEGIN;")
-  try {
-    db.run(`CREATE TABLE IF NOT EXISTS ${table}
-            (
-                id        TEXT PRIMARY KEY,
-                value     TEXT    NOT NULL CHECK (json_valid(value)),
-                size      INTEGER NOT NULL,
-                updatedAt INTEGER NOT NULL
-            );`)
+  // Простое создание таблиц без миграций (dev-режим)
+  db.run(`CREATE TABLE IF NOT EXISTS ${table}
+          (
+              id        TEXT PRIMARY KEY,
+              size      INTEGER NOT NULL,
+              updatedAt INTEGER NOT NULL
+          );`)
+  db.run(`CREATE TABLE IF NOT EXISTS schema
+          (
+              id    TEXT PRIMARY KEY,
+              value TEXT NOT NULL CHECK (json_valid(value))
+          );`)
 
-    // Пересоздание таблицы со STRICT-проверкой JSON при необходимости
-    db.run(`CREATE TABLE IF NOT EXISTS __${table}_new
-            (
-                id        TEXT PRIMARY KEY,
-                value     TEXT    NOT NULL CHECK (json_valid(value)),
-                size      INTEGER NOT NULL,
-                updatedAt INTEGER NOT NULL
-            );`)
-    db.run(`INSERT INTO __${table}_new(id, value, size, updatedAt)
-            SELECT id,
-                   CASE WHEN json_valid(value) THEN value ELSE json(value) END,
-                   size,
-                   updatedAt
-            FROM ${table};`)
-    db.run(`DROP TABLE IF EXISTS ${table};`)
-    db.run(`ALTER TABLE __${table}_new RENAME TO ${table};`)
-    db.run("COMMIT;")
-  } catch (e) {
-    db.run("ROLLBACK;")
-    throw e
-  }
-
-  const stmtGet: Statement<[string]> = db.query(
-    `SELECT value, size, updatedAt
-     FROM ${table}
-     WHERE id = ?;`
-  )
-  const stmtUpsert: Statement<[string, string, number, number]> = db.query(
-    `INSERT INTO ${table}(id, value, size, updatedAt)
-     VALUES (?, ?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET value=excluded.value,
-                                   size=excluded.size,
+  const stmtGetMeta: Statement<[string]> = db.query(`SELECT size, updatedAt FROM ${table} WHERE id = ?;`)
+  const stmtGetSchema: Statement<[string]> = db.query(`SELECT value FROM schema WHERE id = ?;`)
+  const stmtUpsertMeta: Statement<[string, number, number]> = db.query(
+    `INSERT INTO ${table}(id, size, updatedAt)
+     VALUES (?, ?, ?)
+     ON CONFLICT(id) DO UPDATE SET size=excluded.size,
                                    updatedAt=excluded.updatedAt;`
+  )
+  const stmtUpsertSchema: Statement<[string, string]> = db.query(
+    `INSERT INTO schema(id, value)
+     VALUES (?, ?)
+     ON CONFLICT(id) DO UPDATE SET value=excluded.value;`
   )
   const stmtDel: Statement<[string]> = db.query(
     `DELETE
@@ -81,16 +62,18 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
   )
 
   function getRow(id: string): MetaRecord | null {
-    const row = stmtGet.get(id) as { value: string; size: number; updatedAt: number } | null
-    if (!row) return null
-    // Парсим JSON
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(row.value)
-    } catch {
-      parsed = null
+    const meta = stmtGetMeta.get(id) as { size: number; updatedAt: number } | null
+    if (!meta) return null
+    const s = stmtGetSchema.get(id) as { value: string } | null
+    let parsed: unknown = null
+    if (s) {
+      try {
+        parsed = JSON.parse(s.value)
+      } catch {
+        parsed = null
+      }
     }
-    return { id, value: parsed, updatedAt: row.updatedAt, size: row.size }
+    return { id, value: parsed, updatedAt: meta.updatedAt, size: meta.size }
   }
 
   async function importFromStore(id: string): Promise<{ default: any } | null> {
@@ -107,7 +90,9 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
     async upsert(id, content, sizeBytes?) {
       const json = JSON.stringify(content)
       const size = typeof sizeBytes === "number" ? sizeBytes : Buffer.byteLength(json, "utf8")
-      stmtUpsert.run(id, json, size, Date.now())
+      const now = Date.now()
+      stmtUpsertSchema.run(id, json)
+      stmtUpsertMeta.run(id, size, now)
       const rec = getRow(id)
       if (!rec) throw new Error(`UPSERT_FAILED:"${id}"`)
       return rec.size
@@ -144,7 +129,8 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
         const value = mod?.default
         if (shouldSave) {
           const now = Date.now()
-          stmtUpsert.run(id, JSON.stringify(value), size, now)
+          stmtUpsertSchema.run(id, JSON.stringify(value))
+          stmtUpsertMeta.run(id, size, now)
         }
         return { default: value }
       }
