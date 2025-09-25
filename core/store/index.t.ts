@@ -1,9 +1,10 @@
 /**
- * Единый формат записи модуля: Uint8Array.
+ * Единый формат записи модуля: декларативное значение (например, схема).
+ * Сохраняем сериализуемый объект, не бинарный блоб.
  */
 export interface MetaRecord {
   id: string
-  blob: Uint8Array
+  value: unknown
   updatedAt: number
 }
 
@@ -22,8 +23,8 @@ export type LoadPolicy = "cache-first" | "network-first" | "network-only" | "cac
  * Унифицированный контракт стора без выполнения модулей.
  */
 export interface MetaStore {
-  /** Сохранить/обновить модуль. Возвращает размер (байт). */
-  upsert(id: string, content: Uint8Array): Promise<number>
+  /** Сохранить/обновить модуль. Возвращает приблизительный размер JSON (байт). */
+  upsert(id: string, content: unknown): Promise<number>
 
   /** Удалить модуль. */
   remove(id: string): Promise<void>

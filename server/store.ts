@@ -35,7 +35,7 @@ async function readModuleFromRootAsUint8(id: string): Promise<Uint8Array> {
 }
 
 /**
- * Серверное хранилище модулей (SQLite). Единый формат: Uint8Array.
+ * Серверное хранилище модулей (SQLite). Храним декларативное значение как JSON.
  */
 export async function Store(dbFile = "meta.db", table = "modules"): Promise<MetaStore> {
   const dbPath = path.resolve(dbFile)
@@ -45,19 +45,19 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
   db.run(`CREATE TABLE IF NOT EXISTS ${table}
           (
               id        TEXT PRIMARY KEY,
-              blob      BLOB    NOT NULL,
+              value     TEXT    NOT NULL,
               updatedAt INTEGER NOT NULL
           );`)
 
   const stmtGet: Statement<[string]> = db.query(
-    `SELECT blob, updatedAt
+    `SELECT value, updatedAt
      FROM ${table}
      WHERE id = ?;`
   )
-  const stmtUpsert: Statement<[string, Uint8Array, number]> = db.query(
-    `INSERT INTO ${table}(id, blob, updatedAt)
+  const stmtUpsert: Statement<[string, string, number]> = db.query(
+    `INSERT INTO ${table}(id, value, updatedAt)
      VALUES (?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET blob=excluded.blob,
+     ON CONFLICT(id) DO UPDATE SET value=excluded.value,
                                    updatedAt=excluded.updatedAt;`
   )
   const stmtDel: Statement<[string]> = db.query(
@@ -67,16 +67,22 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
   )
 
   function getRow(id: string): MetaRecord | null {
-    const row = stmtGet.get(id) as { blob: Uint8Array; updatedAt: number } | null
+    const row = stmtGet.get(id) as { value: string; updatedAt: number } | null
     if (!row) return null
-    // Копия для изоляции
-    return { id, blob: new Uint8Array(row.blob), updatedAt: row.updatedAt }
+    // Парсим JSON
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(row.value)
+    } catch {
+      parsed = null
+    }
+    return { id, value: parsed, updatedAt: row.updatedAt }
   }
 
   async function importFromStore(id: string): Promise<{ default: any } | null> {
     const rec = getRow(id)
     if (!rec) return null
-    return importFromUint8AsModule(rec.blob, id)
+    return { default: rec.value }
   }
 
   return {
@@ -85,14 +91,11 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
     },
 
     async upsert(id, content) {
-      if (!(content instanceof Uint8Array)) {
-        console.error("upsert: content must be Uint8Array")
-        throw new TypeError("CONTENT_NOT_UINT8ARRAY")
-      }
-      stmtUpsert.run(id, content, Date.now())
+      const json = JSON.stringify(content)
+      stmtUpsert.run(id, json, Date.now())
       const rec = getRow(id)
       if (!rec) throw new Error(`UPSERT_FAILED:"${id}"`)
-      return rec.blob.byteLength
+      return Buffer.byteLength(json, "utf8")
     },
 
     async remove(id) {
@@ -106,16 +109,18 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
       const fromCache = async () => {
         const rec = getRow(id)
         if (!rec) return null
-        return importFromUint8AsModule(rec.blob, id)
+        return { default: rec.value }
       }
 
       const readAndOptionallySave = async (shouldSave: boolean) => {
         const u8 = await readModuleFromRootAsUint8(id)
+        const mod = await importFromUint8AsModule(u8, id)
+        const value = mod?.default
         if (shouldSave) {
           const now = Date.now()
-          stmtUpsert.run(id, u8, now)
+          stmtUpsert.run(id, JSON.stringify(value), now)
         }
-        return importFromUint8AsModule(u8, id)
+        return { default: value }
       }
 
       switch (policy) {

@@ -1,7 +1,7 @@
 /** @typedef {import('../core/store/index.t').MetaRecord} MetaRecord */
 /**
- * Web-хранилище модулей (IndexedDB). Единый формат: Uint8Array.
- * При import(id): если записи нет — модуль подтягивается из ./<id>.js, сохраняется в БД и импортируется.
+ * Web-хранилище модулей (IndexedDB). Храним декларативное значение (schema) из module.default.
+ * При import(id): если записи нет — модуль подтягивается из ./<id>.js, извлекается default и сохраняется в БД.
  * @param {string} [dbName="meta"]
  * @param {string} [storeName="modules"]
  * @returns {Promise<import("../core/store/index.t").MetaStore>}
@@ -129,14 +129,16 @@ export async function Store(dbName = "meta", storeName = "modules") {
     },
 
     async upsert(id, content) {
-      if (!(content instanceof Uint8Array)) {
-        console.error("upsert: content must be Uint8Array")
-        throw new TypeError("CONTENT_NOT_UINT8ARRAY")
-      }
-      await put(db, storeName, { id, blob: content, updatedAt: Date.now() })
+      // Сохраняем декларативное значение (structured clone)
+      await put(db, storeName, { id, value: content, updatedAt: Date.now() })
       const rec = await get(db, storeName, id)
       if (!rec) throw new Error(`UPSERT_FAILED:"${id}"`)
-      return rec.blob.byteLength
+      // приблизительный размер: длина JSON-строки
+      try {
+        return new TextEncoder().encode(JSON.stringify(rec.value)).byteLength
+      } catch {
+        return 0
+      }
     },
 
     async remove(id) {
@@ -158,21 +160,19 @@ export async function Store(dbName = "meta", storeName = "modules") {
       const fromCache = async () => {
         const rec = await get(db, storeName, id)
         if (!rec) return null
-        if (!(rec.blob instanceof Uint8Array)) {
-          console.error("Invalid record.blob type; expected Uint8Array")
-          return null
-        }
-        return importFromUint8AsModule(rec.blob)
+        return { default: rec.value }
       }
 
       /** @param {boolean} shouldSave */
       const fetchAndOptionallySave = async (shouldSave) => {
         const u8 = await fetchAsUint8(id)
+        const mod = await importFromUint8AsModule(u8)
+        const value = mod?.default
         if (shouldSave) {
           const now = Date.now()
-          await put(db, storeName, { id, blob: u8, updatedAt: now })
+          await put(db, storeName, { id, value, updatedAt: now })
         }
-        return importFromUint8AsModule(u8)
+        return { default: value }
       }
 
       switch (policy) {
