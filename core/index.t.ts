@@ -4,8 +4,8 @@
  * @module Core
  */
 import type { Schema, Snapshot as ContextSnapshot } from "@zavx0z/context"
-import type { SnapshotProcesses } from "../schema/process.t"
-import type { SnapshotReactions } from "./react/index.t"
+import type { ProcessesSchema } from "../schema/process.t"
+import type { ReactionsSchema } from "../schema/reactions.t"
 import type { StatesConfig } from "../schema/states"
 
 /**
@@ -21,9 +21,9 @@ export interface Snapshot<C extends Schema, S extends string> {
   /** Карта состояний и переходов */
   states: StatesConfig<S, C>
   /** Снимок процессов */
-  processes?: SnapshotProcesses
+  processes?: ProcessesSchema
   /** Снимок реакций */
-  reactions?: SnapshotReactions
+  reactions?: ReactionsSchema
   /** Сериализованный view как строка template literal */
   render?: string
   /** Стили компонента */

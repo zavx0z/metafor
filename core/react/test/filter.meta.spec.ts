@@ -2,7 +2,7 @@ import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
 import type { JsonPatch } from "../../index.t"
 import { deserializeReactions } from ".."
-import { serializeReaction } from "../../../schema/reactions"
+import { reactionsSchema } from "../../../schema/reactions"
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"
@@ -15,7 +15,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   it("простое сравнение хеша меты", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -42,7 +42,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   it("не срабатывает при несовпадении", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -69,7 +69,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   it("регулярное выражение", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -96,7 +96,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   it("условие eq", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -123,7 +123,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   it("условие notEq", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -150,7 +150,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   it("условие startsWith", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -177,7 +177,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   it("условие endsWith", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -204,7 +204,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   it("условие include", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -231,7 +231,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   it("условие notInclude", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -258,7 +258,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   it("условие notStartsWith", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -285,7 +285,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   it("условие notEndsWith", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -312,7 +312,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   it("условие pattern (regex)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -339,7 +339,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   it("условие length (число)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -366,7 +366,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   it("условие length (объект с min/max)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -393,7 +393,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   it("условие between", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -420,7 +420,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   it("комбинированные условия", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })

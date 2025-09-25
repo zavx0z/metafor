@@ -2,7 +2,7 @@ import type { Schema } from "@zavx0z/context"
 import type { Core } from "../core/index.t"
 import type { Process } from "../core/proc"
 import type { ProcessConfig } from "./process.t"
-import type { ParsedProcess, ProcessesDeclaration, SnapshotProcesses } from "./process.t"
+import type { ParsedProcess, ProcessesDeclaration, ProcessesSchema } from "./process.t"
 
 export type { ProcessesDeclaration }
 
@@ -164,9 +164,9 @@ export function parseProcess<C extends Schema, I extends Core, Res = any>(proces
  * @returns объект с распарсенными процессами
  */
 
-export const serializeProcesses = <C extends Schema, S extends string, I extends Core>(
+export const processesSchema = <C extends Schema, S extends string, I extends Core>(
   processes: ProcessesDeclaration<C, S, I>
-): SnapshotProcesses | null => {
+): ProcessesSchema | null => {
   // Вызываем processesDeclaration с mock process
   const chains = processes((config?: ProcessConfig) => {
     const chain = {

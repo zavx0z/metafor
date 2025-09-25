@@ -2,7 +2,7 @@ import { deserializeReactions } from "../index"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
 import type { JsonPatch } from "../../index.t"
-import { serializeReaction } from "../../../schema/reactions"
+import { reactionsSchema } from "../../../schema/reactions"
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"
@@ -15,7 +15,7 @@ describe("Фильтрация по операции патча (op)", () => {
   it("фильтрация по replace", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -42,7 +42,7 @@ describe("Фильтрация по операции патча (op)", () => {
   it("фильтрация по add", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -69,7 +69,7 @@ describe("Фильтрация по операции патча (op)", () => {
   it("фильтрация по remove", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -96,7 +96,7 @@ describe("Фильтрация по операции патча (op)", () => {
   it("фильтрация по test", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -123,7 +123,7 @@ describe("Фильтрация по операции патча (op)", () => {
   it("не срабатывает при несовпадении операции", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -150,7 +150,7 @@ describe("Фильтрация по операции патча (op)", () => {
   it("комбинированная фильтрация с другими условиями", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -181,7 +181,7 @@ describe("Фильтрация по операции патча (op)", () => {
   it("фильтрация по replace с path", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -211,7 +211,7 @@ describe("Фильтрация по операции патча (op)", () => {
   it("фильтрация по add с path", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -241,7 +241,7 @@ describe("Фильтрация по операции патча (op)", () => {
   it("фильтрация по remove с path", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -271,7 +271,7 @@ describe("Фильтрация по операции патча (op)", () => {
   it("фильтрация по test с path", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })

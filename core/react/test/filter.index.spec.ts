@@ -2,7 +2,7 @@ import { deserializeReactions } from "../index"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
 import type { JsonPatch } from "../../index.t"
-import { serializeReaction } from "../../../schema/reactions"
+import { reactionsSchema } from "../../../schema/reactions"
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"
@@ -15,7 +15,7 @@ describe("Фильтрация по индексу (index)", () => {
   it("простое сравнение числа", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -42,7 +42,7 @@ describe("Фильтрация по индексу (index)", () => {
   it("не срабатывает при несовпадении", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -69,7 +69,7 @@ describe("Фильтрация по индексу (index)", () => {
   it("условие eq", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -96,7 +96,7 @@ describe("Фильтрация по индексу (index)", () => {
   it("условие notEq", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -123,7 +123,7 @@ describe("Фильтрация по индексу (index)", () => {
   it("условие gt (больше)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -150,7 +150,7 @@ describe("Фильтрация по индексу (index)", () => {
   it("условие gte (больше или равно)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -177,7 +177,7 @@ describe("Фильтрация по индексу (index)", () => {
   it("условие lt (меньше)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -204,7 +204,7 @@ describe("Фильтрация по индексу (index)", () => {
   it("условие lte (меньше или равно)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -231,7 +231,7 @@ describe("Фильтрация по индексу (index)", () => {
   it("условие notGt (не больше)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -258,7 +258,7 @@ describe("Фильтрация по индексу (index)", () => {
   it("условие notGte (не больше или равно)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -285,7 +285,7 @@ describe("Фильтрация по индексу (index)", () => {
   it("условие notLt (не меньше)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -312,7 +312,7 @@ describe("Фильтрация по индексу (index)", () => {
   it("условие notLte (не меньше или равно)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -339,7 +339,7 @@ describe("Фильтрация по индексу (index)", () => {
   it("условие between", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -366,7 +366,7 @@ describe("Фильтрация по индексу (index)", () => {
   it("комбинированные условия", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -399,7 +399,7 @@ describe("Фильтрация по индексу (index)", () => {
   it("обработка undefined значения", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })

@@ -3,7 +3,7 @@ import type { Update, Values } from "@zavx0z/context"
 import { test, expect } from "bun:test"
 import type { JsonPatch, Message } from "../../index.t"
 import { contextSchema } from "@zavx0z/context"
-import { serializeReaction } from "../../../schema/reactions"
+import { reactionsSchema } from "../../../schema/reactions"
 
 const schema = contextSchema((t) => ({
   value: t.number.required(0),
@@ -26,7 +26,7 @@ test("Выполнение реакций через run", () => {
   }
 
   const registry = deserializeReactions<Ctx, State, {}>(
-    serializeReaction<Ctx, State, typeof core>((reaction) => [
+    reactionsSchema<Ctx, State, typeof core>((reaction) => [
       [
         ["active"],
         reaction({ title: "test" })

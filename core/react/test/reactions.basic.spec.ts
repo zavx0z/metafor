@@ -1,7 +1,7 @@
 import { deserializeReactions } from "../index"
 import { contextSchema } from "@zavx0z/context"
 import { test, expect } from "bun:test"
-import { serializeReaction } from "../../../schema/reactions"
+import { reactionsSchema } from "../../../schema/reactions"
 
 const schema = contextSchema((t) => ({
   value: t.number.required(0),
@@ -14,7 +14,7 @@ type State = "idle" | "active" | "error"
 
 test("Создание уникальных реакций", () => {
   const registry = deserializeReactions<Ctx, State, {}>(
-    serializeReaction<Ctx, State, {}>((reaction) => [
+    reactionsSchema<Ctx, State, {}>((reaction) => [
       [
         ["idle", "active"],
         reaction({ title: "inc" })

@@ -2,12 +2,14 @@ import type { Schema } from "@zavx0z/context"
 import type { Core } from "../core/index.t"
 import type { ReactionsDeclaration } from "./reactions.t"
 import type { ReactionFilterConditions } from "../core/react/condition.t"
-import type { SnapshotReactions, ReactionUpdate, Reaction } from "../core/react/index.t"
+import type { Reaction } from "../core/react/index.t"
+import type { ReactionUpdate } from "./reactions.t"
+import type { ReactionsSchema as ReactionsSchema } from "./reactions.t"
 export type { ReactionsDeclaration }
 
-export const serializeReaction = <C extends Schema, S extends string, I extends Core = {}>(
+export const reactionsSchema = <C extends Schema, S extends string, I extends Core = {}>(
   builder: ReactionsDeclaration<C, S, I>
-): SnapshotReactions | null => {
+): ReactionsSchema | null => {
   const reactions: Record<string, any> = {}
   const states: Record<string, string[]> = {}
   let reactionAutoId = 0

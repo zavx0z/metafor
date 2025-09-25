@@ -1,7 +1,7 @@
 import { deserializeReactions } from "../index"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
-import { serializeReaction } from "../../../schema/reactions"
+import { reactionsSchema } from "../../../schema/reactions"
 import type { JsonPatch } from "../../index.t"
 
 type Ctx = { value: { type: "number"; required: true } }
@@ -16,7 +16,7 @@ describe("Фильтрация по временной метке (timestamp)", 
     const core: { called: boolean } = { called: false }
     const timestamp = Date.now()
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -43,7 +43,7 @@ describe("Фильтрация по временной метке (timestamp)", 
   it("не срабатывает при несовпадении", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -71,7 +71,7 @@ describe("Фильтрация по временной метке (timestamp)", 
     const core: { called: boolean } = { called: false }
     const timestamp = Date.now()
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -98,7 +98,7 @@ describe("Фильтрация по временной метке (timestamp)", 
   it("условие notEq", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -125,7 +125,7 @@ describe("Фильтрация по временной метке (timestamp)", 
   it("условие gt (больше)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -153,7 +153,7 @@ describe("Фильтрация по временной метке (timestamp)", 
     const core: { called: boolean } = { called: false }
     const timestamp = 2000
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -180,7 +180,7 @@ describe("Фильтрация по временной метке (timestamp)", 
   it("условие lt (меньше)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -208,7 +208,7 @@ describe("Фильтрация по временной метке (timestamp)", 
     const core: { called: boolean } = { called: false }
     const timestamp = 2000
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -235,7 +235,7 @@ describe("Фильтрация по временной метке (timestamp)", 
   it("условие notGt (не больше)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -262,7 +262,7 @@ describe("Фильтрация по временной метке (timestamp)", 
   it("условие notGte (не больше или равно)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -289,7 +289,7 @@ describe("Фильтрация по временной метке (timestamp)", 
   it("условие notLt (не меньше)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -316,7 +316,7 @@ describe("Фильтрация по временной метке (timestamp)", 
   it("условие notLte (не меньше или равно)", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -343,7 +343,7 @@ describe("Фильтрация по временной метке (timestamp)", 
   it("условие between", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -370,7 +370,7 @@ describe("Фильтрация по временной метке (timestamp)", 
   it("комбинированные условия", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -403,7 +403,7 @@ describe("Фильтрация по временной метке (timestamp)", 
   it("обработка undefined значения", () => {
     const core: { called: boolean } = { called: false }
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -432,7 +432,7 @@ describe("Фильтрация по временной метке (timestamp)", 
     const now = Date.now()
     const oneMinuteAgo = now - 60000
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })
@@ -461,7 +461,7 @@ describe("Фильтрация по временной метке (timestamp)", 
     const startTime = 1000
     const endTime = 3000
     const registry = deserializeReactions(
-      serializeReaction<{}, State, { called: boolean }>((reaction) => [
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ title: "test" })

@@ -1,19 +1,19 @@
 import { test, expect, describe } from "bun:test"
-import { createReactionsSnapshot } from "../../../schema/reactions.t"
-import { contextSchema } from "@zavx0z/context"
 
-describe("снимок реакций", () => {
+import { contextSchema } from "@zavx0z/context"
+import { reactionsSchema } from "./reactions"
+
+describe("схема реакций", () => {
   const schema = contextSchema((t) => ({
     value: t.number.required(0),
     name: t.string.required(""),
     isActive: t.boolean.required(false),
     tags: t.array.required([]),
   }))
-  type Ctx = typeof schema
   type State = "idle" | "active" | "error"
 
   test("Создание уникальных реакций", () => {
-    const snapshot = createReactionsSnapshot<typeof schema, State, {}>((reaction) => [
+    const snapshot = reactionsSchema<typeof schema, State, {}>((reaction) => [
       [
         ["idle", "active"],
         reaction({ title: "inc", description: "increment value" })
@@ -66,14 +66,14 @@ describe("снимок реакций", () => {
   })
 
   test("Проверка структуры данных toSnapshot", () => {
-    const snapshot = createReactionsSnapshot<typeof schema, State, {}>((reaction) => [
+    const snapshot = reactionsSchema<typeof schema, State, {}>((reaction) => [
       [
         ["idle"],
         reaction({ title: "test" })
           .filter({ meta: "test" })
           .equal(({ update }) => update({ value: 42 })),
       ],
-    ])
+    ])!
 
     // Проверяем, что reactions - это объект, а не массив
     expect(typeof snapshot.reactions, "reactions должен быть объектом").toBe("object")
@@ -100,9 +100,9 @@ describe("снимок реакций", () => {
   test("сохранение строкового представления функции equal", () => {
     const updateFn = ({ update, context }: any) => update({ value: context.value * 2 })
 
-    const snapshot = createReactionsSnapshot<typeof schema, State, {}>((reaction) => [
+    const snapshot = reactionsSchema<typeof schema, State, {}>((reaction) => [
       [["idle"], reaction({ title: "double" }).filter({ meta: "test" }).equal(updateFn)],
-    ])
+    ])!
     const reactionIds = Object.keys(snapshot.reactions)
     const reactionId = reactionIds[0]!
     const reaction = snapshot.reactions[reactionId]!

@@ -53,8 +53,8 @@ import { parse } from "@zavx0z/template"
 import type { Core } from "../core/index.t"
 
 import { validateNoUnconditionalCycles, type StatesConfig } from "./states"
-import { serializeReaction, type ReactionsDeclaration } from "./reactions"
-import { serializeProcesses, type ProcessesDeclaration } from "./process"
+import { reactionsSchema, type ReactionsDeclaration } from "./reactions"
+import { processesSchema, type ProcessesDeclaration } from "./process"
 import { serializeStyle } from "./style"
 
 import type { MetaForConfig, MetaForType, ViewDeclaration, MetaSchema } from "./index.t"
@@ -75,18 +75,18 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
               const core = typeof coreBuilder === "function" ? coreBuilder() : coreBuilder
               return {
                 processes(process: ProcessesDeclaration<C, S, I> = () => ({})) {
-                  const processSchema = serializeProcesses(process)
+                  const processes = processesSchema(process)
                   return {
                     reactions(reaction: ReactionsDeclaration<C, S, I> = () => []) {
-                      const reactionsSchema = serializeReaction(reaction)
+                      const reactions = reactionsSchema(reaction)
                       return {
                         view(view?: ViewDeclaration<C, I, S>): MetaSchema<C, S> {
                           const metaSchema: MetaSchema<C, S> = { name, states, context }
                           if (description) metaSchema.description = description
                           if (view && "style" in view) metaSchema.style = serializeStyle(view.style)
                           if (view && "render" in view) metaSchema.render = parse(view.render as any)
-                          if (processSchema) metaSchema.processes = processSchema
-                          if (reactionsSchema) metaSchema.reactions = reactionsSchema
+                          if (processes) metaSchema.processes = processes
+                          if (reactions) metaSchema.reactions = reactions
                           return metaSchema
                         },
                       }

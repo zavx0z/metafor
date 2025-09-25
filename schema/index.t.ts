@@ -1,8 +1,8 @@
 import type { Schema, Types, Update, Values } from "@zavx0z/context"
 import type { Core } from "../core/index.t"
-import type { ProcessesDeclaration, SnapshotProcesses } from "./process.t"
+import type { ProcessesDeclaration, ProcessesSchema } from "./process.t"
 import type { Node as ParseNode } from "@zavx0z/template"
-import type { SnapshotReactions } from "../core/react/index.t"
+import type { ReactionsSchema } from "./reactions.t"
 import type { StatesConfig } from "./states"
 import type { ReactionsDeclaration } from "./reactions"
 
@@ -311,9 +311,9 @@ export interface MetaSchema<C extends Schema, S extends string> {
   /** Карта состояний и переходов */
   states: StatesConfig<S, C>
   /** Снимок процессов */
-  processes?: SnapshotProcesses
+  processes?: ProcessesSchema
   /** Снимок реакций */
-  reactions?: SnapshotReactions
+  reactions?: ReactionsSchema
   /** Схема контекста */
   context: Schema
   /** Сериализованный view как строка template literal */
