@@ -2,7 +2,17 @@ import path from "node:path"
 import { Database, Statement } from "bun:sqlite"
 import fs from "node:fs/promises"
 import { pathToFileURL } from "node:url"
-import type { MetaRecord, MetaStore } from "../core/store/index.t"
+import type { MetaStore } from "../core/store/index.t"
+/**
+ * Серверный Store (SQLite)
+ *
+ * - Таблица `module(src TEXT PK, size INTEGER, updatedAt INTEGER)`
+ * - Таблица `schema(src TEXT PK, value TEXT CHECK(json_valid(value)))`
+ * - Ключ: `src`
+ * - Размер: байты исходного JS‑модуля (fs.stat().size)
+ * - Импорт: читаем размер файла, сравниваем с кэшем; при совпадении отдаём сохранённое значение,
+ *   иначе выполняем ESM‑импорт (с query‑токеном `?v=size` для обхода кеша загрузчика), сохраняем value и size.
+ */
 
 /** Получить абсолютный путь к файлу модуля */
 function getModuleFilePath(src: string): string {
@@ -22,7 +32,7 @@ async function getModuleFileSize(filePath: string): Promise<number> {
   return st.size
 }
 
-/** Импортировать модуль напрямую с диска. Для инвалидации кеша добавляем query с токеном. */
+/** Импортировать модуль напрямую с диска. Добавляем query-токен, чтобы обойти кеш загрузчика ESM. */
 async function importModuleDefaultFromFile(filePath: string, bustToken: string | number): Promise<{ default: any }> {
   const href = pathToFileURL(filePath).href + `?v=${bustToken}`
   return import(href) as Promise<{ default: any }>
@@ -45,12 +55,12 @@ export async function Store(dbFile = "meta.db", table = "module"): Promise<MetaS
           );`)
   db.run(`CREATE TABLE IF NOT EXISTS schema
           (
-              id    TEXT PRIMARY KEY,
+              src   TEXT PRIMARY KEY,
               value TEXT NOT NULL CHECK (json_valid(value))
           );`)
 
-  const stmtGetMeta: Statement<[string]> = db.query(`SELECT size, updatedAt FROM ${table} WHERE src = ?;`)
-  const stmtGetSchema: Statement<[string]> = db.query(`SELECT value FROM schema WHERE id = ?;`)
+  const stmtGetMeta: Statement<[string]> = db.query(`SELECT size FROM ${table} WHERE src = ?;`)
+  const stmtGetSchema: Statement<[string]> = db.query(`SELECT value FROM schema WHERE src = ?;`)
   const stmtUpsertMeta: Statement<[string, number, number]> = db.query(
     `INSERT INTO ${table}(src, size, updatedAt)
      VALUES (?, ?, ?)
@@ -58,36 +68,14 @@ export async function Store(dbFile = "meta.db", table = "module"): Promise<MetaS
                                    updatedAt=excluded.updatedAt;`
   )
   const stmtUpsertSchema: Statement<[string, string]> = db.query(
-    `INSERT INTO schema(id, value)
+    `INSERT INTO schema(src, value)
      VALUES (?, ?)
-     ON CONFLICT(id) DO UPDATE SET value=excluded.value;`
+     ON CONFLICT(src) DO UPDATE SET value=excluded.value;`
   )
-  const stmtDel: Statement<[string]> = db.query(
-    `DELETE
-     FROM ${table}
-     WHERE src = ?;`
-  )
+  const stmtDel: Statement<[string]> = db.query(`DELETE FROM ${table} WHERE src = ?;`)
+  const stmtDelSchema: Statement<[string]> = db.query(`DELETE FROM schema WHERE src = ?;`)
 
-  function getRow(id: string): MetaRecord | null {
-    const meta = stmtGetMeta.get(id) as { size: number; updatedAt: number } | null
-    if (!meta) return null
-    const s = stmtGetSchema.get(id) as { value: string } | null
-    let parsed: unknown = null
-    if (s) {
-      try {
-        parsed = JSON.parse(s.value)
-      } catch {
-        parsed = null
-      }
-    }
-    return { id, value: parsed, updatedAt: meta.updatedAt, size: meta.size }
-  }
-
-  async function importFromStore(id: string): Promise<{ default: any } | null> {
-    const rec = getRow(id)
-    if (!rec) return null
-    return { default: rec.value }
-  }
+  // getRow(): больше не собираем агрегат из двух таблиц — читаем по назначению отдельно
 
   return {
     info() {
@@ -100,13 +88,21 @@ export async function Store(dbFile = "meta.db", table = "module"): Promise<MetaS
       const now = Date.now()
       stmtUpsertSchema.run(id, json)
       stmtUpsertMeta.run(id, size, now)
-      const rec = getRow(id)
-      if (!rec) throw new Error(`UPSERT_FAILED:"${id}"`)
-      return rec.size
+      const meta = stmtGetMeta.get(id) as { size: number } | null
+      if (!meta) throw new Error(`UPSERT_FAILED:"${id}"`)
+      return meta.size
     },
 
     async remove(id) {
-      stmtDel.run(id)
+      db.run("BEGIN;")
+      try {
+        stmtDel.run(id)
+        stmtDelSchema.run(id)
+        db.run("COMMIT;")
+      } catch (e) {
+        db.run("ROLLBACK;")
+        throw e
+      }
     },
 
     /**
@@ -114,9 +110,13 @@ export async function Store(dbFile = "meta.db", table = "module"): Promise<MetaS
      */
     async import(id, policy = "cache-first") {
       const fromCache = async () => {
-        const rec = getRow(id)
-        if (!rec) return null
-        return { default: rec.value }
+        const row = stmtGetSchema.get(id) as { value: string } | null
+        if (!row) return null
+        try {
+          return JSON.parse(row.value)
+        } catch {
+          return null
+        }
       }
 
       const readAndOptionallySave = async (shouldSave: boolean) => {
@@ -128,9 +128,10 @@ export async function Store(dbFile = "meta.db", table = "module"): Promise<MetaS
           throw new Error(`MODULE_NOT_FOUND:"${id}"`)
         }
         const size = await getModuleFileSize(filePath)
-        const cached = getRow(id)
+        const cached = stmtGetMeta.get(id) as { size: number } | null
         if (cached && typeof cached.size === "number" && cached.size === size) {
-          return { default: cached.value }
+          const s = stmtGetSchema.get(id) as { value: string } | null
+          return s ? JSON.parse(s.value) : null
         }
         const mod = await importModuleDefaultFromFile(filePath, size)
         const value = mod?.default
@@ -139,7 +140,7 @@ export async function Store(dbFile = "meta.db", table = "module"): Promise<MetaS
           stmtUpsertSchema.run(id, JSON.stringify(value))
           stmtUpsertMeta.run(id, size, now)
         }
-        return { default: value }
+        return value
       }
 
       switch (policy) {

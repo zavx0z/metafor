@@ -177,14 +177,12 @@ export function MetaForFabric(params: FabricParams) {
             console.warn(`src: ${src} is not defined`)
             return
           }
-          // const module = await import(url)
-          const module = await store.import(src, "network-first")
-          if (!module) {
+          // const m = (await import(url)).default
+          const m = await store.import(src, "network-first") as MetaSchema<C, S>
+          if (!m) {
             console.error(`Module: ${src} is not defined`)
             return
           }
-
-          const m = module.default as MetaSchema<C, S>
           this.#name = m.name
           this.#context = contextFromSchema<C>(m.context as C)
           this.#reactions = deserializeReactions(m.reactions || { reactions: {}, states: {} })
@@ -212,13 +210,13 @@ export function MetaForFabric(params: FabricParams) {
               this.#transition()
             }
           }
-          module.default.render &&
+          m.render &&
             render({
               core: this.#core,
               ctx: this.#context,
               el: this.#shadow,
               st: { state: this.state, states: Object.keys(this.#state.states), onUpdate: this.onStateChange },
-              nodes: module.default.render,
+              nodes: m.render,
             })
           // this.#view.onMount({ core: this.#core })
         }

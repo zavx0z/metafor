@@ -1,15 +1,18 @@
-/** @typedef {import('../core/store/index.t').MetaRecord} MetaRecord */
 /**
- * Web-хранилище модулей (IndexedDB). Храним декларативное значение (schema) из module.default.
- * При import(id): если записи нет — модуль подтягивается из ./<id>.js, извлекается default и сохраняется в БД.
+ * Web Store (IndexedDB)
+ *
+ * - objectStore `module` (keyPath: src) — метаданные: { src, size, updatedAt }
+ * - objectStore `schema` (keyPath: src) — декларативное значение (schema): { src, value }
+ * - Политики: cache-first, network-first, network-only, cache-only, stale-while-revalidate
+ * - Сравнение изменений: по точному размеру JS (u8.byteLength)
+ *
  * @param {string} [dbName="meta"]
- * @param {string} [storeName="modules"]
+ * @param {string} [storeName="module"]
  * @returns {Promise<import("../core/store/index.t").MetaStore>}
  */
 export async function Store(dbName = "meta", storeName = "module") {
   /**
    * Преобразует Uint8Array в «чистый» ArrayBuffer-срез.
-   *
    * @param {Uint8Array} u8 - исходный буфер
    * @returns {ArrayBuffer} - выделенный ArrayBuffer
    */
@@ -43,23 +46,8 @@ export async function Store(dbName = "meta", storeName = "module") {
   /**
    * @param {IDBDatabase} db
    * @param {string} store
-   * @param {MetaRecord} record
-   * @returns {Promise<void>}
-   */
-  function put(db, store, record) {
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction(store, "readwrite")
-      tx.oncomplete = () => resolve()
-      tx.onerror = () => reject(tx.error)
-      tx.objectStore(store).put(record)
-    })
-  }
-
-  /**
-   * @param {IDBDatabase} db
-   * @param {string} store
    * @param {string} id
-   * @returns {Promise<MetaRecord|null>}
+   * @returns {Promise<any|null>}
    */
   function get(db, store, id) {
     return new Promise((resolve, reject) => {
@@ -67,6 +55,26 @@ export async function Store(dbName = "meta", storeName = "module") {
       tx.onerror = () => reject(tx.error)
       const rq = tx.objectStore(store).get(id)
       rq.onsuccess = () => resolve(rq.result || null)
+      rq.onerror = () => reject(rq.error)
+    })
+  }
+
+  /**
+   * Прочитать только размер из стора метаданных.
+   * @param {IDBDatabase} db
+   * @param {string} store
+   * @param {string} src
+   * @returns {Promise<number|null>}
+   */
+  function getSize(db, store, src) {
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(store, "readonly")
+      tx.onerror = () => reject(tx.error)
+      const rq = tx.objectStore(store).get(src)
+      rq.onsuccess = () => {
+        const rec = rq.result
+        resolve(rec && typeof rec.size === "number" ? rec.size : null)
+      }
       rq.onerror = () => reject(rq.error)
     })
   }
@@ -156,13 +164,19 @@ export async function Store(dbName = "meta", storeName = "module") {
       // Сохраняем декларативное значение в отдельном store `schema` и метаданные в `${storeName}`
       const size = typeof sizeBytes === "number" ? sizeBytes : 0
       await putBoth(db, storeName, "schema", src, content, size, Date.now())
-      const rec = await get(db, storeName, src)
-      if (!rec) throw new Error(`UPSERT_FAILED:"${src}"`)
-      return typeof rec.size === "number" ? rec.size : size
+      const savedSize = await getSize(db, storeName, src)
+      if (savedSize == null) throw new Error(`UPSERT_FAILED:"${src}"`)
+      return savedSize
     },
 
     async remove(id) {
-      await del(db, storeName, id)
+      await new Promise((resolve, reject) => {
+        const tx = db.transaction([storeName, "schema"], "readwrite")
+        tx.oncomplete = () => resolve(undefined)
+        tx.onerror = () => reject(tx.error)
+        tx.objectStore(storeName).delete(id)
+        tx.objectStore("schema").delete(id)
+      })
     },
 
     /**
@@ -180,10 +194,8 @@ export async function Store(dbName = "meta", storeName = "module") {
       // stale-while-revalidate: мгновенно кэш (если есть), параллельно обновляем кэш из сети (без ожидания)
 
       const fromCache = async () => {
-        const rec = await get(db, storeName, src)
-        if (!rec) return null
         const schemaRec = await get(db, "schema", src)
-        return { default: schemaRec ? schemaRec.value : undefined }
+        return schemaRec ? schemaRec.value : null
       }
 
       /**
@@ -193,10 +205,10 @@ export async function Store(dbName = "meta", storeName = "module") {
        */
       const fetchAndOptionallySave = async (shouldSave) => {
         const u8 = await fetchAsUint8(url)
-        const cached = await get(db, storeName, src)
-        if (cached && typeof cached.size === "number" && cached.size === u8.byteLength) {
+        const cachedSize = await getSize(db, storeName, src)
+        if (cachedSize != null && cachedSize === u8.byteLength) {
           const schemaRec = await get(db, "schema", src)
-          return { default: schemaRec ? schemaRec.value : undefined }
+          return schemaRec ? schemaRec.value : null
         }
         // Размер изменился (или кэша нет) — импортируем и при необходимости сохраняем
         const mod = await importFromUint8AsModule(u8)
@@ -205,7 +217,7 @@ export async function Store(dbName = "meta", storeName = "module") {
           const now = Date.now()
           await putBoth(db, storeName, "schema", src, value, u8.byteLength, now)
         }
-        return { default: value }
+        return value
       }
 
       switch (policy) {
