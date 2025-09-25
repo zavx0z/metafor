@@ -4,9 +4,16 @@ import fs from "node:fs/promises"
 import { pathToFileURL } from "node:url"
 import type { MetaRecord, MetaStore } from "../core/store/index.t"
 
-/** Получить абсолютный путь к файлу модуля: <cwd>/${id}.js */
-function getModuleFilePath(id: string): string {
-  return path.resolve(process.cwd(), `${id}`)
+/** Получить абсолютный путь к файлу модуля */
+function getModuleFilePath(src: string): string {
+  // file:// URL → путь
+  if (src.startsWith("file://")) return new URL(src).pathname
+  // Абсолютный http(s) URL не поддерживаем как локальный путь
+  if (/^https?:\/\//.test(src)) throw new Error(`HTTP_URL_NOT_SUPPORTED:"${src}"`)
+  // Абсолютный веб-путь "/x/y.js" → <cwd>/x/y.js
+  if (src.startsWith("/")) return path.join(process.cwd(), src.slice(1))
+  // Относительный путь или имя → резолвим от <cwd>
+  return path.resolve(process.cwd(), src)
 }
 
 /** Прочитать размер файла без чтения содержимого. */
@@ -24,7 +31,7 @@ async function importModuleDefaultFromFile(filePath: string, bustToken: string |
 /**
  * Серверное хранилище модулей (SQLite). Храним декларативное значение как JSON.
  */
-export async function Store(dbFile = "meta.db", table = "modules"): Promise<MetaStore> {
+export async function Store(dbFile = "meta.db", table = "module"): Promise<MetaStore> {
   const dbPath = path.resolve(dbFile)
   const db = new Database(dbPath)
   db.run("PRAGMA journal_mode=WAL;")
@@ -32,7 +39,7 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
   // Простое создание таблиц без миграций (dev-режим)
   db.run(`CREATE TABLE IF NOT EXISTS ${table}
           (
-              id        TEXT PRIMARY KEY,
+              src       TEXT PRIMARY KEY,
               size      INTEGER NOT NULL,
               updatedAt INTEGER NOT NULL
           );`)
@@ -42,12 +49,12 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
               value TEXT NOT NULL CHECK (json_valid(value))
           );`)
 
-  const stmtGetMeta: Statement<[string]> = db.query(`SELECT size, updatedAt FROM ${table} WHERE id = ?;`)
+  const stmtGetMeta: Statement<[string]> = db.query(`SELECT size, updatedAt FROM ${table} WHERE src = ?;`)
   const stmtGetSchema: Statement<[string]> = db.query(`SELECT value FROM schema WHERE id = ?;`)
   const stmtUpsertMeta: Statement<[string, number, number]> = db.query(
-    `INSERT INTO ${table}(id, size, updatedAt)
+    `INSERT INTO ${table}(src, size, updatedAt)
      VALUES (?, ?, ?)
-     ON CONFLICT(id) DO UPDATE SET size=excluded.size,
+     ON CONFLICT(src) DO UPDATE SET size=excluded.size,
                                    updatedAt=excluded.updatedAt;`
   )
   const stmtUpsertSchema: Statement<[string, string]> = db.query(
@@ -58,7 +65,7 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
   const stmtDel: Statement<[string]> = db.query(
     `DELETE
      FROM ${table}
-     WHERE id = ?;`
+     WHERE src = ?;`
   )
 
   function getRow(id: string): MetaRecord | null {

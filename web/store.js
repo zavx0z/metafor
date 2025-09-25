@@ -6,7 +6,7 @@
  * @param {string} [storeName="modules"]
  * @returns {Promise<import("../core/store/index.t").MetaStore>}
  */
-export async function Store(dbName = "meta", storeName = "modules") {
+export async function Store(dbName = "meta", storeName = "module") {
   /**
    * Преобразует Uint8Array в «чистый» ArrayBuffer-срез.
    *
@@ -29,10 +29,10 @@ export async function Store(dbName = "meta", storeName = "modules") {
       req.onupgradeneeded = () => {
         const db = req.result
         if (!db.objectStoreNames.contains(store)) {
-          db.createObjectStore(store, { keyPath: "id" })
+          db.createObjectStore(store, { keyPath: "src" })
         }
         if (!db.objectStoreNames.contains("schema")) {
-          db.createObjectStore("schema", { keyPath: "id" })
+          db.createObjectStore("schema", { keyPath: "src" })
         }
       }
       req.onerror = () => reject(req.error)
@@ -91,19 +91,19 @@ export async function Store(dbName = "meta", storeName = "modules") {
    * @param {IDBDatabase} db
    * @param {string} metaStore
    * @param {string} schemaStore
-   * @param {string} id
+   * @param {string} src
    * @param {unknown} value
    * @param {number} size
    * @param {number} updatedAt
    * @returns {Promise<void>}
    */
-  function putBoth(db, metaStore, schemaStore, id, value, size, updatedAt) {
+  function putBoth(db, metaStore, schemaStore, src, value, size, updatedAt) {
     return new Promise((resolve, reject) => {
       const tx = db.transaction([metaStore, schemaStore], "readwrite")
       tx.oncomplete = () => resolve(undefined)
       tx.onerror = () => reject(tx.error)
-      tx.objectStore(metaStore).put({ id, size, updatedAt })
-      tx.objectStore(schemaStore).put({ id, value })
+      tx.objectStore(metaStore).put({ src, size, updatedAt })
+      tx.objectStore(schemaStore).put({ src, value })
     })
   }
 
@@ -152,12 +152,12 @@ export async function Store(dbName = "meta", storeName = "modules") {
       return { kind: "web", dbName, storeName }
     },
 
-    async upsert(id, content, sizeBytes) {
+    async upsert(src, content, sizeBytes) {
       // Сохраняем декларативное значение в отдельном store `schema` и метаданные в `${storeName}`
       const size = typeof sizeBytes === "number" ? sizeBytes : 0
-      await putBoth(db, storeName, "schema", id, content, size, Date.now())
-      const rec = await get(db, storeName, id)
-      if (!rec) throw new Error(`UPSERT_FAILED:"${id}"`)
+      await putBoth(db, storeName, "schema", src, content, size, Date.now())
+      const rec = await get(db, storeName, src)
+      if (!rec) throw new Error(`UPSERT_FAILED:"${src}"`)
       return typeof rec.size === "number" ? rec.size : size
     },
 
