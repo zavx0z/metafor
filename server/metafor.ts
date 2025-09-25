@@ -1,4 +1,5 @@
 import "./windows.ts"
+import "../schema/index"
 import { MetaForFabric } from "../core"
 import { Store } from "./store"
 

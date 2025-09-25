@@ -1,5 +1,5 @@
 import { test, describe, expect } from "bun:test"
-import { serializeProcesses } from "../parser.ts"
+import { serializeProcesses } from "../../../schema/process.ts"
 import { Context } from "@zavx0z/context"
 import type { ProcessesDeclaration } from "../index.t.ts"
 

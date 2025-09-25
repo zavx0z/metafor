@@ -20,6 +20,7 @@
  * document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
  * ```
  */
+import "../schema/index"
 import { Store } from "./store"
 import { MetaForFabric } from "../core"
 

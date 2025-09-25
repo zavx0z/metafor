@@ -7,7 +7,7 @@ import type { Schema } from "@zavx0z/context"
 import type { Process } from "./index.t"
 import type { Core } from "../../core/index.t"
 export type { Process, ProcessesDeclaration } from "./index.t"
-export {serializeProcesses} from "./parser"
+
 /**
  * Десериализует процессы из snapshot и возвращает объект с функциями для работы с процессами.
  *

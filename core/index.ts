@@ -3,62 +3,10 @@
  * @module Core
  */
 
-/**
- * MetaFor - фреймворк для создания актора конечного автомата
- *
- * MetaFor предоставляет декларативный способ создания web-компонентов с конечным автоматом.
- * Каждый компонент имеет типизированный контекст, состояния, процессы, реакции и представление.
- *
- * **ВАЖНО: Акторы MetaFor имеют полную изоляцию и используют shadow-dom closed**
- * Все взаимодействия между акторами происходят через патчи в сообщениях
- * Акторы регистрируются автоматически при импорте файла, экспорт не требуется
- * Используйте систему сообщений и реакций для связи между компонентами
- *
- * @example
- * ```typescript
- * export default MetaFor("user-profile")
- *   .context((types) => ({
- *     userId: types.number.required(0),
- *     userName: types.string.required(""),
- *     isLoading: types.boolean.required(false),
- *   }))
- *   .states({
- *     idle: { loading: {} },
- *     loading: { success: {}, error: {} },
- *     success: { idle: {} },
- *     error: { idle: {} },
- *   })
- *   .core({ users: [] })
- *   .processes((process) => ({
- *     loadUser: process()
- *       .action(async ({ context }) => {
- *         const response = await fetch(`/api/users/${context.userId}`)
- *         return await response.json()
- *       })
- *       .success(({ update, data }) => {
- *         update({ userName: data.name, isLoading: false })
- *       })
- *   }))
- *   .view({
- *     render: ({ context, html, update }) => html`
- *       <div>
- *         <h1>${context.userName}</h1>
- *         <button @click=${() => update({ isLoading: true })}>
- *           Загрузить
- *         </button>
- *       </div>
- *     `
- *   })
- * ```
- *
- * @packageDocumentation
- */
-
-import { contextSchema, contextFromSchema, type Context, type Schema, type Types, type Values } from "@zavx0z/context"
-import { checkTransition, type StatesConfig, validateNoUnconditionalCycles } from "./state"
-import { serializeProcesses, deserializeProcesses, type Process, type ProcessesDeclaration } from "./proc"
-import { serializeReaction, deserializeReactions, type ReactionsDeclaration } from "./react"
-import { serializeStyle, type ViewDeclaration } from "./view"
+import { contextFromSchema, type Context, type Schema, type Values } from "@zavx0z/context"
+import { checkTransition, type StatesConfig } from "./state"
+import { deserializeProcesses, type Process } from "./proc"
+import { deserializeReactions } from "./react"
 
 import {
   initMessage,
@@ -68,52 +16,9 @@ import {
   type Message,
 } from "./message"
 
-import type { Core, FabricParams, MetaSchema, MetaForConfig, Snapshot } from "./index.t"
+import type { Core, FabricParams, MetaSchema, Snapshot } from "./index.t"
 import type { Conditions, Transitions } from "./state/index.t"
-import { parse } from "@zavx0z/template"
 import { render } from "@zavx0z/renderer"
-
-globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
-  const description = config?.description
-  const dev = config?.dev ?? globalThis.DEV ?? false
-  const persist = config?.persist ?? false
-  return {
-    context<C extends Schema>(schema: (types: Types) => C) {
-      const context = contextSchema(schema)
-      return {
-        states<S extends string>(states: StatesConfig<S, C>) {
-          validateNoUnconditionalCycles(states)
-          return {
-            core<I extends Core>(coreBuilder: (() => I) | I = () => ({}) as I) {
-              const core = typeof coreBuilder === "function" ? coreBuilder() : coreBuilder
-              return {
-                processes(process: ProcessesDeclaration<C, S, I> = () => ({})) {
-                  const processSchema = serializeProcesses(process)
-                  return {
-                    reactions(reaction: ReactionsDeclaration<C, S, I> = () => []) {
-                      const reactionsSchema = serializeReaction(reaction)
-                      return {
-                        view(view?: ViewDeclaration<C, I, S>): MetaSchema<C, S> {
-                          const metaSchema: MetaSchema<C, S> = { name, states, context }
-                          if (description) metaSchema.description = description
-                          if (view && "style" in view) metaSchema.style = serializeStyle(view.style)
-                          if (view && "render" in view) metaSchema.render = parse(view.render as any)
-                          if (processSchema) metaSchema.processes = processSchema
-                          if (reactionsSchema) metaSchema.reactions = reactionsSchema
-                          return metaSchema
-                        },
-                      }
-                    },
-                  }
-                },
-              }
-            },
-          }
-        },
-      }
-    },
-  }
-}
 
 export function MetaForFabric(params: FabricParams) {
   const { store } = params
@@ -178,7 +83,7 @@ export function MetaForFabric(params: FabricParams) {
             return
           }
           // const m = (await import(url)).default
-          const m = await store.import(src, "network-first") as MetaSchema<C, S>
+          const m = (await store.import(src, "network-first")) as MetaSchema<C, S>
           if (!m) {
             console.error(`Module: ${src} is not defined`)
             return

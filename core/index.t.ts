@@ -5,7 +5,7 @@
  */
 import type { Schema, Types, Snapshot as ContextSnapshot } from "@zavx0z/context"
 import type { ProcessesDeclaration } from "./proc/index.t"
-import type { SnapshotProcesses } from "./proc/parser.t"
+import type { SnapshotProcesses } from "../schema/process.t"
 import type { ReactionsDeclaration, SnapshotReactions } from "./react/index.t"
 import type { StatesConfig } from "./state"
 import type { ViewDeclaration } from "./view/index.t"

@@ -1,8 +1,8 @@
 import { $ } from "bun"
-import { join } from "path"
 
 export const typegen = async (entrypoint: string, destination: string) => {
   const isTTY = process.stdout.isTTY
+  const cmd = $`dts-bundle-generator --out-file ${destination} --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/renderer --external-inlines @zavx0z/template -- ${entrypoint}`
   if (isTTY) {
     let spinnerActive = true
     const spinnerFrames = ["|", "/", "-", "\\"]
@@ -11,9 +11,8 @@ export const typegen = async (entrypoint: string, destination: string) => {
     const spinner = setInterval(() => {
       process.stdout.write(`\r${spinnerFrames[spinnerIndex++ % spinnerFrames.length]}  Генерация типов...`)
     }, 120)
-
     // Включаем все необходимые типы для полноценного автодополнения
-    await $`dts-bundle-generator --out-file ${destination} --export-referenced-types true --inline-declare-global true --inline-declare-externals true ${entrypoint}`.quiet()
+    await cmd.quiet()
 
     spinnerActive = false
     clearInterval(spinner)
@@ -21,16 +20,7 @@ export const typegen = async (entrypoint: string, destination: string) => {
   } else {
     console.log("🛠️  Генерация типов...")
     // Включаем все необходимые типы для полноценного автодополнения
-    await $`dts-bundle-generator --out-file ${destination} --export-referenced-types true --inline-declare-global true --inline-declare-externals true ${entrypoint}`.quiet()
+    await cmd.quiet()
     console.log("✅ Типы успешно сгенерированы!")
   }
-}
-
-if (import.meta.main) {
-  const fileName = "metafor"
-  const entrypoint = `./${fileName}.ts`
-  const distDir = "./dist"
-  const typeDest = join(distDir, `${fileName}.d.ts`)
-
-  await typegen(entrypoint, typeDest)
 }
