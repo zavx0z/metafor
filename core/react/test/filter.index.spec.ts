@@ -1,7 +1,8 @@
-import { Reactions } from "../index"
+import { deserializeReactions } from "../index"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
-import type { JsonPatch } from "../../message"
+import type { JsonPatch } from "../../index.t"
+import { serializeReaction } from "../../../schema/reactions"
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"
@@ -13,14 +14,16 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("простое сравнение числа", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ index: 5 })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ index: 5 })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -38,14 +41,16 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("не срабатывает при несовпадении", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ index: 5 })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ index: 5 })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -63,14 +68,16 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие eq", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ index: { eq: 5 } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ index: { eq: 5 } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -88,14 +95,16 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие notEq", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ index: { notEq: 10 } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ index: { notEq: 10 } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -113,14 +122,16 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие gt (больше)", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ index: { gt: 3 } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ index: { gt: 3 } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -138,14 +149,16 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие gte (больше или равно)", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ index: { gte: 5 } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ index: { gte: 5 } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -163,14 +176,16 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие lt (меньше)", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ index: { lt: 10 } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ index: { lt: 10 } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -188,14 +203,16 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие lte (меньше или равно)", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ index: { lte: 5 } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ index: { lte: 5 } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -213,14 +230,16 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие notGt (не больше)", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ index: { notGt: 10 } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ index: { notGt: 10 } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -238,14 +257,16 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие notGte (не больше или равно)", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ index: { notGte: 10 } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ index: { notGte: 10 } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -263,14 +284,16 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие notLt (не меньше)", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ index: { notLt: 3 } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ index: { notLt: 3 } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -288,14 +311,16 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие notLte (не меньше или равно)", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ index: { notLte: 3 } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ index: { notLte: 3 } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -313,14 +338,16 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("условие between", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ index: { between: [1, 10] } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ index: { between: [1, 10] } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -338,20 +365,22 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("комбинированные условия", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({
-            index: {
-              gte: 1,
-              lt: 10,
-              notEq: 3,
-            },
-          })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({
+              index: {
+                gte: 1,
+                lt: 10,
+                notEq: 3,
+              },
+            })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -369,14 +398,16 @@ describe("Фильтрация по индексу (index)", () => {
 
   it("обработка undefined значения", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ index: { eq: 0 } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ index: { eq: 0 } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",

@@ -2,25 +2,19 @@
  * Основная реализация MetaFor
  * @module Core
  */
-
+import { render } from "@zavx0z/renderer"
 import { contextFromSchema, type Context, type Schema, type Values } from "@zavx0z/context"
-import { checkTransition, type StatesConfig } from "./state"
+import { checkTransition, type Conditions, type Transitions } from "./state"
 import { deserializeProcesses, type Process } from "./proc"
 import { deserializeReactions } from "./react"
 
-import {
-  initMessage,
-  stateAfterActionMessage,
-  stateBeforeActionMessage,
-  updateContextMessage,
-  type Message,
-} from "./message"
+import type { Core, Snapshot, ActorInfo, Message } from "./index.t"
+import type { MetaStore } from "./store.t"
 
-import type { Core, FabricParams, MetaSchema, Snapshot } from "./index.t"
-import type { Conditions, Transitions } from "./state/index.t"
-import { render } from "@zavx0z/renderer"
+import type { MetaSchema } from "../schema"
+import type { StatesConfig } from "../schema/states"
 
-export function MetaForFabric(params: FabricParams) {
+export function MetaForFabric(params: { store: MetaStore }) {
   const { store } = params
   if (!customElements.get("meta-for")) {
     customElements.define(
@@ -251,5 +245,29 @@ export function MetaForFabric(params: FabricParams) {
         }
       }
     )
+  }
+  const initMessage = <C extends Schema, S extends string>(
+    meta: string,
+    actor: ActorInfo,
+    snapshot: Snapshot<C, S>,
+    path: string[]
+  ): Message => {
+    return { meta, actor, timestamp: Date.now(), patches: [{ op: "add", path: "/" + path.join("/"), value: snapshot }] }
+  }
+
+  const updateContextMessage = <C extends Schema>(
+    meta: string,
+    actor: ActorInfo,
+    updated: Partial<Values<C>>
+  ): Message => {
+    return { meta, actor, timestamp: Date.now(), patches: [{ op: "replace", path: "/context", value: updated }] }
+  }
+
+  const stateBeforeActionMessage = <S extends string>(meta: string, actor: ActorInfo, state: S): Message => {
+    return { meta, actor, timestamp: Date.now(), patches: [{ op: "test", path: "/state", value: state }] }
+  }
+
+  const stateAfterActionMessage = <S extends string>(meta: string, actor: ActorInfo, state: S): Message => {
+    return { meta, actor, timestamp: Date.now(), patches: [{ op: "replace", path: "/state", value: state }] }
   }
 }

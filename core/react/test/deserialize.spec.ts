@@ -1,9 +1,9 @@
 import { test, describe, expect } from "bun:test"
 import { deserializeReactions } from "../index.ts"
-import { Context } from "@zavx0z/context"
+import { contextSchema } from "@zavx0z/context"
 
 describe("deserializeReactions", () => {
-  const { schema } = new Context((t) => ({
+  const schema = contextSchema((t) => ({
     value: t.number.required(0),
     name: t.string.required(""),
     isActive: t.boolean.required(false),
@@ -19,8 +19,8 @@ describe("deserializeReactions", () => {
           desc: "Increment value",
           cond: {
             meta: "test",
-            op: "replace",
-            path: "/context",
+            op: "replace" as const,
+            path: "/context" as const,
           },
           read: ["value"],
           write: ["value"],
@@ -71,7 +71,7 @@ describe("deserializeReactions", () => {
           title: "test",
           cond: {
             meta: "test",
-            op: "replace",
+            op: "replace" as const,
           },
           read: ["value"],
           write: ["value"],
@@ -92,7 +92,7 @@ describe("deserializeReactions", () => {
     }
 
     const mockContext = { value: 5, name: "test", isActive: true }
-    const mockPatch = { op: "replace", path: "/context", value: 3 }
+    const mockPatch = { op: "replace", path: "/context", value: 3 } as const
 
     // Выполняем реакцию
     reactions.run({
@@ -124,7 +124,7 @@ describe("deserializeReactions", () => {
         op_test_1: {
           title: "op_test",
           cond: {
-            op: "add",
+            op: "add" as const,
           },
           read: [],
           write: ["value"],

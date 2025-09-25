@@ -2,7 +2,7 @@ import path from "node:path"
 import { Database, Statement } from "bun:sqlite"
 import fs from "node:fs/promises"
 import { pathToFileURL } from "node:url"
-import type { MetaStore } from "../core/store/index.t"
+import type { MetaStore } from "../core/store.t"
 /**
  * Серверный Store (SQLite)
  *

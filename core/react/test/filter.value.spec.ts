@@ -1,8 +1,9 @@
-import { Reactions } from "../index"
-import { Context, type Update, type Values } from "@zavx0z/context"
+import { deserializeReactions } from "../index"
+import { contextSchema, type Update, type Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
+import { serializeReaction } from "../../../schema/reactions"
 
-const { schema } = new Context((t) => ({
+const schema = contextSchema((t) => ({
   value: t.number.required(0),
   name: t.string.required(""),
   isActive: t.boolean.required(false),
@@ -19,14 +20,16 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Строковые значения", () => {
     it("прямое сравнение строки", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: "active" })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: "active" })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -44,14 +47,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("регулярное выражение", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: /^user_\d+$/ })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: /^user_\d+$/ })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -69,14 +74,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие eq", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { eq: "active" } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { eq: "active" } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -94,14 +101,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие notEq", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { notEq: "inactive" } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { notEq: "inactive" } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -119,14 +128,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие startsWith", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { startsWith: "user_" } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { startsWith: "user_" } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -144,14 +155,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие endsWith", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { endsWith: "_active" } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { endsWith: "_active" } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -169,14 +182,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие include", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { include: "error" } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { include: "error" } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -194,14 +209,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие notInclude", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { notInclude: "error" } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { notInclude: "error" } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -219,14 +236,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие pattern", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { pattern: /^\d{3}$/ } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { pattern: /^\d{3}$/ } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -244,14 +263,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие length (число)", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { length: 5 } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { length: 5 } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -269,14 +290,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие length (объект с min/max)", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { length: { min: 3, max: 10 } } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { length: { min: 3, max: 10 } } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -294,14 +317,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие between", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { between: ["a", "z"] } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { between: ["a", "z"] } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -321,14 +346,16 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Числовые значения", () => {
     it("прямое сравнение числа", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: 42 })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: 42 })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -346,14 +373,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие eq", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { eq: 42 } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { eq: 42 } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -371,14 +400,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие gt", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { gt: 10 } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { gt: 10 } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -396,14 +427,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие gte", () => {
       let called = false
-      const registry = new Reactions<Ctx, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { gte: 42 } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { gte: 42 } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -421,14 +454,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие lt", () => {
       let called = false
-        const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { lt: 100 } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { lt: 100 } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -446,14 +481,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие lte", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { lte: 42 } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { lte: 42 } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -471,14 +508,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие between", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { between: [10, 100] } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { between: [10, 100] } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -498,14 +537,16 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Булевы значения", () => {
     it("прямое сравнение булева значения", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: true })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: true })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -523,14 +564,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие eq", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { eq: true } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { eq: true } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -548,14 +591,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие logicalEq", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { logicalEq: true } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { logicalEq: true } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -576,14 +621,16 @@ describe("Фильтрация по значению патча (value) - рас
     it("прямое сравнение массива", () => {
       let called = false
       const testArray = [1, 2, 3]
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: testArray })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: testArray })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -601,14 +648,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие length (число)", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { length: 3 } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { length: 3 } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -626,14 +675,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие includes", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { includes: "item" } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { includes: "item" } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -651,14 +702,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие isEmpty", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { isEmpty: true } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { isEmpty: true } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -676,14 +729,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие every для чисел", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { every: { gt: 0 } } as any })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { every: { gt: 0 } } as any })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -701,14 +756,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие some для строк", () => {
       let called = false
-        const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { some: { include: "error" } } as any })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { some: { include: "error" } } as any })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -728,14 +785,16 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Null и undefined", () => {
     it("прямое сравнение null", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: null })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: null })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -753,14 +812,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("прямое сравнение undefined", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: undefined as any })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: undefined as any })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -778,14 +839,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("условие null в объекте", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { null: true } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { null: true } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -806,14 +869,16 @@ describe("Фильтрация по значению патча (value) - рас
     it("прямое сравнение объекта", () => {
       let called = false
       const testObject = { name: "test", value: 42 }
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: testObject as any })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: testObject as any })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -841,14 +906,16 @@ describe("Фильтрация по значению патча (value) - рас
           },
         },
       }
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: complexObject as any })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: complexObject as any })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -868,18 +935,20 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Комбинированные условия", () => {
     it("комбинация с операцией и путем", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({
-              value: { gt: 10, lt: 100 },
-              op: "replace",
-              path: "/context",
-            })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({
+                value: { gt: 10, lt: 100 },
+                op: "replace",
+                path: "/context",
+              })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -897,16 +966,18 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("комбинация строковых условий", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({
-              value: { startsWith: "user_", include: "active" },
-            })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({
+                value: { startsWith: "user_", include: "active" },
+              })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -926,14 +997,16 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Отрицательные тесты", () => {
     it("не срабатывает при несовпадении строки", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: "active" })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: "active" })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -951,14 +1024,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("не срабатывает при несовпадении числа", () => {
       let called = false
-      const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { gt: 100 } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { gt: 100 } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,
@@ -976,14 +1051,16 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("не срабатывает при несовпадении массива", () => {
       let called = false
-        const registry = new Reactions<typeof schema, State, {}>((reaction) => [
-        [
-          ["idle"],
-          reaction({ title: "test" })
-            .filter({ value: { length: 5 } })
-            .equal(() => (called = true)),
-        ],
-      ])
+      const registry = deserializeReactions(
+        serializeReaction((reaction) => [
+          [
+            ["idle"],
+            reaction({ title: "test" })
+              .filter({ value: { length: 5 } })
+              .equal(() => (called = true)),
+          ],
+        ]) as any
+      )
 
       registry.run({
         meta: fakeMeta,

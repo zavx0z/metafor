@@ -48,15 +48,17 @@
  *
  * @packageDocumentation
  */
-import { type Schema, type Types, contextSchema } from "@zavx0z/context"
+import { contextSchema, type Schema, type Types } from "@zavx0z/context"
 import { parse } from "@zavx0z/template"
-import type { MetaForConfig, Core, MetaSchema } from "../core/index.t"
-import { type ReactionsDeclaration, serializeReaction } from "../core/react"
-import { type StatesConfig, validateNoUnconditionalCycles } from "../core/state"
-import { type ViewDeclaration, serializeStyle } from "../core/view"
-import { serializeProcesses } from "./process"
-import type { ProcessesDeclaration } from "./process.t"
-export type { MetaForType } from "./index.t"
+import type { Core } from "../core/index.t"
+
+import { validateNoUnconditionalCycles, type StatesConfig } from "./states"
+import { serializeReaction, type ReactionsDeclaration } from "./reactions"
+import { serializeProcesses, type ProcessesDeclaration } from "./process"
+import { serializeStyle } from "./style"
+
+import type { MetaForConfig, MetaForType, ViewDeclaration, MetaSchema } from "./index.t"
+export type { MetaForType, MetaSchema }
 
 globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
   const description = config?.description

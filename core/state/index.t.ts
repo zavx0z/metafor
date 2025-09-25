@@ -545,13 +545,3 @@ export type Conditions<C extends Schema> = {
 export type Transitions<To extends string, C extends Schema> = {
   [K in To]?: Conditions<C>
 }
-
-/**ƒ
- * Конфигурация состояний
- *
- * @includeExample ./state/test/states.config.basic.spec.ts
- * @includeExample ./state/test/states.config.order.spec.ts
- * @includeExample ./state/test/states.config.numeric.spec.ts
- * @includeExample ./state/test/states.config.multiple.spec.ts
- */
-export type StatesConfig<S extends string = string, C extends Schema = Schema> = Record<S, Transitions<S, C>>

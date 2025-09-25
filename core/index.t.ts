@@ -6,29 +6,7 @@
 import type { Schema, Snapshot as ContextSnapshot } from "@zavx0z/context"
 import type { SnapshotProcesses } from "../schema/process.t"
 import type { SnapshotReactions } from "./react/index.t"
-import type { StatesConfig } from "./state"
-import type { MetaStore } from "./store/index.t"
-import type { Node as ParseNode } from "@zavx0z/template"
-
-
-export interface MetaSchema<C extends Schema, S extends string> {
-  /** Название компонента */
-  name: string
-  /** Описание компонента */
-  description?: string
-  /** Карта состояний и переходов */
-  states: StatesConfig<S, C>
-  /** Снимок процессов */
-  processes?: SnapshotProcesses
-  /** Снимок реакций */
-  reactions?: SnapshotReactions
-  /** Схема контекста */
-  context: Schema
-  /** Сериализованный view как строка template literal */
-  render?: ParseNode[]
-  /** Стили компонента */
-  style?: string
-}
+import type { StatesConfig } from "../schema/states"
 
 /**
  * Интерфейс снимка состояния компонента
@@ -63,49 +41,41 @@ export interface Snapshot<C extends Schema, S extends string> {
  */
 export type Core = Record<string, any>
 
-/**
- * @internal
- * @description
- * Тип параметров для создания web-компонента-актора конечного автомата (Actor)
- */
-export type FabricParams = {
-  store: MetaStore
-  // /** Название компонента */
-  // name: string
-  // /** Описание компонента */
-  // description: string | undefined
-  // /** Схема контекста */
-  // schema: (types: ContextTypes) => C
-  // /** Конфигурация состояний */
-  // states: StatesConfig<S, C>
-  // /** Ядро компонента */
-  // core: I
-  // /** Процессы */
-  // process: ProcessesDeclaration<C, S, I>
-  // /** Реакции */
-  // reaction: ReactionsDeclaration<C, S, I>
-  // /** Конфигурация view */
-  // view: ViewDeclaration<C, I, S> | undefined
-  // /** Восстановление из последнего сохраненного состояния (snapshot) */
-  // persist: boolean
-}
-/**
- * Конфигурация компонента MetaFor
- */
-export type MetaForConfig = {
-  /** Описание компонента */
-  description?: string
-  /** Режим разработки */
-  dev?: boolean
-  /**
-   * Восстановление из последнего сохраненного состояния (snapshot)
-   *
-   * @default false
-   */
-  persist?: boolean
-}
 export interface ActorInternal extends HTMLElement {
   __updCore: (value: Partial<unknown>) => void
   __path: string[]
   update: (value: Partial<unknown>) => void
+} /**
+ * Типы для сообщений
+ * @packageDocumentation
+ * @module Messages
+ */
+/**
+ Сообщение для обмена данными между акторами
+
+ @property meta - Хеш меты компонента-актора
+ @property actor - Информация об акторе
+ @property actor.index - Индекс актора по отношению к братьям в родителе
+ @property actor.parent - Хеш родительской меты актора
+ @property timestamp - Время отправки сообщения
+ @property patches - Массив патчей для применения к актору (JSON Patch RFC 6902)
+ */
+export type Message = {
+  meta: string
+  actor: ActorInfo
+  timestamp: number
+  patches: JsonPatch[]
 }
+/**
+Информация об акторе в сообщении
+
+@property index - Индекс актора по отношению к братьям в родителе (для уникализации)
+@property parent - Хеш родительской меты актора
+*/
+
+export type ActorInfo = {
+  index: number
+  parent?: string
+}
+
+export type JsonPatch = { op: "replace" | "add" | "remove" | "test"; path: string; value?: any }

@@ -1,9 +1,10 @@
-import type { Schema, Types } from "@zavx0z/context"
-import type { MetaForConfig, Core, MetaSchema } from "../core/index.t"
-import type { ReactionsDeclaration } from "../core/react"
-import type { StatesConfig } from "../core/state"
-import type { ViewDeclaration } from "../core/view"
-import type { ProcessesDeclaration } from "./process.t"
+import type { Schema, Types, Update, Values } from "@zavx0z/context"
+import type { Core } from "../core/index.t"
+import type { ProcessesDeclaration, SnapshotProcesses } from "./process.t"
+import type { Node as ParseNode } from "@zavx0z/template"
+import type { SnapshotReactions } from "../core/react/index.t"
+import type { StatesConfig } from "./states"
+import type { ReactionsDeclaration } from "./reactions"
 
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
@@ -176,3 +177,147 @@ declare global {
   var MetaFor: MetaForType
 }
 export {}
+
+/**
+ * Конфигурация компонента MetaFor
+ */
+export type MetaForConfig = {
+  /** Описание компонента */
+  description?: string
+  /** Режим разработки */
+  dev?: boolean
+  /**
+   * Восстановление из последнего сохраненного состояния (snapshot)
+   *
+   * @default false
+   */
+  persist?: boolean
+}
+
+/**
+ * Параметры функции рендеринга представления актора.
+ *
+ * В функцию render компонента MetaFor передаётся объект с полезными утилитами и данными для построения UI.
+ *
+ * @example
+ * ```ts
+ * render({ context, update, state, html, ref, repeat, when, map, style }) {
+ *   const inputRef = ref();
+ *   return html`
+ *     <div ${style({ color: state === 'error' ? 'red' : 'black' })}>
+ *       <h2>${context.title}</h2>
+ *       <input ${ref(inputRef)} value=${context.value} @input=${e => update({ value: e.target.value })} />
+ *       <ul>
+ *         ${repeat(context.items, (item, i) => html`<li>${i}: ${item}</li>`)}
+ *       </ul>
+ *       ${when(context.items.length > 0, () => html`<span>Есть элементы</span>`, () => html`<span>Пусто</span>`)}
+ *       <ol>
+ *         ${map(context.items, (item, i) => html`<li>${item}</li>`)}
+ *       </ol>
+ *     </div>
+ *   `;
+ * }
+ * ```
+ */
+export type ViewDefinitionParams<C extends Schema, I extends Core, S extends string> = {
+  /**
+   * Функция для обновления контекста.
+   * Вызывается с частичным объектом контекста для изменения состояния.
+   * @example
+   * ```ts
+   * update({ value: 42 })
+   * ```
+   */
+  update: Update<C>
+  /**
+   * Текущее состояние контекста.
+   * Содержит все поля, определённые в .context(...)
+   * @example
+   * ```ts
+   * html`<div>${context.value}</div>`
+   * ```
+   */
+  context: Values<C>
+  core: I
+  /**
+   * Текущее состояние автомата/актора.
+   * Обычно строка, определённая в .states(...)
+   * @example
+   * ```ts
+   * html`<span>${state === 'error' ? 'Ошибка' : 'Ок'}</span>`
+   * ```
+   */
+  state: S
+  /**
+   * Функция шаблонизации (аналог lit-html).
+   * Используется для создания HTML-шаблонов с интерполяцией.
+   * @example
+   * ```ts
+   * html`<div>${context.value}</div>`
+   * ```
+   */
+  html: (strings: TemplateStringsArray, ...values: any[]) => void
+}
+
+/**
+ * Конфигурация для представления компонента.
+ *
+ * Поддерживает передачу контекста между компонентами через атрибут `context`.
+ * При первой отрисовке контекст устанавливается без дополнительных сообщений,
+ * при обновлении контекста родителя автоматически обновляется контекст ребенка.
+ */
+export interface ViewDeclaration<C extends Schema, I extends Core, S extends string> {
+  /**
+   * Функция рендеринга компонента.
+   * Получает параметры с контекстом, состоянием и утилитами для построения UI.
+   *
+   * Поддерживает передачу контекста дочерним компонентам через атрибут `context`:
+   * ```ts
+   * render: ({ context, html }) => html`
+   *   <div>
+   *     <h1>Родитель: ${context.parentMessage}</h1>
+   *     <meta-child
+   *       context=${{
+   *         message: context.parentMessage,
+   *         count: context.parentCount,
+   *       }}></meta-child>
+   *   </div>
+   * `
+   * ```
+   */
+  render?: (params: ViewDefinitionParams<C, I, S>) => void
+  /**
+   * Функция, вызываемая после монтирования компонента в DOM.
+   * Используется для инициализации после рендера.
+   */
+  onMount?: ({ core }: { core: I }) => void
+  /**
+   * Функция, вызываемая при уничтожении компонента.
+   * Используется для очистки ресурсов.
+   */
+  onDestroy?: ({ core }: { core: I }) => void
+  /**
+   * Функция для определения CSS-стилей компонента.
+   * Получает функцию css для создания инкапсулированных стилей.
+   */
+  style?: ({ css }: { css: (strings: TemplateStringsArray, ...values: any[]) => void }) => void
+}
+
+export interface MetaSchema<C extends Schema, S extends string> {
+  /** Название компонента */
+  name: string
+  /** Описание компонента */
+  description?: string
+  /** Карта состояний и переходов */
+  states: StatesConfig<S, C>
+  /** Снимок процессов */
+  processes?: SnapshotProcesses
+  /** Снимок реакций */
+  reactions?: SnapshotReactions
+  /** Схема контекста */
+  context: Schema
+  /** Сериализованный view как строка template literal */
+  render?: ParseNode[]
+  /** Стили компонента */
+  style?: string
+}

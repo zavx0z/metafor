@@ -8,7 +8,7 @@
  *
  * @param {string} [dbName="meta"]
  * @param {string} [storeName="module"]
- * @returns {Promise<import("../core/store/index.t").MetaStore>}
+ * @returns {Promise<import("../core/store.t").MetaStore>}
  */
 export async function Store(dbName = "meta", storeName = "module") {
   /**
@@ -181,7 +181,7 @@ export async function Store(dbName = "meta", storeName = "module") {
 
     /**
      * @param {string} src
-     * @param {import("../core/store/index.t").LoadPolicy} [policy]
+     * @param {import("../core/store.t").LoadPolicy} [policy]
      */
     async import(src, policy = "cache-first") {
       const url = new URL(src, location.origin).toString()

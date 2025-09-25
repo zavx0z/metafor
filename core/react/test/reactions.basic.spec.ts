@@ -1,8 +1,9 @@
-import { Reactions } from "../index"
-import { Context } from "@zavx0z/context"
+import { deserializeReactions } from "../index"
+import { contextSchema } from "@zavx0z/context"
 import { test, expect } from "bun:test"
+import { serializeReaction } from "../../../schema/reactions"
 
-const { schema } = new Context((t) => ({
+const schema = contextSchema((t) => ({
   value: t.number.required(0),
   name: t.string.required(""),
   isActive: t.boolean.required(false),
@@ -12,25 +13,27 @@ type Ctx = typeof schema
 type State = "idle" | "active" | "error"
 
 test("Создание уникальных реакций", () => {
-  const registry = new Reactions<Ctx, State>((reaction) => [
-    [
-      ["idle", "active"],
-      reaction({ title: "inc" })
-        .filter({
-          meta: "test",
-          op: "replace",
-          path: "/context",
-          value: 1,
-        })
-        .equal(({ update, context }) => update({ value: context.value + 1 })),
-    ],
-    [
-      ["error"],
-      reaction({ title: "reset" })
-        .filter({ meta: "any" })
-        .equal(({ update }) => update({ value: 0 })),
-    ],
-  ])
+  const registry = deserializeReactions<Ctx, State, {}>(
+    serializeReaction<Ctx, State, {}>((reaction) => [
+      [
+        ["idle", "active"],
+        reaction({ title: "inc" })
+          .filter({
+            meta: "test",
+            op: "replace",
+            path: "/context",
+            value: 1,
+          })
+          .equal(({ update, context }) => update({ value: context.value + 1 })),
+      ],
+      [
+        ["error"],
+        reaction({ title: "reset" })
+          .filter({ meta: "any" })
+          .equal(({ update }) => update({ value: 0 })),
+      ],
+    ]) as any
+  )
 
   const all = registry.getAllReactions()
   expect(all?.length, "уникальные реакции").toBe(2)

@@ -1,7 +1,8 @@
-import { Reactions } from "../index"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
-import type { JsonPatch } from "../../message"
+import type { JsonPatch } from "../../index.t"
+import { deserializeReactions } from ".."
+import { serializeReaction } from "../../../schema/reactions"
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"
@@ -13,14 +14,16 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("простое сравнение хеша меты", () => {
     let called = false
-    const registry = new Reactions<Ctx, State>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ meta: "test" })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ meta: "test" })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -38,14 +41,16 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("не срабатывает при несовпадении", () => {
     let called = false
-    const registry = new Reactions<Ctx, State>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ meta: "test" })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ meta: "test" })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "other",
@@ -63,14 +68,16 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("регулярное выражение", () => {
     let called = false
-    const registry = new Reactions<Ctx, State>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ meta: /^test_/ })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ meta: /^test_/ })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test_component",
@@ -88,14 +95,16 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("условие eq", () => {
     let called = false
-    const registry = new Reactions<Ctx, State>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ meta: { eq: "test" } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ meta: { eq: "test" } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -113,14 +122,16 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("условие notEq", () => {
     let called = false
-    const registry = new Reactions<Ctx, State>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ meta: { notEq: "other" } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ meta: { notEq: "other" } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -138,14 +149,16 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("условие startsWith", () => {
     let called = false
-    const registry = new Reactions<Ctx, State>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ meta: { startsWith: "test" } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ meta: { startsWith: "test" } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test_component",
@@ -163,14 +176,16 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("условие endsWith", () => {
     let called = false
-    const registry = new Reactions<Ctx, State>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ meta: { endsWith: "component" } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ meta: { endsWith: "component" } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test_component",
@@ -188,14 +203,16 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("условие include", () => {
     let called = false
-    const registry = new Reactions<Ctx, State>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ meta: { include: "comp" } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ meta: { include: "comp" } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test_component",
@@ -213,14 +230,16 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("условие notInclude", () => {
     let called = false
-    const registry = new Reactions<Ctx, State>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ meta: { notInclude: "bad" } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ meta: { notInclude: "bad" } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test_component",
@@ -238,14 +257,16 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("условие notStartsWith", () => {
     let called = false
-    const registry = new Reactions<Ctx, State>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ meta: { notStartsWith: "bad" } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ meta: { notStartsWith: "bad" } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test_component",
@@ -263,14 +284,16 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("условие notEndsWith", () => {
     let called = false
-    const registry = new Reactions<Ctx, State>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ meta: { notEndsWith: "bad" } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ meta: { notEndsWith: "bad" } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test_component",
@@ -288,14 +311,16 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("условие pattern (regex)", () => {
     let called = false
-    const registry = new Reactions<Ctx, State>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ meta: { pattern: /^test_\d+$/ } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ meta: { pattern: /^test_\d+$/ } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test_123",
@@ -313,14 +338,16 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("условие length (число)", () => {
     let called = false
-    const registry = new Reactions<Ctx, State>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ meta: { length: 4 } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ meta: { length: 4 } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -338,14 +365,16 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("условие length (объект с min/max)", () => {
     let called = false
-    const registry = new Reactions<Ctx, State>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ meta: { length: { min: 3, max: 10 } } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ meta: { length: { min: 3, max: 10 } } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -363,14 +392,16 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("условие between", () => {
     let called = false
-    const registry = new Reactions<Ctx, State>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ meta: { between: ["a", "z"] } })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ meta: { between: ["a", "z"] } })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test",
@@ -388,20 +419,22 @@ describe("Фильтрация по мете актора (meta)", () => {
 
   it("комбинированные условия", () => {
     let called = false
-    const registry = new Reactions<Ctx, State>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({
-            meta: {
-              startsWith: "test",
-              include: "comp",
-              length: { min: 10, max: 20 },
-            },
-          })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({
+              meta: {
+                startsWith: "test",
+                include: "comp",
+                length: { min: 10, max: 20 },
+              },
+            })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: "test_component",

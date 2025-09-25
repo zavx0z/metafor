@@ -1,7 +1,7 @@
-import { Reactions } from "../index"
+import { deserializeReactions } from "../index"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
-  import type { JsonPatch } from "../../message"
+import { serializeReaction } from "../../../schema/reactions"
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"
@@ -13,14 +13,16 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по /context", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ path: "/context" })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ path: "/context" })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: fakeMeta,
@@ -38,14 +40,16 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по /state", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ path: "/state" })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ path: "/state" })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: fakeMeta,
@@ -63,14 +67,16 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по /", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ path: "/" })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ path: "/" })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: fakeMeta,
@@ -88,14 +94,16 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("не срабатывает при несовпадении пути", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({ path: "/context" })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({ path: "/context" })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: fakeMeta,
@@ -113,17 +121,19 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("комбинированная фильтрация с операцией", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({
-            path: "/context",
-            op: "replace",
-          })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({
+              path: "/context",
+              op: "replace",
+            })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: fakeMeta,
@@ -141,17 +151,19 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("комбинированная фильтрация с метой", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({
-            path: "/context",
-            meta: "test",
-          })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({
+              path: "/context",
+              meta: "test",
+            })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: fakeMeta,
@@ -169,17 +181,19 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по /context с replace", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({
-            path: "/context",
-            op: "replace",
-          })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({
+              path: "/context",
+              op: "replace",
+            })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: fakeMeta,
@@ -197,17 +211,19 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по /context с add", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({
-            path: "/context",
-            op: "add",
-          })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({
+              path: "/context",
+              op: "add",
+            })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: fakeMeta,
@@ -225,17 +241,19 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по /context с remove", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({
-            path: "/context",
-            op: "remove",
-          })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({
+              path: "/context",
+              op: "remove",
+            })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: fakeMeta,
@@ -253,17 +271,19 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по /context с test", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({
-            path: "/context",
-            op: "test",
-          })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({
+              path: "/context",
+              op: "test",
+            })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: fakeMeta,
@@ -281,17 +301,19 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по /state с replace", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({
-            path: "/state",
-            op: "replace",
-          })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({
+              path: "/state",
+              op: "replace",
+            })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: fakeMeta,
@@ -309,17 +331,19 @@ describe("Фильтрация по пути патча (path)", () => {
 
   it("фильтрация по / с add", () => {
     let called = false
-    const registry = new Reactions<Ctx, State, {}>((reaction) => [
-      [
-        ["idle"],
-        reaction({ title: "test" })
-          .filter({
-            path: "/",
-            op: "add",
-          })
-          .equal(() => (called = true)),
-      ],
-    ])
+    const registry = deserializeReactions(
+      serializeReaction((reaction) => [
+        [
+          ["idle"],
+          reaction({ title: "test" })
+            .filter({
+              path: "/",
+              op: "add",
+            })
+            .equal(() => (called = true)),
+        ],
+      ]) as any
+    )
 
     registry.run({
       meta: fakeMeta,

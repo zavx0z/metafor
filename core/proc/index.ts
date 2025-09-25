@@ -5,7 +5,7 @@
 
 import type { Schema } from "@zavx0z/context"
 import type { Process } from "./index.t"
-import type { Core } from "../../core/index.t"
+import type { Core } from "../index.t"
 export type { Process } from "./index.t"
 
 /**

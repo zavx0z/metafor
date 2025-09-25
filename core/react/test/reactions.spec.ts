@@ -1,11 +1,9 @@
+//@ts-nocheck
 import { test, expect, describe } from "bun:test"
-import { MetaFor } from "../../../web/metafor.ts"
 import type { ReactionParams } from "../index.t.ts"
-
 describe.skip("реакции", () => {
   test("MetaFor - базовый функционал", async () => {
-    const childName = Bun.randomUUIDv7()
-    const childHash = MetaFor(childName)
+    const childHash = MetaFor(Bun.randomUUIDv7())
       .context((types) => ({
         param: types.string.required(""),
       }))
@@ -54,13 +52,13 @@ describe.skip("реакции", () => {
         [
           ["state_1"],
           reaction({ title: "record_all_messages" })
-            .filter({ meta: childHash })
+            .filter({ meta: "childHash" })
             .equal(({ meta, actor, timestamp, patch }) => recordMessage({ meta, actor, timestamp, patch })),
         ],
         [
           ["state_1"],
           reaction()
-            .filter({ meta: childHash, op: "add" })
+            .filter({ meta: "childHash", op: "add" })
             .equal(({ update }) => update({ childAdded: true })),
         ],
       ])
@@ -82,7 +80,7 @@ describe.skip("реакции", () => {
           op: "add",
           path: "/",
           value: {
-            name: childName,
+            name: "childName",
             state: "state_1",
             process: false,
             states: {

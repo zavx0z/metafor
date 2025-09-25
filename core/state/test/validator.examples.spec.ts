@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test"
-import { validateNoUnconditionalCycles } from "../validator.ts"
-import type { StatesConfig } from "../index.t.ts"
+import { validateNoUnconditionalCycles } from "../../../schema/states.ts"
+import type { StatesConfig } from "../../../schema/states.t.ts"
 
 test("Валидация корректной конфигурации состояний", () => {
   const validStates: StatesConfig = {

@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import type { StatesConfig } from "../index.t.ts"
+import type { StatesConfig } from "../../../schema/states.t.ts"
 
 test("Конфигурация состояний с множественными переходами", () => {
   const authStates: StatesConfig = {

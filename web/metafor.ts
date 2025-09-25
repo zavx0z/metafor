@@ -76,4 +76,4 @@ worker.postMessage({ type: "init", dbName: "meta", storeName: "modules" })
 const store = await Store()
 
 MetaForFabric({ store })
-export type { Message } from "../core/message/index"
+export type { Message } from "../core/index.t"

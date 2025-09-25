@@ -1,7 +1,8 @@
 import { deserializeReactions } from "../index"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
-import type { JsonPatch } from "../../message"
+import type { JsonPatch } from "../../index.t"
+
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"
@@ -38,7 +39,7 @@ describe("deserializeReactions", () => {
     }
 
     // Создаем десериализованные реакции из снимка
-    const deserializedReactions = deserializeReactions<Ctx, State, {}>(snapshot)
+    const deserializedReactions = deserializeReactions<Ctx, State, {}>(snapshot as any)
 
     // Проверяем, что структура сохранена
     expect(deserializedReactions.hasReactions(), "десериализованные реакции должны содержать реакции").toBe(true)

@@ -1,9 +1,9 @@
 import { test, expect, describe } from "bun:test"
-import { createReactionsSnapshot, deserializeReactions } from "../index"
-import { Context } from "@zavx0z/context"
+import { createReactionsSnapshot } from "../../../schema/reactions.t"
+import { contextSchema } from "@zavx0z/context"
 
 describe("снимок реакций", () => {
-  const { schema } = new Context((t) => ({
+  const schema = contextSchema((t) => ({
     value: t.number.required(0),
     name: t.string.required(""),
     isActive: t.boolean.required(false),

@@ -1,10 +1,11 @@
-import { Reactions } from "../index"
+import { deserializeReactions } from "../index"
 import type { Update, Values } from "@zavx0z/context"
 import { test, expect } from "bun:test"
-import type { Message, JsonPatch } from "../../message"
-import { Context } from "@zavx0z/context"
+import type { JsonPatch, Message } from "../../index.t"
+import { contextSchema } from "@zavx0z/context"
+import { serializeReaction } from "../../../schema/reactions"
 
-const { schema } = new Context((t) => ({
+const schema = contextSchema((t) => ({
   value: t.number.required(0),
   name: t.string.required(""),
   isActive: t.boolean.required(false),
@@ -24,14 +25,16 @@ test("Выполнение реакций через run", () => {
     patches: [{ op: "replace", path: "/context", value: 1 }],
   }
 
-  const registry = new Reactions<Ctx, State>((reaction) => [
-    [
-      ["active"],
-      reaction({ title: "test" })
-        .filter({ meta: "test" })
-        .equal(() => (called = true)),
-    ],
-  ])
+  const registry = deserializeReactions<Ctx, State, {}>(
+    serializeReaction<Ctx, State, {}>((reaction) => [
+      [
+        ["active"],
+        reaction({ title: "test" })
+          .filter({ meta: "test" })
+          .equal(() => (called = true)),
+      ],
+    ]) as any
+  )
 
   registry.run({
     meta: fakeMessage.meta,
