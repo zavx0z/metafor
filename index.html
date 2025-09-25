@@ -1,5 +1,8 @@
 <!doctype html>
 <html lang="en">
+  <link
+    rel="icon"
+    href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIGZpbGw9IiMxMjEyMTIiLz48cGF0aCBkPSJNOCAxNkgyNE0xNiA4VjI0IiBzdHJva2U9IiM5RTlCRUMiIHN0cm9rZS13aWR0aD0iMiIvPjwvc3ZnPg==" />
   <head>
     <meta charset="UTF-8" />
     <title>MetaFor</title>
@@ -13,12 +16,13 @@
   <script type="importmap">
     {
       "imports": {
-        "metafor": "./dist/web/metafor.js"
+        "metafor.js": "./dist/web/metafor.js",
+        "console.js": "./dist/web/console.js"
       }
     }
   </script>
   <script type="module">
-    import { log } from "./web/console.js"
+    import { log } from "console.js"
     new BroadcastChannel("channel").onmessage = (
       /** @type {MessageEvent<import("./web/metafor.js").Message>} */ event
     ) => {
@@ -30,8 +34,10 @@
       }
     }
   </script>
-  <script type="module" src="./dist/web/metafor.js"></script>
+  <script type="module">
+    import "metafor.js"
+  </script>
   <body>
-    <meta-for class="zavx0z/app" id="1"></meta-for>
+    <meta-for src="./zavx0z/app.js" id="1"></meta-for>
   </body>
 </html>

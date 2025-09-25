@@ -23,7 +23,7 @@ export interface MetaStore {
    * @props id - имя модуля (zavx0z/module)
    * @props autosave - сохранять ли модуль в стор автоматически
    */
-  import(id: string, autosave: boolean): Promise<{ default: any } | null>
+  import(id: string, autosave?: boolean): Promise<{ default: any } | null>
 
   /** Полное удаление базы/таблицы. */
   drop(): Promise<void>

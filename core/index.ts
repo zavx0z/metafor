@@ -179,8 +179,8 @@ export function MetaForFabric(params: FabricParams) {
             return
           }
           const url = new URL(moduleId, location.origin).toString()
-          const module = await import(url)
-          // const module = await store.import(moduleId, false)
+          // const module = await import(url)
+          const module = await store.import(moduleId)
           if (!module) {
             console.error(`Module: ${moduleId} is not defined`)
             return
