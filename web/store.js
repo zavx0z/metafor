@@ -108,7 +108,7 @@ export async function Store(dbName = "meta", storeName = "modules") {
   }
 
   /**
-   * Загрузить /<id>.js из корня сайта и вернуть как Uint8Array.
+   * Загрузить по url и вернуть как Uint8Array.
    * @param {string} url
    * @returns {Promise<Uint8Array>}
    */
@@ -121,7 +121,7 @@ export async function Store(dbName = "meta", storeName = "modules") {
     }
     return new Uint8Array(await resp.arrayBuffer())
   }
-  
+
   const db = await openDB(dbName, storeName)
   return {
     info() {
@@ -143,25 +143,72 @@ export async function Store(dbName = "meta", storeName = "modules") {
       await del(db, storeName, id)
     },
 
-    async import(id, autosave = true) {
-      // если autosave выключен — всегда грузим последнюю версию из сети, не трогая БД
-      if (autosave === false) {
+    /**
+     * @param {string} id
+     * @param {import("../core/store/index.t").LoadPolicy} [policy]
+     */
+    async import(id, policy = "cache-first") {
+      // Поддерживаем политики в стиле Service Worker
+      // cache-first: сначала кэш; если нет — сеть с сохранением
+      // network-first: пробуем сеть; при ошибке/отсутствии сети — кэш
+      // network-only: всегда сеть, БД не трогаем
+      // cache-only: только кэш, без сети
+      // stale-while-revalidate: мгновенно кэш (если есть), параллельно обновляем кэш из сети (без ожидания)
+
+      const fromCache = async () => {
+        const rec = await get(db, storeName, id)
+        if (!rec) return null
+        if (!(rec.blob instanceof Uint8Array)) {
+          console.error("Invalid record.blob type; expected Uint8Array")
+          return null
+        }
+        return importFromUint8AsModule(rec.blob)
+      }
+
+      /** @param {boolean} shouldSave */
+      const fetchAndOptionallySave = async (shouldSave) => {
         const u8 = await fetchAsUint8(id)
+        if (shouldSave) {
+          const now = Date.now()
+          await put(db, storeName, { id, blob: u8, updatedAt: now })
+        }
         return importFromUint8AsModule(u8)
       }
 
-      let rec = await get(db, storeName, id)
-      if (!rec) {
-        const u8 = await fetchAsUint8(id)
-        const now = Date.now()
-        await put(db, storeName, { id, blob: u8, updatedAt: now })
-        rec = { id, blob: u8, updatedAt: now }
+      switch (policy) {
+        case "network-only": {
+          return fetchAndOptionallySave(false)
+        }
+        case "cache-only": {
+          const mod = await fromCache()
+          return mod
+        }
+        case "network-first": {
+          try {
+            // сеть с сохранением
+            return await fetchAndOptionallySave(true)
+          } catch (e) {
+            // на случай оффлайна — кэш
+            const mod = await fromCache()
+            if (mod) return mod
+            throw e
+          }
+        }
+        case "stale-while-revalidate": {
+          const cached = await fromCache()
+          // Параллельно обновляем кэш, но результат не ждём
+          fetchAndOptionallySave(true).catch(() => {})
+          if (cached) return cached
+          // если кэша нет — ждём сеть и сохраняем
+          return fetchAndOptionallySave(true)
+        }
+        case "cache-first":
+        default: {
+          const cached = await fromCache()
+          if (cached) return cached
+          return fetchAndOptionallySave(true)
+        }
       }
-      if (!(rec.blob instanceof Uint8Array)) {
-        console.error("Invalid record.blob type; expected Uint8Array")
-        return null
-      }
-      return importFromUint8AsModule(rec.blob)
     },
 
     async drop() {

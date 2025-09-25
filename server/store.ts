@@ -100,28 +100,55 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
     },
 
     /**
-     * Импорт модуля из стора.
-     * Если записи нет — читаем <cwd>/${id}.js, сохраняем в БД и импортируем.
+     * Импорт модуля из стора с политикой загрузки.
      */
-    async import(id, autosave = true) {
-      if (autosave === false) {
+    async import(id, policy = "cache-first") {
+      const fromCache = async () => {
+        const rec = getRow(id)
+        if (!rec) return null
+        return importFromUint8AsModule(rec.blob, id)
+      }
+
+      const readAndOptionallySave = async (shouldSave: boolean) => {
         const u8 = await readModuleFromRootAsUint8(id)
+        if (shouldSave) {
+          const now = Date.now()
+          stmtUpsert.run(id, u8, now)
+        }
         return importFromUint8AsModule(u8, id)
       }
 
-      let mod = await importFromStore(id)
-      if (mod) return mod
-
-      const u8 = await readModuleFromRootAsUint8(id)
-      const now = Date.now()
-      stmtUpsert.run(id, u8, now)
-
-      mod = await importFromStore(id)
-      if (!mod) {
-        console.error(`UPSERT_OR_IMPORT_FAILED:"${id}"`)
-        return null
+      switch (policy) {
+        case "network-only": {
+          return readAndOptionallySave(false)
+        }
+        case "cache-only": {
+          const mod = await fromCache()
+          return mod
+        }
+        case "network-first": {
+          try {
+            return await readAndOptionallySave(true)
+          } catch (e) {
+            const mod = await fromCache()
+            if (mod) return mod
+            throw e
+          }
+        }
+        case "stale-while-revalidate": {
+          const cached = await fromCache()
+          // непрерывно обновляем кэш, не ожидая
+          readAndOptionallySave(true).catch(() => {})
+          if (cached) return cached
+          return readAndOptionallySave(true)
+        }
+        case "cache-first":
+        default: {
+          const cached = await fromCache()
+          if (cached) return cached
+          return readAndOptionallySave(true)
+        }
       }
-      return mod
     },
 
     async drop() {

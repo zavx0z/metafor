@@ -180,7 +180,7 @@ export function MetaForFabric(params: FabricParams) {
           }
           const url = new URL(moduleId, location.origin).toString()
           // const module = await import(url)
-          const module = await store.import(moduleId)
+          const module = await store.import(url, "network-first")
           if (!module) {
             console.error(`Module: ${moduleId} is not defined`)
             return
