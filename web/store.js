@@ -157,7 +157,7 @@ export async function Store(dbName = "meta", storeName = "modules") {
       // stale-while-revalidate: мгновенно кэш (если есть), параллельно обновляем кэш из сети (без ожидания)
 
       const fromCache = async () => {
-        const rec = await get(db, storeName, url)
+        const rec = await get(db, storeName, src)
         if (!rec) return null
         return { default: rec.value }
       }
@@ -169,7 +169,7 @@ export async function Store(dbName = "meta", storeName = "modules") {
        */
       const fetchAndOptionallySave = async (shouldSave) => {
         const u8 = await fetchAsUint8(url)
-        const cached = await get(db, storeName, url)
+        const cached = await get(db, storeName, src)
         if (cached && typeof cached.size === "number" && cached.size === u8.byteLength) {
           // Размер не изменился — возвращаем сохранённое значение
           return { default: cached.value }
@@ -179,7 +179,7 @@ export async function Store(dbName = "meta", storeName = "modules") {
         const value = mod?.default
         if (shouldSave) {
           const now = Date.now()
-          await put(db, storeName, { id: url, value, updatedAt: now, size: u8.byteLength })
+          await put(db, storeName, { id: src, value, updatedAt: now, size: u8.byteLength })
         }
         return { default: value }
       }

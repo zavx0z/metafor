@@ -29,13 +29,38 @@ export async function Store(dbFile = "meta.db", table = "modules"): Promise<Meta
   const db = new Database(dbPath)
   db.run("PRAGMA journal_mode=WAL;")
   db.run("PRAGMA synchronous=FULL;")
-  db.run(`CREATE TABLE IF NOT EXISTS ${table}
-          (
-              id        TEXT PRIMARY KEY,
-              value     TEXT    NOT NULL,
-              size      INTEGER NOT NULL,
-              updatedAt INTEGER NOT NULL
-          );`)
+  // Гарантируем json_valid(value) через миграцию в транзакции
+  db.run("BEGIN;")
+  try {
+    db.run(`CREATE TABLE IF NOT EXISTS ${table}
+            (
+                id        TEXT PRIMARY KEY,
+                value     TEXT    NOT NULL CHECK (json_valid(value)),
+                size      INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL
+            );`)
+
+    // Пересоздание таблицы со STRICT-проверкой JSON при необходимости
+    db.run(`CREATE TABLE IF NOT EXISTS __${table}_new
+            (
+                id        TEXT PRIMARY KEY,
+                value     TEXT    NOT NULL CHECK (json_valid(value)),
+                size      INTEGER NOT NULL,
+                updatedAt INTEGER NOT NULL
+            );`)
+    db.run(`INSERT INTO __${table}_new(id, value, size, updatedAt)
+            SELECT id,
+                   CASE WHEN json_valid(value) THEN value ELSE json(value) END,
+                   size,
+                   updatedAt
+            FROM ${table};`)
+    db.run(`DROP TABLE IF EXISTS ${table};`)
+    db.run(`ALTER TABLE __${table}_new RENAME TO ${table};`)
+    db.run("COMMIT;")
+  } catch (e) {
+    db.run("ROLLBACK;")
+    throw e
+  }
 
   const stmtGet: Statement<[string]> = db.query(
     `SELECT value, size, updatedAt
