@@ -37,7 +37,28 @@ async function importModuleDefaultFromFile(filePath: string, bustToken: string |
   const href = pathToFileURL(filePath).href + `?v=${bustToken}`
   return import(href) as Promise<{ default: any }>
 }
+/** Прочитать модуль как текст и выполнить его для получения default export. */
+// async function readModuleDefaultFromFile(filePath: string): Promise<any> {
+//   const file = Bun.file(filePath)
+//   const text = await file.text()
 
+//   // Создаём временный файл для выполнения модуля
+//   const tempFile = `/tmp/temp-module-${Date.now()}.js`
+//   const wrappedCode = text
+
+//   try {
+//     await Bun.write(tempFile, wrappedCode)
+//     const module = await import(tempFile)
+//     return module.default
+//   } finally {
+//     // Удаляем временный файл
+//     try {
+//       await fs.unlink(tempFile)
+//     } catch {
+//       // Игнорируем ошибки удаления
+//     }
+//   }
+// }
 /**
  * Серверное хранилище модулей (SQLite). Храним декларативное значение как JSON.
  */

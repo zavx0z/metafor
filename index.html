@@ -36,6 +36,19 @@
   </script>
   <script type="module">
     import "metafor.js"
+    // Создаем воркер с эмуляцией DOM
+    const worker = new Worker("./dist/web/worker.js", { type: "module" })
+
+    // worker.onmessage = (event) => {
+    //   console.log("Сообщение от воркера:", event.data)
+    // }
+
+    // worker.onerror = (error) => {
+    //   console.error("Ошибка воркера:", error)
+    // }
+
+    // // Отправляем тестовое сообщение воркеру
+    // worker.postMessage({ type: "test", message: "Привет из главного потока!" })
   </script>
   <body>
     <meta-for src="/zavx0z/app.js" id="1"></meta-for>

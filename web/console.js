@@ -1,3 +1,4 @@
+//# sourceURL=log
 // @ts-nocheck
 const config = {
   active: true,

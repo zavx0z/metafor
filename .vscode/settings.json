@@ -10,6 +10,7 @@
         "**/node_modules": true,
         "**/__pycache__": true,
         ".venv": true,
+        ".cursor": true,
         ".cursor/rules": true,
         ".idea": true,
         ".firebase": true,

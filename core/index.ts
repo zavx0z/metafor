@@ -2,7 +2,6 @@
  * Основная реализация MetaFor
  * @module Core
  */
-import { render } from "@zavx0z/renderer"
 import { contextFromSchema, type Context, type Schema, type Values } from "@zavx0z/context"
 import { checkTransition, type Conditions, type Transitions } from "./states"
 import { processesFromSchema, type Process } from "./processes"
@@ -14,8 +13,12 @@ import type { MetaStore } from "./store.t"
 import type { MetaSchema } from "../schema"
 import type { StatesConfig } from "../schema/states"
 
-export function MetaForFabric(params: { store: MetaStore }) {
-  const { store } = params
+export function MetaForFabric(params: {
+  store: MetaStore
+  render: any
+  env?: "srv:m" | "srv:w" | "web:m" | "web:w" | "web:sw"
+}) {
+  const { store, render, env } = params
   if (!customElements.get("meta-for")) {
     customElements.define(
       "meta-for",
@@ -26,6 +29,7 @@ export function MetaForFabric(params: { store: MetaStore }) {
         #name!: string
         #description!: string
         #context!: Context<C>
+        #env!: string
         #core: I = {} as I
         /** ------------state-------------------------------- */
         #state!: {
@@ -69,6 +73,7 @@ export function MetaForFabric(params: { store: MetaStore }) {
         constructor() {
           super()
           this.#shadow = this.attachShadow({ mode: "closed" })
+          this.#env = env as string
         }
         async connectedCallback() {
           const src = this.getAttribute("src")
@@ -97,7 +102,7 @@ export function MetaForFabric(params: { store: MetaStore }) {
 
           if (this.#reactions.hasReactions() && this.#channel)
             this.#channel.onmessage = (ev) => this.#handleReactionMessage(ev.data)
-          this.#sendEvent(initMessage(this.#name, { index: 0 }, m as unknown as Snapshot<C, S>, this.__path))
+          this.#sendEvent(initMessage(this.#name, { index: this.#env }, m as unknown as Snapshot<C, S>, this.__path))
           const transition = this.#state.states[this.#state.state]
           if (transition) {
             const process = this.#processes.getProcess(this.#state.state)
@@ -127,7 +132,7 @@ export function MetaForFabric(params: { store: MetaStore }) {
         update = (context: Partial<Values<C>>): Partial<Values<C>> => {
           const updated = this.#context.update(context)
           if (Object.keys(updated).length > 0) {
-            this.#sendEvent(updateContextMessage(this.#name, { index: 0 }, updated))
+            this.#sendEvent(updateContextMessage(this.#name, { index: this.#env }, updated))
           }
           return updated
         }
@@ -143,7 +148,7 @@ export function MetaForFabric(params: { store: MetaStore }) {
          */
         #executeAction = (process: Process<C, I>) => {
           try {
-            this.#broadcastMessage(stateBeforeActionMessage(this.#name, { index: 0 }, this.#state.state))
+            this.#broadcastMessage(stateBeforeActionMessage(this.#name, { index: this.#env }, this.#state.state))
             const result = process.action({
               context: this.#context.context,
               core: this.#core,
@@ -166,17 +171,17 @@ export function MetaForFabric(params: { store: MetaStore }) {
                   } else throw new Error(`Обработчик ошибки не найден для состояния: ${this.#state.state} \n ${error}`)
                 })
                 .finally(() => {
-                  this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: 0 }, this.#state.state))
+                  this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: this.#env }, this.#state.state))
                   this.#setProcess(false)
                 })
             } else {
               if (process.success) process.success({ update: this.update, data: result })
-              this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: 0 }, this.#state.state))
+              this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: this.#env }, this.#state.state))
               this.#setProcess(false)
             }
           } catch (error) {
             if (error instanceof Error) process.error?.({ update: this.update, error })
-            this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: 0 }, this.#state.state))
+            this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: this.#env }, this.#state.state))
             this.#setProcess(false)
           }
         }
@@ -199,7 +204,8 @@ export function MetaForFabric(params: { store: MetaStore }) {
                 this.#executeAction(process)
               } else {
                 this.#setState(state as S)
-                this.#channel && this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: 0 }, state as S))
+                this.#channel &&
+                  this.#broadcastMessage(stateAfterActionMessage(this.#name, { index: this.#env }, state as S))
                 if (!this.#process) this.#transition()
               }
               break

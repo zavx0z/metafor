@@ -74,7 +74,7 @@ export type Message = {
 */
 
 export type ActorInfo = {
-  index: number
+  index: string
   parent?: string
 }
 
