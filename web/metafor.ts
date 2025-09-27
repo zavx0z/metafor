@@ -22,7 +22,7 @@
  */
 import "../schema/index"
 import { Store } from "./store"
-import { actorFabric } from "../core"
+import { actorFabric } from ".."
 import type { RenderParams } from "@zavx0z/renderer"
 import type { Schema } from "@zavx0z/context"
 import type { Core } from "@zavx0z/template"

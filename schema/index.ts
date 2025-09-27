@@ -81,13 +81,13 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
                       const reactions = reactionsSchema(reaction)
                       return {
                         view(view?: ViewDeclaration<C, I, S>): MetaSchema<C, S> {
-                          const metaSchema: MetaSchema<C, S> = { name, states, context }
-                          if (description) metaSchema.description = description
-                          if (view && "style" in view) metaSchema.style = serializeStyle(view.style)
-                          if (view && "render" in view) metaSchema.render = parse(view.render as any)
-                          if (processes) metaSchema.processes = processes
-                          if (reactions) metaSchema.reactions = reactions
-                          return metaSchema
+                          const schema: MetaSchema<C, S> = { name, states, context }
+                          if (description) schema.description = description
+                          if (view && "style" in view) schema.style = serializeStyle(view.style)
+                          if (view && "render" in view) schema.render = parse(view.render as any)
+                          if (processes) schema.processes = processes
+                          if (reactions) schema.reactions = reactions
+                          return schema
                         },
                       }
                     },
