@@ -10,6 +10,26 @@
 export type LoadPolicy = "cache-first" | "network-first" | "network-only" | "cache-only" | "stale-while-revalidate"
 
 /**
+ * Унифицированный контракт стора.
+ */
+export interface Store {
+  meta: MetaStore
+  data: DataStore
+}
+
+/**
+ * Унифицированный контракт стора данных.
+ */
+export interface DataStore {
+  get(table: string, id: string): Promise<any | null>
+  getAll(table: string): Promise<any[] | null>
+  update(table: string, id: string, data: any): Promise<void>
+  insert(table: string, data: any): Promise<void>
+  delete(table: string, id: string): Promise<void>
+  drop(table: string): Promise<void>
+}
+
+/**
  * Унифицированный контракт стора без выполнения модулей.
  */
 export interface MetaStore {

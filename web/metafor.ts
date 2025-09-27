@@ -21,7 +21,7 @@
  * ```
  */
 import "../schema/index"
-import { Store } from "./store/meta"
+import { Store } from "./store"
 import { Actor } from "../core"
 
 const store = await Store()

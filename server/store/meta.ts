@@ -63,7 +63,7 @@ async function importModuleDefaultFromFile(filePath: string, bustToken: string |
 /**
  * Серверное хранилище модулей (SQLite). Храним декларативное значение как JSON.
  */
-export async function Store(dbFile = "meta.db", table = "module"): Promise<MetaStore> {
+export async function MetaStore(dbFile = "meta.db", table = "module"): Promise<MetaStore> {
   const dbPath = path.resolve(dbFile)
   const db = new Database(dbPath)
   db.run("PRAGMA journal_mode=WAL;")
@@ -85,8 +85,6 @@ export async function Store(dbFile = "meta.db", table = "module"): Promise<MetaS
   const stmtGetSchema: Statement<[string]> = db.query(`SELECT value FROM schema WHERE src = ?;`)
   const stmtDel: Statement<[string]> = db.query(`DELETE FROM ${table} WHERE src = ?;`)
   const stmtDelSchema: Statement<[string]> = db.query(`DELETE FROM schema WHERE src = ?;`)
-
-  // getRow(): больше не собираем агрегат из двух таблиц — читаем по назначению отдельно
 
   return {
     info() {

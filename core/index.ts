@@ -5,7 +5,7 @@ import { reactionsFromSchema, type Reactions } from "./reactions"
 import type { RenderParams } from "@zavx0z/renderer"
 import type { Node as ParseNode } from "@zavx0z/template"
 import type { Core, Snapshot, ActorInfo, Message } from "./index.t"
-import type { MetaStore } from "./store.t"
+import type { Store } from "./store.t"
 export type { Message }
 import type { MetaSchema } from "../schema"
 import type { StatesConfig } from "../schema/states"
@@ -57,7 +57,7 @@ export class Actor {
     public description: string | undefined,
     public context: Context<Schema>,
     public env: Env,
-    public store: MetaStore,
+    public store: Store,
     public state: { state: string; states: StatesConfig },
     public processes: Processes,
     public reactions: Reactions,
@@ -95,7 +95,7 @@ export class Actor {
     env,
     renderer,
   }: {
-    store: MetaStore
+    store: Store
     src: string
     env: Env
     renderer: (params: RenderParams<Schema, Core, string>) => void
@@ -105,7 +105,7 @@ export class Actor {
       return
     }
     // const m = (await import(url)).default
-    const m = (await store.import(src, "network-first")) as MetaSchema
+    const m = (await store.meta.import(src, "network-first")) as MetaSchema
     if (!m) {
       console.error(`Module: ${src} is not defined`)
       return

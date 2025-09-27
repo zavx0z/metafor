@@ -8,7 +8,7 @@ import type { MetaStore, LoadPolicy } from "../../core/store.t"
  * - Политики: cache-first, network-first, network-only, cache-only, stale-while-revalidate
  * - Сравнение изменений: по точному размеру JS (u8.byteLength)
  */
-export async function Store(dbName = "meta", storeName = "module"): Promise<MetaStore> {
+export async function MetaStore(dbName = "meta", storeName = "module"): Promise<MetaStore> {
   /** Преобразует Uint8Array в «чистый» ArrayBuffer-срез. */
   function u8ToArrayBuffer(u8: Uint8Array): ArrayBuffer {
     return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer
@@ -95,6 +95,7 @@ export async function Store(dbName = "meta", storeName = "module"): Promise<Meta
   }
 
   const db = await openDB(dbName, storeName)
+
   return {
     info() {
       return { kind: "web" as const, dbName, storeName }
