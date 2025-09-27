@@ -1,18 +1,10 @@
-import { initDOMEmulation } from "./dom-emulation"
-initDOMEmulation()
 import "../schema/index"
 import { Store } from "./store"
-import { MetaForFabric } from "../core"
+import { Actor } from "../core"
 
 const store = await Store()
-const render = () => {}
-MetaForFabric({ store, render, env: "web:w" })
-
-// Создаем элемент meta-for в эмулированном DOM
-const metaForElement = document.createElement("meta-for")
-metaForElement.setAttribute("src", "/zavx0z/app.js")
-metaForElement.setAttribute("id", "1")
-document.body.appendChild(metaForElement)
+const renderer: any = () => {}
+await Actor.create({ store, env: "web:w", renderer, src: "/zavx0z/app.js" })
 
 // console.log("MetaFor элемент создан в воркере:", metaForElement)
 
@@ -29,4 +21,4 @@ document.body.appendChild(metaForElement)
 //   })
 // }
 
-export type { Message } from "../core/index.t"
+export type { Message } from "../core"

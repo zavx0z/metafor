@@ -41,7 +41,7 @@ export type ParsedProcess = {
   /** Описание процесса */
   description?: string
   /** Обработчик основного действия процесса */
-  action?: ParsedActionHandler
+  action: ParsedActionHandler
   /** Обработчик успешного завершения процесса */
   success?: ParsedHandler
   /** Обработчик ошибки процесса */
@@ -53,8 +53,9 @@ export type ParsedProcess = {
  * @description
  * Объект с распарсенными процессами
  */
-export type ProcessesSchema = Record<string, ParsedProcess> /**
+export type ProcessesSchema = Record<string, ParsedProcess> 
 
+/**
  * Тип билдера для декларации набора процессов автомата.
  *
  * Позволяет создавать типизированные процессы с удобным API.

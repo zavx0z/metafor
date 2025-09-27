@@ -219,7 +219,7 @@ export type MetaForConfig = {
  * }
  * ```
  */
-export type ViewDefinitionParams<C extends Schema, I extends Core, S extends string> = {
+export type ViewDefinitionParams<C extends Schema = Schema, I extends Core = Core, S extends string = string> = {
   /**
    * Функция для обновления контекста.
    * Вызывается с частичным объектом контекста для изменения состояния.
@@ -303,7 +303,7 @@ export interface ViewDeclaration<C extends Schema, I extends Core, S extends str
   style?: ({ css }: { css: (strings: TemplateStringsArray, ...values: any[]) => void }) => void
 }
 
-export interface MetaSchema<C extends Schema, S extends string> {
+export interface MetaSchema<C extends Schema = Schema, S extends string = string> {
   /** Название компонента */
   name: string
   /** Описание компонента */

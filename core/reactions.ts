@@ -3,11 +3,11 @@
  * @module Reactions
  */
 import type { Schema, Update, Values } from "@zavx0z/context"
-import type { ActorInfo, Core, JsonPatch } from "./index.t"
-import type { ReactionParams } from "./reactions.t"
+import type { Core } from "./index.t"
+import type { ReactionParams, Reactions } from "./reactions.t"
 import type { ReactionUpdate, ReactionsSchema } from "../schema/reactions.t"
 import type { ReactionFilterConditions } from "./condition.t"
-
+export type { Reactions } from "./reactions.t"
 /**
  * Десериализует реакции из схемы и возвращает объект с функциями для работы с реакциями.
  *
@@ -31,33 +31,9 @@ import type { ReactionFilterConditions } from "./condition.t"
  * }
  * ```
  */
-export function reactionsFromSchema<C extends Schema, S extends string, I extends Core = {}>(
+export function reactionsFromSchema<C extends Schema = Schema, S extends string = string, I extends Core = Core>(
   schema: ReactionsSchema
-): {
-  run: (params: {
-    state: S
-    context: Values<C>
-    core: I
-    meta: string
-    actor: ActorInfo
-    timestamp: number
-    patch: JsonPatch
-    update: Update<C>
-  }) => void
-  hasReactions: () => boolean
-  getAllReactions: () => Array<{
-    title: string
-    description?: string
-    update: ReactionUpdate<C, S, I>
-    filter: (params: ReactionParams) => boolean
-  }>
-  getReactions: (state: S) => Array<{
-    title: string
-    description?: string
-    update: ReactionUpdate<C, S, I>
-    filter: (params: ReactionParams) => boolean
-  }>
-} {
+): Reactions<C, S, I> {
   const reactions: Array<{
     title: string
     description?: string
@@ -242,7 +218,7 @@ export function reactionsFromSchema<C extends Schema, S extends string, I extend
     return ({ meta, actor, timestamp, patch }: ReactionParams): boolean => {
       // Проверяем условия для метаданных
       if (conditions.meta !== undefined && !checkCondition.string(meta, conditions.meta)) return false
-      if (conditions.index !== undefined && !checkCondition.number(actor.index, conditions.index)) return false
+      if (conditions.index !== undefined && !checkCondition.string(actor.index, conditions.index)) return false
       if (conditions.timestamp !== undefined && !checkCondition.number(timestamp, conditions.timestamp)) return false
       // Проверяем условия для патча
       if (conditions.op !== undefined && patch.op !== conditions.op) return false
@@ -299,24 +275,35 @@ export function reactionsFromSchema<C extends Schema, S extends string, I extend
         ) {
           // Выполняем реакцию
           reaction.update({
-            update: params.update,
-            context: params.context,
-            core: params.core,
+            update: params.update as Update<C>,
+            context: params.context as Values<C>,
+            core: params.core as I,
             meta: params.meta,
             actor: params.actor,
             timestamp: params.timestamp,
             patch: params.patch,
-            state: params.state,
+            state: params.state as S,
           })
         }
       }
     },
     hasReactions: () => reactions.length > 0,
-    getAllReactions: () => reactions.map(({ states, ...reaction }) => reaction),
+    getAllReactions: () =>
+      reactions.map(({ states, ...reaction }) => reaction) as Array<{
+        title: string
+        description?: string
+        update: ReactionUpdate<C, S, I>
+        filter: (params: ReactionParams) => boolean
+      }>,
     getReactions: (state: S) => {
       return reactions
-        .filter((reaction) => reaction.states.includes(state as string))
-        .map(({ states, ...reaction }) => reaction)
+        .filter((reaction) => reaction.states.includes(state))
+        .map(({ states, ...reaction }) => reaction) as Array<{
+        title: string
+        description?: string
+        update: ReactionUpdate<C, S, I>
+        filter: (params: ReactionParams) => boolean
+      }>
     },
   }
 }

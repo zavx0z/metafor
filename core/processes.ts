@@ -4,9 +4,10 @@
  */
 
 import type { Schema } from "@zavx0z/context"
-import type { Process } from "./processes.t"
+import type { Process, Processes } from "./processes.t"
 import type { Core } from "./index.t"
-export type { Process } from "./processes.t"
+import type { ProcessesSchema } from "../schema/process.t"
+export type { Process, Processes } from "./processes.t"
 
 /**
  * Десериализует процессы из схемы и возвращает объект с функциями для работы с процессами.
@@ -24,15 +25,10 @@ export type { Process } from "./processes.t"
  * }
  * ```
  */
-export function processesFromSchema<C extends Schema, S extends string, I extends Core = {}>(
-  schema: Record<string, any>
-): {
-  getProcess: (name: S) => Process<C, I> | undefined
-  hasProcess: (name: S) => boolean
-  getAllProcesses: () => Record<string, Process<C, I>>
-  getProcessNames: () => string[]
-} {
-  const processes: Record<string, Process<C, I>> = {}
+export function processesFromSchema<C extends Schema = Schema, S extends string = string, I extends Core = Core>(
+  schema: ProcessesSchema
+): Processes<C, S, I> {
+  const processes: Record<S, Process<C, I>> = {} as Record<S, Process<C, I>>
 
   // Восстанавливаем процессы из схемы
   for (const [processName, processData] of Object.entries(schema)) {
@@ -52,12 +48,12 @@ export function processesFromSchema<C extends Schema, S extends string, I extend
         ...(processData.title && { title: processData.title }),
         ...(processData.description && { description: processData.description }),
       }
-      processes[processName] = process
+      processes[processName as S] = process
     }
   }
 
   return {
-    getProcess: (name: S) => processes[name as string],
+    getProcess: (name: S) => processes[name],
     hasProcess: (name: S) => name in processes,
     getAllProcesses: () => ({ ...processes }),
     getProcessNames: () => Object.keys(processes),

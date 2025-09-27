@@ -22,10 +22,9 @@
  */
 import "../schema/index"
 import { Store } from "./store"
-import { MetaForFabric } from "../core"
-import { render } from "@zavx0z/renderer"
+import { Actor } from "../core"
 
 const store = await Store()
-
-MetaForFabric({ store, render, env: "web:m" })
-export type { Message } from "../core/index.t"
+const renderer: any = () => {}
+Actor.create({ store, env: "web:m", renderer, src: "/zavx0z/app.js" })
+export type { Message } from "../core"

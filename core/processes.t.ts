@@ -22,7 +22,12 @@
 
 import type { Schema, Values, Update } from "@zavx0z/context"
 import type { Core } from "./index.t"
-
+export type Processes<C extends Schema = Schema, S extends string = string, I extends Core = Core> = {
+  getProcess: (name: S) => Process<C, I> | undefined
+  hasProcess: (name: S) => boolean
+  getAllProcesses: () => Record<S, Process<C, I>>
+  getProcessNames: () => string[]
+}
 /**
  * Chain API для создания процесса с опциональными параметрами title и description.
  * Позволяет удобно и строго типизировано описывать обработчики процессов автомата.
@@ -94,7 +99,7 @@ export type ActionParams<C extends Schema, I extends Core> = {
   /** Ядро */
   core: I
   /** Элемент */
-  element: HTMLElement
+  // element: HTMLElement
 }
 
 /**
@@ -249,7 +254,7 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
  * }
  * ```
  */
-export type Process<C extends Schema, I extends Core, Res = any> = {
+export type Process<C extends Schema = Schema, I extends Core = Core, Res = any> = {
   /** Основная функция процесса */
   action: (params: ActionParams<C, I>) => Res | Promise<Res>
   /** Обработчик успешного завершения */
