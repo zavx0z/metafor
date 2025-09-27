@@ -95,27 +95,6 @@ export async function Store(dbName = "meta", storeName = "module") {
   }
 
   /**
-   * Записать метаданные и схему в одной транзакции.
-   * @param {IDBDatabase} db
-   * @param {string} metaStore
-   * @param {string} schemaStore
-   * @param {string} src
-   * @param {unknown} value
-   * @param {number} size
-   * @param {number} updatedAt
-   * @returns {Promise<void>}
-   */
-  function putBoth(db, metaStore, schemaStore, src, value, size, updatedAt) {
-    return new Promise((resolve, reject) => {
-      const tx = db.transaction([metaStore, schemaStore], "readwrite")
-      tx.oncomplete = () => resolve(undefined)
-      tx.onerror = () => reject(tx.error)
-      tx.objectStore(metaStore).put({ src, size, updatedAt })
-      tx.objectStore(schemaStore).put({ src, value })
-    })
-  }
-
-  /**
    * @param {string} name
    * @returns {Promise<void>}
    */
@@ -158,15 +137,6 @@ export async function Store(dbName = "meta", storeName = "module") {
   return {
     info() {
       return { kind: "web", dbName, storeName }
-    },
-
-    async upsert(src, content, sizeBytes) {
-      // Сохраняем декларативное значение в отдельном store `schema` и метаданные в `${storeName}`
-      const size = typeof sizeBytes === "number" ? sizeBytes : 0
-      await putBoth(db, storeName, "schema", src, content, size, Date.now())
-      const savedSize = await getSize(db, storeName, src)
-      if (savedSize == null) throw new Error(`UPSERT_FAILED:"${src}"`)
-      return savedSize
     },
 
     async remove(id) {
@@ -215,7 +185,13 @@ export async function Store(dbName = "meta", storeName = "module") {
         const value = mod?.default
         if (shouldSave) {
           const now = Date.now()
-          await putBoth(db, storeName, "schema", src, value, u8.byteLength, now)
+          await new Promise((resolve, reject) => {
+            const tx = db.transaction([storeName, "schema"], "readwrite")
+            tx.oncomplete = () => resolve(undefined)
+            tx.onerror = () => reject(tx.error)
+            tx.objectStore(storeName).put({ src, size: u8.byteLength, updatedAt: now })
+            tx.objectStore("schema").put({ src, value })
+          })
         }
         return value
       }

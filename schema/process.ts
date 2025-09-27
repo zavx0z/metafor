@@ -108,7 +108,7 @@ export function parseFunction(fn: Function, allowWrite: boolean = true) {
  */
 
 export function parseProcess<C extends Schema, I extends Core, Res = any>(process: Process<C, I, Res>): ParsedProcess {
-  const result: ParsedProcess = {}
+  const result: ParsedProcess = {} as ParsedProcess
   if (process.title) result.title = process.title
   if (process.description) result.description = process.description
 

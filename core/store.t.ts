@@ -13,19 +13,6 @@ export type LoadPolicy = "cache-first" | "network-first" | "network-only" | "cac
  * Унифицированный контракт стора без выполнения модулей.
  */
 export interface MetaStore {
-  /**
-   * Сохранить/обновить модуль.
-   *
-   * - Веб: пишет в две корзины в одной транзакции (`module` + `schema`).
-   * - Сервер: upsert в две таблицы в одной операции.
-   *
-   * Возвращает размер исходного JS‑модуля (байт).
-   * @param id Идентификатор модуля
-   * @param content Декларативное значение (schema) из module.default
-   * @param sizeBytes Размер исходного JS-модуля в байтах (обязателен для консистентной синхронизации)
-   */
-  upsert(id: string, content: unknown, sizeBytes?: number): Promise<number>
-
   /** Удалить модуль. */
   remove(id: string): Promise<void>
 

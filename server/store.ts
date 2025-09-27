@@ -37,15 +37,16 @@ async function importModuleDefaultFromFile(filePath: string, bustToken: string |
   const href = pathToFileURL(filePath).href + `?v=${bustToken}`
   return import(href) as Promise<{ default: any }>
 }
+
 /** Прочитать модуль как текст и выполнить его для получения default export. */
 // async function readModuleDefaultFromFile(filePath: string): Promise<any> {
 //   const file = Bun.file(filePath)
 //   const text = await file.text()
-
+//
 //   // Создаём временный файл для выполнения модуля
 //   const tempFile = `/tmp/temp-module-${Date.now()}.js`
 //   const wrappedCode = text
-
+//
 //   try {
 //     await Bun.write(tempFile, wrappedCode)
 //     const module = await import(tempFile)
@@ -82,17 +83,6 @@ export async function Store(dbFile = "meta.db", table = "module"): Promise<MetaS
 
   const stmtGetMeta: Statement<[string]> = db.query(`SELECT size FROM ${table} WHERE src = ?;`)
   const stmtGetSchema: Statement<[string]> = db.query(`SELECT value FROM schema WHERE src = ?;`)
-  const stmtUpsertMeta: Statement<[string, number, number]> = db.query(
-    `INSERT INTO ${table}(src, size, updatedAt)
-     VALUES (?, ?, ?)
-     ON CONFLICT(src) DO UPDATE SET size=excluded.size,
-                                   updatedAt=excluded.updatedAt;`
-  )
-  const stmtUpsertSchema: Statement<[string, string]> = db.query(
-    `INSERT INTO schema(src, value)
-     VALUES (?, ?)
-     ON CONFLICT(src) DO UPDATE SET value=excluded.value;`
-  )
   const stmtDel: Statement<[string]> = db.query(`DELETE FROM ${table} WHERE src = ?;`)
   const stmtDelSchema: Statement<[string]> = db.query(`DELETE FROM schema WHERE src = ?;`)
 
@@ -101,17 +91,6 @@ export async function Store(dbFile = "meta.db", table = "module"): Promise<MetaS
   return {
     info() {
       return { kind: "server", dbPath, table }
-    },
-
-    async upsert(id, content, sizeBytes?) {
-      const json = JSON.stringify(content)
-      const size = typeof sizeBytes === "number" ? sizeBytes : Buffer.byteLength(json, "utf8")
-      const now = Date.now()
-      stmtUpsertSchema.run(id, json)
-      stmtUpsertMeta.run(id, size, now)
-      const meta = stmtGetMeta.get(id) as { size: number } | null
-      if (!meta) throw new Error(`UPSERT_FAILED:"${id}"`)
-      return meta.size
     },
 
     async remove(id) {
@@ -158,8 +137,14 @@ export async function Store(dbFile = "meta.db", table = "module"): Promise<MetaS
         const value = mod?.default
         if (shouldSave) {
           const now = Date.now()
-          stmtUpsertSchema.run(id, JSON.stringify(value))
-          stmtUpsertMeta.run(id, size, now)
+          db.run(`INSERT INTO schema(src, value) VALUES (?, ?) ON CONFLICT(src) DO UPDATE SET value=excluded.value;`, [
+            id,
+            JSON.stringify(value),
+          ])
+          db.run(
+            `INSERT INTO ${table}(src, size, updatedAt) VALUES (?, ?, ?) ON CONFLICT(src) DO UPDATE SET size=excluded.size, updatedAt=excluded.updatedAt;`,
+            [id, size, now]
+          )
         }
         return value
       }
