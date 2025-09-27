@@ -6,7 +6,7 @@ import type { DataStore } from "../../core/store.t"
  * Заглушка для работы с данными в браузере.
  * В будущем будет реализован полноценный CRUD для IndexedDB.
  */
-export async function DataStore(): Promise<DataStore> {
+export async function DataStore(dbName: string): Promise<DataStore> {
   return {
     async get(table: string, id: string): Promise<any | null> {
       throw new Error(`DataStore.get not implemented for web: ${table}.${id}`)

@@ -8,7 +8,7 @@ import type { MetaStore, LoadPolicy } from "../../core/store.t"
  * - Политики: cache-first, network-first, network-only, cache-only, stale-while-revalidate
  * - Сравнение изменений: по точному размеру JS (u8.byteLength)
  */
-export async function MetaStore(dbName = "meta", storeName = "module"): Promise<MetaStore> {
+export async function MetaStore(dbName = "meta"): Promise<MetaStore> {
   /** Преобразует Uint8Array в «чистый» ArrayBuffer-срез. */
   function u8ToArrayBuffer(u8: Uint8Array): ArrayBuffer {
     return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer
@@ -114,19 +114,19 @@ export async function MetaStore(dbName = "meta", storeName = "module"): Promise<
     })
   }
 
-  const db = await openDB(dbName, storeName)
+  const db = await openDB(dbName, "module")
 
   return {
     info() {
-      return { kind: "web" as const, dbName, storeName }
+      return { kind: "web" as const, dbName, storeName: "module" }
     },
 
     async remove(id: string): Promise<void> {
       await new Promise<void>((resolve, reject) => {
-        const tx = db.transaction([storeName, "schema"], "readwrite")
+        const tx = db.transaction(["module", "schema"], "readwrite")
         tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
-        tx.objectStore(storeName).delete(id)
+        tx.objectStore("module").delete(id)
         tx.objectStore("schema").delete(id)
       })
     },
@@ -152,7 +152,7 @@ export async function MetaStore(dbName = "meta", storeName = "module"): Promise<
        */
       const fetchAndOptionallySave = async (shouldSave: boolean): Promise<any | null> => {
         const u8 = await fetchAsUint8(url)
-        const cachedSize = await getSize(db, storeName, src)
+        const cachedSize = await getSize(db, "module", src)
         if (cachedSize != null && cachedSize === u8.byteLength) {
           const schemaRec = await get(db, "schema", src)
           return schemaRec ? deserializeWithRegExp(schemaRec.value) : null
@@ -163,10 +163,10 @@ export async function MetaStore(dbName = "meta", storeName = "module"): Promise<
         if (shouldSave) {
           const now = Date.now()
           await new Promise<void>((resolve, reject) => {
-            const tx = db.transaction([storeName, "schema"], "readwrite")
+            const tx = db.transaction(["module", "schema"], "readwrite")
             tx.oncomplete = () => resolve()
             tx.onerror = () => reject(tx.error)
-            tx.objectStore(storeName).put({ src, size: u8.byteLength, updatedAt: now })
+            tx.objectStore("module").put({ src, size: u8.byteLength, updatedAt: now })
             tx.objectStore("schema").put({ src, value: serializeWithRegExp(value) })
           })
         }

@@ -83,13 +83,13 @@ function deserializeWithRegExp(json: string): any {
 /**
  * Серверное хранилище модулей (SQLite). Храним декларативное значение как JSON.
  */
-export async function MetaStore(dbFile = "meta.db", table = "module"): Promise<MetaStore> {
+export async function MetaStore(dbFile = "meta.db"): Promise<MetaStore> {
   const dbPath = path.resolve(dbFile)
   const db = new Database(dbPath)
   db.run("PRAGMA journal_mode=WAL;")
   db.run("PRAGMA synchronous=FULL;")
   // Простое создание таблиц без миграций (dev-режим)
-  db.run(`CREATE TABLE IF NOT EXISTS ${table}
+  db.run(`CREATE TABLE IF NOT EXISTS module
           (
               src       TEXT PRIMARY KEY,
               size      INTEGER NOT NULL,
@@ -101,14 +101,14 @@ export async function MetaStore(dbFile = "meta.db", table = "module"): Promise<M
               value TEXT NOT NULL CHECK (json_valid(value))
           );`)
 
-  const stmtGetMeta: Statement<[string]> = db.query(`SELECT size FROM ${table} WHERE src = ?;`)
+  const stmtGetMeta: Statement<[string]> = db.query(`SELECT size FROM module WHERE src = ?;`)
   const stmtGetSchema: Statement<[string]> = db.query(`SELECT value FROM schema WHERE src = ?;`)
-  const stmtDel: Statement<[string]> = db.query(`DELETE FROM ${table} WHERE src = ?;`)
+  const stmtDel: Statement<[string]> = db.query(`DELETE FROM module WHERE src = ?;`)
   const stmtDelSchema: Statement<[string]> = db.query(`DELETE FROM schema WHERE src = ?;`)
 
   return {
     info() {
-      return { kind: "server", dbPath, table }
+      return { kind: "server", dbPath, table: "module" }
     },
 
     async remove(id) {
@@ -160,7 +160,7 @@ export async function MetaStore(dbFile = "meta.db", table = "module"): Promise<M
             serializeWithRegExp(value),
           ])
           db.run(
-            `INSERT INTO ${table}(src, size, updatedAt) VALUES (?, ?, ?) ON CONFLICT(src) DO UPDATE SET size=excluded.size, updatedAt=excluded.updatedAt;`,
+            `INSERT INTO module(src, size, updatedAt) VALUES (?, ?, ?) ON CONFLICT(src) DO UPDATE SET size=excluded.size, updatedAt=excluded.updatedAt;`,
             [id, size, now]
           )
         }

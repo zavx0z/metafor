@@ -8,11 +8,9 @@ import { DataStore } from "./data"
  * Объединяет MetaStore (для модулей) и DataStore (для данных).
  */
 export async function Store(): Promise<Store> {
-  const meta = await MetaStore("meta", "module")
-  const data = await DataStore()
+  const meta = await MetaStore("meta")
+  const data = await DataStore("data")
+  const ctx = await DataStore("ctx")
 
-  return {
-    meta,
-    data,
-  }
+  return { meta, data, ctx }
 }

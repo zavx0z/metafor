@@ -15,12 +15,10 @@ export type LoadPolicy = "cache-first" | "network-first" | "network-only" | "cac
 export interface Store {
   meta: MetaStore
   data: DataStore
+  ctx: ContextStore
 }
 
-/**
- * Унифицированный контракт стора данных.
- */
-export interface DataStore {
+interface Data {
   get(table: string, id: string): Promise<any | null>
   getAll(table: string): Promise<any[] | null>
   update(table: string, id: string, data: any): Promise<void>
@@ -29,6 +27,11 @@ export interface DataStore {
   drop(table: string): Promise<void>
 }
 
+/**
+ * Унифицированный контракт стора данных.
+ */
+export interface DataStore extends Data {}
+export interface ContextStore extends Data {}
 /**
  * Унифицированный контракт стора без выполнения модулей.
  */
