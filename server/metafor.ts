@@ -1,7 +1,7 @@
 import "./windows.ts"
 import "../schema/index"
 import { Actor } from "../core"
-import { Store } from "./store"
+import { Store } from "./store/meta.ts"
 
 const store = await Store()
 const renderer: any = () => {}

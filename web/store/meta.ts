@@ -1,3 +1,5 @@
+import type { MetaStore, LoadPolicy } from "../../core/store.t"
+
 /**
  * Web Store (IndexedDB)
  *
@@ -5,28 +7,15 @@
  * - objectStore `schema` (keyPath: src) — декларативное значение (schema): { src, value }
  * - Политики: cache-first, network-first, network-only, cache-only, stale-while-revalidate
  * - Сравнение изменений: по точному размеру JS (u8.byteLength)
- *
- * @param {string} [dbName="meta"]
- * @param {string} [storeName="module"]
- * @returns {Promise<import("../core/store.t").MetaStore>}
  */
-export async function Store(dbName = "meta", storeName = "module") {
-  /**
-   * Преобразует Uint8Array в «чистый» ArrayBuffer-срез.
-   * @param {Uint8Array} u8 - исходный буфер
-   * @returns {ArrayBuffer} - выделенный ArrayBuffer
-   */
-  function u8ToArrayBuffer(u8) {
-    return /** @type {ArrayBuffer} */ (u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength))
+export async function Store(dbName = "meta", storeName = "module"): Promise<MetaStore> {
+  /** Преобразует Uint8Array в «чистый» ArrayBuffer-срез. */
+  function u8ToArrayBuffer(u8: Uint8Array): ArrayBuffer {
+    return u8.buffer.slice(u8.byteOffset, u8.byteOffset + u8.byteLength) as ArrayBuffer
   }
 
-  /**
-   * Открыть/создать IndexedDB.
-   * @param {string} name
-   * @param {string} store
-   * @returns {Promise<IDBDatabase>}
-   */
-  function openDB(name, store) {
+  /** Открыть/создать IndexedDB. */
+  function openDB(name: string, store: string): Promise<IDBDatabase> {
     return new Promise((resolve, reject) => {
       const req = indexedDB.open(name, 1)
       req.onupgradeneeded = () => {
@@ -43,13 +32,8 @@ export async function Store(dbName = "meta", storeName = "module") {
     })
   }
 
-  /**
-   * @param {IDBDatabase} db
-   * @param {string} store
-   * @param {string} id
-   * @returns {Promise<any|null>}
-   */
-  function get(db, store, id) {
+  /** Получить запись из object store. */
+  function get(db: IDBDatabase, store: string, id: string): Promise<any | null> {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(store, "readonly")
       tx.onerror = () => reject(tx.error)
@@ -59,14 +43,8 @@ export async function Store(dbName = "meta", storeName = "module") {
     })
   }
 
-  /**
-   * Прочитать только размер из стора метаданных.
-   * @param {IDBDatabase} db
-   * @param {string} store
-   * @param {string} src
-   * @returns {Promise<number|null>}
-   */
-  function getSize(db, store, src) {
+  /** Прочитать только размер из стора метаданных. */
+  function getSize(db: IDBDatabase, store: string, src: string): Promise<number | null> {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(store, "readonly")
       tx.onerror = () => reject(tx.error)
@@ -79,13 +57,8 @@ export async function Store(dbName = "meta", storeName = "module") {
     })
   }
 
-  /**
-   * @param {IDBDatabase} db
-   * @param {string} store
-   * @param {string} id
-   * @returns {Promise<void>}
-   */
-  function del(db, store, id) {
+  /** Удалить запись из object store. */
+  function del(db: IDBDatabase, store: string, id: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const tx = db.transaction(store, "readwrite")
       tx.oncomplete = () => resolve()
@@ -94,11 +67,8 @@ export async function Store(dbName = "meta", storeName = "module") {
     })
   }
 
-  /**
-   * @param {string} name
-   * @returns {Promise<void>}
-   */
-  function deleteDB(name) {
+  /** Удалить базу данных. */
+  function deleteDB(name: string): Promise<void> {
     return new Promise((resolve, reject) => {
       const rq = indexedDB.deleteDatabase(name)
       rq.onsuccess = () => resolve()
@@ -107,24 +77,15 @@ export async function Store(dbName = "meta", storeName = "module") {
     })
   }
 
-  /**
-   * Импорт ESM из Uint8Array через blob:URL.
-   * @param {Uint8Array} u8
-   * @returns {Promise<{ default: any }>}
-   */
-  async function importFromUint8AsModule(u8) {
+  /** Импорт ESM из Uint8Array через blob:URL. */
+  async function importFromUint8AsModule(u8: Uint8Array): Promise<{ default: any }> {
     const blob = new Blob([u8ToArrayBuffer(u8)], { type: "text/javascript" })
     const url = URL.createObjectURL(blob)
     return import(url).finally(() => URL.revokeObjectURL(url))
   }
 
-  /**
-   * Загрузить по url и вернуть как Uint8Array.
-   * @param {string} url
-   * @returns {Promise<Uint8Array>}
-   */
-  async function fetchAsUint8(url) {
-    // const url = new URL(url, location.origin).toString()
+  /** Загрузить по url и вернуть как Uint8Array. */
+  async function fetchAsUint8(url: string): Promise<Uint8Array> {
     const resp = await fetch(url, { cache: "no-cache" })
     if (!resp.ok) {
       console.error(`FETCH_FAILED:${resp.status} for ${url}`)
@@ -136,24 +97,20 @@ export async function Store(dbName = "meta", storeName = "module") {
   const db = await openDB(dbName, storeName)
   return {
     info() {
-      return { kind: "web", dbName, storeName }
+      return { kind: "web" as const, dbName, storeName }
     },
 
-    async remove(id) {
-      await new Promise((resolve, reject) => {
+    async remove(id: string): Promise<void> {
+      await new Promise<void>((resolve, reject) => {
         const tx = db.transaction([storeName, "schema"], "readwrite")
-        tx.oncomplete = () => resolve(undefined)
+        tx.oncomplete = () => resolve()
         tx.onerror = () => reject(tx.error)
         tx.objectStore(storeName).delete(id)
         tx.objectStore("schema").delete(id)
       })
     },
 
-    /**
-     * @param {string} src
-     * @param {import("../core/store.t").LoadPolicy} [policy]
-     */
-    async import(src, policy = "cache-first") {
+    async import(src: string, policy: LoadPolicy = "cache-first"): Promise<any | null> {
       const url = new URL(src, location.origin).toString()
 
       // Поддерживаем политики в стиле Service Worker
@@ -163,7 +120,7 @@ export async function Store(dbName = "meta", storeName = "module") {
       // cache-only: только кэш, без сети
       // stale-while-revalidate: мгновенно кэш (если есть), параллельно обновляем кэш из сети (без ожидания)
 
-      const fromCache = async () => {
+      const fromCache = async (): Promise<any | null> => {
         const schemaRec = await get(db, "schema", src)
         return schemaRec ? schemaRec.value : null
       }
@@ -171,9 +128,8 @@ export async function Store(dbName = "meta", storeName = "module") {
       /**
        * Загрузить по сети, сверить размер с кэшем и при совпадении вернуть кэш без импорта.
        * При различии — импортировать и (опционально) сохранить.
-       * @param {boolean} shouldSave
        */
-      const fetchAndOptionallySave = async (shouldSave) => {
+      const fetchAndOptionallySave = async (shouldSave: boolean): Promise<any | null> => {
         const u8 = await fetchAsUint8(url)
         const cachedSize = await getSize(db, storeName, src)
         if (cachedSize != null && cachedSize === u8.byteLength) {
@@ -185,9 +141,9 @@ export async function Store(dbName = "meta", storeName = "module") {
         const value = mod?.default
         if (shouldSave) {
           const now = Date.now()
-          await new Promise((resolve, reject) => {
+          await new Promise<void>((resolve, reject) => {
             const tx = db.transaction([storeName, "schema"], "readwrite")
-            tx.oncomplete = () => resolve(undefined)
+            tx.oncomplete = () => resolve()
             tx.onerror = () => reject(tx.error)
             tx.objectStore(storeName).put({ src, size: u8.byteLength, updatedAt: now })
             tx.objectStore("schema").put({ src, value })
@@ -201,8 +157,7 @@ export async function Store(dbName = "meta", storeName = "module") {
           return fetchAndOptionallySave(false)
         }
         case "cache-only": {
-          const mod = await fromCache()
-          return mod
+          return await fromCache()
         }
         case "network-first": {
           try {
@@ -232,7 +187,7 @@ export async function Store(dbName = "meta", storeName = "module") {
       }
     },
 
-    async drop() {
+    async drop(): Promise<void> {
       db.close()
       await deleteDB(dbName)
     },

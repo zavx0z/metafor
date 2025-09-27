@@ -1,5 +1,5 @@
 import "../schema/index"
-import { Store } from "./store"
+import { Store } from "./store/meta"
 import { Actor } from "../core"
 
 const store = await Store()
