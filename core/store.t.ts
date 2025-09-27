@@ -18,20 +18,81 @@ export interface Store {
   actor: ActorStore
 }
 
-interface Data {
-  get(table: string, id: string): Promise<any | null>
-  getAll(table: string): Promise<any[] | null>
-  update(table: string, id: string, data: any): Promise<void>
-  insert(table: string, data: any): Promise<void>
-  delete(table: string, id: string): Promise<void>
-  drop(table: string): Promise<void>
+/**
+ * Context Schema для определения структуры таблиц
+ */
+export interface ContextSchema {
+  [fieldName: string]: {
+    type: "string" | "number" | "boolean" | "enum"
+    required?: boolean
+    title?: string
+    default?: any
+    values?: readonly (string | number)[]
+    id?: true
+  }
 }
 
 /**
- * Унифицированный контракт стора данных.
+ * Унифицированный контракт стора данных с поддержкой Context Schema.
  */
-export interface DataStore extends Data {}
-export interface ActorStore extends Data {}
+export interface DataStore {
+  /**
+   * Создать хранилище/таблицу если не существует на основе Context Schema.
+   *
+   * @param table Имя таблицы/хранилища
+   * @param schema Context Schema для определения структуры
+   */
+  createTableIfNotExist(table: string, schema: ContextSchema): Promise<void>
+
+  /**
+   * Получить запись по ключу.
+   *
+   * @param table Имя таблицы
+   * @param query Объект с условиями поиска (ключ-значение)
+   */
+  get(table: string, query: Record<string, any>): Promise<any | null>
+
+  /**
+   * Получить все записи из таблицы.
+   *
+   * @param table Имя таблицы
+   * @param query Опциональные условия фильтрации
+   */
+  getAll(table: string, query?: Record<string, any>): Promise<any[]>
+
+  /**
+   * Обновить запись.
+   *
+   * @param table Имя таблицы
+   * @param query Условия поиска записи для обновления
+   * @param data Новые данные
+   */
+  update(table: string, query: Record<string, any>, data: any): Promise<void>
+
+  /**
+   * Вставить новую запись.
+   *
+   * @param table Имя таблицы
+   * @param data Данные для вставки
+   */
+  insert(table: string, data: any): Promise<void>
+
+  /**
+   * Удалить запись.
+   *
+   * @param table Имя таблицы
+   * @param query Условия поиска записи для удаления
+   */
+  delete(table: string, query: Record<string, any>): Promise<void>
+
+  /**
+   * Удалить таблицу/хранилище.
+   *
+   * @param table Имя таблицы
+   */
+  drop(table: string): Promise<void>
+}
+export interface ActorStore extends DataStore {}
 /**
  * Унифицированный контракт стора без выполнения модулей.
  */
