@@ -26,5 +26,7 @@ import { Actor } from "../core"
 
 const store = await Store()
 const renderer: any = () => {}
-Actor.create({ store, env: "web:m", renderer, src: "/zavx0z/app.js" })
+const space = async (src: string) => await Actor.create({ store, env: "web:m", renderer, src })
+
+export { space }
 export type { Message } from "../core"

@@ -17,22 +17,10 @@ export const messagesFixture = (options?: {
       messages.push(data)
     }
   })
-  // @ts-ignore
-  document.addEventListener("channel", ({ detail }: CustomEvent) => {
-    if (!options?.meta || detail.meta === options.meta) {
-      messages.push(detail)
-    }
-  })
   const onmessage = (cb: (message: Message) => void) => {
     channel.addEventListener("message", ({ data }) => {
       if (!options?.meta || data.meta === options.meta) {
         cb(data)
-      }
-    })
-    // @ts-ignore
-    document.addEventListener("channel", ({ detail }: CustomEvent) => {
-      if (!options?.meta || detail.meta === options.meta) {
-        cb(detail)
       }
     })
   }
@@ -56,12 +44,6 @@ export const messagesFixture = (options?: {
 
       channel.addEventListener("message", ({ data }: MessageEvent) => {
         if (!options?.meta || data.meta === options.meta) {
-          updateLastMessageTime()
-        }
-      })
-      // @ts-ignore
-      document.addEventListener("channel", ({ detail }: CustomEvent) => {
-        if (!options?.meta || detail.meta === options.meta) {
           updateLastMessageTime()
         }
       })

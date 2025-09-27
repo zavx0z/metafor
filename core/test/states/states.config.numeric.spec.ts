@@ -1,6 +1,5 @@
 import { test, expect } from "bun:test"
 import type { StatesConfig } from "../../../schema/states.t.ts"
-import type { SchemaType } from "@zavx0z/context"
 
 test("Конфигурация состояний с числовыми условиями", () => {
   const gameStates: StatesConfig = {

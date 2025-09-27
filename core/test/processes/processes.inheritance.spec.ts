@@ -1,9 +1,9 @@
 import { test, expect } from "bun:test"
 import { processesFromSchema } from "../../processes.ts"
-import { Context } from "@zavx0z/context"
+import { contextSchema } from "@zavx0z/context"
 
 test("десериализация процессов работает корректно", () => {
-  const { schema } = new Context((t) => ({ name: t.string.required("anon") }))
+  const schema = contextSchema((t) => ({ name: t.string.required("anon") }))
   type S = typeof schema
 
   const snapshot = {
@@ -25,7 +25,7 @@ test("десериализация процессов работает корр�
 })
 
 test("наследование - deserializeProcesses создается из snapshot", () => {
-  const { schema } = new Context((t) => ({ name: t.string.required("anon") }))
+  const schema = contextSchema((t) => ({ name: t.string.required("anon") }))
   type S = typeof schema
 
   const snapshot = {
@@ -45,7 +45,7 @@ test("наследование - deserializeProcesses создается из sn
 })
 
 test("десериализация процессов имеет правильный интерфейс", () => {
-  const { schema } = new Context((t) => ({ name: t.string.required("anon") }))
+  const schema = contextSchema((t) => ({ name: t.string.required("anon") }))
   type S = typeof schema
 
   const deserialized = processesFromSchema<S, "guest">({})

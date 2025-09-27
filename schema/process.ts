@@ -4,7 +4,7 @@ import type { Process } from "../core/processes"
 import type { ProcessConfig } from "./process.t"
 import type { ParsedProcess, ProcessesDeclaration, ProcessesSchema } from "./process.t"
 
-export type { ProcessesDeclaration }
+export type { ProcessesDeclaration, ProcessesSchema }
 
 const pattern = {
   dot: /context\.(\w+)/g,

@@ -26,7 +26,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: { op: "replace", path: "/context", value: 1 },
       context: fakeContext,
@@ -53,7 +53,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: { op: "replace", path: "/state", value: "active" },
       context: fakeContext,
@@ -80,7 +80,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: { op: "add", path: "/", value: { context: {}, state: "idle" } },
       context: fakeContext,
@@ -107,7 +107,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: { op: "replace", path: "/state", value: "active" },
       context: fakeContext,
@@ -137,7 +137,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: { op: "replace", path: "/context", value: 1 },
       context: fakeContext,
@@ -167,7 +167,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: { op: "replace", path: "/context", value: 1 },
       context: fakeContext,
@@ -197,7 +197,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: { op: "replace", path: "/context", value: 1 },
       context: fakeContext,
@@ -227,7 +227,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: { op: "add", path: "/context", value: 1 },
       context: fakeContext,
@@ -257,7 +257,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: { op: "remove", path: "/context" },
       context: fakeContext,
@@ -287,7 +287,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: { op: "test", path: "/context", value: 1 },
       context: fakeContext,
@@ -317,7 +317,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: { op: "replace", path: "/state", value: "active" },
       context: fakeContext,
@@ -347,7 +347,7 @@ describe("Фильтрация по пути патча (path)", () => {
 
     registry.run({
       meta: fakeMeta,
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: { op: "add", path: "/", value: { context: {}, state: "idle" } },
       context: fakeContext,

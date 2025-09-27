@@ -51,7 +51,6 @@ const counter = MetaFor("counter")
       </div>
     `,
   })
-document.body.innerHTML = `<meta-${counter}></meta-${counter}>`
 ```
 
 ## 🏗️ Архитектура

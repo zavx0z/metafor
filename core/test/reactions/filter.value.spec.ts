@@ -33,7 +33,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "active" },
         context: fakeContext,
@@ -60,7 +60,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "user_123" },
         context: fakeContext,
@@ -87,7 +87,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "active" },
         context: fakeContext,
@@ -114,7 +114,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "active" },
         context: fakeContext,
@@ -141,7 +141,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "user_123" },
         context: fakeContext,
@@ -168,7 +168,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "user_active" },
         context: fakeContext,
@@ -195,7 +195,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "user_error_123" },
         context: fakeContext,
@@ -222,7 +222,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "user_success" },
         context: fakeContext,
@@ -249,7 +249,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "123" },
         context: fakeContext,
@@ -276,7 +276,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "hello" },
         context: fakeContext,
@@ -303,7 +303,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "hello" },
         context: fakeContext,
@@ -330,7 +330,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "hello" },
         context: fakeContext,
@@ -359,7 +359,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 42 },
         context: fakeContext,
@@ -386,7 +386,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 42 },
         context: fakeContext,
@@ -413,7 +413,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 42 },
         context: fakeContext,
@@ -440,7 +440,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 42 },
         context: fakeContext,
@@ -467,7 +467,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 42 },
         context: fakeContext,
@@ -494,7 +494,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 42 },
         context: fakeContext,
@@ -521,7 +521,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 42 },
         context: fakeContext,
@@ -550,7 +550,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: true },
         context: fakeContext,
@@ -577,7 +577,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: true },
         context: fakeContext,
@@ -604,7 +604,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: true },
         context: fakeContext,
@@ -634,7 +634,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: testArray },
         context: fakeContext,
@@ -661,7 +661,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: [1, 2, 3] },
         context: fakeContext,
@@ -688,7 +688,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: ["item", "other"] },
         context: fakeContext,
@@ -715,7 +715,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: [] },
         context: fakeContext,
@@ -742,7 +742,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: [1, 2, 3] },
         context: fakeContext,
@@ -769,7 +769,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: ["success", "error_123", "other"] },
         context: fakeContext,
@@ -798,7 +798,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: null },
         context: fakeContext,
@@ -825,7 +825,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: undefined },
         context: fakeContext,
@@ -852,7 +852,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: null },
         context: fakeContext,
@@ -882,7 +882,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: testObject },
         context: fakeContext,
@@ -919,7 +919,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: complexObject },
         context: fakeContext,
@@ -952,7 +952,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 42 },
         context: fakeContext,
@@ -981,7 +981,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: "user_active_123" },
         context: fakeContext,
@@ -1010,7 +1010,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/state", value: "inactive" },
         context: fakeContext,
@@ -1037,7 +1037,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: 50 },
         context: fakeContext,
@@ -1064,7 +1064,7 @@ describe("Фильтрация по значению патча (value) - рас
 
       registry.run({
         meta: fakeMeta,
-        actor: { index: 0 },
+        actor: { index: "0" },
         timestamp: Date.now(),
         patch: { op: "replace", path: "/context", value: [1, 2, 3] },
         context: fakeContext,

@@ -1,9 +1,9 @@
 import { test, describe, expect } from "bun:test"
-import { processesFromSchema } from "../../processes.ts"
-import { Context } from "@zavx0z/context"
+import { processesFromSchema, type Process } from "../../processes.ts"
+import { contextSchema } from "@zavx0z/context"
 
 describe("deserializeProcesses", () => {
-  const { schema } = new Context((t) => ({
+  const schema = contextSchema((t) => ({
     value: t.number.required(0),
     name: t.string.required(""),
     isActive: t.boolean.required(false),
@@ -42,16 +42,16 @@ describe("deserializeProcesses", () => {
 
     const processes = processesFromSchema<C, S, {}>(snapshot)
 
-    expect(processes.hasProcess("increment"), "процесс increment должен существовать").toBe(true)
-    expect(processes.hasProcess("reset"), "процесс reset должен существовать").toBe(true)
-    expect(processes.hasProcess("nonexistent"), "несуществующий процесс не должен существовать").toBe(false)
+    expect(processes.hasProcess("increment" as S), "процесс increment должен существовать").toBe(true)
+    expect(processes.hasProcess("reset" as S), "процесс reset должен существовать").toBe(true)
+    expect(processes.hasProcess("nonexistent" as S), "несуществующий процесс не должен существовать").toBe(false)
 
-    const incrementProcess = processes.getProcess("increment")
+    const incrementProcess = processes.getProcess("increment" as S)
     expect(incrementProcess, "процесс increment должен быть найден").toBeDefined()
     expect(incrementProcess?.title, "название процесса должно сохраниться").toBe("increment")
     expect(incrementProcess?.description, "описание процесса должно сохраниться").toBe("Increment value")
 
-    const resetProcess = processes.getProcess("reset")
+    const resetProcess = processes.getProcess("reset" as S)
     expect(resetProcess, "процесс reset должен быть найден").toBeDefined()
     expect(resetProcess?.title, "название процесса должно сохраниться").toBe("reset")
     expect(resetProcess?.success, "success обработчик должен быть восстановлен").toBeDefined()
@@ -74,13 +74,13 @@ describe("deserializeProcesses", () => {
     }
 
     const processes = processesFromSchema<C, S, {}>(snapshot)
-    const process = processes.getProcess("multiply")
+    const process = processes.getProcess("multiply" as S)
 
     expect(process, "процесс должен быть найден").toBeDefined()
 
     // Тестируем action функцию
     const mockContext = { value: 5, name: "test", isActive: true }
-    const result = process!.action({ context: mockContext, core: {}, element: {} as any })
+    const result = process!.action({ context: mockContext, core: {} })
     expect(result, "action функция должна работать").toBe(10)
 
     // Тестируем success функцию
@@ -105,8 +105,11 @@ describe("deserializeProcesses", () => {
 
     const allProcesses = processes.getAllProcesses()
     expect(Object.keys(allProcesses).length, "должно быть 3 процесса").toBe(3)
+    // @ts-ignore
     expect(allProcesses.process1, "процесс 1 должен существовать").toBeDefined()
+    // @ts-ignore
     expect(allProcesses.process2, "процесс 2 должен существовать").toBeDefined()
+    // @ts-ignore
     expect(allProcesses.process3, "процесс 3 должен существовать").toBeDefined()
 
     const processNames = processes.getProcessNames()
@@ -116,9 +119,9 @@ describe("deserializeProcesses", () => {
   test("пустой snapshot", () => {
     const processes = processesFromSchema<C, S, {}>({})
 
-    expect(processes.hasProcess("any"), "не должно быть процессов").toBe(false)
-    expect(processes.getProcess("any"), "не должно быть процессов").toBeUndefined()
-    expect(processes.getAllProcesses(), "объект процессов должен быть пустым").toEqual({})
+    expect(processes.hasProcess("any" as S), "не должно быть процессов").toBe(false)
+    expect(processes.getProcess("any" as S), "не должно быть процессов").toBeUndefined()
+    expect(processes.getAllProcesses(), "объект процессов должен быть пустым").toEqual({} as Record<S, Process<C, {}>>)
     expect(processes.getProcessNames(), "список имен должен быть пустым").toEqual([])
   })
 })

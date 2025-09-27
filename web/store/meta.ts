@@ -94,6 +94,26 @@ export async function MetaStore(dbName = "meta", storeName = "module"): Promise<
     return new Uint8Array(await resp.arrayBuffer())
   }
 
+  /** Сериализация с поддержкой RegExp */
+  function serializeWithRegExp(value: any): string {
+    return JSON.stringify(value, (key, val) => {
+      if (val instanceof RegExp) {
+        return { __type: "RegExp", source: val.source, flags: val.flags }
+      }
+      return val
+    })
+  }
+
+  /** Десериализация с поддержкой RegExp */
+  function deserializeWithRegExp(json: string): any {
+    return JSON.parse(json, (key, val) => {
+      if (val && typeof val === "object" && val.__type === "RegExp") {
+        return new RegExp(val.source, val.flags)
+      }
+      return val
+    })
+  }
+
   const db = await openDB(dbName, storeName)
 
   return {
@@ -123,7 +143,7 @@ export async function MetaStore(dbName = "meta", storeName = "module"): Promise<
 
       const fromCache = async (): Promise<any | null> => {
         const schemaRec = await get(db, "schema", src)
-        return schemaRec ? schemaRec.value : null
+        return schemaRec ? deserializeWithRegExp(schemaRec.value) : null
       }
 
       /**
@@ -135,7 +155,7 @@ export async function MetaStore(dbName = "meta", storeName = "module"): Promise<
         const cachedSize = await getSize(db, storeName, src)
         if (cachedSize != null && cachedSize === u8.byteLength) {
           const schemaRec = await get(db, "schema", src)
-          return schemaRec ? schemaRec.value : null
+          return schemaRec ? deserializeWithRegExp(schemaRec.value) : null
         }
         // Размер изменился (или кэша нет) — импортируем и при необходимости сохраняем
         const mod = await importFromUint8AsModule(u8)
@@ -147,7 +167,7 @@ export async function MetaStore(dbName = "meta", storeName = "module"): Promise<
             tx.oncomplete = () => resolve()
             tx.onerror = () => reject(tx.error)
             tx.objectStore(storeName).put({ src, size: u8.byteLength, updatedAt: now })
-            tx.objectStore("schema").put({ src, value })
+            tx.objectStore("schema").put({ src, value: serializeWithRegExp(value) })
           })
         }
         return value

@@ -20,7 +20,7 @@ test("Выполнение реакций через run", () => {
   const fakeContext: Values<Ctx> = { value: 10, name: "test", isActive: true, tags: ["tag1", "tag2"] } as any
   const fakeMessage: Message = {
     meta: "test",
-    actor: { index: 0 },
+    actor: { index: "0" },
     timestamp: Date.now(),
     patches: [{ op: "replace", path: "/context", value: 1 }],
   }

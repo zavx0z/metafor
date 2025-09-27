@@ -38,6 +38,26 @@ async function importModuleDefaultFromFile(filePath: string, bustToken: string |
   return import(href) as Promise<{ default: any }>
 }
 
+/** Сериализация с поддержкой RegExp */
+function serializeWithRegExp(value: any): string {
+  return JSON.stringify(value, (key, val) => {
+    if (val instanceof RegExp) {
+      return { __type: "RegExp", source: val.source, flags: val.flags }
+    }
+    return val
+  })
+}
+
+/** Десериализация с поддержкой RegExp */
+function deserializeWithRegExp(json: string): any {
+  return JSON.parse(json, (key, val) => {
+    if (val && typeof val === "object" && val.__type === "RegExp") {
+      return new RegExp(val.source, val.flags)
+    }
+    return val
+  })
+}
+
 /** Прочитать модуль как текст и выполнить его для получения default export. */
 // async function readModuleDefaultFromFile(filePath: string): Promise<any> {
 //   const file = Bun.file(filePath)
@@ -129,7 +149,7 @@ export async function MetaStore(dbFile = "meta.db", table = "module"): Promise<M
         const cached = stmtGetMeta.get(id) as { size: number } | null
         if (cached && typeof cached.size === "number" && cached.size === size) {
           const s = stmtGetSchema.get(id) as { value: string } | null
-          return s ? JSON.parse(s.value) : null
+          return s ? deserializeWithRegExp(s.value) : null
         }
         const mod = await importModuleDefaultFromFile(filePath, size)
         const value = mod?.default
@@ -137,7 +157,7 @@ export async function MetaStore(dbFile = "meta.db", table = "module"): Promise<M
           const now = Date.now()
           db.run(`INSERT INTO schema(src, value) VALUES (?, ?) ON CONFLICT(src) DO UPDATE SET value=excluded.value;`, [
             id,
-            JSON.stringify(value),
+            serializeWithRegExp(value),
           ])
           db.run(
             `INSERT INTO ${table}(src, size, updatedAt) VALUES (?, ?, ?) ON CONFLICT(src) DO UPDATE SET size=excluded.size, updatedAt=excluded.updatedAt;`,

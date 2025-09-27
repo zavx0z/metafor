@@ -10,6 +10,14 @@
       html,
       body {
         background-color: black;
+        margin: 0;
+        padding: 0;
+        width: 100vw;
+        height: 100vh;
+      }
+      canvas {
+        width: 100vw;
+        height: 100vh;
       }
     </style>
   </head>
@@ -35,22 +43,10 @@
     }
   </script>
   <script type="module">
-    import "metafor.js"
-    // Создаем воркер с эмуляцией DOM
-    const worker = new Worker("./dist/web/worker.js", { type: "module" })
-
-    // worker.onmessage = (event) => {
-    //   console.log("Сообщение от воркера:", event.data)
-    // }
-
-    // worker.onerror = (error) => {
-    //   console.error("Ошибка воркера:", error)
-    // }
-
-    // // Отправляем тестовое сообщение воркеру
-    // worker.postMessage({ type: "test", message: "Привет из главного потока!" })
+    import { space } from "metafor.js"
+    space("/zavx0z/app.js")
   </script>
   <body>
-    <metafor src="/zavx0z/app.js" id="1"></metafor>
+    <canvas></canvas>
   </body>
 </html>

@@ -27,7 +27,7 @@ describe("Фильтрация по мете актора (meta)", () => {
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
@@ -54,7 +54,7 @@ describe("Фильтрация по мете актора (meta)", () => {
 
     registry.run({
       meta: "other",
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
@@ -81,7 +81,7 @@ describe("Фильтрация по мете актора (meta)", () => {
 
     registry.run({
       meta: "test_component",
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
@@ -108,7 +108,7 @@ describe("Фильтрация по мете актора (meta)", () => {
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
@@ -135,7 +135,7 @@ describe("Фильтрация по мете актора (meta)", () => {
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
@@ -162,7 +162,7 @@ describe("Фильтрация по мете актора (meta)", () => {
 
     registry.run({
       meta: "test_component",
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
@@ -189,7 +189,7 @@ describe("Фильтрация по мете актора (meta)", () => {
 
     registry.run({
       meta: "test_component",
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
@@ -216,7 +216,7 @@ describe("Фильтрация по мете актора (meta)", () => {
 
     registry.run({
       meta: "test_component",
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
@@ -243,7 +243,7 @@ describe("Фильтрация по мете актора (meta)", () => {
 
     registry.run({
       meta: "test_component",
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
@@ -270,7 +270,7 @@ describe("Фильтрация по мете актора (meta)", () => {
 
     registry.run({
       meta: "test_component",
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
@@ -297,7 +297,7 @@ describe("Фильтрация по мете актора (meta)", () => {
 
     registry.run({
       meta: "test_component",
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
@@ -324,7 +324,7 @@ describe("Фильтрация по мете актора (meta)", () => {
 
     registry.run({
       meta: "test_123",
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
@@ -351,7 +351,7 @@ describe("Фильтрация по мете актора (meta)", () => {
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
+      actor: { index: "0"  },
       timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
@@ -378,7 +378,7 @@ describe("Фильтрация по мете актора (meta)", () => {
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
@@ -405,7 +405,7 @@ describe("Фильтрация по мете актора (meta)", () => {
 
     registry.run({
       meta: "test",
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,
@@ -438,7 +438,7 @@ describe("Фильтрация по мете актора (meta)", () => {
 
     registry.run({
       meta: "test_component",
-      actor: { index: 0 },
+      actor: { index: "0" },
       timestamp: Date.now(),
       patch: fakePatch,
       context: fakeContext,

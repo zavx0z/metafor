@@ -1,23 +1,26 @@
 import { test, expect } from "bun:test"
-import { Processes } from "../../processes.ts"
-import { Context } from "@zavx0z/context"
+import { processesFromSchema } from "../../processes.ts"
+import { processesSchema, type ProcessesSchema } from "../../../schema/process.ts"
+import { contextSchema } from "@zavx0z/context"
 
 test("Строгая типизация действий", () => {
-  const { schema } = new Context((t) => ({ name: t.string.required("anon") }))
-  const processes = new Processes<typeof schema, "guest">((process) => ({
-    guest: process()
-      .action(({ context }) => context.name)
-      .success(({ update, data }) => {
-        // @ts-expect-error update требует Partial<V>
-        update({ age: 42 })
-        // @ts-expect-error data должен быть строкой
-        update({ name: data.age })
-      })
-      .error(({ update, error }) => {
-        // @ts-expect-error update требует Partial<V>
-        update({ age: 42 })
-      }),
-  }))
+  const schema = contextSchema((t) => ({ name: t.string.required("anon") }))
+  const processes = processesFromSchema(
+    processesSchema<typeof schema, "guest", {}>((process) => ({
+      guest: process()
+        .action(({ context }) => context.name)
+        .success(({ update, data }) => {
+          // @ts-expect-error update требует Partial<V>
+          update({ age: 42 })
+          // @ts-expect-error data должен быть строкой
+          update({ name: data.age })
+        })
+        .error(({ update, error }) => {
+          // @ts-expect-error update требует Partial<V>
+          update({ age: 42 })
+        }),
+    })) as ProcessesSchema
+  )
 
   const guestProcess = processes.getProcess("guest")
   expect(typeof guestProcess?.success).toBe("function")

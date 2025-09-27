@@ -4,16 +4,10 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@happy-dom/global-registrator": "^18.0.1",
     "@types/bun": "^1.2.22",
-    "@types/spark-md5": "^3.0.5",
     "dts-bundle-generator": "^9.5.1",
-    "happy-dom": "^18.0.1",
     "typedoc": "^0.28.13",
-    "typedoc-plugin-include-example": "^3.0.2",
-    "typedoc-plugin-merge-modules": "^7.0.0",
-    "diff": "^8.0.2",
-    "prettier": "^3.6.2"
+    "typedoc-plugin-merge-modules": "^7.0.0"
   },
   "peerDependencies": {
     "typescript": "^5.9.2"
@@ -33,7 +27,6 @@
   "dependencies": {
     "@zavx0z/context": "2.0.1",
     "@zavx0z/renderer": "^0.7.4",
-    "@zavx0z/template": "^2.5.7",
-    "spark-md5": "^3.0.2"
+    "@zavx0z/template": "^2.5.7"
   }
 }
