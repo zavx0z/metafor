@@ -21,7 +21,7 @@ export async function Store(path: string = "./store"): Promise<Store> {
 
   const meta = await MetaStore(resolve(absPath, "meta.db"))
   const data = await DataStore(resolve(absPath, "data.db"))
-  const ctx = await DataStore(resolve(absPath, "ctx.db"))
+  const actor = await DataStore(resolve(absPath, "actor.db"))
 
-  return { meta, data, ctx }
+  return { meta, data, actor }
 }

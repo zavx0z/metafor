@@ -22,7 +22,8 @@
     "web:build:prod": "bun run web/script/build.ts --prod",
     "web:typegen": "bun run web/script/typegen.ts",
     "docs": "typedoc",
-    "doc:push": "bun run script/doc.push.ts"
+    "doc:push": "bun run script/doc.push.ts",
+    "web:build:watch": "bun build ./web/metafor --outdir ./dist/web --watch"
   },
   "dependencies": {
     "@zavx0z/context": "2.0.1",

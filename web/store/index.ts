@@ -10,7 +10,7 @@ import { DataStore } from "./data"
 export async function Store(): Promise<Store> {
   const meta = await MetaStore("meta")
   const data = await DataStore("data")
-  const ctx = await DataStore("ctx")
+  const actor = await DataStore("actor")
 
-  return { meta, data, ctx }
+  return { meta, data, actor }
 }

@@ -12,7 +12,88 @@ import type { StatesConfig } from "../schema/states"
 const channel = new BroadcastChannel("channel")
 type Env = "srv:m" | "srv:w" | "web:m" | "web:w" | "web:sw"
 
+export async function actorFabric({
+  store,
+  src,
+  env,
+  renderer,
+}: {
+  store: Store
+  src: string
+  env: Env
+  renderer: (params: RenderParams<Schema, Core, string>) => void
+}) {
+  src = src + ".js"
+  if (!src) {
+    console.warn(`src: ${src} is not defined`)
+    return
+  }
+  // const m = (await import(url)).default
+  const meta = (await store.meta.import(src, "network-first")) as MetaSchema
+  if (!meta) {
+    console.error(`Module: ${src} is not defined`)
+    return
+  }
+  // const actorSchemas = await store.actor.getAll(name ?? meta.name)
+
+  new Actor(
+    meta.name,
+    meta.description,
+    contextFromSchema(meta.context),
+    env,
+    store,
+    { state: Object.keys(meta.states)[0] as string, states: meta.states },
+    processesFromSchema(meta.processes ?? {}),
+    reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
+    meta.render ?? [],
+    renderer
+  )
+  async function createActor() {}
+  // if (m.style) {
+  //   const sheet = new CSSStyleSheet()
+  //   sheet.replaceSync(m.style)
+  // }
+}
+
 export class Actor {
+  constructor(
+    public name: string,
+    public description: string | undefined,
+    public context: Context<Schema>,
+    public env: Env,
+    public store: Store,
+    public state: { state: string; states: StatesConfig },
+    public processes: Processes,
+    public reactions: Reactions,
+    public render: ParseNode[],
+    public renderer: (params: RenderParams<Schema, Core, string>) => void
+  ) {
+    if (reactions.hasReactions()) channel.onmessage = (ev) => this.handleReactionMessage(ev.data)
+    channel.postMessage(Actor.initMessage(name, { index: env }, {} as any, this.__path))
+    const transition = state.states[state.state]
+    if (transition) {
+      const process = processes.getProcess(state.state)
+      if (process) {
+        this.setProcess(true)
+        this.executeAction(process)
+        this.transition()
+      } else {
+        this.transition()
+      }
+    }
+    renderer({
+      core: this.core,
+      ctx: context,
+      el: null as any,
+      st: {
+        state: this.state.state,
+        states: Object.keys(state.states),
+        onUpdate: this.onStateChange,
+      },
+      nodes: [],
+    })
+  }
+
   __path = []
   static coreWeakMap = new WeakMap<Actor, Core>()
   get core() {
@@ -51,84 +132,6 @@ export class Actor {
     if (!process) {
       this.transition()
     }
-  }
-  constructor(
-    public name: string,
-    public description: string | undefined,
-    public context: Context<Schema>,
-    public env: Env,
-    public store: Store,
-    public state: { state: string; states: StatesConfig },
-    public processes: Processes,
-    public reactions: Reactions,
-    public render: ParseNode[],
-    public renderer: (params: RenderParams<Schema, Core, string>) => void
-  ) {
-    if (reactions.hasReactions()) channel.onmessage = (ev) => this.handleReactionMessage(ev.data)
-    channel.postMessage(Actor.initMessage(name, { index: env }, {} as any, this.__path))
-    const transition = state.states[state.state]
-    if (transition) {
-      const process = processes.getProcess(state.state)
-      if (process) {
-        this.setProcess(true)
-        this.executeAction(process)
-        this.transition()
-      } else {
-        this.transition()
-      }
-    }
-    renderer({
-      core: this.core,
-      ctx: context,
-      el: null as any,
-      st: {
-        state: this.state.state,
-        states: Object.keys(state.states),
-        onUpdate: this.onStateChange,
-      },
-      nodes: [],
-    })
-  }
-  static async create({
-    store,
-    src,
-    env,
-    renderer,
-  }: {
-    store: Store
-    src: string
-    env: Env
-    renderer: (params: RenderParams<Schema, Core, string>) => void
-  }) {
-    if (!src) {
-      console.warn(`src: ${src} is not defined`)
-      return
-    }
-    // const m = (await import(url)).default
-    const m = (await store.meta.import(src, "network-first")) as MetaSchema
-    if (!m) {
-      console.error(`Module: ${src} is not defined`)
-      return
-    }
-    const actor = new Actor(
-      m.name,
-      m.description,
-      contextFromSchema(m.context),
-      env,
-      store,
-      { state: Object.keys(m.states)[0] as string, states: m.states },
-      processesFromSchema(m.processes ?? {}),
-      reactionsFromSchema(m.reactions ?? { reactions: {}, states: {} }),
-      m.render ?? [],
-      renderer
-    )
-
-    // if (m.style) {
-    //   const sheet = new CSSStyleSheet()
-    //   sheet.replaceSync(m.style)
-    // }
-
-    return actor
   }
 
   /** обновление контекста */

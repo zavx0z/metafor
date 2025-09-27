@@ -15,7 +15,7 @@ export type LoadPolicy = "cache-first" | "network-first" | "network-only" | "cac
 export interface Store {
   meta: MetaStore
   data: DataStore
-  ctx: ContextStore
+  actor: ActorStore
 }
 
 interface Data {
@@ -31,7 +31,7 @@ interface Data {
  * Унифицированный контракт стора данных.
  */
 export interface DataStore extends Data {}
-export interface ContextStore extends Data {}
+export interface ActorStore extends Data {}
 /**
  * Унифицированный контракт стора без выполнения модулей.
  */
