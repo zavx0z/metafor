@@ -2,56 +2,44 @@ import { type Context, type Schema, type Values } from "@zavx0z/context"
 import { checkTransition, type Conditions, type Transitions } from "./states"
 import { type Process, type Processes } from "./processes"
 import { type Reactions } from "./reactions"
-import type { RenderParams } from "@zavx0z/renderer"
 import type { Node as ParseNode } from "@zavx0z/template"
-import type { Core, Snapshot, ActorInfo, Message } from "./index.t"
-import type { Store } from "./store.t"
+import type { Core, Snapshot, Message } from "./index.t"
 export type { Message }
 import type { StatesConfig } from "../schema/states"
-import type { Env } from "../index.t"
-const channel = new BroadcastChannel("channel")
 
 export class Actor {
+  private static coreWeakMap = new WeakMap<Actor, Core>()
+  private static channel = new BroadcastChannel("channel")
+
   constructor(
     public name: string,
+    public id: string,
     public description: string | undefined,
     public context: Context<Schema>,
-    public env: Env,
-    public store: Store,
-    public state: { state: string; states: StatesConfig },
+    public state: { current: string; states: StatesConfig },
     public processes: Processes,
     public reactions: Reactions,
-    public render: ParseNode[],
-    public renderer: (params: RenderParams<Schema, Core, string>) => void
+    public render: ParseNode[]
   ) {
-    if (reactions.hasReactions()) channel.onmessage = (ev) => this.handleReactionMessage(ev.data)
-    channel.postMessage(Actor.initMessage(name, { index: env }, {} as any, this.__path))
-    const transition = state.states[state.state]
+    Actor.channel.postMessage({
+      meta: name,
+      actor: id,
+      timestamp: Date.now(),
+      patches: [{ op: "add", path: "/", value: {} }],
+    })
+    const transition = state.states[state.current]
     if (transition) {
-      const process = processes.getProcess(state.state)
+      const process = processes.getProcess(state.current)
       if (process) {
         this.setProcess(true)
+        if (reactions.hasReactions()) Actor.channel.onmessage = (ev) => this.handleReactionMessage(ev.data)
         this.executeAction(process)
         this.transition()
       } else {
         this.transition()
       }
     }
-    renderer({
-      core: this.core,
-      ctx: context,
-      el: null as any,
-      st: {
-        state: this.state.state,
-        states: Object.keys(state.states),
-        onUpdate: this.onStateChange,
-      },
-      nodes: [],
-    })
   }
-
-  __path = []
-  static coreWeakMap = new WeakMap<Actor, Core>()
   get core() {
     return Actor.coreWeakMap.get(this) ?? {}
   }
@@ -60,7 +48,7 @@ export class Actor {
   }
   stateListeners = new Set<(state: string) => void>()
   setState(state: string) {
-    this.state.state = state
+    this.state.current = state
     if (this.stateListeners.size > 0) {
       for (const listener of this.stateListeners) listener(state)
     }
@@ -94,7 +82,7 @@ export class Actor {
   update(context: Partial<Values<Schema>>): Partial<Values<Schema>> {
     const updated = this.context.update(context)
     if (Object.keys(updated).length > 0) {
-      channel.postMessage(Actor.updateContextMessage(this.name, { index: this.env }, updated))
+      Actor.channel.postMessage(Actor.updateContextMessage(this.name, this.id, updated))
     }
     return updated
   }
@@ -110,7 +98,7 @@ export class Actor {
    */
   executeAction(process: Process<any, any>) {
     try {
-      channel.postMessage(Actor.stateBeforeActionMessage(this.name, { index: this.env }, this.state.state))
+      Actor.channel.postMessage(Actor.stateBeforeActionMessage(this.name, this.id, this.state.current))
       const result = process.action({
         context: this.context.context,
         core: this.core,
@@ -127,22 +115,22 @@ export class Actor {
               } else if (typeof error === "string") {
                 process.error({ update: this.update, error: new Error(error) })
               } else {
-                throw new Error(`Передан неизвестный тип ошибки в состоянии: ${this.state.state}`)
+                throw new Error(`Передан неизвестный тип ошибки в состоянии: ${this.state.current}`)
               }
-            } else throw new Error(`Обработчик ошибки не найден для состояния: ${this.state.state} \n ${error}`)
+            } else throw new Error(`Обработчик ошибки не найден для состояния: ${this.state.current} \n ${error}`)
           })
           .finally(() => {
-            channel.postMessage(Actor.stateAfterActionMessage(this.name, { index: this.env }, this.state.state))
+            Actor.channel.postMessage(Actor.stateAfterActionMessage(this.name, this.id, this.state.current))
             this.setProcess(false)
           })
       } else {
         if (process.success) process.success({ update: this.update, data: result })
-        channel.postMessage(Actor.stateAfterActionMessage(this.name, { index: this.env }, this.state.state))
+        Actor.channel.postMessage(Actor.stateAfterActionMessage(this.name, this.id, this.state.current))
         this.setProcess(false)
       }
     } catch (error) {
       if (error instanceof Error) process.error?.({ update: this.update, error })
-      channel.postMessage(Actor.stateAfterActionMessage(this.name, { index: this.env }, this.state.state))
+      Actor.channel.postMessage(Actor.stateAfterActionMessage(this.name, this.id, this.state.current))
       this.setProcess(false)
     }
   }
@@ -153,7 +141,7 @@ export class Actor {
    * - отправляет сообщение состояния если нет процесса (MSG)
    */
   transition() {
-    const transition: Transitions | undefined = this.state.states[this.state.state]
+    const transition: Transitions | undefined = this.state.states[this.state.current]
     if (!transition) return
     for (const [state, conditions] of Object.entries(transition)) {
       if (checkTransition(conditions as Conditions, this.context.context)) {
@@ -165,7 +153,7 @@ export class Actor {
           this.executeAction(process)
         } else {
           this.setState(state)
-          channel.postMessage(Actor.stateAfterActionMessage(this.name, { index: this.env }, state))
+          Actor.channel.postMessage(Actor.stateAfterActionMessage(this.name, this.id, state))
           if (!this.process) this.transition()
         }
         break
@@ -176,7 +164,7 @@ export class Actor {
   get snapshot(): Snapshot<Schema, string> {
     return {
       name: this.name,
-      state: this.state.state,
+      state: this.state.current,
       process: this.process,
       states: this.state.states,
       context: this.context.snapshot,
@@ -196,24 +184,24 @@ export class Actor {
         actor: message.actor,
         timestamp: message.timestamp,
         patch,
-        state: this.state.state,
+        state: this.state.current,
         update: this.update,
       })
     }
   }
-  static initMessage(meta: string, actor: ActorInfo, snapshot: Snapshot<Schema, string>, path: string[]): Message {
-    return { meta, actor, timestamp: Date.now(), patches: [{ op: "add", path: "/" + path.join("/"), value: snapshot }] }
+  static initMessage(meta: string, actor: string, snapshot: Snapshot<Schema, string>): Message {
+    return { meta, actor, timestamp: Date.now(), patches: [{ op: "add", path: "/", value: snapshot }] }
   }
 
-  static updateContextMessage(meta: string, actor: ActorInfo, updated: Partial<Values<Schema>>): Message {
+  static updateContextMessage(meta: string, actor: string, updated: Partial<Values<Schema>>): Message {
     return { meta, actor, timestamp: Date.now(), patches: [{ op: "replace", path: "/context", value: updated }] }
   }
 
-  static stateBeforeActionMessage(meta: string, actor: ActorInfo, state: string): Message {
+  static stateBeforeActionMessage(meta: string, actor: string, state: string): Message {
     return { meta, actor, timestamp: Date.now(), patches: [{ op: "test", path: "/state", value: state }] }
   }
 
-  static stateAfterActionMessage(meta: string, actor: ActorInfo, state: string): Message {
+  static stateAfterActionMessage(meta: string, actor: string, state: string): Message {
     return { meta, actor, timestamp: Date.now(), patches: [{ op: "replace", path: "/state", value: state }] }
   }
 }

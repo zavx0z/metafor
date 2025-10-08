@@ -218,7 +218,7 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
     return ({ meta, actor, timestamp, patch }: ReactionParams): boolean => {
       // Проверяем условия для метаданных
       if (conditions.meta !== undefined && !checkCondition.string(meta, conditions.meta)) return false
-      if (conditions.index !== undefined && !checkCondition.string(actor.index, conditions.index)) return false
+      if (conditions.actor !== undefined && !checkCondition.string(actor, conditions.actor)) return false
       if (conditions.timestamp !== undefined && !checkCondition.number(timestamp, conditions.timestamp)) return false
       // Проверяем условия для патча
       if (conditions.op !== undefined && patch.op !== conditions.op) return false

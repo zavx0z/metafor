@@ -28,7 +28,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp,
       patch: fakePatch,
       context: fakeContext,
@@ -55,7 +55,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
@@ -83,7 +83,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp,
       patch: fakePatch,
       context: fakeContext,
@@ -110,7 +110,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
@@ -137,7 +137,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
@@ -165,7 +165,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp,
       patch: fakePatch,
       context: fakeContext,
@@ -192,7 +192,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
@@ -220,7 +220,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp,
       patch: fakePatch,
       context: fakeContext,
@@ -247,7 +247,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
@@ -274,7 +274,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
@@ -301,7 +301,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
@@ -328,7 +328,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
@@ -355,7 +355,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
@@ -388,7 +388,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
@@ -415,7 +415,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp: 0,
       patch: fakePatch,
       context: fakeContext,
@@ -444,7 +444,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp: now,
       patch: fakePatch,
       context: fakeContext,
@@ -473,7 +473,7 @@ describe("Фильтрация по временной метке (timestamp)", 
 
     registry.run({
       meta: "test",
-      actor: { index: "0" },
+      actor: "id",
       timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,

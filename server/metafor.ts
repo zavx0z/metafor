@@ -1,5 +1,5 @@
 import "../schema/index"
-import { actorFabric } from ".."
+import { actorFabric } from "../fabric"
 import { Store } from "./store"
 import type { RenderParams } from "@zavx0z/renderer"
 import type { Schema } from "@zavx0z/context"

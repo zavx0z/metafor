@@ -186,12 +186,6 @@ export type MetaForConfig = {
   description?: string
   /** Режим разработки */
   dev?: boolean
-  /**
-   * Восстановление из последнего сохраненного состояния (snapshot)
-   *
-   * @default false
-   */
-  persist?: boolean
 }
 
 /**

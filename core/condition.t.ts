@@ -106,7 +106,7 @@ export type ReactionFilterConditions = {
    }
    ```
   */
-  index?: CondNumberRequired
+  actor?: CondStringRequired
   /**
    # Фильтрация по временной метке
    

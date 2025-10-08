@@ -1,5 +1,5 @@
 import type { Schema, Update, Values } from "@zavx0z/context"
-import type { ActorInfo, Core, JsonPatch } from "../core/index.t"
+import type { Core, JsonPatch } from "../core/index.t"
 import type { ReactionFilterConditions } from "../core/condition.t"
 import type { ReactionParams } from "../core/reactions.t"
 
@@ -139,7 +139,7 @@ export type ReactionUpdate<C extends Schema, S extends string, I extends Core> =
   /** Хеш меты компонента-актора */
   meta: string
   /** Информация об акторе */
-  actor: ActorInfo
+  actor: string
   /** Временная метка */
   timestamp: number
   /** Патч для применения к актору */

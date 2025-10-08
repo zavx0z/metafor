@@ -62,20 +62,9 @@ export interface ActorInternal extends HTMLElement {
  */
 export type Message = {
   meta: string
-  actor: ActorInfo
+  actor: string
   timestamp: number
   patches: JsonPatch[]
-}
-/**
-Информация об акторе в сообщении
-
-@property index - Индекс актора по отношению к братьям в родителе (для уникализации)
-@property parent - Хеш родительской меты актора
-*/
-
-export type ActorInfo = {
-  index: string
-  parent?: string
 }
 
 export type JsonPatch = { op: "replace" | "add" | "remove" | "test"; path: string; value?: any }

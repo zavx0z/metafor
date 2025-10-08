@@ -60,10 +60,9 @@ import { serializeStyle } from "./style"
 import type { MetaForConfig, MetaForType, ViewDeclaration, MetaSchema } from "./index.t"
 export type { MetaForType, MetaSchema }
 
-globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
+function schema(name: string, config?: MetaForConfig) {
   const description = config?.description
   const dev = config?.dev ?? globalThis.DEV ?? false
-  const persist = config?.persist ?? false
   return {
     context<C extends Schema>(schema: (types: Types) => C) {
       const context = contextSchema(schema)
@@ -101,3 +100,5 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
     },
   }
 }
+
+globalThis.MetaFor = schema
