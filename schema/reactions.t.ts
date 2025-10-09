@@ -1,5 +1,5 @@
 import type { Schema, Update, Values } from "@zavx0z/context"
-import type { Core, JsonPatch } from "../core/index.t"
+import type { Core, JsonPatch } from "../actor.t"
 import type { ReactionFilterConditions } from "../core/condition.t"
 import type { ReactionParams } from "../core/reactions.t"
 

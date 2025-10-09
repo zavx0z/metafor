@@ -1,4 +1,4 @@
-import "../../schema"
+import "../../metafor"
 import { test, expect, describe } from "bun:test"
 
 // describe.skip("полный снимок компонента", () => {

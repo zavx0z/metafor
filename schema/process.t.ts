@@ -4,7 +4,7 @@
  */
 
 import type { Schema } from "@zavx0z/context"
-import type { Core } from "../core/index.t"
+import type { Core } from "../actor.t"
 import type { ProcessChain, ActionChain } from "../core/processes.t"
 
 /**
@@ -53,7 +53,7 @@ export type ParsedProcess = {
  * @description
  * Объект с распарсенными процессами
  */
-export type ProcessesSchema = Record<string, ParsedProcess> 
+export type ProcessesSchema = Record<string, ParsedProcess>
 
 /**
  * Тип билдера для декларации набора процессов автомата.

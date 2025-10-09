@@ -5,7 +5,7 @@
  */
 
 import type { Schema, Update, Values } from "@zavx0z/context"
-import type { Core, JsonPatch } from "./index.t"
+import type { Core, JsonPatch } from "../actor.t"
 import type { ReactionUpdate } from "../schema/reactions.t"
 
 export type ReactionParams = {

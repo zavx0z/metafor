@@ -4,9 +4,9 @@
  * @module Core
  */
 import type { Schema, Snapshot as ContextSnapshot } from "@zavx0z/context"
-import type { ProcessesSchema } from "../schema/process.t"
-import type { ReactionsSchema } from "../schema/reactions.t"
-import type { StatesConfig } from "../schema/states"
+import type { ProcessesSchema } from "./schema/process.t"
+import type { ReactionsSchema } from "./schema/reactions.t"
+import type { StatesConfig } from "./schema/states"
 
 /**
  * Интерфейс снимка состояния компонента

@@ -1,5 +1,5 @@
 import type { Schema } from "@zavx0z/context"
-import type { Core } from "../core/index.t"
+import type { Core } from "../actor.t"
 import type { Process } from "../core/processes"
 import type { ProcessConfig } from "./process.t"
 import type { ParsedProcess, ProcessesDeclaration, ProcessesSchema } from "./process.t"

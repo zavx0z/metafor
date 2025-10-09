@@ -2,7 +2,7 @@ import { reactionsFromSchema } from "../../reactions"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
 import { reactionsSchema } from "../../../schema/reactions"
-import type { JsonPatch } from "../../index.t"
+import type { JsonPatch } from "../../../actor.t"
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"

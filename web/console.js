@@ -33,7 +33,7 @@ const config = {
 }
 /**
  *
- * @param {import("../core/index.t").Message} message
+ * @param {import("../actor.t").Message} message
  * @param {"/" | "/context" | "/state"} path
  * @returns {boolean}
  */
@@ -47,7 +47,7 @@ const isLog = (message, path) =>
   )
 
 /**
- * @param {import("../core/index.t").Message} message
+ * @param {import("../actor.t").Message} message
  * @param {Record<string, any>} core
  */
 export function log(message, core) {

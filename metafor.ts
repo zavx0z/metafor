@@ -50,17 +50,17 @@
  */
 import { contextSchema, type Schema, type Types } from "@zavx0z/context"
 import { parse } from "@zavx0z/template"
-import type { Core } from "../core/index.t"
+import type { Core } from "./actor.t"
 
-import { validateNoUnconditionalCycles, type StatesConfig } from "./states"
-import { reactionsSchema, type ReactionsDeclaration } from "./reactions"
-import { processesSchema, type ProcessesDeclaration } from "./process"
-import { serializeStyle } from "./style"
+import { validateNoUnconditionalCycles, type StatesConfig } from "./schema/states"
+import { reactionsSchema, type ReactionsDeclaration } from "./schema/reactions"
+import { processesSchema, type ProcessesDeclaration } from "./schema/process"
+import { serializeStyle } from "./schema/style"
 
-import type { MetaForConfig, MetaForType, ViewDeclaration, MetaSchema } from "./index.t"
+import type { MetaForConfig, MetaForType, ViewDeclaration, MetaSchema } from "./metafor.t"
 export type { MetaForType, MetaSchema }
 
-function schema(name: string, config?: MetaForConfig) {
+globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
   const description = config?.description
   const dev = config?.dev ?? globalThis.DEV ?? false
   return {
@@ -100,5 +100,3 @@ function schema(name: string, config?: MetaForConfig) {
     },
   }
 }
-
-globalThis.MetaFor = schema

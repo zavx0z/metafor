@@ -1,7 +1,7 @@
 import { reactionsFromSchema } from "../../reactions"
 import type { Update, Values } from "@zavx0z/context"
 import { test, expect } from "bun:test"
-import type { JsonPatch, Message } from "../../index.t"
+import type { JsonPatch, Message } from "../../../actor.t"
 import { contextSchema } from "@zavx0z/context"
 import { reactionsSchema } from "../../../schema/reactions"
 

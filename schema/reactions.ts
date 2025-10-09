@@ -1,5 +1,5 @@
 import type { Schema } from "@zavx0z/context"
-import type { Core } from "../core/index.t"
+import type { Core } from "../actor.t"
 import type { ReactionFilterConditions } from "../core/condition.t"
 import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionUpdate } from "./reactions.t"
 export type { ReactionsDeclaration, ReactionsSchema }

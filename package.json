@@ -1,6 +1,7 @@
 {
-  "name": "@zavx0z/metafor",
-  "version": "0.3.1",
+  "name": "everywhere-everything",
+  "author": "zavx0z",
+  "version": "0.4.0",
   "type": "module",
   "private": true,
   "devDependencies": {
@@ -13,6 +14,10 @@
     "typescript": "^5.9.2"
   },
   "scripts": {
+    "build:metafor": "bun build metafor.ts --outdir ./dist",
+    "typegen:metafor": "dts-bundle-generator --out-file ./dist/metafor.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/template -- metafor.ts",
+    "build:actor": "bun build actor.ts --outdir ./dist",
+    "typegen:actor": "dts-bundle-generator --out-file ./dist/actor.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/template -- actor.ts",
     "upd": "bun update --latest && bun i",
     "rebuild:dev": "bun run server:build:dev && bun run web:build:dev",
     "server:build:dev": "bun run server/script/build.ts --dev",
@@ -27,7 +32,6 @@
   },
   "dependencies": {
     "@zavx0z/context": "2.0.1",
-    "@zavx0z/renderer": "^0.7.4",
     "@zavx0z/template": "^2.5.7"
   }
 }

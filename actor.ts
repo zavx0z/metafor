@@ -1,11 +1,12 @@
-import { type Context, type Schema, type Values } from "@zavx0z/context"
-import { checkTransition, type Conditions, type Transitions } from "./states"
-import { type Process, type Processes } from "./processes"
-import { type Reactions } from "./reactions"
+import { contextFromSchema, type Context, type Schema, type Values } from "@zavx0z/context"
+import { checkTransition, type Conditions, type Transitions } from "./core/states"
+import { processesFromSchema, type Process, type Processes } from "./core/processes"
+import { reactionsFromSchema, type Reactions } from "./core/reactions"
 import type { Node as ParseNode } from "@zavx0z/template"
-import type { Core, Snapshot, Message } from "./index.t"
+import type { Core, Snapshot, Message } from "./actor.t"
 export type { Message }
-import type { StatesConfig } from "../schema/states"
+import type { StatesConfig } from "./schema/states"
+import type { MetaSchema } from "./metafor"
 
 export class Actor {
   private static coreWeakMap = new WeakMap<Actor, Core>()
@@ -21,18 +22,30 @@ export class Actor {
     public reactions: Reactions,
     public render: ParseNode[]
   ) {
+    if (reactions.hasReactions()) Actor.channel.addEventListener("message", this.handleReactionMessage)
     Actor.channel.postMessage({
       meta: name,
       actor: id,
       timestamp: Date.now(),
-      patches: [{ op: "add", path: "/", value: {} }],
+      patches: [
+        {
+          op: "add",
+          path: "/",
+          value: {
+            context: context.snapshot,
+            state: state.current,
+            process: this.process,
+          },
+        },
+      ],
     })
+    context.onUpdate(this.transition)
     const transition = state.states[state.current]
     if (transition) {
       const process = processes.getProcess(state.current)
       if (process) {
         this.setProcess(true)
-        if (reactions.hasReactions()) Actor.channel.onmessage = (ev) => this.handleReactionMessage(ev.data)
+
         this.executeAction(process)
         this.transition()
       } else {
@@ -174,15 +187,17 @@ export class Actor {
   }
 
   /** Обработка входящих сообщений для реакций */
-  handleReactionMessage(message: Message) {
+  handleReactionMessage(ev: MessageEvent) {
+    const { data } = ev
     if (!this.reactions.hasReactions()) return
-    for (const patch of message.patches) {
+    if (data.meta === this.name && data.actor === this.id) return
+    for (const patch of data.patches) {
       this.reactions.run({
         context: this.context.context,
         core: this.core,
-        meta: message.meta,
-        actor: message.actor,
-        timestamp: message.timestamp,
+        meta: data.meta,
+        actor: data.actor,
+        timestamp: data.timestamp,
         patch,
         state: this.state.current,
         update: this.update,
@@ -203,5 +218,18 @@ export class Actor {
 
   static stateAfterActionMessage(meta: string, actor: string, state: string): Message {
     return { meta, actor, timestamp: Date.now(), patches: [{ op: "replace", path: "/state", value: state }] }
+  }
+
+  static fromSchema(meta: MetaSchema, id: string) {
+    return new Actor(
+      meta.name,
+      id,
+      meta.description,
+      contextFromSchema(meta.context),
+      { current: Object.keys(meta.states)[0] as string, states: meta.states },
+      processesFromSchema(meta.processes ?? {}),
+      reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
+      meta.render ?? []
+    )
   }
 }

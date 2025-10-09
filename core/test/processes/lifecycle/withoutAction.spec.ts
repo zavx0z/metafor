@@ -1,4 +1,4 @@
-import "../../../../schema"
+import "../../../../metafor.ts"
 import { describe, expect, test } from "bun:test"
 import { messagesFixture } from "../../../../fixture/message.ts"
 

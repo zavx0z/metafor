@@ -1,10 +1,10 @@
 import type { Schema, Types, Update, Values } from "@zavx0z/context"
-import type { Core } from "../core/index.t"
-import type { ProcessesDeclaration, ProcessesSchema } from "./process.t"
+import type { Core } from "./actor.t"
+import type { ProcessesDeclaration, ProcessesSchema } from "./schema/process.t"
 import type { Node as ParseNode } from "@zavx0z/template"
-import type { ReactionsSchema } from "./reactions.t"
-import type { StatesConfig } from "./states"
-import type { ReactionsDeclaration } from "./reactions"
+import type { ReactionsSchema } from "./schema/reactions.t"
+import type { StatesConfig } from "./schema/states"
+import type { ReactionsDeclaration } from "./schema/reactions"
 
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата

@@ -1,4 +1,4 @@
-import "../../schema"
+import "../../metafor.ts"
 import { test, describe, expect } from "bun:test"
 import { messagesFixture } from "../../fixture/message.ts"
 describe.skip("async process", async () => {
