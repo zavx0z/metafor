@@ -7,6 +7,43 @@
 1. **Внутренний механизм** - для акторов в том же потоке (быстро) - **РАБОТАЕТ ВСЕГДА**
 2. **BroadcastChannel** - для акторов в разных потоках/воркерах - **ВКЛЮЧЕН ПО УМОЛЧАНИЮ**
 
+## Архитектура
+
+Коммуникации управляются через базовый класс `ActorCommunication`, от которого наследуется класс `Actor`:
+
+```
+ActorCommunication (базовый класс)
+├── actorsRegistry: Map<string, ActorCommunication>
+├── useBroadcastChannel: boolean
+├── channel: BroadcastChannel
+├── setBroadcastChannel(enabled: boolean)
+├── isBroadcastChannelEnabled(): boolean
+├── getRegisteredActorsCount(): number
+├── clearRegistry()
+├── initializeCommunication()
+├── destroyCommunication()
+└── sendMessage(message: Message)
+
+Actor (наследуется от ActorCommunication)
+├── name: string
+├── id: string
+├── ctx: Context<Schema>
+├── state: { current: string; states: StatesConfig }
+├── processes: Processes
+├── reactions: Reactions
+├── hasReactions(): boolean
+├── handleReactionMessage(ev: MessageEvent): void
+├── update(context: Partial<Values<Schema>>): Partial<Values<Schema>>
+├── executeAction(process: Process<any, any>)
+├── transition()
+└── destroy()
+```
+
+**Разделение ответственности:**
+
+- **ActorCommunication** - управление коммуникациями, реестр акторов, BroadcastChannel
+- **Actor** - бизнес-логика актора, состояния, процессы, реакции
+
 ## Использование
 
 ### По умолчанию (рекомендуется)
@@ -60,27 +97,36 @@ const actor2 = Actor.fromSchema(schema, "local-actor-2")
 
 ## API
 
-### Статические методы
+### Базовый класс ActorCommunication
 
 ```typescript
 // Включить/выключить BroadcastChannel
-Actor.setBroadcastChannel(enabled: boolean)
+ActorCommunication.setBroadcastChannel(enabled: boolean)
 
 // Проверить состояние BroadcastChannel
-Actor.isBroadcastChannelEnabled(): boolean
+ActorCommunication.isBroadcastChannelEnabled(): boolean
 
 // Получить количество зарегистрированных акторов
-Actor.getRegisteredActorsCount(): number
+ActorCommunication.getRegisteredActorsCount(): number
 
 // Очистить реестр акторов (для тестирования)
-Actor.clearRegistry()
+ActorCommunication.clearRegistry()
 ```
 
-### Методы экземпляра
+### Класс Actor (наследуется от ActorCommunication)
 
 ```typescript
 // Очистить ресурсы актора и удалить из реестра
 actor.destroy()
+
+// Отправить сообщение через доступные каналы
+actor.sendMessage(message: Message)
+
+// Проверить, есть ли у актора реакции
+actor.hasReactions(): boolean
+
+// Обработать входящие сообщения для реакций
+actor.handleReactionMessage(ev: MessageEvent): void
 ```
 
 ## Примеры

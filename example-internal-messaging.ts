@@ -79,7 +79,7 @@ const actor2 = Actor.fromSchema(actorSchema, "actor-2")
 const actor3 = Actor.fromSchema(actorSchema, "actor-3")
 
 console.log("Количество зарегистрированных акторов:", Actor.getRegisteredActorsCount())
-console.log("Внутренний механизм включен:", Actor.isInternalMessagingEnabled())
+console.log("BroadcastChannel включен:", Actor.isBroadcastChannelEnabled())
 
 // Обновляем контекст первого актора - это должно вызвать реакции у других акторов
 actor1.update({ counter: 10 })
