@@ -4,7 +4,7 @@
     "": {
       "name": "metafor",
       "dependencies": {
-        "@zavx0z/context": "2.2.1",
+        "@zavx0z/context": "2.3.0",
         "@zavx0z/template": "^2.5.7",
       },
       "devDependencies": {
@@ -41,7 +41,7 @@
 
     "@types/unist": ["@types/unist@3.0.3", "", {}, "sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q=="],
 
-    "@zavx0z/context": ["@zavx0z/context@2.2.1", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-yTIa8aDCc35GISvRPXqT0L4Pbb05fV0Psc1oJuoQ4hwXzXuqYyL79PsaU3dQh/aclwRPCfAjLo8zOi+9bLriWA=="],
+    "@zavx0z/context": ["@zavx0z/context@2.3.0", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-g7W8SStgVuT16J3DG2tL6YbJJd8pfcXesR8vtQqYpyautZRGR3MfLd/v0Yu6bVarnkKqZr8hkI2YXyn11YHzKg=="],
 
     "@zavx0z/template": ["@zavx0z/template@2.5.7", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-xNS/4fgv2U21qexSfFzesCMWMguxKVHzYeMcxGfZxQAr5Xqc3eGzpKJ4WdogqecHVxXlKsgoW3r9/iuEzWhZKA=="],
 

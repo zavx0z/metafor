@@ -241,11 +241,10 @@ export class Actor extends ActorCommunication {
   /** Очищает ресурсы актора и удаляет его из реестра */
   destroy() {
     this.destroyCommunication()
-    // Очищаем core из WeakMap
     Actor.coreWeakMap.delete(this)
-    // Очищаем слушатели состояний
     this.stateListeners.clear()
-    // Очищаем связи с родителем и детьми для предотвращения циклических ссылок
+    this.ctx.clearSubscribers()
+
     this.parent = null
     this.children = []
   }

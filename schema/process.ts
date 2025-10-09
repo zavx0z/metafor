@@ -169,22 +169,33 @@ export const processesSchema = <C extends Schema, S extends string, I extends Co
 ): ProcessesSchema | null => {
   // Вызываем processesDeclaration с mock process
   const chains = processes((config?: ProcessConfig) => {
-    const chain = {
+    const chain: any = {
       title: config?.label,
       description: config?.desc,
+      _successHandler: undefined,
+      _errorHandler: undefined,
       action: (fn: any) => {
         chain.action = fn
         return chain as any
       },
       success: (handler: any) => {
-        chain.success = handler
+        chain._successHandler = handler
         return chain
       },
       error: (handler: any) => {
-        chain.error = handler
+        chain._errorHandler = handler
         return chain
       },
-      getResult: () => chain,
+      getResult: () => {
+        const result: any = {
+          action: chain.action,
+        }
+        if (chain._successHandler) result.success = chain._successHandler
+        if (chain._errorHandler) result.error = chain._errorHandler
+        if (chain.title) result.title = chain.title
+        if (chain.description) result.description = chain.description
+        return result
+      },
     }
     return chain
   })

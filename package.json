@@ -34,7 +34,7 @@
     "web:build:watch": "bun build ./web/metafor --outdir ./dist/web --watch"
   },
   "dependencies": {
-    "@zavx0z/context": "2.2.1",
+    "@zavx0z/context": "2.3.0",
     "@zavx0z/template": "^2.5.7"
   }
 }
