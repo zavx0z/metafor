@@ -11,11 +11,12 @@ import type { MetaSchema } from "./metafor"
 
 export class Actor extends ActorCommunication {
   private static coreWeakMap = new WeakMap<Actor, Core>()
-
+  public children: Actor[] = []
+  public parent: Actor | null = null
   constructor(
     public name: string,
     public id: string,
-    public description: string | undefined,
+    public desc: string | undefined,
     public ctx: Context<Schema>,
     public state: { current: string; states: StatesConfig },
     public processes: Processes,
@@ -152,8 +153,8 @@ export class Actor extends ActorCommunication {
         this.setProcess(false)
       }
     } catch (error) {
-      console.error(error)
       if (error instanceof Error) process.error?.({ update: this.update, error })
+      else console.error(error)
       this.sendMessage(Actor.stateAfterActionMessage(this.name, this.id, this.state.current))
       this.setProcess(false)
     }
@@ -193,7 +194,7 @@ export class Actor extends ActorCommunication {
       states: this.state.states,
       context: this.ctx.snapshot,
       // ...this.#view.snapshot,
-      ...(this.description ? { description: this.description } : {}),
+      ...(this.desc ? { description: this.desc } : {}),
     }
   }
 
@@ -240,6 +241,13 @@ export class Actor extends ActorCommunication {
   /** Очищает ресурсы актора и удаляет его из реестра */
   destroy() {
     this.destroyCommunication()
+    // Очищаем core из WeakMap
+    Actor.coreWeakMap.delete(this)
+    // Очищаем слушатели состояний
+    this.stateListeners.clear()
+    // Очищаем связи с родителем и детьми для предотвращения циклических ссылок
+    this.parent = null
+    this.children = []
   }
 
   static fromSchema(meta: MetaSchema, id: string, core: Core = {}) {
