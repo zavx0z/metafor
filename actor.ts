@@ -11,6 +11,8 @@ import type { MetaSchema } from "./metafor"
 export class Actor {
   private static coreWeakMap = new WeakMap<Actor, Core>()
   private static channel = new BroadcastChannel("actor-force")
+  private static actorsRegistry = new Map<string, Actor>()
+  private static useBroadcastChannel = true
 
   constructor(
     public name: string,
@@ -28,8 +30,20 @@ export class Actor {
     this.#init()
   }
   #init() {
-    if (this.reactions.hasReactions()) Actor.channel.addEventListener("message", this.handleReactionMessage)
-    Actor.channel.postMessage({
+    // Регистрируем актор в реестре
+    Actor.actorsRegistry.set(this.id, this)
+
+    if (this.reactions.hasReactions()) {
+      // Подписываемся на BroadcastChannel только если он включен
+      if (Actor.useBroadcastChannel) {
+        Actor.channel.addEventListener("message", this.handleReactionMessage)
+      }
+
+      // Внутренний механизм работает автоматически через реестр (всегда)
+    }
+
+    // Отправляем сообщение о создании актора
+    Actor.#sendMessage({
       meta: this.name,
       actor: this.id,
       timestamp: Date.now(),
@@ -100,7 +114,7 @@ export class Actor {
   update(context: Partial<Values<Schema>>): Partial<Values<Schema>> {
     const updated = this.ctx.update(context)
     if (Object.keys(updated).length > 0) {
-      Actor.channel.postMessage(Actor.updateContextMessage(this.name, this.id, updated))
+      Actor.#sendMessage(Actor.updateContextMessage(this.name, this.id, updated))
     }
     return updated
   }
@@ -116,7 +130,7 @@ export class Actor {
    */
   executeAction(process: Process<any, any>) {
     try {
-      Actor.channel.postMessage(Actor.stateBeforeActionMessage(this.name, this.id, this.state.current))
+      Actor.#sendMessage(Actor.stateBeforeActionMessage(this.name, this.id, this.state.current))
       const result = process.action({
         schema: this.ctx.schema,
         context: this.ctx.context,
@@ -139,18 +153,18 @@ export class Actor {
             } else throw new Error(`Обработчик ошибки не найден для состояния: ${this.state.current} \n ${error}`)
           })
           .finally(() => {
-            Actor.channel.postMessage(Actor.stateAfterActionMessage(this.name, this.id, this.state.current))
+            Actor.#sendMessage(Actor.stateAfterActionMessage(this.name, this.id, this.state.current))
             this.setProcess(false)
           })
       } else {
         if (process.success) process.success({ update: this.update, data: result })
-        Actor.channel.postMessage(Actor.stateAfterActionMessage(this.name, this.id, this.state.current))
+        Actor.#sendMessage(Actor.stateAfterActionMessage(this.name, this.id, this.state.current))
         this.setProcess(false)
       }
     } catch (error) {
       console.error(error)
       if (error instanceof Error) process.error?.({ update: this.update, error })
-      Actor.channel.postMessage(Actor.stateAfterActionMessage(this.name, this.id, this.state.current))
+      Actor.#sendMessage(Actor.stateAfterActionMessage(this.name, this.id, this.state.current))
       this.setProcess(false)
     }
   }
@@ -173,7 +187,7 @@ export class Actor {
           this.executeAction(process)
         } else {
           this.setState(state)
-          Actor.channel.postMessage(Actor.stateAfterActionMessage(this.name, this.id, state))
+          Actor.#sendMessage(Actor.stateAfterActionMessage(this.name, this.id, state))
           if (!this.process) this.transition()
         }
         break
@@ -197,7 +211,8 @@ export class Actor {
   handleReactionMessage(ev: MessageEvent) {
     const { data } = ev
     if (!this.reactions.hasReactions()) return
-    if (data.meta === this.name && data.actor === this.id) return
+    if (data.actor === this.id) return
+
     for (const patch of data.patches) {
       this.reactions.run({
         context: this.ctx.context,
@@ -225,6 +240,88 @@ export class Actor {
 
   static stateAfterActionMessage(meta: string, actor: string, state: string): Message {
     return { meta, actor, timestamp: Date.now(), patches: [{ op: "replace", path: "/state", value: state }] }
+  }
+
+  /**
+   * Включает/выключает BroadcastChannel для межпотоковой коммуникации
+   *
+   * Внутренний механизм работает всегда.
+   *
+   * Когда BroadcastChannel включен (по умолчанию):
+   * - Акторы подписываются на оба канала одновременно
+   * - Внутренний реестр - для быстрой коммуникации в том же потоке
+   * - BroadcastChannel - для получения сообщений из других потоков/воркеров
+   * - Сообщения отправляются в оба канала
+   *
+   * Когда BroadcastChannel отключен:
+   * - Акторы подписываются только на внутренний реестр
+   * - Все коммуникация идет через внутренний реестр
+   * - Нет межпотоковой коммуникации
+   */
+  static setBroadcastChannel(enabled: boolean) {
+    Actor.useBroadcastChannel = enabled
+  }
+
+  /** Возвращает текущее состояние BroadcastChannel */
+  static isBroadcastChannelEnabled(): boolean {
+    return Actor.useBroadcastChannel
+  }
+
+  /** Отправляет сообщение через внутренний механизм всем зарегистрированным акторам */
+  static #sendInternalMessage(message: Message) {
+    for (const [actorId, actor] of Actor.actorsRegistry) {
+      if (actorId !== message.actor && actor.reactions.hasReactions()) {
+        // Имитируем событие MessageEvent для совместимости с существующим кодом
+        const mockEvent = {
+          data: message,
+        } as MessageEvent
+        actor.handleReactionMessage(mockEvent)
+      }
+    }
+  }
+
+  /**
+   * Отправляет сообщение через доступные каналы коммуникации
+   *
+   * Отправляет через BroadcastChannel для межпотоковой коммуникации (если включен).
+   * Всегда отправляет через внутренний реестр акторов.
+   *
+   * Это обеспечивает:
+   * 1. BroadcastChannel - для межпотоковой коммуникации (если включен)
+   * 2. Внутренний реестр - для быстрой коммуникации между акторами в том же потоке (всегда)
+   */
+  static #sendMessage(message: Message) {
+    // Отправляем через BroadcastChannel если он включен
+    if (Actor.useBroadcastChannel) {
+      Actor.channel.postMessage(message)
+    }
+
+    // Всегда отправляем через внутренний механизм
+    Actor.#sendInternalMessage(message)
+  }
+
+  /** Удаляет актор из реестра */
+  static unregisterActor(actorId: string) {
+    Actor.actorsRegistry.delete(actorId)
+  }
+
+  /** Возвращает количество зарегистрированных акторов */
+  static getRegisteredActorsCount(): number {
+    return Actor.actorsRegistry.size
+  }
+
+  /** Очищает реестр акторов (для тестирования) */
+  static clearRegistry() {
+    Actor.actorsRegistry.clear()
+  }
+
+  /** Очищает ресурсы актора и удаляет его из реестра */
+  destroy() {
+    Actor.unregisterActor(this.id)
+    if (this.reactions.hasReactions() && Actor.useBroadcastChannel) {
+      // Отписываемся от BroadcastChannel только если он был включен
+      Actor.channel.removeEventListener("message", this.handleReactionMessage)
+    }
   }
 
   static fromSchema(meta: MetaSchema, id: string, core: Core = {}) {
