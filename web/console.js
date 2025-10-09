@@ -54,7 +54,7 @@ export function log(message, core) {
   const { meta, actor, patch } = message
 
   const metaStr = String(meta).padEnd(config.width.meta, " ")
-  const index = String(actor.index).padEnd(4, " ")
+  const index = String(actor).padEnd(4, " ")
   const op = centerText(String(patch.op), config.width.op)
   const path = String(patch.path).padEnd(config.width.path, " ")
 

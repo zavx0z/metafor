@@ -20,6 +20,8 @@
     "typegen:metafor": "dts-bundle-generator --out-file ./dist/metafor.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/template -- metafor.ts",
     "build:actor": "bun build actor.ts --outdir ./dist",
     "typegen:actor": "dts-bundle-generator --out-file ./dist/actor.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/template -- actor.ts",
+    "build:web": "bun build ./web/console.js --outdir ./dist/web",
+    "build:server": "bun build ./server/console.ts --outdir ./dist/server",
     "rebuild:dev": "bun run server:build:dev && bun run web:build:dev",
     "server:build:dev": "bun run server/script/build.ts --dev",
     "server:build:prod": "bun run server/script/build.ts --prod",
@@ -32,7 +34,7 @@
     "web:build:watch": "bun build ./web/metafor --outdir ./dist/web --watch"
   },
   "dependencies": {
-    "@zavx0z/context": "2.2.0",
+    "@zavx0z/context": "2.2.1",
     "@zavx0z/template": "^2.5.7"
   }
 }

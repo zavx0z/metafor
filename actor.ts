@@ -22,27 +22,30 @@ export class Actor {
     public reactions: Reactions,
     public render: ParseNode[]
   ) {
-    if (reactions.hasReactions()) Actor.channel.addEventListener("message", this.handleReactionMessage)
+    this.update = this.update.bind(this)
+    this.#init()
+  }
+  #init() {
+    if (this.reactions.hasReactions()) Actor.channel.addEventListener("message", this.handleReactionMessage)
     Actor.channel.postMessage({
-      meta: name,
-      actor: id,
+      meta: this.name,
+      actor: this.id,
       timestamp: Date.now(),
       patches: [
         {
           op: "add",
           path: "/",
           value: {
-            context: context.snapshot,
-            state: state.current,
+            context: this.context.snapshot,
+            state: this.state.current,
             process: this.process,
           },
         },
       ],
     })
-    context.onUpdate(this.transition)
-    const transition = state.states[state.current]
+    const transition = this.state.states[this.state.current]
     if (transition) {
-      const process = processes.getProcess(state.current)
+      const process = this.processes.getProcess(this.state.current)
       if (process) {
         this.setProcess(true)
 
@@ -143,6 +146,7 @@ export class Actor {
         this.setProcess(false)
       }
     } catch (error) {
+      console.error(error)
       if (error instanceof Error) process.error?.({ update: this.update, error })
       Actor.channel.postMessage(Actor.stateAfterActionMessage(this.name, this.id, this.state.current))
       this.setProcess(false)

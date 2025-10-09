@@ -534,7 +534,7 @@ export type ConditionOptional<T> = T extends boolean
  * Условие контекстного поля
  */
 export type Conditions<C extends Schema = Schema> = {
-  [K in keyof Partial<C>]: C[K] extends SchemaType<any, any, true, any>
+  [K in keyof Partial<C>]: C[K] extends SchemaType<any, true, any, any>
     ? Condition<Values<C>[K]>
     : ConditionOptional<Values<C>[K]>
 }

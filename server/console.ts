@@ -1,4 +1,4 @@
-import type { Message } from "./metafor"
+import type { Message } from "../actor.t"
 
 // ANSI цветовые коды
 const colors = {
