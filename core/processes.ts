@@ -33,16 +33,17 @@ export function processesFromSchema<C extends Schema = Schema, S extends string 
   // Восстанавливаем процессы из схемы
   for (const [processName, processData] of Object.entries(schema)) {
     if (processData && typeof processData === "object") {
+      const name = processName.replace(/\s/g, "_") // TODO: параметр отладки
       const process: Process<C, I> = {
         // Восстанавливаем action функцию из строки
-        action: new Function("return " + processData.action.src)() as any,
+        action: new Function(`//# sourceURL=${name}_action \n return ${processData.action.src}`)() as any,
         // Восстанавливаем success функцию если есть
         ...(processData.success && {
-          success: new Function("return " + processData.success.src)() as any,
+          success: new Function(`//# sourceURL=${name}_success \n return ${processData.success.src}`)() as any,
         }),
         // Восстанавливаем error функцию если есть
         ...(processData.error && {
-          error: new Function("return " + processData.error.src)() as any,
+          error: new Function(`//# sourceURL=${name}_error \n return ${processData.error.src}`)() as any,
         }),
         // Добавляем метаданные
         ...(processData.label && { title: processData.label }),

@@ -10,19 +10,21 @@ import type { MetaSchema } from "./metafor"
 
 export class Actor {
   private static coreWeakMap = new WeakMap<Actor, Core>()
-  private static channel = new BroadcastChannel("channel")
+  private static channel = new BroadcastChannel("actor-force")
 
   constructor(
     public name: string,
     public id: string,
     public description: string | undefined,
-    public context: Context<Schema>,
+    public ctx: Context<Schema>,
     public state: { current: string; states: StatesConfig },
     public processes: Processes,
     public reactions: Reactions,
-    public render: ParseNode[]
+    public render: ParseNode[],
+    core: Core = {}
   ) {
     this.update = this.update.bind(this)
+    Actor.coreWeakMap.set(this, core)
     this.#init()
   }
   #init() {
@@ -36,7 +38,7 @@ export class Actor {
           op: "add",
           path: "/",
           value: {
-            context: this.context.snapshot,
+            context: this.ctx.context,
             state: this.state.current,
             process: this.process,
           },
@@ -57,7 +59,7 @@ export class Actor {
     }
   }
   get core() {
-    return Actor.coreWeakMap.get(this) ?? {}
+    return Actor.coreWeakMap.get(this)!
   }
   set core(value: Core) {
     Actor.coreWeakMap.set(this, value)
@@ -96,7 +98,7 @@ export class Actor {
 
   /** обновление контекста */
   update(context: Partial<Values<Schema>>): Partial<Values<Schema>> {
-    const updated = this.context.update(context)
+    const updated = this.ctx.update(context)
     if (Object.keys(updated).length > 0) {
       Actor.channel.postMessage(Actor.updateContextMessage(this.name, this.id, updated))
     }
@@ -116,8 +118,8 @@ export class Actor {
     try {
       Actor.channel.postMessage(Actor.stateBeforeActionMessage(this.name, this.id, this.state.current))
       const result = process.action({
-        schema: this.context.schema,
-        context: this.context.context,
+        schema: this.ctx.schema,
+        context: this.ctx.context,
         core: this.core,
       })
       if (result instanceof Promise) {
@@ -162,7 +164,7 @@ export class Actor {
     const transition: Transitions | undefined = this.state.states[this.state.current]
     if (!transition) return
     for (const [state, conditions] of Object.entries(transition)) {
-      if (checkTransition(conditions as Conditions, this.context.context)) {
+      if (checkTransition(conditions as Conditions, this.ctx.context)) {
         const process = this.processes.getProcess(state)
         if (this.process) return
         if (process) {
@@ -185,7 +187,7 @@ export class Actor {
       state: this.state.current,
       process: this.process,
       states: this.state.states,
-      context: this.context.snapshot,
+      context: this.ctx.snapshot,
       // ...this.#view.snapshot,
       ...(this.description ? { description: this.description } : {}),
     }
@@ -198,7 +200,7 @@ export class Actor {
     if (data.meta === this.name && data.actor === this.id) return
     for (const patch of data.patches) {
       this.reactions.run({
-        context: this.context.context,
+        context: this.ctx.context,
         core: this.core,
         meta: data.meta,
         actor: data.actor,
@@ -225,7 +227,7 @@ export class Actor {
     return { meta, actor, timestamp: Date.now(), patches: [{ op: "replace", path: "/state", value: state }] }
   }
 
-  static fromSchema(meta: MetaSchema, id: string) {
+  static fromSchema(meta: MetaSchema, id: string, core: Core = {}) {
     return new Actor(
       meta.name,
       id,
@@ -234,7 +236,8 @@ export class Actor {
       { current: Object.keys(meta.states)[0] as string, states: meta.states },
       processesFromSchema(meta.processes ?? {}),
       reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
-      meta.render ?? []
+      meta.render ?? [],
+      core
     )
   }
 }
