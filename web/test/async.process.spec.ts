@@ -34,13 +34,13 @@ describe.skip("async process", async () => {
     })
     .core()
     .processes((process) => ({
-      отключен: process({ title: "Подключение к WebSocket" })
+      отключен: process({ label: "Подключение к WebSocket" })
         .action(({ context }) => {
           if (!context.remainingAttempts) return { remainingAttempts: context.maxAttempts }
         })
         .success(({ update, data }) => update({ error: null, ...data }))
         .error(({ update, error }) => update({ error: error.message })),
-      подключение: process({ title: "Установка соединения WebSocket" })
+      подключение: process({ label: "Установка соединения WebSocket" })
         .action(
           ({ context }) =>
             new Promise<{ timeStampConnected: number }>((resolve) => {
@@ -50,7 +50,7 @@ describe.skip("async process", async () => {
         .success(({ update, data }) => update({ timeStampConnected: data.timeStampConnected }))
         .error(({ update, error }) => update({ error: error.message })),
 
-      подключен: process({ title: "Мониторинг WebSocket соединения" })
+      подключен: process({ label: "Мониторинг WebSocket соединения" })
         .action(
           ({}) =>
             new Promise((_, reject) => {
@@ -59,7 +59,7 @@ describe.skip("async process", async () => {
         )
         .error(({ update, error }) => update({ error: error.message })),
 
-      ожидание: process({ title: "Ожидание переподключения к WebSocket" })
+      ожидание: process({ label: "Ожидание переподключения к WebSocket" })
         .action(
           ({ context }) =>
             new Promise<{ timeStampConnecting: number; remainingAttempts: number }>((resolve) => {

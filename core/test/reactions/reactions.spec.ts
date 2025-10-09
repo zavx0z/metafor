@@ -51,7 +51,7 @@ describe.skip("реакции", () => {
       .reactions((reaction) => [
         [
           ["state_1"],
-          reaction({ title: "record_all_messages" })
+          reaction({ label: "record_all_messages" })
             .filter({ meta: "childHash" })
             .equal(({ meta, actor, timestamp, patch }) => recordMessage({ meta, actor, timestamp, patch })),
         ],

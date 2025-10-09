@@ -18,7 +18,7 @@ describe("Фильтрация по операции патча (op)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ op: "replace" })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -45,7 +45,7 @@ describe("Фильтрация по операции патча (op)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ op: "add" })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -72,7 +72,7 @@ describe("Фильтрация по операции патча (op)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ op: "remove" })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -99,7 +99,7 @@ describe("Фильтрация по операции патча (op)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ op: "test" })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -126,7 +126,7 @@ describe("Фильтрация по операции патча (op)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ op: "replace" })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -153,7 +153,7 @@ describe("Фильтрация по операции патча (op)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({
               op: "replace",
               path: "/context",
@@ -184,7 +184,7 @@ describe("Фильтрация по операции патча (op)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({
               op: "replace",
               path: "/context",
@@ -214,7 +214,7 @@ describe("Фильтрация по операции патча (op)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({
               op: "add",
               path: "/context",
@@ -244,7 +244,7 @@ describe("Фильтрация по операции патча (op)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({
               op: "remove",
               path: "/context",
@@ -274,7 +274,7 @@ describe("Фильтрация по операции патча (op)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({
               op: "test",
               path: "/context",

@@ -11,16 +11,16 @@ export const reactionsSchema = <C extends Schema, S extends string, I extends Co
   const states: Record<string, string[]> = {}
   let reactionAutoId = 0
 
-  const chainResult = builder((config?: { title?: string; description?: string }) => ({
+  const chainResult = builder((config?: { label?: string; description?: string }) => ({
     filter: (conditions: ReactionFilterConditions) => ({
       equal: (update: ReactionUpdate<C, S, I>) => {
         const { read, write } = extractFields(update)
-        const title = config?.title || ""
+        const label = config?.label || ""
         const desc = config?.description
-        const id = `${title}_${reactionAutoId++}`
+        const id = `${label}_${reactionAutoId++}`
 
         reactions[id] = {
-          title,
+          label,
           ...(desc && { desc }),
           cond: conditions,
           read,
@@ -29,7 +29,7 @@ export const reactionsSchema = <C extends Schema, S extends string, I extends Co
         }
 
         return {
-          title,
+          label,
           update,
           filter: () => true,
           ...(desc && { description: desc }),

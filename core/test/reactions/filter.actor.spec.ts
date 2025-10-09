@@ -18,7 +18,7 @@ describe("Фильтрация по актору", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ actor: "5" })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -45,7 +45,7 @@ describe("Фильтрация по актору", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ actor: "5" })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -72,7 +72,7 @@ describe("Фильтрация по актору", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ actor: { eq: "5" } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -99,7 +99,7 @@ describe("Фильтрация по актору", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ actor: { notEq: "10" } })
             .equal(({ core }) => (core.called = true)),
         ],

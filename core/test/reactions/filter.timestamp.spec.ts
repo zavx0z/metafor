@@ -19,7 +19,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ timestamp })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -46,7 +46,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ timestamp: 1000 })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -74,7 +74,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ timestamp: { eq: timestamp } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -101,7 +101,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ timestamp: { notEq: 1000 } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -128,7 +128,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ timestamp: { gt: 1000 } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -156,7 +156,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ timestamp: { gte: timestamp } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -183,7 +183,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ timestamp: { lt: 3000 } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -211,7 +211,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ timestamp: { lte: timestamp } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -238,7 +238,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ timestamp: { notGt: 3000 } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -265,7 +265,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ timestamp: { notGte: 3000 } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -292,7 +292,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ timestamp: { notLt: 1000 } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -319,7 +319,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ timestamp: { notLte: 1000 } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -346,7 +346,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ timestamp: { between: [1000, 3000] } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -373,7 +373,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({
               timestamp: {
                 gte: 1000,
@@ -406,7 +406,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ timestamp: { eq: 0 } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -435,7 +435,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ timestamp: { gte: oneMinuteAgo } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -464,7 +464,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ timestamp: { between: [startTime, endTime] } })
             .equal(({ core }) => (core.called = true)),
         ],

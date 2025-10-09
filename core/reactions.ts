@@ -238,7 +238,7 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
       const filterFn = createFilterFn(reactionData.cond)
 
       const reaction = {
-        title: reactionData.title,
+        title: reactionData.label,
         ...(reactionData.desc && { description: reactionData.desc }),
         update: updateFn,
         filter: filterFn,

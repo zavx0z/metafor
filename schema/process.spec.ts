@@ -138,7 +138,7 @@ describe("parseChainsObject — разные варианты chain", () => {
     type C = typeof schema
     type S = "withMeta"
     const actions: ProcessesDeclaration<C, S, {}> = (process) => ({
-      withMeta: process({ title: "test_process", description: "Test process description" }).action(
+      withMeta: process({ label: "test_process", desc: "Test process description" }).action(
         ({ context }) => context.foo
       ),
     })

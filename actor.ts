@@ -113,6 +113,7 @@ export class Actor {
     try {
       Actor.channel.postMessage(Actor.stateBeforeActionMessage(this.name, this.id, this.state.current))
       const result = process.action({
+        schema: this.context.schema,
         context: this.context.context,
         core: this.core,
       })

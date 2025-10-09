@@ -98,8 +98,8 @@ export type ActionParams<C extends Schema, I extends Core> = {
   context: Values<C>
   /** Ядро */
   core: I
-  /** Элемент */
-  // element: HTMLElement
+  /** Схема контекста */
+  schema: C
 }
 
 /**

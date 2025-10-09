@@ -29,7 +29,7 @@ test("Выполнение реакций через run", () => {
     reactionsSchema<Ctx, State, typeof core>((reaction) => [
       [
         ["active"],
-        reaction({ title: "test" })
+        reaction({ label: "test" })
           .filter({ meta: "test" })
           .equal(({ core }) => (core.called = true)),
       ],

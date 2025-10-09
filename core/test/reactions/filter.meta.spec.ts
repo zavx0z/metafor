@@ -18,7 +18,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ meta: "test" })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -45,7 +45,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ meta: "test" })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -72,7 +72,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ meta: /^test_/ })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -99,7 +99,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ meta: { eq: "test" } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -126,7 +126,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ meta: { notEq: "other" } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -153,7 +153,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ meta: { startsWith: "test" } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -180,7 +180,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ meta: { endsWith: "component" } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -207,7 +207,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ meta: { include: "comp" } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -234,7 +234,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ meta: { notInclude: "bad" } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -261,7 +261,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ meta: { notStartsWith: "bad" } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -288,7 +288,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ meta: { notEndsWith: "bad" } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -315,7 +315,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ meta: { pattern: /^test_\d+$/ } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -342,7 +342,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ meta: { length: 4 } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -369,7 +369,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ meta: { length: { min: 3, max: 10 } } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -396,7 +396,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ meta: { between: ["a", "z"] } })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -423,7 +423,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({
               meta: {
                 startsWith: "test",

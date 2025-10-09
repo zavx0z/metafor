@@ -31,9 +31,9 @@ import type { ReactionParams } from "../core/reactions.t"
  */
 export type Reaction<C extends Schema, S extends string, I extends Core> = {
   /** Название реакции для документации */
-  title: string
+  label: string
   /** Описание реакции для документации */
-  description?: string
+  desc?: string
   /** Функция фильтрации событий */
   filter: (args: ReactionParams) => boolean
   /** Функция обработки события */
@@ -67,9 +67,9 @@ export type Reaction<C extends Schema, S extends string, I extends Core> = {
 export type ReactionsDeclaration<C extends Schema, S extends string, I extends Core> = (
   reaction: (config?: {
     /** Название реакции */
-    title?: string
+    label?: string
     /** Описание реакции */
-    description?: string
+    desc?: string
   }) => {
     /** Добавляет декларативные фильтры */
     filter: (conditions: ReactionFilterConditions) => {
@@ -87,7 +87,7 @@ export type ReactionsSchema = {
   reactions: Record<
     string,
     {
-      title: string
+      label: string
       desc?: string
       cond: ReactionFilterConditions
       read?: string[]

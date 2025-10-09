@@ -16,7 +16,7 @@ describe("схема реакций", () => {
     const snapshot = reactionsSchema<typeof schema, State, {}>((reaction) => [
       [
         ["idle", "active"],
-        reaction({ title: "inc", description: "increment value" })
+        reaction({ label: "inc", desc: "increment value" })
           .filter({
             meta: "test",
             op: "replace",
@@ -27,7 +27,7 @@ describe("схема реакций", () => {
       ],
       [
         ["error"],
-        reaction({ title: "reset" })
+        reaction({ label: "reset" })
           .filter({ meta: "any" })
           .equal(({ update }) => update({ value: 0 })),
       ],
@@ -69,7 +69,7 @@ describe("схема реакций", () => {
     const snapshot = reactionsSchema<typeof schema, State, {}>((reaction) => [
       [
         ["idle"],
-        reaction({ title: "test" })
+        reaction({ label: "test" })
           .filter({ meta: "test" })
           .equal(({ update }) => update({ value: 42 })),
       ],
@@ -85,7 +85,7 @@ describe("схема реакций", () => {
     const reactionId = reactionIds[0]!
     const reaction = snapshot.reactions[reactionId]!
 
-    expect(reaction.title, "реакция должна иметь title").toBe("test")
+    expect(reaction.label, "реакция должна иметь title").toBe("test")
     expect(reaction.cond, "реакция должна иметь filter").toEqual({ meta: "test" })
     expect(reaction.read, "реакция должна иметь read").toEqual(["value"])
     expect(reaction.write, "реакция должна иметь write").toEqual(["value"])
@@ -101,7 +101,7 @@ describe("схема реакций", () => {
     const updateFn = ({ update, context }: any) => update({ value: context.value * 2 })
 
     const snapshot = reactionsSchema<typeof schema, State, {}>((reaction) => [
-      [["idle"], reaction({ title: "double" }).filter({ meta: "test" }).equal(updateFn)],
+      [["idle"], reaction({ label: "double" }).filter({ meta: "test" }).equal(updateFn)],
     ])!
     const reactionIds = Object.keys(snapshot.reactions)
     const reactionId = reactionIds[0]!

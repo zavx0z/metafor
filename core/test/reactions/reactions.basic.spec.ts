@@ -17,7 +17,7 @@ test("Создание уникальных реакций", () => {
     reactionsSchema<Ctx, State, {}>((reaction) => [
       [
         ["idle", "active"],
-        reaction({ title: "inc" })
+        reaction({ label: "inc" })
           .filter({
             meta: "test",
             op: "replace",
@@ -28,7 +28,7 @@ test("Создание уникальных реакций", () => {
       ],
       [
         ["error"],
-        reaction({ title: "reset" })
+        reaction({ label: "reset" })
           .filter({ meta: "any" })
           .equal(({ update }) => update({ value: 0 })),
       ],

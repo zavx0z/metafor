@@ -37,9 +37,9 @@ type ParsedHandler = {
  */
 export type ParsedProcess = {
   /** Название процесса */
-  title?: string
+  label?: string
   /** Описание процесса */
-  description?: string
+  desc?: string
   /** Обработчик основного действия процесса */
   action: ParsedActionHandler
   /** Обработчик успешного завершения процесса */
@@ -74,7 +74,7 @@ export type ProcessesDeclaration<C extends Schema = Schema, S extends string = s
 
 export type ProcessConfig = {
   /** Название*/
-  title?: string
+  label?: string
   /** Описание */
-  description?: string
+  desc?: string
 }

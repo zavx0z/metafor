@@ -17,7 +17,7 @@ describe("Фильтрация по пути патча (path)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ path: "/context" })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -44,7 +44,7 @@ describe("Фильтрация по пути патча (path)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ path: "/state" })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -71,7 +71,7 @@ describe("Фильтрация по пути патча (path)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ path: "/" })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -98,7 +98,7 @@ describe("Фильтрация по пути патча (path)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({ path: "/context" })
             .equal(({ core }) => (core.called = true)),
         ],
@@ -125,7 +125,7 @@ describe("Фильтрация по пути патча (path)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({
               path: "/context",
               op: "replace",
@@ -155,7 +155,7 @@ describe("Фильтрация по пути патча (path)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({
               path: "/context",
               meta: "test",
@@ -185,7 +185,7 @@ describe("Фильтрация по пути патча (path)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({
               path: "/context",
               op: "replace",
@@ -215,7 +215,7 @@ describe("Фильтрация по пути патча (path)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({
               path: "/context",
               op: "add",
@@ -245,7 +245,7 @@ describe("Фильтрация по пути патча (path)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({
               path: "/context",
               op: "remove",
@@ -275,7 +275,7 @@ describe("Фильтрация по пути патча (path)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({
               path: "/context",
               op: "test",
@@ -305,7 +305,7 @@ describe("Фильтрация по пути патча (path)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({
               path: "/state",
               op: "replace",
@@ -335,7 +335,7 @@ describe("Фильтрация по пути патча (path)", () => {
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
-          reaction({ title: "test" })
+          reaction({ label: "test" })
             .filter({
               path: "/",
               op: "add",

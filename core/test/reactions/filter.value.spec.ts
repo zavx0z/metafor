@@ -24,7 +24,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: "active" })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -51,7 +51,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: /^user_\d+$/ })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -78,7 +78,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { eq: "active" } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -105,7 +105,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { notEq: "inactive" } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -132,7 +132,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { startsWith: "user_" } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -159,7 +159,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { endsWith: "_active" } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -186,7 +186,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { include: "error" } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -213,7 +213,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { notInclude: "error" } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -240,7 +240,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { pattern: /^\d{3}$/ } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -267,7 +267,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { length: 5 } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -294,7 +294,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { length: { min: 3, max: 10 } } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -321,7 +321,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { between: ["a", "z"] } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -350,7 +350,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: 42 })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -377,7 +377,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { eq: 42 } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -404,7 +404,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { gt: 10 } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -431,7 +431,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { gte: 42 } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -458,7 +458,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { lt: 100 } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -485,7 +485,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { lte: 42 } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -512,7 +512,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { between: [10, 100] } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -541,7 +541,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: true })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -568,7 +568,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { eq: true } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -595,7 +595,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { logicalEq: true } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -625,7 +625,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: testArray })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -652,7 +652,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { length: 3 } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -679,7 +679,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { includes: "item" } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -706,7 +706,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { isEmpty: true } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -733,7 +733,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { every: { gt: 0 } } as any })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -760,7 +760,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { some: { include: "error" } } as any })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -789,7 +789,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: null })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -816,7 +816,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: undefined as any })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -843,7 +843,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { null: true } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -873,7 +873,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: testObject as any })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -910,7 +910,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: complexObject as any })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -939,7 +939,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({
                 value: { gt: 10, lt: 100 },
                 op: "replace",
@@ -970,7 +970,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({
                 value: { startsWith: "user_", include: "active" },
               })
@@ -1001,7 +1001,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: "active" })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -1028,7 +1028,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { gt: 100 } })
               .equal(({ core }) => (core.called = true)),
           ],
@@ -1055,7 +1055,7 @@ describe("Фильтрация по значению патча (value) - рас
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
-            reaction({ title: "test" })
+            reaction({ label: "test" })
               .filter({ value: { length: 5 } })
               .equal(({ core }) => (core.called = true)),
           ],
