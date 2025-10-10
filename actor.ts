@@ -48,6 +48,7 @@ export class Actor extends ActorCommunication {
     this.sendMessage({
       meta: this.name,
       actor: this.id,
+      path: this.path,
       timestamp: Date.now(),
       patches: [
         {
@@ -116,7 +117,7 @@ export class Actor extends ActorCommunication {
   update(context: Partial<Values<Schema>>): Partial<Values<Schema>> {
     const updated = this.ctx.update(context)
     if (Object.keys(updated).length > 0) {
-      this.sendMessage(Actor.updateContextMessage(this.name, this.id, updated))
+      this.sendMessage(Actor.updateContextMessage(this.name, this.id, this.path, updated))
     }
     return updated
   }
@@ -132,7 +133,7 @@ export class Actor extends ActorCommunication {
    */
   executeAction(process: Process<any, any>) {
     try {
-      this.sendMessage(Actor.stateBeforeActionMessage(this.name, this.id, this.state.current))
+      this.sendMessage(Actor.stateBeforeActionMessage(this.name, this.id, this.path, this.state.current))
       const result = process.action({
         schema: this.ctx.schema,
         context: this.ctx.context,
@@ -156,18 +157,18 @@ export class Actor extends ActorCommunication {
             } else throw new Error(`Обработчик ошибки не найден для состояния: ${this.state.current} \n ${error}`)
           })
           .finally(() => {
-            this.sendMessage(Actor.stateAfterActionMessage(this.name, this.id, this.state.current))
+            this.sendMessage(Actor.stateAfterActionMessage(this.name, this.id, this.path, this.state.current))
             this.setProcess(false)
           })
       } else {
         if (process.success) process.success({ update: this.update, data: result })
-        this.sendMessage(Actor.stateAfterActionMessage(this.name, this.id, this.state.current))
+        this.sendMessage(Actor.stateAfterActionMessage(this.name, this.id, this.path, this.state.current))
         this.setProcess(false)
       }
     } catch (error) {
       if (error instanceof Error) process.error?.({ update: this.update, error })
       else console.error(error)
-      this.sendMessage(Actor.stateAfterActionMessage(this.name, this.id, this.state.current))
+      this.sendMessage(Actor.stateAfterActionMessage(this.name, this.id, this.path, this.state.current))
       this.setProcess(false)
     }
   }
@@ -190,7 +191,7 @@ export class Actor extends ActorCommunication {
           this.executeAction(process)
         } else {
           this.setState(state)
-          this.sendMessage(Actor.stateAfterActionMessage(this.name, this.id, state))
+          this.sendMessage(Actor.stateAfterActionMessage(this.name, this.id, this.path, state))
           if (!this.process) this.transition()
         }
         break
@@ -236,20 +237,20 @@ export class Actor extends ActorCommunication {
     }
     this.transition() // TODO: оптимизировать по результату обновления
   }
-  static initMessage(meta: string, actor: string, snapshot: Snapshot<Schema, string>): Message {
-    return { meta, actor, timestamp: Date.now(), patches: [{ op: "add", path: "/", value: snapshot }] }
+  static initMessage(meta: string, actor: string, path: string, snapshot: Snapshot<Schema, string>): Message {
+    return { meta, actor, path, timestamp: Date.now(), patches: [{ op: "add", path: "/", value: snapshot }] }
   }
 
-  static updateContextMessage(meta: string, actor: string, updated: Partial<Values<Schema>>): Message {
-    return { meta, actor, timestamp: Date.now(), patches: [{ op: "replace", path: "/context", value: updated }] }
+  static updateContextMessage(meta: string, actor: string, path: string, updated: Partial<Values<Schema>>): Message {
+    return { meta, actor, path, timestamp: Date.now(), patches: [{ op: "replace", path: "/context", value: updated }] }
   }
 
-  static stateBeforeActionMessage(meta: string, actor: string, state: string): Message {
-    return { meta, actor, timestamp: Date.now(), patches: [{ op: "test", path: "/state", value: state }] }
+  static stateBeforeActionMessage(meta: string, actor: string, path: string, state: string): Message {
+    return { meta, actor, path, timestamp: Date.now(), patches: [{ op: "test", path: "/state", value: state }] }
   }
 
-  static stateAfterActionMessage(meta: string, actor: string, state: string): Message {
-    return { meta, actor, timestamp: Date.now(), patches: [{ op: "replace", path: "/state", value: state }] }
+  static stateAfterActionMessage(meta: string, actor: string, path: string, state: string): Message {
+    return { meta, actor, path, timestamp: Date.now(), patches: [{ op: "replace", path: "/state", value: state }] }
   }
 
   /** Очищает ресурсы актора и удаляет его из реестра */

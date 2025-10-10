@@ -51,10 +51,11 @@ const isLog = (message, path) =>
  * @param {Record<string, any>} core
  */
 export function log(message, core) {
-  const { meta, actor, patch } = message
+  const { meta, actor, path: actorPath, patch } = message
 
   const metaStr = String(meta).padEnd(config.width.meta, " ")
-  const index = String(actor).padEnd(4, " ")
+  const actorStr = String(actor).padEnd(12, " ")
+  const pathStr = String(actorPath).padEnd(8, " ")
   const op = centerText(String(patch.op), config.width.op)
   const path = String(patch.path).padEnd(config.width.path, " ")
 
@@ -65,8 +66,10 @@ export function log(message, core) {
     case isLog(message, "/"):
       ;(() => {
         const msg = [
-          `%c${metaStr}${index}%c | %c${op}%c | %c${path}`,
+          `%c${metaStr}%c${actorStr}%c${pathStr}%c | %c${op}%c | %c${path}`,
           "color: #3498db; font-weight: bold",
+          "color: #9b59b6; font-weight: bold",
+          "color: #f39c12; font-weight: bold",
           "",
           "color: #e74c3c",
           "",
@@ -85,8 +88,10 @@ export function log(message, core) {
     case isLog(message, "/context"):
       ;(() => {
         const msg = [
-          `%c${metaStr}${index}%c | %c${op}%c | %c${path}`,
+          `%c${metaStr}%c${actorStr}%c${pathStr}%c | %c${op}%c | %c${path}`,
           `color: #3498db; font-weight: bold; ${isError ? "background: #7d4545" : ""}`,
+          "color: #9b59b6; font-weight: bold",
+          "color: #f39c12; font-weight: bold",
           "",
           "color: #e74c3c",
           "",
@@ -116,8 +121,10 @@ export function log(message, core) {
             : patch.value
 
         const msg = [
-          `%c${metaStr}${index}%c | %c${op}%c | %c${path}%c %c${stateValue}`,
+          `%c${metaStr}%c${actorStr}%c${pathStr}%c | %c${op}%c | %c${path}%c %c${stateValue}`,
           "color: #3498db; font-weight: bold",
+          "color: #9b59b6; font-weight: bold",
+          "color: #f39c12; font-weight: bold",
           "",
           "color: #e74c3c",
           "",

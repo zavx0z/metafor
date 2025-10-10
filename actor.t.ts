@@ -63,6 +63,7 @@ export interface ActorInternal extends HTMLElement {
 export type Message = {
   meta: string
   actor: string
+  path: string
   timestamp: number
   patches: JsonPatch[]
 }
