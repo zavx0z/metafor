@@ -22,6 +22,7 @@
 
 import type { Schema, Values, Update } from "@zavx0z/context"
 import type { Core } from "../actor.t"
+import type { Self } from "../metafor.t"
 export type Processes<C extends Schema = Schema, S extends string = string, I extends Core = Core> = {
   getProcess: (name: S) => Process<C, I> | undefined
   hasProcess: (name: S) => boolean
@@ -87,7 +88,6 @@ export type ProcessChain<C extends Schema, I extends Core> = {
    */
   action: <Res>(fn: (params: ActionParams<C, I>) => Res | Promise<Res>) => ActionChain<C, I, Res>
 }
-
 /**
  * Параметры для action
  * @template C - схема контекста автомата
@@ -100,6 +100,8 @@ export type ActionParams<C extends Schema, I extends Core> = {
   core: I
   /** Схема контекста */
   schema: C
+  /** */
+  self: Self
 }
 
 /**

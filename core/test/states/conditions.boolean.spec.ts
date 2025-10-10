@@ -7,3 +7,9 @@ test("Простые условия для булевых значений", () 
   const result = checkTransition(condition, context)
   expect(result, "простое булево условие должно быть true").toBe(true)
 })
+test("Комплексное", () => {
+  const condition = { state: { null: false }, status: true }
+  const context = { state: "string", status: true }
+  const result = checkTransition(condition, context)
+  expect(result).toBe(true)
+})

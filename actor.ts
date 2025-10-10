@@ -126,6 +126,7 @@ export class Actor extends ActorCommunication {
         schema: this.ctx.schema,
         context: this.ctx.context,
         core: this.core,
+        self: { meta: this.name, actor: this.id },
       })
       if (result instanceof Promise) {
         result
@@ -221,6 +222,7 @@ export class Actor extends ActorCommunication {
         update: this.update,
       })
     }
+    this.transition() // TODO: оптимизировать по результату обновления
   }
   static initMessage(meta: string, actor: string, snapshot: Snapshot<Schema, string>): Message {
     return { meta, actor, timestamp: Date.now(), patches: [{ op: "add", path: "/", value: snapshot }] }
@@ -256,7 +258,7 @@ export class Actor extends ActorCommunication {
       meta.description,
       contextFromSchema(meta.context),
       { current: Object.keys(meta.states)[0] as string, states: meta.states },
-      processesFromSchema(meta.processes ?? {}),
+      processesFromSchema(meta.processes ?? {}, { meta: meta.name, actor: id }),
       reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
       meta.render ?? [],
       core

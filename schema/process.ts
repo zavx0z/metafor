@@ -3,6 +3,7 @@ import type { Core } from "../actor.t"
 import type { Process } from "../core/processes"
 import type { ProcessConfig } from "./process.t"
 import type { ParsedProcess, ProcessesDeclaration, ProcessesSchema } from "./process.t"
+import type { Self } from "../metafor.t"
 
 export type { ProcessesDeclaration, ProcessesSchema }
 
@@ -12,6 +13,7 @@ const pattern = {
   destructBody: /(?:const|let|var)\s*{([^}]+)}\s*=\s*context(?:\s*,\s*{([^}]+)}\s*=\s*context)*/g,
   update: /update\(\s*{([^}]+)}\s*\)/g,
 }
+
 /**
  * Парсит функцию и извлекает информацию о полях контекста, которые читаются и записываются.
  *
@@ -35,7 +37,6 @@ const pattern = {
  * // => { read: ['name', 'age'], write: ['status'] }
  * ```
  */
-
 export function parseFunction(fn: Function, allowWrite: boolean = true) {
   const code = fn.toString()
   const read = new Set<string>()
@@ -81,6 +82,7 @@ export function parseFunction(fn: Function, allowWrite: boolean = true) {
   }
   return { read: Array.from(read), write: allowWrite ? Array.from(write) : [] }
 }
+
 /**
  * Парсит процесс и извлекает информацию о всех обработчиках.
  *
@@ -106,7 +108,6 @@ export function parseFunction(fn: Function, allowWrite: boolean = true) {
  * // }
  * ```
  */
-
 export function parseProcess<C extends Schema, I extends Core, Res = any>(process: Process<C, I, Res>): ParsedProcess {
   const result: ParsedProcess = {} as ParsedProcess
   if (process.title) result.label = process.title
@@ -136,6 +137,7 @@ export function parseProcess<C extends Schema, I extends Core, Res = any>(proces
   }
   return result
 }
+
 /**
  * Парсит конфигурацию процессов и извлекает информацию о всех процессах.
  *
@@ -163,9 +165,8 @@ export function parseProcess<C extends Schema, I extends Core, Res = any>(proces
  * @param processes - конфигурация процессов
  * @returns объект с распарсенными процессами
  */
-
 export const processesSchema = <C extends Schema, S extends string, I extends Core>(
-  processes: ProcessesDeclaration<C, S, I>
+  processes: ProcessesDeclaration<C, S, I>,
 ): ProcessesSchema | null => {
   // Вызываем processesDeclaration с mock process
   const chains = processes((config?: ProcessConfig) => {

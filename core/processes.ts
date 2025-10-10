@@ -7,6 +7,7 @@ import type { Schema } from "@zavx0z/context"
 import type { Process, Processes } from "./processes.t"
 import type { Core } from "../actor.t"
 import type { ProcessesSchema } from "../schema/process.t"
+import type { Self } from "../metafor.t"
 export type { Process, Processes } from "./processes.t"
 
 /**
@@ -26,14 +27,15 @@ export type { Process, Processes } from "./processes.t"
  * ```
  */
 export function processesFromSchema<C extends Schema = Schema, S extends string = string, I extends Core = Core>(
-  schema: ProcessesSchema
+  schema: ProcessesSchema,
+  self: Self = { meta: "unknown", actor: "unknown" }
 ): Processes<C, S, I> {
   const processes: Record<S, Process<C, I>> = {} as Record<S, Process<C, I>>
 
   // Восстанавливаем процессы из схемы
   for (const [processName, processData] of Object.entries(schema)) {
     if (processData && typeof processData === "object") {
-      const name = processName.replace(/\s/g, "_") // TODO: параметр отладки
+      const name = self.meta + "_" + self.actor.replace(/\//g, "_") + "_" + processName.replace(/\s/g, "_") // TODO: параметр отладки
       const process: Process<C, I> = {
         // Восстанавливаем action функцию из строки
         action: new Function(`//# sourceURL=${name}_action \n return ${processData.action.src}`)() as any,

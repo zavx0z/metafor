@@ -5,7 +5,7 @@
       "name": "metafor",
       "dependencies": {
         "@zavx0z/context": "2.3.0",
-        "@zavx0z/template": "^2.5.7",
+        "@zavx0z/template": "^2.6.1",
       },
       "devDependencies": {
         "@types/bun": "^1.2.23",
@@ -43,7 +43,7 @@
 
     "@zavx0z/context": ["@zavx0z/context@2.3.0", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-g7W8SStgVuT16J3DG2tL6YbJJd8pfcXesR8vtQqYpyautZRGR3MfLd/v0Yu6bVarnkKqZr8hkI2YXyn11YHzKg=="],
 
-    "@zavx0z/template": ["@zavx0z/template@2.5.7", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-xNS/4fgv2U21qexSfFzesCMWMguxKVHzYeMcxGfZxQAr5Xqc3eGzpKJ4WdogqecHVxXlKsgoW3r9/iuEzWhZKA=="],
+    "@zavx0z/template": ["@zavx0z/template@2.6.1", "", { "peerDependencies": { "typescript": "^5" } }, "sha512-dG4QomcsXp1Mdlx9zOoZn1xO3k47CbT5mibDSATa9bnIdUOjI2VU1Jm0YTfcbSnG2pKL1o7aG2TLI7QgZpBewg=="],
 
     "ansi-regex": ["ansi-regex@5.0.1", "", {}, "sha512-quJQXlTSUGL2LH9SUXo8VwsY4soanhgo6LNSm84E1LBcE8s3O0wpdiRzyR9z/ZZJMlMWv37qOOb9pdJlMUEKFQ=="],
 
