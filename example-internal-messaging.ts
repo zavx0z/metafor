@@ -74,9 +74,9 @@ const actorSchema: MetaSchema = {
 }
 
 // Создаем несколько акторов
-const actor1 = Actor.fromSchema(actorSchema, "actor-1")
-const actor2 = Actor.fromSchema(actorSchema, "actor-2")
-const actor3 = Actor.fromSchema(actorSchema, "actor-3")
+const actor1 = Actor.fromSchema({ meta: actorSchema, id: "actor-1" })
+const actor2 = Actor.fromSchema({ meta: actorSchema, id: "actor-2" })
+const actor3 = Actor.fromSchema({ meta: actorSchema, id: "actor-3" })
 
 console.log("Количество зарегистрированных акторов:", Actor.getRegisteredActorsCount())
 console.log("BroadcastChannel включен:", Actor.isBroadcastChannelEnabled())

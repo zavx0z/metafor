@@ -58,8 +58,8 @@ describe("Двойная отправка сообщений (BroadcastChannel +
   }
 
   it("должен отправлять сообщения в оба канала", async () => {
-    const actor1 = Actor.fromSchema(testSchema, "actor-1")
-    const actor2 = Actor.fromSchema(testSchema, "actor-2")
+    const actor1 = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
+    const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
     // Очищаем сообщения от инициализации
     broadcastChannelMessages = []
@@ -87,8 +87,8 @@ describe("Двойная отправка сообщений (BroadcastChannel +
     // Отключаем внутренний механизм
     Actor.setBroadcastChannel(false)
 
-    const actor1 = Actor.fromSchema(testSchema, "actor-1")
-    const actor2 = Actor.fromSchema(testSchema, "actor-2")
+    const actor1 = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
+    const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
     // Очищаем сообщения от инициализации
     broadcastChannelMessages = []
@@ -112,11 +112,11 @@ describe("Двойная отправка сообщений (BroadcastChannel +
 
   it("должен регистрировать акторы в реестре независимо от состояния внутреннего механизма", () => {
     Actor.setBroadcastChannel(false)
-    const actor1 = Actor.fromSchema(testSchema, "actor-1")
+    const actor1 = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
     expect(Actor.getRegisteredActorsCount()).toBe(1)
 
     Actor.setBroadcastChannel(true)
-    const actor2 = Actor.fromSchema(testSchema, "actor-2")
+    const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
     expect(Actor.getRegisteredActorsCount()).toBe(2)
 
     actor1.destroy()

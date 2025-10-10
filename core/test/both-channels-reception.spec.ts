@@ -55,8 +55,8 @@ describe("Получение сообщений из обоих каналов",
   it("должен получать сообщения из внутреннего реестра при включенном внутреннем механизме", async () => {
     Actor.setBroadcastChannel(true)
 
-    const actor1 = Actor.fromSchema(testSchema, "actor-1")
-    const actor2 = Actor.fromSchema(testSchema, "actor-2")
+    const actor1 = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
+    const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
     // Очищаем сообщения от инициализации
     broadcastChannelMessages = []
@@ -82,8 +82,8 @@ describe("Получение сообщений из обоих каналов",
   it("должен получать сообщения только через BroadcastChannel при отключенном внутреннем механизме", async () => {
     Actor.setBroadcastChannel(false)
 
-    const actor1 = Actor.fromSchema(testSchema, "actor-1")
-    const actor2 = Actor.fromSchema(testSchema, "actor-2")
+    const actor1 = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
+    const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
     // Очищаем сообщения от инициализации
     broadcastChannelMessages = []
@@ -109,10 +109,10 @@ describe("Получение сообщений из обоих каналов",
   it("должен подписываться на BroadcastChannel независимо от состояния внутреннего механизма", () => {
     // Проверяем, что акторы всегда подписываются на BroadcastChannel
     Actor.setBroadcastChannel(true)
-    const actor1 = Actor.fromSchema(testSchema, "actor-1")
+    const actor1 = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
 
     Actor.setBroadcastChannel(false)
-    const actor2 = Actor.fromSchema(testSchema, "actor-2")
+    const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
     // Оба актора должны быть зарегистрированы
     expect(Actor.getRegisteredActorsCount()).toBe(2)

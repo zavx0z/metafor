@@ -252,12 +252,37 @@ export class Actor extends ActorCommunication {
     this.children = []
   }
 
-  static fromSchema(meta: MetaSchema, id: string, core: Core = {}) {
+  static fromSchema<M extends MetaSchema>(config: {
+    meta: M
+    id: string
+    core?: Core
+    context?: Partial<Values<M["context"]>>
+  }): Actor
+  static fromSchema<M extends MetaSchema>(
+    meta: M,
+    id: string,
+    core?: Core,
+    context?: Partial<Values<M["context"]>>
+  ): Actor
+  static fromSchema<M extends MetaSchema>(
+    arg1: { meta: M; id: string; core?: Core; context?: Partial<Values<M["context"]>> } | M,
+    arg2?: string,
+    arg3?: Core,
+    arg4?: Partial<Values<M["context"]>>
+  ) {
+    const isConfigObject = typeof arg1 === "object" && arg1 !== null && "meta" in arg1
+    const meta = (isConfigObject ? (arg1 as any).meta : (arg1 as M)) as M
+    const id = (isConfigObject ? (arg1 as any).id : arg2) as string
+    const core = (isConfigObject ? (arg1 as any).core : arg3) ?? {}
+    const context = (isConfigObject ? (arg1 as any).context : arg4) ?? {}
+
+    const ctx = contextFromSchema(meta.context)
+    ctx.update(context as any)
     return new Actor(
       meta.name,
       id,
       meta.description,
-      contextFromSchema(meta.context),
+      ctx,
       { current: Object.keys(meta.states)[0] as string, states: meta.states },
       processesFromSchema(meta.processes ?? {}, { meta: meta.name, actor: id }),
       reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),

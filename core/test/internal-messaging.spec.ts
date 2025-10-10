@@ -40,8 +40,8 @@ describe("Внутренний механизм коммуникации меж�
   }
 
   it("должен регистрировать акторы в реестре", () => {
-    const actor1 = Actor.fromSchema(testSchema, "actor-1")
-    const actor2 = Actor.fromSchema(testSchema, "actor-2")
+    const actor1 = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
+    const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
     expect(Actor.getRegisteredActorsCount()).toBe(2)
     expect(Actor.isBroadcastChannelEnabled()).toBe(true)
@@ -51,8 +51,8 @@ describe("Внутренний механизм коммуникации меж�
   })
 
   it("должен отправлять сообщения через внутренний механизм", async () => {
-    const actor1 = Actor.fromSchema(testSchema, "actor-1")
-    const actor2 = Actor.fromSchema(testSchema, "actor-2")
+    const actor1 = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
+    const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
     // Изначальные значения
     expect(actor1.ctx.context.value).toBe(0)
@@ -72,8 +72,8 @@ describe("Внутренний механизм коммуникации меж�
   })
 
   it("должен корректно удалять акторы из реестра", () => {
-    const actor1 = Actor.fromSchema(testSchema, "actor-1")
-    const actor2 = Actor.fromSchema(testSchema, "actor-2")
+    const actor1 = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
+    const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
     expect(Actor.getRegisteredActorsCount()).toBe(2)
 
@@ -95,7 +95,7 @@ describe("Внутренний механизм коммуникации меж�
   })
 
   it("не должен отправлять сообщения самому себе", () => {
-    const actor = Actor.fromSchema(testSchema, "actor-1")
+    const actor = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
     const initialValue = actor.ctx.context.value
 
     // Обновляем контекст

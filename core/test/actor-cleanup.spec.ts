@@ -27,7 +27,7 @@ describe("Очистка ресурсов актора", () => {
 
   it("должен очищать core из WeakMap при уничтожении", () => {
     const customCore = { customData: "test" }
-    const actor = Actor.fromSchema(testSchema, "actor-1", customCore)
+    const actor = Actor.fromSchema({ meta: testSchema, id: "actor-1", core: customCore })
 
     // Проверяем, что core доступен
     expect(actor.core).toEqual(customCore)
@@ -41,7 +41,7 @@ describe("Очистка ресурсов актора", () => {
   })
 
   it("должен очищать слушатели состояний при уничтожении", () => {
-    const actor = Actor.fromSchema(testSchema, "actor-1")
+    const actor = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
 
     // Добавляем слушатель состояния
     const listener = (state: string) => console.log("State changed:", state)
@@ -58,8 +58,8 @@ describe("Очистка ресурсов актора", () => {
   })
 
   it("должен очищать связи с родителем и детьми при уничтожении", () => {
-    const actor1 = Actor.fromSchema(testSchema, "actor-1")
-    const actor2 = Actor.fromSchema(testSchema, "actor-2")
+    const actor1 = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
+    const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
     // Устанавливаем связи
     actor1.parent = actor2
@@ -78,7 +78,7 @@ describe("Очистка ресурсов актора", () => {
   })
 
   it("должен корректно обрабатывать повторные вызовы destroy", () => {
-    const actor = Actor.fromSchema(testSchema, "actor-1")
+    const actor = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
 
     // Первый вызов destroy
     actor.destroy()

@@ -55,8 +55,8 @@ import { Actor } from "./actor"
 // BroadcastChannel включен по умолчанию
 // Actor.setBroadcastChannel(true) // не нужно - включено по умолчанию
 
-const actor1 = Actor.fromSchema(schema, "actor-1")
-const actor2 = Actor.fromSchema(schema, "actor-2")
+const actor1 = Actor.fromSchema({ meta: schema, id: "actor-1" })
+const actor2 = Actor.fromSchema({ meta: schema, id: "actor-2" })
 
 // Акторы подписываются на оба канала одновременно:
 // - Внутренний реестр - для быстрой коммуникации в том же потоке
@@ -71,8 +71,8 @@ import { Actor } from "./actor"
 // Отключаем BroadcastChannel - только внутренний механизм
 Actor.setBroadcastChannel(false)
 
-const actor1 = Actor.fromSchema(schema, "local-actor-1")
-const actor2 = Actor.fromSchema(schema, "local-actor-2")
+const actor1 = Actor.fromSchema({ meta: schema, id: "local-actor-1" })
+const actor2 = Actor.fromSchema({ meta: schema, id: "local-actor-2" })
 
 // Акторы подписываются только на внутренний реестр
 // Нет межпотоковой коммуникации

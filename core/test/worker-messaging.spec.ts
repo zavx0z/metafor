@@ -40,8 +40,8 @@ describe("Коммуникация между акторами в разных �
     // Отключаем внутренний механизм - все акторы будут общаться через BroadcastChannel
     Actor.setBroadcastChannel(false)
 
-    const actor1 = Actor.fromSchema(testSchema, "worker-actor-1")
-    const actor2 = Actor.fromSchema(testSchema, "worker-actor-2")
+    const actor1 = Actor.fromSchema({ meta: testSchema, id: "worker-actor-1" })
+    const actor2 = Actor.fromSchema({ meta: testSchema, id: "worker-actor-2" })
 
     // Проверяем, что акторы зарегистрированы, но внутренний механизм отключен
     expect(Actor.getRegisteredActorsCount()).toBe(2)
@@ -58,8 +58,8 @@ describe("Коммуникация между акторами в разных �
     // Включаем внутренний механизм - акторы в том же потоке будут общаться быстро
     Actor.setBroadcastChannel(true)
 
-    const actor1 = Actor.fromSchema(testSchema, "main-actor-1")
-    const actor2 = Actor.fromSchema(testSchema, "main-actor-2")
+    const actor1 = Actor.fromSchema({ meta: testSchema, id: "main-actor-1" })
+    const actor2 = Actor.fromSchema({ meta: testSchema, id: "main-actor-2" })
 
     // Проверяем, что акторы зарегистрированы и внутренний механизм включен
     expect(Actor.getRegisteredActorsCount()).toBe(2)
@@ -77,21 +77,21 @@ describe("Коммуникация между акторами в разных �
     Actor.setBroadcastChannel(false)
     expect(Actor.isBroadcastChannelEnabled()).toBe(false)
 
-    const actor1 = Actor.fromSchema(testSchema, "actor-1")
+    const actor1 = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
     expect(Actor.getRegisteredActorsCount()).toBe(1)
 
     // Включаем внутренний механизм
     Actor.setBroadcastChannel(true)
     expect(Actor.isBroadcastChannelEnabled()).toBe(true)
 
-    const actor2 = Actor.fromSchema(testSchema, "actor-2")
+    const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
     expect(Actor.getRegisteredActorsCount()).toBe(2)
 
     // Отключаем внутренний механизм
     Actor.setBroadcastChannel(false)
     expect(Actor.isBroadcastChannelEnabled()).toBe(false)
 
-    const actor3 = Actor.fromSchema(testSchema, "actor-3")
+    const actor3 = Actor.fromSchema({ meta: testSchema, id: "actor-3" })
     expect(Actor.getRegisteredActorsCount()).toBe(3)
 
     actor1.destroy()
