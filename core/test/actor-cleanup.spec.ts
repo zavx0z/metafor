@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { Actor } from "../../actor"
+import { ActorCommunication } from "../communication"
 import type { MetaSchema } from "../../metafor"
 
 describe("Очистка ресурсов актора", () => {
@@ -57,34 +58,35 @@ describe("Очистка ресурсов актора", () => {
     expect(actor.stateListeners.size).toBe(0)
   })
 
-  it("должен очищать связи с родителем и детьми при уничтожении", () => {
+  it("должен удалять актор из иерархии при уничтожении", () => {
     const actor1 = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
     const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
-    // Устанавливаем связи
-    actor1.parent = actor2
-    actor2.children = [actor1]
-
-    // Проверяем, что связи установлены
-    expect(actor1.parent).toBe(actor2)
-    expect(actor2.children).toContain(actor1)
+    // Проверяем, что акторы зарегистрированы в иерархии
+    expect(ActorCommunication.getHierarchy().hasActor(actor1.path)).toBe(true)
+    expect(ActorCommunication.getHierarchy().hasActor(actor2.path)).toBe(true)
 
     // Уничтожаем первый актор
     actor1.destroy()
 
-    // Проверяем, что связи очищены
-    expect(actor1.parent).toBeNull()
-    expect(actor1.children).toEqual([])
+    // Проверяем, что актор удален из иерархии
+    expect(ActorCommunication.getHierarchy().hasActor(actor1.path)).toBe(false)
+    expect(ActorCommunication.getHierarchy().hasActor(actor2.path)).toBe(true)
+
+    // Очистка
+    actor2.destroy()
   })
 
   it("должен корректно обрабатывать повторные вызовы destroy", () => {
     const actor = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
 
+    // Проверяем, что актор зарегистрирован
+    expect(ActorCommunication.getHierarchy().hasActor(actor.path)).toBe(true)
+
     // Первый вызов destroy
     actor.destroy()
     expect(actor.stateListeners.size).toBe(0)
-    expect(actor.parent).toBeNull()
-    expect(actor.children).toEqual([])
+    expect(ActorCommunication.getHierarchy().hasActor(actor.path)).toBe(false)
 
     // Второй вызов destroy не должен вызывать ошибок
     expect(() => actor.destroy()).not.toThrow()

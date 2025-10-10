@@ -1,17 +1,18 @@
-import type { Message } from "./actor.t"
+import type { Message } from "../actor.t"
+import { ActorHierarchy } from "./hierarchy"
 
 /**
  * Базовый класс для управления коммуникациями между акторами
  *
  * Отвечает за:
- * - Реестр акторов
  * - Управление BroadcastChannel
  * - Отправку сообщений через различные каналы
  * - Внутренний механизм коммуникации
+ * - Интеграцию с иерархией акторов
  */
 export abstract class ActorCommunication {
-  /** Реестр всех активных акторов */
-  protected static actorsRegistry = new Map<string, ActorCommunication>()
+  /** Менеджер иерархии акторов */
+  protected static hierarchy = new ActorHierarchy()
 
   /** Флаг управления BroadcastChannel */
   protected static useBroadcastChannel = true
@@ -21,6 +22,9 @@ export abstract class ActorCommunication {
 
   /** Уникальный идентификатор актора */
   public abstract readonly id: string
+
+  /** Позиционный путь актора в VDOM (строка индексов через слеш) */
+  public abstract readonly path: string
 
   /** Конструктор базового класса */
   constructor() {
@@ -54,9 +58,10 @@ export abstract class ActorCommunication {
 
   /** Отправляет сообщение через внутренний механизм всем зарегистрированным акторам */
   static #sendInternalMessage(message: Message) {
-    for (const [actorId, actor] of ActorCommunication.actorsRegistry) {
-      if (actorId !== message.actor && actor.hasReactions()) {
-        // Имитируем событие MessageEvent для совместимости с существующим кодом
+    // Отправляем через иерархию акторов
+    const hierarchyActors = ActorCommunication.hierarchy.getAllActors()
+    for (const actor of hierarchyActors) {
+      if (actor.id !== message.actor && actor.hasReactions()) {
         const mockEvent = {
           data: message,
         } as MessageEvent
@@ -86,24 +91,61 @@ export abstract class ActorCommunication {
     ActorCommunication.#sendInternalMessage(message)
   }
 
-  /** Регистрирует актор в реестре */
+  /** Регистрирует актор в иерархии */
   protected static registerActor(actor: ActorCommunication) {
-    ActorCommunication.actorsRegistry.set(actor.id, actor)
+    // Добавляем в иерархию акторов
+    if (!ActorCommunication.hierarchy.hasActor(actor.path)) {
+      ActorCommunication.hierarchy.createNode(actor.path, actor)
+    }
   }
 
-  /** Удаляет актор из реестра */
-  protected static unregisterActor(actorId: string) {
-    ActorCommunication.actorsRegistry.delete(actorId)
+  /** Удаляет актор из иерархии */
+  protected static unregisterActor(actor: ActorCommunication) {
+    // Удаляем из иерархии
+    if (ActorCommunication.hierarchy.hasActor(actor.path)) {
+      ActorCommunication.hierarchy.removeNode(actor.path)
+    }
   }
 
   /** Возвращает количество зарегистрированных акторов */
   static getRegisteredActorsCount(): number {
-    return ActorCommunication.actorsRegistry.size
+    return ActorCommunication.hierarchy.getActorCount()
   }
 
   /** Очищает реестр акторов (для тестирования) */
   static clearRegistry() {
-    ActorCommunication.actorsRegistry.clear()
+    ActorCommunication.hierarchy.clear()
+  }
+
+  /** Получает менеджер иерархии акторов */
+  static getHierarchy(): ActorHierarchy {
+    return ActorCommunication.hierarchy
+  }
+
+  /** Добавляет актор как дочерний к указанному родителю */
+  static addChildActor(parentPath: string | null, childActor: ActorCommunication) {
+    if (!ActorCommunication.hierarchy.hasActor(childActor.path)) {
+      ActorCommunication.hierarchy.createNode(childActor.path, childActor)
+    }
+    ActorCommunication.hierarchy.appendChild(parentPath, childActor.path)
+  }
+
+  /** Получает детей актора */
+  static getActorChildren(parentPath: string | null): ActorCommunication[] {
+    const childrenPaths = ActorCommunication.hierarchy.getChildren(parentPath)
+    return childrenPaths
+      .map((path) => ActorCommunication.hierarchy.getActor(path))
+      .filter((actor): actor is ActorCommunication => actor !== null)
+  }
+
+  /** Получает актор по пути */
+  static getActorByPath(path: string): ActorCommunication | null {
+    return ActorCommunication.hierarchy.getActor(path)
+  }
+
+  /** Проверяет существование актора по пути */
+  static hasActorByPath(path: string): boolean {
+    return ActorCommunication.hierarchy.hasActor(path)
   }
 
   /** Инициализирует коммуникации для актора */
@@ -123,7 +165,7 @@ export abstract class ActorCommunication {
 
   /** Очищает коммуникации для актора */
   protected destroyCommunication() {
-    ActorCommunication.unregisterActor(this.id)
+    ActorCommunication.unregisterActor(this)
     if (this.hasReactions() && ActorCommunication.useBroadcastChannel) {
       // Отписываемся от BroadcastChannel только если он был включен
       ActorCommunication.channel.removeEventListener("message", this.handleReactionMessage.bind(this))

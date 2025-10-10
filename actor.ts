@@ -2,7 +2,7 @@ import { contextFromSchema, type Context, type Schema, type Values } from "@zavx
 import { checkTransition, type Conditions, type Transitions } from "./core/states"
 import { processesFromSchema, type Process, type Processes } from "./core/processes"
 import { reactionsFromSchema, type Reactions } from "./core/reactions"
-import { ActorCommunication } from "./actor-communication"
+import { ActorCommunication } from "./core/communication"
 import type { Node as ParseNode } from "@zavx0z/template"
 import type { Core, Snapshot, Message } from "./actor.t"
 export type { Message }
@@ -11,8 +11,10 @@ import type { MetaSchema } from "./metafor"
 
 export class Actor extends ActorCommunication {
   private static coreWeakMap = new WeakMap<Actor, Core>()
-  public children: Actor[] = []
-  public parent: Actor | null = null
+
+  /** Позиционный путь актора в VDOM (строка индексов через слеш) */
+  public readonly path: string
+
   constructor(
     public name: string,
     public id: string,
@@ -22,13 +24,22 @@ export class Actor extends ActorCommunication {
     public processes: Processes,
     public reactions: Reactions,
     public render: ParseNode[],
-    core: Core = {}
+    core: Core = {},
+    path?: string
   ) {
     super()
+    // Инициализируем path: если передан явно, используем его, иначе генерируем корневой путь
+    this.path = path ?? ActorCommunication.getHierarchy().generateRootPath()
     this.update = this.update.bind(this)
     Actor.coreWeakMap.set(this, core)
     this.#init()
   }
+
+  /** Сбрасывает счетчик путей (для тестирования) */
+  static resetPathCounter(): void {
+    ActorCommunication.getHierarchy().resetPathCounter()
+  }
+
   #init() {
     // Инициализируем коммуникации через базовый класс
     this.initializeCommunication()
@@ -248,8 +259,7 @@ export class Actor extends ActorCommunication {
     this.stateListeners.clear()
     this.ctx.clearSubscribers()
 
-    this.parent = null
-    this.children = []
+    // Иерархия управляется через ActorHierarchy в базовом классе
   }
 
   static fromSchema<M extends MetaSchema>(config: {
@@ -257,24 +267,9 @@ export class Actor extends ActorCommunication {
     id: string
     core?: Core
     context?: Partial<Values<M["context"]>>
-  }): Actor
-  static fromSchema<M extends MetaSchema>(
-    meta: M,
-    id: string,
-    core?: Core,
-    context?: Partial<Values<M["context"]>>
-  ): Actor
-  static fromSchema<M extends MetaSchema>(
-    arg1: { meta: M; id: string; core?: Core; context?: Partial<Values<M["context"]>> } | M,
-    arg2?: string,
-    arg3?: Core,
-    arg4?: Partial<Values<M["context"]>>
-  ) {
-    const isConfigObject = typeof arg1 === "object" && arg1 !== null && "meta" in arg1
-    const meta = (isConfigObject ? (arg1 as any).meta : (arg1 as M)) as M
-    const id = (isConfigObject ? (arg1 as any).id : arg2) as string
-    const core = (isConfigObject ? (arg1 as any).core : arg3) ?? {}
-    const context = (isConfigObject ? (arg1 as any).context : arg4) ?? {}
+    path?: string
+  }): Actor {
+    const { meta, id, core = {}, context = {}, path } = config
 
     const ctx = contextFromSchema(meta.context)
     ctx.update(context as any)
@@ -287,7 +282,8 @@ export class Actor extends ActorCommunication {
       processesFromSchema(meta.processes ?? {}, { meta: meta.name, actor: id }),
       reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
       meta.render ?? [],
-      core
+      core,
+      path
     )
   }
 }
