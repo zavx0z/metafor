@@ -9,7 +9,7 @@ type State = "idle" | "active"
 
 describe("Фильтрация по мете актора (meta)", () => {
   const fakeUpdate: Update<Ctx> = (values) => values as any
-  const fakeContext: Values<Ctx> = { value: 10 }
+  const fakeContext: Values<Ctx> = { value: 10 } as any
   const fakePatch: JsonPatch = { op: "replace", path: "/context", value: 1 }
 
   it("простое сравнение хеша меты", () => {
@@ -19,7 +19,7 @@ describe("Фильтрация по мете актора (meta)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ meta: "test" })
+            .filter(({ self }) => ({ meta: "test" }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -34,6 +34,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при точном совпадении").toBe(true)
@@ -46,7 +47,7 @@ describe("Фильтрация по мете актора (meta)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ meta: "test" })
+            .filter(({ self }) => ({ meta: "test" }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -61,6 +62,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция не должна сработать при несовпадении").toBe(false)
@@ -73,7 +75,7 @@ describe("Фильтрация по мете актора (meta)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ meta: /^test_/ })
+            .filter(({ self }) => ({ meta: /^test_/ }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -88,6 +90,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при совпадении с regex").toBe(true)
@@ -100,7 +103,7 @@ describe("Фильтрация по мете актора (meta)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ meta: { eq: "test" } })
+            .filter(({ self }) => ({ meta: { eq: "test" } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -115,6 +118,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при eq условии").toBe(true)
@@ -127,7 +131,7 @@ describe("Фильтрация по мете актора (meta)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ meta: { notEq: "other" } })
+            .filter(({ self }) => ({ meta: { notEq: "other" } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -142,6 +146,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при notEq условии").toBe(true)
@@ -154,7 +159,7 @@ describe("Фильтрация по мете актора (meta)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ meta: { startsWith: "test" } })
+            .filter(({ self }) => ({ meta: { startsWith: "test" } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -169,6 +174,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при startsWith условии").toBe(true)
@@ -181,7 +187,7 @@ describe("Фильтрация по мете актора (meta)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ meta: { endsWith: "component" } })
+            .filter(({ self }) => ({ meta: { endsWith: "component" } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -196,6 +202,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при endsWith условии").toBe(true)
@@ -208,7 +215,7 @@ describe("Фильтрация по мете актора (meta)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ meta: { include: "comp" } })
+            .filter(({ self }) => ({ meta: { include: "comp" } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -223,6 +230,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при include условии").toBe(true)
@@ -235,7 +243,7 @@ describe("Фильтрация по мете актора (meta)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ meta: { notInclude: "bad" } })
+            .filter(({ self }) => ({ meta: { notInclude: "bad" } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -250,6 +258,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при notInclude условии").toBe(true)
@@ -262,7 +271,7 @@ describe("Фильтрация по мете актора (meta)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ meta: { notStartsWith: "bad" } })
+            .filter(({ self }) => ({ meta: { notStartsWith: "bad" } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -277,6 +286,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при notStartsWith условии").toBe(true)
@@ -289,7 +299,7 @@ describe("Фильтрация по мете актора (meta)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ meta: { notEndsWith: "bad" } })
+            .filter(({ self }) => ({ meta: { notEndsWith: "bad" } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -304,6 +314,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при notEndsWith условии").toBe(true)
@@ -316,7 +327,7 @@ describe("Фильтрация по мете актора (meta)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ meta: { pattern: /^test_\d+$/ } })
+            .filter(({ self }) => ({ meta: { pattern: /^test_\d+$/ } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -331,6 +342,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при pattern условии").toBe(true)
@@ -343,7 +355,7 @@ describe("Фильтрация по мете актора (meta)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ meta: { length: 4 } })
+            .filter(({ self }) => ({ meta: { length: 4 } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -358,6 +370,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при length условии (число)").toBe(true)
@@ -370,7 +383,7 @@ describe("Фильтрация по мете актора (meta)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ meta: { length: { min: 3, max: 10 } } })
+            .filter(({ self }) => ({ meta: { length: { min: 3, max: 10 } } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -385,6 +398,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при length условии (min/max)").toBe(true)
@@ -397,7 +411,7 @@ describe("Фильтрация по мете актора (meta)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ meta: { between: ["a", "z"] } })
+            .filter(({ self }) => ({ meta: { between: ["a", "z"] } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -412,6 +426,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при between условии").toBe(true)
@@ -424,13 +439,13 @@ describe("Фильтрация по мете актора (meta)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({
+            .filter(({ self }) => ({
               meta: {
                 startsWith: "test",
                 include: "comp",
                 length: { min: 10, max: 20 },
               },
-            })
+            }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -445,6 +460,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при комбинированных условиях").toBe(true)

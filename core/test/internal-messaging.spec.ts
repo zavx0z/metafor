@@ -25,10 +25,7 @@ describe("Внутренний механизм коммуникации меж�
       reactions: {
         "value-reaction": {
           label: "Реакция на изменение значения",
-          cond: {
-            op: "replace",
-            path: "/context",
-          },
+          cond: '({ self }) => ({ op: "replace", path: "/context" })',
           src: `({ context, meta, actor, update }) => {
             // Простая реакция - устанавливаем значение в 1 (безопасно)
             console.log(\`Реакция сработала для актора \${actor}, текущее значение: \${context.value}\`)

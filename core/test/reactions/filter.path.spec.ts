@@ -8,7 +8,7 @@ type State = "idle" | "active"
 
 describe("Фильтрация по пути патча (path)", () => {
   const fakeUpdate: Update<Ctx> = (values) => values as any
-  const fakeContext: Values<Ctx> = { value: 10 }
+  const fakeContext: Values<Ctx> = { value: 10 } as any
   const fakeMeta: string = "test"
 
   it("фильтрация по /context", () => {
@@ -18,7 +18,7 @@ describe("Фильтрация по пути патча (path)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ path: "/context" })
+            .filter(({ self }) => ({ path: "/context" }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -33,6 +33,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при path /context").toBe(true)
@@ -45,7 +46,7 @@ describe("Фильтрация по пути патча (path)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ path: "/state" })
+            .filter(({ self }) => ({ path: "/state" }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -60,6 +61,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при path /state").toBe(true)
@@ -72,7 +74,7 @@ describe("Фильтрация по пути патча (path)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ path: "/" })
+            .filter(({ self }) => ({ path: "/" }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -87,6 +89,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при path /").toBe(true)
@@ -99,7 +102,7 @@ describe("Фильтрация по пути патча (path)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ path: "/context" })
+            .filter(({ self }) => ({ path: "/context" }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -114,6 +117,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция не должна сработать при несовпадении пути").toBe(false)
@@ -126,10 +130,10 @@ describe("Фильтрация по пути патча (path)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({
+            .filter(({ self }) => ({
               path: "/context",
               op: "replace",
-            })
+            }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -144,6 +148,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при комбинированной фильтрации").toBe(true)
@@ -156,10 +161,10 @@ describe("Фильтрация по пути патча (path)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({
+            .filter(({ self }) => ({
               path: "/context",
               meta: "test",
-            })
+            }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -174,6 +179,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при комбинированной фильтрации с тегом").toBe(true)
@@ -186,10 +192,10 @@ describe("Фильтрация по пути патча (path)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({
+            .filter(({ self }) => ({
               path: "/context",
               op: "replace",
-            })
+            }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -204,6 +210,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при /context с replace").toBe(true)
@@ -216,10 +223,10 @@ describe("Фильтрация по пути патча (path)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({
+            .filter(({ self }) => ({
               path: "/context",
               op: "add",
-            })
+            }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -234,6 +241,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при /context с add").toBe(true)
@@ -246,10 +254,10 @@ describe("Фильтрация по пути патча (path)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({
+            .filter(({ self }) => ({
               path: "/context",
               op: "remove",
-            })
+            }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -264,6 +272,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при /context с remove").toBe(true)
@@ -276,10 +285,10 @@ describe("Фильтрация по пути патча (path)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({
+            .filter(({ self }) => ({
               path: "/context",
               op: "test",
-            })
+            }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -294,6 +303,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при /context с test").toBe(true)
@@ -306,10 +316,10 @@ describe("Фильтрация по пути патча (path)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({
+            .filter(({ self }) => ({
               path: "/state",
               op: "replace",
-            })
+            }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -324,6 +334,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при /state с replace").toBe(true)
@@ -336,10 +347,10 @@ describe("Фильтрация по пути патча (path)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({
+            .filter(({ self }) => ({
               path: "/",
               op: "add",
-            })
+            }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -354,6 +365,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при / с add").toBe(true)

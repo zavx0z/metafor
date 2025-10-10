@@ -44,10 +44,7 @@ describe("Двойная отправка сообщений (BroadcastChannel +
       reactions: {
         "value-reaction": {
           label: "Реакция на изменение значения",
-          cond: {
-            op: "replace",
-            path: "/context",
-          },
+          cond: '({ self }) => ({ op: "replace", path: "/context" })',
           src: `({ context, meta, actor, update }) => {
             // Простая реакция - устанавливаем значение в 100
             update({ value: 100 })

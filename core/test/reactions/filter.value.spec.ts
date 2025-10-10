@@ -25,7 +25,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: "active" })
+              .filter(({ self }) => ({ value: "active" }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -40,6 +40,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при прямом сравнении строки").toBe(true)
@@ -52,7 +53,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: /^user_\d+$/ })
+              .filter(({ self }) => ({ value: /^user_\d+$/ }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -67,6 +68,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при соответствии регулярному выражению").toBe(true)
@@ -79,7 +81,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { eq: "active" } })
+              .filter(({ self }) => ({ value: { eq: "active" } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -94,6 +96,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии eq").toBe(true)
@@ -106,7 +109,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { notEq: "inactive" } })
+              .filter(({ self }) => ({ value: { notEq: "inactive" } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -121,6 +124,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии notEq").toBe(true)
@@ -133,7 +137,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { startsWith: "user_" } })
+              .filter(({ self }) => ({ value: { startsWith: "user_" } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -148,6 +152,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии startsWith").toBe(true)
@@ -160,7 +165,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { endsWith: "_active" } })
+              .filter(({ self }) => ({ value: { endsWith: "_active" } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -175,6 +180,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии endsWith").toBe(true)
@@ -187,7 +193,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { include: "error" } })
+              .filter(({ self }) => ({ value: { include: "error" } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -202,6 +208,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии include").toBe(true)
@@ -214,7 +221,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { notInclude: "error" } })
+              .filter(({ self }) => ({ value: { notInclude: "error" } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -229,6 +236,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии notInclude").toBe(true)
@@ -241,7 +249,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { pattern: /^\d{3}$/ } })
+              .filter(({ self }) => ({ value: { pattern: /^\d{3}$/ } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -256,6 +264,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии pattern").toBe(true)
@@ -268,7 +277,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { length: 5 } })
+              .filter(({ self }) => ({ value: { length: 5 } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -283,6 +292,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии length (число)").toBe(true)
@@ -295,7 +305,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { length: { min: 3, max: 10 } } })
+              .filter(({ self }) => ({ value: { length: { min: 3, max: 10 } } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -310,6 +320,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии length (min/max)").toBe(true)
@@ -322,7 +333,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { between: ["a", "z"] } })
+              .filter(({ self }) => ({ value: { between: ["a", "z"] } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -337,6 +348,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии between").toBe(true)
@@ -351,7 +363,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: 42 })
+              .filter(({ self }) => ({ value: 42 }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -366,6 +378,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при прямом сравнении числа").toBe(true)
@@ -378,7 +391,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { eq: 42 } })
+              .filter(({ self }) => ({ value: { eq: 42 } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -393,6 +406,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии eq").toBe(true)
@@ -405,7 +419,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { gt: 10 } })
+              .filter(({ self }) => ({ value: { gt: 10 } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -420,6 +434,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии gt").toBe(true)
@@ -432,7 +447,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { gte: 42 } })
+              .filter(({ self }) => ({ value: { gte: 42 } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -447,6 +462,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии gte").toBe(true)
@@ -459,7 +475,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { lt: 100 } })
+              .filter(({ self }) => ({ value: { lt: 100 } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -474,6 +490,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии lt").toBe(true)
@@ -486,7 +503,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { lte: 42 } })
+              .filter(({ self }) => ({ value: { lte: 42 } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -501,6 +518,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии lte").toBe(true)
@@ -513,7 +531,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { between: [10, 100] } })
+              .filter(({ self }) => ({ value: { between: [10, 100] } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -528,6 +546,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии between").toBe(true)
@@ -542,7 +561,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: true })
+              .filter(({ self }) => ({ value: true }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -557,6 +576,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при прямом сравнении булева значения").toBe(true)
@@ -569,7 +589,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { eq: true } })
+              .filter(({ self }) => ({ value: { eq: true } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -584,6 +604,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии eq для булева значения").toBe(true)
@@ -596,7 +617,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { logicalEq: true } })
+              .filter(({ self }) => ({ value: { logicalEq: true } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -611,6 +632,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии logicalEq").toBe(true)
@@ -620,40 +642,12 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Массивы", () => {
     it("прямое сравнение массива", () => {
       const core: { called: boolean } = { called: false }
-      const testArray = [1, 2, 3]
       const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: testArray })
-              .equal(({ core }) => (core.called = true)),
-          ],
-        ]) as any
-      )
-
-      registry.run({
-        meta: fakeMeta,
-        actor: "id",
-        timestamp: Date.now(),
-        patch: { op: "replace", path: "/context", value: testArray },
-        context: fakeContext,
-        state: "idle",
-        core,
-        update: fakeUpdate,
-      })
-
-      expect(core.called, "реакция должна сработать при прямом сравнении массива").toBe(true)
-    })
-
-    it("условие length (число)", () => {
-      const core: { called: boolean } = { called: false }
-      const registry = reactionsFromSchema(
-        reactionsSchema<{}, State, { called: boolean }>((reaction) => [
-          [
-            ["idle"],
-            reaction({ label: "test" })
-              .filter({ value: { length: 3 } })
+              .filter(({ self }) => ({ value: [1, 2, 3] }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -668,6 +662,35 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
+      })
+
+      expect(core.called, "реакция должна сработать при прямом сравнении массива").toBe(true)
+    })
+
+    it("условие length (число)", () => {
+      const core: { called: boolean } = { called: false }
+      const registry = reactionsFromSchema(
+        reactionsSchema<{}, State, { called: boolean }>((reaction) => [
+          [
+            ["idle"],
+            reaction({ label: "test" })
+              .filter(({ self }) => ({ value: { length: 3 } }))
+              .equal(({ core }) => (core.called = true)),
+          ],
+        ]) as any
+      )
+
+      registry.run({
+        meta: fakeMeta,
+        actor: "id",
+        timestamp: Date.now(),
+        patch: { op: "replace", path: "/context", value: [1, 2, 3] },
+        context: fakeContext,
+        state: "idle",
+        core,
+        update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии length для массива").toBe(true)
@@ -680,7 +703,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { includes: "item" } })
+              .filter(({ self }) => ({ value: { includes: "item" } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -695,6 +718,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии includes").toBe(true)
@@ -707,7 +731,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { isEmpty: true } })
+              .filter(({ self }) => ({ value: { isEmpty: true } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -722,6 +746,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии isEmpty").toBe(true)
@@ -734,7 +759,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { every: { gt: 0 } } as any })
+              .filter(({ self }) => ({ value: { every: { gt: 0 } } as any }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -749,6 +774,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии every для чисел").toBe(true)
@@ -761,7 +787,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { some: { include: "error" } } as any })
+              .filter(({ self }) => ({ value: { some: { include: "error" } } as any }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -776,6 +802,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии some для строк").toBe(true)
@@ -790,7 +817,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: null })
+              .filter(({ self }) => ({ value: null }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -805,6 +832,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при прямом сравнении null").toBe(true)
@@ -817,7 +845,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: undefined as any })
+              .filter(({ self }) => ({ value: undefined as any }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -832,6 +860,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при прямом сравнении undefined").toBe(true)
@@ -844,7 +873,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { null: true } })
+              .filter(({ self }) => ({ value: { null: true } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -859,6 +888,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при условии null в объекте").toBe(true)
@@ -868,13 +898,12 @@ describe("Фильтрация по значению патча (value) - рас
   describe("Объекты", () => {
     it("прямое сравнение объекта", () => {
       const core: { called: boolean } = { called: false }
-      const testObject = { name: "test", value: 42 }
       const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: testObject as any })
+              .filter(({ self }) => ({ value: { name: "test", value: 42 } as any }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -884,11 +913,12 @@ describe("Фильтрация по значению патча (value) - рас
         meta: fakeMeta,
         actor: "id",
         timestamp: Date.now(),
-        patch: { op: "replace", path: "/context", value: testObject },
+        patch: { op: "replace", path: "/context", value: { name: "test", value: 42 } },
         context: fakeContext,
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при прямом сравнении объекта").toBe(true)
@@ -896,22 +926,23 @@ describe("Фильтрация по значению патча (value) - рас
 
     it("сложный объект", () => {
       const core: { called: boolean } = { called: false }
-      const complexObject = {
-        user: {
-          id: 123,
-          name: "John",
-          settings: {
-            theme: "dark",
-            notifications: true,
-          },
-        },
-      }
       const registry = reactionsFromSchema(
         reactionsSchema<{}, State, { called: boolean }>((reaction) => [
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: complexObject as any })
+              .filter(({ self }) => ({
+                value: {
+                  user: {
+                    id: 123,
+                    name: "John",
+                    settings: {
+                      theme: "dark",
+                      notifications: true,
+                    },
+                  },
+                } as any,
+              }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -921,11 +952,25 @@ describe("Фильтрация по значению патча (value) - рас
         meta: fakeMeta,
         actor: "id",
         timestamp: Date.now(),
-        patch: { op: "replace", path: "/context", value: complexObject },
+        patch: {
+          op: "replace",
+          path: "/context",
+          value: {
+            user: {
+              id: 123,
+              name: "John",
+              settings: {
+                theme: "dark",
+                notifications: true,
+              },
+            },
+          },
+        },
         context: fakeContext,
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при сложном объекте").toBe(true)
@@ -940,11 +985,11 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({
+              .filter(({ self }) => ({
                 value: { gt: 10, lt: 100 },
                 op: "replace",
                 path: "/context",
-              })
+              }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -959,6 +1004,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при комбинированных условиях").toBe(true)
@@ -971,9 +1017,9 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({
+              .filter(({ self }) => ({
                 value: { startsWith: "user_", include: "active" },
-              })
+              }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -988,6 +1034,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция должна сработать при комбинации строковых условий").toBe(true)
@@ -1002,7 +1049,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: "active" })
+              .filter(({ self }) => ({ value: "active" }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -1017,6 +1064,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция не должна сработать при несовпадении строки").toBe(false)
@@ -1029,7 +1077,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { gt: 100 } })
+              .filter(({ self }) => ({ value: { gt: 100 } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -1044,6 +1092,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция не должна сработать при несовпадении числа").toBe(false)
@@ -1056,7 +1105,7 @@ describe("Фильтрация по значению патча (value) - рас
           [
             ["idle"],
             reaction({ label: "test" })
-              .filter({ value: { length: 5 } })
+              .filter(({ self }) => ({ value: { length: 5 } }))
               .equal(({ core }) => (core.called = true)),
           ],
         ]) as any
@@ -1071,6 +1120,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
+        self: { meta: "test", actor: "test-actor" },
       })
 
       expect(core.called, "реакция не должна сработать при несовпадении длины массива").toBe(false)

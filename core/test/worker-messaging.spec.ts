@@ -23,10 +23,7 @@ describe("Коммуникация между акторами в разных �
       reactions: {
         "value-reaction": {
           label: "Реакция на изменение значения",
-          cond: {
-            op: "replace",
-            path: "/context",
-          },
+          cond: '({ self }) => ({ op: "replace", path: "/context" })',
           src: `({ context, meta, actor, update }) => {
             // Реакция устанавливает значение в 999
             update({ value: 999 })

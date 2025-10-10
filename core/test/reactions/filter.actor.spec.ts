@@ -19,7 +19,7 @@ describe("Фильтрация по актору", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ actor: "5" })
+            .filter(({ self }) => ({ actor: "5" }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -34,6 +34,7 @@ describe("Фильтрация по актору", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при точном совпадении").toBe(true)
@@ -46,7 +47,7 @@ describe("Фильтрация по актору", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ actor: "5" })
+            .filter(({ self }) => ({ actor: "5" }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -61,6 +62,7 @@ describe("Фильтрация по актору", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция не должна сработать при несовпадении").toBe(false)
@@ -73,7 +75,7 @@ describe("Фильтрация по актору", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ actor: { eq: "5" } })
+            .filter(({ self }) => ({ actor: { eq: "5" } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -88,6 +90,7 @@ describe("Фильтрация по актору", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при eq условии").toBe(true)
@@ -100,7 +103,7 @@ describe("Фильтрация по актору", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ actor: { notEq: "10" } })
+            .filter(({ self }) => ({ actor: { notEq: "10" } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -115,6 +118,7 @@ describe("Фильтрация по актору", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при notEq условии").toBe(true)

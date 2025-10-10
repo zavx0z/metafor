@@ -52,13 +52,13 @@ describe.skip("реакции", () => {
         [
           ["state_1"],
           reaction({ label: "record_all_messages" })
-            .filter({ meta: "childHash" })
+            .filter(({ self }) => ({ meta: "childHash" }))
             .equal(({ meta, actor, timestamp, patch }) => recordMessage({ meta, actor, timestamp, patch })),
         ],
         [
           ["state_1"],
           reaction()
-            .filter({ meta: "childHash", op: "add" })
+            .filter(({ self }) => ({ meta: "childHash", op: "add" }))
             .equal(({ update }) => update({ childAdded: true })),
         ],
       ])

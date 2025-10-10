@@ -20,34 +20,7 @@ describe("Фильтрация по временной метке (timestamp)", 
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ timestamp })
-            .equal(({ core }) => (core.called = true)),
-        ],
-      ]) as any
-    )
-
-    registry.run({
-      meta: "test",
-      actor: "id",
-      timestamp,
-      patch: fakePatch,
-      context: fakeContext,
-      state: "idle",
-      core,
-      update: fakeUpdate,
-    })
-
-    expect(core.called, "реакция должна сработать при точном совпадении").toBe(true)
-  })
-
-  it("не срабатывает при несовпадении", () => {
-    const core: { called: boolean } = { called: false }
-    const registry = reactionsFromSchema(
-      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
-        [
-          ["idle"],
-          reaction({ label: "test" })
-            .filter({ timestamp: 1000 })
+            .filter(({ self }) => ({ timestamp: 2000 }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -62,6 +35,35 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
+    })
+
+    expect(core.called, "реакция должна сработать при точном совпадении").toBe(true)
+  })
+
+  it("не срабатывает при несовпадении", () => {
+    const core: { called: boolean } = { called: false }
+    const registry = reactionsFromSchema(
+      reactionsSchema<{}, State, { called: boolean }>((reaction) => [
+        [
+          ["idle"],
+          reaction({ label: "test" })
+            .filter(({ self }) => ({ timestamp: 1000 }))
+            .equal(({ core }) => (core.called = true)),
+        ],
+      ]) as any
+    )
+
+    registry.run({
+      meta: "test",
+      actor: "id",
+      timestamp: 2000,
+      patch: fakePatch,
+      context: fakeContext,
+      state: "idle",
+      core,
+      update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция не должна сработать при несовпадении").toBe(false)
@@ -75,7 +77,7 @@ describe("Фильтрация по временной метке (timestamp)", 
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ timestamp: { eq: timestamp } })
+            .filter(({ self }) => ({ timestamp: { eq: 2000 } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -84,12 +86,13 @@ describe("Фильтрация по временной метке (timestamp)", 
     registry.run({
       meta: "test",
       actor: "id",
-      timestamp,
+      timestamp: 2000,
       patch: fakePatch,
       context: fakeContext,
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при eq условии").toBe(true)
@@ -102,7 +105,7 @@ describe("Фильтрация по временной метке (timestamp)", 
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ timestamp: { notEq: 1000 } })
+            .filter(({ self }) => ({ timestamp: { notEq: 1000 } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -117,6 +120,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при notEq условии").toBe(true)
@@ -129,7 +133,7 @@ describe("Фильтрация по временной метке (timestamp)", 
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ timestamp: { gt: 1000 } })
+            .filter(({ self }) => ({ timestamp: { gt: 1000 } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -144,6 +148,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при gt условии").toBe(true)
@@ -157,7 +162,7 @@ describe("Фильтрация по временной метке (timestamp)", 
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ timestamp: { gte: timestamp } })
+            .filter(({ self }) => ({ timestamp: { gte: 2000 } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -172,6 +177,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при gte условии").toBe(true)
@@ -184,7 +190,7 @@ describe("Фильтрация по временной метке (timestamp)", 
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ timestamp: { lt: 3000 } })
+            .filter(({ self }) => ({ timestamp: { lt: 3000 } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -199,6 +205,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при lt условии").toBe(true)
@@ -212,7 +219,7 @@ describe("Фильтрация по временной метке (timestamp)", 
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ timestamp: { lte: timestamp } })
+            .filter(({ self }) => ({ timestamp: { lte: 2000 } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -227,6 +234,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при lte условии").toBe(true)
@@ -239,7 +247,7 @@ describe("Фильтрация по временной метке (timestamp)", 
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ timestamp: { notGt: 3000 } })
+            .filter(({ self }) => ({ timestamp: { notGt: 3000 } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -254,6 +262,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при notGt условии").toBe(true)
@@ -266,7 +275,7 @@ describe("Фильтрация по временной метке (timestamp)", 
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ timestamp: { notGte: 3000 } })
+            .filter(({ self }) => ({ timestamp: { notGte: 3000 } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -281,6 +290,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при notGte условии").toBe(true)
@@ -293,7 +303,7 @@ describe("Фильтрация по временной метке (timestamp)", 
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ timestamp: { notLt: 1000 } })
+            .filter(({ self }) => ({ timestamp: { notLt: 1000 } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -308,6 +318,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при notLt условии").toBe(true)
@@ -320,7 +331,7 @@ describe("Фильтрация по временной метке (timestamp)", 
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ timestamp: { notLte: 1000 } })
+            .filter(({ self }) => ({ timestamp: { notLte: 1000 } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -335,6 +346,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при notLte условии").toBe(true)
@@ -347,7 +359,7 @@ describe("Фильтрация по временной метке (timestamp)", 
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ timestamp: { between: [1000, 3000] } })
+            .filter(({ self }) => ({ timestamp: { between: [1000, 3000] } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -362,6 +374,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при between условии").toBe(true)
@@ -374,13 +387,13 @@ describe("Фильтрация по временной метке (timestamp)", 
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({
+            .filter(({ self }) => ({
               timestamp: {
                 gte: 1000,
                 lt: 3000,
                 notEq: 1500,
               },
-            })
+            }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -395,6 +408,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при комбинированных условиях").toBe(true)
@@ -407,7 +421,7 @@ describe("Фильтрация по временной метке (timestamp)", 
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ timestamp: { eq: 0 } })
+            .filter(({ self }) => ({ timestamp: { eq: 0 } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -422,6 +436,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при undefined timestamp (преобразуется в 0)").toBe(true)
@@ -436,7 +451,7 @@ describe("Фильтрация по временной метке (timestamp)", 
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ timestamp: { gte: oneMinuteAgo } })
+            .filter(({ self }) => ({ timestamp: { gte: Date.now() - 60000 } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -451,6 +466,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать для сообщений последней минуты").toBe(true)
@@ -465,7 +481,7 @@ describe("Фильтрация по временной метке (timestamp)", 
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ timestamp: { between: [startTime, endTime] } })
+            .filter(({ self }) => ({ timestamp: { between: [1000, 3000] } }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -480,6 +496,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать для сообщений в диапазоне времени").toBe(true)

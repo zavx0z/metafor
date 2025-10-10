@@ -19,7 +19,7 @@ describe("Фильтрация по операции патча (op)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ op: "replace" })
+            .filter(({ self }) => ({ op: "replace" }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -34,6 +34,7 @@ describe("Фильтрация по операции патча (op)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при replace операции").toBe(true)
@@ -46,7 +47,7 @@ describe("Фильтрация по операции патча (op)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ op: "add" })
+            .filter(({ self }) => ({ op: "add" }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -61,6 +62,7 @@ describe("Фильтрация по операции патча (op)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при add операции").toBe(true)
@@ -73,7 +75,7 @@ describe("Фильтрация по операции патча (op)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ op: "remove" })
+            .filter(({ self }) => ({ op: "remove" }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -88,6 +90,7 @@ describe("Фильтрация по операции патча (op)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при remove операции").toBe(true)
@@ -100,7 +103,7 @@ describe("Фильтрация по операции патча (op)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ op: "test" })
+            .filter(({ self }) => ({ op: "test" }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -115,6 +118,7 @@ describe("Фильтрация по операции патча (op)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при test операции").toBe(true)
@@ -127,7 +131,7 @@ describe("Фильтрация по операции патча (op)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({ op: "replace" })
+            .filter(({ self }) => ({ op: "replace" }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -142,6 +146,7 @@ describe("Фильтрация по операции патча (op)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция не должна сработать при несовпадении операции").toBe(false)
@@ -154,11 +159,11 @@ describe("Фильтрация по операции патча (op)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({
+            .filter(({ self }) => ({
               op: "replace",
               path: "/context",
               meta: "test",
-            })
+            }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -173,6 +178,7 @@ describe("Фильтрация по операции патча (op)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при комбинированной фильтрации").toBe(true)
@@ -185,10 +191,10 @@ describe("Фильтрация по операции патча (op)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({
+            .filter(({ self }) => ({
               op: "replace",
               path: "/context",
-            })
+            }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -203,6 +209,7 @@ describe("Фильтрация по операции патча (op)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при replace с path").toBe(true)
@@ -215,10 +222,10 @@ describe("Фильтрация по операции патча (op)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({
+            .filter(({ self }) => ({
               op: "add",
               path: "/context",
-            })
+            }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -233,6 +240,7 @@ describe("Фильтрация по операции патча (op)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при add с path").toBe(true)
@@ -245,10 +253,10 @@ describe("Фильтрация по операции патча (op)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({
+            .filter(({ self }) => ({
               op: "remove",
               path: "/context",
-            })
+            }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -263,6 +271,7 @@ describe("Фильтрация по операции патча (op)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при remove с path").toBe(true)
@@ -275,10 +284,10 @@ describe("Фильтрация по операции патча (op)", () => {
         [
           ["idle"],
           reaction({ label: "test" })
-            .filter({
+            .filter(({ self }) => ({
               op: "test",
               path: "/context",
-            })
+            }))
             .equal(({ core }) => (core.called = true)),
         ],
       ]) as any
@@ -293,6 +302,7 @@ describe("Фильтрация по операции патча (op)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(core.called, "реакция должна сработать при test с path").toBe(true)

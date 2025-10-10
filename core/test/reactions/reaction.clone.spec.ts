@@ -8,7 +8,7 @@ type State = "idle" | "active"
 
 describe("deserializeReactions", () => {
   const fakeUpdate: Update<Ctx> = (values) => values as any
-  const fakeContext: Values<Ctx> = { value: 10 }
+  const fakeContext: Values<Ctx> = { value: 10 } as any
   const fakePatch: JsonPatch = { op: "replace", path: "/context", value: 1 }
 
   it("создание из снимка", () => {
@@ -16,16 +16,16 @@ describe("deserializeReactions", () => {
     const snapshot = {
       reactions: {
         test_reaction_0: {
-          title: "test_reaction",
-          cond: { meta: "test" },
+          label: "test_reaction",
+          cond: '({ self }) => ({ meta: "test" })',
           read: ["value"],
           write: ["value"],
           src: "({ update }) => update({ value: 100 })",
         },
         another_reaction_1: {
-          title: "another_reaction",
+          label: "another_reaction",
           desc: "Описание",
-          cond: { op: "add" },
+          cond: '({ self }) => ({ op: "add" })',
           read: ["value"],
           write: ["value"],
           src: "({ update }) => update({ value: 200 })",
@@ -46,17 +46,17 @@ describe("deserializeReactions", () => {
 
     // Проверяем реакции
     const reactions = deserializedReactions.getAllReactions()
-    expect(reactions[0]!.title, "название первой реакции должно совпадать").toBe("test_reaction")
-    expect(reactions[1]!.title, "название второй реакции должно совпадать").toBe("another_reaction")
-    expect(reactions[1]!.description, "описание должно сохраниться").toBe("Описание")
+    expect(reactions[0]!.label, "название первой реакции должно совпадать").toBe("test_reaction")
+    expect(reactions[1]!.label, "название второй реакции должно совпадать").toBe("another_reaction")
+    expect(reactions[1]!.desc, "описание должно сохраниться").toBe("Описание")
 
     // Проверяем состояния
     const idleReactions = deserializedReactions.getReactions("idle")
     const activeReactions = deserializedReactions.getReactions("active")
     expect(idleReactions.length, "должна быть одна реакция для idle").toBe(1)
     expect(activeReactions.length, "должна быть одна реакция для active").toBe(1)
-    expect(idleReactions[0]!.title, "реакция для idle должна быть правильной").toBe("test_reaction")
-    expect(activeReactions[0]!.title, "реакция для active должна быть правильной").toBe("another_reaction")
+    expect(idleReactions[0]!.label, "реакция для idle должна быть правильной").toBe("test_reaction")
+    expect(activeReactions[0]!.label, "реакция для active должна быть правильной").toBe("another_reaction")
 
     // Проверяем выполнение реакций
     let updatedContext: any = {}
@@ -74,6 +74,7 @@ describe("deserializeReactions", () => {
       timestamp: Date.now(),
       patch: fakePatch,
       update: mockUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     // Реакция должна сработать и обновить контекст
@@ -94,9 +95,9 @@ describe("deserializeReactions", () => {
     const snapshotWithMetadata = {
       reactions: {
         reaction_1: {
-          title: "test",
+          label: "test",
           desc: "description",
-          cond: { meta: "test" },
+          cond: '({ self }) => ({ meta: "test" })',
           read: ["value"],
           write: ["value"],
           src: "({ update }) => update({ value: 42 })",
@@ -112,13 +113,13 @@ describe("deserializeReactions", () => {
     expect(deserializedReactions.hasReactions(), "десериализованные реакции должны содержать реакции").toBe(true)
 
     const reactions = deserializedReactions.getAllReactions()
-    expect(reactions[0]!.title, "название должно сохраниться").toBe("test")
-    expect(reactions[0]!.description, "описание должно сохраниться").toBe("description")
+    expect(reactions[0]!.label, "название должно сохраниться").toBe("test")
+    expect(reactions[0]!.desc, "описание должно сохраниться").toBe("description")
 
     // Проверяем, что состояния правильно связаны
     const idleReactions = deserializedReactions.getReactions("idle")
     expect(idleReactions.length, "должна быть одна реакция для idle").toBe(1)
-    expect(idleReactions[0]!.title, "реакция должна быть правильной").toBe("test")
+    expect(idleReactions[0]!.label, "реакция должна быть правильной").toBe("test")
 
     // Проверяем выполнение реакции
     let updatedContext: any = {}
@@ -136,6 +137,7 @@ describe("deserializeReactions", () => {
       timestamp: Date.now(),
       patch: fakePatch,
       update: mockUpdate,
+      self: { meta: "test", actor: "test-actor" },
     })
 
     expect(updatedContext.value, "реакция должна обновить контекст").toBe(42)

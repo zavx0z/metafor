@@ -37,10 +37,7 @@ describe("Получение сообщений из обоих каналов",
       reactions: {
         "value-reaction": {
           label: "Реакция на изменение значения",
-          cond: {
-            op: "replace",
-            path: "/context",
-          },
+          cond: '({ self }) => ({ op: "replace", path: "/context" })',
           src: `({ context, meta, actor, update }) => {
             // Реакция устанавливает источник сообщения (безопасно - не вызывает новую реакцию)
             update({ 

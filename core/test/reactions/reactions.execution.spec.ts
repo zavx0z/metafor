@@ -30,7 +30,7 @@ test("Выполнение реакций через run", () => {
       [
         ["active"],
         reaction({ label: "test" })
-          .filter({ meta: "test" })
+          .filter(({ self }) => ({ meta: "test" }))
           .equal(({ core }) => (core.called = true)),
       ],
     ]) as any
@@ -45,6 +45,7 @@ test("Выполнение реакций через run", () => {
     state: "active",
     core,
     update: fakeUpdate,
+    self: { meta: "test", actor: "test-actor" },
   })
 
   expect(core.called, "реакция вызвана").toBe(true)
