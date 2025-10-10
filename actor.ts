@@ -254,12 +254,21 @@ export class Actor extends ActorCommunication {
 
   /** Очищает ресурсы актора и удаляет его из реестра */
   destroy() {
+    // Рекурсивно уничтожаем всех детей
+    const hierarchy = ActorCommunication.getHierarchy()
+    const children = hierarchy.getChildren(this.path)
+
+    for (const childPath of children) {
+      const childActor = hierarchy.getActor(childPath)
+      if (childActor instanceof Actor) {
+        childActor.destroy()
+      }
+    }
+
     this.destroyCommunication()
     Actor.coreWeakMap.delete(this)
     this.stateListeners.clear()
     this.ctx.clearSubscribers()
-
-    // Иерархия управляется через ActorHierarchy в базовом классе
   }
 
   static fromSchema<M extends MetaSchema>(config: {

@@ -77,6 +77,35 @@ describe("Очистка ресурсов актора", () => {
     actor2.destroy()
   })
 
+  it("должен рекурсивно уничтожать всех детей", () => {
+    const parent = Actor.fromSchema({ meta: testSchema, id: "parent" })
+    const child1 = Actor.fromSchema({ meta: testSchema, id: "child1", path: `${parent.path}/0` })
+    const child2 = Actor.fromSchema({ meta: testSchema, id: "child2", path: `${parent.path}/1` })
+    const grandchild = Actor.fromSchema({ meta: testSchema, id: "grandchild", path: `${child1.path}/0` })
+
+    const hierarchy = ActorCommunication.getHierarchy()
+
+    // Добавляем в иерархию
+    hierarchy.appendChild(parent.path, child1.path)
+    hierarchy.appendChild(parent.path, child2.path)
+    hierarchy.appendChild(child1.path, grandchild.path)
+
+    // Проверяем, что все акторы зарегистрированы
+    expect(hierarchy.hasActor(parent.path)).toBe(true)
+    expect(hierarchy.hasActor(child1.path)).toBe(true)
+    expect(hierarchy.hasActor(child2.path)).toBe(true)
+    expect(hierarchy.hasActor(grandchild.path)).toBe(true)
+
+    // Уничтожаем родителя
+    parent.destroy()
+
+    // Проверяем, что все дети тоже уничтожены
+    expect(hierarchy.hasActor(parent.path)).toBe(false)
+    expect(hierarchy.hasActor(child1.path)).toBe(false)
+    expect(hierarchy.hasActor(child2.path)).toBe(false)
+    expect(hierarchy.hasActor(grandchild.path)).toBe(false)
+  })
+
   it("должен корректно обрабатывать повторные вызовы destroy", () => {
     const actor = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
 
