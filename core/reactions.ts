@@ -7,6 +7,7 @@ import type { Core } from "../actor.t"
 import type { ReactionParams, Reactions } from "./reactions.t"
 import type { ReactionUpdate, ReactionsSchema } from "../schema/reactions.t"
 import type { ReactionFilterConditions } from "./condition.t"
+import type { Self } from "../metafor.t"
 export type { Reactions } from "./reactions.t"
 /**
  * Десериализует реакции из схемы и возвращает объект с функциями для работы с реакциями.
@@ -35,10 +36,10 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
   schema: ReactionsSchema
 ): Reactions<C, S, I> {
   const reactions: Array<{
-    title: string
-    description?: string
+    label: string
+    desc?: string
     update: ReactionUpdate<C, S, I>
-    filter: (params: ReactionParams) => boolean
+    getConditions: (params: { self: Self }) => any
     states: string[]
   }> = []
 
@@ -234,14 +235,16 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
       // Восстанавливаем функцию equal из строки
       const updateFn = new Function("return " + reactionData.src)() as ReactionUpdate<C, S, I>
 
-      // Создаем функцию фильтра на основе условий
-      const filterFn = createFilterFn(reactionData.cond)
+      // Создаем функцию фильтра из строки
+      const filterFn = new Function("return " + reactionData.cond)() as (params: {
+        self: Self
+      }) => ReactionFilterConditions
 
       const reaction = {
-        title: reactionData.label,
-        ...(reactionData.desc && { description: reactionData.desc }),
+        label: reactionData.label,
+        ...(reactionData.desc && { desc: reactionData.desc }),
         update: updateFn,
-        filter: filterFn,
+        getConditions: filterFn,
         states: [] as string[],
       }
 
@@ -264,13 +267,18 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
         // Проверяем, что реакция активна для текущего состояния
         if (!reaction.states.includes(params.state)) continue
 
+        // Получаем условия фильтра с передачей self
+        const conditions = reaction.getConditions({ self: params.self })
+        // Создаем фильтр на основе условий
+        const filterFn = createFilterFn(conditions)
         // Проверяем фильтр
         if (
-          reaction.filter({
+          filterFn({
             meta: params.meta,
             actor: params.actor,
             timestamp: params.timestamp,
             patch: params.patch,
+            self: params.self,
           })
         ) {
           // Выполняем реакцию
@@ -288,22 +296,9 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
       }
     },
     hasReactions: () => reactions.length > 0,
-    getAllReactions: () =>
-      reactions.map(({ states, ...reaction }) => reaction) as Array<{
-        title: string
-        description?: string
-        update: ReactionUpdate<C, S, I>
-        filter: (params: ReactionParams) => boolean
-      }>,
+    getAllReactions: () => reactions.map(({ states, ...reaction }) => reaction),
     getReactions: (state: S) => {
-      return reactions
-        .filter((reaction) => reaction.states.includes(state))
-        .map(({ states, ...reaction }) => reaction) as Array<{
-        title: string
-        description?: string
-        update: ReactionUpdate<C, S, I>
-        filter: (params: ReactionParams) => boolean
-      }>
+      return reactions.filter((reaction) => reaction.states.includes(state)).map(({ states, ...reaction }) => reaction)
     },
   }
 }

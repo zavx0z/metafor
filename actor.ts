@@ -220,6 +220,7 @@ export class Actor extends ActorCommunication {
         patch,
         state: this.state.current,
         update: this.update,
+        self: { meta: this.name, actor: this.id },
       })
     }
     this.transition() // TODO: оптимизировать по результату обновления

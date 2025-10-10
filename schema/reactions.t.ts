@@ -2,6 +2,7 @@ import type { Schema, Update, Values } from "@zavx0z/context"
 import type { Core, JsonPatch } from "../actor.t"
 import type { ReactionFilterConditions } from "../core/condition.t"
 import type { ReactionParams } from "../core/reactions.t"
+import type { Self } from "../metafor.t"
 
 /**
  * Конфигурация одной реакции
@@ -54,8 +55,8 @@ export type Reaction<C extends Schema, S extends string, I extends Core> = {
  * const reactions: ReactionsChain<MyContext, "idle" | "loading"> = (reaction) => [
  *   [
  *     ["idle", "loading"], // Состояния
- *     reaction({ title: "Обработка сообщений" })
- *       .filter({ meta: "user" })
+ *     reaction({ label: "Обработка сообщений" })
+ *       .filter(({ self }) => ({ meta: "user", actor: self.actor.split("/")[1] }))
  *       .equal(({ update, patch }) => {
  *         update({ lastMessage: patch.value })
  *       })
@@ -72,7 +73,7 @@ export type ReactionsDeclaration<C extends Schema, S extends string, I extends C
     desc?: string
   }) => {
     /** Добавляет декларативные фильтры */
-    filter: (conditions: ReactionFilterConditions) => {
+    filter: (conditions: (params: { self: Self }) => ReactionFilterConditions) => {
       /** Добавляет функцию обработки события */
       equal: (updateFn: ReactionUpdate<C, S, I>) => Reaction<C, S, I> & {
         /** Метод для регистрации состояний */
@@ -89,7 +90,7 @@ export type ReactionsSchema = {
     {
       label: string
       desc?: string
-      cond: ReactionFilterConditions
+      cond: string
       read?: string[]
       write?: string[]
       src: string
