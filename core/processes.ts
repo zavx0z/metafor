@@ -48,8 +48,8 @@ export function processesFromSchema<C extends Schema = Schema, S extends string 
           error: new Function(`//# sourceURL=${name}_error \n return ${processData.error.src}`)() as any,
         }),
         // Добавляем метаданные
-        ...(processData.label && { title: processData.label }),
-        ...(processData.desc && { description: processData.desc }),
+        ...(processData.label && { label: processData.label }),
+        ...(processData.desc && { desc: processData.desc }),
       }
       processes[processName as S] = process
     }

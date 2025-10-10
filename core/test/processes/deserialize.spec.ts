@@ -14,15 +14,15 @@ describe("deserializeProcesses", () => {
   test("десериализация процессов из snapshot", () => {
     const snapshot = {
       increment: {
-        title: "increment",
-        description: "Increment value",
+        label: "increment",
+        desc: "Increment value",
         action: {
           read: ["value"],
           src: "({ context }) => context.value + 1",
         },
       },
       reset: {
-        title: "reset",
+        label: "reset",
         action: {
           read: ["value"],
           src: "({ context }) => 0",
@@ -48,12 +48,12 @@ describe("deserializeProcesses", () => {
 
     const incrementProcess = processes.getProcess("increment" as S)
     expect(incrementProcess, "процесс increment должен быть найден").toBeDefined()
-    expect(incrementProcess?.title, "название процесса должно сохраниться").toBe("increment")
-    expect(incrementProcess?.description, "описание процесса должно сохраниться").toBe("Increment value")
+    expect(incrementProcess?.label, "название процесса должно сохраниться").toBe("increment")
+    expect(incrementProcess?.desc, "описание процесса должно сохраниться").toBe("Increment value")
 
     const resetProcess = processes.getProcess("reset" as S)
     expect(resetProcess, "процесс reset должен быть найден").toBeDefined()
-    expect(resetProcess?.title, "название процесса должно сохраниться").toBe("reset")
+    expect(resetProcess?.label, "название процесса должно сохраниться").toBe("reset")
     expect(resetProcess?.success, "success обработчик должен быть восстановлен").toBeDefined()
     expect(resetProcess?.error, "error обработчик должен быть восстановлен").toBeDefined()
   })
@@ -80,6 +80,7 @@ describe("deserializeProcesses", () => {
 
     // Тестируем action функцию
     const mockContext = { value: 5, name: "test", isActive: true }
+    // @ts-ignore
     const result = process!.action({ context: mockContext, core: {} })
     expect(result, "action функция должна работать").toBe(10)
 

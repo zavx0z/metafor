@@ -264,9 +264,9 @@ export type Process<C extends Schema = Schema, I extends Core = Core, Res = any>
   /** Обработчик ошибки */
   error?: (params: { update: Update<C>; error: Error }) => void
   /** Название процесса для документации */
-  title?: string
+  label?: string
   /** Описание процесса для документации */
-  description?: string
+  desc?: string
 }
 
 /**
