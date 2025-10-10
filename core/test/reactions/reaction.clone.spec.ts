@@ -74,7 +74,7 @@ describe("deserializeReactions", () => {
       timestamp: Date.now(),
       patch: fakePatch,
       update: mockUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     // Реакция должна сработать и обновить контекст
@@ -137,7 +137,7 @@ describe("deserializeReactions", () => {
       timestamp: Date.now(),
       patch: fakePatch,
       update: mockUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(updatedContext.value, "реакция должна обновить контекст").toBe(42)

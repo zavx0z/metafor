@@ -318,4 +318,5 @@ export interface MetaSchema<C extends Schema = Schema, S extends string = string
 export type Self = {
   meta: string
   actor: string
+  path: string
 }

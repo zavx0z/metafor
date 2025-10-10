@@ -40,7 +40,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при прямом сравнении строки").toBe(true)
@@ -68,7 +68,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при соответствии регулярному выражению").toBe(true)
@@ -96,7 +96,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии eq").toBe(true)
@@ -124,7 +124,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии notEq").toBe(true)
@@ -152,7 +152,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии startsWith").toBe(true)
@@ -180,7 +180,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии endsWith").toBe(true)
@@ -208,7 +208,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии include").toBe(true)
@@ -236,7 +236,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии notInclude").toBe(true)
@@ -264,7 +264,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии pattern").toBe(true)
@@ -292,7 +292,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии length (число)").toBe(true)
@@ -320,7 +320,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии length (min/max)").toBe(true)
@@ -348,7 +348,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии between").toBe(true)
@@ -378,7 +378,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при прямом сравнении числа").toBe(true)
@@ -406,7 +406,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии eq").toBe(true)
@@ -434,7 +434,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии gt").toBe(true)
@@ -462,7 +462,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии gte").toBe(true)
@@ -490,7 +490,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии lt").toBe(true)
@@ -518,7 +518,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии lte").toBe(true)
@@ -546,7 +546,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии between").toBe(true)
@@ -576,7 +576,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при прямом сравнении булева значения").toBe(true)
@@ -604,7 +604,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии eq для булева значения").toBe(true)
@@ -632,7 +632,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии logicalEq").toBe(true)
@@ -662,7 +662,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при прямом сравнении массива").toBe(true)
@@ -690,7 +690,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии length для массива").toBe(true)
@@ -718,7 +718,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии includes").toBe(true)
@@ -746,7 +746,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии isEmpty").toBe(true)
@@ -774,7 +774,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии every для чисел").toBe(true)
@@ -802,7 +802,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии some для строк").toBe(true)
@@ -832,7 +832,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при прямом сравнении null").toBe(true)
@@ -860,7 +860,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при прямом сравнении undefined").toBe(true)
@@ -888,7 +888,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при условии null в объекте").toBe(true)
@@ -918,7 +918,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при прямом сравнении объекта").toBe(true)
@@ -970,7 +970,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при сложном объекте").toBe(true)
@@ -1004,7 +1004,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при комбинированных условиях").toBe(true)
@@ -1034,7 +1034,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция должна сработать при комбинации строковых условий").toBe(true)
@@ -1064,7 +1064,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция не должна сработать при несовпадении строки").toBe(false)
@@ -1092,7 +1092,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция не должна сработать при несовпадении числа").toBe(false)
@@ -1120,7 +1120,7 @@ describe("Фильтрация по значению патча (value) - рас
         state: "idle",
         core,
         update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
       })
 
       expect(core.called, "реакция не должна сработать при несовпадении длины массива").toBe(false)

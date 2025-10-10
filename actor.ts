@@ -3,9 +3,11 @@ import { checkTransition, type Conditions, type Transitions } from "./core/state
 import { processesFromSchema, type Process, type Processes } from "./core/processes"
 import { reactionsFromSchema, type Reactions } from "./core/reactions"
 import { ActorCommunication } from "./core/communication"
+import { ActorHierarchy } from "./core/hierarchy"
 import type { Node as ParseNode } from "@zavx0z/template"
 import type { Core, Snapshot, Message } from "./actor.t"
 export type { Message }
+export { ActorHierarchy }
 import type { StatesConfig } from "./schema/states"
 import type { MetaSchema } from "./metafor"
 
@@ -138,7 +140,7 @@ export class Actor extends ActorCommunication {
         schema: this.ctx.schema,
         context: this.ctx.context,
         core: this.core,
-        self: { meta: this.name, actor: this.id },
+        self: { meta: this.name, actor: this.id, path: this.path },
       })
       if (result instanceof Promise) {
         result
@@ -232,7 +234,7 @@ export class Actor extends ActorCommunication {
         patch,
         state: this.state.current,
         update: this.update,
-        self: { meta: this.name, actor: this.id },
+        self: { meta: this.name, actor: this.id, path: this.path },
       })
     }
     this.transition() // TODO: оптимизировать по результату обновления
@@ -289,7 +291,7 @@ export class Actor extends ActorCommunication {
       meta.description,
       ctx,
       { current: Object.keys(meta.states)[0] as string, states: meta.states },
-      processesFromSchema(meta.processes ?? {}, { meta: meta.name, actor: id }),
+      processesFromSchema(meta.processes ?? {}, { meta: meta.name, actor: id, path: path ?? "0" }),
       reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
       meta.render ?? [],
       core,

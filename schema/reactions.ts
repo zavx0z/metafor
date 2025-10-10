@@ -1,4 +1,4 @@
-import type { Schema } from "@zavx0z/context"
+import type { Schema, Values } from "@zavx0z/context"
 import type { Core } from "../actor.t"
 import type { ReactionFilterConditions } from "../core/condition.t"
 import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionUpdate } from "./reactions.t"
@@ -13,7 +13,7 @@ export const reactionsSchema = <C extends Schema, S extends string, I extends Co
   let reactionAutoId = 0
 
   const chainResult = builder((config?: { label?: string; description?: string }) => ({
-    filter: (filterFn: (params: { self: Self }) => ReactionFilterConditions) => ({
+    filter: (filterFn: (params: { self: Self; context: Values<C> }) => ReactionFilterConditions) => ({
       equal: (update: ReactionUpdate<C, S, I>) => {
         const { read, write } = extractFields(update)
         const label = config?.label || ""

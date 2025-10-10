@@ -39,7 +39,7 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
     label: string
     desc?: string
     update: ReactionUpdate<C, S, I>
-    getConditions: (params: { self: Self }) => any
+    getConditions: (params: { self: Self; context: Values<C> }) => any
     states: string[]
   }> = []
 
@@ -267,8 +267,8 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
         // Проверяем, что реакция активна для текущего состояния
         if (!reaction.states.includes(params.state)) continue
 
-        // Получаем условия фильтра с передачей self
-        const conditions = reaction.getConditions({ self: params.self })
+        // Получаем условия фильтра с передачей self и context
+        const conditions = reaction.getConditions({ self: params.self, context: params.context })
         // Создаем фильтр на основе условий
         const filterFn = createFilterFn(conditions)
         // Проверяем фильтр

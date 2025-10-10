@@ -73,7 +73,7 @@ export type ReactionsDeclaration<C extends Schema, S extends string, I extends C
     desc?: string
   }) => {
     /** Добавляет декларативные фильтры */
-    filter: (filterFn: (params: { self: Self }) => ReactionFilterConditions) => {
+    filter: (filterFn: (params: { self: Self; context: Values<C> }) => ReactionFilterConditions) => {
       /** Добавляет функцию обработки события */
       equal: (updateFn: ReactionUpdate<C, S, I>) => Reaction<C, S, I> & {
         /** Метод для регистрации состояний */

@@ -45,7 +45,7 @@ test("Выполнение реакций через run", () => {
     state: "active",
     core,
     update: fakeUpdate,
-    self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
   })
 
   expect(core.called, "реакция вызвана").toBe(true)

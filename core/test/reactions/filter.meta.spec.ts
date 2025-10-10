@@ -34,7 +34,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при точном совпадении").toBe(true)
@@ -62,7 +62,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция не должна сработать при несовпадении").toBe(false)
@@ -90,7 +90,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при совпадении с regex").toBe(true)
@@ -118,7 +118,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при eq условии").toBe(true)
@@ -146,7 +146,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при notEq условии").toBe(true)
@@ -174,7 +174,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при startsWith условии").toBe(true)
@@ -202,7 +202,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при endsWith условии").toBe(true)
@@ -230,7 +230,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при include условии").toBe(true)
@@ -258,7 +258,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при notInclude условии").toBe(true)
@@ -286,7 +286,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при notStartsWith условии").toBe(true)
@@ -314,7 +314,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при notEndsWith условии").toBe(true)
@@ -342,7 +342,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при pattern условии").toBe(true)
@@ -370,7 +370,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при length условии (число)").toBe(true)
@@ -398,7 +398,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при length условии (min/max)").toBe(true)
@@ -426,7 +426,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при between условии").toBe(true)
@@ -460,7 +460,7 @@ describe("Фильтрация по мете актора (meta)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при комбинированных условиях").toBe(true)

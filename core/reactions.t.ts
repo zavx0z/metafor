@@ -34,12 +34,12 @@ export type Reactions<C extends Schema = Schema, S extends string = string, I ex
     label: string
     desc?: string
     update: ReactionUpdate<C, S, I>
-    getConditions: (params: { self: Self }) => any
+    getConditions: (params: { self: Self; context: Values<C> }) => any
   }>
   getReactions: (state: S) => Array<{
     label: string
     desc?: string
     update: ReactionUpdate<C, S, I>
-    getConditions: (params: { self: Self }) => any
+    getConditions: (params: { self: Self; context: Values<C> }) => any
   }>
 }

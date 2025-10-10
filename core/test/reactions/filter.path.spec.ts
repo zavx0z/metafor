@@ -33,7 +33,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при path /context").toBe(true)
@@ -61,7 +61,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при path /state").toBe(true)
@@ -89,7 +89,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при path /").toBe(true)
@@ -117,7 +117,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция не должна сработать при несовпадении пути").toBe(false)
@@ -148,7 +148,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при комбинированной фильтрации").toBe(true)
@@ -179,7 +179,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при комбинированной фильтрации с тегом").toBe(true)
@@ -210,7 +210,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при /context с replace").toBe(true)
@@ -241,7 +241,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при /context с add").toBe(true)
@@ -272,7 +272,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при /context с remove").toBe(true)
@@ -303,7 +303,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при /context с test").toBe(true)
@@ -334,7 +334,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при /state с replace").toBe(true)
@@ -365,7 +365,7 @@ describe("Фильтрация по пути патча (path)", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor" },
+        self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при / с add").toBe(true)
