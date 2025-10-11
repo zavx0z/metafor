@@ -50,7 +50,6 @@ export type ParsedProcess = {
 
 /**
  * Схема процессов
- * @description
  * Объект с распарсенными процессами
  */
 export type ProcessesSchema = Record<string, ParsedProcess>

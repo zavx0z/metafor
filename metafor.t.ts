@@ -8,11 +8,33 @@ import type { ReactionsDeclaration } from "./schema/reactions"
 
 /**
  * MetaFor — фабрика для создания web-компонента-актора конечного автомата
- * @param name - имя актора (участвует в формировании хеша, но не является итоговым тегом)
+ * @param name - имя актора (используется для создания тега `meta-${name}`)
  * @returns chain API: context() -> states() -> core() -> processes() -> reactions() -> view()
  *
- * **Важно:** Итоговый тег компонента формируется автоматически как `meta-<hash>`,
- * где hash — это MD5 хеш от всей конфигурации компонента.
+ * **Важно:** Итоговый тег компонента формируется как `meta-${name}`,
+ * где name — это имя компонента, переданное в конструктор.
+ */
+/**
+ * Основной API MetaFor для создания компонентов
+ *
+ * Предоставляет цепочку методов для настройки компонента:
+ * - `context()` - определение типизированного контекста
+ * - `states()` - определение состояний и переходов
+ * - `core()` - настройка ядра для сложных данных
+ * - `processes()` - определение процессов (действий)
+ * - `reactions()` - определение реакций на события
+ * - `view()` - определение представления компонента
+ *
+ * @example
+ * ```typescript
+ * const component = MetaFor("my-component")
+ *   .context((types) => ({ name: types.string.required("") }))
+ *   .states({ idle: { loading: {} } })
+ *   .core({ users: [] })
+ *   .processes((process) => ({ load: process().action(...) }))
+ *   .reactions((reaction) => [...])
+ *   .view({ render: ({ context }) => html`<div>${context.name}</div>` })
+ * ```
  */
 export type MetaForType = (
   name: string,
@@ -82,7 +104,7 @@ export type MetaForType = (
        * ```
        */
       core<I extends Core>(
-        coreBuilder?: (() => I) | I
+        core?: I
       ): {
         /**
          * Регистрирует процессы автомата для нужных состояний.
@@ -93,7 +115,7 @@ export type MetaForType = (
          * Пример:
          * ```ts
          * .processes(process => ({
-         *   guest: process({ title: "guest_process", description: "Процесс для гостя" })
+         *   guest: process({ label: "guest_process", desc: "Процесс для гостя" })
          *     .action(({ context }) => { ... })
          *     .success(({ update, data }) => update({ ... }))
          *     .error(({ update, error }) => update({ ... })),
@@ -111,7 +133,7 @@ export type MetaForType = (
            * Для управления собственными переходами состояний используйте процессы и их success/error обработчики.
            * Реакции связывают разные акторы в событийной архитектуре.
            *
-           * @param reaction Функция (filter => декларация), где декларация — массив кортежей [string[], { update, filter, title }]
+           * @param reaction Функция (filter => декларация), где декларация — массив кортежей [string[], { update, filter, label }]
            * @returns chain API для вызова .view(...)
            *
            * @example
@@ -127,7 +149,7 @@ export type MetaForType = (
            *         messageCount: context.messageCount + 1
            *       })
            *     },
-           *     title: "Обработка сообщений от roadmap актора"
+           *     label: "Обработка сообщений от roadmap актора"
            *   }
            * ])
            *
@@ -140,26 +162,26 @@ export type MetaForType = (
              * Регистрирует представление компонента и завершает конфигурацию.
              *
              * @param view Конфигурация представления с render и style функциями
-             * @returns Хеш компонента для создания элемента с тегом `meta-<hash>`
+             * @returns Компонент для создания элемента с тегом `meta-${name}`
              *
              * @example
              * ```typescript
-             * const hash = MetaFor("my-component")
+             * const component = MetaFor("my-component")
              *   .context(...)
              *   .states(...)
              *   .core(...)
              *   .processes(...)
              *   .reactions(...)
              *   .view({
-             *     render: ({ context, html }) => html`<div>${context.title}</div>`,
+             *     render: ({ context, html }) => html`<div>${context.label}</div>`,
              *     style: ({ css }) => css`.container { color: blue; }`
              *   })
              *
-             * // Создание элемента с полученным хешем
-             * document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
+             * // Создание элемента с именем компонента
+             * document.body.innerHTML = `<meta-my-component></meta-my-component>`
              * ```
              */
-            view(view?: ViewDeclaration<C, I, S>): MetaSchema<C, S>
+            view(view?: ViewDeclaration<C, I, S>): MetaSchema<C, S, I>
           }
         }
       }
@@ -180,10 +202,20 @@ export {}
 
 /**
  * Конфигурация компонента MetaFor
+ *
+ * Опциональные параметры для настройки поведения компонента.
+ *
+ * @example
+ * ```typescript
+ * const config: MetaForConfig = {
+ *   desc: "Компонент профиля пользователя",
+ *   dev: true
+ * }
+ * ```
  */
 export type MetaForConfig = {
   /** Описание компонента */
-  description?: string
+  desc?: string
   /** Режим разработки */
   dev?: boolean
 }
@@ -199,7 +231,7 @@ export type MetaForConfig = {
  *   const inputRef = ref();
  *   return html`
  *     <div ${style({ color: state === 'error' ? 'red' : 'black' })}>
- *       <h2>${context.title}</h2>
+ *       <h2>${context.label}</h2>
  *       <input ${ref(inputRef)} value=${context.value} @input=${e => update({ value: e.target.value })} />
  *       <ul>
  *         ${repeat(context.items, (item, i) => html`<li>${i}: ${item}</li>`)}
@@ -297,11 +329,31 @@ export interface ViewDeclaration<C extends Schema, I extends Core, S extends str
   style?: ({ css }: { css: (strings: TemplateStringsArray, ...values: any[]) => void }) => void
 }
 
-export interface MetaSchema<C extends Schema = Schema, S extends string = string> {
+/**
+ * Схема компонента MetaFor
+ *
+ * Определяет полную структуру компонента включая контекст, состояния,
+ * процессы, реакции и представление. Используется для создания акторов.
+ *
+ * @template C - Тип контекста (схема контекста)
+ * @template S - Тип состояний (строковые литералы)
+ * @template I - Тип ядра (объект для сложных данных)
+ *
+ * @example
+ * ```typescript
+ * const schema: MetaSchema = {
+ *   name: "user-profile",
+ *   context: { name: types.string.required("") },
+ *   states: { idle: { loading: {} } },
+ *   core: { users: [] }
+ * }
+ * ```
+ */
+export interface MetaSchema<C extends Schema = Schema, S extends string = string, I extends Core = {}> {
   /** Название компонента */
   name: string
   /** Описание компонента */
-  description?: string
+  desc?: string
   /** Карта состояний и переходов */
   states: StatesConfig<S, C>
   /** Снимок процессов */
@@ -309,12 +361,31 @@ export interface MetaSchema<C extends Schema = Schema, S extends string = string
   /** Снимок реакций */
   reactions?: ReactionsSchema
   /** Схема контекста */
-  context: Schema
-  /** Сериализованный view как строка template literal */
+  context: C
+  /** Сериализованный view как ParseNode[] из @zavx0z/template */
   render?: ParseNode[]
   /** Стили компонента */
   style?: string
+  /** Ядро */
+  core: I
 }
+/**
+ * Идентификатор актора в системе MetaFor
+ *
+ * Содержит полную информацию о местоположении актора в иерархии:
+ * - `meta` - мета-информация о типе актора
+ * - `actor` - уникальный идентификатор актора
+ * - `path` - позиционный путь в VDOM (например, "0/1/2")
+ *
+ * @example
+ * ```typescript
+ * const self: Self = {
+ *   meta: "user-profile",
+ *   actor: "user-123",
+ *   path: "0/1/2"
+ * }
+ * ```
+ */
 export type Self = {
   meta: string
   actor: string

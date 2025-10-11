@@ -8,7 +8,7 @@ test("десериализация процессов работает корр�
 
   const snapshot = {
     guest: {
-      title: "guest",
+      label: "guest",
       action: { read: ["name"], src: "({ context }) => context.name" },
       success: { write: ["name"], src: "({ update, data }) => update({ name: data })" },
     },
@@ -30,7 +30,7 @@ test("наследование - deserializeProcesses создается из sn
 
   const snapshot = {
     guest: {
-      title: "guest",
+      label: "guest",
       action: { read: ["name"], src: "({ context }) => context.name" },
       success: { write: ["name"], src: "({ update, data }) => update({ name: data })" },
     },

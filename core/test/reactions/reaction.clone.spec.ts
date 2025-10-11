@@ -74,7 +74,7 @@ describe("deserializeReactions", () => {
       timestamp: Date.now(),
       patch: fakePatch,
       update: mockUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     // Реакция должна сработать и обновить контекст
@@ -96,7 +96,7 @@ describe("deserializeReactions", () => {
       reactions: {
         reaction_1: {
           label: "test",
-          desc: "description",
+          desc: "desc",
           cond: '({ self }) => ({ meta: "test" })',
           read: ["value"],
           write: ["value"],
@@ -114,7 +114,7 @@ describe("deserializeReactions", () => {
 
     const reactions = deserializedReactions.getAllReactions()
     expect(reactions[0]!.label, "название должно сохраниться").toBe("test")
-    expect(reactions[0]!.desc, "описание должно сохраниться").toBe("description")
+    expect(reactions[0]!.desc, "описание должно сохраниться").toBe("desc")
 
     // Проверяем, что состояния правильно связаны
     const idleReactions = deserializedReactions.getReactions("idle")
@@ -137,7 +137,7 @@ describe("deserializeReactions", () => {
       timestamp: Date.now(),
       patch: fakePatch,
       update: mockUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(updatedContext.value, "реакция должна обновить контекст").toBe(42)

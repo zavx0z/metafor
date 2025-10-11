@@ -2,9 +2,25 @@
  * ActorHierarchy - класс для управления иерархическим деревом акторов
  *
  * Отвечает за:
- * - Управление позиционными путями VDOM
+ * - Управление позиционными путями VDOM (например, "0/1/2")
  * - Иерархическое хранилище акторов (order-tree)
  * - Операции с деревом: добавление, перемещение, удаление
+ * - Генерацию уникальных корневых путей
+ * - Интеграцию с системой сообщений MetaFor
+ *
+ * @example
+ * ```typescript
+ * const hierarchy = new ActorHierarchy()
+ *
+ * // Создание корневого узла
+ * const rootPath = hierarchy.generateRootPath() // "0"
+ *
+ * // Создание дочернего узла
+ * const childPath = hierarchy.createNode("0", actor) // "0/0"
+ *
+ * // Поиск актора по пути
+ * const actor = hierarchy.getActor("0/1")
+ * ```
  */
 
 import type { ActorCommunication } from "./communication"
@@ -31,6 +47,27 @@ export type { ReparentOptions } from "../order-tree/index"
 
 /**
  * Класс для управления иерархией акторов с позиционными путями VDOM
+ *
+ * Предоставляет методы для:
+ * - Создания и удаления узлов иерархии
+ * - Поиска акторов по путям и ID
+ * - Генерации уникальных корневых путей
+ * - Управления порядком дочерних элементов
+ * - Интеграции с системой сообщений MetaFor
+ *
+ * @example
+ * ```typescript
+ * const hierarchy = new ActorHierarchy()
+ *
+ * // Создание корневого узла
+ * const rootPath = hierarchy.generateRootPath() // "0"
+ *
+ * // Создание дочернего узла
+ * const childPath = hierarchy.createNode("0", actor) // "0/0"
+ *
+ * // Поиск актора по пути
+ * const actor = hierarchy.getActor("0/1")
+ * ```
  */
 export class ActorHierarchy {
   /** Иерархическое хранилище акторов */

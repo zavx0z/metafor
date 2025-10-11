@@ -4,14 +4,14 @@ import { messagesFixture } from "../../fixture/message.ts"
 describe.skip("async process", async () => {
   const hex = MetaFor("websocket")
     .context((t) => ({
-      timeStampConnecting: t.number.optional({ title: "Время начала подключения" }),
-      timeStampConnected: t.number.optional({ title: "Время подключения" }),
-      timeStampDisconnected: t.number.optional({ title: "Время отключения" }),
-      maxAttempts: t.number.required(5, { title: "Максимальное количество попыток переподключения" }),
-      remainingAttempts: t.number.required(0, { title: "Оставшиеся попытки переподключения" }),
-      reconnectDelay: t.number.required(1000, { title: "Базовая задержка переподключения" }),
-      reconnectDelayMultiplier: t.number.required(1.5, { title: "Множитель задержки переподключения" }),
-      error: t.string.optional({ title: "Ошибка соединения" }),
+      timeStampConnecting: t.number.optional({ label: "Время начала подключения" }),
+      timeStampConnected: t.number.optional({ label: "Время подключения" }),
+      timeStampDisconnected: t.number.optional({ label: "Время отключения" }),
+      maxAttempts: t.number.required(5, { label: "Максимальное количество попыток переподключения" }),
+      remainingAttempts: t.number.required(0, { label: "Оставшиеся попытки переподключения" }),
+      reconnectDelay: t.number.required(1000, { label: "Базовая задержка переподключения" }),
+      reconnectDelayMultiplier: t.number.required(1.5, { label: "Множитель задержки переподключения" }),
+      error: t.string.optional({ label: "Ошибка соединения" }),
     }))
     .states({
       отключен: {

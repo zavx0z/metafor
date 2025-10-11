@@ -17,14 +17,14 @@ export interface Snapshot<C extends Schema, S extends string> {
   /** Название компонента */
   name: string
   /** Описание компонента */
-  description?: string
+  desc?: string
   /** Карта состояний и переходов */
   states: StatesConfig<S, C>
   /** Снимок процессов */
   processes?: ProcessesSchema
   /** Снимок реакций */
   reactions?: ReactionsSchema
-  /** Сериализованный view как строка template literal */
+  /** Сериализованный view как строка template literal из @zavx0z/template */
   render?: string
   /** Стили компонента */
   style?: string
@@ -38,6 +38,25 @@ export interface Snapshot<C extends Schema, S extends string> {
 
 /**
  *  Ядро компонента
+ */
+/**
+ * Ядро актора - объект для хранения сложных данных
+ *
+ * Используется для хранения данных, которые не подходят для контекста:
+ * - Сложные объекты и структуры данных
+ * - Кэшированные результаты вычислений
+ * - Внешние ресурсы (DOM элементы, WebSocket соединения)
+ * - Состояние, которое не влияет на UI напрямую
+ *
+ * @example
+ * ```typescript
+ * const core: Core = {
+ *   users: [],
+ *   cache: new Map(),
+ *   socket: new WebSocket("ws://localhost:8080"),
+ *   domElement: document.getElementById("container")
+ * }
+ * ```
  */
 export type Core = Record<string, any>
 
@@ -59,6 +78,27 @@ export interface ActorInternal extends HTMLElement {
  @property actor.parent - Хеш родительской меты актора
  @property timestamp - Время отправки сообщения
  @property patches - Массив патчей для применения к актору (JSON Patch RFC 6902)
+ */
+/**
+ * Сообщение между акторами в системе MetaFor
+ *
+ * Содержит полную информацию о изменении состояния актора:
+ * - `meta` - мета-информация о типе актора
+ * - `actor` - уникальный идентификатор актора
+ * - `path` - позиционный путь в VDOM (например, "0/1/2")
+ * - `timestamp` - время создания сообщения
+ * - `patches` - массив изменений в формате JSON Patch
+ *
+ * @example
+ * ```typescript
+ * const message: Message = {
+ *   meta: "user-profile",
+ *   actor: "user-123",
+ *   path: "0/1/2",
+ *   timestamp: Date.now(),
+ *   patches: [{ op: "replace", path: "/context/name", value: "John" }]
+ * }
+ * ```
  */
 export type Message = {
   meta: string

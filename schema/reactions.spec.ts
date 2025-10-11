@@ -17,41 +17,34 @@ describe("схема реакций", () => {
       [
         ["idle", "active"],
         reaction({ label: "inc", desc: "increment value" })
-          .filter({
+          .filter(({ self }) => ({
             meta: "test",
             op: "replace",
             path: "/context",
             value: 1,
-          })
+          }))
           .equal(({ update, context }) => update({ value: context.value + 1 })),
       ],
       [
         ["error"],
         reaction({ label: "reset" })
-          .filter({ meta: "any" })
+          .filter(({ self }) => ({ meta: "any" }))
           .equal(({ update }) => update({ value: 0 })),
       ],
     ])
     expect(snapshot).toMatchObject({
       reactions: {
         inc_0: {
-          title: "inc",
+          label: "inc",
           desc: "increment value",
-          cond: {
-            meta: "test",
-            op: "replace",
-            path: "/context",
-            value: 1,
-          },
+          cond: expect.any(String),
           read: ["value"],
           write: ["value"],
           src: expect.any(String),
         },
         reset_1: {
-          title: "reset",
-          cond: {
-            meta: "any",
-          },
+          label: "reset",
+          cond: expect.any(String),
           read: ["value"],
           write: ["value"],
           src: expect.any(String),
@@ -70,7 +63,7 @@ describe("схема реакций", () => {
       [
         ["idle"],
         reaction({ label: "test" })
-          .filter({ meta: "test" })
+          .filter(() => ({ meta: "test" }))
           .equal(({ update }) => update({ value: 42 })),
       ],
     ])!
@@ -85,8 +78,7 @@ describe("схема реакций", () => {
     const reactionId = reactionIds[0]!
     const reaction = snapshot.reactions[reactionId]!
 
-    expect(reaction.label, "реакция должна иметь title").toBe("test")
-    expect(reaction.cond, "реакция должна иметь filter").toEqual({ meta: "test" })
+    expect(reaction.label, "реакция должна иметь label").toBe("test")
     expect(reaction.read, "реакция должна иметь read").toEqual(["value"])
     expect(reaction.write, "реакция должна иметь write").toEqual(["value"])
     expect(reaction.src, "реакция должна иметь src").toEqual(expect.any(String))
@@ -101,7 +93,12 @@ describe("схема реакций", () => {
     const updateFn = ({ update, context }: any) => update({ value: context.value * 2 })
 
     const snapshot = reactionsSchema<typeof schema, State, {}>((reaction) => [
-      [["idle"], reaction({ label: "double" }).filter({ meta: "test" }).equal(updateFn)],
+      [
+        ["idle"],
+        reaction({ label: "double" })
+          .filter(({ self }) => ({ meta: "test" }))
+          .equal(updateFn),
+      ],
     ])!
     const reactionIds = Object.keys(snapshot.reactions)
     const reactionId = reactionIds[0]!

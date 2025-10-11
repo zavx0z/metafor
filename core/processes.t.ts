@@ -30,7 +30,7 @@ export type Processes<C extends Schema = Schema, S extends string = string, I ex
   getProcessNames: () => string[]
 }
 /**
- * Chain API для создания процесса с опциональными параметрами title и description.
+ * Chain API для создания процесса с опциональными параметрами label и desc.
  * Позволяет удобно и строго типизировано описывать обработчики процессов автомата.
  *
  * @template C - схема контекста автомата
@@ -39,14 +39,14 @@ export type Processes<C extends Schema = Schema, S extends string = string, I ex
  * @example
  * ```typescript
  * const chain = process({
- *   title: "my_process",
- *   description: "Описание процесса"
+ *   label: "my_process",
+ *   desc: "Описание процесса"
  * })
  *   .action(({ context }) => ({ name: context.name }))
  *   .success(({ update, data }) => update({ name: data.name }))
  *   .error(({ update, error }) => update({ name: error.message }))
  *
- * chain.getResult() // { action, success, error, title?, description? }
+ * chain.getResult() // { action, success, error, label?, desc? }
  * ```
  */
 export type ProcessChain<C extends Schema, I extends Core> = {
@@ -212,7 +212,7 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
    *
    * Содержит все обработчики и метаданные процесса.
    *
-   * @returns объект с action, success, error, title и description (если заданы)
+   * @returns объект с action, success, error, label и desc (если заданы)
    *
    * @example
    * ```typescript
@@ -221,8 +221,8 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
    * //   action: Function,
    * //   success: Function,
    * //   error: Function,
-   * //   title: "Авторизация",
-   * //   description: "Процесс входа пользователя"
+   * //   label: "Авторизация",
+   * //   desc: "Процесс входа пользователя"
    * // }
    * ```
    */
@@ -233,7 +233,7 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
  * Конфигурация одного процесса
  *
  * Содержит основную функцию action и опциональные обработчики success/error.
- * Также может содержать метаданные title и description.
+ * Также может содержать метаданные label и desc.
  *
  * @template C - схема контекста автомата
  * @template Res - возвращаемый тип результата action
@@ -241,8 +241,8 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
  * @example
  * ```typescript
  * const process: Process<MyContext, { userId: number }> = {
- *   title: "Авторизация",
- *   description: "Процесс входа пользователя",
+ *   label: "Авторизация",
+ *   desc: "Процесс входа пользователя",
  *   action: async ({ context }) => {
  *     // Логика авторизации
  *     return { userId: 123 }
@@ -282,7 +282,7 @@ export type Process<C extends Schema = Schema, I extends Core = Core, Res = any>
  * ```typescript
  * const config: ActionsConfig<MyContext, "login" | "logout"> = {
  *   login: {
- *     title: "Авторизация",
+ *     label: "Авторизация",
  *     action: async ({ context }) => {
  *       return await api.login(context.email, context.password)
  *     },

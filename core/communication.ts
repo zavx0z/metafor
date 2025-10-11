@@ -5,10 +5,19 @@ import { ActorHierarchy } from "./hierarchy"
  * Базовый класс для управления коммуникациями между акторами
  *
  * Отвечает за:
- * - Управление BroadcastChannel
+ * - Управление BroadcastChannel для межпотоковой коммуникации
  * - Отправку сообщений через различные каналы
- * - Внутренний механизм коммуникации
+ * - Внутренний механизм коммуникации (всегда работает)
  * - Интеграцию с иерархией акторов
+ * - Управление позиционными путями VDOM
+ *
+ * @example
+ * ```typescript
+ * class MyActor extends ActorCommunication {
+ *   public readonly id = "my-actor"
+ *   public readonly path = "0/1"
+ * }
+ * ```
  */
 export abstract class ActorCommunication {
   /** Менеджер иерархии акторов */

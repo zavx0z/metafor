@@ -12,7 +12,7 @@ describe("Фильтрация по мете актора (meta)", () => {
   const fakeContext: Values<Ctx> = { value: 10 } as any
   const fakePatch: JsonPatch = { op: "replace", path: "/context", value: 1 }
 
-  it("простое сравнение хеша меты", () => {
+  it("простое сравнение имени меты", () => {
     const core: { called: boolean } = { called: false }
     const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [

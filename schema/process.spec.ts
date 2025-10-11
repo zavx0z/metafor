@@ -133,7 +133,7 @@ describe("parseChainsObject — разные варианты chain", () => {
     })
   })
 
-  test("процессы с title и description", () => {
+  test("процессы с label и desc", () => {
     const schema = contextSchema((t) => ({ foo: t.string.required("a") }))
     type C = typeof schema
     type S = "withMeta"
@@ -145,8 +145,8 @@ describe("parseChainsObject — разные варианты chain", () => {
     const snapshot = processesSchema(actions)
     expect(snapshot).toMatchObject({
       withMeta: {
-        title: "test_process",
-        description: "Test process description",
+        label: "test_process",
+        desc: "Test process description",
         action: { read: ["foo"], src: expect.any(String) },
       },
     })

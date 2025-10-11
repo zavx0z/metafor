@@ -153,12 +153,12 @@ export function parseProcess<C extends Schema, I extends Core, Res = any>(proces
  * @example
  * ```ts
  * const processes: ProcessesDeclaration<C, S, I> = (process) => ({
- *   loadUser: process({ title: "loadUser" }).action(({ context }) => fetch(`/users/${context.id}`)),
+ *   loadUser: process({ label: "loadUser" }).action(({ context }) => fetch(`/users/${context.id}`)),
  *   saveData: process().action(({ context, update }) => update({ saved: true }))
  * }
  * const result = getSnapshotProcesses(processes)
  * // => {
- * //   loadUser: { title: "loadUser", action: { read: ['id'] } },
+ * //   loadUser: { label: "loadUser", action: { read: ['id'] } },
  * //   saveData: { action: { read: [], write: ['saved'] } }
  * // }
  * ```
@@ -171,8 +171,8 @@ export const processesSchema = <C extends Schema, S extends string, I extends Co
   // Вызываем processesDeclaration с mock process
   const chains = processes((config?: ProcessConfig) => {
     const chain: any = {
-      title: config?.label,
-      description: config?.desc,
+      label: config?.label,
+      desc: config?.desc,
       _successHandler: undefined,
       _errorHandler: undefined,
       action: (fn: any) => {
@@ -193,8 +193,8 @@ export const processesSchema = <C extends Schema, S extends string, I extends Co
         }
         if (chain._successHandler) result.success = chain._successHandler
         if (chain._errorHandler) result.error = chain._errorHandler
-        if (chain.title) result.title = chain.title
-        if (chain.description) result.description = chain.description
+        if (chain.label) result.label = chain.label
+        if (chain.desc) result.desc = chain.desc
         return result
       },
     }

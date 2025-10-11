@@ -9,8 +9,8 @@ const mockSchema = {}
 const mockContext = contextFromSchema(mockSchema)
 const mockStates = { current: "idle", states: { idle: {} } }
 const mockProcesses = processesFromSchema({})
-const mockReactions = reactionsFromSchema({ reactions: {} })
-const mockRender = []
+const mockReactions = reactionsFromSchema({ reactions: {} } as any)
+const mockRender:any = []
 
 test("Actor - автоматическая генерация корневых путей", () => {
   // Сбрасываем счетчик перед тестом
@@ -143,12 +143,13 @@ test("Actor.fromSchema - поддержка параметра path", () => {
 
   const testSchema = {
     name: "test",
-    description: "Test schema",
+    desc: "Test schema",
     context: {},
     states: { idle: {} },
     processes: {},
     reactions: { reactions: {}, states: {} },
     render: [],
+    core: {}
   }
 
   // Создаем актор с явным path через fromSchema

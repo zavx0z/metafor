@@ -5,11 +5,11 @@ import { test, expect, describe } from "bun:test"
 //   describe("структура снимка", async () => {
 //     const hash = MetaFor("test")
 //       .context((types) => ({
-//         title: types.string.required("Default Title", { title: "Заголовок" }),
-//         count: types.number.required(0, { title: "Счетчик" }),
-//         isActive: types.boolean.optional({ title: "Активен" }),
-//         tags: types.array.required(["tag1", "tag2"], { title: "Теги" }),
-//         status: types.enum("pending", "active", "completed").required("pending", { title: "Статус" }),
+//         title: types.string.required("Default Title", { label: "Заголовок" }),
+//         count: types.number.required(0, { label: "Счетчик" }),
+//         isActive: types.boolean.optional({ label: "Активен" }),
+//         tags: types.array.required(["tag1", "tag2"], { label: "Теги" }),
+//         status: types.enum("pending", "active", "completed").required("pending", { label: "Статус" }),
 //       }))
 //       .states({
 //         idle: {
@@ -38,7 +38,7 @@ import { test, expect, describe } from "bun:test"
 //         },
 //       })
 //       .processes((process) => ({
-//         loading: process({ title: "loading", description: "loading description" })
+//         loading: process({ label: "loading", desc: "loading description" })
 //           .action(({ context }) => new Promise((resolve) => setTimeout(() => resolve(context.count + 1), 100)))
 //           .success(({ update }) => update({ count: 1, isActive: true }))
 //           .error(({ update }) => update({ isActive: false })),
@@ -49,13 +49,13 @@ import { test, expect, describe } from "bun:test"
 //       .reactions((reaction) => [
 //         [
 //           ["idle"],
-//           reaction({ title: "log_state_changes" })
+//           reaction({ label: "log_state_changes" })
 //             .filter({ op: "replace", path: "/state" })
 //             .equal(({ update, context }) => update({ count: context.count + 1 })),
 //         ],
 //         [
 //           ["loading", "active", "idle"],
-//           reaction({ title: "set_count_10" })
+//           reaction({ label: "set_count_10" })
 //             .filter({ op: "replace", path: "/state" })
 //             .equal(({ update }) => update({ count: 10 })),
 //         ],
@@ -63,7 +63,7 @@ import { test, expect, describe } from "bun:test"
 //       .view({
 //         render: ({ html, context, state, update }) => html`
 //           <div class="container">
-//             <h1>${context.title}</h1>
+//             <h1>${context.label}</h1>
 //             <p>Счетчик: ${context.count}</p>
 //             <p>Статус: ${context.status}</p>
 //             <p>Состояние: ${state}</p>
@@ -144,16 +144,16 @@ import { test, expect, describe } from "bun:test"
 //     })
 //     test("контекст", async () => {
 //       expect(snapshot.context, "контекст должен содержать все поля с метаданными").toMatchObject({
-//         title: {
+//         label: {
 //           type: "string",
 //           required: true,
-//           title: "Заголовок",
+//           label: "Заголовок",
 //           default: "Default Title",
 //         },
 //         count: {
 //           type: "number",
 //           required: true,
-//           title: "Счетчик",
+//           label: "Счетчик",
 //           default: 0,
 //         },
 //         isActive: {
@@ -163,13 +163,13 @@ import { test, expect, describe } from "bun:test"
 //         tags: {
 //           type: "array",
 //           required: true,
-//           title: "Теги",
+//           label: "Теги",
 //           default: ["tag1", "tag2"],
 //         },
 //         status: {
 //           type: "enum",
 //           required: true,
-//           title: "Статус",
+//           label: "Статус",
 //           values: ["pending", "active", "completed"],
 //           default: "pending",
 //         },
@@ -185,7 +185,7 @@ import { test, expect, describe } from "bun:test"
 //             },
 //             read: ["count"],
 //             write: ["count"],
-//             title: "log_state_changes",
+//             label: "log_state_changes",
 //           },
 //           set_count_10_1: {
 //             write: ["count"],
@@ -193,7 +193,7 @@ import { test, expect, describe } from "bun:test"
 //               op: "replace",
 //               path: "/state",
 //             },
-//             title: "set_count_10",
+//             label: "set_count_10",
 //           },
 //         },
 //         states: {
@@ -204,24 +204,24 @@ import { test, expect, describe } from "bun:test"
 //       })
 //     })
 //     test("render", async () => {
-//       expect(snapshot.render, "render должен содержать извлеченный HTML template").toContain('<div class="container">')
-//       expect(snapshot.render, "render должен содержать извлеченный HTML template").toContain("<h1>")
-//       expect(snapshot.render, "render должен содержать извлеченный HTML template").toContain("${context.title}")
-//       expect(snapshot.render, "render должен содержать извлеченный HTML template").toContain("${context.count}")
+//       expect(snapshot.render, "render должен содержать извлеченный HTML template из @zavx0z/template").toContain('<div class="container">')
+//       expect(snapshot.render, "render должен содержать извлеченный HTML template из @zavx0z/template").toContain("<h1>")
+//       expect(snapshot.render, "render должен содержать извлеченный HTML template из @zavx0z/template").toContain("${context.label}")
+//       expect(snapshot.render, "render должен содержать извлеченный HTML template из @zavx0z/template").toContain("${context.count}")
 //     })
 
 //     test("style", async () => {
-//       expect(snapshot.style, "style должен содержать извлеченный CSS template").toContain(".container {")
-//       expect(snapshot.style, "style должен содержать извлеченный CSS template").toContain("padding: 20px;")
-//       expect(snapshot.style, "style должен содержать извлеченный CSS template").toContain("background-color: #f9f9f9;")
-//       expect(snapshot.style, "style должен содержать извлеченный CSS template").toContain("button:hover {")
+//       expect(snapshot.style, "style должен содержать извлеченный CSS template из @zavx0z/template").toContain(".container {")
+//       expect(snapshot.style, "style должен содержать извлеченный CSS template из @zavx0z/template").toContain("padding: 20px;")
+//       expect(snapshot.style, "style должен содержать извлеченный CSS template из @zavx0z/template").toContain("background-color: #f9f9f9;")
+//       expect(snapshot.style, "style должен содержать извлеченный CSS template из @zavx0z/template").toContain("button:hover {")
 //     })
 
 //     test("processes", async () => {
 //       expect(snapshot.processes, "processes должен содержать все процессы").toMatchObject({
 //         loading: {
-//           title: "loading",
-//           description: "loading description",
+//           label: "loading",
+//           desc: "loading description",
 //           action: { read: ["count"] },
 //           success: { write: ["count", "isActive"] },
 //         },

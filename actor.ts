@@ -11,10 +11,27 @@ export { ActorHierarchy }
 import type { StatesConfig } from "./schema/states"
 import type { MetaSchema } from "./metafor"
 
+/**
+ * Основной класс актора MetaFor
+ *
+ * Представляет изолированный актор с собственным состоянием, контекстом и логикой.
+ * Каждый актор имеет уникальный позиционный путь в VDOM и может взаимодействовать
+ * с другими акторами через систему сообщений.
+ *
+ * @example
+ * ```typescript
+ * const actor = Actor.fromSchema({
+ *   meta: schema,
+ *   id: "user-1",
+ *   path: "0/1",
+ *   core: { users: [] }
+ * })
+ * ```
+ */
 export class Actor extends ActorCommunication {
   private static coreWeakMap = new WeakMap<Actor, Core>()
 
-  /** Позиционный путь актора в VDOM (строка индексов через слеш) */
+  /** Позиционный путь актора в VDOM (строка индексов через слеш, например "0/1/2") */
   public readonly path: string
 
   constructor(
@@ -209,7 +226,7 @@ export class Actor extends ActorCommunication {
       states: this.state.states,
       context: this.ctx.snapshot,
       // ...this.#view.snapshot,
-      ...(this.desc ? { description: this.desc } : {}),
+      ...(this.desc ? { desc: this.desc } : {}),
     }
   }
 
@@ -274,6 +291,29 @@ export class Actor extends ActorCommunication {
     this.ctx.clearSubscribers()
   }
 
+  /**
+   * Создает актор из схемы MetaFor
+   *
+   * @param config - Конфигурация актора
+   * @param config.meta - Схема MetaFor с контекстом, состояниями, процессами и реакциями
+   * @param config.id - Уникальный идентификатор актора
+   * @param config.core - Объект ядра для хранения сложных данных (опционально)
+   * @param config.context - Начальные значения контекста (опционально)
+   * @param config.path - Позиционный путь в VDOM (опционально, генерируется автоматически)
+   *
+   * @returns Новый экземпляр актора
+   *
+   * @example
+   * ```typescript
+   * const actor = Actor.fromSchema({
+   *   meta: userSchema,
+   *   id: "user-123",
+   *   core: { users: [], settings: {} },
+   *   context: { name: "John", age: 25 },
+   *   path: "0/1"
+   * })
+   * ```
+   */
   static fromSchema<M extends MetaSchema>(config: {
     meta: M
     id: string
@@ -288,7 +328,7 @@ export class Actor extends ActorCommunication {
     return new Actor(
       meta.name,
       id,
-      meta.description,
+      meta.desc,
       ctx,
       { current: Object.keys(meta.states)[0] as string, states: meta.states },
       processesFromSchema(meta.processes ?? {}, { meta: meta.name, actor: id, path: path ?? "0" }),

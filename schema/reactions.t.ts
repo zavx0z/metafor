@@ -16,8 +16,8 @@ import type { Self } from "../metafor.t"
  * @example
  * ```typescript
  * const reaction: Reaction<MyContext, "idle" | "loading"> = {
- *   title: "Обработка сообщений",
- *   description: "Обрабатывает входящие сообщения от пользователей",
+ *   label: "Обработка сообщений",
+ *   desc: "Обрабатывает входящие сообщения от пользователей",
  *   filter: ({ meta, patch }) => {
  *     return meta === "user" && patch.op === "replace"
  *   },

@@ -4,10 +4,33 @@
  * MetaFor предоставляет декларативный способ создания web-компонентов с конечным автоматом.
  * Каждый компонент имеет типизированный контекст, состояния, процессы, реакции и представление.
  *
- * **ВАЖНО: Акторы MetaFor имеют полную изоляцию и используют shadow-dom closed**
- * Все взаимодействия между акторами происходят через патчи в сообщениях
- * Акторы регистрируются автоматически при импорте файла, экспорт не требуется
- * Используйте систему сообщений и реакций для связи между компонентами
+ * ## Архитектура
+ *
+ * **Акторы MetaFor имеют полную изоляцию с независимой реализацией DOM**
+ * - Все взаимодействия между акторами происходят через патчи в сообщениях
+ * - Используйте систему сообщений и реакций для связи между компонентами
+ *
+ * ## Новые возможности
+ *
+ * ### Позиционные пути (Path)
+ * - Каждый актор имеет уникальный позиционный путь в VDOM (например, "0/1/2")
+ * - Пути генерируются автоматически через `ActorHierarchy`
+ * - Доступны в `Self` объекте: `{ meta, actor, path }`
+ *
+ * ### Расширенные фильтры реакций
+ * - Доступ к контексту в функции `filter`: `filter(({ self, context }) => ...)`
+ * - Декларативные условия фильтрации с поддержкой сложных условий
+ * - Фильтрация по meta, actor, path, op, value, timestamp
+ *
+ * ### Иерархия акторов
+ * - `ActorHierarchy` для управления позиционными путями
+ * - Автоматическая генерация корневых путей
+ * - Управление иерархией VDOM
+ *
+ * ### Шаблонизация
+ * - Использует `@zavx0z/template` для рендеринга
+ * - Поддержка JavaScript выражений в template literals
+ * - Типобезопасный template API
  *
  * @example
  * ```typescript
@@ -34,6 +57,18 @@
  *         update({ userName: data.name, isLoading: false })
  *       })
  *   }))
+ *   .reactions((reaction) => [
+ *     [
+ *       ["idle"],
+ *       reaction()
+ *         .filter(({ self, context }) => ({
+ *           meta: "user",
+ *           actor: self.actor.split("/")[1] || "",
+ *           value: { gt: 0 }
+ *         }))
+ *         .equal(({ update }) => update({ isLoading: true }))
+ *     ]
+ *   ])
  *   .view({
  *     render: ({ context, html, update }) => html`
  *       <div>
@@ -61,7 +96,7 @@ import type { MetaForConfig, MetaForType, ViewDeclaration, MetaSchema } from "./
 export type { MetaForType, MetaSchema }
 
 globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
-  const description = config?.description
+  const desc = config?.desc
   const dev = config?.dev ?? globalThis.DEV ?? false
   return {
     context<C extends Schema>(schema: (types: Types) => C) {
@@ -70,8 +105,7 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
         states<S extends string>(states: StatesConfig<S, C>) {
           validateNoUnconditionalCycles(states)
           return {
-            core<I extends Core>(coreBuilder: (() => I) | I = () => ({}) as I) {
-              const core = typeof coreBuilder === "function" ? coreBuilder() : coreBuilder
+            core<I extends Core>(core?: I) {
               return {
                 processes(process: ProcessesDeclaration<C, S, I> = () => ({})) {
                   const processes = processesSchema(process)
@@ -79,9 +113,9 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
                     reactions(reaction: ReactionsDeclaration<C, S, I> = () => []) {
                       const reactions = reactionsSchema(reaction)
                       return {
-                        view(view?: ViewDeclaration<C, I, S>): MetaSchema<C, S> {
-                          const schema: MetaSchema<C, S> = { name, states, context }
-                          if (description) schema.description = description
+                        view(view?: ViewDeclaration<C, I, S>): MetaSchema<C, S, I> {
+                          const schema: MetaSchema<C, S, I> = { name, states, context, core: core || ({} as I) }
+                          if (desc) schema.desc = desc
                           if (view && "style" in view) schema.style = serializeStyle(view.style)
                           if (view && "render" in view) schema.render = parse(view.render as any)
                           if (processes) schema.processes = processes

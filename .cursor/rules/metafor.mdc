@@ -1,11 +1,30 @@
 ---
 alwaysApply: false
 ---
+
 # Правила MetaFor для AI агента
 
 ## Концепция фреймворка
 
-MetaFor — это фреймворк для создания веб-компонентов на основе конечных автоматов. Каждый компонент является изолированным актором со своим состоянием, контекстом и логикой переходов.
+MetaFor — это фреймворк для создания акторов на основе конечных автоматов. Каждый компонент является изолированным актором со своим состоянием, контекстом и логикой переходов.
+
+### Позиционные пути (Path)
+
+- Каждый актор имеет уникальный позиционный путь в VDOM (например, "0/1/2")
+- Пути генерируются автоматически через `ActorHierarchy`
+- Доступны в `Self` объекте: `{ meta, actor, path }`
+
+### Расширенные фильтры реакций
+
+- Доступ к контексту в функции `filter`: `filter(({ self, context }) => ...)`
+- Декларативные условия фильтрации с поддержкой сложных условий
+- Фильтрация по meta, actor, path, op, value, timestamp
+
+### Иерархия акторов
+
+- `ActorHierarchy` для управления позиционными путями
+- Автоматическая генерация корневых путей
+- Управление иерархией VDOM
 
 ## Архитектура компонента
 
@@ -18,12 +37,12 @@ MetaFor — это фреймворк для создания веб-компо�
   // Строки
   name: types.string.required("Гость"),                    // обязательное поле
   email: types.string.optional(),                          // опциональное поле
-  title: types.string.required("Заголовок")({ title: "Название" }), // с метаданными
+  title: types.string.required("Заголовок")({ label: "Название" }), // с метаданными
 
   // Числа
   age: types.number.required(18),
   score: types.number.optional(),
-  count: types.number.required(0)({ title: "Счетчик" }),
+  count: types.number.required(0)({ label: "Счетчик" }),
 
   // Булевы значения
   isActive: types.boolean.required(true),
@@ -36,7 +55,7 @@ MetaFor — это фреймворк для создания веб-компо�
   // Массивы (только примитивов)
   tags: types.array.required(["default"]),
   categories: types.array.optional(),
-  selectedIds: types.array.required([])({ title: "Выбранные ID" })
+  selectedIds: types.array.required([])({ label: "Выбранные ID" })
 }))
 ```
 
@@ -46,7 +65,7 @@ MetaFor — это фреймворк для создания веб-компо�
 - НЕ храни объекты в контексте
 - Каждое поле может быть required или optional
 - optional поля по умолчанию имеют значение null
-- Метаданные добавляются через вызов функции: `({ title: "Описание" })`
+- Метаданные добавляются через вызов функции: `({ label: "Описание" })`
 
 ### 2. Core — хранилище сложных данных
 
@@ -143,7 +162,7 @@ Core содержит сложные объекты, сервисы и DOM сс�
 .processes((process) => ({
   // Процесс для состояния "loading"
   loading: process({
-    title: "Загрузка данных",
+    label: "Загрузка данных",
     description: "Загружает данные пользователя"
   })
     .action(async ({ context, core }) => {
@@ -192,17 +211,17 @@ Core содержит сложные объекты, сервисы и DOM сс�
 ### 5. Reactions — обработка сообщений от других компонентов
 
 ```typescript
-// Сохрани хеши компонентов для фильтрации
-const childUserHash = "abc123..." // хеш дочернего user компонента
-const childFormHash = "def456..." // хеш дочернего form компонента
+// Сохрани имена компонентов для фильтрации
+const childUserName = "child-user" // имя дочернего user компонента
+const childFormName = "child-form" // имя дочернего form компонента
 
   .reactions((reaction) => [
     // Реакция активна в состояниях idle и loading
     [
       ["idle", "loading"], // НЕ используй ["*"]
-      reaction({ title: "Обработка сообщений от user компонента" })
+      reaction({ label: "Обработка сообщений от user компонента" })
         .filter({
-          meta: childUserHash, // хеш меты компонента-отправителя
+          meta: childUserName, // имя компонента-отправителя
           op: "replace", // операция: "add" | "replace" | "remove" | "test"
           path: "/context", // путь: "/" | "/context" | "/state"
           value: { userId: { gt: 0 } }, // условия на значение
@@ -220,7 +239,7 @@ const childFormHash = "def456..." // хеш дочернего form компон
     // Реакция на добавление компонента
     [
       ["idle"],
-      reaction({ title: "Компонент добавлен" })
+      reaction({ label: "Компонент добавлен" })
         .filter({
           op: "add",
           path: "/",
@@ -234,11 +253,10 @@ const childFormHash = "def456..." // хеш дочернего form компон
 
 **Фильтры реакций:**
 
-- `tag` — хеш компонента-отправителя
+- `meta` — имя компонента-отправителя
 - `op` — операция: "add" | "replace" | "remove" | "test"
 - `path` — путь изменения: "/" | "/context" | "/state"
 - `value` — условия на значение (как в states)
-- `index` — индекс сообщения
 - `timestamp` — временная метка
 
 ### 6. View — представление компонента
@@ -249,49 +267,44 @@ const childFormHash = "def456..." // хеш дочернего form компон
     return html`
       <div class="component state-${state}">
         <!-- Отображение в зависимости от состояния -->
-        ${choose(state, [
-          ["idle", () => html`
-            <button @click=${() => update({ userId: 123 })}>
+        ${state === "idle"
+          ? html`
+            <button onclick=${() => update({ userId: 123 })}>
               Загрузить пользователя
             </button>
-          `],
-          ["loading", () => html`
-            <div class="spinner">Загрузка...</div>
-          `],
-          ["success", () => html`
-            <form ${ref(core.formRef)}>
-              <input
-                ${ref(core.inputRef)}
-                .value=${context.userName}
-                @input=${(e) => update({ userName: e.target.value })}
-              />
-              <button ${ref(core.buttonRef)} type="submit">
-                Сохранить
-              </button>
-            </form>
-          `],
-          ["error", () => html`
-            <div class="error">${context.error}</div>
-            <button @click=${() => update({ retryCount: 0, userId: context.userId })}>
-              Повторить
-            </button>
-          `]
-        ])}
+          `
+          : state === "loading"
+            ? html`
+              <div class="spinner">Загрузка...</div>
+            `
+            : state === "success"
+              ? html`
+                <form>
+                  <input
+                    value=${context.userName}
+                    oninput=${(e) => update({ userName: e.target.value })}
+                  />
+                  <button type="submit">
+                    Сохранить
+                  </button>
+                </form>
+              `
+              : html`
+                <div class="error">${context.error}</div>
+                <button onclick=${() => update({ retryCount: 0, userId: context.userId })}>
+                  Повторить
+                </button>
+              `
+        }
 
         <!-- Условный рендеринг -->
-        ${when(context.isLoading,
-          () => html`<div class="overlay">Обработка...</div>`
-        )}
+        ${context.isLoading && html`<div class="overlay">Обработка...</div>`}
 
-        <!-- Циклы с ключами -->
-        ${repeat(
-          context.selectedIds,
-          (id) => id,  // ключ для оптимизации
-          (id) => {
-            const user = core.users.get(id)
-            return html`<div>${user?.name || "Загрузка..."}</div>`
-          }
-        )}
+        <!-- Циклы с map -->
+        ${context.selectedIds.map(id => {
+          const user = core.users.get(id)
+          return html`<div>${user?.name || "Загрузка..."}</div>`
+        })}
       </div>
     `
   },
@@ -326,25 +339,18 @@ const childFormHash = "def456..." // хеш дочернего form компон
 })
 ```
 
-**Директивы HTML:**
-
-- `@event` — обработчики событий
-- `?attribute` — булевы атрибуты
-- `.property` — свойства элементов
-- `${ref(core.refName)}` — привязка DOM элемента
-
 ## Передача данных между компонентами
 
 ### Передача контекста и core дочерним компонентам
 
 ```typescript
-// Сохрани хеши дочерних компонентов
-const userDetailsHash = MetaFor("user-details")
+// Сохрани имена дочерних компонентов
+const userDetailsComponent = MetaFor("user-details")
   .context((types) => ({ userId: types.number.required(0) }))
   // ... остальная конфигурация
   .view(/* ... */)
 
-const messengerHash = MetaFor("messenger")
+const messengerComponent = MetaFor("messenger")
   .context((types) => ({ message: types.string.required("") }))
   // ... остальная конфигурация
   .view(/* ... */)
@@ -352,31 +358,31 @@ const messengerHash = MetaFor("messenger")
   // В родительском компоненте
   .view({
     render: ({ context, core, html }) => html`
-    <div>
-      <!-- Передача контекста -->
-      <meta-${userDetailsHash}
-        context=${{
-          userId: context.selectedUserId,
-        }}>
-      </meta-${userDetailsHash}>
-      
-      <!-- Передача core объектов -->
-      <meta-${messengerHash}
-        core=${{
-          socket: core.socket,
-          apiService: core.apiService,
-        }}>
-      </meta-${messengerHash}>
-    </div>
-  `,
+      <div>
+        <!-- Передача контекста -->
+        <meta-details
+          context=${{
+            userId: context.selectedUserId,
+          }}>
+        </meta-details>
+
+        <!-- Передача core объектов -->
+        <meta-messenger
+          core=${{
+            socket: core.socket,
+            apiService: core.apiService,
+          }}>
+        </meta-messenger>
+      </div>
+    `,
   })
 ```
 
 ## Создание компонента
 
 ```typescript
-// Создание компонента возвращает хеш
-const hash = MetaFor("user-profile")
+// Создание компонента
+const userProfile = MetaFor("user-profile")
   .context((types) => ({
     userId: types.number.required(0),
     userName: types.string.required(""),
@@ -406,28 +412,12 @@ const hash = MetaFor("user-profile")
   }))
   .reactions((reaction) => [])
   .view({
-    render: ({ context, html }) => html` <div>${context.userName}</div> `,
+    render: ({ context, html }) => html`<div>${context.userName}</div>`,
   })
 
-// Используй полученный хеш для создания элемента
-document.body.innerHTML = `<meta-${hash}></meta-${hash}>`
+document.body.innerHTML = `<meta-counter></meta-counter>`
 ```
 
 ## Важные правила
 
 1. **Контекст** — только примитивы (string, number, boolean, enum, array)
-2. **Core** — любые сложные объекты, ref() для DOM
-3. **States** — условия переходов основаны на полях контекста
-4. **Processes** — имя процесса = имя состояния
-5. **Reactions** — tag это хеш компонента, а не произвольная строка
-6. **View** — используй полученный хеш для создания элементов
-
-## Чек-лист
-
-- [ ] Контекст содержит только примитивы
-- [ ] Сложные объекты вынесены в core
-- [ ] ref() используется для DOM элементов
-- [ ] Имена процессов совпадают с именами состояний
-- [ ] В реакциях указаны конкретные состояния (не "\*")
-- [ ] tag в фильтрах реакций — это хеш компонента
-- [ ] Используется хеш для создания элементов акторов
