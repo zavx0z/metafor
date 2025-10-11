@@ -3,13 +3,12 @@ import { checkTransition, type Conditions, type Transitions } from "./core/state
 import { processesFromSchema, type Process, type Processes } from "./core/processes"
 import { reactionsFromSchema, type Reactions } from "./core/reactions"
 import { ActorCommunication } from "./core/communication"
-import { ActorHierarchy } from "./core/hierarchy"
+export { Fields } from "./core/field"
 import type { Node as ParseNode } from "@zavx0z/template"
 import type { Core, Snapshot, Message } from "./actor.t"
 export type { Message }
-export { ActorHierarchy }
 import type { StatesConfig } from "./schema/states"
-import type { MetaSchema } from "./metafor"
+import type { Meta } from "./metafor"
 
 /**
  * Основной класс актора MetaFor
@@ -272,6 +271,10 @@ export class Actor extends ActorCommunication {
     return { meta, actor, path, timestamp: Date.now(), patches: [{ op: "replace", path: "/state", value: state }] }
   }
 
+  static removeMessage(meta: string, actor: string, path: string): Message {
+    return { meta, actor, path, timestamp: Date.now(), patches: [{ op: "remove", path: "/" }] }
+  }
+
   /** Очищает ресурсы актора и удаляет его из реестра */
   destroy() {
     // Рекурсивно уничтожаем всех детей
@@ -284,6 +287,10 @@ export class Actor extends ActorCommunication {
         childActor.destroy()
       }
     }
+
+    // Отправляем сообщение об удалении
+    const removeMessage = Actor.removeMessage(this.name, this.id, this.path)
+    this.sendMessage(removeMessage)
 
     this.destroyCommunication()
     Actor.coreWeakMap.delete(this)
@@ -314,7 +321,7 @@ export class Actor extends ActorCommunication {
    * })
    * ```
    */
-  static fromSchema<M extends MetaSchema>(config: {
+  static fromSchema<M extends Meta>(config: {
     meta: M
     id: string
     core?: Core

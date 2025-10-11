@@ -1,7 +1,7 @@
-import { describe, it, expect, beforeEach, afterEach } from "bun:test"
+import { describe, it, expect, beforeEach, afterEach, jest } from "bun:test"
 import { Actor } from "../../actor"
 import { ActorCommunication } from "../communication"
-import type { MetaSchema } from "../../metafor"
+import type { Meta } from "../../metafor"
 
 describe("Очистка ресурсов актора", () => {
   beforeEach(() => {
@@ -12,7 +12,7 @@ describe("Очистка ресурсов актора", () => {
     Actor.clearRegistry()
   })
 
-  const testSchema: MetaSchema = {
+  const testSchema: Meta = {
     name: "test-actor",
     context: {
       value: { type: "number", default: 0 },
@@ -119,5 +119,26 @@ describe("Очистка ресурсов актора", () => {
 
     // Второй вызов destroy не должен вызывать ошибок
     expect(() => actor.destroy()).not.toThrow()
+  })
+
+  it("должен отправлять сообщение об удалении при destroy", () => {
+    const actor = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
+    
+    // Мокаем sendMessage для проверки вызова
+    const sendMessageSpy = jest.spyOn(actor, 'sendMessage')
+    
+    // Уничтожаем актор
+    actor.destroy()
+    
+    // Проверяем, что sendMessage был вызван с правильным сообщением
+    expect(sendMessageSpy).toHaveBeenCalledWith({
+      meta: testSchema.name,
+      actor: "actor-1",
+      path: actor.path,
+      timestamp: expect.any(Number),
+      patches: [{ op: "remove", path: "/" }]
+    })
+    
+    sendMessageSpy.mockRestore()
   })
 })
