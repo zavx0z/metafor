@@ -28,7 +28,7 @@ export type { Process, Processes } from "./processes.t"
  */
 export function processesFromSchema<C extends Schema = Schema, S extends string = string, I extends Core = Core>(
   schema: ProcessesSchema,
-  self: Self = { meta: "unknown", actor: "unknown", path: "0" }
+  self: Self = { meta: "unknown", actor: "unknown", path: "0", destroy: () => {} }
 ): Processes<C, S, I> {
   const processes: Record<S, Process<C, I>> = {} as Record<S, Process<C, I>>
 

@@ -1,8 +1,8 @@
 import type { Schema, Values } from "@zavx0z/context"
 import type { Core } from "../actor.t"
 import type { ReactionFilterConditions } from "../core/condition.t"
-import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionUpdate } from "./reactions.t"
-import type { Self } from "../metafor.t"
+import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction } from "./reactions.t"
+import type { SelfInfo } from "../metafor.t"
 export type { ReactionsDeclaration, ReactionsSchema }
 
 export const reactionsSchema = <C extends Schema, S extends string, I extends Core = {}>(
@@ -13,8 +13,8 @@ export const reactionsSchema = <C extends Schema, S extends string, I extends Co
   let reactionAutoId = 0
 
   const chainResult = builder((config?: { label?: string; desc?: string }) => ({
-    filter: (filterFn: (params: { self: Self; context: Values<C> }) => ReactionFilterConditions) => ({
-      equal: (update: ReactionUpdate<C, S, I>) => {
+    filter: (filter: (params: { self: SelfInfo; context: Values<C> }) => ReactionFilterConditions) => ({
+      equal: (update: ReactionAction<C, S, I>) => {
         const { read, write } = extractFields(update)
         const label = config?.label || ""
         const desc = config?.desc
@@ -23,7 +23,7 @@ export const reactionsSchema = <C extends Schema, S extends string, I extends Co
         reactions[id] = {
           label,
           ...(desc && { desc }),
-          cond: filterFn.toString(),
+          cond: filter.toString(),
           read,
           write,
           src: update.toString(),
@@ -53,8 +53,8 @@ export const reactionsSchema = <C extends Schema, S extends string, I extends Co
 } /**
  * Анализирует функцию update для извлечения полей
  */
-export function extractFields<C extends Schema, S extends string, I extends Core>(update: ReactionUpdate<C, S, I>) {
-  const updateStr = update.toString()
+export function extractFields<C extends Schema, S extends string, I extends Core>(reaction: ReactionAction<C, S, I>) {
+  const updateStr = reaction.toString()
   const read: string[] = []
   const write: string[] = []
 

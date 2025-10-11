@@ -49,6 +49,7 @@ export class Actor extends ActorCommunication {
     // Инициализируем path: если передан явно, используем его, иначе генерируем корневой путь
     this.path = path ?? ActorCommunication.getFields().generateRootPath()
     this.update = this.update.bind(this)
+    this.destroy = this.destroy.bind(this)
     Actor.coreWeakMap.set(this, core || {})
     this.#init()
   }
@@ -156,7 +157,7 @@ export class Actor extends ActorCommunication {
         schema: this.ctx.schema,
         context: this.ctx.context,
         core: this.core,
-        self: { meta: this.name, actor: this.id, path: this.path },
+        self: { meta: this.name, actor: this.id, path: this.path, destroy: this.destroy },
       })
       if (result instanceof Promise) {
         result
@@ -250,7 +251,7 @@ export class Actor extends ActorCommunication {
         patch,
         state: this.state.current,
         update: this.update,
-        self: { meta: this.name, actor: this.id, path: this.path },
+        self: { meta: this.name, actor: this.id, path: this.path, destroy: this.destroy },
       })
     }
     this.transition() // TODO: оптимизировать по результату обновления
@@ -337,7 +338,7 @@ export class Actor extends ActorCommunication {
       meta.desc,
       ctx,
       { current: Object.keys(meta.states)[0] as string, states: meta.states },
-      processesFromSchema(meta.processes ?? {}, { meta: meta.name, actor: id, path: path ?? "0" }),
+      processesFromSchema(meta.processes ?? {}, { meta: meta.name, actor: id, path: path ?? "0", destroy: () => {} }),
       reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
       meta.render ?? [],
       core,

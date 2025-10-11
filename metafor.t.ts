@@ -370,24 +370,43 @@ export interface Meta<C extends Schema = Schema, S extends string = string, I ex
   core: I
 }
 /**
- * Идентификатор актора в системе MetaFor
+ * Базовая информация об акторе в системе MetaFor
  *
- * Содержит полную информацию о местоположении актора в иерархии:
- * - `meta` - мета-информация о типе актора
- * - `actor` - уникальный идентификатор актора
- * - `path` - позиционный путь в VDOM (например, "0/1/2")
+ * Содержит основную информацию о местоположении актора в иерархии.
+ * Используется в фильтрах реакций, где не требуется доступ к методу destroy.
  *
  * @example
  * ```typescript
- * const self: Self = {
+ * const selfInfo: SelfInfo = {
  *   meta: "user-profile",
  *   actor: "user-123",
  *   path: "0/1/2"
  * }
  * ```
  */
-export type Self = {
+export type SelfInfo = {
   meta: string
   actor: string
   path: string
+}
+
+/**
+ * Полный идентификатор актора в системе MetaFor
+ *
+ * Наследует базовую информацию от SelfInfo и добавляет метод destroy.
+ * Используется в процессах и обработчиках реакций (equal) для доступа к методу уничтожения актора.
+ * В фильтрах реакций (filter) используется только SelfInfo без метода destroy.
+ *
+ * @example
+ * ```typescript
+ * const self: Self = {
+ *   meta: "user-profile",
+ *   actor: "user-123",
+ *   path: "0/1/2",
+ *   destroy: () => actor.destroy()
+ * }
+ * ```
+ */
+export type Self = SelfInfo & {
+  destroy: () => void
 }

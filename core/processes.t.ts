@@ -100,7 +100,7 @@ export type ActionParams<C extends Schema, I extends Core> = {
   core: I
   /** Схема контекста */
   schema: C
-  /** */
+  /** Полный идентификатор актора с методом destroy */
   self: Self
 }
 
@@ -113,7 +113,11 @@ export type ActionParams<C extends Schema, I extends Core> = {
  *
  * @example
  * ```typescript
- * const chain = action(({ context }) => ({ name: context.name }))
+ * const chain = action(({ context, core, schema, self }) => {
+ *   // Доступ ко всем параметрам процесса
+ *   // self.destroy() доступен в процессах
+ *   return { name: context.name }
+ * })
  *   .success(({ update, data }) => update({ name: data.name }))
  *   .error(({ update, error }) => update({ name: error.message }))
  *
@@ -124,16 +128,29 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
   /**
    * Основная функция процесса, вызывается автоматом.
    *
-   * Получает текущий контекст и должна вернуть результат или выбросить исключение.
+   * Получает полный набор параметров для выполнения процесса и должна вернуть результат или выбросить исключение.
    *
-   * @param params - объект с текущим контекстом
+   * @param params - объект с параметрами процесса:
+   *   - `context` - текущий контекст актора
+   *   - `core` - ядро актора для сложных данных
+   *   - `schema` - схема контекста для валидации и установки значений по умолчанию
+   *   - `self` - полный идентификатор актора с методом destroy
    * @returns результат процесса (может быть промисом)
    *
    * @example
    * ```typescript
-   * action: ({ context }) => {
+   * action: ({ context, core, schema, self }) => {
    *   // Доступ к контексту
    *   console.log(context.email, context.password)
+   *
+   *   // Доступ к ядру
+   *   core.users.push({ name: context.name })
+   *
+   *   // Доступ к схеме для валидации
+   *   const isValid = schema.email.validate(context.email)
+   *
+   *   // self.destroy() доступен для уничтожения актора
+   *   // self.meta, self.actor, self.path доступны
    *
    *   // Возврат результата
    *   return { userId: 123, token: "abc" }
@@ -243,8 +260,9 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
  * const process: Process<MyContext, { userId: number }> = {
  *   label: "Авторизация",
  *   desc: "Процесс входа пользователя",
- *   action: async ({ context }) => {
- *     // Логика авторизации
+ *   action: async ({ context, core, schema, self }) => {
+ *     // Логика авторизации с доступом ко всем параметрам
+ *     // self.destroy() доступен для уничтожения актора
  *     return { userId: 123 }
  *   },
  *   success: ({ update, data }) => {

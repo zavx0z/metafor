@@ -6,8 +6,8 @@
 
 import type { Schema, Update, Values } from "@zavx0z/context"
 import type { Core, JsonPatch } from "../actor.t"
-import type { ReactionUpdate } from "../schema/reactions.t"
-import type { Self } from "../metafor.t"
+import type { ReactionAction } from "../schema/reactions.t"
+import type { Self, SelfInfo } from "../metafor.t"
 
 export type ReactionParams = {
   meta: string
@@ -33,13 +33,13 @@ export type Reactions<C extends Schema = Schema, S extends string = string, I ex
   getAllReactions: () => Array<{
     label: string
     desc?: string
-    update: ReactionUpdate<C, S, I>
-    getConditions: (params: { self: Self; context: Values<C> }) => any
+    update: ReactionAction<C, S, I>
+    getConditions: (params: { self: SelfInfo; context: Values<C> }) => any
   }>
   getReactions: (state: S) => Array<{
     label: string
     desc?: string
-    update: ReactionUpdate<C, S, I>
-    getConditions: (params: { self: Self; context: Values<C> }) => any
+    update: ReactionAction<C, S, I>
+    getConditions: (params: { self: SelfInfo; context: Values<C> }) => any
   }>
 }
