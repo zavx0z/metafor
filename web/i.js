@@ -54,13 +54,13 @@ export function log(message, core) {
   const { meta, actor, path: actorPath, patch } = message
 
   const metaStr = String(meta).padEnd(config.width.meta, " ")
-  const actorStr = String(actor).padEnd(22, " ")
+  const actorStr = String(actor).padEnd(40, " ")
   const pathStr = String(actorPath).padEnd(8, " ")
   const op = String(patch.op).padEnd(config.width.op, " ")
   const path = String(patch.path).padEnd(config.width.path, " ")
 
-  const value = formattedObj(patch.value)
-  const isError = Object.hasOwn(patch.value, "error")
+  const value = patch.value ? formattedObj(patch.value) : ""
+  const isError = patch.value ? Object.hasOwn(patch.value, "error") : ""
 
   switch (true) {
     case isLog(message, "/"):

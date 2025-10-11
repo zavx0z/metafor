@@ -1,5 +1,5 @@
 /**
- * ActorHierarchy - класс для управления иерархическим деревом акторов
+ * Fields - класс для управления иерархическим деревом акторов
  *
  * Отвечает за:
  * - Управление позиционными путями VDOM (например, "0/1/2")
@@ -10,7 +10,7 @@
  *
  * @example
  * ```typescript
- * const hierarchy = new ActorHierarchy()
+ * const hierarchy = new Fields()
  *
  * // Создание корневого узла
  * const rootPath = hierarchy.generateRootPath() // "0"
@@ -57,7 +57,7 @@ export type { ReparentOptions } from "../order-tree/index"
  *
  * @example
  * ```typescript
- * const hierarchy = new ActorHierarchy()
+ * const hierarchy = new Fields()
  *
  * // Создание корневого узла
  * const rootPath = hierarchy.generateRootPath() // "0"
@@ -69,7 +69,7 @@ export type { ReparentOptions } from "../order-tree/index"
  * const actor = hierarchy.getActor("0/1")
  * ```
  */
-export class ActorHierarchy {
+export class Fields {
   /** Иерархическое хранилище акторов */
   private readonly store: ActorStore = createActorStore()
 

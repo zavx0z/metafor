@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { Actor } from "../../actor"
-import type { MetaSchema } from "../../metafor"
+import type { Meta } from "../../metafor"
 
 describe("Двойная отправка сообщений (BroadcastChannel + внутренний механизм)", () => {
   let broadcastChannelMessages: any[] = []
@@ -32,7 +32,7 @@ describe("Двойная отправка сообщений (BroadcastChannel +
     Actor.clearRegistry()
   })
 
-  const testSchema: MetaSchema = {
+  const testSchema: Meta = {
     name: "test-actor",
     context: {
       value: { type: "number", default: 0 },

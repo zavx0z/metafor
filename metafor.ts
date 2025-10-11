@@ -14,7 +14,7 @@
  *
  * ### Позиционные пути (Path)
  * - Каждый актор имеет уникальный позиционный путь в VDOM (например, "0/1/2")
- * - Пути генерируются автоматически через `ActorHierarchy`
+ * - Пути генерируются автоматически через `Fields`
  * - Доступны в `Self` объекте: `{ meta, actor, path }`
  *
  * ### Расширенные фильтры реакций
@@ -23,7 +23,7 @@
  * - Фильтрация по meta, actor, path, op, value, timestamp
  *
  * ### Иерархия акторов
- * - `ActorHierarchy` для управления позиционными путями
+ * - `Fields` для управления позиционными путями
  * - Автоматическая генерация корневых путей
  * - Управление иерархией VDOM
  *
@@ -92,8 +92,8 @@ import { reactionsSchema, type ReactionsDeclaration } from "./schema/reactions"
 import { processesSchema, type ProcessesDeclaration } from "./schema/process"
 import { serializeStyle } from "./schema/style"
 
-import type { MetaForConfig, MetaForType, ViewDeclaration, MetaSchema } from "./metafor.t"
-export type { MetaForType, MetaSchema }
+import type { MetaForConfig, MetaFor, ViewDeclaration, Meta } from "./metafor.t"
+export type { MetaFor, Meta }
 
 globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc
@@ -113,8 +113,8 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
                     reactions(reaction: ReactionsDeclaration<C, S, I> = () => []) {
                       const reactions = reactionsSchema(reaction)
                       return {
-                        view(view?: ViewDeclaration<C, I, S>): MetaSchema<C, S, I> {
-                          const schema: MetaSchema<C, S, I> = { name, states, context, core: core || ({} as I) }
+                        view(view?: ViewDeclaration<C, I, S>): Meta<C, S, I> {
+                          const schema: Meta<C, S, I> = { name, states, context, core: core || ({} as I) }
                           if (desc) schema.desc = desc
                           if (view && "style" in view) schema.style = serializeStyle(view.style)
                           if (view && "render" in view) schema.render = parse(view.render as any)

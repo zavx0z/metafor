@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { Actor } from "../../actor"
-import type { MetaSchema } from "../../metafor"
+import type { Meta } from "../../metafor"
 
 describe("Внутренний механизм коммуникации между акторами", () => {
   beforeEach(() => {
@@ -13,7 +13,7 @@ describe("Внутренний механизм коммуникации меж�
     Actor.setBroadcastChannel(false)
   })
 
-  const testSchema: MetaSchema = {
+  const testSchema: Meta = {
     name: "test-actor",
     context: {
       value: { type: "number", default: 0 },

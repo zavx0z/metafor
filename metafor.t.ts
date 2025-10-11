@@ -36,7 +36,7 @@ import type { ReactionsDeclaration } from "./schema/reactions"
  *   .view({ render: ({ context }) => html`<div>${context.name}</div>` })
  * ```
  */
-export type MetaForType = (
+export type MetaFor = (
   name: string,
   config?: MetaForConfig
 ) => {
@@ -181,7 +181,7 @@ export type MetaForType = (
              * document.body.innerHTML = `<meta-my-component></meta-my-component>`
              * ```
              */
-            view(view?: ViewDeclaration<C, I, S>): MetaSchema<C, S, I>
+            view(view?: ViewDeclaration<C, I, S>): Meta<C, S, I>
           }
         }
       }
@@ -193,10 +193,10 @@ declare global {
   var DEV: boolean
   interface Window {
     //@ts-ignore
-    MetaFor: MetaForType
+    MetaFor: MetaFor
   }
   //@ts-ignore
-  var MetaFor: MetaForType
+  var MetaFor: MetaFor
 }
 export {}
 
@@ -341,7 +341,7 @@ export interface ViewDeclaration<C extends Schema, I extends Core, S extends str
  *
  * @example
  * ```typescript
- * const schema: MetaSchema = {
+ * const schema: Meta = {
  *   name: "user-profile",
  *   context: { name: types.string.required("") },
  *   states: { idle: { loading: {} } },
@@ -349,7 +349,7 @@ export interface ViewDeclaration<C extends Schema, I extends Core, S extends str
  * }
  * ```
  */
-export interface MetaSchema<C extends Schema = Schema, S extends string = string, I extends Core = {}> {
+export interface Meta<C extends Schema = Schema, S extends string = string, I extends Core = {}> {
   /** Название компонента */
   name: string
   /** Описание компонента */

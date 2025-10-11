@@ -1,5 +1,5 @@
 import type { Message } from "../actor.t"
-import { ActorHierarchy } from "./hierarchy"
+import { Fields } from "./field"
 
 /**
  * Базовый класс для управления коммуникациями между акторами
@@ -21,7 +21,7 @@ import { ActorHierarchy } from "./hierarchy"
  */
 export abstract class ActorCommunication {
   /** Менеджер иерархии акторов */
-  protected static hierarchy = new ActorHierarchy()
+  protected static fields = new Fields()
 
   /** Флаг управления BroadcastChannel */
   protected static useBroadcastChannel = true
@@ -68,7 +68,7 @@ export abstract class ActorCommunication {
   /** Отправляет сообщение через внутренний механизм всем зарегистрированным акторам */
   static #sendInternalMessage(message: Message) {
     // Отправляем через иерархию акторов
-    const hierarchyActors = ActorCommunication.hierarchy.getAllActors()
+    const hierarchyActors = ActorCommunication.fields.getAllActors()
     for (const actor of hierarchyActors) {
       if (actor.id !== message.actor && actor.hasReactions()) {
         const mockEvent = {
@@ -103,58 +103,58 @@ export abstract class ActorCommunication {
   /** Регистрирует актор в иерархии */
   protected static registerActor(actor: ActorCommunication) {
     // Добавляем в иерархию акторов
-    if (!ActorCommunication.hierarchy.hasActor(actor.path)) {
-      ActorCommunication.hierarchy.createNode(actor.path, actor)
+    if (!ActorCommunication.fields.hasActor(actor.path)) {
+      ActorCommunication.fields.createNode(actor.path, actor)
     }
   }
 
   /** Удаляет актор из иерархии */
   protected static unregisterActor(actor: ActorCommunication) {
     // Удаляем из иерархии
-    if (ActorCommunication.hierarchy.hasActor(actor.path)) {
-      ActorCommunication.hierarchy.removeNode(actor.path)
+    if (ActorCommunication.fields.hasActor(actor.path)) {
+      ActorCommunication.fields.removeNode(actor.path)
     }
   }
 
   /** Возвращает количество зарегистрированных акторов */
   static getRegisteredActorsCount(): number {
-    return ActorCommunication.hierarchy.getActorCount()
+    return ActorCommunication.fields.getActorCount()
   }
 
   /** Очищает реестр акторов (для тестирования) */
   static clearRegistry() {
-    ActorCommunication.hierarchy.clear()
+    ActorCommunication.fields.clear()
   }
 
   /** Получает менеджер иерархии акторов */
-  static getHierarchy(): ActorHierarchy {
-    return ActorCommunication.hierarchy
+  static getFields(): Fields {
+    return ActorCommunication.fields
   }
 
   /** Добавляет актор как дочерний к указанному родителю */
   static addChildActor(parentPath: string | null, childActor: ActorCommunication) {
-    if (!ActorCommunication.hierarchy.hasActor(childActor.path)) {
-      ActorCommunication.hierarchy.createNode(childActor.path, childActor)
+    if (!ActorCommunication.fields.hasActor(childActor.path)) {
+      ActorCommunication.fields.createNode(childActor.path, childActor)
     }
-    ActorCommunication.hierarchy.appendChild(parentPath, childActor.path)
+    ActorCommunication.fields.appendChild(parentPath, childActor.path)
   }
 
   /** Получает детей актора */
   static getActorChildren(parentPath: string | null): ActorCommunication[] {
-    const childrenPaths = ActorCommunication.hierarchy.getChildren(parentPath)
+    const childrenPaths = ActorCommunication.fields.getChildren(parentPath)
     return childrenPaths
-      .map((path) => ActorCommunication.hierarchy.getActor(path))
+      .map((path) => ActorCommunication.fields.getActor(path))
       .filter((actor): actor is ActorCommunication => actor !== null)
   }
 
   /** Получает актор по пути */
   static getActorByPath(path: string): ActorCommunication | null {
-    return ActorCommunication.hierarchy.getActor(path)
+    return ActorCommunication.fields.getActor(path)
   }
 
   /** Проверяет существование актора по пути */
   static hasActorByPath(path: string): boolean {
-    return ActorCommunication.hierarchy.hasActor(path)
+    return ActorCommunication.fields.hasActor(path)
   }
 
   /** Инициализирует коммуникации для актора */

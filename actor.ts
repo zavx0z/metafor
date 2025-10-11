@@ -42,20 +42,20 @@ export class Actor extends ActorCommunication {
     public processes: Processes,
     public reactions: Reactions,
     public render: ParseNode[],
-    core: Core = {},
+    core?: Core,
     path?: string
   ) {
     super()
     // Инициализируем path: если передан явно, используем его, иначе генерируем корневой путь
-    this.path = path ?? ActorCommunication.getHierarchy().generateRootPath()
+    this.path = path ?? ActorCommunication.getFields().generateRootPath()
     this.update = this.update.bind(this)
-    Actor.coreWeakMap.set(this, core)
+    Actor.coreWeakMap.set(this, core || {})
     this.#init()
   }
 
   /** Сбрасывает счетчик путей (для тестирования) */
   static resetPathCounter(): void {
-    ActorCommunication.getHierarchy().resetPathCounter()
+    ActorCommunication.getFields().resetPathCounter()
   }
 
   #init() {
@@ -278,11 +278,10 @@ export class Actor extends ActorCommunication {
   /** Очищает ресурсы актора и удаляет его из реестра */
   destroy() {
     // Рекурсивно уничтожаем всех детей
-    const hierarchy = ActorCommunication.getHierarchy()
-    const children = hierarchy.getChildren(this.path)
-
+    const fields = ActorCommunication.getFields()
+    const children = fields.getChildren(this.path)
     for (const childPath of children) {
-      const childActor = hierarchy.getActor(childPath)
+      const childActor = fields.getActor(childPath)
       if (childActor instanceof Actor) {
         childActor.destroy()
       }
@@ -328,7 +327,7 @@ export class Actor extends ActorCommunication {
     context?: Partial<Values<M["context"]>>
     path?: string
   }): Actor {
-    const { meta, id, core = {}, context = {}, path } = config
+    const { meta, id, core, context = {}, path } = config
 
     const ctx = contextFromSchema(meta.context)
     ctx.update(context as any)

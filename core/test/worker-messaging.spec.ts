@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { Actor } from "../../actor"
-import type { MetaSchema } from "../../metafor"
+import type { Meta } from "../../metafor"
 
 describe("Коммуникация между акторами в разных потоках/воркерах", () => {
   beforeEach(() => {
@@ -11,7 +11,7 @@ describe("Коммуникация между акторами в разных �
     Actor.clearRegistry()
   })
 
-  const testSchema: MetaSchema = {
+  const testSchema: Meta = {
     name: "worker-actor",
     context: {
       value: { type: "number", default: 0 },

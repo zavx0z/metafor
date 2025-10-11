@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import { ActorHierarchy } from "./hierarchy"
+import { Fields } from "./field"
 import type { ActorCommunication } from "./communication"
 
 // Мок для ActorCommunication
@@ -11,8 +11,8 @@ class MockActor {
   handleReactionMessage() {}
 }
 
-test("ActorHierarchy - создание и базовые операции", () => {
-  const hierarchy = new ActorHierarchy()
+test("Fields - создание и базовые операции", () => {
+  const hierarchy = new Fields()
   const actor = new MockActor("test-actor") as unknown as ActorCommunication
 
   // Создание узла
@@ -22,8 +22,8 @@ test("ActorHierarchy - создание и базовые операции", () 
   expect(hierarchy.getActorCount()).toBe(1)
 })
 
-test("ActorHierarchy - работа с иерархией", () => {
-  const hierarchy = new ActorHierarchy()
+test("Fields - работа с иерархией", () => {
+  const hierarchy = new Fields()
   const actors = ["root", "child1", "child2"].map((id) => new MockActor(id) as unknown as ActorCommunication)
 
   // Создаем узлы
@@ -43,8 +43,8 @@ test("ActorHierarchy - работа с иерархией", () => {
   expect(hierarchy.isRootNode("0/0")).toBe(false)
 })
 
-test("ActorHierarchy - перемещение узлов", () => {
-  const hierarchy = new ActorHierarchy()
+test("Fields - перемещение узлов", () => {
+  const hierarchy = new Fields()
   const actors = ["root", "a", "b", "c"].map((id) => new MockActor(id) as unknown as ActorCommunication)
 
   // Создаем узлы
@@ -66,8 +66,8 @@ test("ActorHierarchy - перемещение узлов", () => {
   expect(hierarchy.getChildren("0")).toEqual(["0/0", "0/2", "0/1"])
 })
 
-test("ActorHierarchy - вставка между узлами", () => {
-  const hierarchy = new ActorHierarchy()
+test("Fields - вставка между узлами", () => {
+  const hierarchy = new Fields()
   const actors = ["root", "a", "b", "x"].map((id) => new MockActor(id) as unknown as ActorCommunication)
 
   // Создаем узлы
@@ -85,8 +85,8 @@ test("ActorHierarchy - вставка между узлами", () => {
   expect(hierarchy.getChildren("0")).toEqual(["0/0", "0/2", "0/1"])
 })
 
-test("ActorHierarchy - перепривязка узлов", () => {
-  const hierarchy = new ActorHierarchy()
+test("Fields - перепривязка узлов", () => {
+  const hierarchy = new Fields()
   const actors = ["root", "a", "b", "child"].map((id) => new MockActor(id) as unknown as ActorCommunication)
 
   // Создаем узлы
@@ -106,8 +106,8 @@ test("ActorHierarchy - перепривязка узлов", () => {
   expect(hierarchy.getByIndexPath("0", [0, 0])).toBe("0/0/0")
 })
 
-test("ActorHierarchy - удаление узлов", () => {
-  const hierarchy = new ActorHierarchy()
+test("Fields - удаление узлов", () => {
+  const hierarchy = new Fields()
   const actors = ["root", "a", "b"].map((id) => new MockActor(id) as unknown as ActorCommunication)
 
   // Создаем узлы
@@ -125,8 +125,8 @@ test("ActorHierarchy - удаление узлов", () => {
   expect(hierarchy.getChildren("0")).toEqual(["0/1"])
 })
 
-test("ActorHierarchy - рекурсивное удаление", () => {
-  const hierarchy = new ActorHierarchy()
+test("Fields - рекурсивное удаление", () => {
+  const hierarchy = new Fields()
   const actors = ["root", "a", "a1", "a2"].map((id) => new MockActor(id) as unknown as ActorCommunication)
 
   // Создаем узлы
@@ -148,8 +148,8 @@ test("ActorHierarchy - рекурсивное удаление", () => {
   expect(hierarchy.getChildren("0")).toEqual([])
 })
 
-test("ActorHierarchy - корневые узлы", () => {
-  const hierarchy = new ActorHierarchy()
+test("Fields - корневые узлы", () => {
+  const hierarchy = new Fields()
   const actors = ["root1", "root2"].map((id) => new MockActor(id) as unknown as ActorCommunication)
 
   // Создаем корневые узлы
@@ -166,8 +166,8 @@ test("ActorHierarchy - корневые узлы", () => {
   expect(hierarchy.isRootNode("1")).toBe(true)
 })
 
-test("ActorHierarchy - утилитарные методы", () => {
-  const hierarchy = new ActorHierarchy()
+test("Fields - утилитарные методы", () => {
+  const hierarchy = new Fields()
   const actors = ["root", "child", "grandchild"].map((id) => new MockActor(id) as unknown as ActorCommunication)
 
   // Создаем узлы
@@ -195,8 +195,8 @@ test("ActorHierarchy - утилитарные методы", () => {
   expect(pathToRoot).toEqual(["0", "0/0", "0/0/0"])
 })
 
-test("ActorHierarchy - нормализация и очистка", () => {
-  const hierarchy = new ActorHierarchy()
+test("Fields - нормализация и очистка", () => {
+  const hierarchy = new Fields()
   const actors = ["root", "a", "b"].map((id) => new MockActor(id) as unknown as ActorCommunication)
 
   // Создаем узлы
@@ -217,8 +217,8 @@ test("ActorHierarchy - нормализация и очистка", () => {
   expect(hierarchy.getActorCount()).toBe(0)
 })
 
-test("ActorHierarchy - поиск по id", () => {
-  const hierarchy = new ActorHierarchy()
+test("Fields - поиск по id", () => {
+  const hierarchy = new Fields()
   const actors = ["root", "child1", "child2"].map((id) => new MockActor(id) as unknown as ActorCommunication)
 
   // Создаем узлы
@@ -239,8 +239,8 @@ test("ActorHierarchy - поиск по id", () => {
   expect(hierarchy.getPathById("nonexistent")).toBe(null)
 })
 
-test("ActorHierarchy - генерация корневых путей", () => {
-  const hierarchy = new ActorHierarchy()
+test("Fields - генерация корневых путей", () => {
+  const hierarchy = new Fields()
 
   // Сбрасываем счетчик
   hierarchy.resetPathCounter()

@@ -100,11 +100,11 @@ const childActor = new Actor("child", "child-id", "Child", ..., {}, "0/0") // pa
 
 **Особенности:**
 
-- Счетчик управляется в `ActorHierarchy` для централизованного контроля
+- Счетчик управляется в `Fields` для централизованного контроля
 - Генерируются только корневые пути (`"0"`, `"1"`, `"2"`, ...)
 - Дочерние пути создаются явно при построении иерархии
-- Методы `Actor.resetPathCounter()` и `ActorHierarchy.resetPathCounter()` для сброса счетчика
-- Метод `clear()` в `ActorHierarchy` автоматически сбрасывает счетчик
+- Методы `Actor.resetPathCounter()` и `Fields.resetPathCounter()` для сброса счетчика
+- Метод `clear()` в `Fields` автоматически сбрасывает счетчик
 
 ## Почему фракционный order
 
