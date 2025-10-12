@@ -28,7 +28,7 @@ describe("Внутренний механизм коммуникации меж�
           cond: '({ self }) => ({ op: "replace", path: "/context" })',
           src: `({ context, meta, actor, update }) => {
             // Простая реакция - устанавливаем значение в 1 (безопасно)
-            console.log(\`Реакция сработала для актора \${actor}, текущее значение: \${context.value}\`)
+            // Реакция сработала
             update({ value: 1 })
           }`,
         },

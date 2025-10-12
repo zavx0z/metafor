@@ -93,7 +93,7 @@ describe.skip("MetaFor: инициализация с действиями", asy
       ],
     })
   })
-  // console.log(messages)
+  // messages
   describe("state_1", () => {
     test("вход", () => {
       const message = messages[1]!

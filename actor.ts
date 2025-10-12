@@ -15,49 +15,17 @@ import { Fields } from "./core/fields"
 /**
  * Actor — основной класс актора MetaFor.
  *
- * Актор — изолированная единица с:
- * - собственным состоянием (state machine),
- * - контекстом (typed Context),
- * - обработкой процессов (actions),
- * - реакциями (наблюдение за сообщениями других акторов),
- * - рендер-деревом (template AST узлы, если применимо).
- *
  * Жизненный цикл:
- * - Перед созданием экземпляра внешним кодом резервируется позиция в `Fields` под его `id`
- *   (например, `Fields.get().reserveSibling(id, targetId, "after")` или `reserveByIndexPath`).
- * - В конструкторе базовый класс (`ElectromagneticField`) **прикрепляет** актора в дерево и шлёт
- *   системное `init`-сообщение (см. документацию к базе).
- * - После этого `Actor` запускает начальные переходы/процессы, если они определены.
- * - При уничтожении зовётся `destroy()`:
- *   - база шлёт системное `remove` и отключает транспорт,
- *   - `Actor` рекурсивно очищает ресурсы и удаляет себя из `Fields`.
+ * - (внешний код) резервирует позицию под id в Fields (reserve*),
+ * - (ctor) мы присваиваем поля (`reactions`, `processes`, …),
+ * - вызываем `attachAndAnnounceCreate()` из базы: вклейка в дерево + init-сообщение,
+ * - запускаем стартовые переходы/процессы,
+ * - при destroy: `super.destroy()` (remove + выключение транспорта) → локальная очистка → удаление из Fields.
  */
 export class Actor extends ElectromagneticField {
-  /** Внешний Core-объект, привязанный к актору, хранится вне экземпляра (slab) */
+  /** Core хранится вне экземпляра. */
   private static coreWeakMap = new WeakMap<Actor, Core>()
 
-  /**
-   * Создать актор.
-   *
-   * @param id        Уникальный идентификатор актора.
-   * @param name      Имя мета-схемы (используется в сообщениях).
-   * @param desc      Описание (опционально, попадёт в snapshot).
-   * @param ctx       Контекст (типизированный), см. `@zavx0z/context`.
-   * @param state     Текущее состояние и словарь возможных состояний (Transitions).
-   * @param processes Реестр процессов (действий) по состояниям.
-   * @param reactions Реестр реакций на сообщения других акторов.
-   * @param render    Узлы шаблона рендера (опционально).
-   * @param core      Внешний Core (любой объект) для действий/реакций.
-   *
-   * @remarks
-   * Базовый класс `ElectromagneticField` в своём конструкторе:
-   *  - прикрепит актора в `Fields` (по ранее сделанной резервации либо в конец корня),
-   *  - поднимет транспорт,
-   *  - отправит `init`-сообщение с текущим snapshot.
-   *
-   * После вызова `super(id, name, () => this.snapshot)` ниже мы сразу запускаем
-   * начальные переходы автомата состояний (если описаны).
-   */
   constructor(
     public override id: string,
     public name: string,
@@ -69,17 +37,20 @@ export class Actor extends ElectromagneticField {
     public render: ParseNode[],
     core?: Core
   ) {
-    // база: attachReserved + initializeCommunication + init(add "/") с lazy snapshot
+    // База без сайд-эффектов: только id/name/snapshot-fn
     super(id, name, () => this.snapshot)
 
-    // биндинги удобства
+    // биндинги
     this.update = this.update.bind(this)
     this.destroy = this.destroy.bind(this)
 
-    // core во внешнем WeakMap
+    // core в WeakMap
     Actor.coreWeakMap.set(this, core || {})
 
-    // Запуск стартового процесса/перехода (если есть)
+    // **** КРИТИЧЕСКО: теперь reactions уже присвоены — можно подключать транспорт и слать init ****
+    this.attachAndAnnounceCreate()
+
+    // стартовое состояние/процессы
     const transition = this.state.states[this.state.current]
     if (transition) {
       const process = this.processes.getProcess(this.state.current)
@@ -93,7 +64,8 @@ export class Actor extends ElectromagneticField {
     }
   }
 
-  /** Доступ к внешнему Core (если установлен). */
+  // ---------- Core ----------
+
   get core() {
     return Actor.coreWeakMap.get(this)!
   }
@@ -103,10 +75,8 @@ export class Actor extends ElectromagneticField {
 
   // ---------- подписки на смену состояния ----------
 
-  /** Набор подписчиков на смену текущего состояния. */
   stateListeners = new Set<(state: string) => void>()
 
-  /** Установить текущее состояние и уведомить подписчиков. */
   setState(state: string) {
     this.state.current = state
     if (this.stateListeners.size > 0) {
@@ -114,35 +84,26 @@ export class Actor extends ElectromagneticField {
     }
   }
 
-  /** Подписка на обновление состояния. Возвращает функцию отписки. */
   onStateChange(listener: (state: string) => void): () => void {
     this.stateListeners.add(listener)
     return () => this.unsubscribeState(listener)
   }
-  /** Отписать конкретного слушателя. */
   unsubscribeState(listener: (state: string) => void) {
     this.stateListeners.delete(listener)
   }
 
   // ---------- process runtime ----------
 
-  /** Флаг «идёт процесс» — блокирует повторный запуск до завершения. */
+  /** индикатор выполнения процесса */
   process = false
 
-  /**
-   * 1) Устанавливает состояние флага процесса.
-   * 2) При отключении процесса инициирует автоматический переход (`transition()`).
-   */
   setProcess(process: boolean) {
     if (this.process === process) return
     this.process = process
     if (!process) this.transition()
   }
 
-  /**
-   * Обновить контекст актра.
-   * Рассылает дифф `updated` через сообщение `replace /context`.
-   */
+  /** обновление контекста */
   update(context: Partial<Values<Schema>>): Partial<Values<Schema>> {
     const updated = this.ctx.update(context)
     if (Object.keys(updated).length > 0) {
@@ -151,17 +112,9 @@ export class Actor extends ElectromagneticField {
     return updated
   }
 
-  /**
-   * Выполнить действие процесса.
-   * - шлёт `stateBeforeAction` перед запуском,
-   * - вызывает `process.action(...)`,
-   * - по завершении (успех/ошибка) шлёт `stateAfterAction`,
-   * - управляет флагом `process` (setProcess(false)).
-   */
   executeAction(process: Process<any, any>) {
     try {
       this.sendMessage(Actor.stateBeforeActionMessage(this.name, this.id, this.path, this.state.current))
-
       const result = process.action({
         schema: this.ctx.schema,
         context: this.ctx.context,
@@ -200,22 +153,13 @@ export class Actor extends ElectromagneticField {
     }
   }
 
-  /**
-   * Драйвер переходов:
-   * - проверяет условия для исходящих переходов из текущего состояния,
-   * - переключает состояние и, если есть процесс, запускает его,
-   * - если процесса нет — шлёт `stateAfterAction` и рекурсивно продолжает переходы,
-   * - пока `process` не станет `true` или пока переходы не исчерпаются.
-   */
   transition() {
     const transition: Transitions | undefined = this.state.states[this.state.current]
     if (!transition) return
-
     for (const [state, conditions] of Object.entries(transition)) {
       if (checkTransition(conditions as Conditions, this.ctx.context)) {
         const process = this.processes.getProcess(state)
         if (this.process) return
-
         if (process) {
           this.setProcess(true)
           this.setState(state)
@@ -230,7 +174,8 @@ export class Actor extends ElectromagneticField {
     }
   }
 
-  /** Снимок актора для системных сообщений (используется базой в init). */
+  // ---------- snapshot ----------
+
   get snapshot(): Snapshot<Schema, string> {
     return {
       name: this.name,
@@ -242,17 +187,15 @@ export class Actor extends ElectromagneticField {
     }
   }
 
-  // ---------- реакции (поддержка базы) ----------
+  // ---------- интеграция с базой (реакции) ----------
 
-  /** Есть ли у актора реакции (определяет «заряжённость» для базы). */
   protected hasReactions(): boolean {
-    return this.reactions.hasReactions()
+    return this.reactions?.hasReactions() ?? false
   }
 
-  /** Доставка входящих сообщений для реакций. */
   protected handleReactionMessage(ev: MessageEvent) {
     const { data } = ev as MessageEvent<Message>
-    if (!this.reactions.hasReactions()) return
+    if (!this.reactions?.hasReactions()) return
     if (data.actor === this.id) return
 
     for (const patch of data.patches) {
@@ -268,78 +211,46 @@ export class Actor extends ElectromagneticField {
         self: { meta: this.name, actor: this.id, path: this.path, destroy: this.destroy },
       })
     }
-    this.transition() // TODO: можно оптимизировать по результату обновления контекста
+    this.transition()
   }
 
-  // ---------- билдеры прикладных сообщений (не системные init/remove) ----------
+  // ---------- билдеры прикладных сообщений ----------
 
   static updateContextMessage(meta: string, actor: string, path: string, updated: Partial<Values<Schema>>): Message {
     return { meta, actor, path, timestamp: Date.now(), patches: [{ op: "replace", path: "/context", value: updated }] }
   }
-
   static stateBeforeActionMessage(meta: string, actor: string, path: string, state: string): Message {
     return { meta, actor, path, timestamp: Date.now(), patches: [{ op: "test", path: "/state", value: state }] }
   }
-
   static stateAfterActionMessage(meta: string, actor: string, path: string, state: string): Message {
     return { meta, actor, path, timestamp: Date.now(), patches: [{ op: "replace", path: "/state", value: state }] }
   }
 
-  // ---------- уничтожение и очистка ----------
+  // ---------- уничтожение ----------
 
-  /**
-   * Рекурсивно очищает core и ресурсы для актора и всех его детей,
-   * без рассылки системных сообщений (используется внутри destroy()).
-   */
   private destroyRecursive(fields: Fields) {
     const children = fields.getChildren(this.id)
-
-    // Рекурсивно очищаем детей
     for (const childId of children) {
       const childActor = fields.getActor(childId)
-      if (childActor) {
-        // Важно: чистим без отправки remove (как и было ранее)
-        ;(childActor as Actor).destroyRecursive(fields)
-      }
+      if (childActor) (childActor as Actor).destroyRecursive(fields)
     }
-
-    // Очищаем ресурсы текущего актора
-    // (транспорт уже выключен базой в super.destroy())
     Actor.coreWeakMap.delete(this)
     this.stateListeners.clear()
     this.ctx.clearSubscribers()
   }
 
-  /**
-   * Публичное уничтожение актора:
-   * - база отправляет `remove` и выключает транспорт (`super.destroy()`),
-   * - актор рекурсивно очищает ресурсы,
-   * - удаляется из `Fields` (рекурсивно).
-   */
   public override destroy() {
-    // 1) база: remove + отключение транспорта
+    // 1) база: remove + выключить транспорт
     super.destroy()
-
     // 2) локальная очистка
     const fields = Fields.get()
     this.destroyRecursive(fields)
-
-    // 3) удаление из дерева
+    // 3) удалить из дерева (рекурсивно)
     fields.remove(this.id, true)
   }
 
   // ---------- фабрики ----------
 
-  /**
-   * Создать актор из meta-схемы.
-   *
-   * @param config.meta    Meta-схема.
-   * @param config.id      Явный id (иначе будет сгенерирован).
-   * @param config.core    Внешний Core (опц.).
-   * @param config.context Начальные значения контекста (опц.).
-   * @param config.path    Индекс-путь (опц.). Если указан — **резервирует** позицию;
-   *                       если не указан — актор окажется в конце корня.
-   */
   static fromSchema<M extends Meta>(config: {
     meta: M
     id?: string
@@ -350,16 +261,14 @@ export class Actor extends ElectromagneticField {
     const { meta, id = crypto.randomUUID(), core, context = {}, path } = config
     const fields = Fields.get()
 
-    // Если задан индекс-путь — резервируем слот заранее
+    // если указан индекс-путь — заранее резервируем слот под id
     if (typeof path === "string" && path.length > 0) {
       fields.reserveByIndexPath(id, path)
     }
 
-    // Готовим контекст
     const ctx = contextFromSchema(meta.context)
     ctx.update(context)
 
-    // Конструируем актора — база прикрепит и пошлёт init синхронно
     const actor = new Actor(
       id,
       meta.name,
@@ -371,24 +280,9 @@ export class Actor extends ElectromagneticField {
       meta.render ?? [],
       core
     )
-
     return actor
   }
 
-  /**
-   * Создать нового «брата» рядом с целевым актором.
-   * @param targetId Идентификатор актора-ориентира (соседа).
-   * @param meta     Meta-схема нового актора.
-   * @param cfg.id      Уникальный id нового актора (если не задан — будет сгенерирован).
-   * @param cfg.at      "before" | "after" (по умолчанию "after").
-   * @param cfg.core    Core окружение (опц.).
-   * @param cfg.context Начальные значения контекста (опц.).
-   * @returns id созданного актора.
-   *
-   * @remarks
-   * Резервация позиции делается **до** создания экземпляра, затем
-   * базовый конструктор прикрепит актора в зарезервированную позицию и отправит init.
-   */
   static createSibling<M extends Meta>(
     targetId: string,
     meta: M,
@@ -398,10 +292,9 @@ export class Actor extends ElectromagneticField {
     const fields = Fields.get()
     if (!fields.getActor(targetId)) throw new Error(`Актор-ориентир "${targetId}" не найден`)
 
-    // Резервируем позицию под будущего актора по соседу
+    // резерв заранее
     fields.reserveSibling(id, targetId, at)
 
-    // Готовим контекст/актор (база прикрепит и пошлёт init в конструкторе)
     const ctx = contextFromSchema(meta.context)
     ctx.update(context)
 
@@ -416,7 +309,6 @@ export class Actor extends ElectromagneticField {
       meta.render ?? [],
       core
     )
-
     return actor.id
   }
 }

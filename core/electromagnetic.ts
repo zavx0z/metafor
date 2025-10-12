@@ -5,121 +5,77 @@ import { Fields } from "./fields"
 /**
  * ElectromagneticField — базовый «калибровочный» слой обмена сообщениями между акторами.
  *
- * Роль класса:
- * - Управляет подключением/отключением «заряжённых» акторов (имеющих реакции).
- * - Гарантирует корректную точку жизни актора в дереве (`Fields`):
- *   - В конструкторе **вклеивает** актора в заранее **зарезервированное** место
- *     (см. `Fields.reserve*` → `Fields.attachReserved`), затем
- *   - Поднимает транспорт и **рассылает сообщение о создании** (init).
- * - Предоставляет общий геттер `path` — всегда актуальный индекс-путь актора в дереве.
- * - В `destroy()` **сам** рассылает сообщение удаления, потом разрывает транспорт.
+ * Назначение:
+ * - Поднимает/гасит транспорт сообщений для «заряжённых» акторов (имеющих реакции).
+ * - Даёт общий геттер `path` (актуальный индекс-путь из Fields).
+ * - Умеет сформировать и отправить системные сообщения init/remove (но НЕ делает этого в конструкторе).
  *
- * Требования к наследнику (обычно `Actor`):
- * - Должен реализовать:
- *   - `hasReactions()` — есть ли реакции на входящие сообщения,
- *   - `handleReactionMessage(ev)` — обработка входящих сообщений для реакций.
- * - Должен передать в `super(...)`:
- *   - `id` — уникальный идентификатор актора,
- *   - `metaName` — имя мета-схемы (попадает в сообщения),
- *   - `snapshotFn` — функция, возвращающая актуальный `Snapshot` для init-сообщения.
- *
- * Порядок использования:
- * 1) Сначала внешний код резервирует позицию под `id`:
- *    `Fields.get().reserveSibling(id, targetId, "after")` (или другой reserve*).
- * 2) Затем конструируется наследник: `new Actor(...)`
- *    — внутри `super(...)` произойдёт `attachReserved` + init-сообщение.
- * 3) Для удаления: вызвать `actor.destroy()`
- *    — база пошлёт remove-сообщение и выключит транспорт,
- *      после чего наследник может очистить дерево `Fields` и ресурсы.
+ * Жизненный цикл (важно):
+ * 1) Внешний код (или фабрика Actor) СНАЧАЛА резервирует позицию под id в Fields (reserve*),
+ * 2) Создаётся наследник (Actor): присваивает себе `reactions`, `processes`, …,
+ * 3) Наследник вызывает `attachAndAnnounceCreate()`:
+ *    - Fields.attachReserved(this) — вклеивает в заранее зарезервированное место (или в конец корня),
+ *    - initializeCommunication() — подключает транспорт, если есть реакции,
+ *    - sendMessage(init) — рассылает сообщение создания.
+ * 4) При уничтожении наследник зовёт `super.destroy()`:
+ *    - sendMessage(remove) → destroyCommunication().
  */
 export abstract class ElectromagneticField {
   // -------- статическая шина для «локальных» акторов (в одном контексте JS) --------
 
-  /** Включать ли BroadcastChannel для меж-контекстной доставки (вкладки/воркеры). */
+  /** Включать ли BroadcastChannel для меж-контекстной доставки. */
   protected static useBroadcastChannel = true
 
-  /** Общий BroadcastChannel для всех акторов процесса (если доступен в окружении). */
+  /** Общий BroadcastChannel для процесса (если доступен). */
   protected static channel: BroadcastChannel | null =
     typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("actor-force") : null
 
-  /** Множество «заряжённых» акторов — тех, у кого есть реакции. */
+  /** Множество «заряжённых» акторов (у кого есть реакции). */
   private static chargedActors = new Set<ElectromagneticField>()
 
-  /**
-   * Переключить использование BroadcastChannel.
-   * Если `false` — доставка пойдёт только по локальной шине (in-memory Set).
-   */
+  /** Переключить использование BroadcastChannel. */
   static setBroadcastChannel(enabled: boolean) {
     ElectromagneticField.useBroadcastChannel = enabled
   }
-
-  /** Признак, используется ли сейчас BroadcastChannel. */
   static isBroadcastChannelEnabled(): boolean {
     return ElectromagneticField.useBroadcastChannel
   }
 
-  // -------- экземплярные поля --------
+  // -------- экземпляр --------
 
   /** Уникальный идентификатор актора. */
   public readonly id: string
 
-  /**
-   * Имя мета-схемы, используется в системных сообщениях (init/remove).
-   * Например: `"meta-builder"`, `"canvas"`, и т.д.
-   */
+  /** Имя мета-схемы (попадает в системные сообщения). */
   protected readonly metaName: string
 
-  /**
-   * Ленивая функция снимка состояния актора.
-   * Вызывается непосредственно перед отправкой init-сообщения, чтобы срез был актуальным.
-   */
+  /** Ленивая функция получения Snapshot — вызывается непосредственно перед init. */
   private readonly snapshotFn: () => Snapshot<any, string>
 
-  /** Флаг, что транспорт уже поднят и actor зарегистрирован в chargedActors (если нужно). */
+  /** Флаг, что транспорт поднят и актор подключён к шинам. */
   private wired = false
 
-  /** Обработчик события из BroadcastChannel (хранится для корректного removeEventListener). */
+  /** Обработчик BC для корректного removeEventListener. */
   private _onBCMessage?: (ev: MessageEvent<Message>) => void
 
   /**
-   * Создание базовой части актора.
+   * Конструктор БЕЗ сайд-эффектов.
+   * @param id        Идентификатор актора.
+   * @param metaName  Имя мета-схемы (для сообщений).
+   * @param snapshot  Функция снапшота.
    *
-   * @param id        Уникальный идентификатор актора.
-   * @param metaName  Имя мета-схемы для системных сообщений.
-   * @param snapshot  Функция, возвращающая актуальный Snapshot (включая context/state и т.п.).
-   *
-   * @remarks
-   * Конструктор выполняет три шага:
-   * 1) `Fields.attachReserved(this)` — актор «вклеивается» в дерево в ранее зарезервированное место.
-   *    Если резервации нет, попадёт в конец корня (см. реализацию `Fields.attachReserved`).
-   * 2) `initializeCommunication()` — подключение к транспортам доставки (локальная шина и/или BC).
-   * 3) Отправка init-сообщения (`op: "add"`, `path: "/"`) с текущим `snapshot`.
+   * ВАЖНО: ни Fields.attachReserved, ни init-сообщение здесь НЕ вызываются.
+   * Наследник обязан сделать это в удобный момент через `attachAndAnnounceCreate()`.
    */
   constructor(id: string, metaName: string, snapshot: () => Snapshot<any, string>) {
     this.id = id
     this.metaName = metaName
     this.snapshotFn = snapshot
-
-    // 1) Вклеиваемся в дерево (позиция определяется ранее — через reserve*)
-    Fields.get().attachReserved(this as any)
-
-    // 2) Поднимаем транспорт
-    this.initializeCommunication()
-
-    // 3) Рассылаем системное сообщение о создании
-    this.sendMessage(this.buildInitMessage())
   }
 
   // -------- путь актора в дереве --------
 
-  /**
-   * Актуальный индекс-путь актора, вида `"0/1/2"`.
-   * Всегда вычисляется на основании текущей витрины `Fields`.
-   *
-   * @remarks
-   * Если по какой-то причине актор ещё не зарегистрирован в `Fields` (что маловероятно при текущем
-   * жизненном цикле), геттер вернёт пустую строку.
-   */
+  /** Актуальный индекс-путь вида `"0/1/2"` (или пустая строка, если актор ещё не в Fields). */
   public get path(): string {
     const f = Fields.get()
     const a = f.getActor(this.id)
@@ -131,12 +87,38 @@ export abstract class ElectromagneticField {
     }
   }
 
-  // -------- транспорт и доставка сообщений --------
+  // -------- публичные шаги жизненного цикла --------
 
   /**
-   * Подключить актор к транспортам доставки (локальная шина + при необходимости BroadcastChannel).
-   * Вызывается один раз из конструктора.
+   * Присоединить актора к ранее зарезервированному месту в Fields и разослать init.
+   * Вызывать ОДИН раз, после того как наследник установил все свои поля (в т.ч. reactions).
    */
+  protected attachAndAnnounceCreate() {
+    // 1) Вклеиваемся в дерево (если резерва нет — окажемся в конце корня).
+    Fields.get().attachReserved(this as any)
+
+    // 2) Подключаем транспорт (только если есть реакции).
+    this.initializeCommunication()
+
+    // 3) Системное init-сообщение.
+    this.sendMessage(this.buildInitMessage())
+  }
+
+  /**
+   * Корректное завершение базовой части:
+   * 1) отправить системное remove (путь ещё живой),
+   * 2) погасить транспорт.
+   *
+   * Наследник может переопределить `destroy()`, но должен вызывать `super.destroy()`.
+   */
+  public destroy() {
+    this.sendMessage(this.buildRemoveMessage())
+    this.destroyCommunication()
+  }
+
+  // -------- транспорт --------
+
+  /** Подключить актор к транспортам (локальная шина + BC). */
   protected initializeCommunication() {
     if (this.hasReactions()) {
       this.wired = true
@@ -149,10 +131,7 @@ export abstract class ElectromagneticField {
     }
   }
 
-  /**
-   * Отключить актор от транспортов доставки.
-   * Вызывается из {@link destroy} после отправки remove-сообщения.
-   */
+  /** Отключить актор от транспортов. */
   protected destroyCommunication() {
     if (!this.wired) return
     this.wired = false
@@ -164,57 +143,30 @@ export abstract class ElectromagneticField {
     }
   }
 
-  /**
-   * Отправить сообщение всем «заряжённым» (реактивным) акторам локально
-   * и, при включённом режиме, через BroadcastChannel.
-   *
-   * @param message Сообщение для доставки.
-   */
+  /** Доставка сообщения локально и (опционально) через BroadcastChannel. */
   protected sendMessage(message: Message) {
-    // Локальная шина — доставляем всем «заряжённым» (кроме себя)
+    // локально всем «заряжённым», кроме себя
     for (const actor of ElectromagneticField.chargedActors) {
       if (actor === this) continue
       if (actor.id !== message.actor && actor.hasReactions()) {
         actor.handleReactionMessage({ data: message } as MessageEvent<Message>)
       }
     }
-
-    // BroadcastChannel — для меж-контекстной доставки (вкладки/воркеры)
+    // через BC
     if (ElectromagneticField.useBroadcastChannel && ElectromagneticField.channel) {
       ElectromagneticField.channel.postMessage(message)
     }
   }
 
-  // -------- системный жизненный цикл --------
+  // -------- абстрактные (реализует наследник) --------
 
-  /**
-   * Корректное завершение жизненного цикла базовой части:
-   * 1) Сформировать и отправить системное remove-сообщение (пока путь ещё «живой»),
-   * 2) Отключить транспорт доставки сообщений.
-   *
-   * @remarks
-   * Наследник (например, `Actor`) обычно переопределяет публичный `destroy()` **поверх**:
-   * вызывает `super.destroy()`, затем выполняет свою очистку (удаление из `Fields`, рекурсивный
-   * `destroy` детей, чистка подписчиков и т.п.).
-   */
-  public destroy() {
-    // 1) Сообщаем об удалении (путь ещё доступен)
-    this.sendMessage(this.buildRemoveMessage())
-    // 2) Гасим транспорт
-    this.destroyCommunication()
-  }
-
-  // -------- абстрактные методы для наследника --------
-
-  /** Присутствуют ли реакции на входящие сообщения (если да — актор считается «заряжённым»). */
+  /** Есть ли реакции на входящие сообщения. */
   protected abstract hasReactions(): boolean
-
-  /** Обработчик входящих сообщений (в т.ч. полученных по BroadcastChannel). */
+  /** Обработчик входящих сообщений. */
   protected abstract handleReactionMessage(ev: MessageEvent<Message>): void
 
-  // -------- внутренние билдеры системных сообщений --------
+  // -------- служебные билдеры системных сообщений --------
 
-  /** Сформировать init-сообщение о создании актора (op: "add", path: "/"). */
   private buildInitMessage(): Message {
     return {
       meta: this.metaName,
@@ -225,7 +177,6 @@ export abstract class ElectromagneticField {
     }
   }
 
-  /** Сформировать remove-сообщение об удалении актора (op: "remove", path: "/"). */
   private buildRemoveMessage(): Message {
     return {
       meta: this.metaName,

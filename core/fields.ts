@@ -40,6 +40,40 @@ let GLOBAL_SEQ = 0
 
 // ------------------------- внутренние утилиты -------------------------
 
+/** Нормализация строкового индекс-пути: срезает ведущие слеши, сжимает повторные. */
+function normalizeIndexPathString(path: string): string {
+  // "/0//1/2" -> "0/1/2", "   /1 " -> "1"
+  const s = path.trim().replace(/^\/+/, "").replace(/\/+/g, "/")
+  return s
+}
+
+/** Разбор строкового индекс-пути "0/1/2" -> массив индексов. */
+function parseIndexPath(path: string): number[] {
+  const normalized = normalizeIndexPathString(path)
+  if (normalized === "") return []
+  const parts = normalized.split("/")
+  const out: number[] = []
+  for (const p of parts) {
+    // запрещаем пустые сегменты после нормализации
+    if (p === "") throw new Error(`Некорректный индекс в пути: "${path}"`)
+    const n = Number(p)
+    if (!Number.isInteger(n) || n < 0) {
+      throw new Error(`Некорректный индекс в пути: "${p}"`)
+    }
+    out.push(n)
+  }
+  return out
+}
+
+/** "0/1/2" -> { parentPath: "0/1" | null, index: 2 } */
+function splitParentAndIndex(path: string): { parentPath: string | null; index: number } {
+  const normalized = normalizeIndexPathString(path)
+  const idx = parseIndexPath(normalized)
+  if (idx.length === 0) throw new Error(`Путь не может быть пустым`)
+  const last = idx[idx.length - 1]!
+  const parentIdx = idx.slice(0, -1)
+  return { parentPath: parentIdx.length ? parentIdx.join("/") : null, index: last }
+}
 /** Безопасно вернуть i-й байт ключа с запасным значением. */
 function byteAt(key: Key, i: number, fallback: number): number {
   return i < key.length ? key[i]! : fallback
@@ -70,7 +104,10 @@ export function between(a: Key | null, b: Key | null): Key {
   if (a === null && b === null) return Uint8Array.from([128])
 
   if (a === null) {
+    // если b пустой ключ → вернём "самый малый" стабильный ключ 127
     if (b!.length === 0) return Uint8Array.from([127])
+
+    // найдём первый байт > 0, уменьшим его на 1 и вернём префикс до него включительно
     const out: number[] = []
     for (let i = 0; i < b!.length; i++) {
       const bi = b![i]!
@@ -80,7 +117,10 @@ export function between(a: Key | null, b: Key | null): Key {
       }
       out.push(0)
     }
-    return Uint8Array.from([...b!, 0])
+
+    // если все байты == 0 → уже минимально возможно; вернём b как есть
+    // (дальше сравнение по seq обеспечит нужный порядок)
+    return Uint8Array.from(b!)
   }
 
   if (b === null) {
@@ -104,31 +144,6 @@ export function between(a: Key | null, b: Key | null): Key {
   }
   return Uint8Array.from([...out, Math.floor((BASE - 1) / 2)])
 }
-
-/** Разбор строкового индекс-пути "0/1/2" -> массив индексов. */
-function parseIndexPath(path: string): number[] {
-  if (path.trim() === "") return []
-  const parts = path.split("/")
-  const out: number[] = []
-  for (const p of parts) {
-    const n = Number(p)
-    if (!Number.isInteger(n) || n < 0) {
-      throw new Error(`Некорректный индекс в пути: "${p}"`)
-    }
-    out.push(n)
-  }
-  return out
-}
-
-/** "0/1/2" -> { parentPath: "0/1" | null, index: 2 } */
-function splitParentAndIndex(path: string): { parentPath: string | null; index: number } {
-  const idx = parseIndexPath(path)
-  if (idx.length === 0) throw new Error(`Путь не может быть пустым`)
-  const last = idx[idx.length - 1]!
-  const parentIdx = idx.slice(0, -1)
-  return { parentPath: parentIdx.length ? parentIdx.join("/") : null, index: last }
-}
-
 // =====================================================================
 
 /**
@@ -193,7 +208,8 @@ export class Fields {
       const mid = (lo + hi) >>> 1
       const midId = arr[mid]!
       const m = this.meta.get(midId)!
-      const c = cmpKey(m.orderKey, key) || (m.seq - seq)
+      let c = cmpKey(m.orderKey, key)
+      if (c === 0) c = seq - m.seq
       if (c <= 0) lo = mid + 1
       else hi = mid
     }
@@ -454,13 +470,14 @@ export class Fields {
       throw new Error(`Индекс вне диапазона для пути "${path}"`)
     }
 
-    const leftId = index > 0 ? children[index - 1]! : null
-    const rightId = index < children.length ? children[index]! : null
-    const leftKey = leftId ? this.requireMeta(leftId).orderKey : null
-    const rightKey = rightId ? this.requireMeta(rightId).orderKey : null
-    const key = between(leftKey, rightKey)
-
-    this.createWithOrder(parentId, key, actor)
+    // если вставляем ровно в позицию существующего — это "перед соседом"
+    if (index < children.length) {
+      const neighborId = children[index]!
+      this.createBefore(neighborId, actor)
+      return
+    }
+    // иначе — добавляем в конец
+    this.createChildren(parentId, actor)
   }
 
   /**
@@ -696,7 +713,7 @@ export class Fields {
     if (idx < 0) throw new Error("Сосед не найден в витрине")
 
     const leftId = at === "before" ? (idx > 0 ? kids[idx - 1]! : null) : targetId
-    const rightId = at === "before" ? targetId : (idx + 1 < kids.length ? kids[idx + 1]! : null)
+    const rightId = at === "before" ? targetId : idx + 1 < kids.length ? kids[idx + 1]! : null
 
     const leftKey = leftId ? this.requireMeta(leftId).orderKey : null
     const rightKey = rightId ? this.requireMeta(rightId).orderKey : null
