@@ -17,8 +17,8 @@ function createLoggerModule(userConfig: Partial<LogConfig> = {}) {
     path: ["/", "/context", "/state"],
     width: {
       meta: 22,
-      op: 10,
-      path: 15,
+      op: 8,
+      path: 8,
     },
     detail: {
       core: false,
@@ -109,83 +109,69 @@ function createLoggerModule(userConfig: Partial<LogConfig> = {}) {
     const value = patch.value ? formattedObj(patch.value) : ""
     const isError = patch.value ? Object.hasOwn(patch.value, "error") : ""
 
+    const msgWithOutValue = [
+      `%c${metaStr}%c${actorStr}%c${pathStr}%c  |  %c${op}%c  |  %c${path}%c %c|`,
+      "color: #3498db; font-weight: bold",
+      "color: #9b59b6; font-weight: bold",
+      "color: #f39c12; font-weight: bold",
+      "",
+      `color: ${getOpColor(patch.op, patch.path)}; font-weight: bold`,
+      "",
+      "color: #2ecc71",
+      "",
+      "color: lightskyblue; font-weight: bold",
+    ]
+    const stateValue = patch.value
+      ? Array.isArray(patch.value)
+        ? JSON.stringify(patch.value, null, 2)
+        : typeof patch.value === "object" && patch.value !== null
+          ? JSON.stringify(patch.value, null, 2)
+          : patch.value
+      : ""
+    const msgWithValue = [
+      `%c${metaStr}%c${actorStr}%c${pathStr}%c  |  %c${op}%c  |  %c${path}%c | %c${stateValue}`,
+      "color: #3498db; font-weight: bold",
+      "color: #9b59b6; font-weight: bold",
+      "color: #f39c12; font-weight: bold",
+      "",
+      `color: ${getOpColor(patch.op, patch.path)}; font-weight: bold`,
+      "",
+      "color: #2ecc71",
+      "",
+      "color: lightskyblue; font-weight: bold",
+    ]
     switch (true) {
       case isLog(message, "/"):
-        ;(() => {
-          const msg = [
-            `%c${metaStr}%c${actorStr}%c${pathStr}%c  |  %c${op}%c  |  %c${path}`,
-            "color: #3498db; font-weight: bold",
-            "color: #9b59b6; font-weight: bold",
-            "color: #f39c12; font-weight: bold",
-            "",
-            `color: ${getOpColor(patch.op, patch.path)}; font-weight: bold`,
-            "",
-            "color: #2ecc71",
-          ]
-          config.collapseAll ? console.groupCollapsed(...msg) : console.group(...msg)
-
+        config.collapseAll ? console.groupCollapsed(...msgWithOutValue) : console.group(...msgWithOutValue)
+        try {
           if (typeof patch.value === "object" && patch.value !== null) {
             console.log(value)
             config.detail.core && logCore(core)
           } else console.log(patch.value)
-
+        } finally {
           console.groupEnd()
-        })()
+        }
         break
       case isLog(message, "/context"):
-        ;(() => {
-          const msg = [
-            `%c${metaStr}%c${actorStr}%c${pathStr}%c  |  %c${op}%c  |  %c${path}`,
-            `color: #3498db; font-weight: bold; ${isError ? "background: #7d4545" : ""}`,
-            "color: #9b59b6; font-weight: bold",
-            "color: #f39c12; font-weight: bold",
-            "",
-            `color: ${getOpColor(patch.op, patch.path)}; font-weight: bold`,
-            "",
-            "color: #2ecc71",
-          ]
-
-          if (isError) console.group(...msg)
-          else if (config.collapseAll) console.groupCollapsed(...msg)
-          else console.group(...msg)
-
-          try {
-            if (typeof patch.value === "object" && patch.value !== null) {
-              console.log(value)
-              config.detail.core && logCore(core)
-            } else console.log(patch.value)
-          } finally {
-            console.groupEnd()
-          }
-        })()
+        if (isError) console.group(...msgWithOutValue)
+        else if (config.collapseAll) console.groupCollapsed(...msgWithOutValue)
+        else console.group(...msgWithOutValue)
+        try {
+          if (typeof patch.value === "object" && patch.value !== null) {
+            console.log(value)
+            config.detail.core && logCore(core)
+          } else console.log(patch.value)
+        } finally {
+          console.groupEnd()
+        }
         break
       case isLog(message, "/state"):
-        ;(() => {
-          const stateValue = Array.isArray(patch.value)
-            ? JSON.stringify(patch.value, null, 2)
-            : typeof patch.value === "object" && patch.value !== null
-              ? JSON.stringify(patch.value, null, 2)
-              : patch.value
-
-          const msg = [
-            `%c${metaStr}%c${actorStr}%c${pathStr}%c  |  %c${op}%c  |  %c${path}%c  %c${stateValue}`,
-            "color: #3498db; font-weight: bold",
-            "color: #9b59b6; font-weight: bold",
-            "color: #f39c12; font-weight: bold",
-            "",
-            `color: ${getOpColor(patch.op, patch.path)}; font-weight: bold`,
-            "",
-            "color: #2ecc71",
-            "",
-            "color: lightskyblue; font-weight: bold",
-          ]
-          config.collapseAll ? console.groupCollapsed(...msg) : console.group(...msg)
-          try {
-            config.detail.core && logCore(core)
-          } finally {
-            console.groupEnd()
-          }
-        })()
+        config.collapseAll ? console.groupCollapsed(...msgWithValue) : console.group(...msgWithValue)
+        try {
+          config.detail.core && logCore(core)
+        } finally {
+          console.groupEnd()
+        }
         break
     }
   }
