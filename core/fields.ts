@@ -1,33 +1,51 @@
 /**
- * Fields — управление деревом акторов (лексикографический порядок).
+ * @file core/fields.ts
+ * @description
+ * Fields — арена акторов и витрина их порядка в виде ориентированного дерева.
  *
- * - Хранит только Actor (никаких «нод»).
- * - Поддерживает создание по индексному пути вида "0/1/2".
- * - Витрина детей всегда отсортирована онлайн (без dirty/normalize).
- * - Даёт статический доступ: Fields.get() — глобальный синглтон.
+ * Ключевые свойства:
+ * - Хранит **только** экземпляры Actor (никаких «нод»-обёрток).
+ * - Порядок детей поддерживается **лексикографическими ключами** (`Uint8Array`) онлайн:
+ *   вставки/перемещения не требуют глобальной нормализации.
+ * - Поддерживает:
+ *   - Создание по индексному пути "0/1/2".
+ *   - Вставку «между» соседями по лексикографическому ключу.
+ *   - Резервацию места по `id` будущего актора (устойчиво к гонкам).
+ * - Доступ к глобальному синглтону через `Fields.get()`.
  */
 
 import type { Actor } from "../actor"
 
-/** Лексикографический ключ порядка */
-type Key = Uint8Array
+/** Лексикографический ключ порядка среди детей одного родителя. */
+export type Key = Uint8Array
 
-/** Внутренние метаданные актора (не экспонируются) */
+/** Внутренние метаданные актора (не экспонируются). */
 interface Meta {
+  /** Родительский id или null для корня. */
   parent: string | null
+  /** Лексикографический ключ порядка (сравнивается лексикографически по байтам). */
   orderKey: Key
+  /** Стабилизатор порядка (монотонный seq), используется при равных ключах. */
   seq: number
 }
 
-let GLOBAL_SEQ = 0
-const ROOT = "" // ключ для корня в childrenView (когда parentId === null)
+/** Описание зарезервированного слота под будущий актор с указанным id. */
+type Reservation = { parentId: string | null; orderKey: Key }
 
-/** Безопасное чтение байта с запасным значением */
+/** Витрина корня (псевдо-id) в childrenView. */
+const ROOT = ""
+
+/** Глобальный монотонный счётчик для стабильности вставок. */
+let GLOBAL_SEQ = 0
+
+// ------------------------- внутренние утилиты -------------------------
+
+/** Безопасно вернуть i-й байт ключа с запасным значением. */
 function byteAt(key: Key, i: number, fallback: number): number {
   return i < key.length ? key[i]! : fallback
 }
 
-/** Сравнение двух лексикографических ключей */
+/** Сравнение двух лексикографических ключей (по байтам; как у строк). */
 function cmpKey(a: Key, b: Key): number {
   const n = Math.min(a.length, b.length)
   for (let i = 0; i < n; i++) {
@@ -39,10 +57,15 @@ function cmpKey(a: Key, b: Key): number {
 }
 
 /**
- * Сгенерировать ключ строго между a и b.
- * @remarks a == null трактуется как -∞, b == null — как +∞.
+ * Сгенерировать ключ строго **между** ключами `a` и `b`.
+ * - `a == null` трактуется как `-∞`
+ * - `b == null` трактуется как `+∞`
+ *
+ * @example
+ * between(null, null) -> [128]
+ * between([10], [11]) -> [10, 127] (или схожее промежуточное значение)
  */
-function between(a: Key | null, b: Key | null): Key {
+export function between(a: Key | null, b: Key | null): Key {
   const BASE = 256
   if (a === null && b === null) return Uint8Array.from([128])
 
@@ -82,7 +105,7 @@ function between(a: Key | null, b: Key | null): Key {
   return Uint8Array.from([...out, Math.floor((BASE - 1) / 2)])
 }
 
-/** Разбор пути "0/1/2" → массив индексов */
+/** Разбор строкового индекс-пути "0/1/2" -> массив индексов. */
 function parseIndexPath(path: string): number[] {
   if (path.trim() === "") return []
   const parts = path.split("/")
@@ -97,7 +120,7 @@ function parseIndexPath(path: string): number[] {
   return out
 }
 
-/** Получить родительский под-путь и последний индекс: "0/1/2" → ("0/1", 2) */
+/** "0/1/2" -> { parentPath: "0/1" | null, index: 2 } */
 function splitParentAndIndex(path: string): { parentPath: string | null; index: number } {
   const idx = parseIndexPath(path)
   if (idx.length === 0) throw new Error(`Путь не может быть пустым`)
@@ -106,41 +129,53 @@ function splitParentAndIndex(path: string): { parentPath: string | null; index: 
   return { parentPath: parentIdx.length ? parentIdx.join("/") : null, index: last }
 }
 
+// =====================================================================
+
 /**
- * Класс Fields — арена акторов и витрина детей с лексикографическим порядком.
+ * Класс Fields — глобальная арена акторов и упорядоченная витрина их детей.
+ *
+ * @remarks
+ * - Синглтон: используйте {@link Fields.get}.
+ * - Внутренне хранит:
+ *   - `actors`: `id -> Actor`
+ *   - `meta`: `id -> Meta` (родитель, ключ порядка, seq)
+ *   - `childrenView`: `(parentId|ROOT) -> string[]` — упорядоченные id детей.
+ *   - `reservations`: `id -> Reservation` — зарезервированные слоты под будущие акторы.
  */
 export class Fields {
-  /** Глобальный синглтон */
+  // -------- singleton --------
+
   private static instance: Fields | null = null
 
-  /** Получить глобальный экземпляр Fields (создаётся при первом обращении) */
+  /** Получить глобальный экземпляр Fields (создаётся при первом обращении). */
   public static get(): Fields {
     if (!Fields.instance) Fields.instance = new Fields()
     return Fields.instance
   }
 
-  /** Заменить глобальный экземпляр (напр., при тестировании) */
+  /** Заменить глобальный экземпляр (например, в тестах). */
   public static set(instance: Fields): void {
     Fields.instance = instance
   }
 
-  /** Хранилище акторов: id -> Actor */
-  private actors = new Map<string, Actor>()
-  /** Метаданные актора: id -> Meta */
-  private meta = new Map<string, Meta>()
-  /** Витрина детей: parentId|"" -> отсортированный список child ids */
-  private childrenView = new Map<string, string[]>()
+  // -------- storage --------
 
-  // ==== базовые утилиты ====
+  /** Хранилище акторов: id -> Actor. */
+  private actors = new Map<string, Actor>()
+  /** Метаданные актора: id -> Meta. */
+  private meta = new Map<string, Meta>()
+  /** Витрина детей: parentId|ROOT -> **упорядоченный** список id детей. */
+  private childrenView = new Map<string, string[]>()
+  /** Резервации слотов по будущим id. */
+  private reservations = new Map<string, Reservation>()
+
+  // -------- helpers --------
 
   private parentKey(parentId: string | null): string {
     return parentId ?? ROOT
   }
-  /** Родитель данного id (или null для корня) */
-  public getParentId(id: string): string | null {
-    const m = (this as any).meta.get(id) as { parent: string | null } | undefined
-    return m?.parent ?? null
-  }
+
+  /** Гарантировать наличие массива детей для `parentId`. */
   private ensureChildren(parentId: string | null): string[] {
     const k = this.parentKey(parentId)
     const arr = this.childrenView.get(k)
@@ -150,7 +185,7 @@ export class Fields {
     return fresh
   }
 
-  /** Позиция для вставки по (orderKey, seq) — стабильный бинарный поиск (вправо) */
+  /** Стабильный бинарный поиск позиции вставки по (orderKey, seq). */
   private bsearchByKey(arr: string[], key: Key, seq: number): number {
     let lo = 0,
       hi = arr.length
@@ -158,7 +193,7 @@ export class Fields {
       const mid = (lo + hi) >>> 1
       const midId = arr[mid]!
       const m = this.meta.get(midId)!
-      const c = cmpKey(m.orderKey, key) || m.seq - seq
+      const c = cmpKey(m.orderKey, key) || (m.seq - seq)
       if (c <= 0) lo = mid + 1
       else hi = mid
     }
@@ -177,28 +212,31 @@ export class Fields {
     return m
   }
 
-  // ==== чтение / проверка ====
+  // -------- чтение / проверка --------
+
+  /**
+   * Родитель данного id (или null для корня).
+   * @param id Идентификатор актора.
+   */
+  public getParentId(id: string): string | null {
+    return this.meta.get(id)?.parent ?? null
+  }
 
   /**
    * Получить актора по id.
-   * @param id — идентификатор актора.
-   * @returns Экземпляр актора либо null.
+   * @returns Экземпляр актора либо `null`.
    */
   public getActor(id: string): Actor | null {
     return this.actors.get(id) ?? null
   }
 
-  /**
-   * Проверить наличие актора.
-   * @param id — идентификатор актора.
-   */
+  /** Проверить наличие актора по id. */
   public has(id: string): boolean {
     return this.actors.has(id)
   }
 
   /**
    * Построить индекс-путь ("0/1/2") для актора по его текущей позиции.
-   * @param id Идентификатор актора.
    * @throws Если актор не найден или витрина рассинхронизирована.
    */
   public getPath(id: string): string {
@@ -219,15 +257,12 @@ export class Fields {
   }
 
   /**
-   * Рассчитать индекс-путь для нового «брата» рядом с neighborId.
-   * @param neighborId Идентификатор соседа (существующего актора).
-   * @param at Позиция: "before" | "after" (по умолчанию "after").
-   * @returns Строка пути для нового актора.
-   * @throws Если сосед не найден или отсутствует в витрине своего родителя.
+   * Рассчитать индекс-путь для нового «брата» рядом с `neighborId`.
+   * @param neighborId Существующий актор-ориентир.
+   * @param at Позиция относительно `neighborId`: `"before"` | `"after"` (по умолчанию `"after"`).
    */
   public computeSiblingPath(neighborId: string, at: "before" | "after" = "after"): string {
-    // путь соседа → его родительский путь и собственный индекс
-    const neighborPath = this.getPath(neighborId) // "a/b/…/k" в индексах типа "0/1/2"
+    const neighborPath = this.getPath(neighborId)
     const slash = neighborPath.lastIndexOf("/")
     const parentPath = slash === -1 ? null : neighborPath.slice(0, slash)
     const neighborIndexStr = slash === -1 ? neighborPath : neighborPath.slice(slash + 1)
@@ -238,38 +273,30 @@ export class Fields {
     const newIndex = at === "before" ? neighborIndex : neighborIndex + 1
     return parentPath ? `${parentPath}/${newIndex}` : String(newIndex)
   }
+
   /**
-   * Дети родителя в текущем порядке.
-   * @param parentId — id родителя (или null для корня).
-   * @returns Отсортированный массив id детей.
+   * Дети родителя в текущем (лексикографическом) порядке.
+   * @param parentId id родителя (или null для корня).
    */
   public getChildren(parentId: string | null): readonly string[] {
     return this.ensureChildren(parentId)
   }
 
-  /**
-   * Узнать, занят ли путь.
-   * @param path Индекс-путь вида "0/1/2".
-   */
+  /** Занят ли индекс-путь. */
   public hasPath(path: string): boolean {
     return this.getNode(path) !== null
   }
 
-  /**
-   * Получить актора по индекс-пути.
-   * @param path Индекс-путь вида "0/1/2".
-   * @returns Actor или null.
-   */
+  /** Получить актора по индекс-пути. */
   public getNode(path: string): Actor | null {
     const id = this.getIdByIndexPath(null, parseIndexPath(path))
     return id ? this.getActor(id) : null
   }
 
   /**
-   * Спуск по индексному пути от rootId.
-   * @param rootId — id корня, либо null (виртуальный корень).
-   * @param indexPath — массив индексов (например, [0,2,1]).
-   * @returns id найденного актора либо null.
+   * Спуск по индексному пути от `rootId`.
+   * @param rootId id корня или null (виртуальный корень).
+   * @param indexPath массив индексов, например `[0,2,1]`.
    */
   public getIdByIndexPath(rootId: string | null, indexPath: number[]): string | null {
     let parent: string | null = rootId
@@ -283,21 +310,32 @@ export class Fields {
     return current
   }
 
-  // ==== создание (принимают Actor) ====
+  // -------- создание (принимают Actor) --------
 
   /**
-   * Создать актора и добавить его в конец детей родителя.
-   * @param parentId id родителя (или null для корня).
-   * @param actor Актор (должен иметь уникальный `id`).
+   * Создать актора и добавить его в конец детей `parentId`.
+   * @param parentId id родителя (или null).
+   * @param actor Экземпляр актора (должен иметь уникальный `id`).
    */
   public createChildren(parentId: string | null, actor: Actor): void {
     const id = (actor as any).id as string
     if (!id) throw new Error(`У актора отсутствует id`)
     if (this.actors.has(id)) throw new Error(`Актор уже существует: ${id}`)
 
+    // регистрация в арене
     this.actors.set(id, actor)
-    this.meta.set(id, { parent: null, orderKey: new Uint8Array(0), seq: GLOBAL_SEQ++ })
-    this.appendChild(parentId, id)
+    const arr = this.ensureChildren(parentId)
+
+    // вычисляем ключ «после» последнего ребёнка
+    const lastId = arr.length ? arr[arr.length - 1]! : null
+    const lastKey = lastId ? this.requireMeta(lastId).orderKey : null
+
+    const meta: Meta = { parent: parentId, orderKey: between(lastKey, null), seq: GLOBAL_SEQ++ }
+    this.meta.set(id, meta)
+
+    // точка вставки по ключу
+    const pos = this.bsearchByKey(arr, meta.orderKey, meta.seq)
+    arr.splice(pos, 0, id)
   }
 
   /**
@@ -311,115 +349,12 @@ export class Fields {
     if (!id) throw new Error(`У актора отсутствует id`)
     if (this.actors.has(id)) throw new Error(`Актор уже существует: ${id}`)
 
+    // регистрация в арене
     this.actors.set(id, actor)
-    this.meta.set(id, { parent: null, orderKey: new Uint8Array(0), seq: GLOBAL_SEQ++ })
-    this.insertBetween(leftId, rightId, id)
-  }
 
-  /**
-   * Создать актора и вставить его перед соседом.
-   * @param neighborId id соседа.
-   * @param actor создаваемый актор.
-   */
-  public createBefore(neighborId: string, actor: Actor): void {
-    const id = (actor as any).id as string
-    if (!id) throw new Error(`У актора отсутствует id`)
-    if (this.actors.has(id)) throw new Error(`Актор уже существует: ${id}`)
-
-    this.actors.set(id, actor)
-    this.meta.set(id, { parent: null, orderKey: new Uint8Array(0), seq: GLOBAL_SEQ++ })
-    this.insertBefore(neighborId, id)
-  }
-
-  /**
-   * Создать актора и вставить его после соседа.
-   * @param neighborId id соседа.
-   * @param actor создаваемый актор.
-   * @remarks Если справа нет соседа — будет добавлен в конец.
-   */
-  public createAfter(neighborId: string, actor: Actor): void {
-    const id = (actor as any).id as string
-    if (!id) throw new Error(`У актора отсутствует id`)
-    if (this.actors.has(id)) throw new Error(`Актор уже существует: ${id}`)
-
-    this.actors.set(id, actor)
-    this.meta.set(id, { parent: null, orderKey: new Uint8Array(0), seq: GLOBAL_SEQ++ })
-    this.insertAfter(neighborId, id)
-  }
-
-  /**
-   * Создать актора по индекс-пути.
-   * @param path Индекс-путь вида "0/1/2".
-   * @param actor Актор.
-   * @throws Если индекс вне диапазона или путь уже занят.
-   */
-  public createNode(path: string, actor: Actor): void {
-    const id = (actor as any).id as string
-    if (!id) throw new Error(`У актора отсутствует id`)
-    if (this.actors.has(id)) throw new Error(`Актор уже существует: ${id}`)
-
-    const { parentPath, index } = splitParentAndIndex(path)
-    const parentId = parentPath ? this.getIdByIndexPath(null, parseIndexPath(parentPath)) : null
-    const children = this.getChildren(parentId)
-
-    if (index < 0 || index > children.length) {
-      throw new Error(`Индекс вне диапазона для пути "${path}"`)
-    }
-    // index в диапазоне мы уже проверили выше
-    this.actors.set(id, actor)
-    this.meta.set(id, { parent: null, orderKey: new Uint8Array(0), seq: GLOBAL_SEQ++ })
-
-    const leftId = index > 0 ? children[index - 1]! : null
-    const rightId = index < children.length ? children[index]! : null
-    this.insertBetween(leftId, rightId, id)
-
-    this.actors.set(id, actor)
-    this.meta.set(id, { parent: null, orderKey: new Uint8Array(0), seq: GLOBAL_SEQ++ })
-
-    // Вставка строго на позицию index
-    if (index === children.length) {
-      this.appendChild(parentId, id)
-    } else {
-      const neighborId = children[index]!
-      this.insertBefore(neighborId, id)
-    }
-  }
-
-  // ==== перемещения (id уже существует) ====
-
-  /**
-   * Добавить существующего ребёнка в конец детей родителя.
-   * @param parentId id родителя (или null).
-   * @param childId id перемещаемого актора.
-   */
-  public appendChild(parentId: string | null, childId: string): void {
-    this.requireActor(childId)
-    const m = this.requireMeta(childId)
-
-    const arr = this.ensureChildren(parentId)
-    const lastId = arr.length ? arr[arr.length - 1]! : null
-    const lastKey = lastId ? this.requireMeta(lastId).orderKey : null
-
-    this.unlink(childId)
-    m.parent = parentId
-    m.orderKey = between(lastKey, null)
-
-    const pos = this.bsearchByKey(arr, m.orderKey, m.seq)
-    arr.splice(pos, 0, childId)
-  }
-
-  /**
-   * Вставить существующего ребёнка между левым и правым соседями.
-   * @param leftId id левого соседа (или null).
-   * @param rightId id правого соседа (или null).
-   */
-  public insertBetween(leftId: string | null, rightId: string | null, childId: string): void {
-    this.requireActor(childId)
-    const mChild = this.requireMeta(childId)
-
+    // вычисляем родителя и ключ «между»
     const L = leftId ? this.requireMeta(leftId) : null
     const R = rightId ? this.requireMeta(rightId) : null
-
     let parentId: string | null = null
     if (L && R) {
       const lp = L.parent ?? ""
@@ -429,12 +364,163 @@ export class Fields {
     } else if (L) parentId = L.parent
     else if (R) parentId = R.parent
 
-    // сначала unlink — дальше индексы актуальны
+    const leftKey = leftId ? this.requireMeta(leftId).orderKey : null
+    const rightKey = rightId ? this.requireMeta(rightId).orderKey : null
+    const key = between(leftKey, rightKey)
+
+    // метаданные и вставка
+    const meta: Meta = { parent: parentId, orderKey: key, seq: GLOBAL_SEQ++ }
+    this.meta.set(id, meta)
+    const arr = this.ensureChildren(parentId)
+    const pos = this.bsearchByKey(arr, key, meta.seq)
+    arr.splice(pos, 0, id)
+  }
+
+  /**
+   * Создать актора и вставить его перед соседом.
+   * @param neighborId id соседа.
+   * @param actor Экземпляр актора.
+   */
+  public createBefore(neighborId: string, actor: Actor): void {
+    const id = (actor as any).id as string
+    if (!id) throw new Error(`У актора отсутствует id`)
+    if (this.actors.has(id)) throw new Error(`Актор уже существует: ${id}`)
+
+    const metaN = this.requireMeta(neighborId)
+    const arr = this.ensureChildren(metaN.parent)
+    const idx = arr.indexOf(neighborId)
+    if (idx < 0) throw new Error(`Сосед отсутствует в витрине своего родителя: ${neighborId}`)
+    const leftId = idx > 0 ? arr[idx - 1]! : null
+
+    // регистрация и мета
+    this.actors.set(id, actor)
+    const leftKey = leftId ? this.requireMeta(leftId).orderKey : null
+    const key = between(leftKey, metaN.orderKey)
+    const meta: Meta = { parent: metaN.parent, orderKey: key, seq: GLOBAL_SEQ++ }
+    this.meta.set(id, meta)
+
+    // вставка
+    const pos = this.bsearchByKey(arr, key, meta.seq)
+    arr.splice(pos, 0, id)
+  }
+
+  /**
+   * Создать актора и вставить его после соседа.
+   * @param neighborId id соседа.
+   * @param actor Экземпляр актора.
+   * @remarks Если справа нет соседа — эквивалентно добавлению в конец.
+   */
+  public createAfter(neighborId: string, actor: Actor): void {
+    const id = (actor as any).id as string
+    if (!id) throw new Error(`У актора отсутствует id`)
+    if (this.actors.has(id)) throw new Error(`Актор уже существует: ${id}`)
+
+    const metaN = this.requireMeta(neighborId)
+    const arr = this.ensureChildren(metaN.parent)
+    const idx = arr.indexOf(neighborId)
+    if (idx < 0) throw new Error(`Сосед отсутствует в витрине своего родителя: ${neighborId}`)
+    const rightId = idx + 1 < arr.length ? arr[idx + 1]! : null
+
+    // регистрация и мета
+    this.actors.set(id, actor)
+    const rightKey = rightId ? this.requireMeta(rightId).orderKey : null
+    const key = between(metaN.orderKey, rightKey)
+    const meta: Meta = { parent: metaN.parent, orderKey: key, seq: GLOBAL_SEQ++ }
+    this.meta.set(id, meta)
+
+    // вставка
+    const pos = this.bsearchByKey(arr, key, meta.seq)
+    arr.splice(pos, 0, id)
+  }
+
+  /**
+   * Создать актора по индекс-пути.
+   * Надёжная версия: вычисляет лексикографический ключ по индексной позиции
+   * и выполняет **ровно одну** вставку «по ключу».
+   *
+   * @param path Индекс-путь вида "0/1/2".
+   * @param actor Экземпляр актора.
+   * @throws Если индекс вне диапазона.
+   */
+  public createNode(path: string, actor: Actor): void {
+    const id = (actor as any).id as string
+    if (!id) throw new Error(`У актора отсутствует id`)
+    if (this.actors.has(id)) throw new Error(`Актор уже существует: ${id}`)
+
+    const { parentPath, index } = splitParentAndIndex(path)
+    const parentId = parentPath ? this.getIdByIndexPath(null, parseIndexPath(parentPath)) : null
+    const children = this.getChildren(parentId)
+    if (index < 0 || index > children.length) {
+      throw new Error(`Индекс вне диапазона для пути "${path}"`)
+    }
+
+    const leftId = index > 0 ? children[index - 1]! : null
+    const rightId = index < children.length ? children[index]! : null
+    const leftKey = leftId ? this.requireMeta(leftId).orderKey : null
+    const rightKey = rightId ? this.requireMeta(rightId).orderKey : null
+    const key = between(leftKey, rightKey)
+
+    this.createWithOrder(parentId, key, actor)
+  }
+
+  /**
+   * Создать актора по заранее рассчитанному лексикографическому ключу.
+   * @param parentId Родитель (или null для корня).
+   * @param orderKey Лексикографический ключ позиции среди детей родителя.
+   * @param actor Экземпляр актора.
+   */
+  public createWithOrder(parentId: string | null, orderKey: Key, actor: Actor): void {
+    const id = (actor as any).id as string
+    if (!id) throw new Error(`У актора отсутствует id`)
+    if (this.actors.has(id)) throw new Error(`Актор уже существует: ${id}`)
+
+    this.actors.set(id, actor)
+    const meta: Meta = { parent: parentId, orderKey, seq: GLOBAL_SEQ++ }
+    this.meta.set(id, meta)
+
+    const arr = this.ensureChildren(parentId)
+    const pos = this.bsearchByKey(arr, orderKey, meta.seq)
+    arr.splice(pos, 0, id)
+  }
+
+  // -------- перемещения (id уже существует) --------
+
+  /** Добавить существующего ребёнка в конец детей `parentId`. */
+  public appendChild(parentId: string | null, childId: string): void {
+    this.requireActor(childId)
+    const m = this.requireMeta(childId)
+
+    const arr = this.ensureChildren(parentId)
+    const lastId = arr.length ? arr[arr.length - 1]! : null
+    const lastKey = lastId ? this.requireMeta(lastId).orderKey : null
+
+    this.unlink(childId) // актуализируем витрину
+    m.parent = parentId
+    m.orderKey = between(lastKey, null)
+
+    const pos = this.bsearchByKey(arr, m.orderKey, m.seq)
+    arr.splice(pos, 0, childId)
+  }
+
+  /** Вставить существующего ребёнка между левым и правым соседями. */
+  public insertBetween(leftId: string | null, rightId: string | null, childId: string): void {
+    this.requireActor(childId)
+    const mChild = this.requireMeta(childId)
+
+    const L = leftId ? this.requireMeta(leftId) : null
+    const R = rightId ? this.requireMeta(rightId) : null
+    let parentId: string | null = null
+    if (L && R) {
+      const lp = L.parent ?? ""
+      const rp = R.parent ?? ""
+      if (lp !== rp) throw new Error(`Соседи должны иметь одного родителя`)
+      parentId = L.parent
+    } else if (L) parentId = L.parent
+    else if (R) parentId = R.parent
+
     this.unlink(childId)
 
     const arr = this.ensureChildren(parentId)
-
-    // допускаем, что childId мог быть равен одному из соседей — переоцениваем индексы по текущей витрине
     let insertIndex = 0
     if (rightId) {
       const rIdx = arr.indexOf(rightId)
@@ -454,18 +540,14 @@ export class Fields {
 
     arr.splice(insertIndex, 0, childId)
   }
-  /**
-   * Вставить существующего ребёнка перед соседом.
-   * @param neighborId id соседа.
-   */
+
+  /** Вставить существующего ребёнка перед соседом. */
   public insertBefore(neighborId: string, childId: string): void {
     if (neighborId === childId) return
     this.requireActor(childId)
     const mChild = this.requireMeta(childId)
 
     const mN = this.requireMeta(neighborId)
-
-    // СНАЧАЛА unlink, чтобы индексы были актуальны
     this.unlink(childId)
 
     const arr = this.ensureChildren(mN.parent)
@@ -478,12 +560,11 @@ export class Fields {
     mChild.parent = mN.parent
     mChild.orderKey = between(leftKey, mN.orderKey)
 
-    arr.splice(idx, 0, childId) // ровно ПЕРЕД соседом
+    arr.splice(idx, 0, childId)
   }
 
   /**
    * Вставить существующего ребёнка после соседа.
-   * @param neighborId id соседа.
    * @remarks Если справа нет соседа — эквивалентно добавлению в конец.
    */
   public insertAfter(neighborId: string, childId: string): void {
@@ -492,8 +573,6 @@ export class Fields {
     const mChild = this.requireMeta(childId)
 
     const mN = this.requireMeta(neighborId)
-
-    // сначала unlink — потом считаем индексы
     this.unlink(childId)
 
     const arr = this.ensureChildren(mN.parent)
@@ -506,17 +585,13 @@ export class Fields {
     mChild.parent = mN.parent
     mChild.orderKey = between(mN.orderKey, rightKey)
 
-    arr.splice(idx + 1, 0, childId) // ровно ПОСЛЕ соседа
+    arr.splice(idx + 1, 0, childId)
   }
 
-  /**
-   * Отвязать актора от текущего родителя (не удаляя из арены).
-   * @param id id актора.
-   */
+  /** Отвязать актора от текущего родителя (не удаляя из арены). */
   public unlink(id: string): void {
     const m = this.meta.get(id)
     if (!m) return
-    // ВАЖНО: даже если m.parent === null (корень), всё равно пытаемся вырезать из витрины
     const arr = this.ensureChildren(m.parent)
     const idx = arr.indexOf(id)
     if (idx >= 0) arr.splice(idx, 1)
@@ -525,8 +600,8 @@ export class Fields {
 
   /**
    * Удалить актора.
-   * @param id id актора.
-   * @param recursive если true — удалить также всё поддерево.
+   * @param id Идентификатор актора.
+   * @param recursive Если true — удалить также всё поддерево.
    */
   public remove(id: string, recursive = false): void {
     if (!this.actors.has(id)) return
@@ -538,55 +613,40 @@ export class Fields {
     this.actors.delete(id)
     this.meta.delete(id)
     this.childrenView.delete(this.parentKey(id))
+    this.reservations.delete(id)
   }
-  // ===== Хелперы для навигации по витрине =====
 
-  /**
-   * Получить первого ребёнка родителя.
-   * @param parentId id родителя (или null).
-   */
+  // -------- навигация по витрине --------
+
+  /** Получить первого ребёнка родителя. */
   public getFirstChild(parentId: string | null): string | null {
     const kids = this.getChildren(parentId)
     return kids.length ? kids[0]! : null
   }
 
-  /**
-   * Получить следующего соседа внутри одного родителя.
-   * @param parentId id родителя (или null).
-   * @param id текущий актор.
-   */
+  /** Получить следующего соседа внутри одного родителя. */
   public getNextSibling(parentId: string | null, id: string): string | null {
     const kids = this.getChildren(parentId)
     const i = kids.indexOf(id)
     return i >= 0 && i + 1 < kids.length ? kids[i + 1]! : null
   }
 
-  /**
-   * Получить предыдущего соседа (на будущее; тестам не обязательно).
-   */
+  /** Получить предыдущего соседа. */
   public getPrevSibling(parentId: string | null, id: string): string | null {
     const kids = this.getChildren(parentId)
     const i = kids.indexOf(id)
     return i > 0 ? kids[i - 1]! : null
   }
 
-  // ===== Сахар над insertBefore/insertAfter =====
+  // -------- сахар над insertBefore/insertAfter --------
 
-  /**
-   * Переместить существующего ребёнка ПОСЛЕ указанного узла.
-   * @param targetId ориентир (сосед слева).
-   * @param childId перемещаемый актор.
-   */
+  /** Переместить существующего ребёнка ПОСЛЕ указанного узла. */
   public moveAfter(targetId: string, childId: string): void {
     if (targetId === childId) return
     this.insertAfter(targetId, childId)
   }
 
-  /**
-   * Переместить существующего ребёнка ПЕРЕД указанным узлом.
-   * @param targetId ориентир (сосед справа).
-   * @param childId перемещаемый актор.
-   */
+  /** Переместить существующего ребёнка ПЕРЕД указанным узлом. */
   public moveBefore(targetId: string, childId: string): void {
     if (targetId === childId) return
     this.insertBefore(targetId, childId)
@@ -594,8 +654,8 @@ export class Fields {
 
   /**
    * Перепривязать существующего ребёнка к новому родителю с позиционированием.
-   * @param newParentId новый родитель (или null для корня).
-   * @param childId перемещаемый актор.
+   * @param newParentId Новый родитель (или null для корня).
+   * @param childId Перемещаемый актор.
    * @param options { at: "start" | "end" | "after"; after?: string|null }
    */
   public reparentActor(
@@ -609,7 +669,6 @@ export class Fields {
       return
     }
     if (options.at === "after" && options.after) {
-      // новая проверка: after должен быть ребёнком newParentId
       const kids = this.getChildren(newParentId)
       if (!kids.includes(options.after)) {
         throw new Error(`Узел "${options.after}" не является ребёнком указанного родителя`)
@@ -619,5 +678,92 @@ export class Fields {
       return
     }
     this.appendChild(newParentId, childId)
+  }
+
+  // -------- РЕЗЕРВАЦИИ (устойчивые вставки по id) --------
+
+  /**
+   * Зарезервировать слот для будущего актора с id `newId`, вычислив позицию
+   * по соседу `targetId`: `"before"` или `"after"`.
+   */
+  public reserveSibling(newId: string, targetId: string, at: "before" | "after" = "after"): void {
+    if (this.actors.has(newId) || this.reservations.has(newId)) {
+      throw new Error(`id уже занят или зарезервирован: ${newId}`)
+    }
+    const parentId = this.getParentId(targetId)
+    const kids = this.getChildren(parentId)
+    const idx = kids.indexOf(targetId)
+    if (idx < 0) throw new Error("Сосед не найден в витрине")
+
+    const leftId = at === "before" ? (idx > 0 ? kids[idx - 1]! : null) : targetId
+    const rightId = at === "before" ? targetId : (idx + 1 < kids.length ? kids[idx + 1]! : null)
+
+    const leftKey = leftId ? this.requireMeta(leftId).orderKey : null
+    const rightKey = rightId ? this.requireMeta(rightId).orderKey : null
+    const orderKey = between(leftKey, rightKey)
+
+    this.reservations.set(newId, { parentId, orderKey })
+  }
+
+  /**
+   * Зарезервировать слот по индекс-пути (переводит индекс в лексикографический ключ).
+   */
+  public reserveByIndexPath(newId: string, path: string): void {
+    if (this.actors.has(newId) || this.reservations.has(newId)) {
+      throw new Error(`id уже занят или зарезервирован: ${newId}`)
+    }
+    const { parentPath, index } = splitParentAndIndex(path)
+    const parentId = parentPath ? this.getIdByIndexPath(null, parseIndexPath(parentPath)) : null
+    const children = this.getChildren(parentId)
+    if (index < 0 || index > children.length) {
+      throw new Error(`Индекс вне диапазона для пути "${path}"`)
+    }
+    const leftId = index > 0 ? children[index - 1]! : null
+    const rightId = index < children.length ? children[index]! : null
+    const leftKey = leftId ? this.requireMeta(leftId).orderKey : null
+    const rightKey = rightId ? this.requireMeta(rightId).orderKey : null
+    const orderKey = between(leftKey, rightKey)
+
+    this.reservations.set(newId, { parentId, orderKey })
+  }
+
+  /**
+   * Зарезервировать слот, если ключ уже рассчитан внешним кодом.
+   */
+  public reserveByKey(newId: string, parentId: string | null, orderKey: Key): void {
+    if (this.actors.has(newId) || this.reservations.has(newId)) {
+      throw new Error(`id уже занят или зарезервирован: ${newId}`)
+    }
+    this.reservations.set(newId, { parentId, orderKey })
+  }
+
+  /** Отменить резервацию под id (если есть). */
+  public cancelReservation(newId: string): void {
+    this.reservations.delete(newId)
+  }
+
+  /**
+   * Присоединить актор к зарезервированному слоту по его id.
+   * Если резервации нет — актор попадёт **в конец корня**.
+   */
+  public attachReserved(actor: Actor): void {
+    const id = (actor as any).id as string
+    if (!id) throw new Error(`У актора отсутствует id`)
+    if (this.actors.has(id)) return // уже вставлен
+
+    const r = this.reservations.get(id)
+    if (!r) {
+      this.createChildren(null, actor)
+      return
+    }
+    this.reservations.delete(id)
+
+    this.actors.set(id, actor)
+    const meta: Meta = { parent: r.parentId, orderKey: r.orderKey, seq: GLOBAL_SEQ++ }
+    this.meta.set(id, meta)
+
+    const arr = this.ensureChildren(r.parentId)
+    const pos = this.bsearchByKey(arr, r.orderKey, meta.seq)
+    arr.splice(pos, 0, id)
   }
 }
