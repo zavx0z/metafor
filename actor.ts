@@ -2,13 +2,14 @@ import { contextFromSchema, type Context, type Schema, type Values } from "@zavx
 import { checkTransition, type Conditions, type Transitions } from "./core/states"
 import { processesFromSchema, type Process, type Processes } from "./core/processes"
 import { reactionsFromSchema, type Reactions } from "./core/reactions"
-import { ActorCommunication } from "./core/communication"
-export { Fields } from "./core/field"
+import { ElectromagneticField } from "./core/electromagnetic"
+export { Fields } from "./core/fields"
 import type { Node as ParseNode } from "@zavx0z/template"
 import type { Core, Snapshot, Message } from "./actor.t"
 export type { Message }
 import type { StatesConfig } from "./schema/states"
 import type { Meta } from "./metafor"
+import { Fields } from "./core/fields"
 
 /**
  * Основной класс актора MetaFor
@@ -27,66 +28,40 @@ import type { Meta } from "./metafor"
  * })
  * ```
  */
-export class Actor extends ActorCommunication {
+export class Actor extends ElectromagneticField {
   private static coreWeakMap = new WeakMap<Actor, Core>()
 
-  /** Позиционный путь актора в VDOM (строка индексов через слеш, например "0/1/2") */
-  public readonly path: string
-
   constructor(
-    public name: string,
     public id: string,
+    public readonly path: string,
+    public name: string,
     public desc: string | undefined,
     public ctx: Context<Schema>,
     public state: { current: string; states: StatesConfig },
     public processes: Processes,
     public reactions: Reactions,
     public render: ParseNode[],
-    core?: Core,
-    path?: string
+    core?: Core
   ) {
     super()
-    // Инициализируем path: если передан явно, используем его, иначе генерируем корневой путь
-    this.path = path ?? ActorCommunication.getFields().generateRootPath()
     this.update = this.update.bind(this)
     this.destroy = this.destroy.bind(this)
     Actor.coreWeakMap.set(this, core || {})
     this.#init()
   }
 
-  /** Сбрасывает счетчик путей (для тестирования) */
-  static resetPathCounter(): void {
-    ActorCommunication.getFields().resetPathCounter()
-  }
-
   #init() {
     // Инициализируем коммуникации через базовый класс
     this.initializeCommunication()
 
-    // Отправляем сообщение о создании актора
-    this.sendMessage({
-      meta: this.name,
-      actor: this.id,
-      path: this.path,
-      timestamp: Date.now(),
-      patches: [
-        {
-          op: "add",
-          path: "/",
-          value: {
-            context: this.ctx.context,
-            state: this.state.current,
-            process: this.process,
-          },
-        },
-      ],
-    })
+    // Отправляем сообщение о создании актора (снимок)
+    this.sendMessage(Actor.initMessage(this.name, this.id, this.path, this.snapshot))
+
     const transition = this.state.states[this.state.current]
     if (transition) {
       const process = this.processes.getProcess(this.state.current)
       if (process) {
         this.setProcess(true)
-
         this.executeAction(process)
         this.transition()
       } else {
@@ -94,42 +69,45 @@ export class Actor extends ActorCommunication {
       }
     }
   }
+
   get core() {
     return Actor.coreWeakMap.get(this)!
   }
   set core(value: Core) {
     Actor.coreWeakMap.set(this, value)
   }
+
+  // ---------- state listeners ----------
   stateListeners = new Set<(state: string) => void>()
+
   setState(state: string) {
     this.state.current = state
     if (this.stateListeners.size > 0) {
       for (const listener of this.stateListeners) listener(state)
     }
   }
+
   /** Подписка на обновление состояния. Возвращает функцию отписки */
-  onStateChange(listener: (state: string) => void): (listener: (state: string) => void) => void {
+  onStateChange(listener: (state: string) => void): () => void {
     this.stateListeners.add(listener)
-    return this.unsubscribeState
+    return () => this.unsubscribeState(listener)
   }
   unsubscribeState(listener: (state: string) => void) {
     this.stateListeners.delete(listener)
   }
-  /** ------------process-------------------------------- */
+
+  // ---------- process ----------
   /** индикатор выполнения процесса */
   process = false
+
   /**
-   * 1. устанавливает состояние процесса
-   * 2. при отключении процесса (после завершения действия)
-   *  - обновляет контекст
-   *  - выполняет переходы
+   * 1) Устанавливает состояние процесса
+   * 2) При отключении процесса запускает переходы
    */
   setProcess(process: boolean) {
     if (this.process === process) return
     this.process = process
-    if (!process) {
-      this.transition()
-    }
+    if (!process) this.transition()
   }
 
   /** обновление контекста */
@@ -140,15 +118,10 @@ export class Actor extends ActorCommunication {
     }
     return updated
   }
+
   /**
-   * - выполняет действие, устанавливая состояние процесса в true
-   * - после успешной обработки действия, если есть success, то обновляет контекст
-   * - после ошибки в обработке действия, если есть error, то обновляет контекст
-   * - после завершения действия, устанавливает состояние процесса в false
-   * - отправляет сообщение о состоянии процесса в канал (MSG)
-   *
-   * @param process - конфигурация процесса состояния
-   * @throws {Error} - если обработчик ошибки не найден
+   * Выполняет действие процесса.
+   * Управляет сообщениями before/after и состоянием `process`.
    */
   executeAction(process: Process<any, any>) {
     try {
@@ -159,6 +132,7 @@ export class Actor extends ActorCommunication {
         core: this.core,
         self: { meta: this.name, actor: this.id, path: this.path, destroy: this.destroy },
       })
+
       if (result instanceof Promise) {
         result
           .then((data) => {
@@ -166,14 +140,12 @@ export class Actor extends ActorCommunication {
           })
           .catch((error) => {
             if (process.error) {
-              if (error instanceof Error) {
-                process.error({ update: this.update, error })
-              } else if (typeof error === "string") {
-                process.error({ update: this.update, error: new Error(error) })
-              } else {
-                throw new Error(`Передан неизвестный тип ошибки в состоянии: ${this.state.current}`)
-              }
-            } else throw new Error(`Обработчик ошибки не найден для состояния: ${this.state.current} \n ${error}`)
+              if (error instanceof Error) process.error({ update: this.update, error })
+              else if (typeof error === "string") process.error({ update: this.update, error: new Error(error) })
+              else throw new Error(`Передан неизвестный тип ошибки в состоянии: ${this.state.current}`)
+            } else {
+              throw new Error(`Обработчик ошибки не найден для состояния: ${this.state.current}\n${String(error)}`)
+            }
           })
           .finally(() => {
             this.sendMessage(Actor.stateAfterActionMessage(this.name, this.id, this.path, this.state.current))
@@ -225,7 +197,6 @@ export class Actor extends ActorCommunication {
       process: this.process,
       states: this.state.states,
       context: this.ctx.snapshot,
-      // ...this.#view.snapshot,
       ...(this.desc ? { desc: this.desc } : {}),
     }
   }
@@ -256,6 +227,7 @@ export class Actor extends ActorCommunication {
     }
     this.transition() // TODO: оптимизировать по результату обновления
   }
+
   static initMessage(meta: string, actor: string, path: string, snapshot: Snapshot<Schema, string>): Message {
     return { meta, actor, path, timestamp: Date.now(), patches: [{ op: "add", path: "/", value: snapshot }] }
   }
@@ -276,73 +248,121 @@ export class Actor extends ActorCommunication {
     return { meta, actor, path, timestamp: Date.now(), patches: [{ op: "remove", path: "/" }] }
   }
 
-  /** Очищает ресурсы актора и удаляет его из реестра */
-  destroy() {
-    // Рекурсивно уничтожаем всех детей
-    const fields = ActorCommunication.getFields()
-    const children = fields.getChildren(this.path)
-    for (const childPath of children) {
-      const childActor = fields.getActor(childPath)
-      if (childActor instanceof Actor) {
-        childActor.destroy()
+  /** Рекурсивно очищает core и ресурсы для актора и всех его детей */
+  private destroyRecursive(fields: Fields) {
+    const children = fields.getChildren(this.id)
+
+    // Рекурсивно очищаем детей
+    for (const childId of children) {
+      const childActor = fields.getActor(childId)
+      if (childActor) {
+        childActor.destroyRecursive(fields)
       }
     }
 
-    // Отправляем сообщение об удалении
-    const removeMessage = Actor.removeMessage(this.name, this.id, this.path)
-    this.sendMessage(removeMessage)
-
+    // Очищаем ресурсы текущего актора
     this.destroyCommunication()
     Actor.coreWeakMap.delete(this)
     this.stateListeners.clear()
     this.ctx.clearSubscribers()
   }
 
-  /**
-   * Создает актор из схемы MetaFor
-   *
-   * @param config - Конфигурация актора
-   * @param config.meta - Схема MetaFor с контекстом, состояниями, процессами и реакциями
-   * @param config.id - Уникальный идентификатор актора
-   * @param config.core - Объект ядра для хранения сложных данных (опционально)
-   * @param config.context - Начальные значения контекста (опционально)
-   * @param config.path - Позиционный путь в VDOM (опционально, генерируется автоматически)
-   *
-   * @returns Новый экземпляр актора
-   *
-   * @example
-   * ```typescript
-   * const actor = Actor.fromSchema({
-   *   meta: userSchema,
-   *   id: "user-123",
-   *   core: { users: [], settings: {} },
-   *   context: { name: "John", age: 25 },
-   *   path: "0/1"
-   * })
-   * ```
-   */
+  /** Очищает ресурсы актора и удаляет его из реестра */
+  destroy() {
+    // Сообщаем об удалении
+    const removeMessage = Actor.removeMessage(this.name, this.id, this.path)
+    this.sendMessage(removeMessage)
+
+    const fields = Fields.get()
+
+    // Рекурсивно удаляем core и ресурсы для всех детей
+    this.destroyRecursive(fields)
+
+    // Удаляем себя из реестра с рекурсией (удаляет всех детей из Fields)
+    fields.remove(this.id, true)
+  }
+
   static fromSchema<M extends Meta>(config: {
     meta: M
-    id: string
+    id?: string
     core?: Core
     context?: Partial<Values<M["context"]>>
     path?: string
   }): Actor {
-    const { meta, id, core, context = {}, path } = config
-
+    const { meta, id = crypto.randomUUID(), core, context = {}, path } = config
     const ctx = contextFromSchema(meta.context)
-    ctx.update(context as any)
-    return new Actor(
-      meta.name,
+    ctx.update(context)
+    // --- Разрешаем путь ---
+    const fields = Fields.get()
+    let pathResolved: string
+    if (typeof path === "string" && path.length > 0) {
+      pathResolved = path
+    } else {
+      // корневая позиция: ищем первый свободный индекс "0","1","2",...
+      let i = 0
+      while (fields.hasPath(String(i))) i++
+      pathResolved = String(i)
+    }
+    // --- Создаём экземпляр ---
+    const actor = new Actor(
       id,
+      pathResolved,
+      meta.name,
       meta.desc,
       ctx,
       { current: Object.keys(meta.states)[0] as string, states: meta.states },
-      processesFromSchema(meta.processes ?? {}, { meta: meta.name, actor: id, path: path ?? "0", destroy: () => {} }),
+      processesFromSchema(meta.processes ?? {}, { meta: meta.name, actor: id, path: pathResolved, destroy: () => {} }),
       reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
       meta.render ?? [],
-      core,
-      path
+      core
     )
+    // --- Регистрируем в Fields строго на pathResolved ---
+    fields.createNode(pathResolved, actor)
+    return actor
+  }
+
+  /**
+   * Создать нового «брата» (соседа) рядом с целевым актором.
+   * @param targetId Идентификатор актора-ориентира.
+   * @param meta Meta-схема нового актора.
+   * @param cfg.id Уникальный id нового актора.
+   * @param cfg.at "before" | "after" (по умолчанию "after").
+   * @param cfg.core (опц.) Core окружение.
+   * @param cfg.context (опц.) Начальные значения контекста.
+   * @returns Созданный актор (уже с корректным path).
+   */
+  static createSibling<M extends Meta>(
+    targetId: string,
+    meta: M,
+    cfg: {
+      id?: string
+      at?: "before" | "after"
+      core?: Core
+      context?: Partial<Values<M["context"]>>
+    }
+  ): Actor {
+    const { id = crypto.randomUUID(), core, context = {}, at = "after" } = cfg
+    const fields = Fields.get()
+    if (!fields.getActor(targetId)) throw new Error(`Актор-ориентир "${targetId}" не найден`)
+    // 1) Считаем конечный путь заранее в Fields
+    const pathResolved = fields.computeSiblingPath(targetId, at)
+    // 2) Готовим контекст и создаём актор СРАЗУ с правильным path
+    const ctx = contextFromSchema(meta.context)
+    ctx.update(context)
+    const actor = new Actor(
+      id,
+      pathResolved,
+      meta.name,
+      meta.desc,
+      ctx,
+      { current: Object.keys(meta.states)[0] as string, states: meta.states },
+      processesFromSchema(meta.processes ?? {}, { meta: meta.name, actor: id, path: pathResolved, destroy: () => {} }),
+      reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
+      meta.render ?? [],
+      core
+    )
+    // 3) Регистрируем строго по рассчитанному пути
+    fields.createNode(pathResolved, actor)
+    return actor
   }
 }

@@ -1,15 +1,19 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from "bun:test"
 import { Actor } from "../../actor"
-import { ActorCommunication } from "../communication"
+import { Fields } from "../fields"
 import type { Meta } from "../../metafor"
 
 describe("Очистка ресурсов актора", () => {
   beforeEach(() => {
-    Actor.clearRegistry()
+    // Очищаем глобальное состояние Fields
+    Fields.set(new Fields())
+    // Очищаем WeakMap с core (создаем новый экземпляр)
+    // Это невозможно сделать напрямую, но каждый тест создает новые акторы
   })
 
   afterEach(() => {
-    Actor.clearRegistry()
+    // Очищаем глобальное состояние Fields
+    Fields.set(new Fields())
   })
 
   const testSchema: Meta = {
@@ -24,6 +28,7 @@ describe("Очистка ресурсов актора", () => {
       reactions: {},
       states: {},
     },
+    core: {},
   }
 
   it("должен очищать core из WeakMap при уничтожении", () => {
@@ -63,15 +68,15 @@ describe("Очистка ресурсов актора", () => {
     const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
     // Проверяем, что акторы зарегистрированы в иерархии
-    expect(ActorCommunication.getFields().hasActor(actor1.path)).toBe(true)
-    expect(ActorCommunication.getFields().hasActor(actor2.path)).toBe(true)
+    expect(Fields.get().has(actor1.id)).toBe(true)
+    expect(Fields.get().has(actor2.id)).toBe(true)
 
     // Уничтожаем первый актор
     actor1.destroy()
 
     // Проверяем, что актор удален из иерархии
-    expect(ActorCommunication.getFields().hasActor(actor1.path)).toBe(false)
-    expect(ActorCommunication.getFields().hasActor(actor2.path)).toBe(true)
+    expect(Fields.get().has(actor1.id)).toBe(false)
+    expect(Fields.get().has(actor2.id)).toBe(true)
 
     // Очистка
     actor2.destroy()
@@ -83,39 +88,35 @@ describe("Очистка ресурсов актора", () => {
     const child2 = Actor.fromSchema({ meta: testSchema, id: "child2", path: `${parent.path}/1` })
     const grandchild = Actor.fromSchema({ meta: testSchema, id: "grandchild", path: `${child1.path}/0` })
 
-    const hierarchy = ActorCommunication.getFields()
+    const hierarchy = Fields.get()
 
-    // Добавляем в иерархию
-    hierarchy.appendChild(parent.path, child1.path)
-    hierarchy.appendChild(parent.path, child2.path)
-    hierarchy.appendChild(child1.path, grandchild.path)
-
+    // Акторы автоматически регистрируются при создании
     // Проверяем, что все акторы зарегистрированы
-    expect(hierarchy.hasActor(parent.path)).toBe(true)
-    expect(hierarchy.hasActor(child1.path)).toBe(true)
-    expect(hierarchy.hasActor(child2.path)).toBe(true)
-    expect(hierarchy.hasActor(grandchild.path)).toBe(true)
+    expect(hierarchy.has(parent.id)).toBe(true)
+    expect(hierarchy.has(child1.id)).toBe(true)
+    expect(hierarchy.has(child2.id)).toBe(true)
+    expect(hierarchy.has(grandchild.id)).toBe(true)
 
     // Уничтожаем родителя
     parent.destroy()
 
-    // Проверяем, что все дети тоже уничтожены
-    expect(hierarchy.hasActor(parent.path)).toBe(false)
-    expect(hierarchy.hasActor(child1.path)).toBe(false)
-    expect(hierarchy.hasActor(child2.path)).toBe(false)
-    expect(hierarchy.hasActor(grandchild.path)).toBe(false)
+    // Проверяем, что родитель и все дети удалены рекурсивно
+    expect(hierarchy.has(parent.id)).toBe(false)
+    expect(hierarchy.has(child1.id)).toBe(false)
+    expect(hierarchy.has(child2.id)).toBe(false)
+    expect(hierarchy.has(grandchild.id)).toBe(false)
   })
 
   it("должен корректно обрабатывать повторные вызовы destroy", () => {
     const actor = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
 
     // Проверяем, что актор зарегистрирован
-    expect(ActorCommunication.getFields().hasActor(actor.path)).toBe(true)
+    expect(Fields.get().has(actor.id)).toBe(true)
 
     // Первый вызов destroy
     actor.destroy()
     expect(actor.stateListeners.size).toBe(0)
-    expect(ActorCommunication.getFields().hasActor(actor.path)).toBe(false)
+    expect(Fields.get().has(actor.id)).toBe(false)
 
     // Второй вызов destroy не должен вызывать ошибок
     expect(() => actor.destroy()).not.toThrow()
@@ -125,7 +126,7 @@ describe("Очистка ресурсов актора", () => {
     const actor = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
 
     // Мокаем sendMessage для проверки вызова
-    const sendMessageSpy = jest.spyOn(actor, "sendMessage")
+    const sendMessageSpy = jest.spyOn(actor as any, "sendMessage")
 
     // Уничтожаем актор
     actor.destroy()
@@ -144,19 +145,15 @@ describe("Очистка ресурсов актора", () => {
 
   it("должен уничтожать только детей в поддереве, не затрагивая соседние ветки", () => {
     // Создаем структуру: parent -> [child1, child2] -> [grandchild1, grandchild2]
-    const parent = Actor.fromSchema({ meta: testSchema, id: "parent" })
-    const child1 = Actor.fromSchema({ meta: testSchema, id: "child1", path: `${parent.path}/0` })
-    const child2 = Actor.fromSchema({ meta: testSchema, id: "child2", path: `${parent.path}/1` })
-    const grandchild1 = Actor.fromSchema({ meta: testSchema, id: "grandchild1", path: `${child1.path}/0` })
-    const grandchild2 = Actor.fromSchema({ meta: testSchema, id: "grandchild2", path: `${child2.path}/0` })
+    const parent = Actor.fromSchema({ meta: testSchema, id: "parent2" })
+    const child1 = Actor.fromSchema({ meta: testSchema, id: "child1-2", path: `${parent.path}/0` })
+    const child2 = Actor.fromSchema({ meta: testSchema, id: "child2-2", path: `${parent.path}/1` })
+    const grandchild1 = Actor.fromSchema({ meta: testSchema, id: "grandchild1-2", path: `${child1.path}/0` })
+    const grandchild2 = Actor.fromSchema({ meta: testSchema, id: "grandchild2-2", path: `${child2.path}/0` })
 
-    const fields = ActorCommunication.getFields()
+    const fields = Fields.get()
 
-    // Добавляем в иерархию
-    fields.appendChild(parent.path, child1.path)
-    fields.appendChild(parent.path, child2.path)
-    fields.appendChild(child1.path, grandchild1.path)
-    fields.appendChild(child2.path, grandchild2.path)
+    // Акторы автоматически регистрируются при создании
 
     // Сохраняем ссылки на core для проверки
     const child1Core = child1.core
@@ -165,23 +162,23 @@ describe("Очистка ресурсов актора", () => {
     const grandchild2Core = grandchild2.core
 
     // Проверяем, что все акторы зарегистрированы
-    expect(fields.hasActor(parent.path)).toBe(true)
-    expect(fields.hasActor(child1.path)).toBe(true)
-    expect(fields.hasActor(child2.path)).toBe(true)
-    expect(fields.hasActor(grandchild1.path)).toBe(true)
-    expect(fields.hasActor(grandchild2.path)).toBe(true)
+    expect(fields.has(parent.id)).toBe(true)
+    expect(fields.has(child1.id)).toBe(true)
+    expect(fields.has(child2.id)).toBe(true)
+    expect(fields.has(grandchild1.id)).toBe(true)
+    expect(fields.has(grandchild2.id)).toBe(true)
 
     // Уничтожаем только child1 (должны удалиться child1 и grandchild1, но НЕ child2 и grandchild2)
     child1.destroy()
 
-    // Проверяем, что child1 и его потомок удалены
-    expect(fields.hasActor(child1.path)).toBe(false)
-    expect(fields.hasActor(grandchild1.path)).toBe(false)
+    // Проверяем, что child1 и его потомок удалены рекурсивно
+    expect(fields.has(child1.id)).toBe(false)
+    expect(fields.has(grandchild1.id)).toBe(false)
 
     // Проверяем, что child2 и его потомок НЕ затронуты
-    expect(fields.hasActor(child2.path)).toBe(true)
-    expect(fields.hasActor(grandchild2.path)).toBe(true)
-    expect(fields.hasActor(parent.path)).toBe(true)
+    expect(fields.has(child2.id)).toBe(true)
+    expect(fields.has(grandchild2.id)).toBe(true)
+    expect(fields.has(parent.id)).toBe(true)
 
     // Проверяем, что core у child2 и grandchild2 НЕ удален (это ключевая проверка!)
     expect(child2.core).toBe(child2Core)
@@ -189,7 +186,8 @@ describe("Очистка ресурсов актора", () => {
     expect(child2.core).toBeDefined()
     expect(grandchild2.core).toBeDefined()
 
-    // Проверяем, что core у child1 и grandchild1 удален
+    // child1 и grandchild1 уничтожены рекурсивно
+    // Проверяем, что их core удален
     expect(child1.core).toBeUndefined()
     expect(grandchild1.core).toBeUndefined()
 
@@ -201,25 +199,18 @@ describe("Очистка ресурсов актора", () => {
   it("должен корректно обрабатывать сложную иерархию с несколькими уровнями", () => {
     // Создаем сложную структуру:
     // root -> [branch1, branch2] -> [leaf1, leaf2] -> [deep1, deep2]
-    const root = Actor.fromSchema({ meta: testSchema, id: "root" })
-    const branch1 = Actor.fromSchema({ meta: testSchema, id: "branch1", path: `${root.path}/0` })
-    const branch2 = Actor.fromSchema({ meta: testSchema, id: "branch2", path: `${root.path}/1` })
-    const leaf1 = Actor.fromSchema({ meta: testSchema, id: "leaf1", path: `${branch1.path}/0` })
-    const leaf2 = Actor.fromSchema({ meta: testSchema, id: "leaf2", path: `${branch1.path}/1` })
-    const leaf3 = Actor.fromSchema({ meta: testSchema, id: "leaf3", path: `${branch2.path}/0` })
-    const deep1 = Actor.fromSchema({ meta: testSchema, id: "deep1", path: `${leaf1.path}/0` })
-    const deep2 = Actor.fromSchema({ meta: testSchema, id: "deep2", path: `${leaf2.path}/0` })
+    const root = Actor.fromSchema({ meta: testSchema, id: "root3" })
+    const branch1 = Actor.fromSchema({ meta: testSchema, id: "branch1-3", path: `${root.path}/0` })
+    const branch2 = Actor.fromSchema({ meta: testSchema, id: "branch2-3", path: `${root.path}/1` })
+    const leaf1 = Actor.fromSchema({ meta: testSchema, id: "leaf1-3", path: `${branch1.path}/0` })
+    const leaf2 = Actor.fromSchema({ meta: testSchema, id: "leaf2-3", path: `${branch1.path}/1` })
+    const leaf3 = Actor.fromSchema({ meta: testSchema, id: "leaf3-3", path: `${branch2.path}/0` })
+    const deep1 = Actor.fromSchema({ meta: testSchema, id: "deep1-3", path: `${leaf1.path}/0` })
+    const deep2 = Actor.fromSchema({ meta: testSchema, id: "deep2-3", path: `${leaf2.path}/0` })
 
-    const fields = ActorCommunication.getFields()
+    const fields = Fields.get()
 
-    // Добавляем в иерархию
-    fields.appendChild(root.path, branch1.path)
-    fields.appendChild(root.path, branch2.path)
-    fields.appendChild(branch1.path, leaf1.path)
-    fields.appendChild(branch1.path, leaf2.path)
-    fields.appendChild(branch2.path, leaf3.path)
-    fields.appendChild(leaf1.path, deep1.path)
-    fields.appendChild(leaf2.path, deep2.path)
+    // Акторы автоматически регистрируются при создании
 
     // Сохраняем ссылки на core
     const branch1Core = branch1.core
@@ -230,21 +221,20 @@ describe("Очистка ресурсов актора", () => {
     const deep1Core = deep1.core
     const deep2Core = deep2.core
 
-    // Уничтожаем только branch1 (должны удалиться branch1, leaf1, leaf2, deep1, deep2)
-    // НО НЕ branch2 и leaf3
+    // Уничтожаем только branch1 (должны удалиться branch1 и все его потомки)
     branch1.destroy()
 
-    // Проверяем, что branch1 и все его потомки удалены
-    expect(fields.hasActor(branch1.path)).toBe(false)
-    expect(fields.hasActor(leaf1.path)).toBe(false)
-    expect(fields.hasActor(leaf2.path)).toBe(false)
-    expect(fields.hasActor(deep1.path)).toBe(false)
-    expect(fields.hasActor(deep2.path)).toBe(false)
+    // Проверяем, что branch1 и все его потомки удалены рекурсивно
+    expect(fields.has(branch1.id)).toBe(false)
+    expect(fields.has(leaf1.id)).toBe(false)
+    expect(fields.has(leaf2.id)).toBe(false)
+    expect(fields.has(deep1.id)).toBe(false)
+    expect(fields.has(deep2.id)).toBe(false)
 
     // Проверяем, что branch2 и leaf3 НЕ затронуты
-    expect(fields.hasActor(branch2.path)).toBe(true)
-    expect(fields.hasActor(leaf3.path)).toBe(true)
-    expect(fields.hasActor(root.path)).toBe(true)
+    expect(fields.has(branch2.id)).toBe(true)
+    expect(fields.has(leaf3.id)).toBe(true)
+    expect(fields.has(root.id)).toBe(true)
 
     // Проверяем, что core у незатронутых акторов НЕ удален
     expect(branch2.core).toBe(branch2Core)
@@ -252,7 +242,8 @@ describe("Очистка ресурсов актора", () => {
     expect(branch2.core).toBeDefined()
     expect(leaf3.core).toBeDefined()
 
-    // Проверяем, что core у удаленных акторов удален
+    // Остальные акторы уничтожены рекурсивно
+    // Проверяем, что их core удален
     expect(leaf1.core).toBeUndefined()
     expect(leaf2.core).toBeUndefined()
     expect(deep1.core).toBeUndefined()
@@ -336,13 +327,9 @@ describe("Очистка ресурсов актора", () => {
     const grandchild0 = Actor.fromSchema({ meta: testSchema, id: "grandchild0", path: "0/0/0" })
     const grandchild1 = Actor.fromSchema({ meta: testSchema, id: "grandchild1", path: "0/1/0" })
 
-    const fields = ActorCommunication.getFields()
+    const fields = Fields.get()
 
-    // Добавляем в иерархию
-    fields.appendChild(root.path, child0.path)
-    fields.appendChild(root.path, child1.path)
-    fields.appendChild(child0.path, grandchild0.path)
-    fields.appendChild(child1.path, grandchild1.path)
+    // Акторы автоматически регистрируются при создании
 
     // Сохраняем ссылки на core
     const rootCore = root.core
@@ -368,14 +355,16 @@ describe("Очистка ресурсов актора", () => {
     console.log("grandchild0.core:", grandchild0.core === grandchild0Core)
     console.log("grandchild1.core:", grandchild1.core === grandchild1Core)
 
-    // Проверяем, что child0 и grandchild0 удалены
-    expect(fields.hasActor(child0.path)).toBe(false)
-    expect(fields.hasActor(grandchild0.path)).toBe(false)
+    // Проверяем, что child0 удален
+    expect(fields.has(child0.id)).toBe(false)
 
     // Проверяем, что child1 и grandchild1 НЕ затронуты
-    expect(fields.hasActor(child1.path)).toBe(true)
-    expect(fields.hasActor(grandchild1.path)).toBe(true)
-    expect(fields.hasActor(root.path)).toBe(true)
+    expect(fields.has(child1.id)).toBe(true)
+    expect(fields.has(grandchild1.id)).toBe(true)
+    expect(fields.has(root.id)).toBe(true)
+
+    // grandchild0 удален рекурсивно вместе с child0
+    expect(fields.has(grandchild0.id)).toBe(false)
 
     // Проверяем, что core у child1 и grandchild1 НЕ удален
     expect(child1.core).toBe(child1Core)
@@ -383,8 +372,11 @@ describe("Очистка ресурсов актора", () => {
     expect(child1.core).toBeDefined()
     expect(grandchild1.core).toBeDefined()
 
-    // Проверяем, что core у child0 и grandchild0 удален
+    // child0 уничтожен, его core должен быть undefined
     expect(child0.core).toBeUndefined()
+
+    // grandchild0 уничтожен рекурсивно вместе с child0
+    // Проверяем, что его core удален
     expect(grandchild0.core).toBeUndefined()
 
     // Очистка
