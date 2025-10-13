@@ -80,6 +80,22 @@ function createLoggerModule(userConfig: Partial<LogConfig> = {}) {
       })
       .join("\n")
 
+  // Генерация различимых цветов (HSL) из строки без кеша
+  const getActorColor = (id: string): string => {
+    // FNV-1a
+    let hash = 2166136261 >>> 0
+    for (let i = 0; i < id.length; i++) {
+      hash ^= id.charCodeAt(i)
+      hash = Math.imul(hash, 16777619)
+    }
+    // Золотой угол для лучшего распределения оттенков
+    const hue = Math.abs(hash * 137.508) % 360
+    // Высокая светлота для читаемости черного текста
+    const saturation = 70
+    const lightness = 78
+    return `hsl(${hue}, ${saturation}%, ${lightness}%)`
+  }
+
   // Функция логирования ядра
   const logCore = (core: Record<string, any>): void => {
     console.log("snapshot debug: ", { ...core })
@@ -100,27 +116,14 @@ function createLoggerModule(userConfig: Partial<LogConfig> = {}) {
   const log = (message: LogMessage, core: Record<string, any> = {}): void => {
     const { meta, actor, path: actorPath, patch } = message
 
-    const metaStr = String(meta).padEnd(config.width.meta, " ")
-    const actorStr = String(actor).padEnd(40, " ")
-    const pathStr = String(actorPath).padEnd(18, " ")
+    const metaStr = String(meta).padEnd(36, " ")
+    const pathStr = actorPath
+
+    const actorStr = actor.includes("-") ? actor.slice(actor.lastIndexOf("-") + 1) : actor
+
     const op = String(patch.op).padEnd(config.width.op, " ")
     const path = String(patch.path).padEnd(config.width.path, " ")
 
-    const value = patch.value ? formattedObj(patch.value) : ""
-    const isError = patch.value ? Object.hasOwn(patch.value, "error") : ""
-
-    const msgWithOutValue = [
-      `%c${metaStr}%c${actorStr}%c${pathStr}%c  |  %c${op}%c  |  %c${path}%c %c|`,
-      "color: #3498db; font-weight: bold",
-      "color: #9b59b6; font-weight: bold",
-      "color: #f39c12; font-weight: bold",
-      "",
-      `color: ${getOpColor(patch.op, patch.path)}; font-weight: bold`,
-      "",
-      "color: #2ecc71",
-      "",
-      "color: lightskyblue; font-weight: bold",
-    ]
     const stateValue = patch.value
       ? Array.isArray(patch.value)
         ? JSON.stringify(patch.value, null, 2)
@@ -128,17 +131,33 @@ function createLoggerModule(userConfig: Partial<LogConfig> = {}) {
           ? JSON.stringify(patch.value, null, 2)
           : patch.value
       : ""
-    const msgWithValue = [
-      `%c${metaStr}%c${actorStr}%c${pathStr}%c  |  %c${op}%c  |  %c${path}%c | %c${stateValue}`,
-      "color: #3498db; font-weight: bold",
-      "color: #9b59b6; font-weight: bold",
-      "color: #f39c12; font-weight: bold",
+
+    const value = patch.value ? formattedObj(patch.value) : ""
+    const isError = patch.value ? Object.hasOwn(patch.value, "error") : ""
+    const valLen = 22
+    const valSlot = "".padEnd(valLen, " ")
+    const baseStyles = [
+      `background: ${getActorColor(actorStr)}; color: #000; font-weight: bold; padding: 0 4px; border-radius: 6px`,
       "",
       `color: ${getOpColor(patch.op, patch.path)}; font-weight: bold`,
       "",
       "color: #2ecc71",
       "",
       "color: lightskyblue; font-weight: bold",
+      "color: #3498db; font-weight: bold",
+      "color: #3498db; font-weight: bold",
+    ]
+    const msgWithOutValue = [
+      `%c${actorStr}%c %c${op}%c | %c${path}%c | %c${valSlot}%c${metaStr}%c${pathStr}`,
+      ...baseStyles,
+    ]
+
+    const msgWithValue = [
+      `%c${actorStr}%c %c${op}%c | %c${path}%c | %c${stateValue.padEnd(valLen, " ")}%c${metaStr}%c${pathStr}`,
+      ...baseStyles.slice(0, 6),
+      "color: lightskyblue; font-weight: bold",
+      "color: #3498db; font-weight: bold",
+      "color: #3498db; font-weight: bold",
     ]
     switch (true) {
       case isLog(message, "/"):
@@ -149,6 +168,7 @@ function createLoggerModule(userConfig: Partial<LogConfig> = {}) {
             config.detail.core && logCore(core)
           } else console.log(patch.value)
         } finally {
+          console.log(actor)
           console.groupEnd()
         }
         break
@@ -162,6 +182,7 @@ function createLoggerModule(userConfig: Partial<LogConfig> = {}) {
             config.detail.core && logCore(core)
           } else console.log(patch.value)
         } finally {
+          console.log(actor)
           console.groupEnd()
         }
         break
@@ -170,6 +191,7 @@ function createLoggerModule(userConfig: Partial<LogConfig> = {}) {
         try {
           config.detail.core && logCore(core)
         } finally {
+          console.log(actor)
           console.groupEnd()
         }
         break
