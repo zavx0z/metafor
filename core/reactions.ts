@@ -78,6 +78,8 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
           const [min, max] = condition.between
           if (value < min || value > max) return false
         }
+        if (condition.in !== undefined && !condition.in.includes(value)) return false
+        if (condition.notIn !== undefined && condition.notIn.includes(value)) return false
       }
       return true
     },
@@ -103,6 +105,8 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
           const [min, max] = condition.between
           if (value < min || value > max) return false
         }
+        if (condition.in !== undefined && !condition.in.includes(value)) return false
+        if (condition.notIn !== undefined && condition.notIn.includes(value)) return false
       }
       return true
     },
@@ -191,6 +195,25 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
         return true // Если проверка null прошла успешно, возвращаем true
       }
 
+      // Для объектов - проверяем специальные условия (должно быть ДО проверки типов)
+      if (typeof condition === "object" && condition !== null && condition.includeKey !== undefined) {
+        // Если есть includeKey, но значение не объект - возвращаем false
+        if (typeof value !== "object" || value === null) {
+          return false
+        }
+
+        // Проверяем includeKey для объектов
+        if (!(condition.includeKey in value)) return false
+
+        // Если только includeKey - возвращаем true
+        if (Object.keys(condition).length === 1) {
+          return true
+        }
+
+        // Если есть другие условия вместе с includeKey - продолжаем проверку
+        return true
+      }
+
       // Проверка по типу значения
       if (typeof value === "string") {
         return checkCondition.string(value, condition)
@@ -203,14 +226,6 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
       }
       if (Array.isArray(value)) {
         return checkCondition.array(value, condition)
-      }
-
-      // Для объектов и других типов - прямое сравнение
-      if (typeof condition === "object" && condition !== null) {
-        // Если это объект условий, но не подходящий тип - возвращаем false
-        if (condition.eq !== undefined || condition.gt !== undefined || condition.startsWith !== undefined) {
-          return false
-        }
       }
 
       // Прямое сравнение для объектов и других типов

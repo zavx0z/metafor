@@ -45,6 +45,8 @@ export type ReactionFilterConditions = {
    | notEndsWith    | string                               | Не заканчивается на указанную строку  |
    | length         | number \| { min?: number; max?: number } | Длина строки                      |
    | between        | [string, string]                     | Должно быть между двумя строками      |
+   | in             | string[]                             | Входит ли в указанный массив строк     |
+   | notIn          | string[]                             | Не входит ли в указанный массив строк  |
    
    @example
    ```typescript
@@ -60,6 +62,9 @@ export type ReactionFilterConditions = {
    meta: {
      pattern: /^[a-z]+_[0-9]+$/,
      length: { min: 3, max: 20 }
+   }
+   meta: {
+     in: ["user", "admin", "guest"]
    }
    ```
   */
@@ -237,6 +242,8 @@ export type ReactionFilterConditions = {
    | notLt    | number           | Не меньше указанного числа            |
    | notLte   | number           | Не меньше или равно указанному числу  |
    | between  | [number, number] | Должно быть между двумя числами       |
+   | in       | number[]        | Входит ли в указанный массив чисел    |
+   | notIn    | number[]        | Не входит ли в указанный массив чисел |
    
    ## Булевы значения
    
@@ -308,6 +315,12 @@ export type ReactionFilterConditions = {
    value: {
      includes: "admin",
      length: { min: 1 }
+   }
+   value: {
+     in: [1, 2, 3, 5, 8]
+   }
+   value: {
+     notIn: [0, 4, 6, 7]
    }
    ```
   */

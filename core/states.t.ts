@@ -203,6 +203,10 @@ export type CondStringRequired =
       length?: number | { min?: number; max?: number }
       /** Должно быть между двумя строками */
       between?: [string, string]
+      /** Входит ли в указанный массив строк */
+      in?: string[]
+      /** Не входит ли в указанный массив строк */
+      notIn?: string[]
     }
 
 /** 
@@ -272,6 +276,10 @@ export type CondStringOptional =
       length?: number | { min?: number; max?: number }
       /** Должно быть между двумя строками */
       between?: [string, string]
+      /** Входит ли в указанный массив строк */
+      in?: string[]
+      /** Не входит ли в указанный массив строк */
+      notIn?: string[]
     }
 
 /** 
@@ -322,6 +330,10 @@ export type CondNumberRequired =
       notLte?: number
       /** Должно быть между двумя числами */
       between?: [number, number]
+      /** Входит ли в указанный массив чисел */
+      in?: number[]
+      /** Не входит ли в указанный массив чисел */
+      notIn?: number[]
     }
 
 /** 
@@ -387,6 +399,10 @@ export type CondNumberOptional =
       notLte?: number
       /** Должно быть между двумя числами */
       between?: [number, number]
+      /** Входит ли в указанный массив чисел */
+      in?: number[]
+      /** Не входит ли в указанный массив чисел */
+      notIn?: number[]
     }
 
 /** 
@@ -511,7 +527,9 @@ export type Condition<T> = T extends boolean
         ? CondArrayRequired<U>
         : T extends readonly (infer U)[]
           ? CondArrayRequired<U>
-          : never
+          : T extends object
+            ? { includeKey?: string }
+            : never
 
 /**
  * Условие для опционального поля контекста
@@ -528,7 +546,9 @@ export type ConditionOptional<T> = T extends boolean
           ? CondArrayOptional<U>
           : T extends null
             ? null
-            : never
+            : T extends object
+              ? { includeKey?: string }
+              : never
 
 /**
  * Условие контекстного поля

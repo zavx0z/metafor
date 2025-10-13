@@ -41,6 +41,11 @@ export abstract class ElectromagneticField {
     return ElectromagneticField.useBroadcastChannel
   }
 
+  /** Получить количество зарегистрированных акторов. */
+  static getRegisteredActorsCount(): number {
+    return ElectromagneticField.chargedActors.size
+  }
+
   // -------- экземпляр --------
 
   /** Уникальный идентификатор актора. */
