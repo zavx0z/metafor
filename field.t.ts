@@ -1,4 +1,4 @@
-type Key = Uint8Array
+export type Key = Uint8Array
 
 export interface Topology {
   /** Родительский id или null для корня (управляет внешняя логика) */
