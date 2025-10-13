@@ -403,10 +403,10 @@ export type SelfInfo = {
  *   meta: "user-profile",
  *   actor: "user-123",
  *   path: "0/1/2",
- *   destroy: () => actor.destroy()
+ *   destroy: (recursive = true) => actor.destroy(recursive)
  * }
  * ```
  */
 export type Self = SelfInfo & {
-  destroy: () => void
+  destroy: (recursive?: boolean) => void
 }

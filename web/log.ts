@@ -102,7 +102,7 @@ function createLoggerModule(userConfig: Partial<LogConfig> = {}) {
 
     const metaStr = String(meta).padEnd(config.width.meta, " ")
     const actorStr = String(actor).padEnd(40, " ")
-    const pathStr = String(actorPath).padEnd(8, " ")
+    const pathStr = String(actorPath).padEnd(18, " ")
     const op = String(patch.op).padEnd(config.width.op, " ")
     const path = String(patch.path).padEnd(config.width.path, " ")
 

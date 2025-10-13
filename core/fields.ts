@@ -616,16 +616,57 @@ export class Fields {
   }
 
   /**
+   * Перенести детей удаляемого актора на уровень его родителя.
+   * @param id Идентификатор удаляемого актора.
+   */
+  private promoteChildren(id: string): void {
+    const children = this.getChildren(id)
+    if (children.length === 0) return
+
+    const meta = this.meta.get(id)
+    if (!meta) return
+
+    const parentId = meta.parent
+    const parentChildren = this.ensureChildren(parentId)
+    const parentIndex = parentId ? parentChildren.indexOf(id) : -1
+
+    // Обновляем родителя для всех детей
+    for (const childId of children) {
+      const childMeta = this.meta.get(childId)
+      if (childMeta) {
+        childMeta.parent = parentId
+      }
+    }
+
+    if (parentIndex >= 0) {
+      // Удаляем родителя из массива детей его родителя
+      parentChildren.splice(parentIndex, 1)
+      
+      // Вставляем детей на место родителя
+      parentChildren.splice(parentIndex, 0, ...children)
+    } else {
+      // Если это корневой элемент, добавляем детей в корень
+      parentChildren.push(...children)
+    }
+  }
+
+  /**
    * Удалить актора.
    * @param id Идентификатор актора.
    * @param recursive Если true — удалить также всё поддерево.
    */
   public remove(id: string, recursive = false): void {
     if (!this.actors.has(id)) return
+    
     if (recursive) {
+      // Рекурсивное удаление: удаляем всех детей
       const kids = [...this.getChildren(id)]
       for (const childId of kids) this.remove(childId, true)
+    } else {
+      // Нерекурсивное удаление: переносим детей на уровень родителя
+      this.promoteChildren(id)
     }
+    
     this.unlink(id)
     this.actors.delete(id)
     this.meta.delete(id)
