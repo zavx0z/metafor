@@ -398,7 +398,7 @@ export class Fields {
    * @param actor Экземпляр актора.
    */
   public createBefore(neighborId: string, actor: Actor): void {
-    const id = (actor as any).id as string
+    const id = actor.id
     if (!id) throw new Error(`У актора отсутствует id`)
     if (this.actors.has(id)) throw new Error(`Актор уже существует: ${id}`)
 

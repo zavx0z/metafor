@@ -20,7 +20,7 @@ import { Fields } from "./fields"
  * 4) При уничтожении наследник зовёт `super.destroy()`:
  *    - sendMessage(remove) → destroyCommunication().
  */
-export abstract class ElectromagneticField {
+export abstract class Electromagnetic {
   // -------- статическая шина для «локальных» акторов (в одном контексте JS) --------
 
   /** Включать ли BroadcastChannel для меж-контекстной доставки. */
@@ -31,19 +31,20 @@ export abstract class ElectromagneticField {
     typeof BroadcastChannel !== "undefined" ? new BroadcastChannel("actor-force") : null
 
   /** Множество «заряжённых» акторов (у кого есть реакции). */
-  private static chargedActors = new Set<ElectromagneticField>()
+  private static chargedActors = new Set<Electromagnetic>()
 
   /** Переключить использование BroadcastChannel. */
   static setBroadcastChannel(enabled: boolean) {
-    ElectromagneticField.useBroadcastChannel = enabled
+    Electromagnetic.useBroadcastChannel = enabled
   }
+
   static isBroadcastChannelEnabled(): boolean {
-    return ElectromagneticField.useBroadcastChannel
+    return Electromagnetic.useBroadcastChannel
   }
 
   /** Получить количество зарегистрированных акторов. */
   static getRegisteredActorsCount(): number {
-    return ElectromagneticField.chargedActors.size
+    return Electromagnetic.chargedActors.size
   }
 
   // -------- экземпляр --------
@@ -72,7 +73,7 @@ export abstract class ElectromagneticField {
    * ВАЖНО: ни Fields.attachReserved, ни init-сообщение здесь НЕ вызываются.
    * Наследник обязан сделать это в удобный момент через `attachAndAnnounceCreate()`.
    */
-  constructor(id: string, metaName: string, snapshot: () => Snapshot<any, string>) {
+  protected constructor(id: string, metaName: string, snapshot: () => Snapshot<any, string>) {
     this.id = id
     this.metaName = metaName
     this.snapshotFn = snapshot
@@ -127,11 +128,11 @@ export abstract class ElectromagneticField {
   protected initializeCommunication() {
     if (this.hasReactions()) {
       this.wired = true
-      ElectromagneticField.chargedActors.add(this)
+      Electromagnetic.chargedActors.add(this)
 
-      if (ElectromagneticField.useBroadcastChannel && ElectromagneticField.channel) {
+      if (Electromagnetic.useBroadcastChannel && Electromagnetic.channel) {
         this._onBCMessage ??= (ev: MessageEvent<Message>) => this.handleReactionMessage(ev)
-        ElectromagneticField.channel.addEventListener("message", this._onBCMessage as EventListener)
+        Electromagnetic.channel.addEventListener("message", this._onBCMessage as EventListener)
       }
     }
   }
@@ -141,25 +142,25 @@ export abstract class ElectromagneticField {
     if (!this.wired) return
     this.wired = false
 
-    ElectromagneticField.chargedActors.delete(this)
+    Electromagnetic.chargedActors.delete(this)
 
-    if (this._onBCMessage && ElectromagneticField.channel) {
-      ElectromagneticField.channel.removeEventListener("message", this._onBCMessage as EventListener)
+    if (this._onBCMessage && Electromagnetic.channel) {
+      Electromagnetic.channel.removeEventListener("message", this._onBCMessage as EventListener)
     }
   }
 
   /** Доставка сообщения локально и (опционально) через BroadcastChannel. */
   protected sendMessage(message: Message) {
     // локально всем «заряжённым», кроме себя
-    for (const actor of ElectromagneticField.chargedActors) {
+    for (const actor of Electromagnetic.chargedActors) {
       if (actor === this) continue
       if (actor.id !== message.actor && actor.hasReactions()) {
         actor.handleReactionMessage({ data: message } as MessageEvent<Message>)
       }
     }
     // через BC
-    if (ElectromagneticField.useBroadcastChannel && ElectromagneticField.channel) {
-      ElectromagneticField.channel.postMessage(message)
+    if (Electromagnetic.useBroadcastChannel && Electromagnetic.channel) {
+      Electromagnetic.channel.postMessage(message)
     }
   }
 
@@ -167,6 +168,7 @@ export abstract class ElectromagneticField {
 
   /** Есть ли реакции на входящие сообщения. */
   protected abstract hasReactions(): boolean
+
   /** Обработчик входящих сообщений. */
   protected abstract handleReactionMessage(ev: MessageEvent<Message>): void
 

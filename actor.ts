@@ -3,7 +3,7 @@ import { contextFromSchema, type Context, type Schema, type Values } from "@zavx
 import { checkTransition, type Conditions, type Transitions } from "./core/states"
 import { processesFromSchema, type Process, type Processes } from "./core/processes"
 import { reactionsFromSchema, type Reactions } from "./core/reactions"
-import { ElectromagneticField } from "./core/electromagnetic"
+import { Electromagnetic } from "./core/electromagnetic"
 export { Fields } from "./core/fields"
 import type { Node as ParseNode } from "@zavx0z/template"
 import type { Core, Snapshot, Message } from "./actor.t"
@@ -22,10 +22,10 @@ import { Fields } from "./core/fields"
  * - запускаем стартовые переходы/процессы,
  * - при destroy: `super.destroy()` (remove + выключение транспорта) → локальная очистка → удаление из Fields.
  */
-export class Actor extends ElectromagneticField {
+export class Actor extends Electromagnetic {
   /** Core хранится вне экземпляра. */
   private static coreWeakMap = new WeakMap<Actor, Core>()
-
+  
   constructor(
     public override id: string,
     public name: string,
@@ -40,14 +40,12 @@ export class Actor extends ElectromagneticField {
     // База без сайд-эффектов: только id/name/snapshot-fn
     super(id, name, () => this.snapshot)
 
-    // биндинги
     this.update = this.update.bind(this)
     this.destroy = this.destroy.bind(this)
 
     // core в WeakMap
     Actor.coreWeakMap.set(this, core || {})
 
-    // **** КРИТИЧЕСКО: теперь reactions уже присвоены — можно подключать транспорт и слать init ****
     this.attachAndAnnounceCreate()
 
     // стартовое состояние/процессы
