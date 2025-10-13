@@ -34,6 +34,7 @@ export interface Snapshot<C extends Schema, S extends string> {
   process: boolean
   /** Снимок контекста */
   context: ContextSnapshot<C>
+  core: string[]
 }
 
 /**

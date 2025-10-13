@@ -184,6 +184,7 @@ export class Actor extends ElectromagneticField {
       states: this.state.states,
       context: this.ctx.snapshot,
       ...(this.desc ? { desc: this.desc } : {}),
+      core: Object.keys(this.core),
     }
   }
 
@@ -239,14 +240,21 @@ export class Actor extends ElectromagneticField {
     this.ctx.clearSubscribers()
   }
 
-  public override destroy() {
+  public override destroy(recursive = true) {
     // 1) база: remove + выключить транспорт
     super.destroy()
     // 2) локальная очистка
     const fields = Fields.get()
-    this.destroyRecursive(fields)
-    // 3) удалить из дерева (рекурсивно)
-    fields.remove(this.id, true)
+    if (recursive) {
+      this.destroyRecursive(fields)
+    } else {
+      // Очистка только текущего актора
+      Actor.coreWeakMap.delete(this)
+      this.stateListeners.clear()
+      this.ctx.clearSubscribers()
+    }
+    // 3) удалить из дерева (рекурсивно или нет)
+    fields.remove(this.id, recursive)
   }
 
   // ---------- фабрики ----------
