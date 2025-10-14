@@ -15,8 +15,9 @@ export abstract class Gravity extends Field {
     Fields.get().attachReserved(this as unknown as Actor)
   }
 
-  public destroy() {
+  public override destroy(recursive = true) {
     Gravity.coreWeakMap.delete(this)
+    super.destroy(recursive)
   }
   // ------------------------------------------------------------------------------------
 
@@ -38,6 +39,7 @@ export abstract class Gravity extends Field {
   public get core() {
     return Gravity.coreWeakMap.get(this)!
   }
+  
   public set core(value: Core) {
     Gravity.coreWeakMap.set(this, value)
   }

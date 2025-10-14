@@ -193,7 +193,6 @@ describe("Очистка ресурсов актора", () => {
     // child1 и grandchild1 уничтожены рекурсивно
     // Проверяем, что их core удален
     expect(child1.core).toBeUndefined()
-    console.log(grandchild1.core)
     expect(grandchild1.core).toBeUndefined()
 
     // Очистка

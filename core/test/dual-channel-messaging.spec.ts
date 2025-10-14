@@ -1,35 +1,28 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { Actor } from "../../actor"
 import type { Meta } from "../../metafor"
+import { messagesFixture } from "../../fixture/message.ts"
+import { Electromagnetic } from "../electromagnetic.ts"
 
 describe("Двойная отправка сообщений (BroadcastChannel + внутренний механизм)", () => {
-  let broadcastChannelMessages: any[] = []
-  let originalPostMessage: typeof BroadcastChannel.prototype.postMessage
+  let messagesFixtureInstance: ReturnType<typeof messagesFixture>
 
   beforeEach(() => {
     // Очищаем реестр акторов
-    Actor.clearRegistry()
+    // @ts-ignore
+    Electromagnetic.chargedActors.clear()
 
     // Включаем BroadcastChannel
     Actor.setBroadcastChannel(true)
 
-    // Перехватываем сообщения BroadcastChannel для тестирования
-    broadcastChannelMessages = []
-    originalPostMessage = Actor.channel.postMessage
-    Actor.channel.postMessage = function (message: any) {
-      broadcastChannelMessages.push(message)
-      // Вызываем оригинальный метод, чтобы сообщения действительно отправлялись
-      return originalPostMessage.call(this, message)
-    }
+    // Инициализируем фикстуру для перехвата сообщений
+    messagesFixtureInstance = messagesFixture({ meta: "test-actor" })
   })
 
   afterEach(() => {
-    // Восстанавливаем оригинальный метод
-    Actor.channel.postMessage = originalPostMessage
     Actor.setBroadcastChannel(false)
-
-    // Очищаем реестр акторов
-    Actor.clearRegistry()
+    // @ts-ignore
+    Electromagnetic.chargedActors.clear()
   })
 
   const testSchema: Meta = {
@@ -61,20 +54,21 @@ describe("Двойная отправка сообщений (BroadcastChannel +
     const actor1 = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
     const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
-    // Очищаем сообщения от инициализации
-    broadcastChannelMessages = []
-
     // Обновляем контекст первого актора
     actor1.update({ value: 5 })
 
-    // Даем время на выполнение реакций
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    // Ждем сообщения через фикстуру
+    const messages = await messagesFixtureInstance.waitForMessages(50)
 
     // Проверяем, что сообщение было отправлено через BroadcastChannel
-    expect(broadcastChannelMessages.length).toBeGreaterThan(0)
-    expect(broadcastChannelMessages[0].actor).toBe("actor-1")
-    expect(broadcastChannelMessages[0].patches[0].op).toBe("replace")
-    expect(broadcastChannelMessages[0].patches[0].path).toBe("/context")
+    expect(messages.length).toBeGreaterThan(0)
+
+    // Ищем сообщение с обновлением контекста (replace)
+    const contextMessage = messages.find((msg) =>
+      msg.patches.some((patch: any) => patch.op === "replace" && patch.path === "/context")
+    )
+    expect(contextMessage).toBeDefined()
+    expect(contextMessage!.actor).toBe("actor-1")
 
     // Проверяем, что второй актор получил реакцию через внутренний механизм
     expect(actor2.ctx.context.value).toBe(100)
@@ -90,17 +84,14 @@ describe("Двойная отправка сообщений (BroadcastChannel +
     const actor1 = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
     const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
-    // Очищаем сообщения от инициализации
-    broadcastChannelMessages = []
-
     // Обновляем контекст первого актора
     actor1.update({ value: 5 })
 
-    // Даем время на выполнение реакций
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    // Ждем сообщения через фикстуру
+    const messages = await messagesFixtureInstance.waitForMessages(50)
 
     // Когда BroadcastChannel отключен, сообщения не отправляются через него
-    expect(broadcastChannelMessages.length).toBe(0)
+    expect(messages.length).toBe(0)
 
     // Но акторы все равно получают сообщения через внутренний механизм
     // Поэтому реакция должна сработать

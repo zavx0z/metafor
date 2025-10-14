@@ -367,7 +367,7 @@ export interface Meta<C extends Schema = Schema, S extends string = string, I ex
   /** Стили компонента */
   style?: string
   /** Ядро */
-  core: I
+  core?: I
 }
 /**
  * Базовая информация об акторе в системе MetaFor

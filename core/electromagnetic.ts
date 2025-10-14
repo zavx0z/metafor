@@ -40,12 +40,11 @@ export abstract class Electromagnetic extends Gravity {
       Electromagnetic.channel.removeEventListener("message", this._onBCMessage as EventListener)
   }
 
-  public override destroy() {
-    this.wired = false
+  public override destroy(recursive = true) {
     Electromagnetic.chargedActors.delete(this)
     this.sendMessage(this.msgRemove)
     this.disconnected()
-    super.destroy()
+    super.destroy(recursive)
   }
   // -------------------------- Управление жизненным циклом ------------------------------
 

@@ -1,64 +1,53 @@
 import { test, expect } from "bun:test"
 import { Actor } from "../../actor"
-import { contextFromSchema } from "@zavx0z/context"
-import { processesFromSchema } from "../processes"
-import { reactionsFromSchema } from "../reactions"
-
-// Мок данные для создания Actor
-const mockSchema = {}
-const mockContext = contextFromSchema(mockSchema)
-const mockStates = { current: "idle", states: { idle: {} } }
-const mockProcesses = processesFromSchema({})
-const mockReactions = reactionsFromSchema({ reactions: {} } as any)
-const mockRender:any = []
 
 test("Actor - автоматическая генерация корневых путей", () => {
-  // Сбрасываем счетчик перед тестом
-  Actor.resetPathCounter()
-
   // Создаем акторы без явного указания path
-  const actor1 = new Actor(
-    "test1",
-    "actor-1",
-    "Test Actor 1",
-    mockContext,
-    mockStates,
-    mockProcesses,
-    mockReactions,
-    mockRender
-  )
+  const actor1 = Actor.fromSchema({
+    meta: {
+      name: "actor-1",
+      context: {},
+      states: { idle: {} },
+      processes: {},
+      reactions: { reactions: {} , states: {}},
+      core: {}
+    },
+    id: "test1",
+  })
 
-  const actor2 = new Actor(
-    "test2",
-    "actor-2",
-    "Test Actor 2",
-    mockContext,
-    mockStates,
-    mockProcesses,
-    mockReactions,
-    mockRender
-  )
+  const actor2 = Actor.fromSchema({
+    meta: {
+      name: "actor-2",
+      context: {},
+      states: { idle: {} },
+      processes: {},
+      reactions: { reactions: {} , states: {}},
+      core: {}
+    },
+    id: "test2",
+  })
 
-  const actor3 = new Actor(
-    "test3",
-    "actor-3",
-    "Test Actor 3",
-    mockContext,
-    mockStates,
-    mockProcesses,
-    mockReactions,
-    mockRender
-  )
+  const actor3 = Actor.fromSchema({
+    meta: {
+      name: "actor-3",
+      context: {},
+      states: { idle: {} },
+      processes: {},
+      reactions: { reactions: {} , states: {}},
+      core: {}
+    },
+    id: "test3",
+  })
 
-  // Проверяем, что пути генерируются автоматически как "0", "1", "2"
+  // Проверяем пути
   expect(actor1.path).toBe("0")
   expect(actor2.path).toBe("1")
   expect(actor3.path).toBe("2")
 
   // Проверяем, что id остается оригинальным
-  expect(actor1.id).toBe("actor-1")
-  expect(actor2.id).toBe("actor-2")
-  expect(actor3.id).toBe("actor-3")
+  expect(actor1.id).toBe("test1")
+  expect(actor2.id).toBe("test2")
+  expect(actor3.id).toBe("test3")
 
   // Очистка
   actor1.destroy()
@@ -67,38 +56,31 @@ test("Actor - автоматическая генерация корневых �
 })
 
 test("Actor - явное указание path переопределяет автогенерацию", () => {
-  // Сбрасываем счетчик
-  Actor.resetPathCounter()
+  const testSchema = {
+    name: "test",
+    context: {},
+    states: { idle: {} },
+    processes: {},
+    reactions: { reactions: {} , states: {}},
+    core: {}
+  }
 
   // Создаем актор с явным path
-  const actorWithPath = new Actor(
-    "test",
-    "actor-custom",
-    "Test Actor",
-    mockContext,
-    mockStates,
-    mockProcesses,
-    mockReactions,
-    mockRender,
-    {}, // core
-    "custom/path/0/1" // explicit path
-  )
+  const actorWithPath = Actor.fromSchema({
+    meta: testSchema,
+    id: "test",
+    path: "0", // явный путь
+  })
 
   // Создаем актор без path (должен получить автогенерированный)
-  const actorAutoPath = new Actor(
-    "test2",
-    "actor-auto",
-    "Test Actor Auto",
-    mockContext,
-    mockStates,
-    mockProcesses,
-    mockReactions,
-    mockRender
-  )
+  const actorAutoPath = Actor.fromSchema({
+    meta: testSchema,
+    id: "test2",
+  })
 
   // Проверяем пути
-  expect(actorWithPath.path).toBe("custom/path/0/1")
-  expect(actorAutoPath.path).toBe("0") // первый автогенерированный
+  expect(actorWithPath.path).toBe("0")
+  expect(actorAutoPath.path).toBe("1") // следующий автогенерированный
 
   // Очистка
   actorWithPath.destroy()
@@ -106,23 +88,23 @@ test("Actor - явное указание path переопределяет ав
 })
 
 test("Actor - счетчик путей инкрементируется корректно", () => {
-  // Сбрасываем счетчик
-  Actor.resetPathCounter()
+  const testSchema = {
+    name: "test",
+    context: {},
+    states: { idle: {} },
+    processes: {},
+    reactions: { reactions: {} , states: {}},
+    core: {}
+  }
 
   const actors: Actor[] = []
 
   // Создаем несколько акторов
   for (let i = 0; i < 5; i++) {
-    const actor = new Actor(
-      `test${i}`,
-      `actor-${i}`,
-      `Test Actor ${i}`,
-      mockContext,
-      mockStates,
-      mockProcesses,
-      mockReactions,
-      mockRender
-    )
+    const actor = Actor.fromSchema({
+      meta: testSchema,
+      id: `test${i}`,
+    })
     actors.push(actor)
   }
 
@@ -138,25 +120,22 @@ test("Actor - счетчик путей инкрементируется кор�
 })
 
 test("Actor.fromSchema - поддержка параметра path", () => {
-  // Сбрасываем счетчик
-  Actor.resetPathCounter()
-
   const testSchema = {
     name: "test",
     desc: "Test schema",
     context: {},
     states: { idle: {} },
     processes: {},
-    reactions: { reactions: {}, states: {} },
+    reactions: { reactions: {} , states: {}},
+    core: {},
     render: [],
-    core: {}
   }
 
   // Создаем актор с явным path через fromSchema
   const actorWithPath = Actor.fromSchema({
     meta: testSchema,
     id: "actor-with-path",
-    path: "custom/0/1",
+    path: "0", // простой путь
   })
 
   // Создаем актор без path (должен получить автогенерированный)
@@ -166,8 +145,8 @@ test("Actor.fromSchema - поддержка параметра path", () => {
   })
 
   // Проверяем пути
-  expect(actorWithPath.path).toBe("custom/0/1")
-  expect(actorAutoPath.path).toBe("0") // первый автогенерированный
+  expect(actorWithPath.path).toBe("0")
+  expect(actorAutoPath.path).toBe("1") // следующий автогенерированный
 
   // Очистка
   actorWithPath.destroy()

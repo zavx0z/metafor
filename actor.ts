@@ -24,6 +24,8 @@ import { Fields } from "./core/fields"
  * - при destroy: `super.destroy()` (remove + выключение транспорта) → локальная очистка → удаление из Fields.
  */
 export class Actor extends Electromagnetic {
+  // -------------------------- Жизненный цикл -----------------------------------------
+
   constructor(
     public override id: string,
     public override meta: string,
@@ -53,6 +55,8 @@ export class Actor extends Electromagnetic {
     }
     this.connected()
   }
+
+  // -------------------------- Жизненный цикл -----------------------------------------
 
   // ---------- подписки на смену состояния ----------
 
@@ -198,24 +202,11 @@ export class Actor extends Electromagnetic {
 
   // ---------- уничтожение ----------
 
-  private destroyRecursive(fields: Fields) {
-    const children = fields.getChildren(this.id)
-    for (const childId of children) {
-      const childActor = fields.getActor(childId)
-      if (childActor) (childActor as Actor).destroyRecursive(fields)
-    }
-  }
-
   public override destroy(recursive = true) {
-    const fields = Fields.get()
-    if (recursive) {
-      this.destroyRecursive(fields)
-    }
+    // Очищаем локальные ресурсы
     this.stateListeners.clear()
     this.ctx.clearSubscribers()
-
-    super.destroy()
-    fields.remove(this.id, recursive)
+    super.destroy(recursive)
   }
 
   // ---------- фабрики ----------

@@ -1,14 +1,17 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { Actor } from "../../actor"
 import type { Meta } from "../../metafor"
+import { Electromagnetic } from "../electromagnetic"
 
 describe("Коммуникация между акторами в разных потоках/воркерах", () => {
   beforeEach(() => {
-    Actor.clearRegistry()
+    // @ts-ignore
+    Electromagnetic.chargedActors.clear()
   })
 
   afterEach(() => {
-    Actor.clearRegistry()
+    // @ts-ignore
+    Electromagnetic.chargedActors.clear()
   })
 
   const testSchema: Meta = {

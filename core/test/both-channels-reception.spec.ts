@@ -1,27 +1,21 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { Actor } from "../../actor"
 import type { Meta } from "../../metafor"
+import { messagesFixture } from "../../fixture/message.ts"
+import { Electromagnetic } from "../electromagnetic.ts"
 
 describe("Получение сообщений из обоих каналов", () => {
-  let broadcastChannelMessages: any[] = []
-  let originalPostMessage: typeof BroadcastChannel.prototype.postMessage
+  let messagesFixtureInstance: ReturnType<typeof messagesFixture>
 
   beforeEach(() => {
-    Actor.clearRegistry()
-
-    // Перехватываем сообщения BroadcastChannel для тестирования
-    broadcastChannelMessages = []
-    originalPostMessage = Actor.channel.postMessage
-    Actor.channel.postMessage = function (message: any) {
-      broadcastChannelMessages.push(message)
-      // Вызываем оригинальный метод, чтобы сообщения действительно отправлялись
-      return originalPostMessage.call(this, message)
-    }
+    // @ts-ignore
+    Electromagnetic.chargedActors.clear()
+    messagesFixtureInstance = messagesFixture({ meta: "test-actor" })
   })
 
   afterEach(() => {
-    Actor.channel.postMessage = originalPostMessage
-    Actor.clearRegistry()
+        // @ts-ignore
+        Electromagnetic.chargedActors.clear()
   })
 
   const testSchema: Meta = {
@@ -58,22 +52,19 @@ describe("Получение сообщений из обоих каналов",
     const actor1 = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
     const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
-    // Очищаем сообщения от инициализации
-    broadcastChannelMessages = []
-
     // Обновляем контекст первого актора
     actor1.update({ value: 5, source: "direct" })
 
-    // Даем время на выполнение реакций
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    // Ждем сообщения через фикстуру
+    const messages = await messagesFixtureInstance.waitForMessages(50)
 
     // Проверяем, что второй актор получил реакцию через внутренний механизм
     expect(actor2.ctx.context.value).toBe(0) // значение не изменилось
     expect(actor2.ctx.context.source).toBe("reaction") // источник изменился
 
     // Проверяем, что сообщение было отправлено через BroadcastChannel
-    expect(broadcastChannelMessages.length).toBeGreaterThan(0)
-    expect(broadcastChannelMessages[0].actor).toBe("actor-1")
+    expect(messages.length).toBeGreaterThan(0)
+    expect(messages[0]!.actor).toBe("actor-1")
 
     actor1.destroy()
     actor2.destroy()
@@ -85,14 +76,11 @@ describe("Получение сообщений из обоих каналов",
     const actor1 = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
     const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
-    // Очищаем сообщения от инициализации
-    broadcastChannelMessages = []
-
     // Обновляем контекст первого актора
     actor1.update({ value: 5, source: "direct" })
 
-    // Даем время на выполнение реакций
-    await new Promise((resolve) => setTimeout(resolve, 10))
+    // Ждем сообщения через фикстуру
+    const messages = await messagesFixtureInstance.waitForMessages(50)
 
     // Когда BroadcastChannel отключен, акторы все равно получают сообщения через внутренний механизм
     // Поэтому реакция должна сработать
@@ -100,7 +88,7 @@ describe("Получение сообщений из обоих каналов",
     expect(actor2.ctx.context.source).toBe("reaction") // источник изменился через внутренний механизм
 
     // Когда BroadcastChannel отключен, сообщения не отправляются через него
-    expect(broadcastChannelMessages.length).toBe(0)
+    expect(messages.length).toBe(0)
 
     actor1.destroy()
     actor2.destroy()
