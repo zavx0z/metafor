@@ -1,6 +1,6 @@
 # MetaFor Framework
 
-![metafor](./doc/metafor.jpg)
+<img src="./doc/metafor.jpg" alt="metafor" width="400" />
 
 **English** | [Русский](./doc/README.ru.md)
 
