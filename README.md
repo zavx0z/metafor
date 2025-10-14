@@ -1,6 +1,8 @@
 # MetaFor Framework
 
-<img src="./doc/metafor.jpg" alt="metafor" width="400" />
+<div align="center">
+  <img src="./doc/metafor.jpg" alt="metafor" width="400" />
+</div>
 
 **English** | [Русский](./doc/README.ru.md)
 

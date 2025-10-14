@@ -1,6 +1,8 @@
 # MetaFor Framework
 
-<img src="./metafor.jpg" alt="metafor" width="400" />
+<div align="center">
+  <img src="./metafor.jpg" alt="metafor" width="400" />
+</div>
 
 ## _Фреймворк, формирующийся на принципах Теории квантового поля_
 
