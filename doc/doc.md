@@ -1,23 +1,34 @@
 # MetaFor
 
-**MetaFor** — это современный VanillaJS фреймворк для создания real-time веб-приложений на основе контекстно-ориентированного конечного автомата с декларативным API, типобезопасностью и реактивностью. Работает как на клиенте, так и на сервере.
+> ⚠️ **Project Status**: MetaFor is currently in active development phase. Documentation may contain inaccuracies and is subject to change as the framework evolves.  
+> 🚨 **Production Use**: Use in production at your own risk. The framework is not yet stable and may contain breaking changes.  
+> 🌍 **Language Note**: The author is a native Russian speaker and Russian text may be found throughout the codebase. When the framework reaches its first stable version, everything will be translated to English.
 
-## 🚀 Основные возможности
+**MetaFor** is a modern VanillaJS framework for creating real-time web applications based on a context-oriented finite state machine with declarative API, type safety, and reactivity. Works both on client and server.
 
-- **Контекстно-ориентированный конечный автомат** — состояния и переходы зависят от контекста
-- **Universal JavaScript** — работает как на клиенте, так и на сервере
-- **Real-time обновления** — мгновенная реакция на изменения состояния без перезагрузки
-- **Типобезопасность** — полная типизация TypeScript для всех компонентов
-- **Реактивность** — автоматическое обновление UI при изменении состояния
-- **Процессы** — действия с обработкой успеха/ошибок (асинхронные и синхронные)
-- **Реакции** — декларативные фильтры для обработки внешних событий
-- **Шаблонизация** — современный template API с `@zavx0z/template`
-- **Zero-build** — работает без сборщиков и компиляции
-- **Позиционные пути** — уникальные пути VDOM для каждого актора
-- **Иерархия акторов** — управление деревом акторов с автоматической генерацией путей
-- **Расширенные фильтры** — доступ к контексту в реакциях с декларативными условиями
+## 🚀 Key Features
 
-## 🎯 Быстрый старт
+- **Context-oriented finite state machine** — states and transitions depend on context
+- **Universal JavaScript** — works both on client and server
+- **Real-time updates** — instant response to state changes without reload
+- **Type safety** — full TypeScript typing for all components
+- **Reactivity** — automatic UI updates when state changes
+- **Processes** — actions with success/error handling (async and sync)
+- **Reactions** — declarative filters for handling external events
+- **Templating** — modern template API with `@zavx0z/template`
+- **Zero-build** — works without bundlers and compilation
+- **Positional paths** — unique VDOM paths for each actor
+- **Actor hierarchy** — managing actor tree with automatic path generation
+- **Extended filters** — context access in reactions with declarative conditions
+
+## 🌐 Language Versions
+
+- **English** (current) - Default documentation
+- **[Русский](./README.ru.md)** - Russian documentation
+
+---
+
+## 🎯 Quick Start
 
 ```typescript
 const counter = MetaFor("counter")
@@ -48,33 +59,33 @@ const counter = MetaFor("counter")
   .view({
     render: ({ context, html }) => html`
       <div>
-        <h1>Счётчик: ${context.count}</h1>
-        <button ?disabled=${context.isLoading}>${context.isLoading ? "Загрузка..." : "Увеличить"}</button>
+        <h1>Counter: ${context.count}</h1>
+        <button ?disabled=${context.isLoading}>${context.isLoading ? "Loading..." : "Increment"}</button>
       </div>
     `,
   })
 ```
 
-## 🏗️ Архитектура
+## 🏗️ Architecture
 
-MetaFor состоит из нескольких ключевых компонентов:
+MetaFor consists of several key components:
 
-### 1. Контекст (Context)
+### 1. Context
 
-Контекст — это типизированное состояние компонента, которое автоматически обновляет UI при изменениях.
+Context is a typed component state that automatically updates the UI when changes occur.
 
 ```typescript
 .context((types) => ({
-  // Обязательные поля
+  // Required fields
   name: types.string.required("Anonymous"),
   age: types.number.required(18),
   isActive: types.boolean.required(false),
 
-  // Опциональные поля
+  // Optional fields
   email: types.string.optional(),
   avatar: types.string.optional(),
 
-  // Массивы
+  // Arrays
   tags: types.array.required([]),
 
   // Enum
@@ -82,31 +93,31 @@ MetaFor состоит из нескольких ключевых компоне
 }))
 ```
 
-**Поддерживаемые типы:**
+**Supported types:**
 
-- `string` — строки
-- `number` — числа
-- `boolean` — булевы значения
-- `array` — массивы
-- `enum` — перечисления
+- `string` — strings
+- `number` — numbers
+- `boolean` — boolean values
+- `array` — arrays
+- `enum` — enumerations
 
-### 2. Состояния (States)
+### 2. States
 
-Состояния определяют возможные переходы автомата с условиями.
+States define possible automaton transitions with conditions.
 
 ```typescript
 .states({
   guest: {
-    // Переход в user при выполнении условий
+    // Transition to user when conditions are met
     user: {
       name: { length: { min: 2 } },
       email: { pattern: /@/ }
     }
   },
   user: {
-    // Переход в admin при isAdmin: true
+    // Transition to admin when isAdmin: true
     admin: { isAdmin: true },
-    // Переход в guest при logout: true
+    // Transition to guest when logout: true
     guest: { logout: true }
   },
   admin: {
@@ -115,92 +126,92 @@ MetaFor состоит из нескольких ключевых компоне
 })
 ```
 
-**Условия переходов:**
+**Transition conditions:**
 
-Для строк:
+For strings:
 
 ```typescript
 name: {
-  eq: "admin",           // равно
-  startsWith: "user",    // начинается с
-  endsWith: "admin",     // заканчивается на
-  include: "test",       // содержит подстроку
-  pattern: /^[a-z]+$/,   // регулярное выражение
-  length: { min: 3, max: 20 } // длина
+  eq: "admin",           // equals
+  startsWith: "user",    // starts with
+  endsWith: "admin",     // ends with
+  include: "test",       // contains substring
+  pattern: /^[a-z]+$/,   // regular expression
+  length: { min: 3, max: 20 } // length
 }
 ```
 
-Для чисел:
+For numbers:
 
 ```typescript
 age: {
-  eq: 18,        // равно
-  gt: 0,         // больше
-  gte: 18,       // больше или равно
-  lt: 100,       // меньше
-  lte: 65,       // меньше или равно
-  between: [18, 65] // диапазон
+  eq: 18,        // equals
+  gt: 0,         // greater than
+  gte: 18,       // greater than or equal
+  lt: 100,       // less than
+  lte: 65,       // less than or equal
+  between: [18, 65] // range
 }
 ```
 
-Для булевых значений:
+For boolean values:
 
 ```typescript
 isActive: {
-  eq: true,      // равно
-  notEq: false   // не равно
+  eq: true,      // equals
+  notEq: false   // not equals
 }
 ```
 
-Для массивов:
+For arrays:
 
 ```typescript
 tags: {
-  length: { min: 1 },    // длина
-  includes: "admin",     // содержит элемент
-  isEmpty: false         // не пустой
+  length: { min: 1 },    // length
+  includes: "admin",     // contains element
+  isEmpty: false         // not empty
 }
 ```
 
-### 3. Core — хранилище сложных данных
+### 3. Core — complex data storage
 
-Core — это объект для хранения сложных структур данных, сервисов и DOM ссылок, которые не должны храниться в контексте.
+Core is an object for storing complex data structures, services, and DOM references that should not be stored in context.
 
 ```typescript
 .core((ref) => ({
-  // Коллекции и объекты
+  // Collections and objects
   users: new Map<number, User>(),
   cache: new LRUCache(),
   settings: { theme: 'dark', lang: 'ru' },
 
-  // Соединения и сервисы
+  // Connections and services
   socket: null as WebSocket | null,
   apiService: new ApiService(),
   database: new DatabaseConnection(),
 
-  // Ссылки на DOM элементы
-  formRef: ref(),        // создает ссылку на форму
-  inputRef: ref(),       // создает ссылку на input
-  canvasRef: ref(),      // создает ссылку на canvas
-  modalRef: ref()        // создает ссылку на модальное окно
+  // DOM element references
+  formRef: ref(),        // creates form reference
+  inputRef: ref(),       // creates input reference
+  canvasRef: ref(),      // creates canvas reference
+  modalRef: ref()        // creates modal reference
 }))
 ```
 
-**Особенности Core:**
+**Core Features:**
 
-- **Хранение сложных объектов**: Map, Set, классы, сервисы
-- **DOM элементы**: для прямого доступа к DOM элементам
-- **Персистентность**: Core сохраняется между рендерами
-- **Доступность**: Core доступен во всех процессах, реакциях и view
+- **Complex object storage**: Map, Set, classes, services
+- **DOM elements**: for direct access to DOM elements
+- **Persistence**: Core persists between renders
+- **Availability**: Core is available in all processes, reactions, and views
 
-**Использование DOM элементов:**
+**Using DOM elements:**
 
 ```typescript
 .view({
   render: ({ context, core, html, update }) => html`
     <form onsubmit=${(e) => {
       e.preventDefault()
-      // работа с данными формы
+      // work with form data
     }}>
       <input
         type="text"
@@ -211,38 +222,38 @@ Core — это объект для хранения сложных структ
   `,
 
   onMount: ({ core }) => {
-    // Доступ к DOM элементам после монтирования
+    // Access to DOM elements after mounting
     if (core.canvasRef.current) {
       const ctx = core.canvasRef.current.getContext('2d')
-      // инициализация canvas
+      // canvas initialization
     }
 
-    // Фокус на input
+    // Focus on input
     core.inputRef.current?.focus()
   }
 })
 ```
 
-### 4. Процессы (Processes)
+### 4. Processes
 
-Процессы — это действия, выполняемые при входе в состояние. **ВАЖНО: Имя процесса должно точно совпадать с именем состояния.**
+Processes are actions executed when entering a state. **IMPORTANT: Process name must exactly match the state name.**
 
-**Ключевые правила:**
+**Key rules:**
 
-- ✅ Имя процесса = имя состояния
-- ✅ Процесс выполняется автоматически при входе в состояние
-- ✅ action может быть async или sync
-- ✅ success и error всегда синхронные
+- ✅ Process name = state name
+- ✅ Process executes automatically when entering state
+- ✅ action can be async or sync
+- ✅ success and error are always synchronous
 
 ```typescript
 .processes((process) => ({
-  // Асинхронный процесс для состояния "loading"
+  // Async process for "loading" state
   loading: process({
-    label: "Авторизация",
-    desc: "Процесс входа пользователя"
+    label: "Authentication",
+    desc: "User login process"
   })
     .action(async ({ context }) => {
-      // Основная логика
+      // Main logic
       const response = await fetch('/api/login', {
         method: 'POST',
         body: JSON.stringify({
@@ -252,13 +263,13 @@ Core — это объект для хранения сложных структ
       })
 
       if (!response.ok) {
-        throw new Error('Ошибка авторизации')
+        throw new Error('Authentication error')
       }
 
       return await response.json()
     })
     .success(({ update, data }) => {
-      // Обработка успеха
+      // Success handling
       update({
         isAuthenticated: true,
         user: data.user,
@@ -266,19 +277,19 @@ Core — это объект для хранения сложных структ
       })
     })
     .error(({ update, error }) => {
-      // Обработка ошибки
+      // Error handling
       update({
         error: error.message,
         isAuthenticated: false
       })
     }),
 
-  // Синхронный процесс для состояния "save"
+  // Sync process for "save" state
   save: process({
-    label: "Сохранение данных"
+    label: "Data saving"
   })
     .action(({ context, core }) => {
-      // Синхронная логика
+      // Sync logic
       const data = {
         name: context.name,
         email: context.email,
@@ -302,7 +313,7 @@ Core — это объект для хранения сложных структ
       })
     }),
 
-  // Процесс без action (только для изменения контекста)
+  // Process without action (only for context changes)
   reset: process()
     .success(({ update }) => {
       update({
@@ -315,73 +326,73 @@ Core — это объект для хранения сложных структ
 }))
 ```
 
-### 5. Реакции (Reactions)
+### 5. Reactions
 
-Реакции позволяют обрабатывать сообщения от других компонентов через декларативные фильтры. **ВАЖНО: `meta` в фильтре — это имя компонента-отправителя, а не произвольная строка.**
+Reactions allow handling messages from other components through declarative filters. **IMPORTANT: `meta` in the filter is the sender component name, not an arbitrary string.**
 
 ```typescript
-// Сначала получаем имена компонентов для фильтрации
-const userComponentName = "user-component" // имя user компонента
-const adminComponentName = "admin-component" // имя admin компонента
+// First, get component names for filtering
+const userComponentName = "user-component" // user component name
+const adminComponentName = "admin-component" // admin component name
 
   .reactions((reaction) => [
     [
-      ["idle", "loading"], // Состояния, в которых активна реакция
-      reaction({ label: "Обработка сообщений от user компонента" })
+      ["idle", "loading"], // States in which reaction is active
+      reaction({ label: "Handling messages from user component" })
         .filter({
-          meta: userComponentHash, // Хеш меты компонента-отправителя
-          op: "replace", // Операция: "add" | "replace" | "remove" | "test"
-          path: "/context", // Путь: "/" | "/context" | "/state"
-          value: { userId: { gt: 0 } }, // Условия на значение
+          meta: userComponentName, // Sender component meta hash
+          op: "replace", // Operation: "add" | "replace" | "remove" | "test"
+          path: "/context", // Path: "/" | "/context" | "/state"
+          value: { userId: { gt: 0 } }, // Value conditions
         })
         .equal(({ update, context, meta, actor, timestamp, patch, core }) => {
-          // Обработка сообщения
+          // Message handling
           const user = core.users.get(patch.value.userId)
           update({
             selectedUser: user,
             lastMessageTime: timestamp,
             messageCount: context.messageCount + 1,
-            actorIndex: actor.index, // Доступ к индексу актора
+            actorIndex: actor.index, // Access to actor index
           })
         }),
     ],
     [
-      ["idle"], // Реакция только в состоянии idle
-      reaction({ label: "Обработка команд от admin компонента" })
+      ["idle"], // Reaction only in idle state
+      reaction({ label: "Handling commands from admin component" })
         .filter({
           meta: adminComponentHash,
           op: "add",
           path: "/",
         })
         .equal(({ update, patch }) => {
-          console.log("Получена команда:", patch.value)
+          console.log("Command received:", patch.value)
           update({ adminCommand: patch.value })
         }),
     ],
   ])
 ```
 
-**Фильтры реакций:**
+**Reaction filters:**
 
-- `meta` — имя компонента-отправителя (обязательно использовать переменную с именем)
-- `op` — операция: `"add"` | `"replace"` | `"remove"` | `"test"`
-- `path` — путь изменения: `"/"` | `"/context"` | `"/state"`
-- `value` — условия на значение (как в states)
-- `index` — индекс актора по отношению к братьям в родителе (для уникализации)
-- `timestamp` — временная метка отправки сообщения
+- `meta` — sender component name (must use variable with name)
+- `op` — operation: `"add"` | `"replace"` | `"remove"` | `"test"`
+- `path` — change path: `"/"` | `"/context"` | `"/state"`
+- `value` — value conditions (same as in states)
+- `index` — actor index relative to siblings in parent (for uniqueness)
+- `timestamp` — message send timestamp
 
-**Новые фильтры для массивов:**
+**New array filters:**
 
-- `in` — проверка вхождения значения в массив:
-  - Для строк: `meta: { in: ["admin", "user"] }` или `actor: { in: ["actor-1", "actor-2"] }`
-  - Для чисел: `value: { in: [1, 2, 3] }`
-- `notIn` — проверка отсутствия значения в массиве:
-  - Для строк: `meta: { notIn: ["banned", "suspended"] }` или `actor: { notIn: ["blocked-1", "blocked-2"] }`
-  - Для чисел: `value: { notIn: [0, 4, 6] }`
+- `in` — check value inclusion in array:
+  - For strings: `meta: { in: ["admin", "user"] }` or `actor: { in: ["actor-1", "actor-2"] }`
+  - For numbers: `value: { in: [1, 2, 3] }`
+- `notIn` — check value absence in array:
+  - For strings: `meta: { notIn: ["banned", "suspended"] }` or `actor: { notIn: ["blocked-1", "blocked-2"] }`
+  - For numbers: `value: { notIn: [0, 4, 6] }`
 
-### 6. Представление (View)
+### 6. View
 
-Представление определяет UI компонента с использованием `@zavx0z/template` API.
+View defines component UI using `@zavx0z/template` API.
 
 ```typescript
 .view({
@@ -390,7 +401,7 @@ const adminComponentName = "admin-component" // имя admin компонент�
       <h1>${context.name}</h1>
 
       ${context.isLoading
-        ? html`<div class="loading">Загрузка...</div>`
+        ? html`<div class="loading">Loading...</div>`
         : html`
           <form @submit=${(e) => {
             e.preventDefault()
@@ -402,7 +413,7 @@ const adminComponentName = "admin-component" // имя admin компонент�
               placeholder="Email"
             />
             <button type="submit" ?disabled=${!context.email}>
-              Сохранить
+              Save
             </button>
           </form>
         `
@@ -456,57 +467,57 @@ const adminComponentName = "admin-component" // имя admin компонент�
 })
 ```
 
-**HTML атрибуты:**
+**HTML attributes:**
 
-- `onclick`, `onchange` — обработчики событий: `onclick=${handler}`
-- `attribute` — булевы атрибуты: `${isDisabled && "disabled"}`
-- `value`, `class` — обычные атрибуты: `value=${text}`
+- `onclick`, `onchange` — event handlers: `onclick=${handler}`
+- `attribute` — boolean attributes: `${isDisabled && "disabled"}`
+- `value`, `class` — regular attributes: `value=${text}`
 
-**JavaScript выражения:**
+**JavaScript expressions:**
 
 ````typescript
-// Условный рендеринг с тернарным оператором
+// Conditional rendering with ternary operator
 ${context.isLoggedIn
-  ? html`<div>Добро пожаловать, ${context.userName}!</div>`
-  : html`<div>Пожалуйста, войдите в систему</div>`
+  ? html`<div>Welcome, ${context.userName}!</div>`
+  : html`<div>Please log in</div>`
 }
 
-// Условный рендеринг с логическим оператором
-${context.isLoading && html`<div class="spinner">Загрузка...</div>`}
+// Conditional rendering with logical operator
+${context.isLoading && html`<div class="spinner">Loading...</div>`}
 
-// Циклы с map
+// Loops with map
 ${context.items.map(item => html`<div>${item.name}</div>`)}
 
-// Вложенные условия
+// Nested conditions
 ${state === "idle"
-  ? html`<div>Ожидание...</div>`
+  ? html`<div>Waiting...</div>`
   : state === "loading"
-    ? html`<div class="spinner">Загрузка...</div>`
+    ? html`<div class="spinner">Loading...</div>`
     : state === "success"
-      ? html`<div>Успешно!</div>`
-      : html`<div class="error">Ошибка!</div>`
+      ? html`<div>Success!</div>`
+      : html`<div class="error">Error!</div>`
 }
 
-// Циклы с filter и map
+// Loops with filter and map
 ${context.items
   .filter(item => item.visible)
   .map((item, index) => html`
     <li>
       ${index + 1}. ${item.name}
-      <button onclick=${() => removeItem(item.id)}>Удалить</button>
+      <button onclick=${() => removeItem(item.id)}>Remove</button>
     </li>
   `)
 }
 
-// Простое преобразование массива
+// Simple array transformation
 ${context.tags.map(tag => html`<span class="tag">${tag}</span>`)}
 
-### 7. Передача данных между компонентами
+### 7. Data passing between components
 
-MetaFor поддерживает передачу данных от родительского компонента к дочернему через атрибуты `context` и `core`.
+MetaFor supports data passing from parent component to child through `context` and `core` attributes.
 
 ```typescript
-// Сначала создаем дочерние компоненты и получаем их имена
+// First, create child components and get their names
 const childUserComponent = MetaFor("child-user")
   .context((types) => ({
     userId: types.number.required(0),
@@ -538,13 +549,13 @@ const childMessengerComponent = MetaFor("child-messenger")
   .view({
     render: ({ context, core, html }) => html`
       <div class="messenger">
-        <p>Сообщение: ${context.message}</p>
+        <p>Message: ${context.message}</p>
         ${core.socket ? html`<span class="status">🟢 Online</span>` : html`<span class="status">🔴 Offline</span>`}
       </div>
     `,
   })
 
-// Родительский компонент
+// Parent component
 const parentHash = MetaFor("parent")
   .context((types) => ({
     selectedUserId: types.number.required(1),
@@ -555,8 +566,8 @@ const parentHash = MetaFor("parent")
     socket: new WebSocket('ws://localhost:8080'),
     apiService: new ApiService(),
     users: new Map([
-      [1, { name: "Иван" }],
-      [2, { name: "Мария" }]
+      [1, { name: "John" }],
+      [2, { name: "Mary" }]
     ])
   }))
   .processes()
@@ -566,9 +577,9 @@ const parentHash = MetaFor("parent")
       const user = core.users.get(context.selectedUserId)
       return html`
         <div class="container">
-          <h1>Родительский компонент</h1>
+          <h1>Parent Component</h1>
 
-          <!-- Передача контекста -->
+          <!-- Context passing -->
           <meta-child-user
             context=${{
               userId: context.selectedUserId,
@@ -576,7 +587,7 @@ const parentHash = MetaFor("parent")
             }}>
           </meta-child-user>
 
-          <!-- Передача core объектов -->
+          <!-- Core objects passing -->
           <meta-child-messenger
             context=${{
               message: context.currentMessage
@@ -591,45 +602,45 @@ const parentHash = MetaFor("parent")
     }
   })
 
-// Создание корневого элемента
+// Root element creation
 document.body.innerHTML = `<meta-${parentHash}></meta-${parentHash}>`
 ````
 
-**Особенности передачи данных:**
+**Data passing features:**
 
 **Context:**
 
-- Передается через атрибут `context=${object}`
-- Автоматически обновляется при изменении контекста родителя
-- Содержит только примитивные типы данных
+- Passed through `context=${object}` attribute
+- Automatically updates when parent context changes
+- Contains only primitive data types
 
 **Core:**
 
-- Передается через атрибут `core=${object}`
-- Позволяет передавать сложные объекты, сервисы, соединения
-- Дочерний компонент получает доступ к объектам родителя
+- Passed through `core=${object}` attribute
+- Allows passing complex objects, services, connections
+- Child component gets access to parent objects
 
-**Важно:**
+**Important:**
 
-- Сначала создайте дочерние компоненты и сохраните их имена
-- Используйте имена в шаблонах: `<meta-${name}>`
-- Компоненты автоматически регистрируются при первом вызове MetaFor
+- First create child components and save their names
+- Use names in templates: `<meta-${name}>`
+- Components are automatically registered on first MetaFor call
 
-## 🏷️ Система компонентов
+## 🏷️ Component System
 
-MetaFor использует автоматическую систему регистрации компонентов для обеспечения уникальности и изоляции:
+MetaFor uses automatic component registration system to ensure uniqueness and isolation:
 
-### Как работают компоненты
+### How components work
 
-1. **Имя компонента** — это идентификатор для регистрации
-2. **Компонент регистрируется** автоматически при первом вызове MetaFor с данной конфигурацией
-3. **Итоговый элемент** создается с именем компонента
-4. **Регистрация происходит автоматически** при первом вызове MetaFor с данной конфигурацией
+1. **Component name** — identifier for registration
+2. **Component is registered** automatically on first MetaFor call with this configuration
+3. **Final element** is created with component name
+4. **Registration happens automatically** on first MetaFor call with this configuration
 
-### Пример использования
+### Usage example
 
 ```typescript
-// Создание компонента
+// Component creation
 const component = MetaFor("user-profile")
   .context((types) => ({
     name: types.string.required(""),
@@ -643,27 +654,27 @@ const component = MetaFor("user-profile")
     render: ({ context, html }) => html`<div>${context.name}</div>`,
   })
 
-// Создание элемента
+// Element creation
 document.body.innerHTML = `<meta-user-profile></meta-user-profile>`
 
-// Получение элемента для работы
+// Getting element for work
 const element = document.querySelector(`meta-user-profile`)
 ```
 
-### Преимущества системы
+### System advantages
 
-- **Уникальность**: Каждая конфигурация получает уникальное имя
-- **Изоляция**: Компоненты с разной конфигурацией не конфликтуют
-- **Автоматичность**: Не нужно придумывать уникальные имена элементов
-- **Безопасность**: Исключены конфликты имен между компонентами
+- **Uniqueness**: Each configuration gets unique name
+- **Isolation**: Components with different configurations don't conflict
+- **Automation**: No need to come up with unique element names
+- **Security**: Name conflicts between components are excluded
 
 ## 🔧 API Reference
 
 ### MetaFor(name: string, config?: { desc?: string; dev?: boolean })
 
-Создает новый экземпляр MetaFor с указанным именем компонента.
+Creates new MetaFor instance with specified component name.
 
-**Важно:** Имя компонента используется для создания элемента с тегом `meta-${name}`.
+**Important:** Component name is used to create element with tag `meta-${name}`.
 
 ```typescript
 const component = MetaFor("my-component")
@@ -674,39 +685,39 @@ const component = MetaFor("my-component")
   .reactions(...)
   .view(...)
 
-// Элемент компонента: meta-my-component
+// Component element: meta-my-component
 document.body.innerHTML = `<meta-my-component></meta-my-component>`
 ```
 
 ### Chain API
 
-MetaFor использует цепочку методов для конфигурации. Метод `.view()` возвращает компонент, который используется для создания элемента:
+MetaFor uses method chaining for configuration. `.view()` method returns component used for element creation:
 
 ```typescript
 const component = MetaFor("example")
-  .context(schema) // Схема контекста
-  .states(config) // Конфигурация состояний
-  .core({}) // Инициализация ядра
-  .processes(config) // Конфигурация процессов
-  .reactions(config) // Конфигурация реакций
-  .view(config) // Конфигурация представления и возврат компонента
+  .context(schema) // Context schema
+  .states(config) // States configuration
+  .core({}) // Core initialization
+  .processes(config) // Processes configuration
+  .reactions(config) // Reactions configuration
+  .view(config) // View configuration and component return
 
-// Создание элемента с именем компонента
+// Element creation with component name
 document.body.innerHTML = `<meta-example></meta-example>`
 ```
 
-### Контекст
+### Context
 
 ```typescript
 .context((types) => ({
-  // Обязательные поля
+  // Required fields
   field: types.string.required(defaultValue),
   field: types.number.required(defaultValue),
   field: types.boolean.required(defaultValue),
   field: types.array.required(defaultValue),
   field: types.enum.required(values),
 
-  // Опциональные поля
+  // Optional fields
   field: types.string.optional(),
   field: types.number.optional(),
   field: types.boolean.optional(),
@@ -715,7 +726,7 @@ document.body.innerHTML = `<meta-example></meta-example>`
 }))
 ```
 
-### Состояния
+### States
 
 ```typescript
 .states({
@@ -726,7 +737,7 @@ document.body.innerHTML = `<meta-example></meta-example>`
 })
 ```
 
-### Процессы
+### Processes
 
 ```typescript
 .processes((process) => ({
@@ -737,7 +748,7 @@ document.body.innerHTML = `<meta-example></meta-example>`
 }))
 ```
 
-### Реакции
+### Reactions
 
 ```typescript
 .reactions((reaction) => [
@@ -750,7 +761,7 @@ document.body.innerHTML = `<meta-example></meta-example>`
 ])
 ```
 
-### Представление
+### View
 
 ```typescript
 .view({
@@ -759,9 +770,9 @@ document.body.innerHTML = `<meta-example></meta-example>`
 })
 ```
 
-## 🎨 Примеры
+## 🎨 Examples
 
-### Счетчик с асинхронной загрузкой
+### Counter with async loading
 
 ```typescript
 const asyncCounterHash = MetaFor("async-counter")
@@ -785,7 +796,7 @@ const asyncCounterHash = MetaFor("async-counter")
       .action(async ({ context }) => {
         await new Promise((resolve) => setTimeout(resolve, 1000))
         if (Math.random() > 0.8) {
-          throw new Error("Случайная ошибка")
+          throw new Error("Random error")
         }
         return { count: context.count + 1 }
       })
@@ -800,9 +811,9 @@ const asyncCounterHash = MetaFor("async-counter")
   .view({
     render: ({ context, html, update }) => html`
       <div class="counter">
-        <h2>Счётчик: ${context.count}</h2>
+        <h2>Counter: ${context.count}</h2>
         <button onclick=${() => update({ isLoading: true })} ?disabled=${context.isLoading}>
-          ${context.isLoading ? "Загрузка..." : "Увеличить"}
+          ${context.isLoading ? "Loading..." : "Increment"}
         </button>
         ${context.error ? html`<div class="error">${context.error}</div>` : null}
       </div>
@@ -822,11 +833,11 @@ const asyncCounterHash = MetaFor("async-counter")
     `,
   })
 
-// Создание элемента
+// Element creation
 document.body.innerHTML = `<meta-${asyncCounterHash}></meta-${asyncCounterHash}>`
 ```
 
-### Форма с валидацией
+### Form with validation
 
 ```typescript
 const userFormHash = MetaFor("user-form")
@@ -859,22 +870,22 @@ const userFormHash = MetaFor("user-form")
         const errors = []
 
         if (context.name.length < 2) {
-          errors.push("Имя должно содержать минимум 2 символа")
+          errors.push("Name must contain at least 2 characters")
         }
 
         if (!context.email.includes("@")) {
-          errors.push("Некорректный email")
+          errors.push("Invalid email")
         }
 
         if (context.age < 18) {
-          errors.push("Возраст должен быть не менее 18 лет")
+          errors.push("Age must be at least 18 years")
         }
 
         if (errors.length > 0) {
           throw new Error(errors.join(", "))
         }
 
-        // Имитация отправки на сервер
+        // Simulate server submission
         await new Promise((resolve) => setTimeout(resolve, 1000))
         return { success: true }
       })
@@ -903,8 +914,8 @@ const userFormHash = MetaFor("user-form")
           update({ isSubmitting: true })
         }}>
         <div>
-          <label>Имя:</label>
-          <input value=${context.name} oninput=${(e) => update({ name: e.target.value })} placeholder="Введите имя" />
+          <label>Name:</label>
+          <input value=${context.name} oninput=${(e) => update({ name: e.target.value })} placeholder="Enter name" />
         </div>
 
         <div>
@@ -912,12 +923,12 @@ const userFormHash = MetaFor("user-form")
           <input
             value=${context.email}
             oninput=${(e) => update({ email: e.target.value })}
-            placeholder="Введите email"
+            placeholder="Enter email"
             type="email" />
         </div>
 
         <div>
-          <label>Возраст:</label>
+          <label>Age:</label>
           <input
             value=${context.age}
             oninput=${(e) => update({ age: parseInt(e.target.value) || 0 })}
@@ -926,7 +937,7 @@ const userFormHash = MetaFor("user-form")
         </div>
 
         <button type="submit" ?disabled=${context.isSubmitting}>
-          ${context.isSubmitting ? "Отправка..." : "Отправить"}
+          ${context.isSubmitting ? "Submitting..." : "Submit"}
         </button>
 
         ${context.errors.length > 0
@@ -984,17 +995,17 @@ const userFormHash = MetaFor("user-form")
     `,
   })
 
-// Создание элемента
+// Element creation
 document.body.innerHTML = `<meta-${userFormHash}></meta-${userFormHash}>`
 ```
 
-### Передача контекста между компонентами
+### Context passing between components
 
 ```typescript
-// Сначала создаем дочерний компонент и получаем его имя
+// First create child component and get its name
 const childWidgetComponent = MetaFor("child-widget")
   .context((types) => ({
-    message: types.string.required("Сообщение по умолчанию"),
+    message: types.string.required("Default message"),
     count: types.number.required(0),
   }))
   .states({ idle: {} })
@@ -1004,10 +1015,10 @@ const childWidgetComponent = MetaFor("child-widget")
   .view({
     render: ({ context, html }) => html`
       <div class="widget">
-        <h3>Дочерний виджет</h3>
-        <p>Полученное сообщение: ${context.message}</p>
-        <p>Полученный счетчик: ${context.count}</p>
-        <div class="status">Статус: ${context.count > 0 ? "Активен" : "Неактивен"}</div>
+        <h3>Child Widget</h3>
+        <p>Received message: ${context.message}</p>
+        <p>Received counter: ${context.count}</p>
+        <div class="status">Status: ${context.count > 0 ? "Active" : "Inactive"}</div>
       </div>
     `,
     style: ({ css }) => css`
@@ -1030,10 +1041,10 @@ const childWidgetComponent = MetaFor("child-widget")
     `,
   })
 
-// Родительский компонент с динамическим обновлением
+// Parent component with dynamic updates
 const parentHash = MetaFor("parent-dashboard")
   .context((types) => ({
-    userMessage: types.string.required("Привет от родителя"),
+    userMessage: types.string.required("Hello from parent"),
     userCount: types.number.required(0),
     isLoading: types.boolean.required(false),
   }))
@@ -1047,7 +1058,7 @@ const parentHash = MetaFor("parent-dashboard")
       .action(async ({ context }) => {
         await new Promise((resolve) => setTimeout(resolve, 1000))
         return {
-          userMessage: "Обновленное сообщение от родителя",
+          userMessage: "Updated message from parent",
           userCount: context.userCount + 1,
         }
       })
@@ -1063,12 +1074,12 @@ const parentHash = MetaFor("parent-dashboard")
   .view({
     render: ({ context, html, update }) => html`
       <div class="dashboard">
-        <h1>Родительский компонент</h1>
-        <p>Сообщение: ${context.userMessage}</p>
-        <p>Счетчик: ${context.userCount}</p>
+        <h1>Parent Component</h1>
+        <p>Message: ${context.userMessage}</p>
+        <p>Counter: ${context.userCount}</p>
 
         <button onclick=${() => update({ isLoading: true })} ?disabled=${context.isLoading}>
-          ${context.isLoading ? "Обновление..." : "Обновить данные"}
+          ${context.isLoading ? "Updating..." : "Update data"}
         </button>
 
         <meta-${childWidgetHash}
@@ -1103,41 +1114,41 @@ const parentHash = MetaFor("parent-dashboard")
     `,
   })
 
-// Создание родительского элемента
+// Parent element creation
 document.body.innerHTML = `<meta-${parentHash}></meta-${parentHash}>`
 ```
 
-## 🔍 Отладка
+## 🔍 Debugging
 
-MetaFor предоставляет встроенные инструменты отладки:
+MetaFor provides built-in debugging tools:
 
 ```typescript
-// Включение отладки
+// Enable debugging
 import { enableMetaForDebug } from "@zavx0z/metafor/debug/config"
 
 enableMetaForDebug()
 
-// Получение снапшота состояния
-// Важно: используйте правильный элемент с именем компонента
+// Get state snapshot
+// Important: use correct element with component name
 const component = MetaFor("my-component").context(...).states(...).core(...).processes(...).reactions(...).view(...)
 const element = document.querySelector(`meta-my-component`)
 const snapshot = element.getSnapshot()
 console.log(snapshot)
 ```
 
-## 📚 Дополнительные ресурсы
+## 📚 Additional Resources
 
-- [Примеры проектов](https://github.com/metafor/examples)
-- [API документация](https://api.metafor.space)
-- [Руководство по миграции](https://migration.metafor.space)
+- [Project examples](https://github.com/metafor/examples)
+- [API documentation](https://api.metafor.space)
+- [Migration guide](https://migration.metafor.space)
 
 ## TODO
 
-- Сократить кол-во eval-функций
+- Reduce number of eval functions
   - Processes
-    - action (параметры в process. импорт из модулей/модуля)
-    - success (схема данных обновления контекста)
-    - error (схема данных обновления контекста)
-- Оптимизировать каналы
-  - разделить патчи состояния и контекста по разным каналам
-  - включить в жизненный цикл микротаски
+    - action (parameters in process. import from modules/module)
+    - success (context update data schema)
+    - error (context update data schema)
+- Optimize channels
+  - separate state and context patches by different channels
+  - include in lifecycle microtasks
