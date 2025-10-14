@@ -5,7 +5,8 @@
  */
 
 import type { Schema, Update, Values } from "@zavx0z/context"
-import type { Core, JsonPatch } from "../actor.t"
+import type { JsonPatch } from "../actor.t"
+import type { Core } from "../gravity.t"
 import type { ReactionAction } from "../schema/reactions.t"
 import type { Self, SelfInfo } from "../metafor.t"
 

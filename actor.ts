@@ -6,7 +6,8 @@ import { reactionsFromSchema, type Reactions } from "./core/reactions"
 import { Electromagnetic } from "./core/electromagnetic"
 export { Fields } from "./core/fields"
 import type { Node as ParseNode } from "@zavx0z/template"
-import type { Core, Snapshot, Message } from "./actor.t"
+import type { Snapshot, Message } from "./actor.t"
+import type { Core } from "./gravity.t"
 export type { Message }
 import type { StatesConfig } from "./schema/states"
 import type { Meta } from "./metafor"
@@ -23,32 +24,22 @@ import { Fields } from "./core/fields"
  * - при destroy: `super.destroy()` (remove + выключение транспорта) → локальная очистка → удаление из Fields.
  */
 export class Actor extends Electromagnetic {
-  /** Core хранится вне экземпляра. */
-  private static coreWeakMap = new WeakMap<Actor, Core>()
-  
   constructor(
     public override id: string,
-    public name: string,
+    public override meta: string,
     public desc: string | undefined,
-    public ctx: Context<Schema>,
-    public state: { current: string; states: StatesConfig },
+    public override ctx: Context<Schema>,
+    public override state: { current: string; states: StatesConfig },
     public processes: Processes,
     public reactions: Reactions,
     public render: ParseNode[],
     core?: Core
   ) {
-    // База без сайд-эффектов: только id/name/snapshot-fn
-    super(id, name, () => this.snapshot)
+    super(id, meta, core)
 
     this.update = this.update.bind(this)
     this.destroy = this.destroy.bind(this)
 
-    // core в WeakMap
-    Actor.coreWeakMap.set(this, core || {})
-
-    this.attachAndAnnounceCreate()
-
-    // стартовое состояние/процессы
     const transition = this.state.states[this.state.current]
     if (transition) {
       const process = this.processes.getProcess(this.state.current)
@@ -60,15 +51,7 @@ export class Actor extends Electromagnetic {
         this.transition()
       }
     }
-  }
-
-  // ---------- Core ----------
-
-  get core() {
-    return Actor.coreWeakMap.get(this)!
-  }
-  set core(value: Core) {
-    Actor.coreWeakMap.set(this, value)
+    this.connected()
   }
 
   // ---------- подписки на смену состояния ----------
@@ -105,19 +88,19 @@ export class Actor extends Electromagnetic {
   update(context: Partial<Values<Schema>>): Partial<Values<Schema>> {
     const updated = this.ctx.update(context)
     if (Object.keys(updated).length > 0) {
-      this.sendMessage(Actor.updateContextMessage(this.name, this.id, this.path, updated))
+      this.sendMessage(this.msgUpdateContext(updated))
     }
     return updated
   }
 
   executeAction(process: Process<any, any>) {
     try {
-      this.sendMessage(Actor.stateBeforeActionMessage(this.name, this.id, this.path, this.state.current))
+      this.sendMessage(this.msgStateBeforeAction)
       const result = process.action({
         schema: this.ctx.schema,
         context: this.ctx.context,
         core: this.core,
-        self: { meta: this.name, actor: this.id, path: this.path, destroy: this.destroy },
+        self: { meta: this.meta, actor: this.id, path: this.path, destroy: this.destroy },
       })
 
       if (result instanceof Promise) {
@@ -135,18 +118,18 @@ export class Actor extends Electromagnetic {
             }
           })
           .finally(() => {
-            this.sendMessage(Actor.stateAfterActionMessage(this.name, this.id, this.path, this.state.current))
+            this.sendMessage(this.msgStateAfterAction)
             this.setProcess(false)
           })
       } else {
         if (process.success) process.success({ update: this.update, data: result })
-        this.sendMessage(Actor.stateAfterActionMessage(this.name, this.id, this.path, this.state.current))
+        this.sendMessage(this.msgStateAfterAction)
         this.setProcess(false)
       }
     } catch (error) {
       if (error instanceof Error) process.error?.({ update: this.update, error })
       else console.error(error)
-      this.sendMessage(Actor.stateAfterActionMessage(this.name, this.id, this.path, this.state.current))
+      this.sendMessage(this.msgStateAfterAction)
       this.setProcess(false)
     }
   }
@@ -164,7 +147,7 @@ export class Actor extends Electromagnetic {
           this.executeAction(process)
         } else {
           this.setState(state)
-          this.sendMessage(Actor.stateAfterActionMessage(this.name, this.id, this.path, state))
+          this.sendMessage(this.msgStateAfterAction)
           if (!this.process) this.transition()
         }
         break
@@ -174,9 +157,9 @@ export class Actor extends Electromagnetic {
 
   // ---------- snapshot ----------
 
-  get snapshot(): Snapshot<Schema, string> {
+  override get snapshot(): Snapshot<Schema, string> {
     return {
-      name: this.name,
+      name: this.meta,
       state: this.state.current,
       process: this.process,
       states: this.state.states,
@@ -207,22 +190,10 @@ export class Actor extends Electromagnetic {
         patch,
         state: this.state.current,
         update: this.update,
-        self: { meta: this.name, actor: this.id, path: this.path, destroy: this.destroy },
+        self: { meta: this.meta, actor: this.id, path: this.path, destroy: this.destroy },
       })
     }
     this.transition()
-  }
-
-  // ---------- билдеры прикладных сообщений ----------
-
-  static updateContextMessage(meta: string, actor: string, path: string, updated: Partial<Values<Schema>>): Message {
-    return { meta, actor, path, timestamp: Date.now(), patches: [{ op: "replace", path: "/context", value: updated }] }
-  }
-  static stateBeforeActionMessage(meta: string, actor: string, path: string, state: string): Message {
-    return { meta, actor, path, timestamp: Date.now(), patches: [{ op: "test", path: "/state", value: state }] }
-  }
-  static stateAfterActionMessage(meta: string, actor: string, path: string, state: string): Message {
-    return { meta, actor, path, timestamp: Date.now(), patches: [{ op: "replace", path: "/state", value: state }] }
   }
 
   // ---------- уничтожение ----------
@@ -233,25 +204,17 @@ export class Actor extends Electromagnetic {
       const childActor = fields.getActor(childId)
       if (childActor) (childActor as Actor).destroyRecursive(fields)
     }
-    Actor.coreWeakMap.delete(this)
-    this.stateListeners.clear()
-    this.ctx.clearSubscribers()
   }
 
   public override destroy(recursive = true) {
-    // 1) база: remove + выключить транспорт
-    super.destroy()
-    // 2) локальная очистка
     const fields = Fields.get()
     if (recursive) {
       this.destroyRecursive(fields)
-    } else {
-      // Очистка только текущего актора
-      Actor.coreWeakMap.delete(this)
-      this.stateListeners.clear()
-      this.ctx.clearSubscribers()
     }
-    // 3) удалить из дерева (рекурсивно или нет)
+    this.stateListeners.clear()
+    this.ctx.clearSubscribers()
+
+    super.destroy()
     fields.remove(this.id, recursive)
   }
 
@@ -335,7 +298,7 @@ export class Actor extends Electromagnetic {
     // 3) Сразу отдаём id
     return id
   }
-  // actor.ts (внутрь класса Actor)
+
   static appendChild<M extends Meta>(
     parentId: string | null,
     meta: M,

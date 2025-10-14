@@ -5,7 +5,7 @@
 
 import type { Schema } from "@zavx0z/context"
 import type { Process, Processes } from "./processes.t"
-import type { Core } from "../actor.t"
+import type { Core } from "../gravity.t"
 import type { ProcessesSchema } from "../schema/process.t"
 import type { Self } from "../metafor.t"
 export type { Process, Processes } from "./processes.t"

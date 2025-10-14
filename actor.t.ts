@@ -37,30 +37,6 @@ export interface Snapshot<C extends Schema, S extends string> {
   core: string[]
 }
 
-/**
- *  Ядро компонента
- */
-/**
- * Ядро актора - объект для хранения сложных данных
- *
- * Используется для хранения данных, которые не подходят для контекста:
- * - Сложные объекты и структуры данных
- * - Кэшированные результаты вычислений
- * - Внешние ресурсы (DOM элементы, WebSocket соединения)
- * - Состояние, которое не влияет на UI напрямую
- *
- * @example
- * ```typescript
- * const core: Core = {
- *   users: [],
- *   cache: new Map(),
- *   socket: new WebSocket("ws://localhost:8080"),
- *   domElement: document.getElementById("container")
- * }
- * ```
- */
-export type Core = Record<string, any>
-
 export interface ActorInternal extends HTMLElement {
   __updCore: (value: Partial<unknown>) => void
   __path: string[]
