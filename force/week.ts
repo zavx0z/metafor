@@ -3,6 +3,9 @@ import { type Process, type Processes } from "../core/processes"
 import { checkTransition } from "../core/states"
 import type { Conditions, Transitions } from "../core/states.t"
 import type { Core } from "./gravity.t"
+import { type Reactions } from "../core/reactions"
+import type { Message } from "../actor.t"
+import type { Schema, Values } from "@zavx0z/context"
 
 export abstract class Week extends Electromagnetic {
   public abstract processes: Processes
@@ -10,11 +13,16 @@ export abstract class Week extends Electromagnetic {
   protected abstract setState(state: string): void
   protected abstract setProcess(process: boolean): void
   protected abstract process: boolean
+  protected abstract reactions: Reactions
+  protected abstract update(context: Partial<Values<Schema>>): Partial<Values<Schema>>
 
   constructor(id: string, meta: string, core?: Core) {
     super(id, meta, core)
   }
 
+  // ---------------------------- переходы ------------------------------------
+
+  /** Выполняет инициализирующие переходы */
   transit() {
     const transition = this.state.states[this.state.current]
     if (transition) {
@@ -29,6 +37,7 @@ export abstract class Week extends Electromagnetic {
     }
   }
 
+  /** Выполняет переход */
   transition() {
     const transition: Transitions | undefined = this.state.states[this.state.current]
     if (!transition) return
@@ -48,5 +57,32 @@ export abstract class Week extends Electromagnetic {
         break
       }
     }
+  }
+
+  // ---------------------------- реакции ------------------------------------
+
+  protected hasReactions(): boolean {
+    return this.reactions?.hasReactions() ?? false
+  }
+
+  protected handleReactionMessage(ev: MessageEvent) {
+    const { data } = ev as MessageEvent<Message>
+    if (!this.reactions?.hasReactions()) return
+    if (data.actor === this.id) return
+
+    for (const patch of data.patches) {
+      this.reactions.run({
+        context: this.ctx.context,
+        core: this.core,
+        meta: data.meta,
+        actor: data.actor,
+        timestamp: data.timestamp,
+        patch,
+        state: this.state.current,
+        update: this.update,
+        self: { meta: this.meta, actor: this.id, path: this.path, destroy: this.destroy },
+      })
+    }
+    this.transition()
   }
 }

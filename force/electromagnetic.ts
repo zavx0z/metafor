@@ -4,10 +4,8 @@ import type { Context, Schema, Values } from "@zavx0z/context"
 import type { StatesConfig } from "../schema/states.t"
 
 export const CHANNEL = "actor-force"
-export abstract class Electromagnetic extends Gravity {
-  // ---------------------------------------------------------------------------------
 
-  protected abstract ctx: Context<Schema>
+export abstract class Electromagnetic extends Gravity {
   protected abstract state: { current: string; states: StatesConfig }
   protected abstract hasReactions(): boolean
   protected abstract handleReactionMessage(ev: MessageEvent<Message>): void
@@ -43,6 +41,7 @@ export abstract class Electromagnetic extends Gravity {
     this.disconnected()
     super.destroy(recursive)
   }
+
   // -------------------------- Управление жизненным циклом ------------------------------
 
   private static lock = false
@@ -66,6 +65,7 @@ export abstract class Electromagnetic extends Gravity {
   static step() {}
 
   // -------------------------- Каналы -----------------------------------------
+
   protected wired = false
   /** Множество «заряжённых» акторов (у кого есть реакции). */
   private static chargedActors = new Set<Electromagnetic>()
@@ -105,7 +105,7 @@ export abstract class Electromagnetic extends Gravity {
     if (Electromagnetic.useBroadcastChannel && Electromagnetic.channel) Electromagnetic.channel.postMessage(message)
   }
 
-  // -------- служебные билдеры системных сообщений --------
+  // ---------------------------- сообщения ------------------------------------
 
   protected msgUpdateContext(context: Partial<Values<Schema>>): Message {
     return {

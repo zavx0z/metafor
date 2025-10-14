@@ -24,13 +24,12 @@ import { Strong } from "./force/strong"
  */
 export class Actor extends Strong {
   // -------------------------- Жизненный цикл -----------------------------------------
-
   constructor(
     public override id: string,
     public override meta: string,
     public desc: string | undefined,
-    public override ctx: Context<Schema>,
-    public override state: { current: string; states: StatesConfig },
+    public ctx: Context<Schema>,
+    public state: { current: string; states: StatesConfig },
     public processes: Processes,
     public reactions: Reactions,
     public render: ParseNode[],
@@ -48,7 +47,14 @@ export class Actor extends Strong {
     this.transit()
     super.connected()
   }
-  // -------------------------- Жизненный цикл -----------------------------------------
+
+  public override destroy(recursive = true) {
+    this.stateListeners.clear()
+    this.ctx.clearSubscribers()
+    super.destroy(recursive)
+  }
+
+  // -----------------------------------------------------------------------------------
 
   // ---------- подписки на смену состояния ----------
 
@@ -68,18 +74,6 @@ export class Actor extends Strong {
   }
   unsubscribeState(listener: (state: string) => void) {
     this.stateListeners.delete(listener)
-  }
-
-  // ---------- process runtime ----------
-
-  /** обновление контекста */
-  update(context: Partial<Values<Schema>>): Partial<Values<Schema>> {
-    if (Electromagnetic.isLocked && this.wired) return {}
-    const updated = this.ctx.update(context)
-    if (Object.keys(updated).length > 0) {
-      this.sendMessage(this.msgUpdateContext(updated))
-    }
-    return updated
   }
 
   executeAction(process: Process<any, any>) {
@@ -135,42 +129,6 @@ export class Actor extends Strong {
       ...(this.desc ? { desc: this.desc } : {}),
       core: Object.keys(this.core),
     }
-  }
-
-  // ---------- реакции ----------
-
-  protected hasReactions(): boolean {
-    return this.reactions?.hasReactions() ?? false
-  }
-
-  protected handleReactionMessage(ev: MessageEvent) {
-    const { data } = ev as MessageEvent<Message>
-    if (!this.reactions?.hasReactions()) return
-    if (data.actor === this.id) return
-
-    for (const patch of data.patches) {
-      this.reactions.run({
-        context: this.ctx.context,
-        core: this.core,
-        meta: data.meta,
-        actor: data.actor,
-        timestamp: data.timestamp,
-        patch,
-        state: this.state.current,
-        update: this.update,
-        self: { meta: this.meta, actor: this.id, path: this.path, destroy: this.destroy },
-      })
-    }
-    this.transition()
-  }
-
-  // ---------- уничтожение ----------
-
-  public override destroy(recursive = true) {
-    // Очищаем локальные ресурсы
-    this.stateListeners.clear()
-    this.ctx.clearSubscribers()
-    super.destroy(recursive)
   }
 
   // ---------- фабрики ----------

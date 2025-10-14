@@ -1,6 +1,9 @@
 import { Fields } from "./actor"
+import { contextFromSchema, type Context, type Schema, type Values } from "@zavx0z/context"
 
 export abstract class Field {
+  protected abstract ctx: Context<Schema>
+
   // -------------------------- Жизненный цикл -----------------------------------------
   protected constructor(id: string, meta: string) {
     this.id = id
