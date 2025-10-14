@@ -35,6 +35,6 @@
     ".idea/**/*",
     ".cursor/**/*",
     ".vscode/**/*",
-    "core/view/parser/*"
+    "base/view/parser/*"
   ]
 }

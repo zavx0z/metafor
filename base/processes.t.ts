@@ -21,7 +21,7 @@
  */
 
 import type { Schema, Values, Update } from "@zavx0z/context"
-import type { Core } from "../force/gravity.t"
+import type { Core } from "./force/gravity.t"
 import type { Self } from "../metafor.t"
 export type Processes<C extends Schema = Schema, S extends string = string, I extends Core = Core> = {
   getProcess: (name: S) => Process<C, I> | undefined

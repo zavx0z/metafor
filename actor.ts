@@ -1,16 +1,16 @@
 import { contextFromSchema, type Context, type Schema, type Values } from "@zavx0z/context"
-import { processesFromSchema, type Process, type Processes } from "./core/processes"
-import { reactionsFromSchema, type Reactions } from "./core/reactions"
-import { Electromagnetic } from "./force/electromagnetic"
-export { Fields } from "./core/fields"
+import { processesFromSchema, type Process, type Processes } from "./base/processes"
+import { reactionsFromSchema, type Reactions } from "./base/reactions"
+import { Electromagnetic } from "./base/force/electromagnetic"
+export { Fields } from "./base/fields"
 import type { Node as ParseNode } from "@zavx0z/template"
 import type { Snapshot, Message } from "./actor.t"
-import type { Core } from "./force/gravity.t"
+import type { Core } from "./base/force/gravity.t"
 export type { Message }
 import type { StatesConfig } from "./schema/states"
 import type { Meta } from "./metafor"
-import { Fields } from "./core/fields"
-import { Strong } from "./force/strong"
+import { Fields } from "./base/fields"
+import { Strong } from "./base/force/strong"
 
 /**
  * Actor — основной класс актора MetaFor.

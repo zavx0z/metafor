@@ -1,6 +1,6 @@
 import type { Schema } from "@zavx0z/context"
-import type { Core } from "../force/gravity.t"
-import type { Process } from "../core/processes"
+import type { Core } from "../base/force/gravity.t"
+import type { Process } from "../base/processes"
 import type { ProcessConfig } from "./process.t"
 import type { ParsedProcess, ProcessesDeclaration, ProcessesSchema } from "./process.t"
 import type { Self } from "../metafor.t"

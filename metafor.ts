@@ -85,7 +85,7 @@
  */
 import { contextSchema, type Schema, type Types } from "@zavx0z/context"
 import { parse } from "@zavx0z/template"
-import type { Core } from "./force/gravity.t"
+import type { Core } from "./base/force/gravity.t"
 
 import { validateNoUnconditionalCycles, type StatesConfig } from "./schema/states"
 import { reactionsSchema, type ReactionsDeclaration } from "./schema/reactions"

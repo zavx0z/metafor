@@ -3,7 +3,7 @@
  * @module Reactions
  */
 import type { Schema, Update, Values } from "@zavx0z/context"
-import type { Core } from "../force/gravity.t"
+import type { Core } from "./force/gravity.t"
 import type { ReactionParams, Reactions } from "./reactions.t"
 import type { ReactionAction, ReactionsSchema } from "../schema/reactions.t"
 import type { ReactionFilterConditions } from "./condition.t"

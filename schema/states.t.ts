@@ -1,5 +1,5 @@
 import type { Schema } from "@zavx0z/context"
-import type { Transitions } from "../core/states.t"
+import type { Transitions } from "../base/states.t"
 
 /**ƒ
  * Конфигурация состояний

@@ -1,5 +1,5 @@
-import type { Actor } from "../actor"
-import { Fields } from "../core/fields"
+import type { Actor } from "../../actor"
+import { Fields } from "../fields"
 import { Field } from "../field"
 import type { Core } from "./gravity.t"
 

@@ -4,8 +4,8 @@
  */
 
 import type { Schema } from "@zavx0z/context"
-import type { Core } from "../force/gravity.t"
-import type { ProcessChain, ActionChain } from "../core/processes.t"
+import type { Core } from "../base/force/gravity.t"
+import type { ProcessChain, ActionChain } from "../base/processes.t"
 
 /**
  * Обработчик действия процесса.

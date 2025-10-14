@@ -1,6 +1,6 @@
 import { afterAll } from "bun:test"
 import { type Message } from "../actor.t"
-import { CHANNEL } from "../force/electromagnetic"
+import { CHANNEL } from "../base/force/electromagnetic"
 
 export const messagesFixture = (options?: {
   meta: string

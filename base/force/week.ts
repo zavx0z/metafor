@@ -1,10 +1,10 @@
 import { Electromagnetic } from "./electromagnetic"
-import { type Process, type Processes } from "../core/processes"
-import { checkTransition } from "../core/states"
-import type { Conditions, Transitions } from "../core/states.t"
+import { type Process, type Processes } from "../processes"
+import { checkTransition } from "../states"
+import type { Conditions, Transitions } from "../states.t"
 import type { Core } from "./gravity.t"
-import { type Reactions } from "../core/reactions"
-import type { Message } from "../actor.t"
+import { type Reactions } from "../reactions"
+import type { Message } from "../../actor.t"
 import type { Schema, Values } from "@zavx0z/context"
 
 export abstract class Week extends Electromagnetic {
