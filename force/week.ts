@@ -1,5 +1,5 @@
 import { Electromagnetic } from "./electromagnetic"
-import { processesFromSchema, type Process, type Processes } from "../core/processes"
+import { type Process, type Processes } from "../core/processes"
 import { checkTransition } from "../core/states"
 import type { Conditions, Transitions } from "../core/states.t"
 import type { Core } from "./gravity.t"
@@ -8,6 +8,8 @@ export abstract class Week extends Electromagnetic {
   public abstract processes: Processes
   protected abstract executeAction(process: Process<any, any>): void
   protected abstract setState(state: string): void
+  protected abstract setProcess(process: boolean): void
+  protected abstract process: boolean
 
   constructor(id: string, meta: string, core?: Core) {
     super(id, meta, core)
@@ -25,19 +27,6 @@ export abstract class Week extends Electromagnetic {
         this.transition()
       }
     }
-  }
-  
-  /** индикатор выполнения процесса */
-  #process = false
-
-  get process() {
-    return this.#process
-  }
-  setProcess(process: boolean) {
-    if (Electromagnetic.isLocked && this.wired) return
-    if (this.#process === process) return
-    this.#process = process
-    if (!process) this.transition()
   }
 
   transition() {
