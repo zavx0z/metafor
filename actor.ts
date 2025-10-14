@@ -1,5 +1,4 @@
 import { contextFromSchema, type Context, type Schema, type Values } from "@zavx0z/context"
-import { checkTransition, type Conditions, type Transitions } from "./core/states"
 import { processesFromSchema, type Process, type Processes } from "./core/processes"
 import { reactionsFromSchema, type Reactions } from "./core/reactions"
 import { Electromagnetic } from "./force/electromagnetic"
@@ -42,20 +41,13 @@ export class Actor extends Strong {
     this.update = this.update.bind(this)
     this.destroy = this.destroy.bind(this)
 
-    const transition = this.state.states[this.state.current]
-    if (transition) {
-      const process = this.processes.getProcess(this.state.current)
-      if (process) {
-        this.setProcess(true)
-        this.executeAction(process)
-        this.transition()
-      } else {
-        this.transition()
-      }
-    }
     this.connected()
   }
 
+  protected override connected(): void {
+    this.transit()
+    super.connected()
+  }
   // -------------------------- Жизненный цикл -----------------------------------------
 
   // ---------- подписки на смену состояния ----------
@@ -79,19 +71,6 @@ export class Actor extends Strong {
   }
 
   // ---------- process runtime ----------
-
-  /** индикатор выполнения процесса */
-  #process = false
-
-  get process() {
-    return this.#process
-  }
-  setProcess(process: boolean) {
-    if (Electromagnetic.isLocked && this.wired) return
-    if (this.#process === process) return
-    this.#process = process
-    if (!process) this.transition()
-  }
 
   /** обновление контекста */
   update(context: Partial<Values<Schema>>): Partial<Values<Schema>> {
@@ -141,27 +120,6 @@ export class Actor extends Strong {
       else console.error(error)
       this.sendMessage(this.msgStateAfterAction)
       this.setProcess(false)
-    }
-  }
-
-  transition() {
-    const transition: Transitions | undefined = this.state.states[this.state.current]
-    if (!transition) return
-    for (const [state, conditions] of Object.entries(transition)) {
-      if (checkTransition(conditions as Conditions, this.ctx.context)) {
-        const process = this.processes.getProcess(state)
-        if (this.process) return
-        if (process) {
-          this.setProcess(true)
-          this.setState(state)
-          this.executeAction(process)
-        } else {
-          this.setState(state)
-          this.sendMessage(this.msgStateAfterAction)
-          if (!this.process) this.transition()
-        }
-        break
-      }
     }
   }
 
