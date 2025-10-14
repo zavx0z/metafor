@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { Actor } from "../../actor"
 import type { Meta } from "../../metafor"
 import { messagesFixture } from "../../fixture/message.ts"
-import { Electromagnetic } from "../electromagnetic.ts"
+import { Electromagnetic } from "../../force/electromagnetic.ts"
 
 describe("Получение сообщений из обоих каналов", () => {
   let messagesFixtureInstance: ReturnType<typeof messagesFixture>
@@ -14,8 +14,8 @@ describe("Получение сообщений из обоих каналов",
   })
 
   afterEach(() => {
-        // @ts-ignore
-        Electromagnetic.chargedActors.clear()
+    // @ts-ignore
+    Electromagnetic.chargedActors.clear()
   })
 
   const testSchema: Meta = {

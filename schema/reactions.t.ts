@@ -1,6 +1,6 @@
 import type { Schema, Update, Values } from "@zavx0z/context"
 import type { JsonPatch } from "../actor.t"
-import type { Core } from "../gravity.t"
+import type { Core } from "../force/gravity.t"
 import type { ReactionFilterConditions } from "../core/condition.t"
 import type { ReactionParams } from "../core/reactions.t"
 import type { Self, SelfInfo } from "../metafor.t"

@@ -1,17 +1,17 @@
-// actor.ts
 import { contextFromSchema, type Context, type Schema, type Values } from "@zavx0z/context"
 import { checkTransition, type Conditions, type Transitions } from "./core/states"
 import { processesFromSchema, type Process, type Processes } from "./core/processes"
 import { reactionsFromSchema, type Reactions } from "./core/reactions"
-import { Electromagnetic } from "./core/electromagnetic"
+import { Electromagnetic } from "./force/electromagnetic"
 export { Fields } from "./core/fields"
 import type { Node as ParseNode } from "@zavx0z/template"
 import type { Snapshot, Message } from "./actor.t"
-import type { Core } from "./gravity.t"
+import type { Core } from "./force/gravity.t"
 export type { Message }
 import type { StatesConfig } from "./schema/states"
 import type { Meta } from "./metafor"
 import { Fields } from "./core/fields"
+import { Strong } from "./force/strong"
 
 /**
  * Actor — основной класс актора MetaFor.
@@ -23,7 +23,7 @@ import { Fields } from "./core/fields"
  * - запускаем стартовые переходы/процессы,
  * - при destroy: `super.destroy()` (remove + выключение транспорта) → локальная очистка → удаление из Fields.
  */
-export class Actor extends Electromagnetic {
+export class Actor extends Strong {
   // -------------------------- Жизненный цикл -----------------------------------------
 
   constructor(

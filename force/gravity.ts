@@ -1,6 +1,6 @@
-import type { Actor } from "./actor"
-import { Fields } from "./core/fields"
-import { Field } from "./field"
+import type { Actor } from "../actor"
+import { Fields } from "../core/fields"
+import { Field } from "../field"
 import type { Core } from "./gravity.t"
 
 export type { Core }
@@ -39,7 +39,7 @@ export abstract class Gravity extends Field {
   public get core() {
     return Gravity.coreWeakMap.get(this)!
   }
-  
+
   public set core(value: Core) {
     Gravity.coreWeakMap.set(this, value)
   }

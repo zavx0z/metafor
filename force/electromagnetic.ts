@@ -1,6 +1,6 @@
 // core/electromagnetic.ts
 import type { Message, Snapshot } from "../actor.t"
-import { Gravity, type Core } from "../gravity"
+import { Gravity, type Core } from "./gravity"
 import type { Context, Schema, Values } from "@zavx0z/context"
 import type { StatesConfig } from "../schema/states.t"
 

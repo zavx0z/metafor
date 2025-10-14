@@ -1,5 +1,5 @@
 import type { Schema, Values } from "@zavx0z/context"
-import type { Core } from "../gravity.t"
+import type { Core } from "../force/gravity.t"
 import type { ReactionFilterConditions } from "../core/condition.t"
 import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction } from "./reactions.t"
 import type { SelfInfo } from "../metafor.t"
