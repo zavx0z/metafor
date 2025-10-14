@@ -5,7 +5,6 @@ import type { Context, Schema, Values } from "@zavx0z/context"
 import type { StatesConfig } from "../schema/states.t"
 
 export const CHANNEL = "actor-force"
-
 export abstract class Electromagnetic extends Gravity {
   // ---------------------------------------------------------------------------------
 
@@ -24,10 +23,9 @@ export abstract class Electromagnetic extends Gravity {
   protected connected() {
     if (this.hasReactions()) {
       Electromagnetic.chargedActors.add(this)
-
       if (Electromagnetic.useBroadcastChannel && Electromagnetic.channel) {
         this._onBCMessage ??= (ev: MessageEvent<Message>) => this.handleReactionMessage(ev)
-        Electromagnetic.channel.addEventListener("message", this._onBCMessage as EventListener)
+        Electromagnetic.channel.addEventListener("message", this._onBCMessage)
       }
     }
     this.wired = true
@@ -37,7 +35,7 @@ export abstract class Electromagnetic extends Gravity {
   protected disconnected() {
     this.wired = false
     if (this._onBCMessage && Electromagnetic.channel)
-      Electromagnetic.channel.removeEventListener("message", this._onBCMessage as EventListener)
+      Electromagnetic.channel.removeEventListener("message", this._onBCMessage)
   }
 
   public override destroy(recursive = true) {
@@ -52,15 +50,18 @@ export abstract class Electromagnetic extends Gravity {
   private static queue: Message[] = []
 
   static break() {
-    this.lock = true
+    Electromagnetic.lock = true
   }
 
   static resume() {
-    this.lock = false
+    for (const message of Electromagnetic.queue) {
+    }
+    Electromagnetic.queue = []
+    Electromagnetic.lock = false
   }
 
-  static isLocked(): boolean {
-    return this.lock
+  static get isLocked(): boolean {
+    return Electromagnetic.lock
   }
 
   static step() {}
@@ -95,6 +96,7 @@ export abstract class Electromagnetic extends Gravity {
 
   /** Доставка сообщения локально и (опционально) через BroadcastChannel. */
   protected sendMessage(message: Message) {
+    if (Electromagnetic.lock) Electromagnetic.queue.push(message)
     if (!this.wired) return
     for (const actor of Electromagnetic.chargedActors) {
       if (actor === this) continue

@@ -63,6 +63,7 @@ export class Actor extends Electromagnetic {
   stateListeners = new Set<(state: string) => void>()
 
   setState(state: string) {
+    if (Electromagnetic.isLocked && this.wired) return
     this.state.current = state
     if (this.stateListeners.size > 0) {
       for (const listener of this.stateListeners) listener(state)
@@ -80,16 +81,21 @@ export class Actor extends Electromagnetic {
   // ---------- process runtime ----------
 
   /** индикатор выполнения процесса */
-  process = false
+  #process = false
 
+  get process() {
+    return this.#process
+  }
   setProcess(process: boolean) {
-    if (this.process === process) return
-    this.process = process
+    if (Electromagnetic.isLocked && this.wired) return
+    if (this.#process === process) return
+    this.#process = process
     if (!process) this.transition()
   }
 
   /** обновление контекста */
   update(context: Partial<Values<Schema>>): Partial<Values<Schema>> {
+    if (Electromagnetic.isLocked && this.wired) return {}
     const updated = this.ctx.update(context)
     if (Object.keys(updated).length > 0) {
       this.sendMessage(this.msgUpdateContext(updated))
@@ -173,7 +179,7 @@ export class Actor extends Electromagnetic {
     }
   }
 
-  // ---------- интеграция с базой (реакции) ----------
+  // ---------- реакции ----------
 
   protected hasReactions(): boolean {
     return this.reactions?.hasReactions() ?? false
