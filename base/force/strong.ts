@@ -3,6 +3,13 @@ import { Electromagnetic } from "./electromagnetic"
 import { Week } from "./week"
 
 export abstract class Strong extends Week {
+  // -------------------------- Жизненный цикл -----------------------------------------
+
+  public override destroy(recursive = true) {
+    this.stateListeners.clear()
+    super.destroy(recursive)
+  }
+
   // ------------------------------ процесс ----------------------------------------
 
   /** индикатор выполнения процесса */
@@ -47,7 +54,7 @@ export abstract class Strong extends Week {
     this.stateListeners.add(listener)
     return () => this.unsubscribeState(listener)
   }
-  
+
   private unsubscribeState(listener: (state: string) => void) {
     this.stateListeners.delete(listener)
   }

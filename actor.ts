@@ -49,7 +49,6 @@ export class Actor extends Strong {
   }
 
   public override destroy(recursive = true) {
-    this.stateListeners.clear()
     this.ctx.clearSubscribers()
     super.destroy(recursive)
   }
@@ -57,20 +56,17 @@ export class Actor extends Strong {
   // ------------------------------ действия ------------------------------------------
 
   protected executeAction(process: Process<any, any>) {
+    this.sendMessage(this.msgStateBeforeAction)
     try {
-      this.sendMessage(this.msgStateBeforeAction)
       const result = process.action({
-        schema: this.ctx.schema,
-        context: this.ctx.context,
-        core: this.core,
         self: { meta: this.meta, actor: this.id, path: this.path, destroy: this.destroy },
+        context: this.ctx.context,
+        schema: this.ctx.schema,
+        core: this.core,
       })
-
       if (result instanceof Promise) {
         result
-          .then((data) => {
-            if (process.success) process.success({ update: this.update, data })
-          })
+          .then((data) => process.success && process.success({ update: this.update, data }))
           .catch((error) => {
             if (process.error) {
               if (error instanceof Error) process.error({ update: this.update, error })
@@ -85,7 +81,7 @@ export class Actor extends Strong {
             this.setProcess(false)
           })
       } else {
-        if (process.success) process.success({ update: this.update, data: result })
+        process.success && process.success({ update: this.update, data: result })
         this.sendMessage(this.msgStateAfterAction)
         this.setProcess(false)
       }
