@@ -1,11 +1,15 @@
-import type { Message, Snapshot } from "../../actor.t"
+import type { Snapshot } from "../../actor.t"
+import type { Message } from "./electromagnetic.t"
 import { Gravity, type Core } from "./gravity"
-import type { Context, Schema, Values } from "@zavx0z/context"
+import type { Schema, Values } from "@zavx0z/context"
 import type { StatesConfig } from "../../schema/states.t"
+
+export type { Message }
 
 export const CHANNEL = "actor-force"
 
 export abstract class Electromagnetic extends Gravity {
+  static channelName = "actor-force"
   protected abstract state: { current: string; states: StatesConfig }
   protected abstract hasReactions(): boolean
   protected abstract handleReactionMessage(ev: MessageEvent<Message>): void

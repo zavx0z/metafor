@@ -1,7 +1,7 @@
 import { reactionsFromSchema } from "../../reactions"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
-import type { JsonPatch } from "../../../actor.t"
+import type { JsonPatch } from "../../force/electromagnetic.t"
 import { reactionsSchema } from "../../../schema/reactions"
 
 type Ctx = { value: { type: "number"; required: true } }
@@ -34,7 +34,7 @@ describe("Фильтрация по актору", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при точном совпадении").toBe(true)
@@ -62,7 +62,7 @@ describe("Фильтрация по актору", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция не должна сработать при несовпадении").toBe(false)
@@ -90,7 +90,7 @@ describe("Фильтрация по актору", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при eq условии").toBe(true)
@@ -118,7 +118,7 @@ describe("Фильтрация по актору", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при notEq условии").toBe(true)

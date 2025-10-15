@@ -1,7 +1,8 @@
 import { reactionsFromSchema } from "../../reactions"
 import type { Update, Values } from "@zavx0z/context"
 import { test, expect } from "bun:test"
-import type { JsonPatch, Message } from "../../../actor.t"
+import type { JsonPatch } from "../../force/electromagnetic.t"
+import type { Message } from "../../force/electromagnetic.t"
 import { contextSchema } from "@zavx0z/context"
 import { reactionsSchema } from "../../../schema/reactions"
 
@@ -45,7 +46,7 @@ test("Выполнение реакций через run", () => {
     state: "active",
     core,
     update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+    self: { meta: "test", actor: "test-actor", path: "0" },
   })
 
   expect(core.called, "реакция вызвана").toBe(true)

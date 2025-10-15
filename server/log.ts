@@ -1,4 +1,4 @@
-import type { Message } from "../actor.t"
+import type { Message } from "../base/force/electromagnetic.t"
 
 // ANSI цветовые коды
 const colors = {

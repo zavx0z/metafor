@@ -1,5 +1,12 @@
-import { test, expect } from "bun:test"
-import { Actor } from "../../actor"
+import { test, expect, beforeEach } from "bun:test"
+import { Actor, Fields } from "../../actor"
+let fields: Fields
+
+beforeEach(() => {
+  fields = Fields.get()
+  Fields.set(new (Fields as any)())
+  fields = Fields.get()
+})
 
 test("Actor - автоматическая генерация корневых путей", () => {
   // Создаем акторы без явного указания path
@@ -9,8 +16,8 @@ test("Actor - автоматическая генерация корневых �
       context: {},
       states: { idle: {} },
       processes: {},
-      reactions: { reactions: {} , states: {}},
-      core: {}
+      reactions: { reactions: {}, states: {} },
+      core: {},
     },
     id: "test1",
   })
@@ -21,8 +28,8 @@ test("Actor - автоматическая генерация корневых �
       context: {},
       states: { idle: {} },
       processes: {},
-      reactions: { reactions: {} , states: {}},
-      core: {}
+      reactions: { reactions: {}, states: {} },
+      core: {},
     },
     id: "test2",
   })
@@ -33,8 +40,8 @@ test("Actor - автоматическая генерация корневых �
       context: {},
       states: { idle: {} },
       processes: {},
-      reactions: { reactions: {} , states: {}},
-      core: {}
+      reactions: { reactions: {}, states: {} },
+      core: {},
     },
     id: "test3",
   })
@@ -61,8 +68,8 @@ test("Actor - явное указание path переопределяет ав
     context: {},
     states: { idle: {} },
     processes: {},
-    reactions: { reactions: {} , states: {}},
-    core: {}
+    reactions: { reactions: {}, states: {} },
+    core: {},
   }
 
   // Создаем актор с явным path
@@ -93,8 +100,8 @@ test("Actor - счетчик путей инкрементируется кор�
     context: {},
     states: { idle: {} },
     processes: {},
-    reactions: { reactions: {} , states: {}},
-    core: {}
+    reactions: { reactions: {}, states: {} },
+    core: {},
   }
 
   const actors: Actor[] = []
@@ -126,7 +133,7 @@ test("Actor.fromSchema - поддержка параметра path", () => {
     context: {},
     states: { idle: {} },
     processes: {},
-    reactions: { reactions: {} , states: {}},
+    reactions: { reactions: {}, states: {} },
     core: {},
     render: [],
   }

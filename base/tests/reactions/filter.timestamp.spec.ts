@@ -2,7 +2,7 @@ import { reactionsFromSchema } from "../../reactions"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
 import { reactionsSchema } from "../../../schema/reactions"
-import type { JsonPatch } from "../../../actor.t"
+import type { JsonPatch } from "../../force/electromagnetic.t"
 
 type Ctx = { value: { type: "number"; required: true } }
 type State = "idle" | "active"
@@ -35,7 +35,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при точном совпадении").toBe(true)
@@ -63,7 +63,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция не должна сработать при несовпадении").toBe(false)
@@ -92,7 +92,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при eq условии").toBe(true)
@@ -120,7 +120,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при notEq условии").toBe(true)
@@ -148,7 +148,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при gt условии").toBe(true)
@@ -177,7 +177,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при gte условии").toBe(true)
@@ -205,7 +205,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при lt условии").toBe(true)
@@ -234,7 +234,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при lte условии").toBe(true)
@@ -262,7 +262,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при notGt условии").toBe(true)
@@ -290,7 +290,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при notGte условии").toBe(true)
@@ -318,7 +318,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при notLt условии").toBe(true)
@@ -346,7 +346,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при notLte условии").toBe(true)
@@ -374,7 +374,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при between условии").toBe(true)
@@ -408,7 +408,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при комбинированных условиях").toBe(true)
@@ -436,7 +436,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать при undefined timestamp (преобразуется в 0)").toBe(true)
@@ -466,7 +466,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать для сообщений последней минуты").toBe(true)
@@ -496,7 +496,7 @@ describe("Фильтрация по временной метке (timestamp)", 
       state: "idle",
       core,
       update: fakeUpdate,
-        self: { meta: "test", actor: "test-actor", path: "0" },
+      self: { meta: "test", actor: "test-actor", path: "0" },
     })
 
     expect(core.called, "реакция должна сработать для сообщений в диапазоне времени").toBe(true)

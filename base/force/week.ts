@@ -4,7 +4,7 @@ import { checkTransition } from "../states"
 import type { Conditions, Transitions } from "../states.t"
 import type { Core } from "./gravity.t"
 import { type Reactions } from "../reactions"
-import type { Message } from "../../actor.t"
+import type { Message } from "./electromagnetic"
 import type { Schema, Values } from "@zavx0z/context"
 
 export abstract class Week extends Electromagnetic {

@@ -1,9 +1,10 @@
+// @ts-nocheck
 import "../../../../metafor.ts"
 import { describe, expect, test } from "bun:test"
 import { messagesFixture } from "../../../../fixture/message.ts"
 
 describe.skip("MetaFor: инициализация без действия", async () => {
-  const hash = MetaFor("test-without-action")
+  const meta = MetaFor("test-without-action")
     .context((t) => ({
       value: t.string.optional("ctx_1"),
     }))
@@ -17,17 +18,17 @@ describe.skip("MetaFor: инициализация без действия", asy
     .reactions()
     .view()
 
-  const { waitForMessages } = messagesFixture({ meta: hash.name })
+  const { waitForMessages } = messagesFixture({ meta: meta.name })
   const messages = await waitForMessages(10)
 
   test("патч add содержит полную информацию об акторе", () => {
     const message = messages[0]!
     const patch = message.patches[0]!
-
+    console.log(meta)
     expect(patch.op, "patch.op должен быть 'add'").toBe("add")
     expect(patch.path, "patch.path должен быть '/' ").toBe("/")
     expect(message, "message должен содержать snapshot").toEqual({
-      meta: hash.name,
+      meta: meta.name,
       actor: { index: "0" },
       timestamp: expect.any(Number),
       patches: [
@@ -63,7 +64,7 @@ describe.skip("MetaFor: инициализация без действия", asy
     expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
     expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
     expect(message, "message должен содержать snapshot").toEqual({
-      meta: hash.name,
+      meta: meta.name,
       actor: { index: "0" },
       timestamp: expect.any(Number),
       patches: [

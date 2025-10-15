@@ -1,6 +1,5 @@
 import { afterAll } from "bun:test"
-import { type Message } from "../actor.t"
-import { CHANNEL } from "../base/force/electromagnetic"
+import { type Message } from "../base/force/electromagnetic"
 
 export const messagesFixture = (options?: {
   meta: string
@@ -9,7 +8,7 @@ export const messagesFixture = (options?: {
   onmessage: (cb: (message: Message) => void) => void
   waitForMessages: (delay?: number) => Promise<Message[]>
 } => {
-  const channel = new BroadcastChannel(CHANNEL)
+  const channel = new BroadcastChannel("actor-force")
   afterAll(() => channel.close())
   const messages: Message[] = []
 

@@ -6,12 +6,12 @@ import { Electromagnetic } from "../force/electromagnetic"
 describe("Коммуникация между акторами в разных потоках/воркерах", () => {
   beforeEach(() => {
     // @ts-ignore
-    Electromagnetic.chargedActors.clear()
+    // Electromagnetic.chargedActors.clear()
   })
 
   afterEach(() => {
     // @ts-ignore
-    Electromagnetic.chargedActors.clear()
+    // Electromagnetic.chargedActors.clear()
   })
 
   const testSchema: Meta = {
