@@ -46,4 +46,15 @@ export abstract class Field {
   public readonly meta: string
 
   public readonly id: string
+
+  static get all(): Array<{ actor: string; meta: string; path: string }> {
+    const fields = Fields.get()
+    const paths: Array<{ actor: string; meta: string; path: string }> = []
+    if (!fields) return paths
+    // @ts-ignore
+    for (const [key, actor] of fields.actors.entries()) {
+      paths.push({ actor: key, meta: actor.meta, path: actor.path })
+    }
+    return paths
+  }
 }
