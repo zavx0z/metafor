@@ -3,6 +3,8 @@ import { Electromagnetic } from "./electromagnetic"
 import { Week } from "./week"
 
 export abstract class Strong extends Week {
+  // ------------------------------ процесс ----------------------------------------
+
   /** индикатор выполнения процесса */
   #process = false
 
@@ -17,6 +19,8 @@ export abstract class Strong extends Week {
     if (!process) this.transition()
   }
 
+  // ------------------------------ контекст ----------------------------------------
+
   /** обновление контекста */
   update(context: Partial<Values<Schema>>): Partial<Values<Schema>> {
     if (Electromagnetic.isLocked && this.wired) return {}
@@ -25,5 +29,26 @@ export abstract class Strong extends Week {
       this.sendMessage(this.msgUpdateContext(updated))
     }
     return updated
+  }
+
+  // ------------------------------ состояние ----------------------------------------
+
+  protected stateListeners = new Set<(state: string) => void>()
+
+  protected setState(state: string) {
+    if (Electromagnetic.isLocked && this.wired) return
+    this.state.current = state
+    if (this.stateListeners.size > 0) {
+      for (const listener of this.stateListeners) listener(state)
+    }
+  }
+
+  public onStateChange(listener: (state: string) => void): () => void {
+    this.stateListeners.add(listener)
+    return () => this.unsubscribeState(listener)
+  }
+  
+  private unsubscribeState(listener: (state: string) => void) {
+    this.stateListeners.delete(listener)
   }
 }

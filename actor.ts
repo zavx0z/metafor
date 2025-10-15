@@ -1,7 +1,6 @@
 import { contextFromSchema, type Context, type Schema, type Values } from "@zavx0z/context"
 import { processesFromSchema, type Process, type Processes } from "./base/processes"
 import { reactionsFromSchema, type Reactions } from "./base/reactions"
-import { Electromagnetic } from "./base/force/electromagnetic"
 export { Fields } from "./base/fields"
 import type { Node as ParseNode } from "@zavx0z/template"
 import type { Snapshot } from "./actor.t"
@@ -55,29 +54,9 @@ export class Actor extends Strong {
     super.destroy(recursive)
   }
 
-  // -----------------------------------------------------------------------------------
+  // ------------------------------ действия ------------------------------------------
 
-  // ---------- подписки на смену состояния ----------
-
-  stateListeners = new Set<(state: string) => void>()
-
-  setState(state: string) {
-    if (Electromagnetic.isLocked && this.wired) return
-    this.state.current = state
-    if (this.stateListeners.size > 0) {
-      for (const listener of this.stateListeners) listener(state)
-    }
-  }
-
-  onStateChange(listener: (state: string) => void): () => void {
-    this.stateListeners.add(listener)
-    return () => this.unsubscribeState(listener)
-  }
-  unsubscribeState(listener: (state: string) => void) {
-    this.stateListeners.delete(listener)
-  }
-
-  executeAction(process: Process<any, any>) {
+  protected executeAction(process: Process<any, any>) {
     try {
       this.sendMessage(this.msgStateBeforeAction)
       const result = process.action({
