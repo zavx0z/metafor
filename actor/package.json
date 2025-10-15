@@ -1,0 +1,31 @@
+{
+  "name": "@metafor/actor",
+  "author": "zavx0z",
+  "version": "0.4.4",
+  "type": "module",
+  "private": false,
+  "exports": {
+    ".": {
+      "import": "./dist/actor.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "README.ru.md"
+  ],
+  "scripts": {
+    "pub": "bun run build && bun run typegen && bun publish --access public --tag latest",
+    "build": "rm -rf ./dist && bun run build:prod && bun run build:dev",
+    "build:prod": "bun build actor.ts --outdir ./dist --minify --entry-naming [name].min.[ext]",
+    "build:dev": "bun build actor.ts --outdir ./dist --sourcemap=linked",
+    "typegen": "bunx dts-bundle-generator --out-file ./dist/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/template -- actor.ts",
+    "docs": "typedoc",
+    "doc:push": "bun run script/doc.push.ts"
+  },
+  "dependencies": {
+    "@zavx0z/context": "2.3.0"
+  }
+}

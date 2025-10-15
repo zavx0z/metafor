@@ -1,5 +1,5 @@
 import { afterAll } from "bun:test"
-import { type Message } from "../../../base/force/electromagnetic"
+import { type Message } from "../../../actor/force/electromagnetic"
 
 export const messagesFixture = (options?: {
   meta: string

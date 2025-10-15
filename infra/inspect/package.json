@@ -1,0 +1,31 @@
+{
+  "name": "@metafor/inspect",
+  "author": "zavx0z",
+  "version": "0.4.0",
+  "type": "module",
+  "private": false,
+  "exports": {
+    "./web": {
+      "import": "./dist/web/logger.js",
+      "types": "./dist/web/index.d.ts"
+    },
+    "./server": {
+      "import": "./dist/server/logger.js",
+      "types": "./dist/server/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "pub": "bun publish --access public --tag latest",
+    "prepublish": "bun run web:build && bun run server:build && bun run web:typegen && bun run server:typegen",
+    "web:build": "bun build web/logger.ts --outdir ./dist/web",
+    "server:build": "bun build server/logger.ts --outdir ./dist/server",
+    "web:typegen": "bunx dts-bundle-generator --out-file ./dist/web/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/template -- web/logger.ts",
+    "server:typegen": "bunx dts-bundle-generator --out-file ./dist/server/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true -- server/logger.ts"
+  },
+  "dependencies": {
+    "@metafor/actor": "workspace:*"
+  }
+}

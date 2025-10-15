@@ -5,8 +5,8 @@
   "type": "module",
   "private": true,
   "workspaces": [
-    "./base",
-    "./schema",
+    "./meta",
+    "./actor",
     "./infra/*"
   ],
   "devDependencies": {

@@ -35,6 +35,7 @@
         "package.json": "package-lock.json, yarn.lock, pnpm-lock.yaml, bun.lock, bun.lockb, bunfig.toml, .npmrc",
         "*.ts": "${capture}.t.ts, ${capture}.spec.ts, ${capture}.md",
         "*.js": "${capture}.js.map, ${capture}.min.js, ${capture}.html",
+        "*.md": "${capture}.ru.md"
     },
     "colorize.languages": [
         "javascript",
