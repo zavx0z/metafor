@@ -1,4 +1,4 @@
-import type { Actor } from "../../actor"
+import type { Actor, Message } from "../actor"
 import { Fields } from "../fields"
 import { Field } from "../field"
 import type { Core } from "./gravity.t"
@@ -7,6 +7,7 @@ export type { Core }
 
 export abstract class Gravity extends Field {
   // -------------------------- Жизненный цикл -----------------------------------------
+
   protected constructor(id: string, meta: string, core?: Core) {
     super(id, meta)
     Gravity.coreWeakMap.set(this, core || {})
@@ -19,6 +20,7 @@ export abstract class Gravity extends Field {
     Gravity.coreWeakMap.delete(this)
     super.destroy(recursive)
   }
+
   // ------------------------------------------------------------------------------------
 
   /** Актуальный индекс-путь вида `"0/1/2"` (или пустая строка, если актор ещё не в Fields). */
@@ -34,6 +36,7 @@ export abstract class Gravity extends Field {
   }
 
   // ------------------------------- Ядро ---------------------------------------------
+
   private static coreWeakMap = new WeakMap<Gravity, Core>()
 
   public get core() {

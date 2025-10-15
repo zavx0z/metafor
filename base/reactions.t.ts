@@ -8,7 +8,7 @@ import type { Schema, Update, Values } from "@zavx0z/context"
 import type { JsonPatch } from "./force/electromagnetic.t"
 import type { Core } from "./force/gravity.t"
 import type { ReactionAction } from "../schema/reactions.t"
-import type { Self, SelfInfo } from "../metafor.t"
+import type { Self, SelfInfo } from "../schema/metafor.t"
 
 export type ReactionParams = {
   meta: string

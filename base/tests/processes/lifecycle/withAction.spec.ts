@@ -1,6 +1,6 @@
-import "../../../../metafor.ts"
+import "../../../../schema/metafor.ts"
 import { describe, expect, test } from "bun:test"
-import { messagesFixture } from "../../../../fixture/message.ts"
+import { messagesFixture } from "../../../../infra/test/fixture/message.ts"
 
 describe.skip("MetaFor: инициализация с действиями", async () => {
   const hex = MetaFor("test-with-action")

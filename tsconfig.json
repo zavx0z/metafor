@@ -30,11 +30,10 @@
   "exclude": [
     "**/script/**/*",
     "docs",
-    "dist/**/*",
-    "node_modules/**/*",
+    "*/dist/**/*",
+    "*/node_modules/**/*",
     ".idea/**/*",
     ".cursor/**/*",
-    ".vscode/**/*",
-    "base/view/parser/*"
+    ".vscode/**/*"
   ]
 }

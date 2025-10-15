@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
-import { Actor } from "../../actor"
-import type { Meta } from "../../metafor"
+import { Actor } from "../actor"
+import type { Meta } from "../../schema/metafor"
 
 describe("Внутренний механизм коммуникации между акторами", () => {
   beforeEach(() => {

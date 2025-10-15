@@ -2,7 +2,7 @@ import type { Schema, Values } from "@zavx0z/context"
 import type { Core } from "../base/force/gravity.t"
 import type { ReactionFilterConditions } from "../base/condition.t"
 import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction } from "./reactions.t"
-import type { SelfInfo } from "../metafor.t"
+import type { SelfInfo } from "./metafor.t"
 export type { ReactionsDeclaration, ReactionsSchema }
 
 export const reactionsSchema = <C extends Schema, S extends string, I extends Core = {}>(

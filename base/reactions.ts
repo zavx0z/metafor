@@ -7,7 +7,7 @@ import type { Core } from "./force/gravity.t"
 import type { ReactionParams, Reactions } from "./reactions.t"
 import type { ReactionAction, ReactionsSchema } from "../schema/reactions.t"
 import type { ReactionFilterConditions } from "./condition.t"
-import type { SelfInfo } from "../metafor.t"
+import type { SelfInfo } from "../schema/metafor.t"
 export type { Reactions } from "./reactions.t"
 /**
  * Десериализует реакции из схемы и возвращает объект с функциями для работы с реакциями.

@@ -3,7 +3,7 @@ import type { JsonPatch } from "../base/force/electromagnetic.t"
 import type { Core } from "../base/force/gravity.t"
 import type { ReactionFilterConditions } from "../base/condition.t"
 import type { ReactionParams } from "../base/reactions.t"
-import type { Self, SelfInfo } from "../metafor.t"
+import type { Self, SelfInfo } from "./metafor.t"
 
 /**
  * Конфигурация одной реакции

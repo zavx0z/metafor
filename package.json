@@ -1,9 +1,14 @@
 {
-  "name": "@zavx0z/metafor",
+  "name": "@metafor/space",
   "author": "zavx0z",
   "version": "0.4.0",
   "type": "module",
   "private": true,
+  "workspaces": [
+    "./base",
+    "./schema",
+    "./infra/*"
+  ],
   "devDependencies": {
     "@types/bun": "^1.2.23",
     "dts-bundle-generator": "^9.5.1",
@@ -15,23 +20,8 @@
   },
   "scripts": {
     "upd": "bun update --latest && bun i",
-    "build": "bun run build:metafor && bun run typegen:metafor && bun run build:actor && bun run typegen:actor",
-    "build:metafor": "bun build metafor.ts --outdir ./dist",
-    "typegen:metafor": "dts-bundle-generator --out-file ./dist/metafor.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/template -- metafor.ts",
-    "build:actor": "bun build actor.ts --outdir ./dist",
-    "typegen:actor": "dts-bundle-generator --out-file ./dist/actor.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/template -- actor.ts",
-    "build:web": "bun build ./web/log.js --outdir ./dist/web",
-    "build:server": "bun build ./server/log.ts --outdir ./dist/server",
-    "rebuild:dev": "bun run server:build:dev && bun run web:build:dev",
-    "server:build:dev": "bun run server/script/build.ts --dev",
-    "server:build:prod": "bun run server/script/build.ts --prod",
-    "server:typegen": "bun run server/script/typegen.ts",
-    "web:build:dev": "bun run web/script/build.ts --dev",
-    "web:build:prod": "bun run web/script/build.ts --prod",
-    "web:typegen": "bun run web/script/typegen.ts",
-    "docs": "typedoc",
-    "doc:push": "bun run script/doc.push.ts",
-    "web:build:watch": "bun build ./web/metafor --outdir ./dist/web --watch"
+    "build": "bun --filter @metafor/schema build && bun --filter @metafor/base typegen",
+    "typegen": "bun --filter @metafor/schema typegen && bun --filter @metafor/base typegen"
   },
   "dependencies": {
     "@zavx0z/context": "2.3.0",

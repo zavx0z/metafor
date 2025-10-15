@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from "bun:test"
-import { Actor } from "../../actor"
+import { Actor } from "../actor"
 import { Fields } from "../fields"
-import type { Meta } from "../../metafor"
+import type { Meta } from "../../schema/metafor"
 
 describe("Очистка ресурсов актора", () => {
   beforeEach(() => {

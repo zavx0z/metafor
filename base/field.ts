@@ -1,4 +1,4 @@
-import { Fields } from "../actor"
+import { Fields } from "./actor"
 import { type Context, type Schema } from "@zavx0z/context"
 
 export abstract class Field {

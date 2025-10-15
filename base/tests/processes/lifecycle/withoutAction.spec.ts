@@ -1,7 +1,7 @@
 // @ts-nocheck
-import "../../../../metafor.ts"
+import "../../../../schema/metafor.ts"
 import { describe, expect, test } from "bun:test"
-import { messagesFixture } from "../../../../fixture/message.ts"
+import { messagesFixture } from "../../../../infra/test/fixture/message.ts"
 
 describe.skip("MetaFor: инициализация без действия", async () => {
   const meta = MetaFor("test-without-action")

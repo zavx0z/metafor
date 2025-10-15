@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
-import { Actor } from "../../actor"
-import type { Meta } from "../../metafor"
+import { Actor } from "../actor"
+import type { Meta } from "../../schema/metafor"
 import { Electromagnetic } from "../force/electromagnetic"
 
 describe("Коммуникация между акторами в разных потоках/воркерах", () => {

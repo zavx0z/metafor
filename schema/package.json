@@ -1,0 +1,26 @@
+{
+  "name": "@metafor/schema",
+  "author": "zavx0z",
+  "version": "0.4.0",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "bun build index.ts --outdir ./dist",
+    "typegen": "bunx dts-bundle-generator --out-file ./dist/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/template -- index.ts",
+    "docs": "typedoc",
+    "doc:push": "bun run script/doc.push.ts"
+  },
+  "dependencies": {
+    "@zavx0z/template": "^2.6.1"
+  }
+}

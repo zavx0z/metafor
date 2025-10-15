@@ -1,4 +1,4 @@
-import type { Snapshot } from "../../actor.t"
+import type { Snapshot } from "../actor.t"
 import type { Message } from "./electromagnetic.t"
 import { Gravity, type Core } from "./gravity"
 import type { Schema, Values } from "@zavx0z/context"
@@ -46,28 +46,6 @@ export abstract class Electromagnetic extends Gravity {
     super.destroy(recursive)
   }
 
-  // -------------------------- Управление жизненным циклом ------------------------------
-
-  private static lock = false
-  private static queue: Message[] = []
-
-  static break() {
-    Electromagnetic.lock = true
-  }
-
-  static resume() {
-    for (const message of Electromagnetic.queue) {
-    }
-    Electromagnetic.queue = []
-    Electromagnetic.lock = false
-  }
-
-  static get isLocked(): boolean {
-    return Electromagnetic.lock
-  }
-
-  static step() {}
-
   // -------------------------- Каналы -----------------------------------------
 
   protected wired = false
@@ -107,6 +85,31 @@ export abstract class Electromagnetic extends Gravity {
         actor.handleReactionMessage({ data: message } as MessageEvent<Message>)
     }
     if (Electromagnetic.useBroadcastChannel && Electromagnetic.channel) Electromagnetic.channel.postMessage(message)
+  }
+
+  // -------------------------- Управление жизненным циклом ------------------------------
+
+  protected static lock = false
+  protected static queue: Message[] = []
+
+  public static break() {
+    this.lock = true
+  }
+
+  public static resume() {
+    for (const message of this.queue) {
+      console.log("resume", message)
+    }
+    this.queue = []
+    this.lock = false
+  }
+
+  public static get isLocked(): boolean {
+    return this.lock
+  }
+
+  public static step() {
+    console.log(this.queue)
   }
 
   // ---------------------------- сообщения ------------------------------------

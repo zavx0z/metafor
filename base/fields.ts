@@ -14,7 +14,7 @@
  * - Доступ к глобальному синглтону через `Fields.get()`.
  */
 
-import type { Actor } from "../actor"
+import type { Actor } from "./actor"
 
 /** Лексикографический ключ порядка среди детей одного родителя. */
 export type Key = Uint8Array
@@ -641,7 +641,7 @@ export class Fields {
     if (parentIndex >= 0) {
       // Удаляем родителя из массива детей его родителя
       parentChildren.splice(parentIndex, 1)
-      
+
       // Вставляем детей на место родителя
       parentChildren.splice(parentIndex, 0, ...children)
     } else {
@@ -657,7 +657,7 @@ export class Fields {
    */
   public remove(id: string, recursive = false): void {
     if (!this.actors.has(id)) return
-    
+
     if (recursive) {
       // Рекурсивное удаление: удаляем всех детей
       const kids = [...this.getChildren(id)]
@@ -666,7 +666,7 @@ export class Fields {
       // Нерекурсивное удаление: переносим детей на уровень родителя
       this.promoteChildren(id)
     }
-    
+
     this.unlink(id)
     this.actors.delete(id)
     this.meta.delete(id)
