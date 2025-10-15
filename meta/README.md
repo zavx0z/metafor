@@ -1,5 +1,7 @@
 # MetaFor
 
+**English** | [Русский](README.ru.md)
+
 > ⚠️ **Project Status**: MetaFor is currently in active development phase. Documentation may contain inaccuracies and is subject to change as the framework evolves.  
 > 🚨 **Production Use**: Use in production at your own risk. The framework is not yet stable and may contain breaking changes.  
 > 🌍 **Language Note**: The author is a native Russian speaker and Russian text may be found throughout the codebase. When the framework reaches its first stable version, everything will be translated to English.
@@ -21,13 +23,6 @@
 - **Actor hierarchy** — managing actor tree with automatic path generation
 - **Extended filters** — context access in reactions with declarative conditions
 
-## 🌐 Language Versions
-
-- **English** (current) - Default documentation
-- **[Русский](../README.ru.md)** - Russian documentation
-
----
-
 ## 🎯 Quick Start
 
 ```typescript
@@ -39,7 +34,7 @@ const counter = MetaFor("counter")
   .states({
     idle: { loading: {} },
     loading: {
-      success: { count: {qt: 0} },
+      success: { count: { qt: 0 } },
       error: { isLoading: false },
     },
     success: { idle: {} },
