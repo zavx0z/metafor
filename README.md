@@ -72,3 +72,12 @@ For detailed information about capabilities, API, and usage examples of MetaFor,
 - [🔧 API Reference](meta/README.md#-api-reference)
 - [🎨 Examples](meta/README.md#-examples)
 - [🔍 Debugging](meta/README.md#-debugging)
+
+## 📅 Short-term Plans
+
+- [x] `@metafor/insect` - print changes and initiators in the browser console
+- [ ] `@metafor/inspect` - pause and slow down system time (debugger)
+- [ ] `@metafor/virtual` - visualize with virtual particles during initialization of graphics system dependencies
+- [ ] `@metafor/mesh` - 3D system
+- [ ] `@metafor/xr` - VR/AR system
+- [ ] `ROADMAP`
