@@ -53,7 +53,10 @@ export class Actor extends Strong {
     super.destroy(recursive, src)
   }
 
-  // ------------------------------ действия ------------------------------------------
+  // ------------------------------ выполнение процесса ------------------------------------------
+  protected processAction(){}
+  protected processSuccess(){}
+  protected processError(){}
 
   protected async executeAction(process: Process): Promise<any> {
     try {
@@ -95,7 +98,6 @@ export class Actor extends Strong {
     return {
       name: this.meta,
       state: this.state.current,
-      process: this.process,
       states: this.state.states,
       context: this.ctx.snapshot,
       ...(this.desc ? { desc: this.desc } : {}),

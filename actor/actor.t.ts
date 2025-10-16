@@ -30,8 +30,6 @@ export interface Snapshot<C extends Schema, S extends string> {
   style?: string
   /** Текущее состояние */
   state: S
-  /** Индикатор выполнения процесса в текущем состоянии */
-  process: boolean
   /** Снимок контекста */
   context: ContextSnapshot<C>
   core: string[]

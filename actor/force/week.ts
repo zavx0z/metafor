@@ -10,15 +10,26 @@ import type { Schema, Values } from "@zavx0z/context"
 export abstract class Week extends Electromagnetic {
   protected abstract processes: Processes
   protected abstract reactions: Reactions
-  protected abstract process: boolean
 
   protected abstract update(context: Partial<Values<Schema>>, src: string): Partial<Values<Schema>>
   protected abstract setState(state: string): void
-  protected abstract setProcess(process: boolean): void
   protected abstract executeAction(process: Process): Promise<any>
 
   constructor(id: string, meta: string, core?: Core) {
     super(id, meta, core)
+  }
+  // ------------------------------ процесс ----------------------------------------
+
+  #process: Process | null = null
+
+  protected get process() {
+    return this.#process
+  }
+
+  protected setProcess(process: Process | null) {
+    if (this.#process === process) return
+    this.#process = process
+    if (!process) this.transition()
   }
 
   // ---------------------------- переходы ------------------------------------
@@ -32,13 +43,13 @@ export abstract class Week extends Electromagnetic {
     const process = this.processes.getProcess(this.state.current)
     if (process) {
       if (!this.requestStartProcess()) return
-      this.setProcess(true)
+      this.setProcess(process)
 
       this.executeAction(process)
         .then(() => this.sendMessage(this.msgStateSuccess()))
         .catch(() => this.sendMessage(this.msgStateError()))
         .finally(() => {
-          this.setProcess(false)
+          this.setProcess(null)
           this.transition()
         })
     } else {
@@ -53,18 +64,18 @@ export abstract class Week extends Electromagnetic {
     if (!transitions) return
     for (const [state, transition] of Object.entries(transitions)) {
       if (checkTransition(transition as Conditions, this.ctx.context)) {
-        const process = this.processes.getProcess(state)
         if (this.process) return
+        const process = this.processes.getProcess(state)
         if (process) {
           if (!this.requestStartProcess()) return
-          this.setProcess(true)
+          this.setProcess(process)
           this.setState(state)
 
           this.executeAction(process)
             .then(() => this.sendMessage(this.msgStateSuccess()))
             .catch(() => this.sendMessage(this.msgStateError()))
             .finally(() => {
-              this.setProcess(false)
+              this.setProcess(null)
               this.transition()
             })
         } else {

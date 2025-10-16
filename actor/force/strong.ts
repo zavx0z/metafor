@@ -7,22 +7,8 @@ export abstract class Strong extends Week {
 
   public override destroy(recursive = true, src = MsgSrc.Nothing) {
     this.stateListeners.clear()
+    this.ctx.clearSubscribers()
     super.destroy(recursive, src)
-  }
-
-  // ------------------------------ процесс ----------------------------------------
-
-  /** индикатор выполнения процесса */
-  #process = false
-
-  get process() {
-    return this.#process
-  }
-
-  protected override setProcess(process: boolean) {
-    if (this.#process === process) return
-    this.#process = process
-    if (!process) this.transition()
   }
 
   // ------------------------------ контекст ----------------------------------------
