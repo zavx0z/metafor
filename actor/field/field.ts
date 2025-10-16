@@ -1,7 +1,7 @@
-import type { StatesConfig } from "../meta/states.t"
+import type { StatesConfig } from "../../meta/states.t"
 import { type Context, type Schema } from "@zavx0z/context"
 import { Fields } from "./fields"
-import type { Actor } from "./actor"
+import type { Actor } from "../actor"
 
 export abstract class Field {
   public readonly meta: string
@@ -40,7 +40,7 @@ export abstract class Field {
     fields.remove(this.id, false) // false, так как мы уже обработали детей
   }
   // -------------------------------------------------------------------
-  
+
   protected static getActor(id: string): Actor | null {
     const fields = Fields.get()
     if (!fields) return null

@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeEach } from "bun:test"
-import { Fields } from "../fields"
+import { Fields } from "../field/fields"
 import type { Actor } from "../actor"
 
-const A = (id: string, payload?: unknown): Actor => ({ id, payload }) as unknown as Actor
+const A = (id: string, payload?: unknown): Actor => ({ id, payload } as unknown as Actor)
 
 describe("Продвижение детей при нерекурсивном удалении", () => {
   let fields: Fields

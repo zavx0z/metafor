@@ -41,7 +41,12 @@ export interface Message extends BaseMessage {
   patches: JsonPatch[]
 }
 
-export type JsonPatch = { op: "replace" | "add" | "remove" | "test"; path: string; value?: any }
+export type JsonPatch = {
+  from?: string
+  op: "replace" | "add" | "remove" | "test" | "move" | "copy"
+  path: string
+  value?: any
+}
 
 export enum MsgSrc {
   Transition = "t",

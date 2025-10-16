@@ -1,6 +1,6 @@
 import type { Actor } from "../actor"
-import { Fields } from "../fields"
-import { Field } from "../field"
+import { Field } from "../field/field"
+import { Fields } from "../field/fields"
 import type { Core } from "./gravity.t"
 
 export type { Core }

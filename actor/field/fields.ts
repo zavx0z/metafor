@@ -14,7 +14,7 @@
  * - Доступ к глобальному синглтону через `Fields.get()`.
  */
 
-import type { Actor } from "./actor"
+import type { Actor } from "../actor"
 
 /** Лексикографический ключ порядка среди детей одного родителя. */
 export type Key = Uint8Array

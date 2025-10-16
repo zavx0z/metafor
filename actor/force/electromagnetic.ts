@@ -2,7 +2,7 @@ import type { Snapshot } from "../actor.t"
 import { MsgSrc, type Message } from "./electromagnetic.t"
 import { Gravity, type Core } from "./gravity"
 import type { Schema, Values } from "@zavx0z/context"
-import { Field } from "../field"
+import { Field } from "../field/field"
 
 export { MsgSrc }
 export type { Message }
@@ -38,7 +38,7 @@ export abstract class Electromagnetic extends Gravity {
 
   public override destroy(recursive = true, src = MsgSrc.Nothing) {
     Electromagnetic.chargedActors.delete(this)
-    this.sendMessage(this.msgRemove(src))
+    this.requestRemove(src)
     this.disconnected()
     super.destroy(recursive, src)
   }
@@ -103,13 +103,20 @@ export abstract class Electromagnetic extends Gravity {
   public static get isLocked(): boolean {
     return Electromagnetic.lock
   }
+
   private static currentTask: Message | undefined
 
   public static step() {
     const message = Electromagnetic.queue.shift()
-    if (!message) return
+    if (!message) {
+      console.warn("resume message not found")
+      return
+    }
     const actor = Field.getActor(message.actor)
-    if (!actor) return
+    if (!actor) {
+      console.error("resume actor not found", message.meta, message.actor, message.path)
+      return
+    }
 
     for (const patch of message.patches) {
       switch (patch.op) {
@@ -118,6 +125,10 @@ export abstract class Electromagnetic extends Gravity {
           actor.transit()
           break
         case "replace":
+          if (patch.path === "/context") {
+            console.log("resume update context")
+            actor.update(patch.value, message.src)
+          }
           console.log("resume update")
           // actor.update(patch.value)
           break
@@ -127,7 +138,8 @@ export abstract class Electromagnetic extends Gravity {
           break
         case "test":
           console.log("resume transition")
-          actor.transition()
+          // @ts-ignore
+          actor.recursive(actor.processes.getProcess(actor.state.current))
           break
       }
     }
@@ -160,6 +172,12 @@ export abstract class Electromagnetic extends Gravity {
     return false
   }
 
+  /**
+   * 
+   * При дебаге
+   * 1. Инициализация актора
+   
+   */
   protected requestInit(): boolean {
     const msg: Message = {
       meta: this.meta,
@@ -192,8 +210,8 @@ export abstract class Electromagnetic extends Gravity {
     return this.debugMessage(msg)
   }
 
-  protected msgUpdateContext(context: Partial<Values<Schema>>, src: MsgSrc): Message {
-    return {
+  protected requestUpdateContext(context: Partial<Values<Schema>>, src: MsgSrc): boolean {
+    const msg: Message = {
       meta: this.meta,
       actor: this.id,
       path: this.path,
@@ -201,9 +219,20 @@ export abstract class Electromagnetic extends Gravity {
       src,
       patches: [{ op: "replace", path: "/context", value: context }],
     }
+    if (!Electromagnetic.lock) {
+      this.sendMessage(msg)
+      return true
+    }
+    if (src === MsgSrc.Success && msg.actor === this.id) {
+      this.sendMessage(msg)
+      return true
+    } else {
+      return this.debugMessage(msg)
+    }
   }
-  protected msgStateSuccess(): Message {
-    return {
+
+  protected requestStateSuccess(): boolean {
+    const msg: Message = {
       meta: this.meta,
       actor: this.id,
       path: this.path,
@@ -211,9 +240,15 @@ export abstract class Electromagnetic extends Gravity {
       src: MsgSrc.Success,
       patches: [{ op: "replace", path: "/state", value: this.state.current }],
     }
+    if (!Electromagnetic.lock) {
+      this.sendMessage(msg)
+      return true
+    }
+    return this.debugMessage(msg)
   }
-  protected msgStateError(): Message {
-    return {
+
+  protected requestStateError(): boolean {
+    const msg: Message = {
       meta: this.meta,
       actor: this.id,
       path: this.path,
@@ -221,9 +256,15 @@ export abstract class Electromagnetic extends Gravity {
       src: MsgSrc.Error,
       patches: [{ op: "replace", path: "/state", value: this.state.current }],
     }
+    if (!Electromagnetic.lock) {
+      this.sendMessage(msg)
+      return true
+    }
+    return this.debugMessage(msg)
   }
-  protected msgTransition(): Message {
-    return {
+
+  protected requestTransition(): boolean {
+    const msg: Message = {
       meta: this.meta,
       actor: this.id,
       path: this.path,
@@ -231,9 +272,15 @@ export abstract class Electromagnetic extends Gravity {
       src: MsgSrc.Transition,
       patches: [{ op: "replace", path: "/state", value: this.state.current }],
     }
+    if (!Electromagnetic.lock) {
+      this.sendMessage(msg)
+      return true
+    }
+    return this.debugMessage(msg)
   }
-  private msgRemove(src: MsgSrc): Message {
-    return {
+
+  private requestRemove(src: MsgSrc): boolean {
+    const msg: Message = {
       meta: this.meta,
       actor: this.id,
       path: this.path,
@@ -241,5 +288,10 @@ export abstract class Electromagnetic extends Gravity {
       src,
       patches: [{ op: "remove", path: "/" }],
     }
+    if (!Electromagnetic.lock) {
+      this.sendMessage(msg)
+      return true
+    }
+    return this.debugMessage(msg)
   }
 }

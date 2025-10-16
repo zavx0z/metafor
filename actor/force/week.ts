@@ -38,15 +38,17 @@ export abstract class Week extends Electromagnetic {
   }
 
   protected resolve() {
-    if (this.result && this.process?.success) this.process.success({ update: this.update, data: this.result })
-    this.sendMessage(this.msgStateSuccess())
+    if (this.result && this.process?.success) {
+      this.process.success({ update: this.update, data: this.result })
+    }
+    if (!this.requestStateSuccess()) return
     this.process = null
     this.transition()
   }
 
   protected reject() {
     if (this.error && this.process?.error) this.process.error({ update: this.update, error: this.error })
-    this.sendMessage(this.msgStateError())
+    if (!this.requestStateError()) return
     this.error = null
     this.process = null
     this.transition()
@@ -83,7 +85,7 @@ export abstract class Week extends Electromagnetic {
       if (!this.requestStartProcess()) return
       this.action().then(this.resolve).catch(this.reject)
     } else {
-      this.sendMessage(this.msgTransition())
+      this.requestTransition()
       this.transition()
     }
   }

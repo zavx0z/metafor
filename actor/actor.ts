@@ -3,7 +3,7 @@ import { processesFromSchema } from "./processes"
 import { reactionsFromSchema } from "./reactions"
 
 import type { Meta } from "../meta/metafor"
-import { Fields } from "./fields"
+import { Fields } from "./field/fields"
 import { Strong } from "./force/strong"
 import { MsgSrc } from "./force/electromagnetic"
 import type { Core } from "./force/gravity"

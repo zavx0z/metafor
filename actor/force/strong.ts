@@ -6,6 +6,7 @@ import type { StatesConfig } from "../../meta/metafor"
 import type { Processes } from "../processes"
 import type { Reactions } from "../reactions"
 import type { Node as ParseNode } from "@zavx0z/template"
+import { Electromagnetic } from "./electromagnetic"
 
 export abstract class Strong extends Week {
   // -------------------------- Жизненный цикл -----------------------------------------
@@ -37,9 +38,14 @@ export abstract class Strong extends Week {
 
   /** обновление контекста */
   update(context: Partial<Values<Schema>>, src: MsgSrc): Partial<Values<Schema>> {
+    const prevContext = Electromagnetic.lock ? { ...this.ctx.context } : {}
+    
     const updated = this.ctx.update(context)
     if (Object.keys(updated).length > 0) {
-      this.sendMessage(this.msgUpdateContext(updated, src))
+      if (!this.requestUpdateContext(updated, src)) {
+        this.ctx.update(prevContext)
+        return {}
+      }
     }
     return updated
   }
