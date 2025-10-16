@@ -864,7 +864,7 @@ describe("интеграция снимков с diffArrays", () => {
       expect(snap2.context).toEqual({ initial: true })
     })
 
-    it("должен обрабатывать патчи с test операциями", () => {
+    it("должен обрабатывать патчи с test операциями как replace", () => {
       const instance = {} as any
       setActorSnapshot(instance, {
         id: "test-actor",
@@ -873,12 +873,10 @@ describe("интеграция снимков с diffArrays", () => {
         context: { value: 42 },
       })
 
-      // Патчи с test операциями (должны проходить если значения совпадают)
+      // Патчи с test операциями (должны изменять значения как replace)
       const patches = [
-        { op: "test" as const, path: "/state", value: "начальное" },
-        { op: "test" as const, path: "/context/value", value: 42 },
-        { op: "replace" as const, path: "/state", value: "изменено" },
-        { op: "replace" as const, path: "/context/value", value: 100 },
+        { op: "test" as const, path: "/state", value: "изменено" },
+        { op: "test" as const, path: "/context/value", value: 100 },
       ]
 
       applyPatchesAndSave(instance, patches)
@@ -891,6 +889,71 @@ describe("интеграция снимков с diffArrays", () => {
       const snap2 = getActorSnapshot(instance)!
       expect(snap2.state).toBe("начальное")
       expect(snap2.context.value).toBe(42)
+    })
+
+    it("должен обрабатывать test операции с массивами", () => {
+      const instance = {} as any
+      setActorSnapshot(instance, {
+        id: "test-actor",
+        path: "test/path",
+        state: "ожидание",
+        context: { items: ["a", "b", "c"] },
+      })
+
+      const patches = [
+        { op: "test" as const, path: "/state", value: "готов" },
+        { op: "test" as const, path: "/context/items/1", value: "x" },
+        { op: "test" as const, path: "/context/items/2", value: "y" },
+      ]
+
+      applyPatchesAndSave(instance, patches)
+      const snap = getActorSnapshot(instance)!
+      expect(snap.state).toBe("готов")
+      expect(snap.context.items).toEqual(["a", "x", "y"])
+
+      // Откат
+      expect(rollbackLast(instance)).toBe(true)
+      const snap2 = getActorSnapshot(instance)!
+      expect(snap2.state).toBe("ожидание")
+      expect(snap2.context.items).toEqual(["a", "b", "c"])
+    })
+
+    it("должен обрабатывать test операции с объектами", () => {
+      const instance = {} as any
+      setActorSnapshot(instance, {
+        id: "test-actor",
+        path: "test/path",
+        state: "ожидание",
+        context: {
+          meta: { id: "old-id", src: "/old.js" },
+          data: "initial",
+        },
+      })
+
+      const newMeta = {
+        tag: "meta-for",
+        src: "/meta/test.js",
+        id: "new-id-123",
+      }
+
+      const patches = [
+        { op: "test" as const, path: "/state", value: "готов" },
+        { op: "test" as const, path: "/context/meta", value: newMeta },
+        { op: "test" as const, path: "/context/data", value: "updated" },
+      ]
+
+      applyPatchesAndSave(instance, patches)
+      const snap = getActorSnapshot(instance)!
+      expect(snap.state).toBe("готов")
+      expect(snap.context.meta).toEqual(newMeta)
+      expect(snap.context.data).toBe("updated")
+
+      // Откат
+      expect(rollbackLast(instance)).toBe(true)
+      const snap2 = getActorSnapshot(instance)!
+      expect(snap2.state).toBe("ожидание")
+      expect(snap2.context.meta).toEqual({ id: "old-id", src: "/old.js" })
+      expect(snap2.context.data).toBe("initial")
     })
 
     it("должен обрабатывать корневой путь /", () => {
