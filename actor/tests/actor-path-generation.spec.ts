@@ -1,5 +1,6 @@
 import { test, expect, beforeEach } from "bun:test"
-import { Actor, Fields } from "../actor"
+import { Actor } from "../actor"
+import { Fields } from "../fields"
 let fields: Fields
 
 beforeEach(() => {

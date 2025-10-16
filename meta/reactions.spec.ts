@@ -17,7 +17,7 @@ describe("схема реакций", () => {
       [
         ["idle", "active"],
         reaction({ label: "inc", desc: "increment value" })
-          .filter(({ self }) => ({
+          .filter(() => ({
             meta: "test",
             op: "replace",
             path: "/context",
@@ -28,13 +28,13 @@ describe("схема реакций", () => {
       [
         ["error"],
         reaction({ label: "reset" })
-          .filter(({ self }) => ({ meta: "any" }))
+          .filter(() => ({ meta: "any" }))
           .equal(({ update }) => update({ value: 0 })),
       ],
     ])
     expect(snapshot).toMatchObject({
       reactions: {
-        inc_0: {
+        0: {
           label: "inc",
           desc: "increment value",
           cond: expect.any(String),
@@ -42,7 +42,7 @@ describe("схема реакций", () => {
           write: ["value"],
           src: expect.any(String),
         },
-        reset_1: {
+        1: {
           label: "reset",
           cond: expect.any(String),
           read: ["value"],
@@ -51,9 +51,9 @@ describe("схема реакций", () => {
         },
       },
       states: {
-        idle: ["inc_0"],
-        active: ["inc_0"],
-        error: ["reset_1"],
+        idle: ["0"],
+        active: ["0"],
+        error: ["1"],
       },
     })
   })
@@ -96,7 +96,7 @@ describe("схема реакций", () => {
       [
         ["idle"],
         reaction({ label: "double" })
-          .filter(({ self }) => ({ meta: "test" }))
+          .filter(() => ({ meta: "test" }))
           .equal(updateFn),
       ],
     ])!
@@ -104,7 +104,9 @@ describe("схема реакций", () => {
     const reactionId = reactionIds[0]!
     const reaction = snapshot.reactions[reactionId]!
 
-    expect(reaction.src, "сохранено строковое представление функции equal").toBe(updateFn.toString())
+    expect(reaction.src, "сохранено строковое представление функции equal").toContain(
+      updateFn.toString().replace(/\}\)$/, "")
+    )
     expect(reaction.read, "прочитаны поля контекста").toEqual(["value"])
     expect(reaction.write, "записаны поля контекста").toEqual(["value"])
   })

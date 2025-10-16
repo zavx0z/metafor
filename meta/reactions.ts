@@ -3,7 +3,7 @@ import type { Core } from "../actor/force/gravity.t"
 import type { ReactionFilterConditions } from "../actor/condition.t"
 import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction } from "./reactions.t"
 import type { SelfInfo } from "./metafor.t"
-import { destroyAppendArg, extractFields, trimArrow, updateAppendArg } from "./parser/func"
+import { destroyAppendArg, extractFields, updateAppendArg } from "./parser/func"
 import { MsgSrc } from "../actor/force/electromagnetic.t"
 export type { ReactionsDeclaration, ReactionsSchema }
 
@@ -22,8 +22,8 @@ export const reactionsSchema = <C extends Schema, S extends string, I extends Co
         const desc = config?.desc
         const id = reactionAutoId++
 
-        const fnTrim = trimArrow(update.toString()) // FIXME: или не обрезать или проверять на rest
-        const destroySrc = destroyAppendArg(fnTrim, `"${MsgSrc.Reaction}:${id}"`)
+        // const fnTrim = trimArrow(update.toString()) // FIXME: или не обрезать или проверять на rest
+        const destroySrc = destroyAppendArg(update.toString(), `"${MsgSrc.Reaction}:${id}"`)
         const src = updateAppendArg(destroySrc, `"${MsgSrc.Reaction}:${id}"`)
 
         reactions[id] = {

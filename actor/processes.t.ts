@@ -277,7 +277,7 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
  */
 export type Process<C extends Schema = Schema, I extends Core = Core, Res = any> = {
   /** Основная функция процесса */
-  action: (params: ActionParams<C, I>) => Res | Promise<Res>
+  action: Action<C, I, Res>
   /** Обработчик успешного завершения */
   success?: (params: { update: Week["update"]; data: Res }) => void
   /** Обработчик ошибки */
@@ -287,6 +287,12 @@ export type Process<C extends Schema = Schema, I extends Core = Core, Res = any>
   /** Описание процесса для документации */
   desc?: string
 }
+
+declare function ActionFunc<C extends Schema = Schema, I extends Core = Core, Res = any>(
+  params: ActionParams<C, I>
+): Res | Promise<Res>
+
+export type Action<C extends Schema = Schema, I extends Core = Core, Res = any> = typeof ActionFunc<C, I, Res>
 
 /**
  * Процессы.

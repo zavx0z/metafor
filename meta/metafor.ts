@@ -93,7 +93,7 @@ import { processesSchema, type ProcessesDeclaration } from "./process"
 import { serializeStyle } from "./style"
 
 import type { MetaForConfig, MetaFor, ViewDeclaration, Meta } from "./metafor.t"
-export type { MetaFor, Meta }
+export type { MetaFor, Meta, StatesConfig }
 
 globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc

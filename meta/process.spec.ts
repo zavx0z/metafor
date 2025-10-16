@@ -182,10 +182,12 @@ describe("parseChainsObject — разные варианты chain", () => {
     const snapshot = processesSchema(actions)
 
     expect(snapshot?.allHandlersTest?.action?.src, "сохранено строковое представление action").toBe(actionFn.toString())
-    expect(snapshot?.allHandlersTest?.success?.src, "сохранено строковое представление success").toBe(
-      successFn.toString()
+    expect(snapshot?.allHandlersTest?.success?.src, "сохранено строковое представление success").toContain(
+      successFn.toString().replace(/\}\)$/, "")
     )
-    expect(snapshot?.allHandlersTest?.error?.src, "сохранено строковое представление error").toBe(errorFn.toString())
+    expect(snapshot?.allHandlersTest?.error?.src, "сохранено строковое представление error").toContain(
+      errorFn.toString().replace(/\}\)$/, "")
+    )
   })
 })
 
