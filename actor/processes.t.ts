@@ -23,6 +23,7 @@
 import type { Schema, Values, Update } from "@zavx0z/context"
 import type { Core } from "./force/gravity.t"
 import type { Self } from "../meta/metafor.t"
+import type { Week } from "./force/week"
 export type Processes<C extends Schema = Schema, S extends string = string, I extends Core = Core> = {
   getProcess: (name: S) => Process<C, I> | undefined
   hasProcess: (name: S) => boolean
@@ -278,9 +279,9 @@ export type Process<C extends Schema = Schema, I extends Core = Core, Res = any>
   /** Основная функция процесса */
   action: (params: ActionParams<C, I>) => Res | Promise<Res>
   /** Обработчик успешного завершения */
-  success?: (params: { update: Update<C>; data: Res }) => void
+  success?: (params: { update: Week["update"]; data: Res }) => void
   /** Обработчик ошибки */
-  error?: (params: { update: Update<C>; error: Error }) => void
+  error?: (params: { update: Week["update"]; error: Error }) => void
   /** Название процесса для документации */
   label?: string
   /** Описание процесса для документации */

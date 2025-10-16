@@ -3,85 +3,10 @@ import type { Core } from "../actor/force/gravity.t"
 import type { Process } from "../actor/processes"
 import type { ProcessConfig } from "./process.t"
 import type { ParsedProcess, ProcessesDeclaration, ProcessesSchema } from "./process.t"
-import type { Self } from "./metafor.t"
+import { destroyAppendArg, parseFunction, updateAppendArg } from "./parser/func"
+import { MsgSrc } from "../actor/force/electromagnetic.t"
 
 export type { ProcessesDeclaration, ProcessesSchema }
-
-const pattern = {
-  dot: /context\.(\w+)/g,
-  destructParams: /context:\s*{([^}]+)}/g,
-  destructBody: /(?:const|let|var)\s*{([^}]+)}\s*=\s*context(?:\s*,\s*{([^}]+)}\s*=\s*context)*/g,
-  update: /update\(\s*{([^}]+)}\s*\)/g,
-}
-
-/**
- * Парсит функцию и извлекает информацию о полях контекста, которые читаются и записываются.
- *
- * Анализирует код функции с помощью регулярных выражений для поиска:
- * - Доступа к полям через `context.field`
- * - Деструктуризации параметров `{ field } = context`
- * - Деструктуризации в теле функции `const { field } = context`
- * - Вызовов `update({ field })`
- *
- * @param fn - функция для анализа
- * @param allowWrite - разрешить ли анализ записи полей (по умолчанию true)
- * @returns объект с массивами полей для чтения и записи
- *
- * @example
- * ```ts
- * const fn = ({ context, update }) => {
- *   const { name, age } = context
- *   update({ status: 'active' })
- * }
- * const result = parseFunction(fn)
- * // => { read: ['name', 'age'], write: ['status'] }
- * ```
- */
-export function parseFunction(fn: Function, allowWrite: boolean = true) {
-  const code = fn.toString()
-  const read = new Set<string>()
-  const write = new Set<string>()
-  let match
-  while ((match = pattern.dot.exec(code)) !== null) {
-    if (match && typeof match[1] === "string" && match[1].length > 0) {
-      read.add(match[1])
-    }
-  }
-  while ((match = pattern.destructParams.exec(code)) !== null) {
-    const s = typeof match[1] === "string" ? match[1] : ""
-    if (s.length > 0) {
-      s.split(",")
-        .map((p) => p?.trim())
-        .filter(Boolean)
-        .forEach((p) => read.add(p))
-    }
-  }
-  for (const match of code.matchAll(pattern.destructBody)) {
-    if (match && Array.isArray(match)) {
-      const m1 = typeof match[1] === "string" ? match[1] : undefined
-      const m2 = typeof match[2] === "string" ? match[2] : undefined
-      const propsArr = [m1, m2].filter((v): v is string => typeof v === "string" && v.length > 0)
-      const props = propsArr.length > 0 ? propsArr.join(",") : ""
-      if (props.length > 0) {
-        props
-          .split(",")
-          .map((p) => p?.trim()?.split(":")[0]?.trim() ?? "")
-          .filter(Boolean)
-          .forEach((p) => read.add(p))
-      }
-    }
-  }
-  while ((match = pattern.update.exec(code)) !== null) {
-    const s = typeof match[1] === "string" ? match[1] : ""
-    if (s.length > 0) {
-      s.split(",")
-        .map((p) => p?.split(":")[0]?.trim() ?? "")
-        .filter(Boolean)
-        .forEach((p) => write.add(p))
-    }
-  }
-  return { read: Array.from(read), write: allowWrite ? Array.from(write) : [] }
-}
 
 /**
  * Парсит процесс и извлекает информацию о всех обработчиках.
@@ -115,22 +40,24 @@ export function parseProcess<C extends Schema, I extends Core, Res = any>(proces
 
   const parsed = parseFunction(process.action, false)
   result.action = {
-    src: process.action.toString(),
+    src: destroyAppendArg(process.action.toString(), `"${MsgSrc.Process}"`),
     ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
   }
 
   if (process.success) {
     const parsed = parseFunction(process.success, true)
+    const src = updateAppendArg(process.success.toString(), `"${MsgSrc.Success}"`)
     result.success = {
-      src: process.success.toString(),
+      src,
       ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
       ...(parsed.write.length > 0 ? { write: parsed.write } : {}),
     }
   }
   if (process.error) {
     const parsed = parseFunction(process.error)
+    const src = updateAppendArg(process.error.toString(), `"${MsgSrc.Error}"`)
     result.error = {
-      src: process.error.toString(),
+      src,
       ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
       ...(parsed.write.length > 0 ? { write: parsed.write } : {}),
     }
