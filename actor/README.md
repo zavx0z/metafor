@@ -114,3 +114,7 @@ The world is becoming increasingly interconnected, and software systems must be 
 🪐 **Quantum Theory of Programming (qTp)** —  
 is a step from designing systems to designing **universes**,  
 where every change becomes part of the harmony.
+
+---
+
+[← Back to MetaFor](../README.md)

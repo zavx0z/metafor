@@ -6,12 +6,13 @@ Web component `meta-inspect` for step-by-step debugging of actors in the browser
 
 ## TODO
 
-- [x] pause/resume
-- [x] step
+- [ ] pause/resume
+- [ ] step
 - [x] reload
 - [ ] slow-motion (slow‑mo)
 - [x] breakpoint on start (`brk`)
 - [ ] logger integration in debugger
+- [ ] breakpoints by message parameters (meta, actor, path, timestamp, src, patches)
 
 ## What's working
 
@@ -44,3 +45,7 @@ Web component `meta-inspect` for step-by-step debugging of actors in the browser
 ## Attributes
 
 - `brk` — when present, pauses the system immediately after component connection. Removing the attribute unpauses
+
+---
+
+[← Back to MetaFor](README.md)
