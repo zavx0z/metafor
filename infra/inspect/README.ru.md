@@ -2,7 +2,7 @@
 
 Веб-компонент `meta-inspect` для пошаговой отладки акторов в браузере.
 
-[English](README.md) | **Русский**
+[← Главная](../../README.ru.md) [English](README.md) | **Русский**
 
 ## TODO
 
@@ -48,4 +48,4 @@
 
 ---
 
-[← Назад к MetaFor](README.ru.md)
+[← Главная](../../README.ru.md) [English](README.md) | **Русский**

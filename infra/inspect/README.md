@@ -2,7 +2,7 @@
 
 Web component `meta-inspect` for step-by-step debugging of actors in the browser.
 
-**English** | [Русский](README.ru.md)
+[← Home](../../README.md) **English** | [Русский](README.ru.md)
 
 ## TODO
 
@@ -48,4 +48,4 @@ Web component `meta-inspect` for step-by-step debugging of actors in the browser
 
 ---
 
-[← Back to MetaFor](README.md)
+[← Home](../../README.md) **English** | [Русский](README.ru.md)

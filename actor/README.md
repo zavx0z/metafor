@@ -1,6 +1,6 @@
 # 🧩 Quantum Theory of Programming (qTp)
 
-**English** | [Русский](README.ru.md)
+[← Home](../README.md) **English** | [Русский](README.ru.md)
 
 **Quantum Theory of Programming (qTp)** is a new paradigm for thinking about software systems, where each component exists as an **active participant in a dynamic field**.  
 It combines principles of nature, laws of interaction, and modern requirements for computational environments, forming the foundation for **self-organizing and predictable systems**.
@@ -117,4 +117,4 @@ where every change becomes part of the harmony.
 
 ---
 
-[← Back to MetaFor](../README.md)
+[← Home](../README.md) **English** | [Русский](README.ru.md)

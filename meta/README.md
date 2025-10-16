@@ -1,6 +1,6 @@
 # MetaFor
 
-**English** | [Русский](README.ru.md)
+[← Home](../README.md) **English** | [Русский](README.ru.md)
 
 > ⚠️ **Project Status**: MetaFor is currently in active development phase. Documentation may contain inaccuracies and is subject to change as the framework evolves.  
 > 🚨 **Production Use**: Use in production at your own risk. The framework is not yet stable and may contain breaking changes.  
@@ -1147,3 +1147,5 @@ console.log(snapshot)
 - Optimize channels
   - separate state and context patches by different channels
   - include in lifecycle microtasks
+
+[← Home](../README.md) **English** | [Русский](README.ru.md)
