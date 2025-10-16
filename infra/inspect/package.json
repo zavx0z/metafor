@@ -1,12 +1,16 @@
 {
   "name": "@metafor/inspect",
   "author": "zavx0z",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "type": "module",
   "private": false,
   "exports": {
-    "./web": {
+    "./web/logger": {
       "import": "./dist/web/logger.js",
+      "types": "./dist/web/index.d.ts"
+    },
+    "./web/debugger": {
+      "import": "./dist/web/debugger.js",
       "types": "./dist/web/index.d.ts"
     },
     "./server": {
@@ -20,10 +24,10 @@
   "scripts": {
     "pub": "bun publish --access public --tag latest",
     "prepublish": "bun run web:build && bun run server:build && bun run web:typegen && bun run server:typegen",
-    "web:build": "bun build web/logger.ts --outdir ./dist/web",
-    "web:watch": "bun build web/logger.ts --outdir ./dist/web --watch",
+    "web:build": "bun build web/logger.ts --outdir ./dist/web && bun build web/debugger.ts --packages external --outdir ./dist/web",
+    "web:watch": "bun run web:build --watch",
     "server:build": "bun build server/logger.ts --outdir ./dist/server",
-    "web:typegen": "bunx dts-bundle-generator --out-file ./dist/web/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/template -- web/logger.ts",
+    "web:typegen": "bunx dts-bundle-generator --out-file ./dist/web/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true -- web/index.t.ts",
     "server:typegen": "bunx dts-bundle-generator --out-file ./dist/server/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true -- server/logger.ts"
   },
   "dependencies": {
