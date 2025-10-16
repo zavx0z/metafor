@@ -9,6 +9,8 @@ import type { ReactionAction, ReactionsSchema } from "../meta/reactions.t"
 import type { ReactionFilterConditions } from "./condition.t"
 import type { SelfInfo } from "../meta/metafor.t"
 export type { Reactions } from "./reactions.t"
+
+
 /**
  * Десериализует реакции из схемы и возвращает объект с функциями для работы с реакциями.
  *
@@ -248,7 +250,10 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
   for (const [reactionId, reactionData] of Object.entries(schema.reactions)) {
     if (reactionData && typeof reactionData === "object") {
       // Восстанавливаем функцию equal из строки
-      const updateFn = new Function("return " + reactionData.src)() as ReactionAction<C, S, I>
+
+      const paramString = "({ update, context, core, meta, actor, timestamp, patch, state, self }) => "
+
+      const updateFn = new Function("return " + paramString + reactionData.src)() as ReactionAction<C, S, I>
 
       // Создаем функцию фильтра из строки
       const filterFn = new Function("return " + reactionData.cond)() as (params: {

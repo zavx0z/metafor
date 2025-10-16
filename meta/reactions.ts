@@ -5,6 +5,8 @@ import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction } 
 import type { SelfInfo } from "./metafor.t"
 export type { ReactionsDeclaration, ReactionsSchema }
 
+const PATTERN_UPDATE = /\bupdate\s*\(\s*({[\s\S]*?})\s*\)/g
+
 export const reactionsSchema = <C extends Schema, S extends string, I extends Core = {}>(
   builder: ReactionsDeclaration<C, S, I>
 ): ReactionsSchema | null => {
@@ -18,7 +20,16 @@ export const reactionsSchema = <C extends Schema, S extends string, I extends Co
         const { read, write } = extractFields(update)
         const label = config?.label || ""
         const desc = config?.desc
-        const id = `${label}_${reactionAutoId++}`
+        const id = reactionAutoId++
+
+        const re = /^\s*(\([^)]+\))\s*=>/
+
+        let src = update.toString()
+        const match = src.match(re)
+        if (match) {
+          src = src.slice(match[0].length).trim() // остальное после =>
+        }
+        const out = src.replace(PATTERN_UPDATE, (m, obj) => `update(${obj}, "${id}")`)
 
         reactions[id] = {
           label,
@@ -26,7 +37,7 @@ export const reactionsSchema = <C extends Schema, S extends string, I extends Co
           cond: filter.toString(),
           read,
           write,
-          src: update.toString(),
+          src: out,
         }
 
         return {
@@ -38,7 +49,7 @@ export const reactionsSchema = <C extends Schema, S extends string, I extends Co
             for (const state of list) {
               const key = state as unknown as string
               if (!states[key]) states[key] = []
-              states[key].push(id)
+              states[key].push(String(id))
             }
           },
         } as unknown as Reaction<C, S, I> & { registerStates: (list: S[]) => void }
@@ -50,7 +61,8 @@ export const reactionsSchema = <C extends Schema, S extends string, I extends Co
 
   if (Object.keys(reactions).length === 0) return null
   return { reactions, states }
-} /**
+}
+/**
  * Анализирует функцию update для извлечения полей
  */
 export function extractFields<C extends Schema, S extends string, I extends Core>(reaction: ReactionAction<C, S, I>) {

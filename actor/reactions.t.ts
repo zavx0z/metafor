@@ -4,11 +4,12 @@
  * @module Reactions
  */
 
-import type { Schema, Update, Values } from "@zavx0z/context"
+import type { Schema, Values } from "@zavx0z/context"
 import type { JsonPatch } from "./force/electromagnetic.t"
 import type { Core } from "./force/gravity.t"
 import type { ReactionAction } from "../meta/reactions.t"
 import type { Self, SelfInfo } from "../meta/metafor.t"
+import type { Week } from "./force/week"
 
 export type ReactionParams = {
   meta: string
@@ -27,7 +28,7 @@ export type Reactions<C extends Schema = Schema, S extends string = string, I ex
     actor: string
     timestamp: number
     patch: JsonPatch
-    update: Update<C>
+    update: Week['update']
     self: Self
   }) => void
   hasReactions: () => boolean
