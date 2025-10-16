@@ -21,9 +21,9 @@
  */
 
 import type { Schema, Values, Update } from "@zavx0z/context"
-import type { Core } from "./force/gravity"
-import type { Self } from "../meta/metafor.t"
-import type { Week } from "./force/week"
+import type { Core } from "../gravity"
+import type { Self } from "../../meta/metafor.t"
+import type { Week } from "."
 
 export type Processes<C extends Schema = Schema, S extends string = string, I extends Core = Core> = {
   getProcess: (name: S) => Process<C, I> | undefined

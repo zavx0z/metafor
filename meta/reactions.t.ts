@@ -1,8 +1,8 @@
 import type { Schema, Update, Values } from "@zavx0z/context"
-import type { JsonPatch } from "../actor/force/electromagnetic.t"
-import type { Core } from "../actor/force/gravity.t"
-import type { ReactionFilterConditions } from "../actor/condition.t"
-import type { ReactionParams } from "../actor/reactions.t"
+import type { JsonPatch } from "../actor/electromagnetic/electromagnetic.t"
+import type { Core } from "../actor/gravity/index.t"
+import type { ReactionFilterConditions } from "../actor/week/condition.t"
+import type { ReactionParams } from "../actor/week/reactions.t"
 import type { Self, SelfInfo } from "./metafor.t"
 
 /**
@@ -99,7 +99,8 @@ export type ReactionsSchema = {
     }
   >
   states: Record<string, string[]>
-} /**
+}
+/**
  * Функция обновления контекста
  *
  * Вызывается когда реакция срабатывает и фильтр прошел успешно.
@@ -161,5 +162,5 @@ export type ReactionsChainResult<C extends Schema, S extends string, I extends C
   Reaction<C, S, I> & {
     /** Метод для регистрации состояний */
     registerStates: (states: S[]) => void
-  },
+  }
 ][]

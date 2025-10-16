@@ -1,5 +1,5 @@
 import { test, describe, expect } from "bun:test"
-import { reactionsFromSchema } from "../../reactions.ts"
+import { reactionsFromSchema } from "../../week/reactions.ts"
 import { contextSchema } from "@zavx0z/context"
 
 describe("deserializeReactions", () => {

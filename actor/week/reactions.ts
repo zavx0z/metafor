@@ -3,11 +3,11 @@
  * @module Reactions
  */
 import type { Schema, Update, Values } from "@zavx0z/context"
-import type { Core } from "./force/gravity.t"
+import type { Core } from "../gravity/index.t"
 import type { ReactionParams, Reactions } from "./reactions.t"
-import type { ReactionAction, ReactionsSchema } from "../meta/reactions.t"
+import type { ReactionAction, ReactionsSchema } from "../../meta/reactions.t"
 import type { ReactionFilterConditions } from "./condition.t"
-import type { SelfInfo } from "../meta/metafor.t"
+import type { SelfInfo } from "../../meta/metafor.t"
 export type { Reactions } from "./reactions.t"
 
 /**

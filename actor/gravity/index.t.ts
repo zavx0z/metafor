@@ -16,4 +16,20 @@
  * ```
  */
 
+import type { JsonPatch, MsgSrc } from "../electromagnetic/electromagnetic.t"
+
 export type Core = Record<string, any>
+// Тип для snapshot акторов
+
+export type ActorSnapshot = {
+  path: string
+  state: string
+  context: Record<string, any>
+}
+
+export type ChunkPatches = {
+  patches: JsonPatch[]
+  timestamp: number
+  src: MsgSrc
+  actor: string
+}

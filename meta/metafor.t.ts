@@ -1,5 +1,5 @@
 import type { Schema, Types, Update, Values } from "@zavx0z/context"
-import type { Core } from "../actor/force/gravity.t"
+import type { Core } from "../actor/gravity/index.t"
 import type { ProcessesDeclaration, ProcessesSchema } from "./process.t"
 import type { Node as ParseNode } from "@zavx0z/template"
 import type { ReactionsSchema } from "./reactions.t"

@@ -1,4 +1,4 @@
-import { reactionsFromSchema } from "../../reactions"
+import { reactionsFromSchema } from "../../week/reactions"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
 import { reactionsSchema } from "../../../meta/reactions"

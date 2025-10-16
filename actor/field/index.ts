@@ -2,7 +2,7 @@ import type { StatesConfig } from "../../meta/states.t"
 import { type Context, type Schema } from "@zavx0z/context"
 import { Fields } from "./fields"
 import type { Actor } from "../actor"
-import type { ActorSnapshot, ChunkPatches } from "./index.t"
+import type { HistoryEntry } from "./index.t"
 
 export abstract class Field {
   public readonly meta: string
@@ -10,9 +10,10 @@ export abstract class Field {
   protected abstract ctx: Context<Schema>
   protected abstract state: { current: string; states: StatesConfig }
 
-  // -------------------------- Снимок -----------------------------------------
-  protected actorsSnapshots = new WeakMap<Field, Array<ActorSnapshot>>()
-  protected actorsPatches = new WeakMap<Field, Array<ChunkPatches>>()
+  // -------------------------- История акторов -----------------------------------------
+
+  protected static histories = new WeakMap<Field, HistoryEntry[]>()
+
   // -------------------------- Жизненный цикл -----------------------------------------
   protected abstract disconnected(): void
 

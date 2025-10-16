@@ -1,12 +1,12 @@
 import { contextFromSchema, type Schema, type Values } from "@zavx0z/context"
-import { processesFromSchema } from "./processes"
-import { reactionsFromSchema } from "./reactions"
+import { processesFromSchema } from "./week/processes"
+import { reactionsFromSchema } from "./week/reactions"
 
 import type { Meta } from "../meta/metafor"
 import { Fields } from "./field/fields"
-import { Strong } from "./force/strong"
-import { MsgSrc } from "./force/electromagnetic"
-import type { Core } from "./force/gravity"
+import { Strong } from "./strong"
+import { MsgSrc } from "./electromagnetic/electromagnetic"
+import type { Core } from "./gravity"
 
 import type { Snapshot } from "./actor.t"
 
@@ -59,17 +59,6 @@ export class Actor extends Strong {
   public override destroy(recursive = true, src = MsgSrc.Nothing) {
     this.ctx.clearSubscribers()
     super.destroy(recursive, src)
-  }
-
-  override get snapshot(): Snapshot<Schema, string> {
-    return {
-      name: this.meta,
-      state: this.state.current,
-      states: this.state.states,
-      context: this.ctx.snapshot,
-      ...(this.desc ? { desc: this.desc } : {}),
-      core: Object.keys(this.core),
-    }
   }
 
   /** Создаёт актора */

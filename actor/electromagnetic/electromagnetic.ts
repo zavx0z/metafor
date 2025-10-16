@@ -1,6 +1,6 @@
 import type { Snapshot } from "../actor.t"
 import { MsgSrc, type Message } from "./electromagnetic.t"
-import { Gravity, type Core } from "./gravity"
+import { Gravity, type Core } from "../gravity"
 import type { Schema, Values } from "@zavx0z/context"
 import { Field } from "../field"
 
@@ -11,7 +11,6 @@ export abstract class Electromagnetic extends Gravity {
   static channelName = "electromagnetic"
   protected abstract hasReactions(): boolean
   protected abstract handleReactionMessage(ev: MessageEvent<Message>): void
-  protected abstract get snapshot(): Snapshot<Schema, string>
 
   // -------------------------- Жизненный цикл -----------------------------------------
 

@@ -1,7 +1,8 @@
 import type { Actor } from "../actor"
 import { Field } from "../field"
 import { Fields } from "../field/fields"
-import type { Core } from "./gravity.t"
+import type { ActorSnapshot } from "./index.t"
+import type { Core } from "./index.t"
 
 export type { Core }
 
@@ -19,6 +20,16 @@ export abstract class Gravity extends Field {
   public override destroy(recursive = true, src = "") {
     Gravity.coreWeakMap.delete(this)
     super.destroy(recursive, src)
+  }
+
+  // -------------------------- Снимок -----------------------------------------
+
+  get snapshot(): ActorSnapshot {
+    return {
+      path: this.path,
+      state: this.state.current,
+      context: this.ctx.context,
+    }
   }
 
   // ------------------------------- Индексация -----------------------------------------

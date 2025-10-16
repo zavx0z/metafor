@@ -1,6 +1,6 @@
 //@ts-nocheck
 import { test, expect, describe } from "bun:test"
-import type { ReactionParams } from "../../reactions.t.ts"
+import type { ReactionParams } from "../../week/reactions.t.ts"
 describe.skip("реакции", () => {
   test("MetaFor - базовый функционал", async () => {
     const childHash = MetaFor(Bun.randomUUIDv7())

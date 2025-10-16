@@ -1,12 +1,12 @@
 import type { Context, Schema, Values } from "@zavx0z/context"
-import { Week } from "./week"
-import { MsgSrc } from "./electromagnetic.t"
-import type { Core } from "./gravity"
+import { Week } from "../week"
+import { MsgSrc } from "../electromagnetic/electromagnetic.t"
+import type { Core } from "../gravity"
 import type { StatesConfig } from "../../meta/metafor"
-import type { Processes } from "../processes"
-import type { Reactions } from "../reactions"
+import type { Processes } from "../week/processes"
+import type { Reactions } from "../week/reactions"
 import type { Node as ParseNode } from "@zavx0z/template"
-import { Electromagnetic } from "./electromagnetic"
+import { Electromagnetic } from "../electromagnetic/electromagnetic"
 
 export abstract class Strong extends Week {
   // -------------------------- Жизненный цикл -----------------------------------------
@@ -39,7 +39,7 @@ export abstract class Strong extends Week {
   /** обновление контекста */
   update(context: Partial<Values<Schema>>, src: MsgSrc): Partial<Values<Schema>> {
     const prevContext = Electromagnetic.lock ? { ...this.ctx.context } : {}
-    
+
     const updated = this.ctx.update(context)
     if (Object.keys(updated).length > 0) {
       if (!this.requestUpdateContext(updated, src)) {
