@@ -13,7 +13,7 @@ export abstract class Week extends Electromagnetic {
 
   protected abstract update(context: Partial<Values<Schema>>, src: string): Partial<Values<Schema>>
   protected abstract setState(state: string): void
-  protected abstract run(action: Action): Promise<any>
+  protected abstract action(): Promise<any>
 
   constructor(id: string, meta: string, core?: Core) {
     super(id, meta, core)
@@ -56,15 +56,15 @@ export abstract class Week extends Electromagnetic {
     if (process) {
       if (!this.requestStartProcess()) return
       this.setProcess(process)
-      this.run(process.action)
+      this.action()
         .then((result) => {
           this.result = result
-          process?.success?.({ update: this.update, data: result })
+          this.process?.success?.({ update: this.update, data: result })
           this.sendMessage(this.msgStateSuccess())
         })
         .catch((error) => {
           this.error = error
-          process?.error?.({ update: this.update, error })
+          this.process?.error?.({ update: this.update, error })
           this.sendMessage(this.msgStateError())
         })
         .finally(() => {
@@ -75,6 +75,14 @@ export abstract class Week extends Electromagnetic {
       this.sendMessage(this.msgTransition())
       this.transition()
     }
+  }
+
+  protected resolve(): Promise<any> {
+    return Promise.resolve()
+  }
+
+  protected reject(): Promise<any> {
+    return Promise.reject()
   }
 
   /** Выполняет переход */
@@ -90,15 +98,15 @@ export abstract class Week extends Electromagnetic {
           this.setProcess(process)
           this.setState(state)
 
-          this.run(process.action)
+          this.action()
             .then((result) => {
               this.result = result
-              process?.success?.({ update: this.update, data: result })
+              this.process?.success?.({ update: this.update, data: result })
               this.sendMessage(this.msgStateSuccess())
             })
             .catch((error) => {
               this.error = error
-              process?.error?.({ update: this.update, error })
+              this.process?.error?.({ update: this.update, error })
               this.sendMessage(this.msgStateError())
             })
             .finally(() => {

@@ -9,7 +9,6 @@ export abstract class Field {
   protected abstract state: { current: string; states: StatesConfig }
 
   // -------------------------- Жизненный цикл -----------------------------------------
-  protected abstract connected(): void
   protected abstract disconnected(): void
 
   protected constructor(id: string, meta: string) {

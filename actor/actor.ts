@@ -1,9 +1,8 @@
-import { contextFromSchema, type Context, type Schema, type Values } from "@zavx0z/context"
-import type { Node as ParseNode } from "@zavx0z/template"
-import { processesFromSchema, type Process, type Processes, type Action } from "./processes"
-import { reactionsFromSchema, type Reactions } from "./reactions"
+import { contextFromSchema, type Schema } from "@zavx0z/context"
+import { processesFromSchema } from "./processes"
+import { reactionsFromSchema } from "./reactions"
 
-import type { Meta, StatesConfig } from "../meta/metafor"
+import type { Meta } from "../meta/metafor"
 import { Fields } from "./fields"
 import { Strong } from "./force/strong"
 import { MsgSrc } from "./force/electromagnetic"
@@ -11,52 +10,14 @@ import type { Core } from "./force/gravity"
 
 import type { Snapshot } from "./actor.t"
 
-/**
- * Actor — основной класс актора MetaFor.
- *
- * Жизненный цикл:
- * - (внешний код) резервирует позицию под id в Fields (reserve*),
- * - (ctor) мы присваиваем поля (`reactions`, `processes`, …),
- * - вызываем `attachAndAnnounceCreate()` из базы: вклейка в дерево + init-сообщение,
- * - запускаем стартовые переходы/процессы,
- * - при destroy: `super.destroy()` (remove + выключение транспорта) → локальная очистка → удаление из Fields.
- */
+/** Actor — логическая единица существования */
 export class Actor extends Strong {
-  // -------------------------- Жизненный цикл -----------------------------------------
-  constructor(
-    public override id: string,
-    public override meta: string,
-    public desc: string | undefined,
-    public ctx: Context<Schema>,
-    public state: { current: string; states: StatesConfig },
-    public processes: Processes,
-    public reactions: Reactions,
-    public render: ParseNode[],
-    core?: Core
-  ) {
-    super(id, meta, core)
-
-    this.update = this.update.bind(this)
-    this.destroy = this.destroy.bind(this)
-
-    this.connected()
-  }
-
-  protected override connected(): void {
-    this.connect()
-    this.transit()
-  }
-
-  public override destroy(recursive = true, src = MsgSrc.Nothing) {
-    this.ctx.clearSubscribers()
-    super.destroy(recursive, src)
-  }
-
-  // ------------------------------ выполнение процесса ------------------------------------------
-  protected run(action: Action): Promise<any> {
+  /** Выполняет действие */
+  protected action(): Promise<any> {
     return new Promise<any>((resolve, reject) => {
+      if (!this.process?.action) return reject(new Error("Нечего делать!"))
       try {
-        const result = action({
+        const result = this.process.action({
           self: { meta: this.meta, actor: this.id, path: this.path, destroy: this.destroy },
           context: this.ctx.context,
           schema: this.ctx.schema,
@@ -67,13 +28,21 @@ export class Actor extends Strong {
       } catch (error) {
         if (error instanceof Error) return reject(error)
         if (typeof error === "string") error = new Error(error)
-        else console.error(`Передан неизвестный тип ошибки в состоянии: ${this.state.current}`)
+        else console.error(`В состоянии: ${this.state.current} - не понятно что произошло!`)
         reject(error)
       }
     })
   }
 
-  // ---------- snapshot ----------
+  /**
+   * Умирает
+   *
+   * Может вымереть весь род (если есть генетические заболевания) 😎
+   */
+  public override destroy(recursive = true, src = MsgSrc.Nothing) {
+    this.ctx.clearSubscribers()
+    super.destroy(recursive, src)
+  }
 
   override get snapshot(): Snapshot<Schema, string> {
     return {
@@ -86,8 +55,7 @@ export class Actor extends Strong {
     }
   }
 
-  // ---------- фабрики ----------
-
+  /** Создаёт актора */
   static fromSchema<M extends Meta>(config: {
     meta: M
     id?: string
