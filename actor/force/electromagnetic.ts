@@ -2,16 +2,12 @@ import type { Snapshot } from "../actor.t"
 import { MsgSrc, type Message } from "./electromagnetic.t"
 import { Gravity, type Core } from "./gravity"
 import type { Schema, Values } from "@zavx0z/context"
-import type { StatesConfig } from "../../meta/states.t"
 import { Fields } from "../fields"
 
 export type { Message, MsgSrc }
 
-export const CHANNEL = "actor-force"
-
 export abstract class Electromagnetic extends Gravity {
-  static channelName = "actor-force"
-  protected abstract state: { current: string; states: StatesConfig }
+  static channelName = "electromagnetic"
   protected abstract hasReactions(): boolean
   protected abstract handleReactionMessage(ev: MessageEvent<Message>): void
   protected abstract get snapshot(): Snapshot<Schema, string>
@@ -56,7 +52,7 @@ export abstract class Electromagnetic extends Gravity {
   protected static useBroadcastChannel = true
 
   /** Общий BroadcastChannel для процесса (если доступен). */
-  protected static channel: BroadcastChannel = new BroadcastChannel(CHANNEL)
+  protected static channel: BroadcastChannel = new BroadcastChannel(Electromagnetic.channelName)
 
   /** Переключить использование BroadcastChannel. */
   static setBroadcastChannel(enabled: boolean) {

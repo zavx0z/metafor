@@ -1,3 +1,4 @@
+import type { StatesConfig } from "../meta/states.t"
 import { Fields } from "./actor"
 import { type Context, type Schema } from "@zavx0z/context"
 
@@ -5,6 +6,7 @@ export abstract class Field {
   public readonly meta: string
   public readonly id: string
   protected abstract ctx: Context<Schema>
+  protected abstract state: { current: string; states: StatesConfig }
 
   // -------------------------- Жизненный цикл -----------------------------------------
   protected abstract connected(): void
@@ -48,4 +50,5 @@ export abstract class Field {
     }
     return paths
   }
+  
 }

@@ -8,13 +8,14 @@ import type { Message } from "./electromagnetic"
 import type { Schema, Values } from "@zavx0z/context"
 
 export abstract class Week extends Electromagnetic {
-  public abstract processes: Processes
-  protected abstract executeAction(process: Process): Promise<any>
+  protected abstract processes: Processes
+  protected abstract reactions: Reactions
+  protected abstract process: boolean
+
+  protected abstract update(context: Partial<Values<Schema>>, src: string): Partial<Values<Schema>>
   protected abstract setState(state: string): void
   protected abstract setProcess(process: boolean): void
-  protected abstract process: boolean
-  protected abstract reactions: Reactions
-  protected abstract update(context: Partial<Values<Schema>>, src: string): Partial<Values<Schema>>
+  protected abstract executeAction(process: Process): Promise<any>
 
   constructor(id: string, meta: string, core?: Core) {
     super(id, meta, core)

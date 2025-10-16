@@ -250,7 +250,7 @@ export async function threadLog(config: Partial<Config> = {}): Promise<Worker> {
       const { log, logMsg } = loggerModule
       
       // Создаем BroadcastChannel для получения сообщений от акторов
-      new BroadcastChannel("actor-force").onmessage = (event) => {
+      new BroadcastChannel("electromagnetic").onmessage = (event) => {
         logMsg(event.data);
       };
       

@@ -8,7 +8,7 @@ export const messagesFixture = (options?: {
   onmessage: (cb: (message: Message) => void) => void
   waitForMessages: (delay?: number) => Promise<Message[]>
 } => {
-  const channel = new BroadcastChannel("actor-force")
+  const channel = new BroadcastChannel("electromagnetic")
   afterAll(() => channel.close())
   const messages: Message[] = []
 

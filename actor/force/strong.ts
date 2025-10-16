@@ -38,7 +38,7 @@ export abstract class Strong extends Week {
 
   // ------------------------------ состояние ----------------------------------------
 
-  protected stateListeners = new Set<(state: string) => void>()
+  private stateListeners = new Set<(state: string) => void>()
 
   protected setState(state: string) {
     this.state.current = state
