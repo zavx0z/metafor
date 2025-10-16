@@ -1,7 +1,7 @@
 import { Electromagnetic, MsgSrc } from "./electromagnetic"
-import type { Action, Process, Processes } from "../processes"
+import type { Process, Processes } from "../processes"
 import { checkTransition } from "../states"
-import type { Conditions, Transitions } from "../states.t"
+import type { Conditions } from "../states.t"
 import type { Core } from "./gravity.t"
 import type { Reactions } from "../reactions"
 import type { Message } from "./electromagnetic"
@@ -17,6 +17,8 @@ export abstract class Week extends Electromagnetic {
 
   constructor(id: string, meta: string, core?: Core) {
     super(id, meta, core)
+    this.resolve = this.resolve.bind(this)
+    this.reject = this.reject.bind(this)
   }
   override destroy(recursive = true, src = MsgSrc.Nothing) {
     Week.results.delete(this)
@@ -27,99 +29,62 @@ export abstract class Week extends Electromagnetic {
   protected process: Process | null = null
   public error: Error | null = null
 
-  protected setProcess(process: Process | null) {
-    const current = this.process
-    if (current === process) return
-    if (process && !current) this.process = process
-    else if (!process && current) {
-      Week.results.delete(this)
-      this.error = null
-      this.process = null
-      this.transition()
-    }
-  }
   protected get result() {
     return Week.results.get(this)
   }
+
   protected set result(result: any) {
     Week.results.set(this, result)
   }
+
+  protected resolve() {
+    if (this.result && this.process?.success) this.process.success({ update: this.update, data: this.result })
+    this.sendMessage(this.msgStateSuccess())
+    this.process = null
+    this.transition()
+  }
+
+  protected reject() {
+    if (this.error && this.process?.error) this.process.error({ update: this.update, error: this.error })
+    this.sendMessage(this.msgStateError())
+    this.error = null
+    this.process = null
+    this.transition()
+  }
+
   // ---------------------------- переходы ------------------------------------
 
-  /** Выполняет инициализирующие переходы */
+  /** Выполняет процесс первичного состояния */
   transit() {
     if (!this.requestInit()) return
     const transitions = this.state.states[this.state.current]
     if (!transitions) return
-
-    const process = this.processes.getProcess(this.state.current)
-    if (process) {
-      if (!this.requestStartProcess()) return
-      this.setProcess(process)
-      this.action()
-        .then((result) => {
-          this.result = result
-          this.process?.success?.({ update: this.update, data: result })
-          this.sendMessage(this.msgStateSuccess())
-        })
-        .catch((error) => {
-          this.error = error
-          this.process?.error?.({ update: this.update, error })
-          this.sendMessage(this.msgStateError())
-        })
-        .finally(() => {
-          this.setProcess(null)
-          this.transition()
-        })
-    } else {
-      this.sendMessage(this.msgTransition())
-      this.transition()
-    }
-  }
-
-  protected resolve(): Promise<any> {
-    return Promise.resolve()
-  }
-
-  protected reject(): Promise<any> {
-    return Promise.reject()
+    this.recursive(this.processes.getProcess(this.state.current))
   }
 
   /** Выполняет переход */
   transition() {
-    const transitions: Transitions | undefined = this.state.states[this.state.current]
+    if (this.process) return // уже запущен процесс во время реакции
+    const transitions = this.state.states[this.state.current]
     if (!transitions) return
+
     for (const [state, transition] of Object.entries(transitions)) {
       if (checkTransition(transition as Conditions, this.ctx.context)) {
-        if (this.process) return
-        const process = this.processes.getProcess(state)
-        if (process) {
-          if (!this.requestStartProcess()) return
-          this.setProcess(process)
-          this.setState(state)
-
-          this.action()
-            .then((result) => {
-              this.result = result
-              this.process?.success?.({ update: this.update, data: result })
-              this.sendMessage(this.msgStateSuccess())
-            })
-            .catch((error) => {
-              this.error = error
-              this.process?.error?.({ update: this.update, error })
-              this.sendMessage(this.msgStateError())
-            })
-            .finally(() => {
-              this.setProcess(null)
-              this.transition()
-            })
-        } else {
-          this.setState(state)
-          this.sendMessage(this.msgTransition())
-          this.transition()
-        }
+        this.recursive(this.processes.getProcess(state), state)
         break
       }
+    }
+  }
+
+  private recursive(process: Process | undefined, newState: string | undefined = undefined) {
+    newState && this.setState(newState)
+    if (process) {
+      this.process = process
+      if (!this.requestStartProcess()) return
+      this.action().then(this.resolve).catch(this.reject)
+    } else {
+      this.sendMessage(this.msgTransition())
+      this.transition()
     }
   }
 

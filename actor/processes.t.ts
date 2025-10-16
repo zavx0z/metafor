@@ -21,15 +21,17 @@
  */
 
 import type { Schema, Values, Update } from "@zavx0z/context"
-import type { Core } from "./force/gravity.t"
+import type { Core } from "./force/gravity"
 import type { Self } from "../meta/metafor.t"
 import type { Week } from "./force/week"
+
 export type Processes<C extends Schema = Schema, S extends string = string, I extends Core = Core> = {
   getProcess: (name: S) => Process<C, I> | undefined
   hasProcess: (name: S) => boolean
   getAllProcesses: () => Record<S, Process<C, I>>
   getProcessNames: () => string[]
 }
+
 /**
  * Chain API для создания процесса с опциональными параметрами label и desc.
  * Позволяет удобно и строго типизировано описывать обработчики процессов автомата.
@@ -89,6 +91,7 @@ export type ProcessChain<C extends Schema, I extends Core> = {
    */
   action: <Res>(fn: (params: ActionParams<C, I>) => Res | Promise<Res>) => ActionChain<C, I, Res>
 }
+
 /**
  * Параметры для action
  * @template C - схема контекста автомата
@@ -277,7 +280,7 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
  */
 export type Process<C extends Schema = Schema, I extends Core = Core, Res = any> = {
   /** Основная функция процесса */
-  action: Action<C, I, Res>
+  action: (params: ActionParams<C, I>) => Res | Promise<Res>
   /** Обработчик успешного завершения */
   success?: (params: { update: Week["update"]; data: Res }) => void
   /** Обработчик ошибки */
@@ -287,12 +290,6 @@ export type Process<C extends Schema = Schema, I extends Core = Core, Res = any>
   /** Описание процесса для документации */
   desc?: string
 }
-
-declare function ActionFunc<C extends Schema = Schema, I extends Core = Core, Res = any>(
-  params: ActionParams<C, I>
-): Res | Promise<Res>
-
-export type Action<C extends Schema = Schema, I extends Core = Core, Res = any> = typeof ActionFunc<C, I, Res>
 
 /**
  * Процессы.

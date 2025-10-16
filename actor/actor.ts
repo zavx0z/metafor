@@ -1,4 +1,4 @@
-import { contextFromSchema, type Schema } from "@zavx0z/context"
+import { contextFromSchema, type Schema, type Values } from "@zavx0z/context"
 import { processesFromSchema } from "./processes"
 import { reactionsFromSchema } from "./reactions"
 
@@ -23,13 +23,30 @@ export class Actor extends Strong {
           schema: this.ctx.schema,
           core: this.core,
         })
-        if (result instanceof Promise) result.then((result) => resolve(result)).catch((error) => reject(error))
-        else resolve(result)
+        if (result instanceof Promise)
+          result
+            .then((success) => {
+              this.result = success
+              resolve(success)
+            })
+            .catch((error) => {
+              this.error = error
+              reject(error)
+            })
+        else {
+          this.result = result
+          resolve(result)
+        }
       } catch (error) {
-        if (error instanceof Error) return reject(error)
-        if (typeof error === "string") error = new Error(error)
-        else console.error(`В состоянии: ${this.state.current} - не понятно что произошло!`)
-        reject(error)
+        let normError: Error
+        if (error instanceof Error) normError = error
+        if (typeof error === "string") normError = new Error(error)
+        else {
+          normError = new Error(error ? JSON.stringify(error) : "Ошибка без основания!")
+          console.error(`В состоянии: ${this.state.current} - не понятно что произошло!`)
+        }
+        this.error = normError
+        reject(normError)
       }
     })
   }

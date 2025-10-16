@@ -48,6 +48,10 @@ export abstract class Strong extends Week {
 
   private stateListeners = new Set<(state: string) => void>()
 
+  /** Устанавливает состояние
+   *
+   * Даже если состояние не изменилось, отправляет сообщение о переходе (само-переходы)
+   */
   protected setState(state: string) {
     this.state.current = state
     if (this.stateListeners.size > 0) {

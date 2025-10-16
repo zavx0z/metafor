@@ -4,11 +4,11 @@
  */
 
 import type { Schema } from "@zavx0z/context"
-import type { Process, Processes, Action } from "./processes.t"
+import type { Process, Processes } from "./processes.t"
 import type { Core } from "./force/gravity.t"
 import type { ProcessesSchema } from "../meta/process.t"
 
-export type { Process, Processes, Action }
+export type { Process, Processes }
 
 /**
  * Десериализует процессы из схемы и возвращает объект с функциями для работы с процессами.
