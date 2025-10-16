@@ -39,6 +39,9 @@ function invertPatch(patch: JsonPatch, snapshot: ActorSnapshot): JsonPatch {
     case "replace":
       const oldVal2 = getByPointer(snapshot, patch.path)
       return { op: "replace", path: patch.path, value: oldVal2 as Primitive }
+    case "test":
+      // test операция не изменяет состояние, поэтому инверсная операция тоже test
+      return { op: "test", path: patch.path, value: patch.value }
     case "move":
       return { op: "move", from: patch.path, path: patch.from! }
   }
@@ -70,6 +73,12 @@ function applyPatch(snapshot: ActorSnapshot, patch: JsonPatch) {
       case "replace":
         target[idx] = patch.value!
         break
+      case "test":
+        // test операция проверяет значение, но не изменяет его
+        if (target[idx] !== patch.value) {
+          throw new Error(`Test failed: expected ${patch.value}, got ${target[idx]}`)
+        }
+        break
       case "move":
         if (!patch.from) throw new Error("move missing from")
         const fromParts = patch.from.slice(1).split("/")
@@ -95,6 +104,12 @@ function applyPatch(snapshot: ActorSnapshot, patch: JsonPatch) {
       break
     case "remove":
       delete target[lastKey]
+      break
+    case "test":
+      // test операция проверяет значение, но не изменяет его
+      if (target[lastKey] !== patch.value) {
+        throw new Error(`Test failed: expected ${patch.value}, got ${target[lastKey]}`)
+      }
       break
     case "move":
       if (!patch.from) throw new Error("move missing from")
