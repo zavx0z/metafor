@@ -1,6 +1,7 @@
 import type { StatesConfig } from "../meta/states.t"
 import { type Context, type Schema } from "@zavx0z/context"
 import { Fields } from "./fields"
+import type { Actor } from "./actor"
 
 export abstract class Field {
   public readonly meta: string
@@ -38,15 +39,11 @@ export abstract class Field {
     }
     fields.remove(this.id, false) // false, так как мы уже обработали детей
   }
-  // -------------------------- Жизненный цикл -----------------------------------------
-  static get all(): Array<{ actor: string; meta: string; path: string }> {
+  // -------------------------------------------------------------------
+  
+  protected static getActor(id: string): Actor | null {
     const fields = Fields.get()
-    const paths: Array<{ actor: string; meta: string; path: string }> = []
-    if (!fields) return paths
-    // @ts-ignore
-    for (const [key, actor] of fields.actors.entries()) {
-      paths.push({ actor: key, meta: actor.meta, path: actor.path })
-    }
-    return paths
+    if (!fields) return null
+    return fields.getActor(id)
   }
 }

@@ -2,7 +2,7 @@ import type { Snapshot } from "../actor.t"
 import { MsgSrc, type Message } from "./electromagnetic.t"
 import { Gravity, type Core } from "./gravity"
 import type { Schema, Values } from "@zavx0z/context"
-import { Fields } from "../fields"
+import { Field } from "../field"
 
 export { MsgSrc }
 export type { Message }
@@ -108,7 +108,7 @@ export abstract class Electromagnetic extends Gravity {
   public static step() {
     const message = Electromagnetic.queue.shift()
     if (!message) return
-    const actor = Fields.get().getActor(message.actor)
+    const actor = Field.getActor(message.actor)
     if (!actor) return
 
     for (const patch of message.patches) {

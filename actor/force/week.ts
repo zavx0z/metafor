@@ -96,7 +96,7 @@ export abstract class Week extends Electromagnetic {
 
   protected handleReactionMessage(ev: MessageEvent) {
     const { data } = ev as MessageEvent<Message>
-    if (!this.reactions?.hasReactions()) return
+    if (!this.hasReactions()) return
     if (data.actor === this.id) return
 
     for (const patch of data.patches) {

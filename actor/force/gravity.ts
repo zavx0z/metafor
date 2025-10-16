@@ -21,7 +21,7 @@ export abstract class Gravity extends Field {
     super.destroy(recursive, src)
   }
 
-  // ------------------------------------------------------------------------------------
+  // ------------------------------- Индексация -----------------------------------------
 
   /** Актуальный индекс-путь вида `"0/1/2"` (или пустая строка, если актор ещё не в Fields). */
   public get path(): string {
@@ -33,6 +33,17 @@ export abstract class Gravity extends Field {
     } catch {
       return ""
     }
+  }
+
+  static getAllAddresses(): Array<{ actor: string; meta: string; path: string }> {
+    const fields = Fields.get()
+    const paths: Array<{ actor: string; meta: string; path: string }> = []
+    if (!fields) return paths
+    // @ts-ignore
+    for (const [key, actor] of fields.actors.entries()) {
+      paths.push({ actor: key, meta: actor.meta, path: actor.path })
+    }
+    return paths
   }
 
   // ------------------------------- Ядро ---------------------------------------------
