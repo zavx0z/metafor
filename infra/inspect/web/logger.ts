@@ -25,7 +25,13 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
       core: false,
     },
   }
-
+  const centerText = (text: string, width: number): string => {
+    const textStr = String(text)
+    const padding = Math.max(0, width - textStr.length)
+    const leftPad = Math.floor(padding / 2)
+    const rightPad = padding - leftPad
+    return " ".repeat(leftPad) + textStr + " ".repeat(rightPad)
+  }
   // Объединяем конфигурацию по умолчанию с пользовательской
   const config: Config = {
     ...defaultConfig,
@@ -119,11 +125,11 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
 
     const metaStr = String(meta).padEnd(36, " ")
     const pathStr = actorPath
-
     const actorStr = actor.includes("-") ? actor.slice(actor.lastIndexOf("-") + 1) : actor
-
     const op = String(patch.op).padEnd(config.width.op, " ")
     const path = String(patch.path).padEnd(config.width.path, " ")
+
+    const src = centerText(message.src, 4)
 
     const stateValue = patch.value
       ? Array.isArray(patch.value)
@@ -145,17 +151,22 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
       "color: #2ecc71",
       "",
       "color: lightskyblue; font-weight: bold",
+      "",
+      "color: lightskyblue; font-weight: bold",
       "color: #3498db; font-weight: bold",
       "color: #3498db; font-weight: bold",
     ]
     const msgWithOutValue = [
-      `%c${actorStr}%c %c${op}%c | %c${path}%c | %c${valSlot}%c${metaStr}%c${pathStr}`,
+      `%c${actorStr}%c %c${op}%c | %c${path}%c | %c${src}%c | %c${valSlot}%c${metaStr}%c${pathStr}`,
       ...baseStyles,
     ]
 
     const msgWithValue = [
-      `%c${actorStr}%c %c${op}%c | %c${path}%c | %c${stateValue.padEnd(valLen, " ")}%c${metaStr}%c${pathStr}`,
-      ...baseStyles.slice(0, 6),
+      `%c${actorStr}%c %c${op}%c | %c${path}%c | %c${src}%c | %c${stateValue.padEnd(
+        valLen,
+        " "
+      )}%c${metaStr}%c${pathStr}`,
+      ...baseStyles.slice(0, 8),
       "color: lightskyblue; font-weight: bold",
       "color: #3498db; font-weight: bold",
       "color: #3498db; font-weight: bold",
@@ -202,9 +213,9 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
   // Функция логирования сообщений
   const logMsg = (data: Message | any, core: Record<string, any> = {}): void => {
     if (Object.hasOwn(data, "meta")) {
-      const { meta, actor, path, patches, timestamp } = data as Message
+      const { patches, ...msg } = data as Message
       for (const patch of patches) {
-        log({ meta, patch, timestamp, actor, path }, core)
+        log({ ...msg, patch }, core)
       }
     } else {
       console.log(data)
