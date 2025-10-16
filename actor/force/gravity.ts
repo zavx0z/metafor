@@ -16,9 +16,9 @@ export abstract class Gravity extends Field {
     Fields.get().attachReserved(this as unknown as Actor)
   }
 
-  public override destroy(recursive = true) {
+  public override destroy(recursive = true, src = "") {
     Gravity.coreWeakMap.delete(this)
-    super.destroy(recursive)
+    super.destroy(recursive, src)
   }
 
   // ------------------------------------------------------------------------------------

@@ -23,7 +23,7 @@ export abstract class Field {
     }
   }
 
-  public destroy(recursive: boolean) {
+  public destroy(recursive: boolean, src = "") {
     const fields = Fields.get()
     if (recursive) {
       while (true) {

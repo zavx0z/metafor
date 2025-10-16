@@ -9,6 +9,13 @@
  @property patches - Массив патчей для применения к актору (JSON Patch RFC 6902)
  */
 
+export interface BaseMessage {
+  meta: string
+  actor: string
+  path: string
+  timestamp: number
+  src: MsgSrc
+}
 /**
  * Сообщение между акторами в системе MetaFor
  *
@@ -30,12 +37,17 @@
  * }
  * ```
  */
-export interface Message {
-  meta: string
-  actor: string
-  path: string
-  timestamp: number
+export interface Message extends BaseMessage {
   patches: JsonPatch[]
 }
 
 export type JsonPatch = { op: "replace" | "add" | "remove" | "test"; path: string; value?: any }
+
+export enum MsgSrc {
+  Transition = "t",
+  Process = "p",
+  Success = "s",
+  Error = "e",
+  Reaction = "r",
+  Nothing = "",
+}

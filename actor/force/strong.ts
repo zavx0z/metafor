@@ -1,13 +1,13 @@
 import type { Schema, Values } from "@zavx0z/context"
-import { Electromagnetic } from "./electromagnetic"
 import { Week } from "./week"
+import { MsgSrc } from "./electromagnetic.t"
 
 export abstract class Strong extends Week {
   // -------------------------- Жизненный цикл -----------------------------------------
 
-  public override destroy(recursive = true) {
+  public override destroy(recursive = true, src = MsgSrc.Nothing) {
     this.stateListeners.clear()
-    super.destroy(recursive)
+    super.destroy(recursive, src)
   }
 
   // ------------------------------ процесс ----------------------------------------
@@ -20,7 +20,6 @@ export abstract class Strong extends Week {
   }
 
   protected override setProcess(process: boolean) {
-    if (Electromagnetic.isLocked && this.wired) return
     if (this.#process === process) return
     this.#process = process
     if (!process) this.transition()
@@ -29,11 +28,10 @@ export abstract class Strong extends Week {
   // ------------------------------ контекст ----------------------------------------
 
   /** обновление контекста */
-  update(context: Partial<Values<Schema>>): Partial<Values<Schema>> {
-    if (Electromagnetic.isLocked && this.wired) return {}
+  update(context: Partial<Values<Schema>>, src: MsgSrc): Partial<Values<Schema>> {
     const updated = this.ctx.update(context)
     if (Object.keys(updated).length > 0) {
-      this.sendMessage(this.msgUpdateContext(updated))
+      this.sendMessage(this.msgUpdateContext(updated, src))
     }
     return updated
   }
@@ -43,7 +41,6 @@ export abstract class Strong extends Week {
   protected stateListeners = new Set<(state: string) => void>()
 
   protected setState(state: string) {
-    if (Electromagnetic.isLocked && this.wired) return
     this.state.current = state
     if (this.stateListeners.size > 0) {
       for (const listener of this.stateListeners) listener(state)

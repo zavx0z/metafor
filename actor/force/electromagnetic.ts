@@ -1,10 +1,11 @@
 import type { Snapshot } from "../actor.t"
-import type { Message } from "./electromagnetic.t"
+import { MsgSrc, type Message } from "./electromagnetic.t"
 import { Gravity, type Core } from "./gravity"
 import type { Schema, Values } from "@zavx0z/context"
 import type { StatesConfig } from "../../meta/states.t"
+import { Fields } from "../fields"
 
-export type { Message }
+export type { Message, MsgSrc }
 
 export const CHANNEL = "actor-force"
 
@@ -21,7 +22,7 @@ export abstract class Electromagnetic extends Gravity {
     super(id, meta, core)
   }
 
-  protected connected() {
+  protected connect() {
     if (this.hasReactions()) {
       Electromagnetic.chargedActors.add(this)
       if (Electromagnetic.useBroadcastChannel && Electromagnetic.channel) {
@@ -30,7 +31,6 @@ export abstract class Electromagnetic extends Gravity {
       }
     }
     this.wired = true
-    this.sendMessage(this.msgInit)
   }
 
   protected disconnected() {
@@ -39,11 +39,11 @@ export abstract class Electromagnetic extends Gravity {
       Electromagnetic.channel.removeEventListener("message", this._onBCMessage)
   }
 
-  public override destroy(recursive = true) {
+  public override destroy(recursive = true, src = MsgSrc.Nothing) {
     Electromagnetic.chargedActors.delete(this)
-    this.sendMessage(this.msgRemove)
+    this.sendMessage(this.msgRemove(src))
     this.disconnected()
-    super.destroy(recursive)
+    super.destroy(recursive, src)
   }
 
   // -------------------------- Каналы -----------------------------------------
@@ -77,7 +77,6 @@ export abstract class Electromagnetic extends Gravity {
 
   /** Доставка сообщения локально и (опционально) через BroadcastChannel. */
   protected sendMessage(message: Message) {
-    if (Electromagnetic.lock) Electromagnetic.queue.push(message)
     if (!this.wired) return
     for (const actor of Electromagnetic.chargedActors) {
       if (actor === this) continue
@@ -97,66 +96,152 @@ export abstract class Electromagnetic extends Gravity {
   }
 
   public static resume() {
-    for (const message of this.queue) {
-      console.log("resume", message)
+    for (const message of Electromagnetic.queue) {
+      console.log(message.actor.split("-").pop(), message.patches[0], message.meta, message.path, message.timestamp)
     }
-    Electromagnetic.queue = []
-    Electromagnetic.lock = false
+    // Electromagnetic.queue = []
+    // Electromagnetic.lock = false
   }
 
   public static get isLocked(): boolean {
     return Electromagnetic.lock
   }
+  private static currentTask: Message | undefined
 
   public static step() {
-    console.log(Electromagnetic.queue)
+    const message = Electromagnetic.queue.shift()
+    if (!message) return
+    const actor = Fields.get().getActor(message.actor)
+    if (!actor) return
+
+    for (const patch of message.patches) {
+      switch (patch.op) {
+        case "add":
+          console.log("resume transit")
+          actor.transit()
+          break
+        case "replace":
+          console.log("resume update")
+          // actor.update(patch.value)
+          break
+        case "remove":
+          console.log("resume destroy")
+          // actor.destroy()
+          break
+        case "test":
+          console.log("resume transition")
+          actor.transition()
+          break
+      }
+    }
   }
 
   // ---------------------------- сообщения ------------------------------------
+  private compareMessages(msg1: Message, msg2: Message): boolean {
+    if (msg1.actor !== msg2.actor) return false
+    if (msg1.patches.length !== msg2.patches.length) return false
+    for (let i = 0; i < msg1.patches.length; i++) {
+      if (msg1.patches[i]!.op !== msg2.patches[i]!.op) return false
+      if (msg1.patches[i]!.path !== msg2.patches[i]!.path) return false
+    }
+    return true
+  }
 
-  protected msgUpdateContext(context: Partial<Values<Schema>>): Message {
+  private debugMessage(msg: Message): boolean {
+    if (Electromagnetic.currentTask) {
+      const isSame = this.compareMessages(Electromagnetic.currentTask, msg)
+      if (isSame) {
+        this.sendMessage(msg)
+        Electromagnetic.currentTask = undefined
+        return true
+      }
+    } else {
+      console.log(msg.actor.split("-").pop(), msg.patches[0], msg.meta, msg.path, msg.timestamp, Electromagnetic.queue)
+      Electromagnetic.currentTask = msg
+    }
+    Electromagnetic.queue.push(msg)
+    return false
+  }
+
+  protected requestInit(): boolean {
+    const msg: Message = {
+      meta: this.meta,
+      actor: this.id,
+      path: this.path,
+      timestamp: Date.now(),
+      src: MsgSrc.Nothing,
+      patches: [{ op: "add", path: "/", value: this.snapshot }],
+    }
+    if (!Electromagnetic.lock) {
+      this.sendMessage(msg)
+      return true
+    }
+    return this.debugMessage(msg)
+  }
+
+  protected requestStartProcess() {
+    const msg: Message = {
+      meta: this.meta,
+      actor: this.id,
+      path: this.path,
+      timestamp: Date.now(),
+      src: MsgSrc.Nothing,
+      patches: [{ op: "test", path: "/state", value: this.state.current }],
+    }
+    if (!Electromagnetic.lock) {
+      this.sendMessage(msg)
+      return true
+    }
+    return this.debugMessage(msg)
+  }
+
+  protected msgUpdateContext(context: Partial<Values<Schema>>, src: MsgSrc): Message {
     return {
       meta: this.meta,
       actor: this.id,
       path: this.path,
       timestamp: Date.now(),
+      src,
       patches: [{ op: "replace", path: "/context", value: context }],
     }
   }
-  protected get msgStateBeforeAction(): Message {
+  protected msgStateSuccess(): Message {
     return {
       meta: this.meta,
       actor: this.id,
       path: this.path,
       timestamp: Date.now(),
-      patches: [{ op: "test", path: "/state", value: this.state.current }],
-    }
-  }
-  protected get msgStateAfterAction(): Message {
-    return {
-      meta: this.meta,
-      actor: this.id,
-      path: this.path,
-      timestamp: Date.now(),
+      src: MsgSrc.Success,
       patches: [{ op: "replace", path: "/state", value: this.state.current }],
     }
   }
-  private get msgInit(): Message {
+  protected msgStateError(): Message {
     return {
       meta: this.meta,
       actor: this.id,
       path: this.path,
       timestamp: Date.now(),
-      patches: [{ op: "add", path: "/", value: this.snapshot }],
+      src: MsgSrc.Error,
+      patches: [{ op: "replace", path: "/state", value: this.state.current }],
     }
   }
-
-  private get msgRemove(): Message {
+  protected msgTransition(): Message {
     return {
       meta: this.meta,
       actor: this.id,
       path: this.path,
       timestamp: Date.now(),
+      src: MsgSrc.Transition,
+      patches: [{ op: "replace", path: "/state", value: this.state.current }],
+    }
+  }
+  private msgRemove(src: MsgSrc): Message {
+    return {
+      meta: this.meta,
+      actor: this.id,
+      path: this.path,
+      timestamp: Date.now(),
+      src,
       patches: [{ op: "remove", path: "/" }],
     }
   }

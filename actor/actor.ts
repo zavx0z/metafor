@@ -4,7 +4,7 @@ import { reactionsFromSchema, type Reactions } from "./reactions"
 export { Fields } from "./fields"
 import type { Node as ParseNode } from "@zavx0z/template"
 import type { Snapshot } from "./actor.t"
-import type { Message } from "./force/electromagnetic.t"
+import { MsgSrc, type Message } from "./force/electromagnetic.t"
 import type { Core } from "./force/gravity.t"
 export type { Message }
 import type { StatesConfig } from "../meta/states"
@@ -44,19 +44,18 @@ export class Actor extends Strong {
   }
 
   protected override connected(): void {
+    this.connect()
     this.transit()
-    super.connected()
   }
 
-  public override destroy(recursive = true) {
+  public override destroy(recursive = true, src = MsgSrc.Nothing) {
     this.ctx.clearSubscribers()
-    super.destroy(recursive)
+    super.destroy(recursive, src)
   }
 
   // ------------------------------ действия ------------------------------------------
 
-  protected executeAction(process: Process<any, any>) {
-    this.sendMessage(this.msgStateBeforeAction)
+  protected async executeAction(process: Process): Promise<any> {
     try {
       const result = process.action({
         self: { meta: this.meta, actor: this.id, path: this.path, destroy: this.destroy },
@@ -65,32 +64,29 @@ export class Actor extends Strong {
         core: this.core,
       })
       if (result instanceof Promise) {
-        result
+        return result
           .then((data) => process.success && process.success({ update: this.update, data }))
           .catch((error) => {
-            if (process.error) {
-              if (error instanceof Error) process.error({ update: this.update, error })
-              else if (typeof error === "string") process.error({ update: this.update, error: new Error(error) })
-              else throw new Error(`Передан неизвестный тип ошибки в состоянии: ${this.state.current}`)
-            } else {
-              throw new Error(`Обработчик ошибки не найден для состояния: ${this.state.current}\n${String(error)}`)
-            }
-          })
-          .finally(() => {
-            this.sendMessage(this.msgStateAfterAction)
-            this.setProcess(false)
+            const normError = this.prepareError(error)
+            process.error?.({ update: this.update, error: normError })
+            return normError
           })
       } else {
         process.success && process.success({ update: this.update, data: result })
-        this.sendMessage(this.msgStateAfterAction)
-        this.setProcess(false)
+        return Promise.resolve(result)
       }
     } catch (error) {
-      if (error instanceof Error) process.error?.({ update: this.update, error })
-      else console.error(error)
-      this.sendMessage(this.msgStateAfterAction)
-      this.setProcess(false)
+      const normError = this.prepareError(error)
+      process.error?.({ update: this.update, error: normError })
+      return Promise.reject(normError)
     }
+  }
+
+  private prepareError(error: any): Error {
+    if (typeof error === "string") error = new Error(error)
+    else if (!(error instanceof Error))
+      console.error(`Передан неизвестный тип ошибки в состоянии: ${this.state.current}`)
+    return error
   }
 
   // ---------- snapshot ----------

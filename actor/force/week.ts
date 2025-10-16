@@ -9,12 +9,12 @@ import type { Schema, Values } from "@zavx0z/context"
 
 export abstract class Week extends Electromagnetic {
   public abstract processes: Processes
-  protected abstract executeAction(process: Process<any, any>): void
+  protected abstract executeAction(process: Process): Promise<any>
   protected abstract setState(state: string): void
   protected abstract setProcess(process: boolean): void
   protected abstract process: boolean
   protected abstract reactions: Reactions
-  protected abstract update(context: Partial<Values<Schema>>): Partial<Values<Schema>>
+  protected abstract update(context: Partial<Values<Schema>>, src: string): Partial<Values<Schema>>
 
   constructor(id: string, meta: string, core?: Core) {
     super(id, meta, core)
@@ -24,35 +24,52 @@ export abstract class Week extends Electromagnetic {
 
   /** Выполняет инициализирующие переходы */
   transit() {
-    const transition = this.state.states[this.state.current]
-    if (transition) {
-      const process = this.processes.getProcess(this.state.current)
-      if (process) {
-        this.setProcess(true)
-        this.executeAction(process)
-        this.transition()
-      } else {
-        this.transition()
-      }
+    if (!this.requestInit()) return
+    const transitions = this.state.states[this.state.current]
+    if (!transitions) return
+
+    const process = this.processes.getProcess(this.state.current)
+    if (process) {
+      if (!this.requestStartProcess()) return
+      this.setProcess(true)
+
+      this.executeAction(process)
+        .then(() => this.sendMessage(this.msgStateSuccess()))
+        .catch(() => this.sendMessage(this.msgStateError()))
+        .finally(() => {
+          this.setProcess(false)
+          this.transition()
+        })
+    } else {
+      this.sendMessage(this.msgTransition())
+      this.transition()
     }
   }
 
   /** Выполняет переход */
   transition() {
-    const transition: Transitions | undefined = this.state.states[this.state.current]
-    if (!transition) return
-    for (const [state, conditions] of Object.entries(transition)) {
-      if (checkTransition(conditions as Conditions, this.ctx.context)) {
+    const transitions: Transitions | undefined = this.state.states[this.state.current]
+    if (!transitions) return
+    for (const [state, transition] of Object.entries(transitions)) {
+      if (checkTransition(transition as Conditions, this.ctx.context)) {
         const process = this.processes.getProcess(state)
         if (this.process) return
         if (process) {
+          if (!this.requestStartProcess()) return
           this.setProcess(true)
           this.setState(state)
+
           this.executeAction(process)
+            .then(() => this.sendMessage(this.msgStateSuccess()))
+            .catch(() => this.sendMessage(this.msgStateError()))
+            .finally(() => {
+              this.setProcess(false)
+              this.transition()
+            })
         } else {
           this.setState(state)
-          this.sendMessage(this.msgStateAfterAction)
-          if (!this.process) this.transition()
+          this.sendMessage(this.msgTransition())
+          this.transition()
         }
         break
       }
