@@ -1,7 +1,7 @@
 {
   "name": "@metafor/actor",
   "author": "zavx0z",
-  "version": "0.4.4",
+  "version": "0.4.6",
   "type": "module",
   "private": false,
   "exports": {
@@ -19,6 +19,7 @@
   "scripts": {
     "pub": "bun run build && bun run typegen && bun publish --access public --tag latest",
     "build": "rm -rf ./dist && bun run build:prod && bun run build:dev",
+    "build:watch": "bun --watch build actor.ts --outdir ./dist --sourcemap=linked",
     "build:prod": "bun build actor.ts --outdir ./dist --minify --entry-naming [name].min.[ext]",
     "build:dev": "bun build actor.ts --outdir ./dist --sourcemap=linked",
     "typegen": "bunx dts-bundle-generator --out-file ./dist/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/template -- actor.ts",
