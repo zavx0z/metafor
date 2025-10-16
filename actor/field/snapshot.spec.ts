@@ -2,7 +2,7 @@ import { describe, it, expect } from "bun:test"
 import { applyPatchesAndSave, rollbackLast, setActorSnapshot, getActorSnapshot } from "./snapshot"
 import { diffArrays, applyPatchesToArray } from "./array"
 import type { Core } from "../force/gravity.t"
-import type { Key } from "./field.t"
+import type { Key } from "./index.t"
 
 type Primitive = string | number
 
@@ -10,7 +10,6 @@ describe("система снимков без полных снимков", () 
   it("должен применять патчи к корневым свойствам и откатывать", () => {
     const instance = {} as any
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: { count: 1, tags: ["a", "b", "c"] },
@@ -44,7 +43,6 @@ describe("система снимков без полных снимков", () 
     // apply patches to snapshot
     const instance = {} as any
     setActorSnapshot(instance, {
-      id: "actor2",
       path: "",
       state: "idle",
       context: { arr: oldArr.slice() },
@@ -63,7 +61,6 @@ describe("система снимков без полных снимков", () 
   it("должен обрабатывать множественные группы патчей и множественные откаты", () => {
     const instance = {} as any
     setActorSnapshot(instance, {
-      id: "actor3",
       path: "",
       state: "idle",
       context: { tags: ["x", "y"], n: 0 },
@@ -104,7 +101,6 @@ describe("система снимков без полных снимков", () 
   it("должен обрабатывать сложные вложенные объекты и откат", () => {
     const instance = {} as any
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: {
@@ -139,7 +135,6 @@ describe("система снимков без полных снимков", () 
   it("должен обрабатывать множественные последовательные группы патчей со сложным откатом", () => {
     const instance = {} as any
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: {
@@ -198,7 +193,6 @@ describe("система снимков без полных снимков", () 
   it("должен обрабатывать граничные случаи: пустые массивы и объекты", () => {
     const instance = {} as any
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: {
@@ -234,7 +228,6 @@ describe("система снимков без полных снимков", () 
   it("должен обрабатывать операции перемещения с откатом", () => {
     const instance = {} as any
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: {
@@ -268,7 +261,6 @@ describe("система снимков без полных снимков", () 
     const instance = {} as any
     const largeArray = Array.from({ length: 100 }, (_, i) => i)
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: {
@@ -299,7 +291,6 @@ describe("система снимков без полных снимков", () 
   it("должен обрабатывать ошибочные случаи: неверные пути", () => {
     const instance = {} as any
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: { data: [1, 2, 3] },
@@ -318,7 +309,6 @@ describe("система снимков без полных снимков", () 
   it("должен обрабатывать откат когда истории не существует", () => {
     const instance = {} as any
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: { data: "test" },
@@ -330,7 +320,6 @@ describe("система снимков без полных снимков", () 
   it("должен обрабатывать множественные откаты до пустой истории", () => {
     const instance = {} as any
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: { count: 0 },
@@ -358,7 +347,6 @@ describe("система снимков без полных снимков", () 
   it("должен симулировать конкурентные изменения", () => {
     const instance = {} as any
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: {
@@ -409,7 +397,6 @@ describe("интеграция снимков с diffArrays", () => {
     const instance = {} as any
     const originalArray = [1, 2, 3, 4, 5]
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: { items: originalArray.slice() },
@@ -434,7 +421,6 @@ describe("интеграция снимков с diffArrays", () => {
     const instance = {} as any
     const originalArray = ["a", "b", "c", "d", "e"]
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: {
@@ -465,7 +451,6 @@ describe("интеграция снимков с diffArrays", () => {
   it("должен обрабатывать множественные операции с массивами с независимым откатом", () => {
     const instance = {} as any
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: {
@@ -509,7 +494,6 @@ describe("интеграция снимков с diffArrays", () => {
     const size = 1000
     const originalArray = Array.from({ length: size }, (_, i) => i)
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: { data: originalArray.slice() },
@@ -542,7 +526,6 @@ describe("интеграция снимков с diffArrays", () => {
   it("должен обрабатывать граничный случай: пустой в непустой массив", () => {
     const instance = {} as any
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: { items: [] },
@@ -564,7 +547,6 @@ describe("интеграция снимков с diffArrays", () => {
   it("должен обрабатывать граничный случай: непустой в пустой массив", () => {
     const instance = {} as any
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: { items: [1, 2, 3] },
@@ -594,7 +576,6 @@ describe("интеграция снимков с diffArrays", () => {
     // Тест 2: diffArrays + snapshot system с правильными путями
     const instance = {} as any
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: { data: originalArray.slice() },
@@ -621,7 +602,6 @@ describe("интеграция снимков с diffArrays", () => {
     const instance = {} as any
     const originalArray = [1, 2, 3, 4, 5]
     setActorSnapshot(instance, {
-      id: "actor1",
       path: "",
       state: "idle",
       context: {
@@ -664,7 +644,6 @@ describe("интеграция снимков с diffArrays", () => {
     it("должен обрабатывать патчи состояний и контекста как в реальной системе", () => {
       const instance = {} as any
       setActorSnapshot(instance, {
-        id: "55f45d5851d6",
         path: "",
         state: "ожидание",
         context: {},
@@ -709,7 +688,6 @@ describe("интеграция снимков с diffArrays", () => {
     it("должен обрабатывать сложные патчи с вложенными объектами", () => {
       const instance = {} as any
       setActorSnapshot(instance, {
-        id: "6f6d29ed9e35",
         path: "0/0",
         state: "ожидание",
         context: {
@@ -745,7 +723,6 @@ describe("интеграция снимков с diffArrays", () => {
     it("должен обрабатывать патчи с объектами в контексте", () => {
       const instance = {} as any
       setActorSnapshot(instance, {
-        id: "1163e3fc80f5",
         path: "0/0/0",
         state: "ожидание",
         context: {},
@@ -781,7 +758,6 @@ describe("интеграция снимков с diffArrays", () => {
     it("должен обрабатывать множественные операции с одним актором", () => {
       const instance = {} as any
       setActorSnapshot(instance, {
-        id: "634d90f19f8c",
         path: "0/0/0/0/0",
         state: "ожидание",
         context: {},
@@ -835,7 +811,6 @@ describe("интеграция снимков с diffArrays", () => {
     it("должен обрабатывать патчи с replace контекста на объект", () => {
       const instance = {} as any
       setActorSnapshot(instance, {
-        id: "634d90f19f8c",
         path: "0/0/0/0/0",
         state: "ожидание",
         context: { initial: true },
@@ -867,7 +842,6 @@ describe("интеграция снимков с diffArrays", () => {
     it("должен обрабатывать патчи с test операциями как replace", () => {
       const instance = {} as any
       setActorSnapshot(instance, {
-        id: "test-actor",
         path: "test/path",
         state: "начальное",
         context: { value: 42 },
@@ -894,7 +868,6 @@ describe("интеграция снимков с diffArrays", () => {
     it("должен обрабатывать test операции с массивами", () => {
       const instance = {} as any
       setActorSnapshot(instance, {
-        id: "test-actor",
         path: "test/path",
         state: "ожидание",
         context: { items: ["a", "b", "c"] },
@@ -921,7 +894,6 @@ describe("интеграция снимков с diffArrays", () => {
     it("должен обрабатывать test операции с объектами", () => {
       const instance = {} as any
       setActorSnapshot(instance, {
-        id: "test-actor",
         path: "test/path",
         state: "ожидание",
         context: {
@@ -959,7 +931,6 @@ describe("интеграция снимков с diffArrays", () => {
     it("должен обрабатывать корневой путь /", () => {
       const instance = {} as any
       setActorSnapshot(instance, {
-        id: "root-actor",
         path: "/",
         state: "ожидание",
         context: { data: "initial" },
@@ -987,7 +958,6 @@ describe("интеграция снимков с diffArrays", () => {
     it("должен обрабатывать корневой путь / с вложенными объектами", () => {
       const instance = {} as any
       setActorSnapshot(instance, {
-        id: "root-actor",
         path: "/",
         state: "ожидание",
         context: {
@@ -1023,7 +993,6 @@ describe("интеграция снимков с diffArrays", () => {
     it("должен обрабатывать корневой путь / с массивами", () => {
       const instance = {} as any
       setActorSnapshot(instance, {
-        id: "root-actor",
         path: "/",
         state: "ожидание",
         context: {

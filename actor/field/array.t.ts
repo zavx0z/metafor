@@ -1,4 +1,4 @@
-import type { Key } from "./field.t"
+import type { Key } from "./index.t"
 
 export type Primitive = string | number | boolean
 

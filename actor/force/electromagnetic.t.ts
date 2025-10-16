@@ -16,6 +16,7 @@ export interface BaseMessage {
   timestamp: number
   src: MsgSrc
 }
+
 /**
  * Сообщение между акторами в системе MetaFor
  *
@@ -43,7 +44,7 @@ export interface Message extends BaseMessage {
 
 export type JsonPatch = {
   from?: string
-  op: "replace" | "add" | "remove" | "test" | "move" | "copy"
+  op: "add" | "remove" | "replace" | "move" | "test"
   path: string
   value?: any
 }

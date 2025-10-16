@@ -1,4 +1,6 @@
-import type { JsonPatch, ActorSnapshot, HistoryEntry } from "./snapshot.t"
+import type { HistoryEntry } from "./snapshot.t"
+import type { ActorSnapshot } from "./index.t"
+import type { JsonPatch } from "../force/electromagnetic.t"
 import type { Primitive } from "./array.t"
 
 const snapshots = new WeakMap<any, ActorSnapshot>()
