@@ -4,7 +4,8 @@ import { Gravity, type Core } from "./gravity"
 import type { Schema, Values } from "@zavx0z/context"
 import { Fields } from "../fields"
 
-export type { Message, MsgSrc }
+export { MsgSrc }
+export type { Message }
 
 export abstract class Electromagnetic extends Gravity {
   static channelName = "electromagnetic"

@@ -1,9 +1,9 @@
-import { Electromagnetic } from "./electromagnetic"
-import { type Process, type Processes } from "../processes"
+import { Electromagnetic, MsgSrc } from "./electromagnetic"
+import type { Action, Process, Processes } from "../processes"
 import { checkTransition } from "../states"
 import type { Conditions, Transitions } from "../states.t"
 import type { Core } from "./gravity.t"
-import { type Reactions } from "../reactions"
+import type { Reactions } from "../reactions"
 import type { Message } from "./electromagnetic"
 import type { Schema, Values } from "@zavx0z/context"
 
@@ -13,25 +13,37 @@ export abstract class Week extends Electromagnetic {
 
   protected abstract update(context: Partial<Values<Schema>>, src: string): Partial<Values<Schema>>
   protected abstract setState(state: string): void
-  protected abstract executeAction(process: Process): Promise<any>
+  protected abstract run(action: Action): Promise<any>
 
   constructor(id: string, meta: string, core?: Core) {
     super(id, meta, core)
   }
-  // ------------------------------ процесс ----------------------------------------
-
-  #process: Process | null = null
-
-  protected get process() {
-    return this.#process
+  override destroy(recursive = true, src = MsgSrc.Nothing) {
+    Week.results.delete(this)
+    super.destroy(recursive, src)
   }
+  // ------------------------------ процесс ----------------------------------------
+  protected static results = new WeakMap<Week, any>()
+  protected process: Process | null = null
+  public error: Error | null = null
 
   protected setProcess(process: Process | null) {
-    if (this.#process === process) return
-    this.#process = process
-    if (!process) this.transition()
+    const current = this.process
+    if (current === process) return
+    if (process && !current) this.process = process
+    else if (!process && current) {
+      Week.results.delete(this)
+      this.error = null
+      this.process = null
+      this.transition()
+    }
   }
-
+  protected get result() {
+    return Week.results.get(this)
+  }
+  protected set result(result: any) {
+    Week.results.set(this, result)
+  }
   // ---------------------------- переходы ------------------------------------
 
   /** Выполняет инициализирующие переходы */
@@ -44,10 +56,17 @@ export abstract class Week extends Electromagnetic {
     if (process) {
       if (!this.requestStartProcess()) return
       this.setProcess(process)
-
-      this.executeAction(process)
-        .then(() => this.sendMessage(this.msgStateSuccess()))
-        .catch(() => this.sendMessage(this.msgStateError()))
+      this.run(process.action)
+        .then((result) => {
+          this.result = result
+          process?.success?.({ update: this.update, data: result })
+          this.sendMessage(this.msgStateSuccess())
+        })
+        .catch((error) => {
+          this.error = error
+          process?.error?.({ update: this.update, error })
+          this.sendMessage(this.msgStateError())
+        })
         .finally(() => {
           this.setProcess(null)
           this.transition()
@@ -71,9 +90,17 @@ export abstract class Week extends Electromagnetic {
           this.setProcess(process)
           this.setState(state)
 
-          this.executeAction(process)
-            .then(() => this.sendMessage(this.msgStateSuccess()))
-            .catch(() => this.sendMessage(this.msgStateError()))
+          this.run(process.action)
+            .then((result) => {
+              this.result = result
+              process?.success?.({ update: this.update, data: result })
+              this.sendMessage(this.msgStateSuccess())
+            })
+            .catch((error) => {
+              this.error = error
+              process?.error?.({ update: this.update, error })
+              this.sendMessage(this.msgStateError())
+            })
             .finally(() => {
               this.setProcess(null)
               this.transition()

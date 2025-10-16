@@ -1,16 +1,15 @@
 import { contextFromSchema, type Context, type Schema, type Values } from "@zavx0z/context"
-import { processesFromSchema, type Process, type Processes } from "./processes"
-import { reactionsFromSchema, type Reactions } from "./reactions"
-export { Fields } from "./fields"
 import type { Node as ParseNode } from "@zavx0z/template"
-import type { Snapshot } from "./actor.t"
-import { MsgSrc, type Message } from "./force/electromagnetic.t"
-import type { Core } from "./force/gravity.t"
-export type { Message }
-import type { StatesConfig } from "../meta/states"
-import type { Meta } from "../meta/metafor"
+import { processesFromSchema, type Process, type Processes, type Action } from "./processes"
+import { reactionsFromSchema, type Reactions } from "./reactions"
+
+import type { Meta, StatesConfig } from "../meta/metafor"
 import { Fields } from "./fields"
 import { Strong } from "./force/strong"
+import { MsgSrc } from "./force/electromagnetic"
+import type { Core } from "./force/gravity"
+
+import type { Snapshot } from "./actor.t"
 
 /**
  * Actor — основной класс актора MetaFor.
@@ -54,42 +53,24 @@ export class Actor extends Strong {
   }
 
   // ------------------------------ выполнение процесса ------------------------------------------
-  protected processAction(){}
-  protected processSuccess(){}
-  protected processError(){}
-
-  protected async executeAction(process: Process): Promise<any> {
-    try {
-      const result = process.action({
-        self: { meta: this.meta, actor: this.id, path: this.path, destroy: this.destroy },
-        context: this.ctx.context,
-        schema: this.ctx.schema,
-        core: this.core,
-      })
-      if (result instanceof Promise) {
-        return result
-          .then((data) => process.success && process.success({ update: this.update, data }))
-          .catch((error) => {
-            const normError = this.prepareError(error)
-            process.error?.({ update: this.update, error: normError })
-            return normError
-          })
-      } else {
-        process.success && process.success({ update: this.update, data: result })
-        return Promise.resolve(result)
+  protected run(action: Action): Promise<any> {
+    return new Promise<any>((resolve, reject) => {
+      try {
+        const result = action({
+          self: { meta: this.meta, actor: this.id, path: this.path, destroy: this.destroy },
+          context: this.ctx.context,
+          schema: this.ctx.schema,
+          core: this.core,
+        })
+        if (result instanceof Promise) result.then((result) => resolve(result)).catch((error) => reject(error))
+        else resolve(result)
+      } catch (error) {
+        if (error instanceof Error) return reject(error)
+        if (typeof error === "string") error = new Error(error)
+        else console.error(`Передан неизвестный тип ошибки в состоянии: ${this.state.current}`)
+        reject(error)
       }
-    } catch (error) {
-      const normError = this.prepareError(error)
-      process.error?.({ update: this.update, error: normError })
-      return Promise.reject(normError)
-    }
-  }
-
-  private prepareError(error: any): Error {
-    if (typeof error === "string") error = new Error(error)
-    else if (!(error instanceof Error))
-      console.error(`Передан неизвестный тип ошибки в состоянии: ${this.state.current}`)
-    return error
+    })
   }
 
   // ---------- snapshot ----------

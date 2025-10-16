@@ -1,6 +1,6 @@
 import type { StatesConfig } from "../meta/states.t"
-import { Fields } from "./actor"
 import { type Context, type Schema } from "@zavx0z/context"
+import { Fields } from "./fields"
 
 export abstract class Field {
   public readonly meta: string
@@ -50,5 +50,4 @@ export abstract class Field {
     }
     return paths
   }
-  
 }
