@@ -70,10 +70,12 @@ export interface Task {
 export enum TaskType {
   Init = "init",
   Action = "action",
-  Process = "process",
-  SuccessUpdateContext = "success-update-context",
-  ErrorUpdateContext = "error-update-context",
-  TransitionUpdateContext = "transition-update-context",
+  InitAction = "init-action",
+  Success = "success",
+  Error = "error",
+  ContextUpdateSuccess = "success-update-context",
+  ContextUpdateError = "error-update-context",
+  ContextUpdateTransition = "transition-update-context",
   Destroy = "destroy",
   Nothing = "",
 }

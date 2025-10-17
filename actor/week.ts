@@ -85,7 +85,7 @@ export abstract class Week extends Electromagnetic {
       if (!this.requestStartProcess()) return
       this.action().then(this.resolve).catch(this.reject)
     } else {
-      this.requestTransition()
+      if (!this.requestTransition()) return
       this.transition()
     }
   }

@@ -1,4 +1,4 @@
-import { contextFromSchema, type Schema, type Values } from "@zavx0z/context"
+import { contextFromSchema, type Values } from "@zavx0z/context"
 import { processesFromSchema } from "./src/processes"
 import { reactionsFromSchema } from "./src/reactions"
 
@@ -7,8 +7,6 @@ import { Fields } from "./src/fields"
 import { Strong } from "./strong"
 import { MsgSrc } from "./electromagnetic"
 import type { Core } from "./gravity"
-
-import type { Snapshot } from "./actor.t"
 
 /** Actor — логическая единица существования */
 export class Actor extends Strong {
