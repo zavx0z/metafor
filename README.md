@@ -6,6 +6,18 @@
 
 **English** | [Русский](README.ru.md)
 
+## 🧭 Managing Complexity in the Era of Self-Organizing Systems
+
+We are entering a new era where code and processes are created not manually, but through the interaction of multiple agents — autonomous systems capable of acting, adapting, and evolving.
+When everything is connected to everything, management ceases to be linear — we need a space where humans can observe, understand, and direct what's happening.
+
+**MetaFor** is created precisely for this. It's a framework that forms a computational space where people, agents, devices, and applications act together — as elements of a single system.
+In this space, you can see processes as a whole, instantly dive into details, manage time, branches, and states, as well as coordinate the development of systems — in familiar interfaces, VR, and AR.
+
+MetaFor is a step towards a computational environment where interaction follows the same laws of coherence and self-organization that govern nature.
+
+---
+
 ## _Framework based on Quantum Field Theory principles_
 
 **MetaFor** is a next-generation framework that creates the foundation for unifying objects, functionality, devices, and entire systems into a **unified interaction space**.  
