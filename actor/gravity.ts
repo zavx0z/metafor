@@ -27,6 +27,7 @@ export abstract class Gravity extends Field {
   get snapshot(): ActorSnapshot {
     return {
       path: this.path,
+      meta: this.meta,
       state: this.state.current,
       context: this.ctx.context,
     }

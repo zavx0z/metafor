@@ -161,3 +161,15 @@ export function rollbackLast(instance: any): boolean {
   for (const p of last.inverse) applyPatch(snap, p)
   return true
 }
+
+/** Применяет патчи к снапшоту (чистая функция) */
+export function applyPatchesToSnapshot(snapshot: ActorSnapshot, patches: JsonPatch[]): ActorSnapshot {
+  // Создаем копию снапшота для модификации
+  const result = JSON.parse(JSON.stringify(snapshot))
+
+  for (const patch of patches) {
+    applyPatch(result, patch)
+  }
+
+  return result
+}

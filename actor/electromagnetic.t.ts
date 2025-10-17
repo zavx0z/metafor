@@ -57,3 +57,23 @@ export enum MsgSrc {
   Reaction = "r",
   Nothing = "",
 }
+
+export interface Task {
+  actor: string
+  timestamp: number
+  src: MsgSrc
+  op: "add" | "remove" | "replace" | "move" | "test"
+  path: string
+  value?: any
+}
+
+export enum TaskType {
+  Init = "init",
+  Action = "action",
+  Process = "process",
+  SuccessUpdateContext = "success-update-context",
+  ErrorUpdateContext = "error-update-context",
+  TransitionUpdateContext = "transition-update-context",
+  Destroy = "destroy",
+  Nothing = "",
+}

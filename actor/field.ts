@@ -2,8 +2,9 @@ import type { StatesConfig } from "../meta/states.t"
 import { type Context, type Schema } from "@zavx0z/context"
 import { Fields } from "./src/fields"
 import type { Actor } from "./actor"
-import type { HistoryEntry } from "./field.t"
 import type { ChunkPatches, ActorSnapshot } from "./gravity.t"
+import { applyPatchesToSnapshot } from "./src/snapshot"
+import { MsgSrc } from "./electromagnetic"
 
 export abstract class Field {
   public readonly meta: string
@@ -20,18 +21,35 @@ export abstract class Field {
     timestamp: number
   }> = []
 
+  /** Последний сохраненный снапшот (метаданные) */
+  private static lastSaved: { actor: string; snapshot: ActorSnapshot; timestamp: number } | null = null
+
   private static readonly MAX_PATCHES = 1000
   private static readonly MAX_CHECKPOINTS = 10
 
   // -------------------------- Методы для работы с глобальной историей -----------------------------------------
-
+  protected static getLastSnapshot() {
+    return this.lastSaved
+  }
   /** Добавляет патчи в глобальную историю */
   protected static pushPatches(chunk: ChunkPatches): void {
-    this.histories.push(chunk)
+    Field.histories.push(chunk)
 
-    if (this.histories.length >= this.MAX_PATCHES) {
-      this.createCheckpoint()
+    if (Field.histories.length >= Field.MAX_PATCHES) {
+      Field.createCheckpoint()
     }
+  }
+
+  /** Сохраняет снапшот актора в последний чекпоинт (при создании актора) */
+  protected static saveActorSnapshot(actorId: string, snapshot: ActorSnapshot): void {
+    if (Field.checkpoints.length === 0) {
+      // Если нет чекпоинтов, создаем первый
+      Field.createCheckpoint()
+    }
+
+    const lastCheckpoint = Field.checkpoints[Field.checkpoints.length - 1]!
+    lastCheckpoint.snapshots.set(actorId, snapshot)
+    Field.lastSaved = { actor: actorId, snapshot, timestamp: Date.now() }
   }
 
   /** Создает чекпоинт всех акторов и очищает старые патчи */
@@ -43,26 +61,26 @@ export abstract class Field {
     const allActors = fields.getAllActors()
     for (const actor of allActors) snapshots.set(actor.id, actor.snapshot)
 
-    const checkpoint = { index: this.histories.length, snapshots, timestamp: Date.now() }
-    this.checkpoints.push(checkpoint)
+    const checkpoint = { index: Field.histories.length, snapshots, timestamp: Date.now() }
+    Field.checkpoints.push(checkpoint)
 
     // Очищаем старые чекпоинты
-    if (this.checkpoints.length > this.MAX_CHECKPOINTS) {
-      const toRemove = this.checkpoints.length - this.MAX_CHECKPOINTS
-      this.checkpoints.splice(0, toRemove)
+    if (Field.checkpoints.length > Field.MAX_CHECKPOINTS) {
+      const toRemove = Field.checkpoints.length - Field.MAX_CHECKPOINTS
+      Field.checkpoints.splice(0, toRemove)
     }
 
     // Очищаем старые патчи до последнего чекпоинта
-    const lastCheckpoint = this.checkpoints[this.checkpoints.length - 1]
+    const lastCheckpoint = Field.checkpoints[Field.checkpoints.length - 1]
     if (lastCheckpoint) {
-      this.histories.splice(0, lastCheckpoint.index)
+      Field.histories.splice(0, lastCheckpoint.index)
     }
   }
 
   /** Откатывает всю систему к указанному времени */
   protected static rollbackSystem(targetTimestamp: number): boolean {
     // Находим ближайший чекпоинт
-    const checkpoint = this.findCheckpoint(targetTimestamp)
+    const checkpoint = Field.findCheckpoint(targetTimestamp)
     if (!checkpoint) return false
 
     // Восстанавливаем снапшоты из чекпоинта
@@ -78,7 +96,7 @@ export abstract class Field {
     }
 
     // Применяем патчи от чекпоинта до целевого времени
-    const patchesToApply = this.histories.slice(checkpoint.index).filter((chunk) => chunk.timestamp <= targetTimestamp)
+    const patchesToApply = Field.histories.slice(checkpoint.index).filter((chunk) => chunk.timestamp <= targetTimestamp)
 
     for (const chunk of patchesToApply) {
       const actor = fields.getActor(chunk.actor)
@@ -92,11 +110,11 @@ export abstract class Field {
   }
 
   /** Находит ближайший чекпоинт к указанному времени */
-  private static findCheckpoint(timestamp: number): (typeof this.checkpoints)[0] | null {
+  private static findCheckpoint(timestamp: number): (typeof Field.checkpoints)[0] | null {
     let closest = null
     let closestDiff = Infinity
 
-    for (const checkpoint of this.checkpoints) {
+    for (const checkpoint of Field.checkpoints) {
       const diff = Math.abs(checkpoint.timestamp - timestamp)
       if (diff < closestDiff) {
         closest = checkpoint
@@ -107,10 +125,69 @@ export abstract class Field {
     return closest
   }
 
+  /** Возвращает последний объект чекпоинта */
+  protected static getLastCheckpoint(): (typeof Field.checkpoints)[0] | null {
+    if (Field.checkpoints.length === 0) return null
+    return Field.checkpoints[Field.checkpoints.length - 1]!
+  }
+
   /** Очищает всю глобальную историю */
   protected static clearGlobalHistory(): void {
-    this.histories = []
-    this.checkpoints = []
+    Field.histories = []
+    Field.checkpoints = []
+    Field.lastSaved = null
+  }
+
+  /** Получает снапшот актора на основе последнего сообщения в истории */
+  protected static getSnapshotByLastMessage(): ActorSnapshot | null {
+    // Берем последнее сообщение в истории
+    if (Field.histories.length === 0) {
+      return null
+    }
+
+    const lastMessage = Field.histories[Field.histories.length - 1]!
+    const actorId = lastMessage.actor
+
+    // Находим последний чекпоинт
+    if (Field.checkpoints.length === 0) {
+      return null
+    }
+
+    const lastCheckpoint = Field.checkpoints[Field.checkpoints.length - 1]!
+
+    // Берем снапшот актора из последнего чекпоинта
+    const baseSnapshot = lastCheckpoint.snapshots.get(actorId)
+    if (!baseSnapshot) {
+      return null
+    }
+
+    // Применяем все патчи от последнего чекпоинта до конца истории
+    let snapshot = { ...baseSnapshot }
+    const patchesToApply = Field.histories.slice(lastCheckpoint.index)
+
+    for (const chunk of patchesToApply) {
+      if (chunk.actor === actorId) {
+        // Применяем патчи к снапшоту
+        snapshot = applyPatchesToSnapshot(snapshot, chunk.patches)
+      }
+    }
+
+    return snapshot
+  }
+
+  /** Получает снапшот актора из последнего чекпоинта */
+  protected static getActorSnapshotFromCheckpoint(actorId: string): ActorSnapshot | null {
+    if (Field.checkpoints.length === 0) {
+      return null
+    }
+
+    const lastCheckpoint = Field.checkpoints[Field.checkpoints.length - 1]!
+    return lastCheckpoint.snapshots.get(actorId) || null
+  }
+
+  /** Возвращает последний сохраненный снапшот (без вычислений) */
+  protected static getLastSavedSnapshot(): ActorSnapshot | null {
+    return Field.lastSaved ? Field.lastSaved.snapshot : null
   }
 
   // -------------------------- Жизненный цикл -----------------------------------------
@@ -145,9 +222,11 @@ export abstract class Field {
   }
   // -------------------------------------------------------------------
 
-  protected static getActor(id: string): Actor | null {
+  protected static getActor(id: string): Actor {
     const fields = Fields.get()
-    if (!fields) return null
-    return fields.getActor(id)
+    if (!fields) throw new Error("Fields not found")
+    const actor = fields.getActor(id)
+    if (!actor) throw new Error("Actor not found")
+    return actor
   }
 }

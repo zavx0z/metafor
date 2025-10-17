@@ -1,5 +1,5 @@
 import type { Snapshot } from "./actor.t"
-import { MsgSrc, type Message } from "./electromagnetic.t"
+import { MsgSrc, TaskType, type Message, type Task } from "./electromagnetic.t"
 import { Gravity, type Core } from "./gravity"
 import type { Schema, Values } from "@zavx0z/context"
 import { Field } from "./field"
@@ -37,7 +37,7 @@ export abstract class Electromagnetic extends Gravity {
 
   public override destroy(recursive = true, src = MsgSrc.Nothing) {
     Electromagnetic.chargedActors.delete(this)
-    this.requestRemove(src)
+    this.requestDestroy(src)
     this.disconnected()
     super.destroy(recursive, src)
   }
@@ -74,12 +74,17 @@ export abstract class Electromagnetic extends Gravity {
   /** Доставка сообщения локально и (опционально) через BroadcastChannel. */
   protected sendMessage(message: Message) {
     if (!this.wired) return
-    Field.pushPatches({
-      actor: message.actor,
-      src: message.src,
-      patches: message.patches,
-      timestamp: message.timestamp,
-    })
+
+    if (Electromagnetic.isSelfInitMessage(message)) {
+      Field.saveActorSnapshot(this.id, this.snapshot)
+    } else
+      Field.pushPatches({
+        actor: message.actor,
+        src: message.src,
+        patches: message.patches,
+        timestamp: message.timestamp,
+      })
+
     for (const actor of Electromagnetic.chargedActors) {
       if (actor === this) continue
       if (actor.id !== message.actor && actor.hasReactions())
@@ -106,92 +111,120 @@ export abstract class Electromagnetic extends Gravity {
   }
 
   private static processMessage: Message | undefined
-
-  public static step() {
-    const message = Field.histories.pop()
-    if (!message) {
-      console.warn("resume message not found")
-      return
-    }
-    const actor = Field.getActor(message.actor)
-    if (!actor) {
-      console.error("resume actor not found", message.actor)
-      return
-    }
-
+  private static stack: Task[] = []
+  private static pushTask(message: Message) {
     for (const patch of message.patches) {
-      switch (patch.op) {
-        case "add":
-          console.log("resume transit")
-          actor.transit()
-          break
-        case "replace":
-          if (patch.path === "/context") {
-            console.log("resume update context")
-            actor.update(patch.value, message.src)
-          }
-          console.log("resume update")
-          // actor.update(patch.value)
-          break
-        case "remove":
-          console.log("resume destroy")
-          // actor.destroy()
-          break
-        case "test":
-          console.log("resume transition")
-          // @ts-ignore
-          actor.recursive(actor.processes.getProcess(actor.state.current))
-          break
+      const task = {
+        actor: message.actor,
+        timestamp: message.timestamp,
+        src: message.src,
+        op: patch.op,
+        path: patch.path,
+        value: patch.value,
+      }
+      console.log("Следующий таск", Electromagnetic.taskType(task), patch.value)
+      this.stack.push(task)
+    }
+  }
+  private static popTask() {
+    return this.stack.pop()
+  }
+  private static peekTask(): Task {
+    if (!this.stack.length) throw new Error("Stack is empty")
+    return this.stack[this.stack.length - 1] as Task
+  }
+  private static taskType(task: Task): TaskType {
+    if (task.op === "add") return TaskType.Init
+    if (task.op === "test") return TaskType.Action
+    if (task.op === "replace") {
+      if (task.path === "/state") return TaskType.Process
+      if (task.path === "/context" && task.src === MsgSrc.Success) return TaskType.SuccessUpdateContext
+      if (task.path === "/context" && task.src === MsgSrc.Error) return TaskType.ErrorUpdateContext
+      if (task.path === "/context" && task.src === MsgSrc.Transition) return TaskType.TransitionUpdateContext
+    }
+    if (task.op === "remove") return TaskType.Destroy
+    return TaskType.Nothing
+  }
+  private static get typeLastTask(): TaskType {
+    const task = Electromagnetic.peekTask()
+    return Electromagnetic.taskType(task)
+  }
+  private static taskInStack(message: Message) {
+    for (const task of this.stack) {
+      if (task.actor !== message.actor) continue
+      if (task.src !== message.src) continue
+      if (task.op !== message.patches[0]!.op) continue
+      if (task.path !== message.patches[0]!.path) continue
+      return true
+    }
+    return false
+  }
+  public static step() {
+    const task = Electromagnetic.peekTask()
+    const actor = Field.getActor(task.actor)
+    switch (Electromagnetic.typeLastTask) {
+      case TaskType.Init: {
+        console.log("resume init")
+        actor.transit()
+        return
+      }
+      case TaskType.Action: {
+        console.log("resume action")
+        actor.transit()
+        return
+      }
+      case TaskType.Process: {
+        console.log("resume process")
+
+        actor.transit()
+        return
+      }
+      case TaskType.SuccessUpdateContext: {
+        console.log("resume success update context")
+        actor.transit()
+        return
+      }
+      case TaskType.ErrorUpdateContext: {
+        console.log("resume error update context")
+        actor.transit()
+        return
+      }
+      case TaskType.TransitionUpdateContext: {
+        console.log("resume transition update context")
+        actor.transit()
+        return
+      }
+      case TaskType.Destroy: {
+        console.log("resume destroy")
+        actor.transit()
+        return
       }
     }
   }
 
   // ---------------------------- сообщения ------------------------------------
-  private compareMessages(msg1: Message, msg2: Message): boolean {
-    if (msg1.actor !== msg2.actor) return false
-    if (msg1.patches.length !== msg2.patches.length) return false
-    for (let i = 0; i < msg1.patches.length; i++) {
-      if (msg1.patches[i]!.op !== msg2.patches[i]!.op) return false
-      if (msg1.patches[i]!.path !== msg2.patches[i]!.path) return false
-    }
-    return true
-  }
-
-  private debugMessage(message: Message): boolean {
-    if (Electromagnetic.processMessage) {
-      const isSame = this.compareMessages(Electromagnetic.processMessage, message)
-      if (isSame) {
-        this.sendMessage(message)
-        Electromagnetic.processMessage = undefined
-        return true
-      }
-    } else {
-      console.log(message.actor.split("-").pop(), message.patches[0], message.meta, message.path, message.timestamp)
-      Electromagnetic.processMessage = message
-    }
-    Field.pushPatches({
-      actor: message.actor,
-      src: message.src,
-      patches: message.patches,
-      timestamp: message.timestamp,
-    })
-    return false
-  }
 
   protected requestInit(): boolean {
-    const msg: Message = {
+    const value = this.snapshot
+    const message: Message = {
       meta: this.meta,
       actor: this.id,
       path: this.path,
       timestamp: Date.now(),
       src: MsgSrc.Nothing,
-      patches: [{ op: "add", path: "/", value: this.snapshot }],
+      patches: [{ op: "add", path: "/", value }],
     }
     if (!Electromagnetic.lock) {
-      this.sendMessage(msg)
+      this.sendMessage(message)
       return true
     }
-    return this.debugMessage(msg)
+    if (Electromagnetic.taskInStack(message)) {
+      this.sendMessage(message)
+      return true
+    } else {
+      Electromagnetic.pushTask(message)
+      return false
+    }
   }
 
   protected requestStartProcess() {
@@ -207,11 +240,24 @@ export abstract class Electromagnetic extends Gravity {
       this.sendMessage(msg)
       return true
     }
-    return this.debugMessage(msg)
+    return false
   }
-
+  static isSelfInitMessage(message: Message): boolean {
+    if (!message) return false
+    for (const patch of message.patches) {
+      if (patch.path === "/" && patch.op === "add") return true
+    }
+    return false
+  }
+  static isSelfActionMessage(message: Message, state: string): boolean {
+    if (!message) return false
+    for (const patch of message.patches) {
+      if (patch.path === "/state" && patch.op === "test" && patch.value === state) return true
+    }
+    return false
+  }
   protected requestUpdateContext(context: Partial<Values<Schema>>, src: MsgSrc): boolean {
-    const msg: Message = {
+    const message: Message = {
       meta: this.meta,
       actor: this.id,
       path: this.path,
@@ -220,10 +266,10 @@ export abstract class Electromagnetic extends Gravity {
       patches: [{ op: "replace", path: "/context", value: context }],
     }
     if (!Electromagnetic.lock) {
-      this.sendMessage(msg)
+      this.sendMessage(message)
       return true
     }
-    return this.debugMessage(msg)
+    return false
   }
 
   protected requestStateSuccess(): boolean {
@@ -239,7 +285,7 @@ export abstract class Electromagnetic extends Gravity {
       this.sendMessage(msg)
       return true
     }
-    return this.debugMessage(msg)
+    return false
   }
 
   protected requestStateError(): boolean {
@@ -255,7 +301,7 @@ export abstract class Electromagnetic extends Gravity {
       this.sendMessage(msg)
       return true
     }
-    return this.debugMessage(msg)
+    return false
   }
 
   protected requestTransition(): boolean {
@@ -271,10 +317,10 @@ export abstract class Electromagnetic extends Gravity {
       this.sendMessage(msg)
       return true
     }
-    return this.debugMessage(msg)
+    return false
   }
 
-  private requestRemove(src: MsgSrc): boolean {
+  private requestDestroy(src: MsgSrc): boolean {
     const msg: Message = {
       meta: this.meta,
       actor: this.id,
@@ -287,6 +333,6 @@ export abstract class Electromagnetic extends Gravity {
       this.sendMessage(msg)
       return true
     }
-    return this.debugMessage(msg)
+    return false
   }
 }

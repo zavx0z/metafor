@@ -23,6 +23,7 @@ export type Core = Record<string, any>
 
 export type ActorSnapshot = {
   path: string
+  meta: string
   state: string
   context: Record<string, any>
 }

@@ -38,14 +38,9 @@ export abstract class Strong extends Week {
 
   /** обновление контекста */
   update(context: Partial<Values<Schema>>, src: MsgSrc): Partial<Values<Schema>> {
-    const prevContext = Electromagnetic.lock ? { ...this.ctx.context } : {}
-
     const updated = this.ctx.update(context)
     if (Object.keys(updated).length > 0) {
-      if (!this.requestUpdateContext(updated, src)) {
-        this.ctx.update(prevContext)
-        return {}
-      }
+      if (!this.requestUpdateContext(updated, src)) return {}
     }
     return updated
   }
