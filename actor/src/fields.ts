@@ -251,6 +251,13 @@ export class Fields {
     return this.actors.has(id)
   }
 
+  /** Получить всех акторов в системе.
+   * @returns Массив всех акторов.
+   */
+  public getAllActors(): Actor[] {
+    return Array.from(this.actors.values())
+  }
+
   /**
    * Построить индекс-путь ("0/1/2") для актора по его текущей позиции.
    * @throws Если актор не найден или витрина рассинхронизирована.

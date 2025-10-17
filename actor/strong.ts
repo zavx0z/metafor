@@ -1,12 +1,12 @@
 import type { Context, Schema, Values } from "@zavx0z/context"
-import { Week } from "../week"
-import { MsgSrc } from "../electromagnetic/electromagnetic.t"
-import type { Core } from "../gravity"
-import type { StatesConfig } from "../../meta/metafor"
-import type { Processes } from "../week/processes"
-import type { Reactions } from "../week/reactions"
+import { Week } from "./week"
+import { MsgSrc } from "./electromagnetic.t"
+import type { Core } from "./gravity"
+import type { StatesConfig } from "../meta/metafor"
+import type { Processes } from "./src/processes"
+import type { Reactions } from "./src/reactions"
 import type { Node as ParseNode } from "@zavx0z/template"
-import { Electromagnetic } from "../electromagnetic/electromagnetic"
+import { Electromagnetic } from "./electromagnetic"
 
 export abstract class Strong extends Week {
   // -------------------------- Жизненный цикл -----------------------------------------

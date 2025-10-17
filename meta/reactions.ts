@@ -1,10 +1,10 @@
 import type { Schema, Values } from "@zavx0z/context"
-import type { Core } from "../actor/gravity/index.t"
-import type { ReactionFilterConditions } from "../actor/week/condition.t"
+import type { Core } from "../actor/gravity.t"
+import type { ReactionFilterConditions } from "../actor/src/condition.t"
 import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction } from "./reactions.t"
 import type { SelfInfo } from "./metafor.t"
 import { destroyAppendArg, extractFields, updateAppendArg } from "./parser/func"
-import { MsgSrc } from "../actor/electromagnetic/electromagnetic.t"
+import { MsgSrc } from "../actor/electromagnetic.t"
 export type { ReactionsDeclaration, ReactionsSchema }
 
 export const reactionsSchema = <C extends Schema, S extends string, I extends Core = {}>(

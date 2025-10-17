@@ -1,8 +1,8 @@
-import type { Actor } from "../actor"
-import { Field } from "../field"
-import { Fields } from "../field/fields"
-import type { ActorSnapshot } from "./index.t"
-import type { Core } from "./index.t"
+import type { Actor } from "./actor"
+import { Field } from "./field"
+import { Fields } from "./src/fields"
+import type { ActorSnapshot } from "./gravity.t"
+import type { Core } from "./gravity.t"
 
 export type { Core }
 

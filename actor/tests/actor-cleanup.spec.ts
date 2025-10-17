@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from "bun:test"
 import { Actor } from "../actor"
-import { Fields } from "../field/fields"
+import { Fields } from "../src/fields"
 import type { Meta } from "../../meta/metafor"
 
 describe("Очистка ресурсов актора", () => {
@@ -55,13 +55,13 @@ describe("Очистка ресурсов актора", () => {
     }
     actor.onStateChange(listener)
 
-    // Проверяем, что слушатель добавлен
+    // @ts-ignore Проверяем, что слушатель добавлен
     expect(actor.stateListeners.size).toBe(1)
 
     // Уничтожаем актор
     actor.destroy()
 
-    // Проверяем, что слушатели очищены
+    //@ts-ignore Проверяем, что слушатели очищены
     expect(actor.stateListeners.size).toBe(0)
   })
 
@@ -117,6 +117,7 @@ describe("Очистка ресурсов актора", () => {
 
     // Первый вызов destroy
     actor.destroy()
+    // @ts-ignore
     expect(actor.stateListeners.size).toBe(0)
     expect(Fields.get().has(actor.id)).toBe(false)
 

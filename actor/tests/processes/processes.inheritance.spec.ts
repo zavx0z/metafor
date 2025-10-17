@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import { processesFromSchema } from "../../week/processes.ts"
+import { processesFromSchema } from "../../src/processes.ts"
 import { contextSchema } from "@zavx0z/context"
 
 test("десериализация процессов работает корректно", () => {

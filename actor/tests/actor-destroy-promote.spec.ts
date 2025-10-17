@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeEach } from "bun:test"
-import { Fields } from "../field/fields"
+import { Fields } from "../src/fields"
 import type { Actor } from "../actor"
 
 const A = (id: string, payload?: unknown): Actor => ({ id, payload } as unknown as Actor)

@@ -1,8 +1,8 @@
 import { describe, it, expect } from "bun:test"
 import { applyPatchesAndSave, rollbackLast, setActorSnapshot, getActorSnapshot } from "./snapshot"
 import { diffArrays, applyPatchesToArray } from "./array"
-import type { Core } from "../gravity/index.t"
-import type { Key } from "./index.t"
+import type { Core } from "../gravity.t"
+import type { Key } from "../field.t"
 
 type Primitive = string | number
 

@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test"
-import { checkTransition } from "../../strong/states.ts"
+import { checkTransition } from "../../src/states.ts"
 
 test("Простые условия для числовых значений", () => {
   const condition = { age: 25 }

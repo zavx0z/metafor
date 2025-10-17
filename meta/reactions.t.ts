@@ -1,8 +1,8 @@
 import type { Schema, Update, Values } from "@zavx0z/context"
-import type { JsonPatch } from "../actor/electromagnetic/electromagnetic.t"
-import type { Core } from "../actor/gravity/index.t"
-import type { ReactionFilterConditions } from "../actor/week/condition.t"
-import type { ReactionParams } from "../actor/week/reactions.t"
+import type { JsonPatch } from "../actor/electromagnetic.t"
+import type { Core } from "../actor/gravity.t"
+import type { ReactionFilterConditions } from "../actor/src/condition.t"
+import type { ReactionParams } from "../actor/src/reactions.t"
 import type { Self, SelfInfo } from "./metafor.t"
 
 /**

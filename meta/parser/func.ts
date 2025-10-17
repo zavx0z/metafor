@@ -1,5 +1,5 @@
 import type { Schema } from "@zavx0z/context"
-import type { Core } from "../../actor/gravity/index.t"
+import type { Core } from "../../actor/gravity.t"
 import type { ReactionAction } from "../reactions.t"
 
 const PATTERN_UPDATE = /\bupdate\s*\(\s*({[\s\S]*?})\s*\)/g

@@ -1,5 +1,5 @@
 import { test, describe, expect } from "bun:test"
-import { processesFromSchema, type Process } from "../../week/processes.ts"
+import { processesFromSchema, type Process } from "../../src/processes.ts"
 import { contextSchema } from "@zavx0z/context"
 
 describe("deserializeProcesses", () => {

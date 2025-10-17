@@ -1,11 +1,11 @@
 import { contextFromSchema, type Schema, type Values } from "@zavx0z/context"
-import { processesFromSchema } from "./week/processes"
-import { reactionsFromSchema } from "./week/reactions"
+import { processesFromSchema } from "./src/processes"
+import { reactionsFromSchema } from "./src/reactions"
 
 import type { Meta } from "../meta/metafor"
-import { Fields } from "./field/fields"
+import { Fields } from "./src/fields"
 import { Strong } from "./strong"
-import { MsgSrc } from "./electromagnetic/electromagnetic"
+import { MsgSrc } from "./electromagnetic"
 import type { Core } from "./gravity"
 
 import type { Snapshot } from "./actor.t"

@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { Actor } from "../actor.ts"
 import type { Meta } from "../../meta/metafor.ts"
 import { messagesFixture } from "../../infra/test/fixture/message.ts"
-import { Electromagnetic } from "../electromagnetic/electromagnetic.ts"
+import { Electromagnetic } from "../electromagnetic.ts"
 
 describe("Получение сообщений из обоих каналов", () => {
   let messagesFixtureInstance: ReturnType<typeof messagesFixture>

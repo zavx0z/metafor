@@ -1,10 +1,10 @@
 import type { Schema } from "@zavx0z/context"
-import type { Core } from "../actor/gravity/index.t"
-import type { Process } from "../actor/week/processes"
+import type { Core } from "../actor/gravity.t"
+import type { Process } from "../actor/src/processes"
 import type { ProcessConfig } from "./process.t"
 import type { ParsedProcess, ProcessesDeclaration, ProcessesSchema } from "./process.t"
 import { destroyAppendArg, parseFunction, updateAppendArg } from "./parser/func"
-import { MsgSrc } from "../actor/electromagnetic/electromagnetic.t"
+import { MsgSrc } from "../actor/electromagnetic.t"
 
 export type { ProcessesDeclaration, ProcessesSchema }
 

@@ -16,7 +16,7 @@
  * ```
  */
 
-import type { JsonPatch, MsgSrc } from "../electromagnetic/electromagnetic.t"
+import type { JsonPatch, MsgSrc } from "./electromagnetic.t"
 
 export type Core = Record<string, any>
 // Тип для snapshot акторов

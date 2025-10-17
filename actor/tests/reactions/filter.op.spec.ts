@@ -1,7 +1,7 @@
-import { reactionsFromSchema } from "../../week/reactions"
+import { reactionsFromSchema } from "../../src/reactions"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
-import type { JsonPatch } from "../../electromagnetic/electromagnetic.t"
+import type { JsonPatch } from "../../electromagnetic.t"
 import { reactionsSchema } from "../../../meta/reactions"
 
 type Ctx = { value: { type: "number"; required: true } }

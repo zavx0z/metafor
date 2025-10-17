@@ -1,8 +1,8 @@
-import type { Snapshot } from "../actor.t"
+import type { Snapshot } from "./actor.t"
 import { MsgSrc, type Message } from "./electromagnetic.t"
-import { Gravity, type Core } from "../gravity"
+import { Gravity, type Core } from "./gravity"
 import type { Schema, Values } from "@zavx0z/context"
-import { Field } from "../field"
+import { Field } from "./field"
 
 export { MsgSrc }
 export type { Message }
@@ -74,6 +74,12 @@ export abstract class Electromagnetic extends Gravity {
   /** Доставка сообщения локально и (опционально) через BroadcastChannel. */
   protected sendMessage(message: Message) {
     if (!this.wired) return
+    Field.pushPatches({
+      actor: message.actor,
+      src: message.src,
+      patches: message.patches,
+      timestamp: message.timestamp,
+    })
     for (const actor of Electromagnetic.chargedActors) {
       if (actor === this) continue
       if (actor.id !== message.actor && actor.hasReactions())
@@ -85,16 +91,12 @@ export abstract class Electromagnetic extends Gravity {
   // -------------------------- Управление жизненным циклом ------------------------------
 
   protected static lock = false
-  protected static queue: Message[] = []
 
   public static break() {
     Electromagnetic.lock = true
   }
 
   public static resume() {
-    for (const message of Electromagnetic.queue) {
-      console.log(message.actor.split("-").pop(), message.patches[0], message.meta, message.path, message.timestamp)
-    }
     // Electromagnetic.queue = []
     // Electromagnetic.lock = false
   }
@@ -103,17 +105,17 @@ export abstract class Electromagnetic extends Gravity {
     return Electromagnetic.lock
   }
 
-  private static currentTask: Message | undefined
+  private static processMessage: Message | undefined
 
   public static step() {
-    const message = Electromagnetic.queue.shift()
+    const message = Field.histories.pop()
     if (!message) {
       console.warn("resume message not found")
       return
     }
     const actor = Field.getActor(message.actor)
     if (!actor) {
-      console.error("resume actor not found", message.meta, message.actor, message.path)
+      console.error("resume actor not found", message.actor)
       return
     }
 
@@ -155,28 +157,27 @@ export abstract class Electromagnetic extends Gravity {
     return true
   }
 
-  private debugMessage(msg: Message): boolean {
-    if (Electromagnetic.currentTask) {
-      const isSame = this.compareMessages(Electromagnetic.currentTask, msg)
+  private debugMessage(message: Message): boolean {
+    if (Electromagnetic.processMessage) {
+      const isSame = this.compareMessages(Electromagnetic.processMessage, message)
       if (isSame) {
-        this.sendMessage(msg)
-        Electromagnetic.currentTask = undefined
+        this.sendMessage(message)
+        Electromagnetic.processMessage = undefined
         return true
       }
     } else {
-      console.log(msg.actor.split("-").pop(), msg.patches[0], msg.meta, msg.path, msg.timestamp, Electromagnetic.queue)
-      Electromagnetic.currentTask = msg
+      console.log(message.actor.split("-").pop(), message.patches[0], message.meta, message.path, message.timestamp)
+      Electromagnetic.processMessage = message
     }
-    Electromagnetic.queue.push(msg)
+    Field.pushPatches({
+      actor: message.actor,
+      src: message.src,
+      patches: message.patches,
+      timestamp: message.timestamp,
+    })
     return false
   }
 
-  /**
-   * 
-   * При дебаге
-   * 1. Инициализация актора
-   
-   */
   protected requestInit(): boolean {
     const msg: Message = {
       meta: this.meta,
@@ -222,12 +223,7 @@ export abstract class Electromagnetic extends Gravity {
       this.sendMessage(msg)
       return true
     }
-    if (src === MsgSrc.Success && msg.actor === this.id) {
-      this.sendMessage(msg)
-      return true
-    } else {
-      return this.debugMessage(msg)
-    }
+    return this.debugMessage(msg)
   }
 
   protected requestStateSuccess(): boolean {

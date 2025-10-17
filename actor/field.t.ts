@@ -1,4 +1,4 @@
-import type { JsonPatch } from "../electromagnetic/electromagnetic.t"
+import type { JsonPatch } from "./electromagnetic.t"
 
 export type Key = Uint8Array
 

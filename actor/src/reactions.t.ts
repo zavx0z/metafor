@@ -5,11 +5,11 @@
  */
 
 import type { Schema, Values } from "@zavx0z/context"
-import type { JsonPatch } from "../electromagnetic/electromagnetic.t"
-import type { Core } from "../gravity/index.t"
+import type { JsonPatch } from "../electromagnetic.t"
+import type { Core } from "../gravity.t"
 import type { ReactionAction } from "../../meta/reactions.t"
 import type { Self, SelfInfo } from "../../meta/metafor.t"
-import type { Week } from "."
+import type { Week } from "../week"
 
 export type ReactionParams = {
   meta: string
