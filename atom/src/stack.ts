@@ -1,6 +1,26 @@
 import { Source } from "../electromagnetic.t"
 import { type Task, Tasks } from "./stack.t"
 export { type Task, Tasks }
+
+export function taskType(stack: Task[], task: Task): Tasks {
+  if (task.op === "add") return Tasks.AtomCreate
+  if (task.op === "test") {
+    const lastTask = stack[stack.length - 1]
+    if (stack[0]?.op === "add") return Tasks.ActionAfterAtomCreate
+    return Tasks.Action
+  }
+  if (task.op === "replace") {
+    if (task.path === "/state" && task.src === Source.Success) return Tasks.Success
+    if (task.path === "/state" && task.src === Source.Error) return Tasks.Error
+    if (task.path === "/state" && task.src === Source.Transition) return Tasks.Transition
+    if (task.path === "/context" && task.src === Source.Success) return Tasks.ContextUpdateSuccess
+    if (task.path === "/context" && task.src === Source.Error) return Tasks.ContextUpdateError
+    if (task.path === "/context" && task.src === Source.Transition) return Tasks.ContextUpdateReaction
+  }
+  if (task.op === "remove") return Tasks.Destroy
+  return Tasks.Nothing
+}
+
 /**
  * Очищает стек процесса состояния.
  *

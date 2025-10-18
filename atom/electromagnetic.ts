@@ -2,7 +2,7 @@ import { Field, type Hidden, type Values } from "./field"
 import { Gravity, type Core } from "./gravity"
 
 import { Source, type JsonPatch, type Message } from "./electromagnetic.t"
-import { type Task, Tasks, clearProcessTasks } from "./src/stack"
+import { type Task, Tasks, clearProcessTasks, taskType } from "./src/stack"
 
 export { Source }
 export type { Message, JsonPatch }
@@ -100,16 +100,10 @@ export abstract class Electromagnetic extends Gravity {
 
   private static stack: Task[] = []
   private static pushTask(message: Message) {
-    for (const patch of message.patches) {
-      const task = {
-        atom: message.atom,
-        timestamp: message.timestamp,
-        src: message.src,
-        op: patch.op,
-        path: patch.path,
-        value: patch.value,
-      }
-      setTimeout(() => console.log("Следующий таск", Electromagnetic.taskType(task), patch.value), 100)
+    const { patches, meta, path, ...info } = message
+    for (const patch of patches) {
+      const task = { ...info, ...patch }
+      setTimeout(() => console.log("Следующий таск", taskType(Electromagnetic.stack, task), patch.value), 100)
       this.stack.push(task)
     }
   }
@@ -124,46 +118,10 @@ export abstract class Electromagnetic extends Gravity {
     if (!this.stack.length) throw new Error("Stack is empty")
     return this.stack[this.stack.length - 1] as Task
   }
-  private static checkType(message: Message): Tasks {
-    for (const patch of message.patches) {
-      const task = {
-        atom: message.atom,
-        timestamp: message.timestamp,
-        src: message.src,
-        op: patch.op,
-        path: patch.path,
-        value: patch.value,
-      }
-      return Electromagnetic.taskType(task)
-    }
-    return Tasks.Nothing
-  }
-  private static taskType(task: Task): Tasks {
-    if (task.op === "add") return Tasks.AtomCreate
-    if (task.op === "test") {
-      const lastTask = Electromagnetic.lastTask
-      if (Electromagnetic.stack[0]?.op === "add") return Tasks.ActionAfterAtomCreate
-      return Tasks.Action
-    }
-    if (task.op === "replace") {
-      if (task.path === "/state" && task.src === Source.Success) return Tasks.Success
-      if (task.path === "/state" && task.src === Source.Error) return Tasks.Error
-      if (task.path === "/state" && task.src === Source.Transition) return Tasks.Transition
-      if (task.path === "/context" && task.src === Source.Success) return Tasks.ContextUpdateSuccess
-      if (task.path === "/context" && task.src === Source.Error) return Tasks.ContextUpdateError
-      if (task.path === "/context" && task.src === Source.Transition) return Tasks.ContextUpdateReaction
-    }
-    if (task.op === "remove") return Tasks.Destroy
-    return Tasks.Nothing
-  }
+
   private static get typeLastTask(): Tasks {
     const task = Electromagnetic.lastTask
-    return Electromagnetic.taskType(task)
-  }
-
-  private static positionInStack(task: Task): boolean {
-    const index = this.stack.findIndex((t) => t.atom === task.atom)
-    return index !== -1
+    return taskType(Electromagnetic.stack, task)
   }
 
   private static taskInStack(message: Message) {
