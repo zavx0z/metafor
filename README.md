@@ -30,7 +30,7 @@ Its goal is to build a computational environment where the principles of **inter
 ---
 
 > 💡 MetaFor is based on the **fundamental idea of transferring Quantum Field Theory (QFT) principles** into programming.  
-> In the process of its comprehension, **[Quantum Theory of Programming (qTp)](actor/README.md)** was formalized — a theoretical foundation that defined the architectural and behavioral principles of MetaFor.
+> In the process of its comprehension, **[Quantum Theory of Programming (qTp)](atom/README.md)** was formalized — a theoretical foundation that defined the architectural and behavioral principles of MetaFor.
 
 ---
 
@@ -39,17 +39,17 @@ Its goal is to build a computational environment where the principles of **inter
 Quantum field theory describes the Universe as a continuous field of interactions, where each particle is a **local excitation** within a common continuum.  
 In this model, there are no rigid boundaries: **everything is connected to everything**, and order emerges from the very dynamics of interactions.
 
-MetaFor adopts these ideas, creating a **programmatic field** where each component is an active actor, connected to others through processes, states, and contexts.  
+MetaFor adopts these ideas, creating a **programmatic field** where each component is an active atom, connected to others through processes, states, and contexts.  
 Thus, the system becomes not a set of modules, but a **living network of interconnections** capable of self-organization and adaptation.
 
 ---
 
 ## 🧠 Theoretical Foundation — Quantum Theory of Programming
 
-[**qTp**](actor/README.md) is not an external tool, but a natural formalization of the principles that formed the basis of MetaFor.  
+[**qTp**](atom/README.md) is not an external tool, but a natural formalization of the principles that formed the basis of MetaFor.  
 It describes how software actors can exist, interact, and evolve in a common computational field, maintaining coherence and stability.
 
-[qTp](actor/README.md) defines:
+[qTp](atom/README.md) defines:
 
 - how connections and forces between system elements are formed;
 - how emergent structures and dynamics arise;
@@ -91,7 +91,7 @@ For detailed information about capabilities, API, and usage examples of MetaFor,
 
 **Development and debugging tools for MetaFor:**
 
-- [🧩 @metafor/inspect](infra/inspect/README.md) — actor debugging with step-by-step execution, snapshots and replay
+- [🧩 @metafor/inspect](infra/inspect/README.md) — atom debugging with step-by-step execution, snapshots and replay
 
 ## 📅 Short-term Plans
 

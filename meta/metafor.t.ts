@@ -1,5 +1,5 @@
 import type { Schema, Types, Update, Values } from "@zavx0z/context"
-import type { Core } from "../actor/gravity.t"
+import type { Core } from "../atom/gravity.t"
 import type { ProcessesDeclaration, ProcessesSchema } from "./process.t"
 import type { Node as ParseNode } from "@zavx0z/template"
 import type { ReactionsSchema } from "./reactions.t"
@@ -7,8 +7,8 @@ import type { Superposition } from "./states"
 import type { ReactionsDeclaration } from "./reactions"
 
 /**
- * MetaFor — фабрика для создания web-компонента-актора конечного автомата
- * @param name - имя актора (используется для создания тега `meta-${name}`)
+ * MetaFor — фабрика для создания web-компонента-атома конечного автомата
+ * @param name - имя атома (используется для создания тега `meta-${name}`)
  * @returns chain API: context() -> states() -> core() -> processes() -> reactions() -> view()
  *
  * **Важно:** Итоговый тег компонента формируется как `meta-${name}`,
@@ -129,16 +129,16 @@ export type MetaFor = (
           /**
            * Регистрирует карту реакций для автомата.
            *
-           * **ВАЖНО: Реакции предназначены для реагирования на события других акторов, а не на собственные изменения состояния.**
+           * **ВАЖНО: Реакции предназначены для реагирования на события других атомов, а не на собственные изменения состояния.**
            * Для управления собственными переходами состояний используйте процессы и их success/error обработчики.
-           * Реакции связывают разные акторы в событийной архитектуре.
+           * Реакции связывают разные атомы в событийной архитектуре.
            *
            * @param reaction Функция (filter => декларация), где декларация — массив кортежей [string[], { update, filter, label }]
            * @returns chain API для вызова .view(...)
            *
            * @example
            * ```typescript
-           * // Правильно: реакция на события другого актора
+           * // Правильно: реакция на события другого атома
            * .reactions(reaction => [
            *   ["idle", "loading"], // Состояния, в которых активна реакция
            *   {
@@ -149,7 +149,7 @@ export type MetaFor = (
            *         messageCount: context.messageCount + 1
            *       })
            *     },
-           *     label: "Обработка сообщений от roadmap актора"
+           *     label: "Обработка сообщений от roadmap атома"
            *   }
            * ])
            *
@@ -221,7 +221,7 @@ export type MetaForConfig = {
 }
 
 /**
- * Параметры функции рендеринга представления актора.
+ * Параметры функции рендеринга представления атома.
  *
  * В функцию render компонента MetaFor передаётся объект с полезными утилитами и данными для построения UI.
  *
@@ -266,7 +266,7 @@ export type ViewDefinitionParams<C extends Schema = Schema, I extends Core = Cor
   context: Values<C>
   core: I
   /**
-   * Текущее состояние автомата/актора.
+   * Текущее состояние автомата/атома.
    * Обычно строка, определённая в .states(...)
    * @example
    * ```ts
@@ -333,7 +333,7 @@ export interface ViewDeclaration<C extends Schema, I extends Core, S extends str
  * Схема компонента MetaFor
  *
  * Определяет полную структуру компонента включая контекст, состояния,
- * процессы, реакции и представление. Используется для создания акторов.
+ * процессы, реакции и представление. Используется для создания атомов.
  *
  * @template C - Тип контекста (схема контекста)
  * @template S - Тип состояний (строковые литералы)
@@ -368,25 +368,4 @@ export interface Meta<C extends Schema = Schema, S extends string = string, I ex
   style?: string
   /** Ядро */
   core?: I
-}
-
-/**
- * Базовая информация об акторе в системе MetaFor
- *
- * Содержит основную информацию о местоположении актора в иерархии.
- * Используется в фильтрах реакций, где не требуется доступ к методу destroy.
- *
- * @example
- * ```typescript
- * const selfInfo: SelfInfo = {
- *   meta: "user-profile",
- *   actor: "user-123",
- *   path: "0/1/2"
- * }
- * ```
- */
-export type Self = {
-  meta: string
-  actor: string
-  path: string
 }

@@ -9,7 +9,7 @@ export interface Config {
   collapseAll: boolean
   /** Список мета-компонентов для фильтрации */
   meta: string[]
-  /** Индекс актора для фильтрации (null = все) */
+  /** Индекс атома для фильтрации (null = все) */
   index: number | null
   /** Список операций JSON Patch для фильтрации */
   patch: string[]
@@ -26,7 +26,7 @@ export interface Config {
   }
   /** Настройки детализации отладки */
   detail: {
-    /** Показывать ли ядро актора */
+    /** Показывать ли ядро атома */
     core: boolean
   }
 }

@@ -346,14 +346,14 @@ const adminComponentName = "admin-component" // имя admin компонент�
           path: "/context", // Путь: "/" | "/context" | "/state"
           value: { userId: { gt: 0 } }, // Условия на значение
         })
-        .equal(({ update, context, meta, actor, timestamp, patch, core }) => {
+        .equal(({ update, context, meta, atom, timestamp, patch, core }) => {
           // Обработка сообщения
           const user = core.users.get(patch.value.userId)
           update({
             selectedUser: user,
             lastMessageTime: timestamp,
             messageCount: context.messageCount + 1,
-            actorIndex: actor.index, // Доступ к индексу актора
+            actorIndex: atom.index, // Доступ к индексу актора
           })
         }),
     ],
@@ -385,10 +385,10 @@ const adminComponentName = "admin-component" // имя admin компонент�
 **Новые фильтры для массивов:**
 
 - `in` — проверка вхождения значения в массив:
-  - Для строк: `meta: { in: ["admin", "user"] }` или `actor: { in: ["actor-1", "actor-2"] }`
+  - Для строк: `meta: { in: ["admin", "user"] }` или `atom: { in: ["atom-1", "atom-2"] }`
   - Для чисел: `value: { in: [1, 2, 3] }`
 - `notIn` — проверка отсутствия значения в массиве:
-  - Для строк: `meta: { notIn: ["banned", "suspended"] }` или `actor: { notIn: ["blocked-1", "blocked-2"] }`
+  - Для строк: `meta: { notIn: ["banned", "suspended"] }` или `atom: { notIn: ["blocked-1", "blocked-2"] }`
   - Для чисел: `value: { notIn: [0, 4, 6] }`
 
 ### 6. Представление (View)

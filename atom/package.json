@@ -1,0 +1,32 @@
+{
+  "name": "@metafor/atom",
+  "author": "zavx0z",
+  "version": "0.4.6",
+  "type": "module",
+  "private": false,
+  "exports": {
+    ".": {
+      "import": "./dist/atom.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "README.md",
+    "README.ru.md"
+  ],
+  "scripts": {
+    "pub": "bun run build && bun run typegen && bun publish --access public --tag latest",
+    "build": "rm -rf ./dist && bun run build:prod && bun run build:dev",
+    "build:watch": "bun --watch build atom.ts --outdir ./dist --sourcemap=linked",
+    "build:prod": "bun build atom.ts --outdir ./dist --minify --entry-naming [name].min.[ext]",
+    "build:dev": "bun build atom.ts --outdir ./dist --sourcemap=linked",
+    "typegen": "bunx dts-bundle-generator --out-file ./dist/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/template -- atom.ts",
+    "docs": "typedoc",
+    "doc:push": "bun run script/doc.push.ts"
+  },
+  "dependencies": {
+    "@zavx0z/context": "2.3.0"
+  }
+}

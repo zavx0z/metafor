@@ -1,4 +1,4 @@
-import { Actor } from "@metafor/actor"
+import { Atom } from "@metafor/atom"
 
 const css = String.raw
 const html = String.raw
@@ -10,7 +10,7 @@ class Debugger extends HTMLElement {
 
   constructor() {
     super()
-    if (this.hasAttribute("brk")) Actor.break()
+    if (this.hasAttribute("brk")) Atom.break()
 
     this.innerHTML = html`
       <style>
@@ -50,8 +50,8 @@ class Debugger extends HTMLElement {
     if (name !== "brk") return
     // presence attribute: set => newValue is "" (empty string) or some value; remove => null
     const shouldBreak = newValue !== null
-    if (shouldBreak && !Actor.isLocked) Actor.break()
-    else if (!shouldBreak && Actor.isLocked) Actor.resume()
+    if (shouldBreak && !Atom.isLocked) Atom.break()
+    else if (!shouldBreak && Atom.isLocked) Atom.resume()
     this.updatePlayButton()
   }
 
@@ -60,20 +60,20 @@ class Debugger extends HTMLElement {
     // UX: показываем действие, которое произойдёт при клике
     // locked (paused) → показываем ▶ (Resume)
     // running → показываем ⏸ (Pause)
-    this.playBtn.textContent = Actor.isLocked ? "▶" : "⏸"
+    this.playBtn.textContent = Atom.isLocked ? "▶" : "⏸"
   }
 
   private handlePlayClick(): void {
-    if (!Actor.isLocked) {
-      Actor.break()
+    if (!Atom.isLocked) {
+      Atom.break()
     } else {
-      Actor.resume()
+      Atom.resume()
     }
     this.updatePlayButton()
   }
 
   private handleStepClick(): void {
-    Actor.step()
+    Atom.step()
   }
 
   private handleReloadClick(): void {

@@ -4,8 +4,8 @@
  */
 
 import type { Schema } from "@zavx0z/context"
-import type { Core } from "../actor/gravity.t"
-import type { ProcessChain, ActionChain } from "../actor/src/processes.t"
+import type { Core } from "../atom/gravity.t"
+import type { ProcessChain, ActionChain } from "../atom/src/processes.t"
 
 /**
  * Обработчик действия процесса.

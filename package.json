@@ -6,7 +6,7 @@
   "private": true,
   "workspaces": [
     "./meta",
-    "./actor",
+    "./atom",
     "./infra/*"
   ],
   "devDependencies": {

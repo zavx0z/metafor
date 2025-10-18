@@ -88,7 +88,7 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
       .join("\n")
 
   // Генерация различимых цветов (HSL) из строки без кеша
-  const getActorColor = (id: string): string => {
+  const getAtomColor = (id: string): string => {
     // FNV-1a
     let hash = 2166136261 >>> 0
     for (let i = 0; i < id.length; i++) {
@@ -116,21 +116,19 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
         message.patch.path === path &&
         config.path.includes(path) &&
         (!config.meta.length || config.meta.includes(message.meta)) &&
-        (config.index === null || message.actor === String(config.index))
+        (config.index === null || message.atom === String(config.index))
     )
 
   // Основная функция логирования
-  const log = (message: Log, core: Record<string, any> = {}): void => {
-    const { meta, actor, path: actorPath, patch } = message
-
-    const metaStr = String(meta).padEnd(36, " ")
-    const pathStr = actorPath
-    const actorStr = actor.includes("-") ? actor.slice(actor.lastIndexOf("-") + 1) : actor
-    const op = String(patch.op).padEnd(config.width.op, " ")
-    const path = String(patch.path).padEnd(config.width.path, " ")
-
+  const log = (message: Log): void => {
+    const metaStr = String(message.meta).padEnd(36, " ")
+    const pathStr = message.path
+    const atom = message.atom.includes("-") ? message.atom.slice(message.atom.lastIndexOf("-") + 1) : message.atom
+    const op = String(message.patch.op).padEnd(config.width.op, " ")
+    const path = String(message.patch.path).padEnd(config.width.path, " ")
     const src = centerText(message.src, 4)
 
+    const patch = message.patch
     const stateValue = patch.value
       ? Array.isArray(patch.value)
         ? JSON.stringify(patch.value, null, 2)
@@ -144,7 +142,7 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
     const valLen = 22
     const valSlot = "".padEnd(valLen, " ")
     const baseStyles = [
-      `background: ${getActorColor(actorStr)}; color: #000; font-weight: bold; padding: 0 4px; border-radius: 6px`,
+      `background: ${getAtomColor(atom)}; color: #000; font-weight: bold; padding: 0 4px; border-radius: 6px`,
       "",
       `color: ${getOpColor(patch.op, patch.path)}; font-weight: bold`,
       "",
@@ -157,15 +155,12 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
       "color: #3498db; font-weight: bold",
     ]
     const msgWithOutValue = [
-      `%c${actorStr}%c %c${op}%c | %c${path}%c | %c${src}%c | %c${valSlot}%c${metaStr}%c${pathStr}`,
+      `%c${atom}%c %c${op}%c | %c${path}%c | %c${src}%c | %c${valSlot}%c${metaStr}%c${pathStr}`,
       ...baseStyles,
     ]
 
     const msgWithValue = [
-      `%c${actorStr}%c %c${op}%c | %c${path}%c | %c${src}%c | %c${stateValue.padEnd(
-        valLen,
-        " "
-      )}%c${metaStr}%c${pathStr}`,
+      `%c${atom}%c %c${op}%c | %c${path}%c | %c${src}%c | %c${stateValue.padEnd(valLen, " ")}%c${metaStr}%c${pathStr}`,
       ...baseStyles.slice(0, 8),
       "color: lightskyblue; font-weight: bold",
       "color: #3498db; font-weight: bold",
@@ -177,10 +172,9 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
         try {
           if (typeof patch.value === "object" && patch.value !== null) {
             console.log(value)
-            config.detail.core && logCore(core)
           } else console.log(patch.value)
         } finally {
-          console.log(actor)
+          console.log(atom)
           console.groupEnd()
         }
         break
@@ -191,19 +185,17 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
         try {
           if (typeof patch.value === "object" && patch.value !== null) {
             console.log(value)
-            config.detail.core && logCore(core)
           } else console.log(patch.value)
         } finally {
-          console.log(actor)
+          console.log(atom)
           console.groupEnd()
         }
         break
       case isLog(message, "/state"):
         config.collapseAll ? console.groupCollapsed(...msgWithValue) : console.group(...msgWithValue)
         try {
-          config.detail.core && logCore(core)
         } finally {
-          console.log(actor)
+          console.log(atom)
           console.groupEnd()
         }
         break
@@ -211,11 +203,11 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
   }
 
   // Функция логирования сообщений
-  const logMsg = (data: Message | any, core: Record<string, any> = {}): void => {
+  const logMsg = (data: Message | any): void => {
     if (Object.hasOwn(data, "meta")) {
       const { patches, ...msg } = data as Message
       for (const patch of patches) {
-        log({ ...msg, patch }, core)
+        log({ ...msg, patch } as Log)
       }
     } else {
       console.log(data)

@@ -1,8 +1,8 @@
-# 🧩 @metafor/inspect — Actor Debugging
+# 🧩 @metafor/inspect — atom Debugging
 
 [← Main](../../README.md) | **English** | [Русский](README.ru.md)
 
-A tool for step-by-step debugging and analysis of actor behavior in MetaFor. Implements three approaches to debugging asynchronous and parallel code, each providing different levels of control over time, context, and execution order.
+A tool for step-by-step debugging and analysis of atom behavior in MetaFor. Implements three approaches to debugging asynchronous and parallel code, each providing different levels of control over time, context, and execution order.
 
 ---
 
@@ -10,7 +10,7 @@ A tool for step-by-step debugging and analysis of actor behavior in MetaFor. Imp
 
 | Approach                 | Goal                    | Key Idea                                                | Status         |
 | :----------------------- | :---------------------- | :------------------------------------------------------ | :------------- |
-| **1. Depth‑First Trace** | View call sequences     | Recursive traversal deep into asynchronous actor chains | ✅ Implemented |
+| **1. Depth‑First Trace** | View call sequences     | Recursive traversal deep into asynchronous atom chains | ✅ Implemented |
 | **2. Snapshot & Replay** | Analyze state over time | Save snapshots and replay execution history             | 🕓 In Progress |
 | **3. Logical Threads**   | Manage parallel tasks   | Split async calls into logical threads                  | 🕓 In Progress |
 
@@ -20,12 +20,12 @@ A tool for step-by-step debugging and analysis of actor behavior in MetaFor. Imp
 
 ### 1. Depth‑First Trace (implemented)
 
-**Deep traversal** — linear representation of asynchronous actor calls as a single stack.  
-Asynchronous chains are recursively unfolded, allowing to view execution context "in depth" without breaking the logic of interaction between actors.
+**Deep traversal** — linear representation of asynchronous atom calls as a single stack.  
+Asynchronous chains are recursively unfolded, allowing to view execution context "in depth" without breaking the logic of interaction between atoms.
 
 **Advantages:**
 
-- ✅ Convenient for analyzing actor action sequences
+- ✅ Convenient for analyzing atom action sequences
 - ✅ Integrated with MetaFor task system (TaskType, Electromagnetic)
 - ✅ Used by default as the main tracing mode
 
@@ -35,33 +35,33 @@ Asynchronous chains are recursively unfolded, allowing to view execution context
 
 ### 2. Snapshot & Replay (in progress)
 
-**Snapshots and rollbacks** — mechanism for recording actor state and reversible changes (patches) with playback capability.  
-Allows "rewinding" execution to any point in history, analyzing side effects and actor system state over time.
+**Snapshots and rollbacks** — mechanism for recording atom state and reversible changes (patches) with playback capability.  
+Allows "rewinding" execution to any point in history, analyzing side effects and atom system state over time.
 
 **Capabilities:**
 
-- ✅ Restore or repeat any sequence of actor events
-- 🕓 Implementation through `Field.getSnapshotByLastMessage()` and actor snapshot system
+- ✅ Restore or repeat any sequence of atom events
+- 🕓 Implementation through `Field.getSnapshotByLastMessage()` and atom snapshot system
 - 🕓 Integration with MetaFor context and state system
 
 **Requirements:**
 
-- ⚠️ Requires meta-actors for most external resources (WebSocket, timers, etc.)
+- ⚠️ Requires meta-atoms for most external resources (WebSocket, timers, etc.)
 
 ### 3. Logical Threads (in progress)
 
 **Logical threads** — model of step-by-step execution of asynchronous tasks as separate "virtual stacks".  
-Virtual stacks are the actors themselves. This is the ability to debug branches of the interaction graph between actors.
+Virtual stacks are the atoms themselves. This is the ability to debug branches of the interaction graph between atoms.
 
 **Capabilities:**
 
-- ✅ Deterministic control of parallel actor scenarios
+- ✅ Deterministic control of parallel atom scenarios
 - ✅ Partially implemented through task system and stack management in `Electromagnetic`
-- 🕓 Integration with actor state and transition system
+- 🕓 Integration with atom state and transition system
 
 **Plans:**
 
-- 📌 Full integration with BroadcastChannel system and inter-actor messaging
+- 📌 Full integration with BroadcastChannel system and inter-atom messaging
 
 ---
 
@@ -69,7 +69,7 @@ Virtual stacks are the actors themselves. This is the ability to debug branches 
 
 ### Web Component `meta-inspect`
 
-Web component for step-by-step debugging of actors in the browser with intuitive control interface.
+Web component for step-by-step debugging of atoms in the browser with intuitive control interface.
 
 #### Setup
 
@@ -100,8 +100,8 @@ Web component for step-by-step debugging of actors in the browser with intuitive
 ### ✅ Implemented
 
 - **Control element:** fixed panel with buttons — "reload", "pause/resume", "step"
-- **Pause/resume:** global actor system (`Actor.break()` / `Actor.resume()`)
-- **Step execution:** next message (`Actor.step()`)
+- **Pause/resume:** global atom system (`atom.break()` / `atom.resume()`)
+- **Step execution:** next message (`atom.step()`)
 - **Start pause:** through `brk` attribute
 - **State indicator:** button shows action — ▶ (resume), ⏸ (pause)
 
@@ -109,7 +109,7 @@ Web component for step-by-step debugging of actors in the browser with intuitive
 
 - [ ] **Slow motion:** step execution with delay
 - [ ] **Logger integration:** into debugger for detailed analysis
-- [ ] **Breakpoints:** by message parameters (meta, actor, path, timestamp, src, patches)
+- [ ] **Breakpoints:** by message parameters (meta, atom, path, timestamp, src, patches)
 
 ---
 

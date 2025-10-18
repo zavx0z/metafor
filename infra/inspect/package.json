@@ -27,10 +27,10 @@
     "web:build": "bun build web/logger.ts --outdir ./dist/web && bun build web/debugger.ts --packages external --outdir ./dist/web",
     "web:watch": "bun run web:build --watch",
     "server:build": "bun build server/logger.ts --outdir ./dist/server",
-    "web:typegen": "bunx dts-bundle-generator --out-file ./dist/web/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true -- web/index.t.ts",
-    "server:typegen": "bunx dts-bundle-generator --out-file ./dist/server/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true -- server/logger.ts"
+    "web:typegen": "bunx dts-bundle-generator --out-file ./dist/web/index.d.ts -- web/index.t.ts",
+    "server:typegen": "bunx dts-bundle-generator --out-file ./dist/server/index.d.ts -- server/logger.ts"
   },
   "dependencies": {
-    "@metafor/actor": "workspace:*"
+    "@metafor/atom": "workspace:*"
   }
 }

@@ -1,5 +1,4 @@
-import type { Message, JsonPatch, BaseMessage } from "../../actor/force/electromagnetic.t"
-
+import type { JsonPatch, Message as BaseMessage, Message } from "../../atom/electromagnetic"
 export type { Message }
 /**
  * Сообщение для логирования с одним патчем JSON Patch

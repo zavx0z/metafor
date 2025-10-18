@@ -1,28 +1,28 @@
 /**
- * MetaFor - фреймворк для создания актора конечного автомата
+ * MetaFor - фреймворк для создания атома конечного автомата
  *
  * MetaFor предоставляет декларативный способ создания web-компонентов с конечным автоматом.
  * Каждый компонент имеет типизированный контекст, состояния, процессы, реакции и представление.
  *
  * ## Архитектура
  *
- * **Акторы MetaFor имеют полную изоляцию с независимой реализацией DOM**
- * - Все взаимодействия между акторами происходят через патчи в сообщениях
+ * **Атомы MetaFor имеют полную изоляцию с независимой реализацией**
+ * - Все взаимодействия между атомами происходят через патчи в сообщениях
  * - Используйте систему сообщений и реакций для связи между компонентами
  *
  * ## Новые возможности
  *
  * ### Позиционные пути (Path)
- * - Каждый актор имеет уникальный позиционный путь в VDOM (например, "0/1/2")
+ * - Каждый атом имеет уникальный позиционный путь в VDOM (например, "0/1/2")
  * - Пути генерируются автоматически через `Fields`
- * - Доступны в `Self` объекте: `{ meta, actor, path }`
+ * - Доступны в `Self` объекте: `{ meta, atom, path }`
  *
  * ### Расширенные фильтры реакций
  * - Доступ к контексту в функции `filter`: `filter(({ self, context }) => ...)`
  * - Декларативные условия фильтрации с поддержкой сложных условий
- * - Фильтрация по meta, actor, path, op, value, timestamp
+ * - Фильтрация по meta, atom, path, op, value, timestamp
  *
- * ### Иерархия акторов
+ * ### Иерархия атомов
  * - `Fields` для управления позиционными путями
  * - Автоматическая генерация корневых путей
  * - Управление иерархией VDOM
@@ -63,7 +63,7 @@
  *       reaction()
  *         .filter(({ self, context }) => ({
  *           meta: "user",
- *           actor: self.actor.split("/")[1] || "",
+ *           atom: self.atom.split("/")[1] || "",
  *           value: { gt: 0 }
  *         }))
  *         .equal(({ update }) => update({ isLoading: true }))
@@ -85,14 +85,15 @@
  */
 import { contextSchema, type Schema, type Types } from "@zavx0z/context"
 import { parse } from "@zavx0z/template"
-import type { Core } from "../actor/gravity.t"
+import type { Core } from "../atom/gravity.t"
 
 import { validateNoUnconditionalCycles, type Superposition } from "./states"
 import { reactionsSchema, type ReactionsDeclaration } from "./reactions"
 import { processesSchema, type ProcessesDeclaration } from "./process"
 import { serializeStyle } from "./style"
 
-import type { MetaForConfig, MetaFor, ViewDeclaration, Meta, Self } from "./metafor.t"
+import type { MetaForConfig, MetaFor, ViewDeclaration, Meta } from "./metafor.t"
+import type { Self } from "../atom/atom"
 export type { MetaFor, Meta, Self, Superposition }
 
 globalThis.MetaFor = function (name: string, config?: MetaForConfig) {

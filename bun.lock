@@ -17,26 +17,23 @@
         "typescript": "^5.9.3",
       },
     },
-    "actor": {
-      "name": "@metafor/actor",
-      "version": "0.4.0",
+    "atom": {
+      "name": "@metafor/atom",
+      "version": "0.4.6",
       "dependencies": {
         "@zavx0z/context": "2.3.0",
-      },
-      "peerDependencies": {
-        "typescript": "^5.9.3",
       },
     },
     "infra/inspect": {
       "name": "@metafor/inspect",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "dependencies": {
-        "@metafor/actor": "workspace:*",
+        "@metafor/atom": "workspace:*",
       },
     },
     "meta": {
       "name": "@metafor/meta",
-      "version": "0.4.0",
+      "version": "0.4.1",
       "dependencies": {
         "@zavx0z/template": "^2.6.1",
       },
@@ -45,7 +42,7 @@
   "packages": {
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.12.2", "", { "dependencies": { "@shikijs/engine-oniguruma": "^3.12.2", "@shikijs/langs": "^3.12.2", "@shikijs/themes": "^3.12.2", "@shikijs/types": "^3.12.2", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-HKZPmO8OSSAAo20H2B3xgJdxZaLTwtlMwxg0967scnrDlPwe6j5+ULGHyIqwgTbFCn9yv/ff8CmfWZLE9YKBzA=="],
 
-    "@metafor/actor": ["@metafor/actor@workspace:actor"],
+    "@metafor/atom": ["@metafor/atom@workspace:atom"],
 
     "@metafor/inspect": ["@metafor/inspect@workspace:infra/inspect"],
 

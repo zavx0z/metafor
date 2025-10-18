@@ -19,8 +19,8 @@
 - **Reactions** — declarative filters for handling external events
 - **Templating** — modern template API with `@zavx0z/template`
 - **Zero-build** — works without bundlers and compilation
-- **Positional paths** — unique VDOM paths for each actor
-- **Actor hierarchy** — managing actor tree with automatic path generation
+- **Positional paths** — unique VDOM paths for each atom
+- **Atom hierarchy** — managing atom tree with automatic path generation
 - **Extended filters** — context access in reactions with declarative conditions
 
 ## 🎯 Quick Start
@@ -340,14 +340,14 @@ const adminComponentName = "admin-component" // admin component name
           path: "/context", // Path: "/" | "/context" | "/state"
           value: { userId: { gt: 0 } }, // Value conditions
         })
-        .equal(({ update, context, meta, actor, timestamp, patch, core }) => {
+        .equal(({ update, context, meta, atom, timestamp, patch, core }) => {
           // Message handling
           const user = core.users.get(patch.value.userId)
           update({
             selectedUser: user,
             lastMessageTime: timestamp,
             messageCount: context.messageCount + 1,
-            actorIndex: actor.index, // Access to actor index
+            actorIndex: atom.index, // Access to atom index
           })
         }),
     ],
@@ -373,16 +373,16 @@ const adminComponentName = "admin-component" // admin component name
 - `op` — operation: `"add"` | `"replace"` | `"remove"` | `"test"`
 - `path` — change path: `"/"` | `"/context"` | `"/state"`
 - `value` — value conditions (same as in states)
-- `index` — actor index relative to siblings in parent (for uniqueness)
+- `index` — atom index relative to siblings in parent (for uniqueness)
 - `timestamp` — message send timestamp
 
 **New array filters:**
 
 - `in` — check value inclusion in array:
-  - For strings: `meta: { in: ["admin", "user"] }` or `actor: { in: ["actor-1", "actor-2"] }`
+  - For strings: `meta: { in: ["admin", "user"] }` or `atom: { in: ["atom-1", "atom-2"] }`
   - For numbers: `value: { in: [1, 2, 3] }`
 - `notIn` — check value absence in array:
-  - For strings: `meta: { notIn: ["banned", "suspended"] }` or `actor: { notIn: ["blocked-1", "blocked-2"] }`
+  - For strings: `meta: { notIn: ["banned", "suspended"] }` or `atom: { notIn: ["blocked-1", "blocked-2"] }`
   - For numbers: `value: { notIn: [0, 4, 6] }`
 
 ### 6. View

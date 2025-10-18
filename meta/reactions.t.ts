@@ -1,10 +1,10 @@
 import type { Schema, Update, Values } from "@zavx0z/context"
-import type { JsonPatch } from "../actor/electromagnetic.t"
-import type { Core } from "../actor/gravity.t"
-import type { ReactionFilterConditions } from "../actor/src/condition.t"
-import type { ReactionParams } from "../actor/src/reactions.t"
-import type { Self } from "./metafor.t"
-import type { Destroy } from "../actor/field.t"
+import type { JsonPatch } from "../atom/electromagnetic.t"
+import type { Core } from "../atom/gravity.t"
+import type { ReactionFilterConditions } from "../atom/src/condition.t"
+import type { ReactionParams } from "../atom/src/reactions.t"
+import type { Self } from "../atom/atom"
+import type { Destroy } from "../atom/field.t"
 
 /**
  * Конфигурация одной реакции
@@ -58,7 +58,7 @@ export type Reaction<C extends Schema, S extends string, I extends Core> = {
  *   [
  *     ["idle", "loading"], // Состояния
  *     reaction({ label: "Обработка сообщений" })
- *       .filter(({ self }) => ({ meta: "user", actor: self.actor.split("/")[1] }))
+ *       .filter(({ self }) => ({ meta: "user", atom: self.atom.split("/")[1] }))
  *       .equal(({ update, patch, destroy }) => {
  *         update({ lastMessage: patch.value })
  *         // destroy() доступен в equal, но не в filter
@@ -122,7 +122,7 @@ export type ReactionsSchema = {
  *   context,   // Текущий контекст
  *   core,      // Core объект
  *   meta,      // Мета-информация отправителя
- *   actor,     // ID актора-отправителя
+ *   atom,     // ID актора-отправителя
  *   timestamp, // Временная метка
  *   patch,     // Патч данных
  *   state,     // Текущее состояние
@@ -150,7 +150,7 @@ export type ReactionAction<C extends Schema, S extends string, I extends Core> =
   /** Хеш меты компонента-актора */
   meta: string
   /** Информация об акторе */
-  actor: string
+  atom: string
   /** Временная метка */
   timestamp: number
   /** Патч для применения к актору */
