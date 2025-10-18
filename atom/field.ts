@@ -4,7 +4,7 @@ import { Fields } from "./src/fields"
 import type { Atom } from "./atom"
 import type { ChunkPatches, AtomSnapshot } from "./gravity.t"
 import { applyPatchesToSnapshot } from "./src/snapshot"
-import { Source } from "./electromagnetic"
+import { Source } from "./em"
 import type { Hidden, Values, Destroy } from "./field.t"
 import type { Self } from "../meta/metafor"
 

@@ -1,4 +1,4 @@
-import { Source } from "../electromagnetic.t"
+import { Source } from "../em.t"
 import { type Task, Tasks } from "./stack.t"
 export { type Task, Tasks }
 

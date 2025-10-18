@@ -1,4 +1,4 @@
-import type { Source } from "../electromagnetic.t"
+import type { Source } from "../em.t"
 
 export interface Task {
   atom: string

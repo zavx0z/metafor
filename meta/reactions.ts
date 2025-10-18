@@ -4,7 +4,7 @@ import type { ReactionFilterConditions } from "../atom/src/condition.t"
 import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction } from "./reactions.t"
 import type { Self } from "./metafor"
 import { destroyAppendArg, extractFields, updateAppendArg } from "./parser/func"
-import { Source } from "../atom/electromagnetic.t"
+import { Source } from "../atom/em.t"
 export type { ReactionsDeclaration, ReactionsSchema }
 
 export const reactionsSchema = <C extends Schema, S extends string, I extends Core = {}>(

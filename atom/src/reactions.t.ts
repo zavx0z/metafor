@@ -5,7 +5,7 @@
  */
 
 import type { Schema, Values } from "@zavx0z/context"
-import type { JsonPatch } from "../electromagnetic.t"
+import type { JsonPatch } from "../em.t"
 import type { Core } from "../gravity.t"
 import type { ReactionAction } from "../../meta/reactions.t"
 import type { Self } from "../../meta/metafor"

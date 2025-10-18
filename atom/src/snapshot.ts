@@ -1,6 +1,6 @@
 import type { HistoryEntry } from "../field.t"
 import type { AtomSnapshot } from "../gravity.t"
-import type { JsonPatch } from "../electromagnetic.t"
+import type { JsonPatch } from "../em.t"
 import type { Primitive } from "./array.t"
 
 const snapshots = new WeakMap<any, AtomSnapshot>()

@@ -1,7 +1,7 @@
 import { Field, type Hidden, type Values } from "./field"
 import { Gravity, type Core } from "./gravity"
 
-import { Source, type JsonPatch, type Message } from "./electromagnetic.t"
+import { Source, type JsonPatch, type Message } from "./em.t"
 import { type Task, Tasks, clearProcessTasks, taskType } from "./src/stack"
 
 export { Source }
@@ -9,7 +9,7 @@ export type { Message, JsonPatch }
 
 const DEBUG_DEBUGGER = true
 
-export abstract class Electromagnetic extends Gravity {
+export abstract class EM extends Gravity {
   static channelName = "electromagnetic"
   protected abstract hasReactions(): boolean
   protected abstract handleReactionMessage(ev: MessageEvent<Message>): void
@@ -22,21 +22,20 @@ export abstract class Electromagnetic extends Gravity {
 
   protected connect() {
     if (this.hasReactions()) {
-      Electromagnetic.charged.add(this)
-      if (Electromagnetic.useBroadcastChannel && Electromagnetic.channel) {
+      EM.charged.add(this)
+      if (EM.useBroadcastChannel && EM.channel) {
         this._onBCMessage ??= (ev: MessageEvent<Message>) => this.handleReactionMessage(ev)
-        Electromagnetic.channel.addEventListener("message", this._onBCMessage)
+        EM.channel.addEventListener("message", this._onBCMessage)
       }
     }
     this.wired = true
   }
 
   public override destroy(recursive = true, source = Source.Nothing) {
-    Electromagnetic.charged.delete(this)
+    EM.charged.delete(this)
     this.requestDestroy(source)
     this.wired = false
-    if (this._onBCMessage && Electromagnetic.channel)
-      Electromagnetic.channel.removeEventListener("message", this._onBCMessage)
+    if (this._onBCMessage && EM.channel) EM.channel.removeEventListener("message", this._onBCMessage)
     super.destroy(recursive)
   }
 
@@ -44,9 +43,9 @@ export abstract class Electromagnetic extends Gravity {
 
   protected wired = false
   /** Множество «заряжённых» атомов (у кого есть реакции). */
-  private static charged = new Set<Electromagnetic>()
+  private static charged = new Set<EM>()
   protected static useBroadcastChannel = true
-  protected static channel: BroadcastChannel = new BroadcastChannel(Electromagnetic.channelName)
+  protected static channel: BroadcastChannel = new BroadcastChannel(EM.channelName)
 
   /** Обработчик BC для корректного removeEventListener. */
   private _onBCMessage?: (ev: MessageEvent<Message>) => void
@@ -63,7 +62,7 @@ export abstract class Electromagnetic extends Gravity {
   protected sendMessage(message: Message) {
     if (!this.wired) return
 
-    if (Electromagnetic.isSelfInitMessage(message)) {
+    if (EM.isSelfInitMessage(message)) {
       Field.saveAtomSnapshot(this.id, this.snapshot)
     } else
       Field.pushPatches({
@@ -73,12 +72,12 @@ export abstract class Electromagnetic extends Gravity {
         timestamp: message.timestamp,
       })
 
-    for (const atom of Electromagnetic.charged) {
+    for (const atom of EM.charged) {
       if (atom === this) continue
       if (atom.id !== message.atom && atom.hasReactions())
         atom.handleReactionMessage({ data: message } as MessageEvent<Message>)
     }
-    if (Electromagnetic.useBroadcastChannel && Electromagnetic.channel) Electromagnetic.channel.postMessage(message)
+    if (EM.useBroadcastChannel && EM.channel) EM.channel.postMessage(message)
   }
 
   // -------------------------- Управление жизненным циклом ------------------------------
@@ -86,7 +85,7 @@ export abstract class Electromagnetic extends Gravity {
   protected static lock = false
 
   public static break() {
-    Electromagnetic.lock = true
+    EM.lock = true
   }
 
   public static resume() {
@@ -95,7 +94,7 @@ export abstract class Electromagnetic extends Gravity {
   }
 
   public static get isLocked(): boolean {
-    return Electromagnetic.lock
+    return EM.lock
   }
 
   private static stack: Task[] = []
@@ -103,29 +102,29 @@ export abstract class Electromagnetic extends Gravity {
     const { patches, meta, path, ...info } = message
     for (const patch of patches) {
       const task = { ...info, ...patch }
-      setTimeout(() => console.log("Следующий таск", taskType(Electromagnetic.stack, task), patch.value), 100)
-      this.stack.push(task)
+      setTimeout(() => console.log("Следующий таск", taskType(EM.stack, task), patch.value), 100)
+      EM.stack.push(task)
     }
   }
 
   private static popTask() {
-    return this.stack.pop()
+    return EM.stack.pop()
   }
   private static shiftTask() {
-    return this.stack.shift()
+    return EM.stack.shift()
   }
   private static get lastTask(): Task {
-    if (!this.stack.length) throw new Error("Stack is empty")
-    return this.stack[this.stack.length - 1] as Task
+    if (!EM.stack.length) throw new Error("Stack is empty")
+    return EM.stack[EM.stack.length - 1] as Task
   }
 
   private static get typeLastTask(): Tasks {
-    const task = Electromagnetic.lastTask
-    return taskType(Electromagnetic.stack, task)
+    const task = EM.lastTask
+    return taskType(EM.stack, task)
   }
 
   private static taskInStack(message: Message) {
-    for (const task of this.stack) {
+    for (const task of EM.stack) {
       if (task.atom !== message.atom) continue
       if (task.src !== message.src) continue
       if (task.op !== message.patches[0]!.op) continue
@@ -135,17 +134,17 @@ export abstract class Electromagnetic extends Gravity {
     return false
   }
   public static step() {
-    DEBUG_DEBUGGER && console.log("resume", Electromagnetic.typeLastTask)
+    DEBUG_DEBUGGER && console.log("resume", EM.typeLastTask)
 
-    const task = Electromagnetic.lastTask
+    const task = EM.lastTask
     const atom = Field.getAtom(task.atom)
 
-    switch (Electromagnetic.typeLastTask) {
+    switch (EM.typeLastTask) {
       case Tasks.AtomCreate:
         atom.transit()
         break
       case Tasks.ActionAfterAtomCreate: // (первичный, после попадает в Action)
-        Electromagnetic.shiftTask()
+        EM.shiftTask()
         // @ts-expect-error
         atom.collapse(atom.processes.getProcess(atom.state.current))
         break
@@ -197,14 +196,14 @@ export abstract class Electromagnetic extends Gravity {
       src: Source.Nothing,
       patches: [{ op: "add", path: "/", value }],
     }
-    if (!Electromagnetic.lock) {
+    if (!EM.lock) {
       this.sendMessage(message)
       return true
     }
-    if (Electromagnetic.taskInStack(message)) {
+    if (EM.taskInStack(message)) {
       // удалить из стека если нет переходов
       const transitions = this.state.states[this.state.current]
-      if (!transitions) Electromagnetic.popTask()
+      if (!transitions) EM.popTask()
       this.sendMessage(message)
       return true
     } else {
@@ -214,7 +213,7 @@ export abstract class Electromagnetic extends Gravity {
       //   return true
       // }
       // при начальной инициализации помещается в стек для остановки brk сразу
-      Electromagnetic.pushTask(message)
+      EM.pushTask(message)
       return false
     }
   }
@@ -228,17 +227,17 @@ export abstract class Electromagnetic extends Gravity {
       src: Source.Nothing,
       patches: [{ op: "test", path: "/state", value: this.state.current }],
     }
-    if (!Electromagnetic.lock) {
+    if (!EM.lock) {
       this.sendMessage(message)
       return true
     }
-    if (Electromagnetic.taskInStack(message)) {
+    if (EM.taskInStack(message)) {
       // @ts-ignore удалить из стека если нет обработчиков success/error
-      if (!(this.process?.success && this.process?.error)) Electromagnetic.popTask()
+      if (!(this.process?.success && this.process?.error)) EM.popTask()
       this.sendMessage(message)
       return true
     } else {
-      Electromagnetic.pushTask(message)
+      EM.pushTask(message)
       return false
     }
   }
@@ -252,17 +251,17 @@ export abstract class Electromagnetic extends Gravity {
       src,
       patches: [{ op: "replace", path: "/context", value: context }],
     }
-    if (!Electromagnetic.lock) {
+    if (!EM.lock) {
       this.sendMessage(message)
       return true
     }
-    if (Electromagnetic.taskInStack(message)) {
-      Electromagnetic.popTask()
+    if (EM.taskInStack(message)) {
+      EM.popTask()
       this.sendMessage(message)
       return true
     } else {
       this.rollbackContext()
-      Electromagnetic.pushTask(message)
+      EM.pushTask(message)
       return false
     }
   }
@@ -277,16 +276,16 @@ export abstract class Electromagnetic extends Gravity {
       src: Source.Success,
       patches: [{ op: "replace", path: "/state", value }],
     }
-    if (!Electromagnetic.lock) {
+    if (!EM.lock) {
       this.sendMessage(message)
       return true
     }
-    if (Electromagnetic.taskInStack(message)) {
-      clearProcessTasks(Electromagnetic.stack, value)
+    if (EM.taskInStack(message)) {
+      clearProcessTasks(EM.stack, value)
       this.sendMessage(message)
       return true
     } else {
-      Electromagnetic.pushTask(message)
+      EM.pushTask(message)
       return false
     }
   }
@@ -301,16 +300,16 @@ export abstract class Electromagnetic extends Gravity {
       src: Source.Error,
       patches: [{ op: "replace", path: "/state", value }],
     }
-    if (!Electromagnetic.lock) {
+    if (!EM.lock) {
       this.sendMessage(message)
       return true
     }
-    if (Electromagnetic.taskInStack(message)) {
-      clearProcessTasks(Electromagnetic.stack, value)
+    if (EM.taskInStack(message)) {
+      clearProcessTasks(EM.stack, value)
       this.sendMessage(message)
       return true
     } else {
-      Electromagnetic.pushTask(message)
+      EM.pushTask(message)
       return false
     }
   }
@@ -324,17 +323,17 @@ export abstract class Electromagnetic extends Gravity {
       src: Source.Transition,
       patches: [{ op: "replace", path: "/state", value: this.state.current }],
     }
-    if (!Electromagnetic.lock) {
+    if (!EM.lock) {
       this.sendMessage(message)
       return true
     }
-    if (Electromagnetic.taskInStack(message)) {
-      Electromagnetic.popTask()
+    if (EM.taskInStack(message)) {
+      EM.popTask()
       this.sendMessage(message)
       return true
     } else {
       this.rollbackState()
-      Electromagnetic.pushTask(message)
+      EM.pushTask(message)
       return false
     }
   }
@@ -348,16 +347,16 @@ export abstract class Electromagnetic extends Gravity {
       src,
       patches: [{ op: "remove", path: "/" }],
     }
-    if (!Electromagnetic.lock) {
+    if (!EM.lock) {
       this.sendMessage(message)
       return true
     }
-    if (Electromagnetic.taskInStack(message)) {
-      Electromagnetic.popTask()
+    if (EM.taskInStack(message)) {
+      EM.popTask()
       this.sendMessage(message)
       return true
     } else {
-      Electromagnetic.pushTask(message)
+      EM.pushTask(message)
       return false
     }
   }

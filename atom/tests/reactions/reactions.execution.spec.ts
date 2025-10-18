@@ -1,8 +1,8 @@
 import { reactionsFromSchema } from "../../src/reactions"
 import type { Update, Values } from "@zavx0z/context"
 import { test, expect } from "bun:test"
-import type { JsonPatch } from "../../electromagnetic.t"
-import type { Message } from "../../electromagnetic.t"
+import type { JsonPatch } from "../../em.t"
+import type { Message } from "../../em.t"
 import { contextSchema } from "@zavx0z/context"
 import { reactionsSchema } from "../../../meta/reactions"
 

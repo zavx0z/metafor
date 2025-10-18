@@ -1,10 +1,10 @@
-import { Electromagnetic, Source, type Message } from "./electromagnetic"
+import { EM, Source, type Message } from "./em"
 import type { Process, Processes } from "./src/processes"
 import { decoherence, type Wave } from "./src/states"
 import type { Reactions } from "./src/reactions"
 import type { Core } from "./gravity"
 
-export abstract class Week extends Electromagnetic {
+export abstract class Week extends EM {
   protected abstract processes: Processes
   protected abstract reactions: Reactions
 

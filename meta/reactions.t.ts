@@ -1,5 +1,5 @@
 import type { Schema, Update, Values } from "@zavx0z/context"
-import type { JsonPatch } from "../atom/electromagnetic.t"
+import type { JsonPatch } from "../atom/em.t"
 import type { Core } from "../atom/gravity.t"
 import type { ReactionFilterConditions } from "../atom/src/condition.t"
 import type { ReactionParams } from "../atom/src/reactions.t"

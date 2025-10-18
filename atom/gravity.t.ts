@@ -16,7 +16,7 @@
  * ```
  */
 
-import type { JsonPatch, Source } from "./electromagnetic.t"
+import type { JsonPatch, Source } from "./em.t"
 
 export type Core = Record<string, any>
 // Тип для snapshot атомов

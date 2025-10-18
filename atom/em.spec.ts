@@ -2,23 +2,23 @@ import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { Atom } from "./atom.ts"
 import type { Meta } from "../meta/metafor.ts"
 import { messagesFixture } from "../infra/test/fixture/message.ts"
-import { Electromagnetic } from "./electromagnetic.ts"
-import { Source } from "./electromagnetic.t.ts"
+import { EM } from "./em.ts"
+import { Source } from "./em.t.ts"
 
 describe("Каналы коммуникации между атомами", () => {
   let messagesFixtureInstance: ReturnType<typeof messagesFixture>
 
   beforeEach(() => {
     // @ts-ignore
-    Electromagnetic.charged.clear()
+    EM.charged.clear()
     messagesFixtureInstance = messagesFixture({ meta: "test-atom" })
   })
 
   afterEach(() => {
     // @ts-expect-error
-    Electromagnetic.channel = null
+    EM.channel = null
     // @ts-ignore
-    Electromagnetic.charged.clear()
+    EM.charged.clear()
   })
 
   const testSchema: Meta = {
@@ -104,7 +104,7 @@ describe("Каналы коммуникации между атомами", () =
   describe("Получение сообщений из обоих каналов", () => {
     it("должен получать сообщения из внутреннего реестра при включенном внутреннем механизме", async () => {
       // @ts-expect-error
-      Electromagnetic.channel = new BroadcastChannel(Electromagnetic.channelName)
+      EM.channel = new BroadcastChannel(EM.channelName)
 
       const atom1 = Atom.fromSchema({ meta: testSchema, id: "atom-1" })
       const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom-2" })
@@ -129,7 +129,7 @@ describe("Каналы коммуникации между атомами", () =
 
     it("должен получать сообщения из внутреннего механизма при отключенном BroadcastChannel", async () => {
       // @ts-expect-error
-      Electromagnetic.channel = null
+      EM.channel = null
 
       const atom1 = Atom.fromSchema({ meta: testSchema, id: "atom-1" })
       const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom-2" })
@@ -156,7 +156,7 @@ describe("Каналы коммуникации между атомами", () =
   describe("Двойная отправка сообщений (BroadcastChannel + внутренний механизм)", () => {
     it("должен отправлять сообщения в оба канала", async () => {
       // @ts-expect-error
-      Electromagnetic.channel = new BroadcastChannel(Electromagnetic.channelName)
+      EM.channel = new BroadcastChannel(EM.channelName)
 
       const atom1 = Atom.fromSchema({ meta: simpleTestSchema, id: "atom-1" })
       const atom2 = Atom.fromSchema({ meta: simpleTestSchema, id: "atom-2" })
@@ -186,16 +186,16 @@ describe("Каналы коммуникации между атомами", () =
 
     it("должен регистрировать атомы в реестре независимо от состояния внутреннего механизма", () => {
       // @ts-expect-error
-      Electromagnetic.channel = null
+      EM.channel = null
       const atom1 = Atom.fromSchema({ meta: simpleTestSchema, id: "atom-1" })
       // @ts-expect-error
-      expect(Electromagnetic.charged.size).toBe(1)
+      expect(EM.charged.size).toBe(1)
 
       // @ts-expect-error
-      Electromagnetic.channel = new BroadcastChannel(Electromagnetic.channelName)
+      EM.channel = new BroadcastChannel(EM.channelName)
       const atom2 = Atom.fromSchema({ meta: simpleTestSchema, id: "atom-2" })
       // @ts-expect-error
-      expect(Electromagnetic.charged.size).toBe(2)
+      expect(EM.charged.size).toBe(2)
 
       atom1.destroy()
       atom2.destroy()
@@ -205,16 +205,16 @@ describe("Каналы коммуникации между атомами", () =
   describe("Внутренний механизм коммуникации между атомами", () => {
     beforeEach(() => {
       // @ts-expect-error
-      Electromagnetic.channel = new BroadcastChannel(Electromagnetic.channelName)
+      EM.channel = new BroadcastChannel(EM.channelName)
     })
 
     it("должен регистрировать атомы в реестре", () => {
       const atom1 = Atom.fromSchema({ meta: internalTestSchema, id: "atom-1" })
       const atom2 = Atom.fromSchema({ meta: internalTestSchema, id: "atom-2" })
       // @ts-expect-error
-      expect(Electromagnetic.charged.size).toBe(2)
+      expect(EM.charged.size).toBe(2)
       // @ts-expect-error
-      expect(Electromagnetic.channel).toBeDefined()
+      expect(EM.channel).toBeDefined()
 
       atom1.destroy()
       atom2.destroy()
@@ -245,15 +245,15 @@ describe("Каналы коммуникации между атомами", () =
       const atom1 = Atom.fromSchema({ meta: internalTestSchema, id: "atom-1" })
       const atom2 = Atom.fromSchema({ meta: internalTestSchema, id: "atom-2" })
       // @ts-expect-error
-      expect(Electromagnetic.charged.size).toBe(2)
+      expect(EM.charged.size).toBe(2)
 
       atom1.destroy()
       // @ts-expect-error
-      expect(Electromagnetic.charged.size).toBe(1)
+      expect(EM.charged.size).toBe(1)
 
       atom2.destroy()
       // @ts-expect-error
-      expect(Electromagnetic.charged.size).toBe(0)
+      expect(EM.charged.size).toBe(0)
     })
 
     it("не должен отправлять сообщения самому себе", () => {
