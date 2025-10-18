@@ -47,15 +47,6 @@ export abstract class Electromagnetic extends Gravity {
   protected static useBroadcastChannel = true
   protected static channel: BroadcastChannel = new BroadcastChannel(Electromagnetic.channelName)
 
-  /** Переключить использование BroadcastChannel. */
-  static setBroadcastChannel(enabled: boolean) {
-    Electromagnetic.useBroadcastChannel = enabled
-  }
-
-  static isBroadcastChannelEnabled(): boolean {
-    return Electromagnetic.useBroadcastChannel
-  }
-
   /** Обработчик BC для корректного removeEventListener. */
   private _onBCMessage?: (ev: MessageEvent<Message>) => void
 
