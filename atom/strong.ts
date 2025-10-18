@@ -29,32 +29,28 @@ export abstract class Strong extends Week {
   }
 
   public override destroy(recursive = true) {
-    this.stateListeners.clear()
+    this.stateObservers.clear()
     super.destroy(recursive)
   }
 
   // ------------------------------ состояние ----------------------------------------
 
-  private stateListeners = new Set<(state: string) => void>()
+  private stateObservers = new Set<(state: string) => void>()
 
   /** Устанавливает состояние
-   *
-   * Даже если состояние не изменилось, отправляет сообщение о переходе (само-переходы)
-   */
+   * Даже если состояние не изменилось, отправляет сообщение о переходе (само-переходы) */
   protected setState(state: string) {
     this.state.current = state
-    if (this.stateListeners.size > 0) {
-      for (const listener of this.stateListeners) listener(state)
-    }
+    if (this.stateObservers.size > 0) for (const observer of this.stateObservers) observer(state)
   }
 
-  public onStateChange(listener: (state: string) => void): () => void {
-    this.stateListeners.add(listener)
-    return () => this.unsubscribeState(listener)
+  public onCollapsed(observer: (state: string) => void): () => void {
+    this.stateObservers.add(observer)
+    return () => this.unsubscribeState(observer)
   }
 
-  private unsubscribeState(listener: (state: string) => void) {
-    this.stateListeners.delete(listener)
+  private unsubscribeState(observer: (state: string) => void) {
+    this.stateObservers.delete(observer)
   }
 
   // ------------------------------ состояние ----------------------------------------

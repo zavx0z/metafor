@@ -53,7 +53,7 @@ describe("Очистка ресурсов атома", () => {
     const listener = (state: string) => {
       // State changed listener
     }
-    atom.onStateChange(listener)
+    atom.onCollapsed(listener)
 
     // @ts-ignore Проверяем, что слушатель добавлен
     expect(atom.stateListeners.size).toBe(1)

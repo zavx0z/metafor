@@ -1,24 +1,35 @@
-import { Source } from "../em.t"
+import { Source, type Photon } from "../em.t"
 import { type Impulse, Energy } from "./stack.t"
 export { type Impulse, Energy }
 
-export function checkImpulseType(stack: Impulse[], task: Impulse): Energy {
-  if (task.op === "add") return Energy.AtomCreate
-  if (task.op === "test") {
+export function checkImpulseType(stack: Impulse[], impulse: Impulse): Energy {
+  if (impulse.op === "add") return Energy.AtomCreate
+  if (impulse.op === "test") {
     const lastTask = stack[stack.length - 1]
     if (stack[0]?.op === "add") return Energy.ActionAfterAtomCreate
     return Energy.Action
   }
-  if (task.op === "replace") {
-    if (task.path === "/state" && task.src === Source.Success) return Energy.Success
-    if (task.path === "/state" && task.src === Source.Error) return Energy.Error
-    if (task.path === "/state" && task.src === Source.Transition) return Energy.Transition
-    if (task.path === "/context" && task.src === Source.Success) return Energy.ContextUpdateSuccess
-    if (task.path === "/context" && task.src === Source.Error) return Energy.ContextUpdateError
-    if (task.path === "/context" && task.src === Source.Transition) return Energy.ContextUpdateReaction
+  if (impulse.op === "replace") {
+    if (impulse.path === "/state" && impulse.src === Source.Success) return Energy.Success
+    if (impulse.path === "/state" && impulse.src === Source.Error) return Energy.Error
+    if (impulse.path === "/state" && impulse.src === Source.Transition) return Energy.Transition
+    if (impulse.path === "/context" && impulse.src === Source.Success) return Energy.ContextUpdateSuccess
+    if (impulse.path === "/context" && impulse.src === Source.Error) return Energy.ContextUpdateError
+    if (impulse.path === "/context" && impulse.src === Source.Transition) return Energy.ContextUpdateReaction
   }
-  if (task.op === "remove") return Energy.Destroy
+  if (impulse.op === "remove") return Energy.Destroy
   return Energy.Nothing
+}
+
+export function impulseInStack(stack: Impulse[], photon: Photon) {
+  for (const impulse of stack) {
+    if (impulse.atom !== photon.atom) continue
+    if (impulse.src !== photon.src) continue
+    if (impulse.op !== photon.patches[0]!.op) continue
+    if (impulse.path !== photon.patches[0]!.path) continue
+    return true
+  }
+  return false
 }
 
 /**
