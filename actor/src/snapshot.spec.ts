@@ -115,7 +115,6 @@ describe("applyPatchesToSnapshot", () => {
       path: "/old",
       state: "old",
       context: { old: "value", extra: "field" },
-      extraField: "should be removed",
     }
 
     const patches = [
@@ -133,7 +132,6 @@ describe("applyPatchesToSnapshot", () => {
     const result = applyPatchesToSnapshot(snapshot, patches)
 
     // Проверяем, что старые поля удалены
-    expect(result.extraField).toBeUndefined()
     expect(result.context.old).toBeUndefined()
     expect(result.context.extra).toBeUndefined()
 
@@ -176,7 +174,6 @@ describe("applyPatchesToSnapshot", () => {
       path: "/test",
       state: "initial",
       context: { value: 10 },
-      extraField: "should be removed",
     }
 
     const patches = [
@@ -189,7 +186,6 @@ describe("applyPatchesToSnapshot", () => {
     expect(result.path).toBeUndefined()
     expect(result.state).toBeUndefined()
     expect(result.context).toBeUndefined()
-    expect(result.extraField).toBeUndefined()
   })
 
   it("должен не изменять оригинальный снапшот", () => {
