@@ -1,5 +1,5 @@
 import { Field, type Hidden, type Values } from "./field"
-import { Gravity, type Core } from "./gravity"
+import { Gravity } from "./gravity"
 
 import { Source, type JsonPatch, type Message } from "./em.t"
 import { type Task, Tasks, clearProcessTasks, taskType } from "./src/stack"
@@ -14,16 +14,10 @@ export abstract class EM extends Gravity {
   protected abstract hasReactions(): boolean
   protected abstract handleReactionMessage(ev: MessageEvent<Message>): void
 
-  // -------------------------- Жизненный цикл -----------------------------------------
-
-  protected constructor(_: unknown, id: string, meta: string, core?: Core) {
-    super(_, id, meta, core)
-  }
-
   protected connect() {
     if (this.hasReactions()) {
       EM.charged.add(this)
-      if (EM.useBroadcastChannel && EM.channel) {
+      if (EM.channel) {
         this._onBCMessage ??= (ev: MessageEvent<Message>) => this.handleReactionMessage(ev)
         EM.channel.addEventListener("message", this._onBCMessage)
       }
@@ -44,7 +38,6 @@ export abstract class EM extends Gravity {
   protected wired = false
   /** Множество «заряжённых» атомов (у кого есть реакции). */
   private static charged = new Set<EM>()
-  protected static useBroadcastChannel = true
   protected static channel: BroadcastChannel = new BroadcastChannel(EM.channelName)
 
   /** Обработчик BC для корректного removeEventListener. */
@@ -77,7 +70,7 @@ export abstract class EM extends Gravity {
       if (atom.id !== message.atom && atom.hasReactions())
         atom.handleReactionMessage({ data: message } as MessageEvent<Message>)
     }
-    if (EM.useBroadcastChannel && EM.channel) EM.channel.postMessage(message)
+    EM.channel && EM.channel.postMessage(message)
   }
 
   // -------------------------- Управление жизненным циклом ------------------------------
