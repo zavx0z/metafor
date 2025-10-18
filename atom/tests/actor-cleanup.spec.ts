@@ -129,13 +129,13 @@ describe("Очистка ресурсов атома", () => {
     const atom = Atom.fromSchema({ meta: testSchema, id: "atom-1" })
 
     // @ts-ignore
-    const sendMessageSpy = jest.spyOn(atom as any, "sendMessage")
+    const emissionSpy = jest.spyOn(atom as any, "emission")
 
     // Уничтожаем атом
     atom.destroy()
 
-    // Проверяем, что sendMessage был вызван с правильным сообщением
-    expect(sendMessageSpy).toHaveBeenCalledWith(
+    // Проверяем, что emission был вызван с правильным сообщением
+    expect(emissionSpy).toHaveBeenCalledWith(
       expect.objectContaining({
         meta: "test-atom",
         atom: "atom-1",
@@ -145,7 +145,7 @@ describe("Очистка ресурсов атома", () => {
       })
     )
 
-    sendMessageSpy.mockRestore()
+    emissionSpy.mockRestore()
   })
 
   it("должен уничтожать только детей в поддереве, не затрагивая соседние ветки", () => {

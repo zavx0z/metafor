@@ -25,7 +25,7 @@ export abstract class Strong extends Week {
     this.evaluate = this.evaluate.bind(this)
     this.destroy = this.destroy.bind(this)
     this.connect()
-    this.transit()
+    this.decoheredCollapse()
   }
 
   public override destroy(recursive = true) {

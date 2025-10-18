@@ -12,13 +12,13 @@ const DEBUG_DEBUGGER = true
 export abstract class EM extends Gravity {
   static channelName = "electromagnetic"
   protected abstract hasReactions(): boolean
-  protected abstract handleReactionMessage(ev: MessageEvent<Photon>): void
+  protected abstract handleReaction(ev: MessageEvent<Photon>): void
 
   protected connect() {
     if (this.hasReactions()) {
       EM.charged.add(this)
       if (EM.channel) {
-        this._onBCMessage ??= (ev: MessageEvent<Photon>) => this.handleReactionMessage(ev)
+        this._onBCMessage ??= (ev: MessageEvent<Photon>) => this.handleReaction(ev)
         EM.channel.addEventListener("message", this._onBCMessage)
       }
     }
@@ -47,8 +47,7 @@ export abstract class EM extends Gravity {
 
     for (const atom of EM.charged) {
       if (atom === this) continue
-      if (atom.id !== photon.atom && atom.hasReactions())
-        atom.handleReactionMessage({ data: photon } as MessageEvent<Photon>)
+      if (atom.id !== photon.atom && atom.hasReactions()) atom.handleReaction({ data: photon } as MessageEvent<Photon>)
     }
     EM.channel && EM.channel.postMessage(photon)
   }
@@ -110,7 +109,7 @@ export abstract class EM extends Gravity {
 
     switch (EM.typeLastPhotonImpulse) {
       case Energy.AtomCreate:
-        atom.transit()
+        atom.decoheredCollapse()
         break
       case Energy.ActionAfterAtomCreate: // (первичный, после попадает в Action)
         EM.shiftImpulse()
@@ -145,7 +144,7 @@ export abstract class EM extends Gravity {
         atom.evaluate(impulse.value, impulse.src)
         break
       case Energy.ContextUpdateReaction:
-        atom.transit()
+        atom.decoheredCollapse()
         break
       case Energy.Destroy:
         atom.destroy()

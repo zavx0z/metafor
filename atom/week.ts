@@ -1,4 +1,4 @@
-import { EM, Source, type Message } from "./em"
+import { EM, Source, type Photon } from "./em"
 import type { Process, Processes } from "./src/processes"
 import { decoherence, type Wave } from "./src/states"
 import type { Reactions } from "./src/reactions"
@@ -60,11 +60,11 @@ export abstract class Week extends EM {
 
   // ---------------------------- переходы ------------------------------------
 
-  /** Выполняет процесс первичного состояния */
-  transit() {
+  /** Выполняет процесс стартового состояния */
+  decoheredCollapse() {
     if (!this.requestInit()) return
-    const transitions = this.state.states[this.state.current]
-    if (!transitions) return
+    const eigenstates = this.state.states[this.state.current]
+    if (!eigenstates) return
     this.collapse(this.processes.getProcess(this.state.current))
   }
 
@@ -99,8 +99,8 @@ export abstract class Week extends EM {
     return this.reactions?.hasReactions() ?? false
   }
 
-  protected handleReactionMessage(ev: MessageEvent) {
-    const { data } = ev as MessageEvent<Message>
+  protected handleReaction(ev: MessageEvent) {
+    const { data } = ev as MessageEvent<Photon>
     if (!this.hasReactions()) return
     if (data.atom === this.id) return
 
