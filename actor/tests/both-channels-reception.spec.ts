@@ -3,6 +3,7 @@ import { Actor } from "../actor.ts"
 import type { Meta } from "../../meta/metafor.ts"
 import { messagesFixture } from "../../infra/test/fixture/message.ts"
 import { Electromagnetic } from "../electromagnetic.ts"
+import { Source } from "../electromagnetic.t.ts"
 
 describe("Получение сообщений из обоих каналов", () => {
   let messagesFixtureInstance: ReturnType<typeof messagesFixture>
@@ -53,14 +54,14 @@ describe("Получение сообщений из обоих каналов",
     const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
     // Обновляем контекст первого актора
-    actor1.update({ value: 5, source: "direct" })
+    actor1.update({ value: 5, source: "direct" }, Source.Nothing)
 
     // Ждем сообщения через фикстуру
     const messages = await messagesFixtureInstance.waitForMessages(50)
 
     // Проверяем, что второй актор получил реакцию через внутренний механизм
-    expect(actor2.ctx.context.value).toBe(0) // значение не изменилось
-    expect(actor2.ctx.context.source).toBe("reaction") // источник изменился
+    expect(actor2.λ.value).toBe(0) // значение не изменилось
+    expect(actor2.λ.source).toBe("reaction") // источник изменился
 
     // Проверяем, что сообщение было отправлено через BroadcastChannel
     expect(messages.length).toBeGreaterThan(0)
@@ -77,15 +78,15 @@ describe("Получение сообщений из обоих каналов",
     const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
     // Обновляем контекст первого актора
-    actor1.update({ value: 5, source: "direct" })
+    actor1.update({ value: 5, source: "direct" }, Source.Nothing)
 
     // Ждем сообщения через фикстуру
     const messages = await messagesFixtureInstance.waitForMessages(50)
 
     // Когда BroadcastChannel отключен, акторы все равно получают сообщения через внутренний механизм
     // Поэтому реакция должна сработать
-    expect(actor2.ctx.context.value).toBe(0) // значение не изменилось
-    expect(actor2.ctx.context.source).toBe("reaction") // источник изменился через внутренний механизм
+    expect(actor2.λ.value).toBe(0) // значение не изменилось
+    expect(actor2.λ.source).toBe("reaction") // источник изменился через внутренний механизм
 
     // Когда BroadcastChannel отключен, сообщения не отправляются через него
     expect(messages.length).toBe(0)

@@ -103,7 +103,7 @@ export type ActionParams<C extends Schema, I extends Core> = {
   /** Ядро */
   core: I
   /** Схема контекста */
-  schema: C
+  fields: C
   /** Полный идентификатор актора с методом destroy */
   self: Self
 }

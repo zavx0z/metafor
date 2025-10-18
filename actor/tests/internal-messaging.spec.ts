@@ -56,8 +56,8 @@ describe("Внутренний механизм коммуникации меж�
     const actor2 = Actor.fromSchema({ meta: testSchema, id: "actor-2" })
 
     // Изначальные значения
-    expect(actor1.ctx.context.value).toBe(0)
-    expect(actor2.ctx.context.value).toBe(0)
+    expect(actor1.λ.value).toBe(0)
+    expect(actor2.λ.value).toBe(0)
 
     // Обновляем контекст первого актора
     actor1.update({ value: 5 })
@@ -66,7 +66,7 @@ describe("Внутренний механизм коммуникации меж�
     await new Promise((resolve) => setTimeout(resolve, 10))
 
     // Второй актор должен получить реакцию и установить значение в 1
-    expect(actor2.ctx.context.value).toBe(1)
+    expect(actor2.λ.value).toBe(1)
 
     actor1.destroy()
     actor2.destroy()
@@ -97,13 +97,13 @@ describe("Внутренний механизм коммуникации меж�
 
   it("не должен отправлять сообщения самому себе", () => {
     const actor = Actor.fromSchema({ meta: testSchema, id: "actor-1" })
-    const initialValue = actor.ctx.context.value
+    const initialValue = actor.λ.value
 
     // Обновляем контекст
     actor.update({ value: 10 })
 
     // Значение должно остаться тем же, так как реакция не должна сработать на себя
-    expect(actor.ctx.context.value).toBe(10)
+    expect(actor.λ.value).toBe(10)
 
     actor.destroy()
   })

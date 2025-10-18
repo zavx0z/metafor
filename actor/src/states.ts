@@ -5,12 +5,12 @@
 
 import type { Schema, Values } from "@zavx0z/context"
 import type { Wave, Transitions } from "./states.t"
-export type { Wave as Conditions, Transitions }
+export type { Wave as Conditions, Transitions, Wave }
 
 /**
  * Проверяет условия переходов между состояниями
- * @param conditions - условия перехода
- * @param context - текущий контекст
+ * @param wave - условия перехода
+ * @param values - текущий контекст
  * @returns true если все условия выполнены
  *
  * @example
@@ -34,7 +34,7 @@ export type { Wave as Conditions, Transitions }
  * // => true
  * ```
  */
-export const checkTransition = <C extends Schema>(conditions: Wave<C>, context: Values<C>): boolean => {
+export const decoherence = <C extends Schema>(wave: Wave<C>, values: Values<C>): boolean => {
   /** Оценивает одно условие */
   const evaluateCondition = (condition: any, value: any): boolean => {
     // Простые значения
@@ -224,8 +224,8 @@ export const checkTransition = <C extends Schema>(conditions: Wave<C>, context: 
     return true
   }
 
-  for (const [field, condition] of Object.entries(conditions)) {
-    const value = context[field]
+  for (const [field, condition] of Object.entries(wave)) {
+    const value = values[field]
     if (!evaluateCondition(condition, value)) return false
   }
   return true

@@ -1,12 +1,8 @@
-import { Electromagnetic, MsgSrc } from "./electromagnetic"
+import { Electromagnetic, Source, type Message } from "./electromagnetic"
 import type { Process, Processes } from "./src/processes"
-import { checkTransition as decoherence } from "./src/states"
-import type { Wave } from "./src/states.t"
-import type { Core } from "./gravity.t"
+import { decoherence, type Wave } from "./src/states"
 import type { Reactions } from "./src/reactions"
-import type { Message } from "./electromagnetic"
-import type { Values } from "./field"
-import type { Context } from "@zavx0z/context"
+import type { Core } from "./gravity"
 
 export abstract class Week extends Electromagnetic {
   protected abstract processes: Processes
@@ -15,12 +11,12 @@ export abstract class Week extends Electromagnetic {
   protected abstract setState(state: string): void
   protected abstract action(): Promise<any>
 
-  constructor(_: Context<Values>, id: string, meta: string, core?: Core) {
+  constructor(_: unknown, id: string, meta: string, core?: Core) {
     super(_, id, meta, core)
     this.resolve = this.resolve.bind(this)
     this.reject = this.reject.bind(this)
   }
-  override destroy(recursive = true, src = MsgSrc.Nothing) {
+  override destroy(recursive = true, src = Source.Nothing) {
     Week.results.delete(this)
     super.destroy(recursive, src)
   }

@@ -3,14 +3,13 @@ import { Field, type Hidden, type Values } from "./field"
 import { Fields } from "./src/fields"
 import type { ActorSnapshot } from "./gravity.t"
 import type { Core } from "./gravity.t"
-import type { Context } from "@zavx0z/context"
 
 export type { Core }
 
 export abstract class Gravity extends Field {
   // -------------------------- Жизненный цикл -----------------------------------------
 
-  protected constructor(_: Context<Values>, id: string, meta: string, core?: Core) {
+  protected constructor(_: unknown, id: string, meta: string, core?: Core) {
     super(_, id, meta)
     Gravity.coreWeakMap.set(this, core || {})
 
@@ -18,9 +17,9 @@ export abstract class Gravity extends Field {
     Fields.get().attachReserved(this as unknown as Actor)
   }
 
-  public override destroy(recursive = true, src = "") {
+  public override destroy(recursive = true) {
     Gravity.coreWeakMap.delete(this)
-    super.destroy(recursive, src)
+    super.destroy(recursive)
   }
 
   // -------------------------- Снимок -----------------------------------------
@@ -29,7 +28,7 @@ export abstract class Gravity extends Field {
     return {
       path: String(this.path),
       state: String(this.state.current),
-      context: { ...this.ctx.context },
+      context: { ...this.λ },
     }
   }
 

@@ -71,7 +71,7 @@ describe("Двойная отправка сообщений (BroadcastChannel +
     expect(contextMessage!.actor).toBe("actor-1")
 
     // Проверяем, что второй актор получил реакцию через внутренний механизм
-    expect(actor2.ctx.context.value).toBe(100)
+    expect(actor2.λ.value).toBe(100)
 
     actor1.destroy()
     actor2.destroy()
@@ -95,7 +95,7 @@ describe("Двойная отправка сообщений (BroadcastChannel +
 
     // Но акторы все равно получают сообщения через внутренний механизм
     // Поэтому реакция должна сработать
-    expect(actor2.ctx.context.value).toBe(100)
+    expect(actor2.λ.value).toBe(100)
 
     actor1.destroy()
     actor2.destroy()

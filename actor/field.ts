@@ -1,51 +1,67 @@
-import type { StatesConfig } from "../meta/states.t"
+import type { StatesConfig } from "../meta/states"
 import { type Context, type Update } from "@zavx0z/context"
 import { Fields } from "./src/fields"
 import type { Actor } from "./actor"
 import type { ChunkPatches, ActorSnapshot } from "./gravity.t"
 import { applyPatchesToSnapshot } from "./src/snapshot"
-import type { Source } from "./electromagnetic.t"
+import { Source } from "./electromagnetic"
 import type { Hidden, Values } from "./field.t"
 
 export type { Hidden, Values }
 
 export abstract class Field {
-  public readonly meta: string
   public readonly id: string
-  protected abstract ctx: Context<Values>
+  public readonly meta: string
   protected abstract state: { current: string; states: StatesConfig }
-  protected λ: Hidden<Values>
-  protected abstract requestUpdateContext(context: Partial<Hidden<Values>>, src: Source): boolean
 
-  // -------------------------- Жизненный цикл -----------------------------------------
-  protected abstract disconnected(): void
-  #upd: Update<Values>
-  protected constructor(_: Context<Values>, id: string, meta: string) {
-    this.#upd = _.update
-    this.λ = _.context
+  public readonly λ: Hidden<Values>
+  public fields: Values
+  #eval: Update<Values>
+
+  protected constructor(_: unknown, id: string, meta: string) {
     this.id = id
     this.meta = meta
+    const hidden = _ as Context<Values>
+    this.#eval = hidden.update
+    this.fields = hidden.schema
+    this.λ = hidden.context
   }
 
-  // ------------------------------ контекст ----------------------------------------
+  // ------------------------------ скрытые параметры ----------------------------------------
 
-  protected update(λ: Partial<Hidden<Values>>, source: Source): Partial<Hidden<Values>> {
-    const values = this.#upd(λ)
-    if (Object.keys(values).length > 0) {
-      if (!this.requestUpdateContext(values, source)) return {}
+  protected abstract requestUpdateContext(context: Partial<Hidden<Values>>, src: Source): boolean
+
+  update(values: Partial<Hidden<Values>>, source: Source = Source.Nothing): Partial<Hidden<Values>> {
+    const updated = this.#eval(values)
+    if (Object.keys(updated).length > 0) {
+      if (!this.requestUpdateContext(updated, source)) return {}
     }
-    return values
+    return updated
   }
 
-  private destroyRecursive(fields: Fields) {
-    const children = fields.getChildren(this.id)
-    for (const childId of children) {
-      const childActor = fields.getActor(childId)
-      if (childActor) childActor.destroyRecursive(fields)
-    }
+  protected rollbackContext() {
+    const snapshot = Field.getSnapshotByLastMessage()
+    if (!snapshot) throw new Error("Snapshot not found")
+    this.#eval(snapshot?.context)
   }
 
-  public destroy(recursive: boolean, src = "") {
+  protected rollbackState() {
+    const snapshot = Field.getSnapshotByLastMessage()
+    if (!snapshot) throw new Error("Snapshot not found")
+    this.state.current = snapshot.state
+  }
+
+  // ---------------------------------------------------------------------
+
+  protected static getActor(id: string): Actor {
+    const fields = Fields.get()
+    if (!fields) throw new Error("Fields not found")
+    const actor = fields.getActor(id)
+    if (!actor) throw new Error("Actor not found")
+    return actor
+  }
+
+  public destroy(recursive: boolean) {
     const fields = Fields.get()
     if (recursive) {
       while (true) {
@@ -56,8 +72,8 @@ export abstract class Field {
         if (childActor) childActor.destroy(true)
         else break // Если актор не найден, выходим из цикла
       }
-    }
-    fields.remove(this.id, false) // false, так как мы уже обработали детей
+    } // false, так как мы уже обработали детей
+    fields.remove(this.id, false)
   }
   // -------------------------- История акторов -----------------------------------------
 
@@ -75,19 +91,12 @@ export abstract class Field {
   private static readonly MAX_CHECKPOINTS = 10
 
   // -------------------------- Методы для работы с глобальной историей -----------------------------------------
-  protected static getLastSnapshot() {
-    return this.lastSaved
-  }
-  /** Добавляет патчи в глобальную историю */
+
   protected static pushPatches(chunk: ChunkPatches): void {
     Field.histories.push(chunk)
-
-    if (Field.histories.length >= Field.MAX_PATCHES) {
-      Field.createCheckpoint()
-    }
+    if (Field.histories.length >= Field.MAX_PATCHES) Field.createCheckpoint()
   }
 
-  /** Сохраняет снапшот актора в последний чекпоинт (при создании актора) */
   protected static saveActorSnapshot(actorId: string, snapshot: ActorSnapshot): void {
     if (Field.checkpoints.length === 0) {
       // Если нет чекпоинтов, создаем первый
@@ -235,15 +244,5 @@ export abstract class Field {
   /** Возвращает последний сохраненный снапшот (без вычислений) */
   protected static getLastSavedSnapshot(): ActorSnapshot | null {
     return Field.lastSaved ? Field.lastSaved.snapshot : null
-  }
-
-  // -------------------------------------------------------------------
-
-  protected static getActor(id: string): Actor {
-    const fields = Fields.get()
-    if (!fields) throw new Error("Fields not found")
-    const actor = fields.getActor(id)
-    if (!actor) throw new Error("Actor not found")
-    return actor
   }
 }

@@ -1,9 +1,8 @@
 import { Source, TaskType, type Message, type Task } from "./electromagnetic.t"
 import { Gravity, type Core } from "./gravity"
 import { Field, type Hidden, type Values } from "./field"
-import type { Context } from "@zavx0z/context"
 
-export { Source as MsgSrc }
+export { Source }
 export type { Message }
 
 const DEBUG_DEBUGGER = true
@@ -15,7 +14,7 @@ export abstract class Electromagnetic extends Gravity {
 
   // -------------------------- Жизненный цикл -----------------------------------------
 
-  protected constructor(_: Context<Values>, id: string, meta: string, core?: Core) {
+  protected constructor(_: unknown, id: string, meta: string, core?: Core) {
     super(_, id, meta, core)
   }
 
@@ -30,17 +29,13 @@ export abstract class Electromagnetic extends Gravity {
     this.wired = true
   }
 
-  protected disconnected() {
+  public override destroy(recursive = true, source = Source.Nothing) {
+    Electromagnetic.chargedActors.delete(this)
+    this.requestDestroy(source)
     this.wired = false
     if (this._onBCMessage && Electromagnetic.channel)
       Electromagnetic.channel.removeEventListener("message", this._onBCMessage)
-  }
-
-  public override destroy(recursive = true, src = Source.Nothing) {
-    Electromagnetic.chargedActors.delete(this)
-    this.requestDestroy(src)
-    this.disconnected()
-    super.destroy(recursive, src)
+    super.destroy(recursive)
   }
 
   // -------------------------- Каналы -----------------------------------------
@@ -400,11 +395,7 @@ export abstract class Electromagnetic extends Gravity {
       this.sendMessage(message)
       return true
     } else {
-      // откатить измененный контекст
-      const snapshot = Field.getSnapshotByLastMessage()
-      if (!snapshot) throw new Error("Snapshot not found")
-      this.ctx.update(snapshot?.context)
-
+      this.rollbackContext()
       Electromagnetic.pushTask(message)
       return false
     }
@@ -476,11 +467,7 @@ export abstract class Electromagnetic extends Gravity {
       this.sendMessage(message)
       return true
     } else {
-      // откатить измененное состояние
-      const snapshot = Field.getSnapshotByLastMessage()
-      if (!snapshot) throw new Error("Snapshot not found")
-      this.state.current = snapshot.state
-
+      this.rollbackState()
       Electromagnetic.pushTask(message)
       return false
     }
