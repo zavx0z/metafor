@@ -1,4 +1,4 @@
-import { contextFromSchema, type Values } from "@zavx0z/context"
+import { contextFromSchema } from "@zavx0z/context"
 import { processesFromSchema } from "./src/processes"
 import { reactionsFromSchema } from "./src/reactions"
 
@@ -7,6 +7,7 @@ import { Fields } from "./src/fields"
 import { Strong } from "./strong"
 import { MsgSrc } from "./electromagnetic"
 import type { Core } from "./gravity"
+import type { Hidden, Values } from "./field"
 
 /** Actor — логическая единица существования */
 export class Actor extends Strong {
@@ -17,8 +18,8 @@ export class Actor extends Strong {
       try {
         const result = this.process.action({
           self: { meta: this.meta, actor: this.id, path: this.path, destroy: this.destroy },
-          context: this.ctx.context,
-          schema: this.ctx.schema,
+          context: this.ctx.context as any,
+          schema: this.ctx.schema as any,
           core: this.core,
         })
         if (result instanceof Promise)
@@ -55,7 +56,6 @@ export class Actor extends Strong {
    * Может вымереть весь род (если есть генетические заболевания) 😎
    */
   public override destroy(recursive = true, src = MsgSrc.Nothing) {
-    this.ctx.clearSubscribers()
     super.destroy(recursive, src)
   }
 
@@ -64,7 +64,7 @@ export class Actor extends Strong {
     meta: M
     id?: string
     core?: Core
-    context?: Partial<Values<M["context"]>>
+    context?: Partial<Hidden<Values>>
     path?: string
   }): Actor {
     const { meta, id = crypto.randomUUID(), core, context = {}, path } = config
@@ -95,7 +95,7 @@ export class Actor extends Strong {
   static createSibling<M extends Meta>(
     targetId: string,
     meta: M,
-    cfg: { id?: string; at?: "before" | "after"; core?: Core; context?: Partial<Values<M["context"]>> } = {}
+    cfg: { id?: string; at?: "before" | "after"; core?: Core; context?: Partial<Hidden<Values>> } = {}
   ): string {
     const { id = crypto.randomUUID(), core, context = {}, at = "after" } = cfg
     const fields = Fields.get()
@@ -142,7 +142,7 @@ export class Actor extends Strong {
   static appendChild<M extends Meta>(
     parentId: string | null,
     meta: M,
-    cfg: { id?: string; core?: Core; context?: Partial<Values<M["context"]>> } = {}
+    cfg: { id?: string; core?: Core; context?: Partial<Hidden<Values>> } = {}
   ): string {
     const { id = crypto.randomUUID(), core, context = {} } = cfg
     const fields = Fields.get()

@@ -14,7 +14,7 @@ export interface BaseMessage {
   actor: string
   path: string
   timestamp: number
-  src: MsgSrc
+  src: Source
 }
 
 /**
@@ -49,7 +49,7 @@ export type JsonPatch = {
   value?: any
 }
 
-export enum MsgSrc {
+export enum Source {
   Transition = "t",
   Process = "p",
   Success = "s",
@@ -61,7 +61,7 @@ export enum MsgSrc {
 export interface Task {
   actor: string
   timestamp: number
-  src: MsgSrc
+  src: Source
   op: "add" | "remove" | "replace" | "move" | "test"
   path: string
   value?: any

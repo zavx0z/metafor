@@ -5,7 +5,8 @@ import type { Wave } from "./src/states.t"
 import type { Core } from "./gravity.t"
 import type { Reactions } from "./src/reactions"
 import type { Message } from "./electromagnetic"
-import type { Context, Schema, Values } from "@zavx0z/context"
+import type { Values } from "./field"
+import type { Context } from "@zavx0z/context"
 
 export abstract class Week extends Electromagnetic {
   protected abstract processes: Processes
@@ -14,8 +15,8 @@ export abstract class Week extends Electromagnetic {
   protected abstract setState(state: string): void
   protected abstract action(): Promise<any>
 
-  constructor(ctx: Context<Schema>, id: string, meta: string, core?: Core) {
-    super(ctx, id, meta, core)
+  constructor(_: Context<Values>, id: string, meta: string, core?: Core) {
+    super(_, id, meta, core)
     this.resolve = this.resolve.bind(this)
     this.reject = this.reject.bind(this)
   }

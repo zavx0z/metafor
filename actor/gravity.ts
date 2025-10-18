@@ -1,17 +1,17 @@
 import type { Actor } from "./actor"
-import { Field } from "./field"
+import { Field, type Hidden, type Values } from "./field"
 import { Fields } from "./src/fields"
 import type { ActorSnapshot } from "./gravity.t"
 import type { Core } from "./gravity.t"
-import type { Context, Schema } from "@zavx0z/context"
+import type { Context } from "@zavx0z/context"
 
 export type { Core }
 
 export abstract class Gravity extends Field {
   // -------------------------- Жизненный цикл -----------------------------------------
 
-  protected constructor(ctx: Context<Schema>, id: string, meta: string, core?: Core) {
-    super(ctx, id, meta)
+  protected constructor(_: Context<Values>, id: string, meta: string, core?: Core) {
+    super(_, id, meta)
     Gravity.coreWeakMap.set(this, core || {})
 
     // Вклеиваемся в дерево (если резерва нет — окажемся в конце корня).
@@ -28,7 +28,6 @@ export abstract class Gravity extends Field {
   get snapshot(): ActorSnapshot {
     return {
       path: String(this.path),
-      meta: String(this.meta),
       state: String(this.state.current),
       context: { ...this.ctx.context },
     }

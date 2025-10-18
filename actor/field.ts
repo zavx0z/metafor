@@ -1,36 +1,40 @@
 import type { StatesConfig } from "../meta/states.t"
-import { type Context, type Schema, type Values } from "@zavx0z/context"
+import { type Context, type Update } from "@zavx0z/context"
 import { Fields } from "./src/fields"
 import type { Actor } from "./actor"
 import type { ChunkPatches, ActorSnapshot } from "./gravity.t"
 import { applyPatchesToSnapshot } from "./src/snapshot"
-import type { MsgSrc } from "./electromagnetic.t"
+import type { Source } from "./electromagnetic.t"
+import type { Hidden, Values } from "./field.t"
+
+export type { Hidden, Values }
 
 export abstract class Field {
   public readonly meta: string
   public readonly id: string
-  protected abstract ctx: Context<Schema>
+  protected abstract ctx: Context<Values>
   protected abstract state: { current: string; states: StatesConfig }
-  protected λ: Values<Schema>
-  protected abstract requestUpdateContext(context: Partial<Values<Schema>>, src: MsgSrc): boolean
+  protected λ: Hidden<Values>
+  protected abstract requestUpdateContext(context: Partial<Hidden<Values>>, src: Source): boolean
+
   // -------------------------- Жизненный цикл -----------------------------------------
   protected abstract disconnected(): void
-
-  protected constructor(ctx: Context<Schema>, id: string, meta: string) {
+  #upd: Update<Values>
+  protected constructor(_: Context<Values>, id: string, meta: string) {
+    this.#upd = _.update
+    this.λ = _.context
     this.id = id
     this.meta = meta
-    this.λ = ctx.context
   }
 
   // ------------------------------ контекст ----------------------------------------
 
-  /** обновление контекста */
-  update(context: Partial<Values<Schema>>, src: MsgSrc): Partial<Values<Schema>> {
-    const updated = this.ctx.update(context)
-    if (Object.keys(updated).length > 0) {
-      if (!this.requestUpdateContext(updated, src)) return {}
+  protected update(λ: Partial<Hidden<Values>>, source: Source): Partial<Hidden<Values>> {
+    const values = this.#upd(λ)
+    if (Object.keys(values).length > 0) {
+      if (!this.requestUpdateContext(values, source)) return {}
     }
-    return updated
+    return values
   }
 
   private destroyRecursive(fields: Fields) {

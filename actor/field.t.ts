@@ -1,4 +1,7 @@
 import type { JsonPatch } from "./electromagnetic.t"
+import { type Schema, type Values } from "@zavx0z/context"
+
+export type { Values as Hidden, Schema as Values }
 
 export type Key = Uint8Array
 

@@ -1,9 +1,9 @@
-import { MsgSrc, TaskType, type Message, type Task } from "./electromagnetic.t"
+import { Source, TaskType, type Message, type Task } from "./electromagnetic.t"
 import { Gravity, type Core } from "./gravity"
-import type { Context, Schema, Values } from "@zavx0z/context"
-import { Field } from "./field"
+import { Field, type Hidden, type Values } from "./field"
+import type { Context } from "@zavx0z/context"
 
-export { MsgSrc }
+export { Source as MsgSrc }
 export type { Message }
 
 const DEBUG_DEBUGGER = true
@@ -15,8 +15,8 @@ export abstract class Electromagnetic extends Gravity {
 
   // -------------------------- Жизненный цикл -----------------------------------------
 
-  protected constructor(ctx: Context<Schema>, id: string, meta: string, core?: Core) {
-    super(ctx, id, meta, core)
+  protected constructor(_: Context<Values>, id: string, meta: string, core?: Core) {
+    super(_, id, meta, core)
   }
 
   protected connect() {
@@ -36,7 +36,7 @@ export abstract class Electromagnetic extends Gravity {
       Electromagnetic.channel.removeEventListener("message", this._onBCMessage)
   }
 
-  public override destroy(recursive = true, src = MsgSrc.Nothing) {
+  public override destroy(recursive = true, src = Source.Nothing) {
     Electromagnetic.chargedActors.delete(this)
     this.requestDestroy(src)
     this.disconnected()
@@ -194,12 +194,12 @@ export abstract class Electromagnetic extends Gravity {
       }
       // ОБНОВЛЕНИЕ КОНТЕКСТА ОБРАБОТЧИКОМ SUCCESS/ERROR
       // Успешное завершение процесса (обновление контекста) [без объявления в процессе этапа success - отсутствует]
-      if (task.path === "/context" && task.op === "replace" && task.src === MsgSrc.Success) return false
+      if (task.path === "/context" && task.op === "replace" && task.src === Source.Success) return false
       // Неуспешное завершение процесса (обновление контекста) [без объявления в процессе этапа error - отсутствует]
-      if (task.path === "/context" && task.op === "replace" && task.src === MsgSrc.Error) return false
+      if (task.path === "/context" && task.op === "replace" && task.src === Source.Error) return false
 
       // ОБРАБОТКА ВОЗМОЖНЫХ ПАТЧЕЙ ОБНОВЛЕНИЯ КОНТЕКСТА РЕАКЦИЯМИ ВНУТРИ ПРОЦЕССА
-      if (INTO && task.path === "/context" && task.op === "replace" && task.src === MsgSrc.Reaction) return false
+      if (INTO && task.path === "/context" && task.op === "replace" && task.src === Source.Reaction) return false
 
       // КОНЕЦ ПРОЦЕССА [присутствует всегда в любом переходе]
       if (task.path === "/state" && task.op === "replace" && task.value === state) {
@@ -242,12 +242,12 @@ export abstract class Electromagnetic extends Gravity {
       return TaskType.Action
     }
     if (task.op === "replace") {
-      if (task.path === "/state" && task.src === MsgSrc.Success) return TaskType.Success
-      if (task.path === "/state" && task.src === MsgSrc.Error) return TaskType.Error
-      if (task.path === "/state" && task.src === MsgSrc.Transition) return TaskType.Transition
-      if (task.path === "/context" && task.src === MsgSrc.Success) return TaskType.ContextUpdateSuccess
-      if (task.path === "/context" && task.src === MsgSrc.Error) return TaskType.ContextUpdateError
-      if (task.path === "/context" && task.src === MsgSrc.Transition) return TaskType.ContextUpdateReaction
+      if (task.path === "/state" && task.src === Source.Success) return TaskType.Success
+      if (task.path === "/state" && task.src === Source.Error) return TaskType.Error
+      if (task.path === "/state" && task.src === Source.Transition) return TaskType.Transition
+      if (task.path === "/context" && task.src === Source.Success) return TaskType.ContextUpdateSuccess
+      if (task.path === "/context" && task.src === Source.Error) return TaskType.ContextUpdateError
+      if (task.path === "/context" && task.src === Source.Transition) return TaskType.ContextUpdateReaction
     }
     if (task.op === "remove") return TaskType.Destroy
     return TaskType.Nothing
@@ -333,7 +333,7 @@ export abstract class Electromagnetic extends Gravity {
       actor: this.id,
       path: this.path,
       timestamp: Date.now(),
-      src: MsgSrc.Nothing,
+      src: Source.Nothing,
       patches: [{ op: "add", path: "/", value }],
     }
     if (!Electromagnetic.lock) {
@@ -364,7 +364,7 @@ export abstract class Electromagnetic extends Gravity {
       actor: this.id,
       path: this.path,
       timestamp: Date.now(),
-      src: MsgSrc.Nothing,
+      src: Source.Nothing,
       patches: [{ op: "test", path: "/state", value: this.state.current }],
     }
     if (!Electromagnetic.lock) {
@@ -382,7 +382,7 @@ export abstract class Electromagnetic extends Gravity {
     }
   }
 
-  protected requestUpdateContext(context: Partial<Values<Schema>>, src: MsgSrc): boolean {
+  protected requestUpdateContext(context: Partial<Hidden<Values>>, src: Source): boolean {
     const message: Message = {
       meta: this.meta,
       actor: this.id,
@@ -417,7 +417,7 @@ export abstract class Electromagnetic extends Gravity {
       actor: this.id,
       path: this.path,
       timestamp: Date.now(),
-      src: MsgSrc.Success,
+      src: Source.Success,
       patches: [{ op: "replace", path: "/state", value }],
     }
     if (!Electromagnetic.lock) {
@@ -441,7 +441,7 @@ export abstract class Electromagnetic extends Gravity {
       actor: this.id,
       path: this.path,
       timestamp: Date.now(),
-      src: MsgSrc.Error,
+      src: Source.Error,
       patches: [{ op: "replace", path: "/state", value }],
     }
     if (!Electromagnetic.lock) {
@@ -464,7 +464,7 @@ export abstract class Electromagnetic extends Gravity {
       actor: this.id,
       path: this.path,
       timestamp: Date.now(),
-      src: MsgSrc.Transition,
+      src: Source.Transition,
       patches: [{ op: "replace", path: "/state", value: this.state.current }],
     }
     if (!Electromagnetic.lock) {
@@ -486,7 +486,7 @@ export abstract class Electromagnetic extends Gravity {
     }
   }
 
-  private requestDestroy(src: MsgSrc): boolean {
+  private requestDestroy(src: Source): boolean {
     const message: Message = {
       meta: this.meta,
       actor: this.id,

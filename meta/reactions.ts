@@ -4,7 +4,7 @@ import type { ReactionFilterConditions } from "../actor/src/condition.t"
 import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction } from "./reactions.t"
 import type { SelfInfo } from "./metafor.t"
 import { destroyAppendArg, extractFields, updateAppendArg } from "./parser/func"
-import { MsgSrc } from "../actor/electromagnetic.t"
+import { Source } from "../actor/electromagnetic.t"
 export type { ReactionsDeclaration, ReactionsSchema }
 
 export const reactionsSchema = <C extends Schema, S extends string, I extends Core = {}>(
@@ -23,8 +23,8 @@ export const reactionsSchema = <C extends Schema, S extends string, I extends Co
         const id = reactionAutoId++
 
         // const fnTrim = trimArrow(update.toString()) // FIXME: или не обрезать или проверять на rest
-        const destroySrc = destroyAppendArg(update.toString(), `"${MsgSrc.Reaction}:${id}"`)
-        const src = updateAppendArg(destroySrc, `"${MsgSrc.Reaction}:${id}"`)
+        const destroySrc = destroyAppendArg(update.toString(), `"${Source.Reaction}:${id}"`)
+        const src = updateAppendArg(destroySrc, `"${Source.Reaction}:${id}"`)
 
         reactions[id] = {
           label,

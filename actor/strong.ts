@@ -1,12 +1,12 @@
-import type { Context, Schema, Values } from "@zavx0z/context"
 import { Week } from "./week"
-import { MsgSrc } from "./electromagnetic.t"
+import { Source } from "./electromagnetic.t"
 import type { Core } from "./gravity"
 import type { StatesConfig } from "../meta/metafor"
 import type { Processes } from "./src/processes"
 import type { Reactions } from "./src/reactions"
 import type { Node as ParseNode } from "@zavx0z/template"
-
+import type { Context } from "@zavx0z/context"
+import type { Values } from "./field.t"
 
 export abstract class Strong extends Week {
   // -------------------------- Жизненный цикл -----------------------------------------
@@ -14,7 +14,7 @@ export abstract class Strong extends Week {
     public override id: string,
     public override meta: string,
     public desc: string | undefined,
-    public override ctx: Context<Schema>,
+    public override ctx: Context<Values>,
     public override state: { current: string; states: StatesConfig },
     public override processes: Processes,
     public override reactions: Reactions,
@@ -27,8 +27,8 @@ export abstract class Strong extends Week {
     this.connect()
     this.transit()
   }
-  
-  public override destroy(recursive = true, src = MsgSrc.Nothing) {
+
+  public override destroy(recursive = true, src = Source.Nothing) {
     this.stateListeners.clear()
     this.ctx.clearSubscribers()
     super.destroy(recursive, src)
