@@ -3,7 +3,8 @@ import type { JsonPatch } from "../actor/electromagnetic.t"
 import type { Core } from "../actor/gravity.t"
 import type { ReactionFilterConditions } from "../actor/src/condition.t"
 import type { ReactionParams } from "../actor/src/reactions.t"
-import type { Self, SelfInfo } from "./metafor.t"
+import type { Self } from "./metafor.t"
+import type { Destroy } from "../actor/field.t"
 
 /**
  * Конфигурация одной реакции
@@ -58,9 +59,9 @@ export type Reaction<C extends Schema, S extends string, I extends Core> = {
  *     ["idle", "loading"], // Состояния
  *     reaction({ label: "Обработка сообщений" })
  *       .filter(({ self }) => ({ meta: "user", actor: self.actor.split("/")[1] }))
- *       .equal(({ update, patch, self }) => {
+ *       .equal(({ update, patch, destroy }) => {
  *         update({ lastMessage: patch.value })
- *         // self.destroy() доступен в equal, но не в filter
+ *         // destroy() доступен в equal, но не в filter
  *       })
  *   ]
  * ]
@@ -75,7 +76,7 @@ export type ReactionsDeclaration<C extends Schema, S extends string, I extends C
     desc?: string
   }) => {
     /** Добавляет декларативные фильтры (использует SelfInfo без destroy) */
-    filter: (filter: (params: { self: SelfInfo; context: Values<C> }) => ReactionFilterConditions) => {
+    filter: (filter: (params: { self: Self; context: Values<C> }) => ReactionFilterConditions) => {
       /** Добавляет функцию обработки события (использует Self с destroy) */
       equal: (reaction: ReactionAction<C, S, I>) => Reaction<C, S, I> & {
         /** Метод для регистрации состояний */
@@ -117,6 +118,7 @@ export type ReactionsSchema = {
  * ```typescript
  * const updateFn: ReactionUpdate<MyContext, "idle" | "loading"> = ({
  *   update,    // Функция для обновления контекста
+ *   destroy,   // Функция для уничтожения актора
  *   context,   // Текущий контекст
  *   core,      // Core объект
  *   meta,      // Мета-информация отправителя
@@ -124,14 +126,14 @@ export type ReactionsSchema = {
  *   timestamp, // Временная метка
  *   patch,     // Патч данных
  *   state,     // Текущее состояние
- *   self       // Полный идентификатор актора с destroy
+ *   self       // Полный идентификатор актора
  * }) => {
  *   // Обработка события
  *   update({
  *     lastMessage: patch.value,
  *     messageCount: context.messageCount + 1
  *   })
- *   // self.destroy() доступен для уничтожения актора
+ *   // destroy() доступен для уничтожения актора
  * }
  * ```
  */
@@ -139,6 +141,8 @@ export type ReactionsSchema = {
 export type ReactionAction<C extends Schema, S extends string, I extends Core> = (args: {
   /** Функция для обновления контекста */
   update: Update<C>
+  /** Функция для уничтожения актора */
+  destroy: Destroy
   /** Текущий контекст */
   context: Values<C>
   /** Core объект */
@@ -153,7 +157,7 @@ export type ReactionAction<C extends Schema, S extends string, I extends Core> =
   patch: JsonPatch
   /** Текущее состояние */
   state: S
-  /** Идентификатор актора с методом destroy */
+  /** Идентификатор актора */
   self: Self
 }) => void /** Результат цепочки реакций */
 

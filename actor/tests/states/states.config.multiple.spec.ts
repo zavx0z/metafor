@@ -1,8 +1,8 @@
 import { test, expect } from "bun:test"
-import type { StatesConfig } from "../../../meta/states.t.ts"
+import type { Superposition } from "../../../meta/states.t.ts"
 
 test("Конфигурация состояний с множественными переходами", () => {
-  const authStates: StatesConfig = {
+  const authStates: Superposition = {
     anonymous: {
       authenticated: {
         username: { length: { min: 3 } },

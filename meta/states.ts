@@ -1,6 +1,6 @@
 import type { Schema } from "@zavx0z/context"
-import type { StatesConfig } from "./states.t"
-export type { StatesConfig }
+import type { Superposition } from "./states.t"
+export type { Superposition }
 
 /**
  * Проверяет, что в конфигурации состояний нет циклов безусловных переходов.
@@ -26,7 +26,7 @@ export type { StatesConfig }
  * ```
  */
 
-export function validateNoUnconditionalCycles<S extends string, C extends Schema>(states: StatesConfig<S, C>) {
+export function validateNoUnconditionalCycles<S extends string, C extends Schema>(states: Superposition<S, C>) {
   // Строим граф только по безусловным переходам (условия: {}, null, undefined)
   const graph: Record<string, string[]> = {}
   for (const [from, transitions] of Object.entries(states)) {

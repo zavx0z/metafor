@@ -87,13 +87,13 @@ import { contextSchema, type Schema, type Types } from "@zavx0z/context"
 import { parse } from "@zavx0z/template"
 import type { Core } from "../actor/gravity.t"
 
-import { validateNoUnconditionalCycles, type StatesConfig } from "./states"
+import { validateNoUnconditionalCycles, type Superposition } from "./states"
 import { reactionsSchema, type ReactionsDeclaration } from "./reactions"
 import { processesSchema, type ProcessesDeclaration } from "./process"
 import { serializeStyle } from "./style"
 
-import type { MetaForConfig, MetaFor, ViewDeclaration, Meta } from "./metafor.t"
-export type { MetaFor, Meta, StatesConfig }
+import type { MetaForConfig, MetaFor, ViewDeclaration, Meta, Self } from "./metafor.t"
+export type { MetaFor, Meta, Self, Superposition }
 
 globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc
@@ -102,7 +102,7 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
     context<C extends Schema>(schema: (types: Types) => C) {
       const context = contextSchema(schema)
       return {
-        states<S extends string>(states: StatesConfig<S, C>) {
+        states<S extends string>(states: Superposition<S, C>) {
           validateNoUnconditionalCycles(states)
           return {
             core<I extends Core>(core?: I) {

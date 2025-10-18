@@ -95,7 +95,8 @@ describe("deserializeReactions", () => {
       timestamp: Date.now(),
       patch: mockPatch,
       update: mockUpdate,
-      self: { meta: "test", actor: "test-actor", path: "0", destroy: () => {} },
+      self: { meta: "test", actor: "test-actor", path: "0" },
+      destroy: () => {},
     })
 
     expect(updatedContext.value, "реакция должна обновить контекст").toBe(8)
@@ -144,7 +145,8 @@ describe("deserializeReactions", () => {
       timestamp: Date.now(),
       patch: { op: "replace", path: "/context", value: 1 },
       update: mockUpdate,
-      self: { meta: "test", actor: "test-actor", path: "0", destroy: () => {} },
+      self: { meta: "test", actor: "test-actor", path: "0" },
+      destroy: () => {},
     })
 
     expect(updatedContext.value, "реакция должна сработать при совпадении meta").toBe(100)
@@ -162,7 +164,8 @@ describe("deserializeReactions", () => {
       timestamp: Date.now(),
       patch: { op: "add", path: "/context", value: 1 },
       update: mockUpdate,
-      self: { meta: "test", actor: "test-actor", path: "0", destroy: () => {} },
+      self: { meta: "test", actor: "test-actor", path: "0" },
+      destroy: () => {},
     })
 
     expect(updatedContext.value, "реакция должна сработать при совпадении op").toBe(200)
@@ -180,7 +183,8 @@ describe("deserializeReactions", () => {
       timestamp: Date.now(),
       patch: { op: "replace", path: "/context", value: 1 },
       update: mockUpdate,
-      self: { meta: "test", actor: "test-actor", path: "0", destroy: () => {} },
+      self: { meta: "test", actor: "test-actor", path: "0" },
+      destroy: () => {},
     })
 
     expect(updatedContext.value, "реакции не должны сработать при несовпадении условий").toBeUndefined()

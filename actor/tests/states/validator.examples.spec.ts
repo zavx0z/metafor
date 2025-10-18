@@ -1,9 +1,9 @@
 import { test, expect } from "bun:test"
 import { validateNoUnconditionalCycles } from "../../../meta/states.ts"
-import type { StatesConfig } from "../../../meta/states.t.ts"
+import type { Superposition } from "../../../meta/states.t.ts"
 
 test("Валидация корректной конфигурации состояний", () => {
-  const validStates: StatesConfig = {
+  const validStates: Superposition = {
     anonymous: { loading: {} },
     loading: {}, // Конечное состояние без переходов
   }
@@ -15,7 +15,7 @@ test("Валидация корректной конфигурации сост�
 })
 
 test("Валидация конфигурации с условными переходами", () => {
-  const conditionalStates: StatesConfig = {
+  const conditionalStates: Superposition = {
     anonymous: {
       loading: { userAction: null }, // Условный переход
     },
@@ -32,7 +32,7 @@ test("Валидация конфигурации с условными пере
 })
 
 test("Валидация конфигурации с циклом безусловных переходов", () => {
-  const cyclicStates: StatesConfig = {
+  const cyclicStates: Superposition = {
     anonymous: { loading: {} }, // Безусловный переход
     loading: { anonymous: {} }, // Безусловный переход обратно
   }
@@ -44,7 +44,7 @@ test("Валидация конфигурации с циклом безусло
 })
 
 test("Валидация сложной конфигурации с циклом", () => {
-  const complexCyclicStates: StatesConfig = {
+  const complexCyclicStates: Superposition = {
     state1: { state2: {} },
     state2: { state3: {} },
     state3: { state1: {} }, // Замыкает цикл
@@ -59,7 +59,7 @@ test("Валидация сложной конфигурации с циклом
 })
 
 test("Валидация конфигурации с пустыми условиями", () => {
-  const emptyConditionsStates: StatesConfig = {
+  const emptyConditionsStates: Superposition = {
     state1: { state2: { field: {} } }, // Пустое условие считается безусловным
     state2: { state3: { field: null } }, // null условие считается безусловным
     state3: {},
@@ -72,7 +72,7 @@ test("Валидация конфигурации с пустыми услови
 })
 
 test("Валидация конфигурации с условными и безусловными переходами", () => {
-  const mixedStates: StatesConfig = {
+  const mixedStates: Superposition = {
     start: {
       processing: { action: true }, // Условный переход
       error: {}, // Безусловный переход

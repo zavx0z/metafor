@@ -6,7 +6,7 @@
 import type { Schema, Snapshot as ContextSnapshot } from "@zavx0z/context"
 import type { ProcessesSchema } from "../meta/process.t"
 import type { ReactionsSchema } from "../meta/reactions.t"
-import type { StatesConfig } from "../meta/states"
+import type { Superposition } from "../meta/states"
 
 /**
  * Интерфейс снимка состояния компонента
@@ -19,7 +19,7 @@ export interface Snapshot<C extends Schema, S extends string> {
   /** Описание компонента */
   desc?: string
   /** Карта состояний и переходов */
-  states: StatesConfig<S, C>
+  states: Superposition<S, C>
   /** Снимок процессов */
   processes?: ProcessesSchema
   /** Снимок реакций */

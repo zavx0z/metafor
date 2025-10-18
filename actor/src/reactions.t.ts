@@ -8,8 +8,9 @@ import type { Schema, Values } from "@zavx0z/context"
 import type { JsonPatch } from "../electromagnetic.t"
 import type { Core } from "../gravity.t"
 import type { ReactionAction } from "../../meta/reactions.t"
-import type { Self, SelfInfo } from "../../meta/metafor.t"
+import type { Self } from "../../meta/metafor"
 import type { Week } from "../week"
+import type { Destroy } from "../field"
 
 export type ReactionParams = {
   meta: string
@@ -29,6 +30,7 @@ export type Reactions<C extends Schema = Schema, S extends string = string, I ex
     timestamp: number
     patch: JsonPatch
     update: Week["update"]
+    destroy: Destroy
     self: Self
   }) => void
   hasReactions: () => boolean
@@ -36,12 +38,12 @@ export type Reactions<C extends Schema = Schema, S extends string = string, I ex
     label: string
     desc?: string
     update: ReactionAction<C, S, I>
-    getConditions: (params: { self: SelfInfo; context: Values<C> }) => any
+    getConditions: (params: { self: Self; context: Values<C> }) => any
   }>
   getReactions: (state: S) => Array<{
     label: string
     desc?: string
     update: ReactionAction<C, S, I>
-    getConditions: (params: { self: SelfInfo; context: Values<C> }) => any
+    getConditions: (params: { self: Self; context: Values<C> }) => any
   }>
 }

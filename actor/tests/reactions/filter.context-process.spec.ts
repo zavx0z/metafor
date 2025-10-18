@@ -38,7 +38,8 @@ describe("Фильтрация по context.process с in", () => {
       state: "idle",
       core,
       update: () => ({}),
-      self: { meta: "test", actor: "user-1", path: "0", destroy: () => {} },
+      self: { meta: "test", actor: "user-1", path: "0" },
+      destroy: () => {},
     })
 
     expect(core.called, "реакция должна сработать когда actor входит в context.process").toBe(true)
@@ -75,7 +76,8 @@ describe("Фильтрация по context.process с in", () => {
       state: "idle",
       core,
       update: () => ({}),
-      self: { meta: "test", actor: "unknown-actor", path: "0", destroy: () => {} },
+      self: { meta: "test", actor: "unknown-actor", path: "0" },
+      destroy: () => {},
     })
 
     expect(core.called, "реакция НЕ должна сработать когда actor НЕ входит в context.process").toBe(false)
@@ -111,7 +113,8 @@ describe("Фильтрация по context.process с in", () => {
       state: "idle",
       core,
       update: () => ({}),
-      self: { meta: "test", actor: "user-1", path: "0", destroy: () => {} },
+      self: { meta: "test", actor: "user-1", path: "0" },
+      destroy: () => {},
     })
 
     expect(core.called, "реакция НЕ должна сработать при неверном path").toBe(false)
@@ -147,7 +150,8 @@ describe("Фильтрация по context.process с in", () => {
       state: "idle",
       core,
       update: () => ({}),
-      self: { meta: "test", actor: "user-1", path: "0", destroy: () => {} },
+      self: { meta: "test", actor: "user-1", path: "0" },
+      destroy: () => {},
     })
 
     expect(core.called, "реакция НЕ должна сработать при неверном value").toBe(false)

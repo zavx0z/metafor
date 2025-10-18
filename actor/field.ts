@@ -1,21 +1,27 @@
-import type { StatesConfig } from "../meta/states"
+import type { Superposition } from "../meta/states"
 import { type Context, type Update } from "@zavx0z/context"
 import { Fields } from "./src/fields"
 import type { Actor } from "./actor"
 import type { ChunkPatches, ActorSnapshot } from "./gravity.t"
 import { applyPatchesToSnapshot } from "./src/snapshot"
 import { Source } from "./electromagnetic"
-import type { Hidden, Values } from "./field.t"
+import type { Hidden, Values, Destroy } from "./field.t"
+import type { Self } from "../meta/metafor"
 
-export type { Hidden, Values }
+export type { Hidden, Values, Destroy }
 
 export abstract class Field {
+  public abstract get self(): Self
+
   public readonly id: string
   public readonly meta: string
-  protected abstract state: { current: string; states: StatesConfig }
+  protected abstract state: { current: string; states: Superposition }
 
   public readonly λ: Hidden<Values>
   public fields: Values
+  static get fields(): Fields {
+    return Fields.get()
+  }
   #eval: Update<Values>
 
   protected constructor(_: unknown, id: string, meta: string) {
@@ -54,26 +60,24 @@ export abstract class Field {
   // ---------------------------------------------------------------------
 
   protected static getActor(id: string): Actor {
-    const fields = Fields.get()
-    if (!fields) throw new Error("Fields not found")
-    const actor = fields.getActor(id)
+    if (!Field.fields) throw new Error("Fields not found")
+    const actor = Field.fields.getActor(id)
     if (!actor) throw new Error("Actor not found")
     return actor
   }
 
   public destroy(recursive: boolean) {
-    const fields = Fields.get()
     if (recursive) {
       while (true) {
-        const children = fields.getChildren(this.id)
+        const children = Field.fields.getChildren(this.id)
         if (children.length === 0) break
         const childId = children[0]! // Берем первого ребенка
-        const childActor = fields.getActor(childId)
+        const childActor = Field.fields.getActor(childId)
         if (childActor) childActor.destroy(true)
         else break // Если актор не найден, выходим из цикла
       }
     } // false, так как мы уже обработали детей
-    fields.remove(this.id, false)
+    Field.fields.remove(this.id, false)
   }
   // -------------------------- История акторов -----------------------------------------
 

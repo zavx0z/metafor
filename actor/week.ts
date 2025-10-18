@@ -114,7 +114,8 @@ export abstract class Week extends Electromagnetic {
         patch,
         state: this.state.current,
         update: this.update,
-        self: { meta: this.meta, actor: this.id, path: this.path, destroy: this.destroy },
+        destroy: this.destroy,
+        self: this.self,
       })
     }
     this.measurement()

@@ -38,7 +38,8 @@ describe("Фильтрация по meta и actor с in/notIn", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "admin", actor: "test-actor", path: "0", destroy: () => {} },
+      self: { meta: "admin", actor: "test-actor", path: "0" },
+      destroy: () => {},
     })
 
     expect(core.called, "реакция должна сработать когда meta входит в массив").toBe(true)
@@ -66,7 +67,8 @@ describe("Фильтрация по meta и actor с in/notIn", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "moderator", actor: "test-actor", path: "0", destroy: () => {} },
+      self: { meta: "moderator", actor: "test-actor", path: "0" },
+      destroy: () => {},
     })
 
     expect(core.called, "реакция НЕ должна сработать когда meta НЕ входит в массив").toBe(false)
@@ -94,7 +96,8 @@ describe("Фильтрация по meta и actor с in/notIn", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "actor-2", path: "0", destroy: () => {} },
+      self: { meta: "test", actor: "actor-2", path: "0" },
+      destroy: () => {},
     })
 
     expect(core.called, "реакция должна сработать когда actor входит в массив").toBe(true)
@@ -122,7 +125,8 @@ describe("Фильтрация по meta и actor с in/notIn", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "active", actor: "test-actor", path: "0", destroy: () => {} },
+      self: { meta: "active", actor: "test-actor", path: "0" },
+      destroy: () => {},
     })
 
     expect(core.called, "реакция должна сработать когда meta НЕ входит в исключающий массив").toBe(true)
@@ -150,7 +154,8 @@ describe("Фильтрация по meta и actor с in/notIn", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "blocked-1", path: "0", destroy: () => {} },
+      self: { meta: "test", actor: "blocked-1", path: "0" },
+      destroy: () => {},
     })
 
     expect(core.called, "реакция НЕ должна сработать когда actor входит в исключающий массив").toBe(false)

@@ -7,7 +7,7 @@ import type { Core } from "../gravity.t"
 import type { ReactionParams, Reactions } from "./reactions.t"
 import type { ReactionAction, ReactionsSchema } from "../../meta/reactions.t"
 import type { ReactionFilterConditions } from "./condition.t"
-import type { SelfInfo } from "../../meta/metafor.t"
+import type { Self } from "../../meta/metafor"
 export type { Reactions } from "./reactions.t"
 
 /**
@@ -40,7 +40,7 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
     label: string
     desc?: string
     update: ReactionAction<C, S, I>
-    getConditions: (params: { self: SelfInfo; context: Values<C> }) => any
+    getConditions: (params: { self: Self; context: Values<C> }) => any
     states: string[]
   }> = []
 
@@ -255,9 +255,7 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
       const updateFn = new Function("return " + reactionData.src)() as ReactionAction<C, S, I>
 
       // Создаем функцию фильтра из строки
-      const filterFn = new Function("return " + reactionData.cond)() as (params: {
-        self: SelfInfo
-      }) => ReactionFilterConditions
+      const filterFn = new Function("return " + reactionData.cond)()
 
       const reaction = {
         label: reactionData.label,
@@ -288,7 +286,7 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
 
         // Получаем условия фильтра с передачей self и context
         const conditions = reaction.getConditions({
-          self: { meta: params.self.meta, actor: params.self.actor, path: params.self.path } as SelfInfo,
+          self: params.self,
           context: params.context,
         })
         // Создаем фильтр на основе условий
@@ -306,6 +304,7 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
           // Выполняем реакцию
           reaction.update({
             update: params.update as Update<C>,
+            destroy: params.destroy,
             context: params.context as Values<C>,
             core: params.core as I,
             meta: params.meta,

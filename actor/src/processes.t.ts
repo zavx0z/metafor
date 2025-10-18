@@ -22,6 +22,7 @@
 
 import type { Schema, Values, Update } from "@zavx0z/context"
 import type { Core } from "../gravity"
+import type { Destroy } from "../field"
 import type { Self } from "../../meta/metafor.t"
 import type { Week } from "../week"
 
@@ -104,8 +105,10 @@ export type ActionParams<C extends Schema, I extends Core> = {
   core: I
   /** Схема контекста */
   fields: C
-  /** Полный идентификатор актора с методом destroy */
+  /** Полный идентификатор актора */
   self: Self
+  /** Функция для уничтожения актора */
+  destroy: Destroy
 }
 
 /**
@@ -117,9 +120,9 @@ export type ActionParams<C extends Schema, I extends Core> = {
  *
  * @example
  * ```typescript
- * const chain = action(({ context, core, schema, self }) => {
+ * const chain = action(({ context, core, fields, self, destroy }) => {
  *   // Доступ ко всем параметрам процесса
- *   // self.destroy() доступен в процессах
+ *   // destroy() доступен в процессах
  *   return { name: context.name }
  * })
  *   .success(({ update, data }) => update({ name: data.name }))
@@ -137,13 +140,14 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
    * @param params - объект с параметрами процесса:
    *   - `context` - текущий контекст актора
    *   - `core` - ядро актора для сложных данных
-   *   - `schema` - схема контекста для валидации и установки значений по умолчанию
-   *   - `self` - полный идентификатор актора с методом destroy
+   *   - `fields` - схема контекста для валидации и установки значений по умолчанию
+   *   - `self` - полный идентификатор актора
+   *   - `destroy` - функция для уничтожения актора
    * @returns результат процесса (может быть промисом)
    *
    * @example
    * ```typescript
-   * action: ({ context, core, schema, self }) => {
+   * action: ({ context, core, fields, self, destroy }) => {
    *   // Доступ к контексту
    *   console.log(context.email, context.password)
    *
@@ -151,9 +155,9 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
    *   core.users.push({ name: context.name })
    *
    *   // Доступ к схеме для валидации
-   *   const isValid = schema.email.validate(context.email)
+   *   const isValid = fields.email.validate(context.email)
    *
-   *   // self.destroy() доступен для уничтожения актора
+   *   // destroy() доступен для уничтожения актора
    *   // self.meta, self.actor, self.path доступны
    *
    *   // Возврат результата
@@ -264,9 +268,9 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
  * const process: Process<MyContext, { userId: number }> = {
  *   label: "Авторизация",
  *   desc: "Процесс входа пользователя",
- *   action: async ({ context, core, schema, self }) => {
+ *   action: async ({ context, core, fields, self, destroy }) => {
  *     // Логика авторизации с доступом ко всем параметрам
- *     // self.destroy() доступен для уничтожения актора
+ *     // destroy() доступен для уничтожения актора
  *     return { userId: 123 }
  *   },
  *   success: ({ update, data }) => {
@@ -289,6 +293,7 @@ export type Process<C extends Schema = Schema, I extends Core = Core, Res = any>
   label?: string
   /** Описание процесса для документации */
   desc?: string
+  destroy?: (recursive?: boolean) => void
 }
 
 /**

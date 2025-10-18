@@ -1,15 +1,13 @@
 import { Week } from "./week"
 import type { Core } from "./gravity"
-import type { StatesConfig } from "../meta/metafor"
+import type { Meta, Superposition } from "../meta/metafor"
 import type { Processes } from "./src/processes"
 import type { Reactions } from "./src/reactions"
 import type { Context } from "@zavx0z/context"
 import { contextFromSchema } from "@zavx0z/context"
 import { processesFromSchema } from "./src/processes"
 import { reactionsFromSchema } from "./src/reactions"
-import type { Hidden, Values } from "./field"
-import type { Meta } from "../meta/metafor"
-import { Fields } from "./src/fields"
+import { Field, type Hidden, type Values } from "./field"
 import { Actor } from "./actor"
 
 export abstract class Strong extends Week {
@@ -18,7 +16,7 @@ export abstract class Strong extends Week {
     public override meta: string,
     public desc: string | undefined,
     hidden: Context<Values>,
-    protected override state: { current: string; states: StatesConfig },
+    protected override state: { current: string; states: Superposition },
     protected override processes: Processes,
     protected override reactions: Reactions,
     core?: Core
@@ -70,11 +68,9 @@ export abstract class Strong extends Week {
     path?: string
   }): Actor {
     const { meta, id = crypto.randomUUID(), core, context = {}, path } = config
-    const fields = Fields.get()
-
     // если указан индекс-путь — заранее резервируем слот под id
     if (typeof path === "string" && path.length > 0) {
-      fields.reserveByIndexPath(id, path)
+      Field.fields.reserveByIndexPath(id, path)
     }
 
     const ctx = contextFromSchema(meta.context)
@@ -99,12 +95,10 @@ export abstract class Strong extends Week {
     cfg: { id?: string; at?: "before" | "after"; core?: Core; context?: Partial<Hidden<Values>> } = {}
   ): string {
     const { id = crypto.randomUUID(), core, context = {}, at = "after" } = cfg
-    const fields = Fields.get()
-    if (!fields.getActor(targetId)) throw new Error(`Актор-ориентир "${targetId}" не найден`)
+    if (!Field.fields.getActor(targetId)) throw new Error(`Актор-ориентир "${targetId}" не найден`)
 
     // 1) Резервируем слот под будущий актор
-    fields.reserveSibling(id, targetId, at)
-
+    Field.fields.reserveSibling(id, targetId, at)
     // 2) Создаём актора в следующей макротаске — родитель «не ждёт»
     setTimeout(() => {
       try {
@@ -129,7 +123,7 @@ export abstract class Strong extends Week {
       } catch (e) {
         // Если что-то пойдёт не так — снимаем резервацию, чтобы не залипало
         try {
-          Fields.get().cancelReservation(id)
+          Field.fields.cancelReservation(id)
         } catch {}
         console.error("createSibling async init failed:", e)
       }
@@ -145,21 +139,20 @@ export abstract class Strong extends Week {
     cfg: { id?: string; core?: Core; context?: Partial<Hidden<Values>> } = {}
   ): string {
     const { id = crypto.randomUUID(), core, context = {} } = cfg
-    const fields = Fields.get()
 
     // валидация родителя (кроме корня)
-    if (parentId !== null && !fields.getActor(parentId)) {
+    if (parentId !== null && !Field.fields.getActor(parentId)) {
       throw new Error(`Родитель "${parentId}" не найден`)
     }
 
     // строим индекс-путь в конец детей родителя
-    const kids = fields.getChildren(parentId)
+    const kids = Field.fields.getChildren(parentId)
     const index = kids.length
-    const parentPath = parentId === null ? null : fields.getPath(parentId)
+    const parentPath = parentId === null ? null : Field.fields.getPath(parentId)
     const path = parentPath ? `${parentPath}/${index}` : String(index)
 
     // резервируем позицию ПО ИНДЕКС-ПУТИ (конвертируется в orderKey и фиксирует parentId)
-    fields.reserveByIndexPath(id, path)
+    Field.fields.reserveByIndexPath(id, path)
 
     // готовим контекст
     const ctx = contextFromSchema(meta.context)

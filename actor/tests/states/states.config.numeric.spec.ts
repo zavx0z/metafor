@@ -1,8 +1,8 @@
 import { test, expect } from "bun:test"
-import type { StatesConfig } from "../../../meta/states.t.ts"
+import type { Superposition } from "../../../meta/states.t.ts"
 
 test("Конфигурация состояний с числовыми условиями", () => {
-  const gameStates: StatesConfig = {
+  const gameStates: Superposition = {
     menu: {
       playing: { level: { gte: 1 } },
     },

@@ -1,11 +1,13 @@
 import "../../../../meta/metafor.ts"
 import { describe, expect, test } from "bun:test"
 import { messagesFixture } from "../../../../infra/test/fixture/message.ts"
+import { Source } from "../../../electromagnetic.ts"
+
 
 describe.skip("MetaFor: инициализация с действиями", async () => {
   const hex = MetaFor("test-with-action")
     .context((t) => ({
-      value: t.string.optional("ctx_1", { title: "Value" }),
+      value: t.string.optional("ctx_1", { label: "Value" }),
     }))
     .states({
       state_1: { state_2: { value: "ctx_2" } },
@@ -47,7 +49,9 @@ describe.skip("MetaFor: инициализация с действиями", asy
     expect(patch.path, "patch.path должен быть '/' ").toBe("/")
     expect(message, "message должен содержать snapshot").toEqual({
       meta: hex.name,
-      actor: { index: "0" },
+      actor: "0",
+      path: "0",
+      src: Source.Nothing,
       timestamp: expect.any(Number),
       patches: [
         {

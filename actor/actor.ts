@@ -1,15 +1,11 @@
-
 import { Strong } from "./strong"
 
-
-
 export class Actor extends Strong {
-  protected get self() {
+  get self() {
     return {
       actor: this.id,
       meta: this.meta,
       path: this.path,
-      destroy: this.destroy,
     }
   }
 
@@ -18,10 +14,11 @@ export class Actor extends Strong {
       if (!this.process?.action) return reject(new Error("Нечего делать!"))
       try {
         const result = this.process.action({
+          self: this.self,
           fields: this.fields,
           context: this.λ,
-          self: this.self,
           core: this.core,
+          destroy: this.destroy,
         })
         if (result instanceof Promise)
           result

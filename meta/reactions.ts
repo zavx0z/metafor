@@ -2,7 +2,7 @@ import type { Schema, Values } from "@zavx0z/context"
 import type { Core } from "../actor/gravity.t"
 import type { ReactionFilterConditions } from "../actor/src/condition.t"
 import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction } from "./reactions.t"
-import type { SelfInfo } from "./metafor.t"
+import type { Self } from "./metafor"
 import { destroyAppendArg, extractFields, updateAppendArg } from "./parser/func"
 import { Source } from "../actor/electromagnetic.t"
 export type { ReactionsDeclaration, ReactionsSchema }
@@ -15,7 +15,7 @@ export const reactionsSchema = <C extends Schema, S extends string, I extends Co
   let reactionAutoId = 0
 
   const chainResult = builder((config?: { label?: string; desc?: string }) => ({
-    filter: (filter: (params: { self: SelfInfo; context: Values<C> }) => ReactionFilterConditions) => ({
+    filter: (filter: (params: { self: Self; context: Values<C> }) => ReactionFilterConditions) => ({
       equal: (update: ReactionAction<C, S, I>) => {
         const { read, write } = extractFields(update)
         const label = config?.label || ""

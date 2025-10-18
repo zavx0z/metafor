@@ -3,7 +3,7 @@ import type { Core } from "../actor/gravity.t"
 import type { ProcessesDeclaration, ProcessesSchema } from "./process.t"
 import type { Node as ParseNode } from "@zavx0z/template"
 import type { ReactionsSchema } from "./reactions.t"
-import type { StatesConfig } from "./states"
+import type { Superposition } from "./states"
 import type { ReactionsDeclaration } from "./reactions"
 
 /**
@@ -76,7 +76,7 @@ export type MetaFor = (
      * @returns chain API для вызова .core(...)
      */
     states<S extends string>(
-      states: StatesConfig<S, C>
+      states: Superposition<S, C>
     ): {
       /**
        * Регистрирует core объект для автомата.
@@ -355,7 +355,7 @@ export interface Meta<C extends Schema = Schema, S extends string = string, I ex
   /** Описание компонента */
   desc?: string
   /** Карта состояний и переходов */
-  states: StatesConfig<S, C>
+  states: Superposition<S, C>
   /** Снимок процессов */
   processes?: ProcessesSchema
   /** Снимок реакций */
@@ -369,6 +369,7 @@ export interface Meta<C extends Schema = Schema, S extends string = string, I ex
   /** Ядро */
   core?: I
 }
+
 /**
  * Базовая информация об акторе в системе MetaFor
  *
@@ -384,29 +385,8 @@ export interface Meta<C extends Schema = Schema, S extends string = string, I ex
  * }
  * ```
  */
-export type SelfInfo = {
+export type Self = {
   meta: string
   actor: string
   path: string
-}
-
-/**
- * Полный идентификатор актора в системе MetaFor
- *
- * Наследует базовую информацию от SelfInfo и добавляет метод destroy.
- * Используется в процессах и обработчиках реакций (equal) для доступа к методу уничтожения актора.
- * В фильтрах реакций (filter) используется только SelfInfo без метода destroy.
- *
- * @example
- * ```typescript
- * const self: Self = {
- *   meta: "user-profile",
- *   actor: "user-123",
- *   path: "0/1/2",
- *   destroy: (recursive = true) => actor.destroy(recursive)
- * }
- * ```
- */
-export type Self = SelfInfo & {
-  destroy: (recursive?: boolean) => void
 }

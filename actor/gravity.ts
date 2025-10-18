@@ -1,6 +1,5 @@
 import type { Actor } from "./actor"
-import { Field, type Hidden, type Values } from "./field"
-import { Fields } from "./src/fields"
+import { Field } from "./field"
 import type { ActorSnapshot } from "./gravity.t"
 import type { Core } from "./gravity.t"
 
@@ -14,7 +13,7 @@ export abstract class Gravity extends Field {
     Gravity.coreWeakMap.set(this, core || {})
 
     // Вклеиваемся в дерево (если резерва нет — окажемся в конце корня).
-    Fields.get().attachReserved(this as unknown as Actor)
+    Field.fields.attachReserved(this as unknown as Actor)
   }
 
   public override destroy(recursive = true) {
@@ -36,22 +35,20 @@ export abstract class Gravity extends Field {
 
   /** Актуальный индекс-путь вида `"0/1/2"` (или пустая строка, если актор ещё не в Fields). */
   public get path(): string {
-    const f = Fields.get()
-    const a = f.getActor(this.id)
+    const a = Field.fields.getActor(this.id)
     if (!a) return ""
     try {
-      return f.getPath(this.id)
+      return Field.fields.getPath(this.id)
     } catch {
       return ""
     }
   }
 
   static getAllAddresses(): Array<{ actor: string; meta: string; path: string }> {
-    const fields = Fields.get()
     const paths: Array<{ actor: string; meta: string; path: string }> = []
-    if (!fields) return paths
+    if (!Field.fields) return paths
     // @ts-ignore
-    for (const [key, actor] of fields.actors.entries()) {
+    for (const [key, actor] of Field.fields.actors.entries()) {
       paths.push({ actor: key, meta: actor.meta, path: actor.path })
     }
     return paths

@@ -31,7 +31,8 @@ describe("Фильтрация по объектам с includeKey", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor", path: "0", destroy: () => {} },
+      self: { meta: "test", actor: "test-actor", path: "0" },
+      destroy: () => {},
     })
 
     expect(core.called, "реакция должна сработать когда объект содержит указанный ключ").toBe(true)
@@ -59,7 +60,8 @@ describe("Фильтрация по объектам с includeKey", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor", path: "0", destroy: () => {} },
+      self: { meta: "test", actor: "test-actor", path: "0" },
+      destroy: () => {},
     })
 
     expect(core.called, "реакция НЕ должна сработать когда объект НЕ содержит указанный ключ").toBe(false)
@@ -87,7 +89,8 @@ describe("Фильтрация по объектам с includeKey", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor", path: "0", destroy: () => {} },
+      self: { meta: "test", actor: "test-actor", path: "0" },
+      destroy: () => {},
     })
 
     expect(core.called, "реакция НЕ должна сработать когда объект пустой").toBe(false)
@@ -115,7 +118,8 @@ describe("Фильтрация по объектам с includeKey", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor", path: "0", destroy: () => {} },
+      self: { meta: "test", actor: "test-actor", path: "0" },
+      destroy: () => {},
     })
 
     expect(core.called, "реакция НЕ должна сработать когда значение null").toBe(false)
@@ -143,7 +147,8 @@ describe("Фильтрация по объектам с includeKey", () => {
       state: "idle",
       core,
       update: fakeUpdate,
-      self: { meta: "test", actor: "test-actor", path: "0", destroy: () => {} },
+      self: { meta: "test", actor: "test-actor", path: "0" },
+      destroy: () => {},
     })
 
     expect(core.called, "реакция НЕ должна сработать когда значение не объект").toBe(false)

@@ -1,8 +1,8 @@
 import { test, expect } from "bun:test"
-import type { StatesConfig } from "../../../meta/states.t.ts"
+import type { Superposition } from "../../../meta/states.t.ts"
 
 test("Базовая конфигурация состояний пользователя", () => {
-  const userStates: StatesConfig = {
+  const userStates: Superposition = {
     guest: {
       user: {
         name: { length: { min: 2 } },

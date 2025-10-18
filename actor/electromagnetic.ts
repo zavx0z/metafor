@@ -1,6 +1,7 @@
-import { Source, TaskType, type Message, type Task } from "./electromagnetic.t"
-import { Gravity, type Core } from "./gravity"
 import { Field, type Hidden, type Values } from "./field"
+import { Gravity, type Core } from "./gravity"
+
+import { Source, TaskType, type Message, type Task } from "./electromagnetic.t"
 
 export { Source }
 export type { Message }
