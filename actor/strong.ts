@@ -3,7 +3,6 @@ import type { Core } from "./gravity"
 import type { StatesConfig } from "../meta/metafor"
 import type { Processes } from "./src/processes"
 import type { Reactions } from "./src/reactions"
-import type { Node as ParseNode } from "@zavx0z/template"
 import type { Context } from "@zavx0z/context"
 import { contextFromSchema } from "@zavx0z/context"
 import { processesFromSchema } from "./src/processes"
@@ -22,7 +21,6 @@ export abstract class Strong extends Week {
     protected override state: { current: string; states: StatesConfig },
     protected override processes: Processes,
     protected override reactions: Reactions,
-    protected render: ParseNode[],
     core?: Core
   ) {
     super(hidden, id, meta, core)
@@ -90,7 +88,6 @@ export abstract class Strong extends Week {
       { current: Object.keys(meta.states)[0] as string, states: meta.states },
       processesFromSchema(meta.processes ?? {}),
       reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
-      meta.render ?? [],
       core
     )
     return actor
@@ -127,7 +124,6 @@ export abstract class Strong extends Week {
           { current: Object.keys(meta.states)[0] as string, states: meta.states },
           processesFromSchema(meta.processes ?? {}),
           reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
-          meta.render ?? [],
           core
         )
       } catch (e) {
@@ -180,7 +176,6 @@ export abstract class Strong extends Week {
         { current: Object.keys(meta.states)[0] as string, states: meta.states },
         processesFromSchema(meta.processes ?? {}),
         reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
-        meta.render ?? [],
         core
       )
     }, 0)
