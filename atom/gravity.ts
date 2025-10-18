@@ -6,8 +6,6 @@ import type { Core } from "./gravity.t"
 export type { Core }
 
 export abstract class Gravity extends Field {
-  // -------------------------- Жизненный цикл -----------------------------------------
-
   protected constructor(_: unknown, id: string, meta: string, core?: Core) {
     super(_, id, meta)
     Gravity.coreWeakMap.set(this, core || {})
@@ -21,8 +19,6 @@ export abstract class Gravity extends Field {
     super.destroy(recursive)
   }
 
-  // -------------------------- Снимок -----------------------------------------
-
   get snapshot(): AtomSnapshot {
     return {
       path: String(this.path),
@@ -33,25 +29,16 @@ export abstract class Gravity extends Field {
 
   // ------------------------------- Индексация -----------------------------------------
 
-  /** Актуальный индекс-путь вида `"0/1/2"` (или пустая строка, если атом ещё не в Fields). */
   public get path(): string {
-    const a = Field.fields.getAtom(this.id)
-    if (!a) return ""
     try {
-      return Field.fields.getPath(this.id)
+      return Field.getPath(this.id)
     } catch {
       return ""
     }
   }
 
-  static getAllAddresses(): Array<{ atom: string; meta: string; path: string }> {
-    const paths: Array<{ atom: string; meta: string; path: string }> = []
-    if (!Field.fields) return paths
-    // @ts-ignore
-    for (const [key, atom] of Field.fields.atoms.entries()) {
-      paths.push({ atom: key, meta: atom.meta, path: atom.path })
-    }
-    return paths
+  static getAllAddresses() {
+    return Field.atoms.map((atom) => atom.self)
   }
 
   // ------------------------------- Ядро ---------------------------------------------

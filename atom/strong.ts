@@ -94,7 +94,7 @@ export abstract class Strong extends Week {
     cfg: { id?: string; at?: "before" | "after"; core?: Core; context?: Partial<Hidden<Values>> } = {}
   ): string {
     const { id = crypto.randomUUID(), core, context = {}, at = "after" } = cfg
-    if (!Field.fields.getAtom(targetId)) throw new Error(`атом-ориентир "${targetId}" не найден`)
+    if (!Field.getAtom(targetId)) throw new Error(`атом-ориентир "${targetId}" не найден`)
 
     // 1) Резервируем слот под будущий атом
     Field.fields.reserveSibling(id, targetId, at)
@@ -131,7 +131,7 @@ export abstract class Strong extends Week {
     return id
   }
 
-  static appendChild<M extends Meta>(
+  static append<M extends Meta>(
     parentId: string | null,
     meta: M,
     cfg: { id?: string; core?: Core; context?: Partial<Hidden<Values>> } = {}
@@ -139,14 +139,13 @@ export abstract class Strong extends Week {
     const { id = crypto.randomUUID(), core, context = {} } = cfg
 
     // валидация родителя (кроме корня)
-    if (parentId !== null && !Field.fields.getAtom(parentId)) {
+    if (parentId !== null && !Field.getAtom(parentId)) {
       throw new Error(`Родитель "${parentId}" не найден`)
     }
-
     // строим индекс-путь в конец детей родителя
-    const kids = Field.fields.getChildren(parentId)
+    const kids = Field.getChildren(parentId)
     const index = kids.length
-    const parentPath = parentId === null ? null : Field.fields.getPath(parentId)
+    const parentPath = parentId === null ? null : Field.getPath(parentId)
     const path = parentPath ? `${parentPath}/${index}` : String(index)
 
     // резервируем позицию ПО ИНДЕКС-ПУТИ (конвертируется в orderKey и фиксирует parentId)

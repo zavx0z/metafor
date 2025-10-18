@@ -76,13 +76,13 @@ describe("Внутренний механизм коммуникации меж�
     const atom1 = Atom.fromSchema({ meta: testSchema, id: "atom-1" })
     const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom-2" })
 
-    expect(Atom.getRegisteredatomsCount()).toBe(2)
+    expect(Atom.getRegisteredAtomsCount()).toBe(2)
 
     atom1.destroy()
-    expect(Atom.getRegisteredatomsCount()).toBe(1)
+    expect(Atom.getRegisteredAtomsCount()).toBe(1)
 
     atom2.destroy()
-    expect(Atom.getRegisteredatomsCount()).toBe(0)
+    expect(Atom.getRegisteredAtomsCount()).toBe(0)
   })
 
   it("должен переключаться между внутренним механизмом и BroadcastChannel", () => {

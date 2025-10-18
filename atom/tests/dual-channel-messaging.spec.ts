@@ -104,11 +104,11 @@ describe("Двойная отправка сообщений (BroadcastChannel +
   it("должен регистрировать атомы в реестре независимо от состояния внутреннего механизма", () => {
     Atom.setBroadcastChannel(false)
     const atom1 = Atom.fromSchema({ meta: testSchema, id: "atom-1" })
-    expect(Atom.getRegisteredatomsCount()).toBe(1)
+    expect(Atom.getRegisteredAtomsCount()).toBe(1)
 
     Atom.setBroadcastChannel(true)
     const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom-2" })
-    expect(Atom.getRegisteredatomsCount()).toBe(2)
+    expect(Atom.getRegisteredAtomsCount()).toBe(2)
 
     atom1.destroy()
     atom2.destroy()

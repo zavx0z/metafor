@@ -104,7 +104,7 @@ describe("Получение сообщений из обоих каналов",
     const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom-2" })
 
     // Оба атома должны быть зарегистрированы
-    expect(Atom.getRegisteredatomsCount()).toBe(2)
+    expect(Atom.getRegisteredAtomsCount()).toBe(2)
 
     // Оба атома должны подписываться на BroadcastChannel
     // (это проверяется через то, что они получают сообщения)

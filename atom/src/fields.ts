@@ -176,7 +176,7 @@ export class Fields {
   // -------- storage --------
 
   /** Хранилище атомов: id -> Atom. */
-  private atoms = new Map<string, Atom>()
+  atoms = new Map<string, Atom>()
   /** Метаданные атома: id -> Meta. */
   private meta = new Map<string, Meta>()
   /** Витрина детей: parentId|ROOT -> **упорядоченный** список id детей. */

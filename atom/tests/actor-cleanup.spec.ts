@@ -128,7 +128,7 @@ describe("Очистка ресурсов атома", () => {
   it("должен отправлять сообщение об удалении при destroy", () => {
     const atom = Atom.fromSchema({ meta: testSchema, id: "atom-1" })
 
-    // Мокаем sendMessage для проверки вызова
+    // @ts-ignore
     const sendMessageSpy = jest.spyOn(atom as any, "sendMessage")
 
     // Уничтожаем атом
@@ -137,9 +137,9 @@ describe("Очистка ресурсов атома", () => {
     // Проверяем, что sendMessage был вызван с правильным сообщением
     expect(sendMessageSpy).toHaveBeenCalledWith(
       expect.objectContaining({
-        meta: "test-atom§",
+        meta: "test-atom",
         atom: "atom-1",
-        path: expect.any(String), // достаточно, что путь строка
+        path: expect.any(String),
         timestamp: expect.any(Number),
         patches: [{ op: "remove", path: "/" }],
       })

@@ -59,11 +59,23 @@ export abstract class Field {
 
   // ---------------------------------------------------------------------
 
+  protected static get atoms() {
+    return Array.from(Field.fields.atoms.values())
+  }
+
   protected static getAtom(id: string): Atom {
     if (!Field.fields) throw new Error("Fields not found")
     const atom = Field.fields.getAtom(id)
     if (!atom) throw new Error("Atom not found")
     return atom
+  }
+
+  protected static getPath(id: string): string {
+    return Field.fields.getPath(id)
+  }
+
+  protected static getChildren(parentId: string | null): readonly string[] {
+    return Field.fields.getChildren(parentId)
   }
 
   public destroy(recursive: boolean) {
@@ -235,7 +247,7 @@ export abstract class Field {
   }
 
   /** Получает снапшот атома из последнего чекпоинта */
-  protected static getatomSnapshotFromCheckpoint(atomId: string): AtomSnapshot | null {
+  protected static getAtomSnapshotFromCheckpoint(atomId: string): AtomSnapshot | null {
     if (Field.checkpoints.length === 0) {
       return null
     }
