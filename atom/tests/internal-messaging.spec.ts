@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach } from "bun:test"
 import { Atom } from "../atom"
 import type { Meta } from "../../meta/metafor"
+import { Electromagnetic } from "../electromagnetic"
 
 describe("Внутренний механизм коммуникации между атомами", () => {
   beforeEach(() => {
@@ -43,8 +44,8 @@ describe("Внутренний механизм коммуникации меж�
   it("должен регистрировать атомы в реестре", () => {
     const atom1 = Atom.fromSchema({ meta: testSchema, id: "atom-1" })
     const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom-2" })
-
-    expect(Atom.getRegisteredAtomsCount()).toBe(2)
+    // @ts-expect-error
+    expect(Electromagnetic.charged.size).toBe(2)
     expect(Atom.isBroadcastChannelEnabled()).toBe(true)
 
     atom1.destroy()
@@ -75,14 +76,16 @@ describe("Внутренний механизм коммуникации меж�
   it("должен корректно удалять атомы из реестра", () => {
     const atom1 = Atom.fromSchema({ meta: testSchema, id: "atom-1" })
     const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom-2" })
-
-    expect(Atom.getRegisteredAtomsCount()).toBe(2)
+    // @ts-expect-error
+    expect(Electromagnetic.charged.size).toBe(2)
 
     atom1.destroy()
-    expect(Atom.getRegisteredAtomsCount()).toBe(1)
+    // @ts-expect-error
+    expect(Electromagnetic.charged.size).toBe(1)
 
     atom2.destroy()
-    expect(Atom.getRegisteredAtomsCount()).toBe(0)
+    // @ts-expect-error
+    expect(Electromagnetic.charged.size).toBe(0)
   })
 
   it("должен переключаться между внутренним механизмом и BroadcastChannel", () => {

@@ -21,7 +21,7 @@ export abstract class Electromagnetic extends Gravity {
 
   protected connect() {
     if (this.hasReactions()) {
-      Electromagnetic.chargedAtoms.add(this)
+      Electromagnetic.charged.add(this)
       if (Electromagnetic.useBroadcastChannel && Electromagnetic.channel) {
         this._onBCMessage ??= (ev: MessageEvent<Message>) => this.handleReactionMessage(ev)
         Electromagnetic.channel.addEventListener("message", this._onBCMessage)
@@ -31,7 +31,7 @@ export abstract class Electromagnetic extends Gravity {
   }
 
   public override destroy(recursive = true, source = Source.Nothing) {
-    Electromagnetic.chargedAtoms.delete(this)
+    Electromagnetic.charged.delete(this)
     this.requestDestroy(source)
     this.wired = false
     if (this._onBCMessage && Electromagnetic.channel)
@@ -42,13 +42,9 @@ export abstract class Electromagnetic extends Gravity {
   // -------------------------- Каналы -----------------------------------------
 
   protected wired = false
-  /** Множество «заряжённых» акторов (у кого есть реакции). */
-  private static chargedAtoms = new Set<Electromagnetic>()
-
-  /** Включать ли BroadcastChannel для меж-контекстной доставки. */
+  /** Множество «заряжённых» атомов (у кого есть реакции). */
+  private static charged = new Set<Electromagnetic>()
   protected static useBroadcastChannel = true
-
-  /** Общий BroadcastChannel для процесса (если доступен). */
   protected static channel: BroadcastChannel = new BroadcastChannel(Electromagnetic.channelName)
 
   /** Переключить использование BroadcastChannel. */
@@ -58,11 +54,6 @@ export abstract class Electromagnetic extends Gravity {
 
   static isBroadcastChannelEnabled(): boolean {
     return Electromagnetic.useBroadcastChannel
-  }
-
-  /** Получить количество зарегистрированных акторов. */
-  static getRegisteredAtomsCount(): number {
-    return Electromagnetic.chargedAtoms.size
   }
 
   /** Обработчик BC для корректного removeEventListener. */
@@ -90,7 +81,7 @@ export abstract class Electromagnetic extends Gravity {
         timestamp: message.timestamp,
       })
 
-    for (const atom of Electromagnetic.chargedAtoms) {
+    for (const atom of Electromagnetic.charged) {
       if (atom === this) continue
       if (atom.id !== message.atom && atom.hasReactions())
         atom.handleReactionMessage({ data: message } as MessageEvent<Message>)

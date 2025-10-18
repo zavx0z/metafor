@@ -10,7 +10,7 @@ describe("Двойная отправка сообщений (BroadcastChannel +
   beforeEach(() => {
     // Очищаем реестр атомов
     // @ts-ignore
-    Electromagnetic.chargedAtoms.clear()
+    Electromagnetic.charged.clear()
 
     // Включаем BroadcastChannel
     Atom.setBroadcastChannel(true)
@@ -22,7 +22,7 @@ describe("Двойная отправка сообщений (BroadcastChannel +
   afterEach(() => {
     Atom.setBroadcastChannel(false)
     // @ts-ignore
-    Electromagnetic.chargedAtoms.clear()
+    Electromagnetic.charged.clear()
   })
 
   const testSchema: Meta = {
@@ -104,11 +104,13 @@ describe("Двойная отправка сообщений (BroadcastChannel +
   it("должен регистрировать атомы в реестре независимо от состояния внутреннего механизма", () => {
     Atom.setBroadcastChannel(false)
     const atom1 = Atom.fromSchema({ meta: testSchema, id: "atom-1" })
-    expect(Atom.getRegisteredAtomsCount()).toBe(1)
+    // @ts-expect-error
+    expect(Electromagnetic.charged.size).toBe(1)
 
     Atom.setBroadcastChannel(true)
     const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom-2" })
-    expect(Atom.getRegisteredAtomsCount()).toBe(2)
+    // @ts-expect-error
+    expect(Electromagnetic.charged.size).toBe(2)
 
     atom1.destroy()
     atom2.destroy()

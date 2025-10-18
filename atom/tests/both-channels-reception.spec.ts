@@ -10,13 +10,13 @@ describe("Получение сообщений из обоих каналов",
 
   beforeEach(() => {
     // @ts-ignore
-    Electromagnetic.chargedAtoms.clear()
+    Electromagnetic.charged.clear()
     messagesFixtureInstance = messagesFixture({ meta: "test-atom" })
   })
 
   afterEach(() => {
     // @ts-ignore
-    Electromagnetic.chargedAtoms.clear()
+    Electromagnetic.charged.clear()
   })
 
   const testSchema: Meta = {
@@ -103,8 +103,8 @@ describe("Получение сообщений из обоих каналов",
     Atom.setBroadcastChannel(false)
     const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom-2" })
 
-    // Оба атома должны быть зарегистрированы
-    expect(Atom.getRegisteredAtomsCount()).toBe(2)
+    // @ts-expect-error Оба атома должны быть зарегистрированы
+    expect(Electromagnetic.charged.size).toBe(2)
 
     // Оба атома должны подписываться на BroadcastChannel
     // (это проверяется через то, что они получают сообщения)

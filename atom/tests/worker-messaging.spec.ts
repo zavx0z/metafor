@@ -1,6 +1,7 @@
 import { describe, it, expect } from "bun:test"
 import { Atom } from "../atom"
 import type { Meta } from "../../meta/metafor"
+import { Electromagnetic } from "../electromagnetic"
 
 describe("Коммуникация между атомами в разных потоках/воркерах", () => {
   const testSchema: Meta = {
@@ -35,8 +36,8 @@ describe("Коммуникация между атомами в разных п�
     const atom1 = Atom.fromSchema({ meta: testSchema, id: "worker-atom-1" })
     const atom2 = Atom.fromSchema({ meta: testSchema, id: "worker-atom-2" })
 
-    // Проверяем, что атомы зарегистрированы, но внутренний механизм отключен
-    expect(Atom.getRegisteredAtomsCount()).toBe(2)
+    // @ts-expect-error
+    expect(Electromagnetic.charged.size).toBe(2)
     expect(Atom.isBroadcastChannelEnabled()).toBe(false)
 
     // В этом случае атомы будут общаться только через BroadcastChannel
@@ -53,8 +54,8 @@ describe("Коммуникация между атомами в разных п�
     const atom1 = Atom.fromSchema({ meta: testSchema, id: "main-atom-1" })
     const atom2 = Atom.fromSchema({ meta: testSchema, id: "main-atom-2" })
 
-    // Проверяем, что атомы зарегистрированы и внутренний механизм включен
-    expect(Atom.getRegisteredAtomsCount()).toBe(2)
+    // @ts-expect-error
+    expect(Electromagnetic.charged.size).toBe(2)
     expect(Atom.isBroadcastChannelEnabled()).toBe(true)
 
     // В этом случае атомы будут общаться через внутренний реестр (быстро)
@@ -67,24 +68,29 @@ describe("Коммуникация между атомами в разных п�
   it("должен правильно переключаться между режимами", () => {
     // Начинаем с отключенного внутреннего механизма
     Atom.setBroadcastChannel(false)
+    // @ts-expect-error
+    expect(Electromagnetic.charged.size).toBe(0)
     expect(Atom.isBroadcastChannelEnabled()).toBe(false)
 
     const atom1 = Atom.fromSchema({ meta: testSchema, id: "atom-1" })
-    expect(Atom.getRegisteredAtomsCount()).toBe(1)
+    // @ts-expect-error
+    expect(Electromagnetic.charged.size).toBe(1)
 
     // Включаем внутренний механизм
     Atom.setBroadcastChannel(true)
     expect(Atom.isBroadcastChannelEnabled()).toBe(true)
 
     const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom-2" })
-    expect(Atom.getRegisteredAtomsCount()).toBe(2)
+    // @ts-expect-error
+    expect(Electromagnetic.charged.size).toBe(2)
 
     // Отключаем внутренний механизм
     Atom.setBroadcastChannel(false)
     expect(Atom.isBroadcastChannelEnabled()).toBe(false)
 
     const atom3 = Atom.fromSchema({ meta: testSchema, id: "atom-3" })
-    expect(Atom.getRegisteredAtomsCount()).toBe(3)
+    // @ts-expect-error
+    expect(Electromagnetic.charged.size).toBe(3)
 
     atom1.destroy()
     atom2.destroy()
