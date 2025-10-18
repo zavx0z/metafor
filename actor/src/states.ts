@@ -4,8 +4,8 @@
  */
 
 import type { Schema, Values } from "@zavx0z/context"
-import type { Conditions, Transitions } from "./states.t"
-export type { Conditions, Transitions }
+import type { Wave, Transitions } from "./states.t"
+export type { Wave as Conditions, Transitions }
 
 /**
  * Проверяет условия переходов между состояниями
@@ -34,7 +34,7 @@ export type { Conditions, Transitions }
  * // => true
  * ```
  */
-export const checkTransition = <C extends Schema>(conditions: Conditions<C>, context: Values<C>): boolean => {
+export const checkTransition = <C extends Schema>(conditions: Wave<C>, context: Values<C>): boolean => {
   /** Оценивает одно условие */
   const evaluateCondition = (condition: any, value: any): boolean => {
     // Простые значения

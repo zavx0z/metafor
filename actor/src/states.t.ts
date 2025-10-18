@@ -444,14 +444,14 @@ export type CondArrayRequired<T = any> =
       every?: T extends number
         ? { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number }
         : T extends string
-          ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
-          : never
+        ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
+        : never
       /** Хотя бы один элемент удовлетворяет условию */
       some?: T extends number
         ? { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number }
         : T extends string
-          ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
-          : never
+        ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
+        : never
       /** Является ли массив пустым */
       isEmpty?: boolean
     }
@@ -502,14 +502,14 @@ export type CondArrayOptional<T = any> =
       every?: T extends number
         ? { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number }
         : T extends string
-          ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
-          : never
+        ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
+        : never
       /** Хотя бы один элемент удовлетворяет условию */
       some?: T extends number
         ? { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number }
         : T extends string
-          ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
-          : never
+        ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
+        : never
       /** Является ли массив пустым */
       isEmpty?: boolean
     }
@@ -520,16 +520,16 @@ export type CondArrayOptional<T = any> =
 export type Condition<T> = T extends boolean
   ? CondBooleanRequired
   : T extends string
-    ? CondStringRequired
-    : T extends number
-      ? CondNumberRequired
-      : T extends (infer U)[]
-        ? CondArrayRequired<U>
-        : T extends readonly (infer U)[]
-          ? CondArrayRequired<U>
-          : T extends object
-            ? { includeKey?: string }
-            : never
+  ? CondStringRequired
+  : T extends number
+  ? CondNumberRequired
+  : T extends (infer U)[]
+  ? CondArrayRequired<U>
+  : T extends readonly (infer U)[]
+  ? CondArrayRequired<U>
+  : T extends object
+  ? { includeKey?: string }
+  : never
 
 /**
  * Условие для опционального поля контекста
@@ -537,23 +537,23 @@ export type Condition<T> = T extends boolean
 export type ConditionOptional<T> = T extends boolean
   ? CondBooleanOptional
   : T extends string
-    ? CondStringOptional
-    : T extends number
-      ? CondNumberOptional
-      : T extends (infer U)[]
-        ? CondArrayOptional<U>
-        : T extends readonly (infer U)[]
-          ? CondArrayOptional<U>
-          : T extends null
-            ? null
-            : T extends object
-              ? { includeKey?: string }
-              : never
+  ? CondStringOptional
+  : T extends number
+  ? CondNumberOptional
+  : T extends (infer U)[]
+  ? CondArrayOptional<U>
+  : T extends readonly (infer U)[]
+  ? CondArrayOptional<U>
+  : T extends null
+  ? null
+  : T extends object
+  ? { includeKey?: string }
+  : never
 
 /**
  * Условие контекстного поля
  */
-export type Conditions<C extends Schema = Schema> = {
+export type Wave<C extends Schema = Schema> = {
   [K in keyof Partial<C>]: C[K] extends SchemaType<any, true, any, any>
     ? Condition<Values<C>[K]>
     : ConditionOptional<Values<C>[K]>
@@ -563,5 +563,5 @@ export type Conditions<C extends Schema = Schema> = {
  * Состояние в которое можно перейти с условиями
  */
 export type Transitions<To extends string = string, C extends Schema = Schema> = {
-  [K in To]?: Conditions<C>
+  [K in To]?: Wave<C>
 }

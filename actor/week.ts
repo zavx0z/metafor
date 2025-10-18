@@ -1,22 +1,21 @@
 import { Electromagnetic, MsgSrc } from "./electromagnetic"
 import type { Process, Processes } from "./src/processes"
-import { checkTransition } from "./src/states"
-import type { Conditions } from "./src/states.t"
+import { checkTransition as decoherence } from "./src/states"
+import type { Wave } from "./src/states.t"
 import type { Core } from "./gravity.t"
 import type { Reactions } from "./src/reactions"
 import type { Message } from "./electromagnetic"
-import type { Schema, Values } from "@zavx0z/context"
+import type { Context, Schema, Values } from "@zavx0z/context"
 
 export abstract class Week extends Electromagnetic {
   protected abstract processes: Processes
   protected abstract reactions: Reactions
 
-  protected abstract update(context: Partial<Values<Schema>>, src: string): Partial<Values<Schema>>
   protected abstract setState(state: string): void
   protected abstract action(): Promise<any>
 
-  constructor(id: string, meta: string, core?: Core) {
-    super(id, meta, core)
+  constructor(ctx: Context<Schema>, id: string, meta: string, core?: Core) {
+    super(ctx, id, meta, core)
     this.resolve = this.resolve.bind(this)
     this.reject = this.reject.bind(this)
   }
@@ -26,15 +25,23 @@ export abstract class Week extends Electromagnetic {
   }
   // ------------------------------ процесс ----------------------------------------
   protected static results = new WeakMap<Week, any>()
-  protected process: Process | null = null
+  #process: Process | null = null
   public error: Error | null = null
 
-  protected get result() {
+  get result() {
     return Week.results.get(this)
   }
 
   protected set result(result: any) {
     Week.results.set(this, result)
+  }
+
+  protected set process(process: Process | null) {
+    this.#process = process
+  }
+
+  get process() {
+    return this.#process
   }
 
   protected resolve() {
@@ -43,7 +50,7 @@ export abstract class Week extends Electromagnetic {
     }
     if (!this.requestStateSuccess()) return
     this.process = null
-    this.transition()
+    this.measurement()
   }
 
   protected reject() {
@@ -51,7 +58,7 @@ export abstract class Week extends Electromagnetic {
     if (!this.requestStateError()) return
     this.error = null
     this.process = null
-    this.transition()
+    this.measurement()
   }
 
   // ---------------------------- переходы ------------------------------------
@@ -61,32 +68,31 @@ export abstract class Week extends Electromagnetic {
     if (!this.requestInit()) return
     const transitions = this.state.states[this.state.current]
     if (!transitions) return
-    this.recursive(this.processes.getProcess(this.state.current))
+    this.collapse(this.processes.getProcess(this.state.current))
   }
 
-  /** Выполняет переход */
-  transition() {
+  measurement() {
     if (this.process) return // уже запущен процесс во время реакции
-    const transitions = this.state.states[this.state.current]
-    if (!transitions) return
+    const eigenstates = this.state.states[this.state.current]
+    if (!eigenstates) return
 
-    for (const [state, transition] of Object.entries(transitions)) {
-      if (checkTransition(transition as Conditions, this.ctx.context)) {
-        this.recursive(this.processes.getProcess(state), state)
+    for (const [eigenstate, Ψ] of Object.entries(eigenstates)) {
+      if (decoherence(Ψ as Wave, this.λ)) {
+        this.collapse(this.processes.getProcess(eigenstate), eigenstate)
         break
       }
     }
   }
 
-  private recursive(process: Process | undefined, newState: string | undefined = undefined) {
+  private collapse(process: Process | undefined, newState: string | undefined = undefined) {
     newState && this.setState(newState)
     if (process) {
       this.process = process
       if (!this.requestStartProcess()) return
       this.action().then(this.resolve).catch(this.reject)
     } else {
-      if (!this.requestTransition()) return
-      this.transition()
+      if (!this.requestMeasure()) return
+      this.measurement()
     }
   }
 
@@ -103,7 +109,7 @@ export abstract class Week extends Electromagnetic {
 
     for (const patch of data.patches) {
       this.reactions.run({
-        context: this.ctx.context,
+        context: this.λ,
         core: this.core,
         meta: data.meta,
         actor: data.actor,
@@ -114,6 +120,6 @@ export abstract class Week extends Electromagnetic {
         self: { meta: this.meta, actor: this.id, path: this.path, destroy: this.destroy },
       })
     }
-    this.transition()
+    this.measurement()
   }
 }

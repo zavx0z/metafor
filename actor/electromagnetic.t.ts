@@ -68,14 +68,15 @@ export interface Task {
 }
 
 export enum TaskType {
-  Init = "init",
+  ActorCreate = "init",
+  Transition = "transition",
   Action = "action",
-  InitAction = "init-action",
+  ActionAfterActorCreate = "init-action",
   Success = "success",
   Error = "error",
   ContextUpdateSuccess = "success-update-context",
   ContextUpdateError = "error-update-context",
-  ContextUpdateTransition = "transition-update-context",
+  ContextUpdateReaction = "reaction-update-context",
   Destroy = "destroy",
   Nothing = "",
 }

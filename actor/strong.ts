@@ -6,7 +6,7 @@ import type { StatesConfig } from "../meta/metafor"
 import type { Processes } from "./src/processes"
 import type { Reactions } from "./src/reactions"
 import type { Node as ParseNode } from "@zavx0z/template"
-import { Electromagnetic } from "./electromagnetic"
+
 
 export abstract class Strong extends Week {
   // -------------------------- Жизненный цикл -----------------------------------------
@@ -21,28 +21,17 @@ export abstract class Strong extends Week {
     public render: ParseNode[],
     core?: Core
   ) {
-    super(id, meta, core)
+    super(ctx, id, meta, core)
     this.update = this.update.bind(this)
     this.destroy = this.destroy.bind(this)
     this.connect()
     this.transit()
   }
-
+  
   public override destroy(recursive = true, src = MsgSrc.Nothing) {
     this.stateListeners.clear()
     this.ctx.clearSubscribers()
     super.destroy(recursive, src)
-  }
-
-  // ------------------------------ контекст ----------------------------------------
-
-  /** обновление контекста */
-  update(context: Partial<Values<Schema>>, src: MsgSrc): Partial<Values<Schema>> {
-    const updated = this.ctx.update(context)
-    if (Object.keys(updated).length > 0) {
-      if (!this.requestUpdateContext(updated, src)) return {}
-    }
-    return updated
   }
 
   // ------------------------------ состояние ----------------------------------------

@@ -3,14 +3,15 @@ import { Field } from "./field"
 import { Fields } from "./src/fields"
 import type { ActorSnapshot } from "./gravity.t"
 import type { Core } from "./gravity.t"
+import type { Context, Schema } from "@zavx0z/context"
 
 export type { Core }
 
 export abstract class Gravity extends Field {
   // -------------------------- Жизненный цикл -----------------------------------------
 
-  protected constructor(id: string, meta: string, core?: Core) {
-    super(id, meta)
+  protected constructor(ctx: Context<Schema>, id: string, meta: string, core?: Core) {
+    super(ctx, id, meta)
     Gravity.coreWeakMap.set(this, core || {})
 
     // Вклеиваемся в дерево (если резерва нет — окажемся в конце корня).

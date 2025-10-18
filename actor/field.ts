@@ -1,17 +1,60 @@
 import type { StatesConfig } from "../meta/states.t"
-import { type Context, type Schema } from "@zavx0z/context"
+import { type Context, type Schema, type Values } from "@zavx0z/context"
 import { Fields } from "./src/fields"
 import type { Actor } from "./actor"
 import type { ChunkPatches, ActorSnapshot } from "./gravity.t"
 import { applyPatchesToSnapshot } from "./src/snapshot"
-import { MsgSrc } from "./electromagnetic"
+import type { MsgSrc } from "./electromagnetic.t"
 
 export abstract class Field {
   public readonly meta: string
   public readonly id: string
   protected abstract ctx: Context<Schema>
   protected abstract state: { current: string; states: StatesConfig }
+  protected λ: Values<Schema>
+  protected abstract requestUpdateContext(context: Partial<Values<Schema>>, src: MsgSrc): boolean
+  // -------------------------- Жизненный цикл -----------------------------------------
+  protected abstract disconnected(): void
 
+  protected constructor(ctx: Context<Schema>, id: string, meta: string) {
+    this.id = id
+    this.meta = meta
+    this.λ = ctx.context
+  }
+
+  // ------------------------------ контекст ----------------------------------------
+
+  /** обновление контекста */
+  update(context: Partial<Values<Schema>>, src: MsgSrc): Partial<Values<Schema>> {
+    const updated = this.ctx.update(context)
+    if (Object.keys(updated).length > 0) {
+      if (!this.requestUpdateContext(updated, src)) return {}
+    }
+    return updated
+  }
+
+  private destroyRecursive(fields: Fields) {
+    const children = fields.getChildren(this.id)
+    for (const childId of children) {
+      const childActor = fields.getActor(childId)
+      if (childActor) childActor.destroyRecursive(fields)
+    }
+  }
+
+  public destroy(recursive: boolean, src = "") {
+    const fields = Fields.get()
+    if (recursive) {
+      while (true) {
+        const children = fields.getChildren(this.id)
+        if (children.length === 0) break
+        const childId = children[0]! // Берем первого ребенка
+        const childActor = fields.getActor(childId)
+        if (childActor) childActor.destroy(true)
+        else break // Если актор не найден, выходим из цикла
+      }
+    }
+    fields.remove(this.id, false) // false, так как мы уже обработали детей
+  }
   // -------------------------- История акторов -----------------------------------------
 
   protected static histories: ChunkPatches[] = []
@@ -190,36 +233,6 @@ export abstract class Field {
     return Field.lastSaved ? Field.lastSaved.snapshot : null
   }
 
-  // -------------------------- Жизненный цикл -----------------------------------------
-  protected abstract disconnected(): void
-
-  protected constructor(id: string, meta: string) {
-    this.id = id
-    this.meta = meta
-  }
-
-  private destroyRecursive(fields: Fields) {
-    const children = fields.getChildren(this.id)
-    for (const childId of children) {
-      const childActor = fields.getActor(childId)
-      if (childActor) childActor.destroyRecursive(fields)
-    }
-  }
-
-  public destroy(recursive: boolean, src = "") {
-    const fields = Fields.get()
-    if (recursive) {
-      while (true) {
-        const children = fields.getChildren(this.id)
-        if (children.length === 0) break
-        const childId = children[0]! // Берем первого ребенка
-        const childActor = fields.getActor(childId)
-        if (childActor) childActor.destroy(true)
-        else break // Если актор не найден, выходим из цикла
-      }
-    }
-    fields.remove(this.id, false) // false, так как мы уже обработали детей
-  }
   // -------------------------------------------------------------------
 
   protected static getActor(id: string): Actor {
