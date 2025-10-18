@@ -1,24 +1,24 @@
 import { Field, type Hidden, type Values } from "./field"
 import { Gravity } from "./gravity"
 
-import { Source, type JsonPatch, type Message } from "./em.t"
-import { type Task, Tasks, clearProcessTasks, taskType } from "./src/stack"
+import { Source, type JsonPatch, type Photon } from "./em.t"
+import { type Impulse, Energy, clearProcessImpulse, checkImpulseType } from "./src/stack"
 
 export { Source }
-export type { Message, JsonPatch }
+export type { Photon, JsonPatch }
 
 const DEBUG_DEBUGGER = true
 
 export abstract class EM extends Gravity {
   static channelName = "electromagnetic"
   protected abstract hasReactions(): boolean
-  protected abstract handleReactionMessage(ev: MessageEvent<Message>): void
+  protected abstract handleReactionMessage(ev: MessageEvent<Photon>): void
 
   protected connect() {
     if (this.hasReactions()) {
       EM.charged.add(this)
       if (EM.channel) {
-        this._onBCMessage ??= (ev: MessageEvent<Message>) => this.handleReactionMessage(ev)
+        this._onBCMessage ??= (ev: MessageEvent<Photon>) => this.handleReactionMessage(ev)
         EM.channel.addEventListener("message", this._onBCMessage)
       }
     }
@@ -39,139 +39,115 @@ export abstract class EM extends Gravity {
   /** Множество «заряжённых» атомов (у кого есть реакции). */
   private static charged = new Set<EM>()
   protected static channel: BroadcastChannel = new BroadcastChannel(EM.channelName)
+  private _onBCMessage?: (ev: MessageEvent<Photon>) => void
 
-  /** Обработчик BC для корректного removeEventListener. */
-  private _onBCMessage?: (ev: MessageEvent<Message>) => void
-
-  static isSelfInitMessage(message: Message): boolean {
-    if (!message) return false
-    for (const patch of message.patches) {
-      if (patch.path === "/" && patch.op === "add") return true
-    }
-    return false
-  }
-
-  /** Доставка сообщения локально и (опционально) через BroadcastChannel. */
-  protected sendMessage(message: Message) {
+  protected emission(photon: Photon) {
     if (!this.wired) return
-
-    if (EM.isSelfInitMessage(message)) {
-      Field.saveAtomSnapshot(this.id, this.snapshot)
-    } else
-      Field.pushPatches({
-        atom: message.atom,
-        src: message.src,
-        patches: message.patches,
-        timestamp: message.timestamp,
-      })
+    Field.propagation(photon)
 
     for (const atom of EM.charged) {
       if (atom === this) continue
-      if (atom.id !== message.atom && atom.hasReactions())
-        atom.handleReactionMessage({ data: message } as MessageEvent<Message>)
+      if (atom.id !== photon.atom && atom.hasReactions())
+        atom.handleReactionMessage({ data: photon } as MessageEvent<Photon>)
     }
-    EM.channel && EM.channel.postMessage(message)
+    EM.channel && EM.channel.postMessage(photon)
   }
 
   // -------------------------- Управление жизненным циклом ------------------------------
 
-  protected static lock = false
-
-  public static break() {
-    EM.lock = true
-  }
-
-  public static resume() {
-    // Electromagnetic.queue = []
-    // Electromagnetic.lock = false
-  }
-
+  private static lock = false
   public static get isLocked(): boolean {
     return EM.lock
   }
+  public static break() {
+    EM.lock = true
+  }
+  public static resume() {
+    EM.lock = false
+  }
 
-  private static stack: Task[] = []
-  private static pushTask(message: Message) {
-    const { patches, meta, path, ...info } = message
+  private static stack: Impulse[] = []
+  private static pushImpulse(photon: Photon) {
+    const { patches, meta, path, ...info } = photon
     for (const patch of patches) {
       const task = { ...info, ...patch }
-      setTimeout(() => console.log("Следующий таск", taskType(EM.stack, task), patch.value), 100)
+      setTimeout(() => console.log("Следующий таск", checkImpulseType(EM.stack, task), patch.value), 100)
       EM.stack.push(task)
     }
   }
 
-  private static popTask() {
+  private static popImpulse() {
     return EM.stack.pop()
   }
-  private static shiftTask() {
+  private static shiftImpulse() {
     return EM.stack.shift()
   }
-  private static get lastTask(): Task {
+  private static get lastPhotonImpulse(): Impulse {
     if (!EM.stack.length) throw new Error("Stack is empty")
-    return EM.stack[EM.stack.length - 1] as Task
+    return EM.stack[EM.stack.length - 1] as Impulse
   }
 
-  private static get typeLastTask(): Tasks {
-    const task = EM.lastTask
-    return taskType(EM.stack, task)
+  private static get typeLastPhotonImpulse(): Energy {
+    const task = EM.lastPhotonImpulse
+    return checkImpulseType(EM.stack, task)
   }
 
-  private static taskInStack(message: Message) {
+  private static impulseInStack(photon: Photon) {
     for (const task of EM.stack) {
-      if (task.atom !== message.atom) continue
-      if (task.src !== message.src) continue
-      if (task.op !== message.patches[0]!.op) continue
-      if (task.path !== message.patches[0]!.path) continue
+      if (task.atom !== photon.atom) continue
+      if (task.src !== photon.src) continue
+      if (task.op !== photon.patches[0]!.op) continue
+      if (task.path !== photon.patches[0]!.path) continue
       return true
     }
     return false
   }
   public static step() {
-    DEBUG_DEBUGGER && console.log("resume", EM.typeLastTask)
+    DEBUG_DEBUGGER && console.log("resume", EM.typeLastPhotonImpulse)
 
-    const task = EM.lastTask
-    const atom = Field.getAtom(task.atom)
+    const impulse = EM.lastPhotonImpulse
+    const atom = Field.getAtom(impulse.atom)
 
-    switch (EM.typeLastTask) {
-      case Tasks.AtomCreate:
+    switch (EM.typeLastPhotonImpulse) {
+      case Energy.AtomCreate:
         atom.transit()
         break
-      case Tasks.ActionAfterAtomCreate: // (первичный, после попадает в Action)
-        EM.shiftTask()
+      case Energy.ActionAfterAtomCreate: // (первичный, после попадает в Action)
+        EM.shiftImpulse()
         // @ts-expect-error
         atom.collapse(atom.processes.getProcess(atom.state.current))
         break
-      case Tasks.Action:
+      case Energy.Action:
         if (atom.process) {
           // @ts-expect-error
-          atom.collapse(atom.process, task.value)
+          atom.collapse(atom.process, impulse.value)
           break
         }
         // запуск для получения процесса (первичный)
         atom.measurement()
         console.log("")
         break
-      case Tasks.Success:
+      case Energy.Success:
         // @ts-expect-error
         atom.resolve()
         break
-      case Tasks.Error:
+      case Energy.Error:
         // @ts-expect-error
         atom.reject()
         break
-      case Tasks.Transition:
+      case Energy.Transition:
         atom.measurement()
         break
-      case Tasks.ContextUpdateSuccess:
-        atom.update(task.value, task.src)
+      case Energy.ContextUpdateSuccess:
+        atom.evaluate(impulse.value, impulse.src)
         break
-      case Tasks.ContextUpdateError:
-        atom.update(task.value, task.src)
+      case Energy.ContextUpdateError:
+        atom.evaluate(impulse.value, impulse.src)
         break
-      case Tasks.ContextUpdateReaction:
+      case Energy.ContextUpdateReaction:
         atom.transit()
         break
-      case Tasks.Destroy:
+      case Energy.Destroy:
         atom.destroy()
         break
     }
@@ -181,7 +157,7 @@ export abstract class EM extends Gravity {
 
   protected requestInit(): boolean {
     const value = this.snapshot
-    const message: Message = {
+    const photon: Photon = {
       meta: this.meta,
       atom: this.id,
       path: this.path,
@@ -190,14 +166,14 @@ export abstract class EM extends Gravity {
       patches: [{ op: "add", path: "/", value }],
     }
     if (!EM.lock) {
-      this.sendMessage(message)
+      this.emission(photon)
       return true
     }
-    if (EM.taskInStack(message)) {
+    if (EM.impulseInStack(photon)) {
       // удалить из стека если нет переходов
-      const transitions = this.state.states[this.state.current]
-      if (!transitions) EM.popTask()
-      this.sendMessage(message)
+      const eigenstates = this.state.states[this.state.current]
+      if (!eigenstates) EM.popImpulse()
+      this.emission(photon)
       return true
     } else {
       // создается сразу без помещения в стек
@@ -206,13 +182,13 @@ export abstract class EM extends Gravity {
       //   return true
       // }
       // при начальной инициализации помещается в стек для остановки brk сразу
-      EM.pushTask(message)
+      EM.pushImpulse(photon)
       return false
     }
   }
 
   protected requestStartProcess() {
-    const message: Message = {
+    const photon: Photon = {
       meta: this.meta,
       atom: this.id,
       path: this.path,
@@ -221,47 +197,47 @@ export abstract class EM extends Gravity {
       patches: [{ op: "test", path: "/state", value: this.state.current }],
     }
     if (!EM.lock) {
-      this.sendMessage(message)
+      this.emission(photon)
       return true
     }
-    if (EM.taskInStack(message)) {
+    if (EM.impulseInStack(photon)) {
       // @ts-ignore удалить из стека если нет обработчиков success/error
-      if (!(this.process?.success && this.process?.error)) EM.popTask()
-      this.sendMessage(message)
+      if (!(this.process?.success && this.process?.error)) EM.popImpulse()
+      this.emission(photon)
       return true
     } else {
-      EM.pushTask(message)
+      EM.pushImpulse(photon)
       return false
     }
   }
 
-  protected requestUpdateContext(context: Partial<Hidden<Values>>, src: Source): boolean {
-    const message: Message = {
+  protected requestUpdateContext(value: Partial<Hidden<Values>>, src: Source): boolean {
+    const photon: Photon = {
       meta: this.meta,
       atom: this.id,
       path: this.path,
       timestamp: Date.now(),
       src,
-      patches: [{ op: "replace", path: "/context", value: context }],
+      patches: [{ op: "replace", path: "/context", value }],
     }
     if (!EM.lock) {
-      this.sendMessage(message)
+      this.emission(photon)
       return true
     }
-    if (EM.taskInStack(message)) {
-      EM.popTask()
-      this.sendMessage(message)
+    if (EM.impulseInStack(photon)) {
+      EM.popImpulse()
+      this.emission(photon)
       return true
     } else {
       this.rollbackContext()
-      EM.pushTask(message)
+      EM.pushImpulse(photon)
       return false
     }
   }
 
   protected requestStateSuccess(): boolean {
     const value = this.state.current
-    const message: Message = {
+    const photon: Photon = {
       meta: this.meta,
       atom: this.id,
       path: this.path,
@@ -270,22 +246,22 @@ export abstract class EM extends Gravity {
       patches: [{ op: "replace", path: "/state", value }],
     }
     if (!EM.lock) {
-      this.sendMessage(message)
+      this.emission(photon)
       return true
     }
-    if (EM.taskInStack(message)) {
-      clearProcessTasks(EM.stack, value)
-      this.sendMessage(message)
+    if (EM.impulseInStack(photon)) {
+      clearProcessImpulse(EM.stack, value)
+      this.emission(photon)
       return true
     } else {
-      EM.pushTask(message)
+      EM.pushImpulse(photon)
       return false
     }
   }
 
   protected requestStateError(): boolean {
     const value = this.state.current
-    const message: Message = {
+    const photon: Photon = {
       meta: this.meta,
       atom: this.id,
       path: this.path,
@@ -294,21 +270,21 @@ export abstract class EM extends Gravity {
       patches: [{ op: "replace", path: "/state", value }],
     }
     if (!EM.lock) {
-      this.sendMessage(message)
+      this.emission(photon)
       return true
     }
-    if (EM.taskInStack(message)) {
-      clearProcessTasks(EM.stack, value)
-      this.sendMessage(message)
+    if (EM.impulseInStack(photon)) {
+      clearProcessImpulse(EM.stack, value)
+      this.emission(photon)
       return true
     } else {
-      EM.pushTask(message)
+      EM.pushImpulse(photon)
       return false
     }
   }
 
   protected requestMeasure(): boolean {
-    const message: Message = {
+    const photon: Photon = {
       meta: this.meta,
       atom: this.id,
       path: this.path,
@@ -317,22 +293,22 @@ export abstract class EM extends Gravity {
       patches: [{ op: "replace", path: "/state", value: this.state.current }],
     }
     if (!EM.lock) {
-      this.sendMessage(message)
+      this.emission(photon)
       return true
     }
-    if (EM.taskInStack(message)) {
-      EM.popTask()
-      this.sendMessage(message)
+    if (EM.impulseInStack(photon)) {
+      EM.popImpulse()
+      this.emission(photon)
       return true
     } else {
       this.rollbackState()
-      EM.pushTask(message)
+      EM.pushImpulse(photon)
       return false
     }
   }
 
   private requestDestroy(src: Source): boolean {
-    const message: Message = {
+    const photon: Photon = {
       meta: this.meta,
       atom: this.id,
       path: this.path,
@@ -341,15 +317,15 @@ export abstract class EM extends Gravity {
       patches: [{ op: "remove", path: "/" }],
     }
     if (!EM.lock) {
-      this.sendMessage(message)
+      this.emission(photon)
       return true
     }
-    if (EM.taskInStack(message)) {
-      EM.popTask()
-      this.sendMessage(message)
+    if (EM.impulseInStack(photon)) {
+      EM.popImpulse()
+      this.emission(photon)
       return true
     } else {
-      EM.pushTask(message)
+      EM.pushImpulse(photon)
       return false
     }
   }

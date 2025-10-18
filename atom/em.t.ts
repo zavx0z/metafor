@@ -11,7 +11,7 @@
 
 import type { Self } from "./atom"
 
-export interface BaseMessage extends Self {
+export interface Boson extends Self {
   timestamp: number
   src: Source
 }
@@ -28,7 +28,7 @@ export interface BaseMessage extends Self {
  *
  * @example
  * ```typescript
- * const message: Message = {
+ * const photon: Photon = {
  *   meta: "metafor",
  *   atom: "metafor-123",
  *   path: "0/1/2",
@@ -37,7 +37,7 @@ export interface BaseMessage extends Self {
  * }
  * ```
  */
-export interface Message extends BaseMessage {
+export interface Photon extends Boson {
   patches: JsonPatch[]
 }
 

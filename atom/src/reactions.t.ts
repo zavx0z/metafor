@@ -29,7 +29,7 @@ export type Reactions<C extends Schema = Schema, S extends string = string, I ex
     atom: string
     timestamp: number
     patch: JsonPatch
-    update: Week["update"]
+    update: Week["evaluate"]
     destroy: Destroy
     self: Self
   }) => void

@@ -2,7 +2,7 @@ import { reactionsFromSchema } from "../../src/reactions"
 import type { Update, Values } from "@zavx0z/context"
 import { test, expect } from "bun:test"
 import type { JsonPatch } from "../../em.t"
-import type { Message } from "../../em.t"
+import type { Photon } from "../../em.t"
 import { contextSchema } from "@zavx0z/context"
 import { reactionsSchema } from "../../../meta/reactions"
 
@@ -19,7 +19,7 @@ test("Выполнение реакций через run", () => {
   const core: { called: boolean } = { called: false }
   const fakeUpdate: Update<Ctx> = (values) => values as any
   const fakeContext: Values<Ctx> = { value: 10, name: "test", isActive: true, tags: ["tag1", "tag2"] } as any
-  const fakeMessage: Message = {
+  const fakeMessage: Photon = {
     meta: "test",
     atom: "id",
     path: "/",

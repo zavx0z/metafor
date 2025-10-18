@@ -43,7 +43,7 @@ export abstract class Week extends EM {
 
   protected resolve() {
     if (this.result && this.process?.success) {
-      this.process.success({ update: this.update, data: this.result })
+      this.process.success({ update: this.evaluate, data: this.result })
     }
     if (!this.requestStateSuccess()) return
     this.process = null
@@ -51,7 +51,7 @@ export abstract class Week extends EM {
   }
 
   protected reject() {
-    if (this.error && this.process?.error) this.process.error({ update: this.update, error: this.error })
+    if (this.error && this.process?.error) this.process.error({ update: this.evaluate, error: this.error })
     if (!this.requestStateError()) return
     this.error = null
     this.process = null
@@ -113,7 +113,7 @@ export abstract class Week extends EM {
         timestamp: data.timestamp,
         patch,
         state: this.state.current,
-        update: this.update,
+        update: this.evaluate,
         destroy: this.destroy,
         self: this.self,
       })

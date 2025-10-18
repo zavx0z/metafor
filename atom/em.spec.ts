@@ -110,7 +110,7 @@ describe("Каналы коммуникации между атомами", () =
       const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom-2" })
 
       // Обновляем контекст первого атома
-      atom1.update({ value: 5, source: "direct" }, Source.Nothing)
+      atom1.evaluate({ value: 5, source: "direct" }, Source.Nothing)
 
       // Ждем сообщения через фикстуру
       const messages = await messagesFixtureInstance.waitForMessages(50)
@@ -135,7 +135,7 @@ describe("Каналы коммуникации между атомами", () =
       const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom-2" })
 
       // Обновляем контекст первого атома
-      atom1.update({ value: 5, source: "direct" }, Source.Nothing)
+      atom1.evaluate({ value: 5, source: "direct" }, Source.Nothing)
 
       // Ждем сообщения через фикстуру
       const messages = await messagesFixtureInstance.waitForMessages(50)
@@ -162,7 +162,7 @@ describe("Каналы коммуникации между атомами", () =
       const atom2 = Atom.fromSchema({ meta: simpleTestSchema, id: "atom-2" })
 
       // Обновляем контекст первого атома
-      atom1.update({ value: 5 })
+      atom1.evaluate({ value: 5 })
 
       // Ждем сообщения через фикстуру
       const messages = await messagesFixtureInstance.waitForMessages(50)
@@ -229,7 +229,7 @@ describe("Каналы коммуникации между атомами", () =
       expect(atom2.λ.value).toBe(0)
 
       // Обновляем контекст первого атома
-      atom1.update({ value: 5 })
+      atom1.evaluate({ value: 5 })
 
       // Даем время на выполнение реакций
       await new Promise((resolve) => setTimeout(resolve, 10))
@@ -261,7 +261,7 @@ describe("Каналы коммуникации между атомами", () =
       const initialValue = atom.λ.value
 
       // Обновляем контекст
-      atom.update({ value: 10 })
+      atom.evaluate({ value: 10 })
 
       // Значение должно остаться тем же, так как реакция не должна сработать на себя
       expect(atom.λ.value).toBe(10)

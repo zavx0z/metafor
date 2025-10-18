@@ -1,6 +1,6 @@
 import type { Source } from "../em.t"
 
-export interface Task {
+export interface Impulse {
   atom: string
   timestamp: number
   src: Source
@@ -9,7 +9,7 @@ export interface Task {
   value?: any
 }
 
-export enum Tasks {
+export enum Energy {
   AtomCreate = "init",
   Transition = "transition",
   Action = "action",

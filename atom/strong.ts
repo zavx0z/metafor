@@ -22,7 +22,7 @@ export abstract class Strong extends Week {
     core?: Core
   ) {
     super(hidden, id, meta, core)
-    this.update = this.update.bind(this)
+    this.evaluate = this.evaluate.bind(this)
     this.destroy = this.destroy.bind(this)
     this.connect()
     this.transit()

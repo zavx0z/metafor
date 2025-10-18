@@ -1,24 +1,24 @@
 import { Source } from "../em.t"
-import { type Task, Tasks } from "./stack.t"
-export { type Task, Tasks }
+import { type Impulse, Energy } from "./stack.t"
+export { type Impulse, Energy }
 
-export function taskType(stack: Task[], task: Task): Tasks {
-  if (task.op === "add") return Tasks.AtomCreate
+export function checkImpulseType(stack: Impulse[], task: Impulse): Energy {
+  if (task.op === "add") return Energy.AtomCreate
   if (task.op === "test") {
     const lastTask = stack[stack.length - 1]
-    if (stack[0]?.op === "add") return Tasks.ActionAfterAtomCreate
-    return Tasks.Action
+    if (stack[0]?.op === "add") return Energy.ActionAfterAtomCreate
+    return Energy.Action
   }
   if (task.op === "replace") {
-    if (task.path === "/state" && task.src === Source.Success) return Tasks.Success
-    if (task.path === "/state" && task.src === Source.Error) return Tasks.Error
-    if (task.path === "/state" && task.src === Source.Transition) return Tasks.Transition
-    if (task.path === "/context" && task.src === Source.Success) return Tasks.ContextUpdateSuccess
-    if (task.path === "/context" && task.src === Source.Error) return Tasks.ContextUpdateError
-    if (task.path === "/context" && task.src === Source.Transition) return Tasks.ContextUpdateReaction
+    if (task.path === "/state" && task.src === Source.Success) return Energy.Success
+    if (task.path === "/state" && task.src === Source.Error) return Energy.Error
+    if (task.path === "/state" && task.src === Source.Transition) return Energy.Transition
+    if (task.path === "/context" && task.src === Source.Success) return Energy.ContextUpdateSuccess
+    if (task.path === "/context" && task.src === Source.Error) return Energy.ContextUpdateError
+    if (task.path === "/context" && task.src === Source.Transition) return Energy.ContextUpdateReaction
   }
-  if (task.op === "remove") return Tasks.Destroy
-  return Tasks.Nothing
+  if (task.op === "remove") return Energy.Destroy
+  return Energy.Nothing
 }
 
 /**
@@ -70,7 +70,7 @@ export function taskType(stack: Task[], task: Task): Tasks {
  *     ]
  *    ```
  */
-export function clearProcessTasks(stack: Task[], state: string): Task[] {
+export function clearProcessImpulse(stack: Impulse[], state: string): Impulse[] {
   let INTO = false
 
   stack = stack.filter((task) => {

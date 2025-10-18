@@ -4,7 +4,7 @@ import { Fields } from "./src/fields"
 import type { Atom } from "./atom"
 import type { ChunkPatches, AtomSnapshot } from "./gravity.t"
 import { applyPatchesToSnapshot } from "./src/snapshot"
-import { Source } from "./em"
+import { Source, type Photon } from "./em"
 import type { Hidden, Values, Destroy } from "./field.t"
 import type { Self } from "../meta/metafor"
 
@@ -37,7 +37,13 @@ export abstract class Field {
 
   protected abstract requestUpdateContext(context: Partial<Hidden<Values>>, src: Source): boolean
 
-  update(values: Partial<Hidden<Values>>, source: Source = Source.Nothing): Partial<Hidden<Values>> {
+  /**
+   * Обновляет контекст атома и возвращает обновленные значения.
+   * @param values Обновляемые значения.
+   * @param source Источник обновления.
+   * @returns Обновленные значения.
+   */
+  evaluate(values: Partial<Hidden<Values>>, source: Source = Source.Nothing): Partial<Hidden<Values>> {
     const updated = this.#eval(values)
     if (Object.keys(updated).length > 0) {
       if (!this.requestUpdateContext(updated, source)) return {}
@@ -102,6 +108,18 @@ export abstract class Field {
 
   /** Последний сохраненный снапшот (метаданные) */
   private static lastSaved: { atom: string; snapshot: AtomSnapshot; timestamp: number } | null = null
+
+ static propagation(photon: Photon) {
+    if (!photon) return false
+    for (const patch of photon.patches) {
+      if (patch.path === "/" && patch.op === "add") {
+        Field.saveAtomSnapshot(photon.atom, patch.value)
+      } else {
+        Field.histories.push(photon)
+        if (Field.histories.length >= Field.MAX_PATCHES) Field.createCheckpoint()
+      }
+    }
+  }
 
   private static readonly MAX_PATCHES = 1000
   private static readonly MAX_CHECKPOINTS = 10
