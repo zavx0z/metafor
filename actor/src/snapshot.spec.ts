@@ -110,6 +110,88 @@ describe("applyPatchesToSnapshot", () => {
     expect(result.context.value).toBe(20)
   })
 
+  it("должен полностью заменять объект при корневом пути /", () => {
+    const snapshot: ActorSnapshot = {
+      path: "/old",
+      state: "old",
+      context: { old: "value", extra: "field" },
+      extraField: "should be removed",
+    }
+
+    const patches = [
+      {
+        op: "replace" as const,
+        path: "/",
+        value: {
+          path: "/new",
+          state: "new",
+          context: { new: "value" },
+        },
+      },
+    ]
+
+    const result = applyPatchesToSnapshot(snapshot, patches)
+
+    // Проверяем, что старые поля удалены
+    expect(result.extraField).toBeUndefined()
+    expect(result.context.old).toBeUndefined()
+    expect(result.context.extra).toBeUndefined()
+
+    // Проверяем, что новые поля установлены
+    expect(result.path).toBe("/new")
+    expect(result.state).toBe("new")
+    expect(result.context.new).toBe("value")
+  })
+
+  it("должен обрабатывать add операцию для корневого пути /", () => {
+    const snapshot: ActorSnapshot = {
+      path: "/old",
+      state: "old",
+      context: { old: "value" },
+    }
+
+    const patches = [
+      {
+        op: "add" as const,
+        path: "/",
+        value: {
+          path: "/new",
+          state: "new",
+          context: { new: "value" },
+        },
+      },
+    ]
+
+    const result = applyPatchesToSnapshot(snapshot, patches)
+
+    // add для корневого пути работает как replace
+    expect(result.path).toBe("/new")
+    expect(result.state).toBe("new")
+    expect(result.context.new).toBe("value")
+    expect(result.context.old).toBeUndefined()
+  })
+
+  it("должен обрабатывать remove операцию для корневого пути /", () => {
+    const snapshot: ActorSnapshot = {
+      path: "/test",
+      state: "initial",
+      context: { value: 10 },
+      extraField: "should be removed",
+    }
+
+    const patches = [
+      { op: "remove" as const, path: "/" },
+    ]
+
+    const result = applyPatchesToSnapshot(snapshot, patches)
+
+    // remove для корневого пути очищает все свойства
+    expect(result.path).toBeUndefined()
+    expect(result.state).toBeUndefined()
+    expect(result.context).toBeUndefined()
+    expect(result.extraField).toBeUndefined()
+  })
+
   it("должен не изменять оригинальный снапшот", () => {
     const snapshot: ActorSnapshot = {
       path: "/test",

@@ -52,6 +52,30 @@ function invertPatch(patch: JsonPatch, snapshot: ActorSnapshot): JsonPatch {
 
 /** Применяет один патч к snapshot */
 function applyPatch(snapshot: ActorSnapshot, patch: JsonPatch) {
+  // Обработка корневого пути
+  if (patch.path === "/") {
+    if (patch.op === "move") {
+      throw new Error("move operation not supported for root path")
+    }
+
+    if (patch.op === "remove") {
+      // Для remove на корневом пути - очищаем все свойства
+      const keys = Object.keys(snapshot)
+      for (const key of keys) {
+        delete (snapshot as any)[key]
+      }
+    } else if (patch.value !== undefined) {
+      // Для остальных операций - заменяем весь объект
+      const keys = Object.keys(snapshot)
+      for (const key of keys) {
+        delete (snapshot as any)[key]
+      }
+      Object.assign(snapshot, patch.value)
+    }
+
+    return
+  }
+
   const pathParts = patch.path.slice(1).split("/")
   let target: any = snapshot
   for (let i = 0; i < pathParts.length - 1; i++) {
