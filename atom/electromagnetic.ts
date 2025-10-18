@@ -1,7 +1,8 @@
 import { Field, type Hidden, type Values } from "./field"
 import { Gravity, type Core } from "./gravity"
 
-import { Source, Tasks, type JsonPatch, type Message, type Task } from "./electromagnetic.t"
+import { Source, type JsonPatch, type Message } from "./electromagnetic.t"
+import { type Task, Tasks, clearProcessTasks } from "./src/stack"
 
 export { Source }
 export type { Message, JsonPatch }
@@ -112,82 +113,7 @@ export abstract class Electromagnetic extends Gravity {
       this.stack.push(task)
     }
   }
-  /**
-   * Очищает стек процесса состояния.
-   *
-   * Состояние с процессом action().success().error() | action().success() | action().error() | action()
-   *
-   *   - срабатывает один из этапов success/error, где каждый из этапов может обновлять контекст результатом из action
-   *    ```js
-   *     [
-   *       {path: "/state", op: "test", value: state},
-   *       {path: "/context", op: "replace", src: MsgSrc.Success},
-   *       {path: "/state", op: "replace", value: state}
-   *     ]
-   *    ```
-   *    ```js
-   *     [
-   *       {path: "/state", op: "test", value: state},
-   *       {path: "/context", op: "replace", src: MsgSrc.Error},
-   *       {path: "/state", op: "replace", value: state}
-   *     ]
-   *    ```
-   *   - может и не обновлять, тогда патч {path: "/context"} не добавляется
-   *    ```js
-   *     [
-   *       {path: "/state", op: "test", value: state},
-   *       {path: "/state", op: "replace", value: state}
-   *     ]
-   *    ```
-   *   - еще в процессе может контекст обновиться сторонним источником через реакции
-   *    ```js
-   *     [
-   *       {path: "/state", op: "test", value: state},
-   *       {path: "/context", op: "replace", src: MsgSrc.Reaction},
-   *       {path: "/context", op: "replace", src: MsgSrc.Reaction},
-   *       {path: "/state", op: "replace", value: state}
-   *     ]
-   *    ```
-   *   - в стеке могут храниться патчи обновления контекста вне процесса,
-   *     то есть когда процесс завершается, атом может оставаться в состоянии,
-   *     но контекст обновляется сторонним источником через реакции
-   *     !ВАЖНО: при очистке стека, патчи обновления контекста вне процесса не удаляются!
-   *    ```js
-   *     [
-   *       {path: "/state", op: "test", value: state},
-   *       {path: "/state", op: "replace", value: state}
-   *       {path: "/context", op: "replace", src: MsgSrc.Reaction},
-   *       {path: "/context", op: "replace", src: MsgSrc.Reaction},
-   *     ]
-   *    ```
-   */
-  private static clearProcessTasks(state: string) {
-    let INTO = false
 
-    this.stack = this.stack.filter((task) => {
-      // НАЧАЛО ПРОЦЕССА [без процесса в состоянии отсутствует]
-      if (task.path === "/state" && task.op === "test" && task.value === state) {
-        INTO = true
-        return false
-      }
-      // ОБНОВЛЕНИЕ КОНТЕКСТА ОБРАБОТЧИКОМ SUCCESS/ERROR
-      // Успешное завершение процесса (обновление контекста) [без объявления в процессе этапа success - отсутствует]
-      if (task.path === "/context" && task.op === "replace" && task.src === Source.Success) return false
-      // Неуспешное завершение процесса (обновление контекста) [без объявления в процессе этапа error - отсутствует]
-      if (task.path === "/context" && task.op === "replace" && task.src === Source.Error) return false
-
-      // ОБРАБОТКА ВОЗМОЖНЫХ ПАТЧЕЙ ОБНОВЛЕНИЯ КОНТЕКСТА РЕАКЦИЯМИ ВНУТРИ ПРОЦЕССА
-      if (INTO && task.path === "/context" && task.op === "replace" && task.src === Source.Reaction) return false
-
-      // КОНЕЦ ПРОЦЕССА [присутствует всегда в любом переходе]
-      if (task.path === "/state" && task.op === "replace" && task.value === state) {
-        INTO = false
-        return false
-      }
-
-      return true
-    })
-  }
   private static popTask() {
     return this.stack.pop()
   }
@@ -262,13 +188,12 @@ export abstract class Electromagnetic extends Gravity {
         break
       case Tasks.ActionAfterAtomCreate: // (первичный, после попадает в Action)
         Electromagnetic.shiftTask()
-        // @ts-ignore
+        // @ts-expect-error
         atom.collapse(atom.processes.getProcess(atom.state.current))
         break
       case Tasks.Action:
-        // @ts-ignore (вторичный)
         if (atom.process) {
-          // @ts-ignore
+          // @ts-expect-error
           atom.collapse(atom.process, task.value)
           break
         }
@@ -277,11 +202,11 @@ export abstract class Electromagnetic extends Gravity {
         console.log("")
         break
       case Tasks.Success:
-        // @ts-ignore
+        // @ts-expect-error
         atom.resolve()
         break
       case Tasks.Error:
-        // @ts-ignore
+        // @ts-expect-error
         atom.reject()
         break
       case Tasks.Transition:
@@ -399,7 +324,7 @@ export abstract class Electromagnetic extends Gravity {
       return true
     }
     if (Electromagnetic.taskInStack(message)) {
-      Electromagnetic.clearProcessTasks(value)
+      clearProcessTasks(Electromagnetic.stack, value)
       this.sendMessage(message)
       return true
     } else {
@@ -423,7 +348,7 @@ export abstract class Electromagnetic extends Gravity {
       return true
     }
     if (Electromagnetic.taskInStack(message)) {
-      Electromagnetic.clearProcessTasks(value)
+      clearProcessTasks(Electromagnetic.stack, value)
       this.sendMessage(message)
       return true
     } else {

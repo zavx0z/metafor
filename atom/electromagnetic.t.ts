@@ -12,9 +12,6 @@
 import type { Self } from "./atom"
 
 export interface BaseMessage extends Self {
-  meta: string
-  atom: string
-  path: string
   timestamp: number
   src: Source
 }
@@ -57,28 +54,5 @@ export enum Source {
   Success = "s",
   Error = "e",
   Reaction = "r",
-  Nothing = "",
-}
-
-export interface Task {
-  atom: string
-  timestamp: number
-  src: Source
-  op: "add" | "remove" | "replace" | "move" | "test"
-  path: string
-  value?: any
-}
-
-export enum Tasks {
-  AtomCreate = "init",
-  Transition = "transition",
-  Action = "action",
-  ActionAfterAtomCreate = "init-action",
-  Success = "success",
-  Error = "error",
-  ContextUpdateSuccess = "success-update-context",
-  ContextUpdateError = "error-update-context",
-  ContextUpdateReaction = "reaction-update-context",
-  Destroy = "destroy",
   Nothing = "",
 }
