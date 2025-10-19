@@ -1,7 +1,7 @@
 # MetaFor Framework
 
 <div align="center">
-  <img src="shared/img/metafor.jpg" alt="metafor" width="400" />
+  <img src="shared/img/metafor.gif" alt="metafor" width="444" />
 </div>
 
 [English](README.md) | **Русский**
