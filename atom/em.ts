@@ -99,6 +99,10 @@ export abstract class EM extends Gravity {
         atom.decoheredCollapse()
         break
       case Energy.ActionAfterAtomCreate: // (первичный, после попадает в Action)
+        /** Удалить из стека импульс op: "add" path: "/"
+        который позволил идентифицировать действие процесса как "после инициализации".
+        Это необходимо 
+        */
         EM.shiftImpulse()
         // @ts-expect-error
         atom.collapse(atom.processes.getProcess(atom.state.current))
@@ -138,7 +142,16 @@ export abstract class EM extends Gravity {
     }
   }
 
-  // ---------------------------- сообщения ------------------------------------
+  /** ---------------------------- сообщения ------------------------------------
+   * 1. Нормальный режим
+   *    - эмит и ранний выход
+   * 2. Режим EM.lock
+   *    - Первый проход
+   *      - помещение импульсов фотона в конец стека (обязательно)
+   *    - Второй проход
+   *      - удаление из стека (не обязательно)
+   *      - эмит (обязательно)
+   */
 
   protected emitInit(): boolean {
     const value = this.snapshot
@@ -155,21 +168,23 @@ export abstract class EM extends Gravity {
       return true
     }
     if (impulseInStack(EM.stack, photon)) {
-      // удалить из стека если нет переходов
+      // Удалить из стека если нет переходов.
       const eigenstates = this.state.states[this.state.current]
       if (!eigenstates) EM.popImpulse()
+      // Остается в стеке для идентификации процесса после инициализации.
+      // Инициализация импульса с введенным типом "процесса после создания",
+      // необходима для передачи не следующего а текущего состояния
       this.emission(photon)
       return true
-    } else {
-      // создается сразу без помещения в стек
-      // if (Electromagnetic.stack.length > 1) {
-      //   this.sendMessage(message)
-      //   return true
-      // }
-      // при начальной инициализации помещается в стек для остановки brk сразу
-      EM.pushImpulse(photon)
-      return false
     }
+    // создается сразу без помещения в стек
+    // if (Electromagnetic.stack.length > 1) {
+    //   this.sendMessage(message)
+    //   return true
+    // }
+    // при начальной инициализации помещается в стек для остановки brk сразу
+    EM.pushImpulse(photon)
+    return false
   }
 
   protected emitProcess() {
@@ -190,10 +205,9 @@ export abstract class EM extends Gravity {
       if (!(this.process?.success && this.process?.error)) EM.popImpulse()
       this.emission(photon)
       return true
-    } else {
-      EM.pushImpulse(photon)
-      return false
     }
+    EM.pushImpulse(photon)
+    return false
   }
 
   protected emitEvolution(value: Partial<Hidden<Values>>, src: Source): boolean {
@@ -213,11 +227,10 @@ export abstract class EM extends Gravity {
       EM.popImpulse()
       this.emission(photon)
       return true
-    } else {
-      this.rollbackContext()
-      EM.pushImpulse(photon)
-      return false
     }
+    this.rollbackContext()
+    EM.pushImpulse(photon)
+    return false
   }
 
   protected emitUp(): boolean {
@@ -238,10 +251,9 @@ export abstract class EM extends Gravity {
       EM.stack = clearProcessImpulse(EM.stack, value)
       this.emission(photon)
       return true
-    } else {
-      EM.pushImpulse(photon)
-      return false
     }
+    EM.pushImpulse(photon)
+    return false
   }
 
   protected emitDown(): boolean {
@@ -262,10 +274,9 @@ export abstract class EM extends Gravity {
       EM.stack = clearProcessImpulse(EM.stack, value)
       this.emission(photon)
       return true
-    } else {
-      EM.pushImpulse(photon)
-      return false
     }
+    EM.pushImpulse(photon)
+    return false
   }
 
   protected emitMeasure(): boolean {
@@ -285,11 +296,10 @@ export abstract class EM extends Gravity {
       EM.popImpulse()
       this.emission(photon)
       return true
-    } else {
-      this.rollbackState()
-      EM.pushImpulse(photon)
-      return false
     }
+    this.rollbackState()
+    EM.pushImpulse(photon)
+    return false
   }
 
   private emitDestroy(src: Source): boolean {
@@ -309,9 +319,8 @@ export abstract class EM extends Gravity {
       EM.popImpulse()
       this.emission(photon)
       return true
-    } else {
-      EM.pushImpulse(photon)
-      return false
     }
+    EM.pushImpulse(photon)
+    return false
   }
 }
