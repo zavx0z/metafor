@@ -581,6 +581,24 @@ const style = css`
     transform: scale(0.95);
   }
 
+  metafor-stack .debug-btn[disabled] {
+    opacity: 0.3;
+    cursor: not-allowed;
+    background: rgba(255, 255, 255, 0.05);
+    color: #666;
+    border-color: rgba(255, 255, 255, 0.1);
+  }
+
+  metafor-stack .debug-btn[disabled]:hover {
+    background: rgba(255, 255, 255, 0.05);
+    transform: none;
+  }
+
+  metafor-stack .debug-btn[disabled]:active {
+    transform: none;
+    background: rgba(255, 255, 255, 0.05);
+  }
+
   /* Кнопка очистки стека */
   metafor-stack .clear-btn {
     background: rgba(244, 67, 54, 0.2);

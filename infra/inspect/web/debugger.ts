@@ -169,8 +169,22 @@ const style = css`
   }
 
   .toolbar button[disabled] {
-    opacity: 0.5;
+    opacity: 0.3;
     cursor: not-allowed;
+    background: #1a1a1a;
+    color: #666;
+    border-color: #2a2a2a;
+  }
+
+  .toolbar button[disabled]:hover {
+    background: #1a1a1a;
+    transform: none;
+    box-shadow: none;
+  }
+
+  .toolbar button[disabled]:active {
+    transform: none;
+    background: #1a1a1a;
   }
 `
 
