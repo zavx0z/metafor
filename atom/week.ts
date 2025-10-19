@@ -41,14 +41,14 @@ export abstract class Week extends EM {
     return this.#process
   }
 
-  protected up() {
+  up() {
     if (this.result && this.process?.success) this.process.success({ update: this.evaluate, data: this.result })
     if (!this.emitUp()) return
     this.process = null
     this.measurement()
   }
 
-  protected down() {
+  down() {
     if (this.error && this.process?.error) this.process.error({ update: this.evaluate, error: this.error })
     if (!this.emitDown()) return
     this.error = null
@@ -79,7 +79,7 @@ export abstract class Week extends EM {
     }
   }
 
-  private collapse(process: Process | undefined, newState: string | undefined = undefined) {
+  collapse(process: Process | undefined, newState: string | undefined = undefined) {
     newState && this.setState(newState)
     if (process) {
       this.process = process

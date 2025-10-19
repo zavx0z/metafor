@@ -47,7 +47,6 @@ export abstract class EM extends Gravity {
   private _onBCMessage?: (ev: MessageEvent<Photon>) => void
 
   protected emission(photon: Photon) {
-    if (!this.wired) return
     Field.propagation(photon)
     for (const atom of EM.charged) {
       if (atom === this) continue
@@ -90,26 +89,28 @@ export abstract class EM extends Gravity {
     EM.changeStackObservers.add(observer)
     return () => EM.changeStackObservers.delete(observer)
   }
+
+  /**
+   * Выполняет импульс из стека.
+   */
   public static step() {
     const impulse = EM.stack[EM.stack.length - 1] as Impulse
     const atom = Field.getAtom(impulse.atom)
     const energy = getImpulseType(EM.stack, impulse)
     switch (energy) {
-      case Energy.AtomCreate:
+      case Energy.Init:
         atom.decoheredCollapse()
         break
-      case Energy.ActionAfterAtomCreate: // (первичный, после попадает в Action)
+      case Energy.AfterInit:
         /** Удалить из стека импульс op: "add" path: "/"
         который позволил идентифицировать действие процесса как "после инициализации".
         Это необходимо 
         */
         EM.shiftImpulse()
-        // @ts-expect-error
         atom.collapse(atom.processes.getProcess(atom.state.current))
         break
       case Energy.Action:
         if (atom.process) {
-          // @ts-expect-error
           atom.collapse(atom.process, impulse.value)
           break
         }
@@ -117,23 +118,21 @@ export abstract class EM extends Gravity {
         atom.measurement()
         break
       case Energy.Success:
-        // @ts-expect-error
         atom.up()
         break
       case Energy.Error:
-        // @ts-expect-error
         atom.down()
         break
       case Energy.Transition:
         atom.measurement()
         break
-      case Energy.ContextUpdateSuccess:
+      case Energy.SuccessUpdate:
         atom.evaluate(impulse.value, impulse.src)
         break
-      case Energy.ContextUpdateError:
+      case Energy.ErrorUpdate:
         atom.evaluate(impulse.value, impulse.src)
         break
-      case Energy.ContextUpdateReaction:
+      case Energy.ReactionUpdate:
         atom.decoheredCollapse()
         break
       case Energy.Destroy:
@@ -142,7 +141,7 @@ export abstract class EM extends Gravity {
     }
   }
 
-  /** ---------------------------- сообщения ------------------------------------
+  /** ---------------------------- Обработка импульсов действий ------------------------------------
    * 1. Нормальный режим
    *    - эмит и ранний выход
    * 2. Режим EM.lock

@@ -3,19 +3,19 @@ import { type Impulse, Energy } from "./stack.t"
 export { type Impulse, Energy }
 
 export function checkImpulseType(stack: Impulse[], impulse: Impulse): Energy {
-  if (impulse.op === "add") return Energy.AtomCreate
+  if (impulse.op === "add") return Energy.Init
   if (impulse.op === "test") {
     const lastTask = stack[stack.length - 1]
-    if (stack[0]?.op === "add") return Energy.ActionAfterAtomCreate
+    if (stack[0]?.op === "add") return Energy.AfterInit
     return Energy.Action
   }
   if (impulse.op === "replace") {
     if (impulse.path === "/state" && impulse.src === Source.Success) return Energy.Success
     if (impulse.path === "/state" && impulse.src === Source.Error) return Energy.Error
     if (impulse.path === "/state" && impulse.src === Source.Transition) return Energy.Transition
-    if (impulse.path === "/context" && impulse.src === Source.Success) return Energy.ContextUpdateSuccess
-    if (impulse.path === "/context" && impulse.src === Source.Error) return Energy.ContextUpdateError
-    if (impulse.path === "/context" && impulse.src === Source.Transition) return Energy.ContextUpdateReaction
+    if (impulse.path === "/context" && impulse.src === Source.Success) return Energy.SuccessUpdate
+    if (impulse.path === "/context" && impulse.src === Source.Error) return Energy.ErrorUpdate
+    if (impulse.path === "/context" && impulse.src === Source.Transition) return Energy.ReactionUpdate
   }
   if (impulse.op === "remove") return Energy.Destroy
   return Energy.Nothing

@@ -10,15 +10,15 @@ export interface Impulse {
 }
 
 export enum Energy {
-  AtomCreate = "init",
+  Init = "init",
   Transition = "transition",
   Action = "action",
-  ActionAfterAtomCreate = "init-action",
+  AfterInit = "init-action",
   Success = "success",
   Error = "error",
-  ContextUpdateSuccess = "success-update-context",
-  ContextUpdateError = "error-update-context",
-  ContextUpdateReaction = "reaction-update-context",
+  SuccessUpdate = "success-update-context",
+  ErrorUpdate = "error-update-context",
+  ReactionUpdate = "reaction-update-context",
   Destroy = "destroy",
   Nothing = "",
 }

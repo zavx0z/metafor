@@ -16,8 +16,8 @@ export abstract class Strong extends Week {
     public override meta: string,
     public desc: string | undefined,
     hidden: Context<Values>,
-    protected override state: { current: string; states: Superposition },
-    protected override processes: Processes,
+    override state: { current: string; states: Superposition },
+    override processes: Processes,
     protected override reactions: Reactions,
     core?: Core
   ) {
