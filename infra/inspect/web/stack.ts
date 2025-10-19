@@ -106,6 +106,12 @@ export class Stack extends HTMLElement {
 
     this.setupResizeHandlers()
     this.setupControlHandlers()
+    
+    // Инициализируем состояние кнопки "шаг вперёд"
+    import("@metafor/atom").then(({ Atom }) => {
+      this.stepBtn.disabled = !Atom.isLocked
+    })
+    
     const off = EM.onChangeStack((stack) => this.render(stack))
     this.off = off
   }
@@ -249,6 +255,8 @@ export class Stack extends HTMLElement {
         this.playBtn.innerHTML = "▶"
         this.playBtn.title = "Пуск"
       }
+      // Обновляем состояние кнопки "шаг вперёд"
+      this.stepBtn.disabled = !Atom.isLocked
     })
   }
 

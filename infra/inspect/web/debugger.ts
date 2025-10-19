@@ -83,11 +83,14 @@ class Debugger extends HTMLElement {
   }
 
   private updatePlayButton(): void {
-    if (!this.playBtn) return
+    if (!this.playBtn || !this.stepBtn) return
     // UX: показываем действие, которое произойдёт при клике
     // locked (paused) → показываем ▶ (Resume)
     // running → показываем ⏸ (Pause)
     this.playBtn.textContent = Atom.isLocked ? "▶" : "⏸"
+
+    // Блокируем кнопку "шаг вперёд" когда Atom не заблокирован
+    this.stepBtn.disabled = !Atom.isLocked
   }
 
   private handlePlayClick(): void {
