@@ -23,6 +23,7 @@ export class Stack extends HTMLElement {
   private startHeight = 0
   private readonly STORAGE_KEY = "metafor-stack-height"
   private readonly OPACITY_KEY = "metafor-stack-opacity"
+  private off: () => void
 
   constructor() {
     super()
@@ -105,6 +106,8 @@ export class Stack extends HTMLElement {
 
     this.setupResizeHandlers()
     this.setupControlHandlers()
+    const off = EM.onChangeStack((stack) => this.render(stack))
+    this.off = off
   }
   connectedCallback() {
     // Плавное появление панели
@@ -117,8 +120,8 @@ export class Stack extends HTMLElement {
       this.style.opacity = "1"
       this.style.transform = "translateY(0)"
     })
-
-    setTimeout(() => this.render(), 200)
+    // @ts-expect-error
+    setTimeout(() => this.render(EM.stack), 200)
   }
 
   private loadHeight() {
@@ -250,10 +253,7 @@ export class Stack extends HTMLElement {
   }
 
   private handleStepClick() {
-    import("@metafor/atom").then(({ Atom }) => {
-      Atom.step()
-      this.render()
-    })
+    EM.step()
   }
 
   private handleClearClick() {
@@ -329,9 +329,7 @@ export class Stack extends HTMLElement {
     // Сохраняем высоту после завершения перетаскивания
     this.saveHeight()
   }
-  public render() {
-    // @ts-ignore
-    const currentStack = EM.stack
+  public render(currentStack: Impulse[]) {
     const currentStackSet = new Set(currentStack)
 
     // Добавляем новые импульсы
@@ -433,7 +431,9 @@ export class Stack extends HTMLElement {
     }
   }
 
-  disconnectedCallback() {}
+  disconnectedCallback() {
+    this.off?.()
+  }
 }
 const style = css`
   metafor-stack {

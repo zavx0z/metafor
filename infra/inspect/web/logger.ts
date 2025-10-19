@@ -1,6 +1,6 @@
 //# sourceURL=log
 import type { Config } from "./logger.t"
-import type { Message, Log } from "../index.t"
+import type { Photon, Impulse } from "../index.t"
 
 /**
  * Обертка с полным функционалом логирования для сериализации
@@ -110,7 +110,7 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
   }
 
   // Функция проверки логирования
-  const isLog = (message: Log, path: "/" | "/context" | "/state"): boolean =>
+  const isLog = (message: Impulse, path: "/" | "/context" | "/state"): boolean =>
     Boolean(
       config.active &&
         message.patch.path === path &&
@@ -120,7 +120,7 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
     )
 
   // Основная функция логирования
-  const log = (message: Log): void => {
+  const log = (message: Impulse): void => {
     const metaStr = String(message.meta).padEnd(36, " ")
     const pathStr = message.path
     const atom = message.atom.includes("-") ? message.atom.slice(message.atom.lastIndexOf("-") + 1) : message.atom
@@ -203,11 +203,11 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
   }
 
   // Функция логирования сообщений
-  const logMsg = (data: Message | any): void => {
+  const logMsg = (data: Photon | any): void => {
     if (Object.hasOwn(data, "meta")) {
-      const { patches, ...msg } = data as Message
+      const { patches, ...msg } = data as Photon
       for (const patch of patches) {
-        log({ ...msg, patch } as Log)
+        log({ ...msg, patch } as Impulse)
       }
     } else {
       console.log(data)

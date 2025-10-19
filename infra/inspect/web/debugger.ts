@@ -100,9 +100,7 @@ class Debugger extends HTMLElement {
   }
 
   private handleStepClick(): void {
-    console.log("Step")
     Atom.step()
-    this.stack?.render()
   }
 
   private handleReloadClick(): void {

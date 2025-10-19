@@ -34,6 +34,7 @@ export abstract class EM extends Gravity {
     this.emitDestroy(source)
     this.wired = false
     if (this._onBCMessage && EM.channel) EM.channel.removeEventListener("message", this._onBCMessage)
+    EM.changeStackObservers.clear()
     super.destroy(recursive)
   }
 
@@ -76,7 +77,19 @@ export abstract class EM extends Gravity {
       EM.stack.push(task)
     }
   }
-
+  private static shiftImpulse() {
+    EM.stack.shift()
+    EM.changeStackObservers.forEach((observer) => observer(EM.stack))
+  }
+  private static popImpulse() {
+    EM.stack.pop()
+    EM.changeStackObservers.forEach((observer) => observer(EM.stack))
+  }
+  private static changeStackObservers = new Set<(stack: Impulse[]) => void>()
+  public static onChangeStack(observer: (stack: Impulse[]) => void) {
+    EM.changeStackObservers.add(observer)
+    return () => EM.changeStackObservers.delete(observer)
+  }
   public static step() {
     const impulse = EM.stack[EM.stack.length - 1] as Impulse
     const atom = Field.getAtom(impulse.atom)
@@ -86,7 +99,7 @@ export abstract class EM extends Gravity {
         atom.decoheredCollapse()
         break
       case Energy.ActionAfterAtomCreate: // (первичный, после попадает в Action)
-        EM.stack.shift()
+        EM.shiftImpulse()
         // @ts-expect-error
         atom.collapse(atom.processes.getProcess(atom.state.current))
         break
@@ -144,7 +157,7 @@ export abstract class EM extends Gravity {
     if (impulseInStack(EM.stack, photon)) {
       // удалить из стека если нет переходов
       const eigenstates = this.state.states[this.state.current]
-      if (!eigenstates) EM.stack.pop()
+      if (!eigenstates) EM.popImpulse()
       this.emission(photon)
       return true
     } else {
@@ -174,7 +187,7 @@ export abstract class EM extends Gravity {
     }
     if (impulseInStack(EM.stack, photon)) {
       // @ts-ignore удалить из стека если нет обработчиков success/error
-      if (!(this.process?.success && this.process?.error)) EM.stack.pop()
+      if (!(this.process?.success && this.process?.error)) EM.popImpulse()
       this.emission(photon)
       return true
     } else {
@@ -197,7 +210,7 @@ export abstract class EM extends Gravity {
       return true
     }
     if (impulseInStack(EM.stack, photon)) {
-      EM.stack.pop()
+      EM.popImpulse()
       this.emission(photon)
       return true
     } else {
@@ -222,7 +235,7 @@ export abstract class EM extends Gravity {
       return true
     }
     if (impulseInStack(EM.stack, photon)) {
-      clearProcessImpulse(EM.stack, value)
+      EM.stack = clearProcessImpulse(EM.stack, value)
       this.emission(photon)
       return true
     } else {
@@ -246,7 +259,7 @@ export abstract class EM extends Gravity {
       return true
     }
     if (impulseInStack(EM.stack, photon)) {
-      clearProcessImpulse(EM.stack, value)
+      EM.stack = clearProcessImpulse(EM.stack, value)
       this.emission(photon)
       return true
     } else {
@@ -269,7 +282,7 @@ export abstract class EM extends Gravity {
       return true
     }
     if (impulseInStack(EM.stack, photon)) {
-      EM.stack.pop()
+      EM.popImpulse()
       this.emission(photon)
       return true
     } else {
@@ -293,7 +306,7 @@ export abstract class EM extends Gravity {
       return true
     }
     if (impulseInStack(EM.stack, photon)) {
-      EM.stack.pop()
+      EM.popImpulse()
       this.emission(photon)
       return true
     } else {
