@@ -411,6 +411,7 @@ export class Stack extends HTMLElement {
       <span>${minSecMilliseconds}</span>
       <span>${impulse.op}</span>
       <span>${impulse.path}</span>
+      <span>${impulse.src}</span>
       <span>${impulse.atom.split("-").pop()}</span>
       <span>${JSON.stringify(impulse.value)}</span>
     `
@@ -613,7 +614,7 @@ const style = css`
   metafor-stack li {
     padding: 8px 12px;
     display: grid;
-    grid-template-columns: 80px 60px 80px 100px 1fr;
+    grid-template-columns: 80px 60px 80px 30px 100px 1fr;
     gap: 8px;
     background-color: rgba(24, 24, 24, 0.87);
     border: 1px solid rgba(255, 255, 255, 0.1);
