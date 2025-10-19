@@ -105,6 +105,13 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
       return {
         states<S extends string>(states: Superposition<S, C>) {
           validateNoUnconditionalCycles(states)
+          const symbolKeys = Object.getOwnPropertySymbols(states)
+          const undefinedSymbol = symbolKeys.find((key) => String(key) === "Symbol()")
+          const undefinedValue = states[undefinedSymbol as unknown as S]
+          if (undefinedValue) {
+            states["$undef$" as S] = undefinedValue
+            delete states[undefinedSymbol as unknown as S]
+          }
           return {
             core<I extends Core>(core?: I) {
               return {
