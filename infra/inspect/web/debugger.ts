@@ -1,5 +1,6 @@
 import { Atom } from "@metafor/atom"
-
+import type { Stack } from "./stack"
+import "./stack"
 const css = String.raw
 const html = String.raw
 
@@ -7,12 +8,15 @@ class Debugger extends HTMLElement {
   private playBtn: HTMLButtonElement | null = null
   private stepBtn: HTMLButtonElement | null = null
   private reloadBtn: HTMLButtonElement | null = null
+  private stack: Stack | null = null
 
+  #shadow: ShadowRoot | null = null
   constructor() {
     super()
     if (this.hasAttribute("brk")) Atom.break()
 
-    this.innerHTML = html`
+    this.#shadow = this.attachShadow({ mode: "open" })
+    this.#shadow.innerHTML = html`
       <style>
         ${style}
       </style>
@@ -21,13 +25,15 @@ class Debugger extends HTMLElement {
         <button id="play" title="Пуск/Пауза">▶</button>
         <button id="step" title="Шаг вперёд">⏭</button>
       </div>
+      <metafor-stack></metafor-stack>
     `
   }
 
   connectedCallback(): void {
-    this.playBtn = this.querySelector("#play")
-    this.stepBtn = this.querySelector("#step")
-    this.reloadBtn = this.querySelector("#reload")
+    this.stack = this.#shadow?.querySelector("metafor-stack") as Stack
+    this.playBtn = this.#shadow?.querySelector("#play")!
+    this.stepBtn = this.#shadow?.querySelector("#step")!
+    this.reloadBtn = this.#shadow?.querySelector("#reload")!
 
     if (!this.playBtn || !this.stepBtn || !this.reloadBtn) return
 
@@ -73,7 +79,9 @@ class Debugger extends HTMLElement {
   }
 
   private handleStepClick(): void {
+    console.log("Step")
     Atom.step()
+    this.stack?.render()
   }
 
   private handleReloadClick(): void {
@@ -82,18 +90,19 @@ class Debugger extends HTMLElement {
 }
 
 const style = css`
-  meta-inspect {
+  :host {
+    display: flex;
+    z-index: 110;
+    color: #e6e6e6;
+    font: 12px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  }
+
+  .toolbar {
+    width: max-content;
     position: fixed;
     left: 50%;
     top: 10px;
     transform: translateX(-50%);
-    z-index: 110;
-    color: #e6e6e6;
-    font: 12px/1.4 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-    width: max-content;
-  }
-
-  .toolbar {
     display: flex;
     align-items: center;
     justify-content: center;

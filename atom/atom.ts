@@ -1,4 +1,6 @@
 import { Strong } from "./strong"
+export { EM } from "./em"
+export { type Impulse } from "./em"
 
 export class Atom extends Strong {
   get self() {

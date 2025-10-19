@@ -11,7 +11,7 @@ import {
 } from "./src/stack"
 
 export { Source }
-export type { Photon, JsonPatch }
+export type { Photon, JsonPatch, Impulse }
 
 const DEBUG_DEBUGGER = true
 
