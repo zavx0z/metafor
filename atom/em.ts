@@ -2,21 +2,20 @@ import { Field, type Hidden, type Values } from "./field"
 import { Gravity } from "./gravity"
 
 import { Initiator, type JsonPatch, type Photon } from "./em.t"
-import {
-  type Impulse,
-  Energy,
-  clearProcessImpulse,
-  checkImpulseType as getImpulseType,
-  impulseInStack,
-} from "./src/stack"
+import { type Impulse, Energy, clearProcessImpulse, getImpulseType, impulseInStack } from "./src/stack"
+import type { Reactions } from "./src/reactions"
 
 export { Initiator }
 export type { Photon, JsonPatch, Impulse }
 
 export abstract class EM extends Gravity {
   static channelName = "electromagnetic"
-  protected abstract hasReactions(): boolean
   protected abstract handleReaction(ev: MessageEvent<Photon>): void
+  protected abstract reactions: Reactions
+
+  protected hasReactions(): boolean {
+    return this.reactions.hasReactions() ?? false
+  }
 
   protected connect() {
     if (this.hasReactions()) {
@@ -26,21 +25,18 @@ export abstract class EM extends Gravity {
         EM.channel.addEventListener("message", this._onBCMessage)
       }
     }
-    this.wired = true
+    this.emitInit()
   }
 
   public override destroy(recursive = true, initiator = Initiator.Nothing) {
     EM.charged.delete(this)
     this.emitDestroy(initiator)
-    this.wired = false
     if (this._onBCMessage && EM.channel) EM.channel.removeEventListener("message", this._onBCMessage)
     EM.changeStackObservers.clear()
     super.destroy(recursive)
   }
 
   // -------------------------- Каналы -----------------------------------------
-
-  protected wired = false
   /** Множество «заряжённых» атомов (у кого есть реакции). */
   private static charged = new Set<EM>()
   protected static channel: BroadcastChannel = new BroadcastChannel(EM.channelName)
@@ -99,7 +95,6 @@ export abstract class EM extends Gravity {
     const energy = getImpulseType(EM.stack, impulse)
     switch (energy) {
       case Energy.Init:
-        atom.decoheredCollapse()
         break
       case Energy.AfterInit:
         /** Удалить из стека импульс op: "add" path: "/"
@@ -107,11 +102,11 @@ export abstract class EM extends Gravity {
         Это необходимо 
         */
         EM.shiftImpulse()
-        atom.collapse(atom.processes.getProcess(atom.state.current))
+        // atom.collapse(atom.processes.getProcess(atom.state))
         break
       case Energy.Action:
         if (atom.process) {
-          atom.collapse(atom.process, impulse.value)
+          // atom.collapse(atom.process, impulse.value)
           break
         }
         // запуск для получения процесса (первичный)
@@ -133,7 +128,6 @@ export abstract class EM extends Gravity {
         atom.evaluate(impulse.value, impulse.initiator)
         break
       case Energy.ReactionUpdate:
-        atom.decoheredCollapse()
         break
       case Energy.Destroy:
         atom.destroy()
@@ -168,7 +162,7 @@ export abstract class EM extends Gravity {
     }
     if (impulseInStack(EM.stack, photon)) {
       // Удалить из стека если нет переходов.
-      const eigenstates = this.state.states[this.state.current]
+      const eigenstates = this.eigenstates[this.state]
       if (!eigenstates) EM.popImpulse()
       // Остается в стеке для идентификации процесса после инициализации.
       // Инициализация импульса с введенным типом "процесса после создания",
@@ -186,14 +180,14 @@ export abstract class EM extends Gravity {
     return false
   }
 
-  protected emitProcess() {
+  protected emitProcess(eigenstate: string) {
     const photon: Photon = {
       meta: this.meta,
       atom: this.id,
       path: this.path,
       timestamp: Date.now(),
       initiator: Initiator.Nothing,
-      patches: [{ op: "test", path: "/state", value: this.state.current }],
+      patches: [{ op: "test", path: "/state", value: eigenstate }],
     }
     if (!EM.lock) {
       this.emission(photon)
@@ -205,6 +199,29 @@ export abstract class EM extends Gravity {
       this.emission(photon)
       return true
     }
+    EM.pushImpulse(photon)
+    return false
+  }
+
+  protected emitMeasure(eigenstate: string): boolean {
+    const photon: Photon = {
+      meta: this.meta,
+      atom: this.id,
+      path: this.path,
+      timestamp: Date.now(),
+      initiator: Initiator.Transition,
+      patches: [{ op: "replace", path: "/state", value: eigenstate }],
+    }
+    if (!EM.lock) {
+      this.emission(photon)
+      return true
+    }
+    if (impulseInStack(EM.stack, photon)) {
+      EM.popImpulse()
+      this.emission(photon)
+      return true
+    }
+    this.rollbackState()
     EM.pushImpulse(photon)
     return false
   }
@@ -233,7 +250,7 @@ export abstract class EM extends Gravity {
   }
 
   protected emitUp(): boolean {
-    const value = this.state.current
+    const value = this.state
     const photon: Photon = {
       meta: this.meta,
       atom: this.id,
@@ -256,7 +273,7 @@ export abstract class EM extends Gravity {
   }
 
   protected emitDown(): boolean {
-    const value = this.state.current
+    const value = this.state
     const photon: Photon = {
       meta: this.meta,
       atom: this.id,
@@ -274,29 +291,6 @@ export abstract class EM extends Gravity {
       this.emission(photon)
       return true
     }
-    EM.pushImpulse(photon)
-    return false
-  }
-
-  protected emitMeasure(): boolean {
-    const photon: Photon = {
-      meta: this.meta,
-      atom: this.id,
-      path: this.path,
-      timestamp: Date.now(),
-      initiator: Initiator.Transition,
-      patches: [{ op: "replace", path: "/state", value: this.state.current }],
-    }
-    if (!EM.lock) {
-      this.emission(photon)
-      return true
-    }
-    if (impulseInStack(EM.stack, photon)) {
-      EM.popImpulse()
-      this.emission(photon)
-      return true
-    }
-    this.rollbackState()
     EM.pushImpulse(photon)
     return false
   }

@@ -2,7 +2,7 @@ import { Initiator, type Photon } from "../em.t"
 import { type Impulse, Energy } from "./stack.t"
 export { type Impulse, Energy }
 
-export function checkImpulseType(stack: Impulse[], impulse: Impulse): Energy {
+export function getImpulseType(stack: Impulse[], impulse: Impulse): Energy {
   if (impulse.op === "add") return Energy.Init
   if (impulse.op === "test") {
     const lastTask = stack[stack.length - 1]

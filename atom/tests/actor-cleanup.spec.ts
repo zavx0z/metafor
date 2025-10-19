@@ -46,25 +46,6 @@ describe("Очистка ресурсов атома", () => {
     expect(atom.core).toBeUndefined()
   })
 
-  it("должен очищать слушатели состояний при уничтожении", () => {
-    const atom = Atom.fromSchema({ meta: testSchema, id: "atom-1" })
-
-    // Добавляем слушатель состояния
-    const listener = (state: string) => {
-      // State changed listener
-    }
-    atom.onCollapsed(listener)
-
-    // @ts-ignore Проверяем, что слушатель добавлен
-    expect(atom.stateObservers.size).toBe(1)
-
-    // Уничтожаем атом
-    atom.destroy()
-
-    //@ts-ignore Проверяем, что слушатели очищены
-    expect(atom.stateObservers.size).toBe(0)
-  })
-
   it("должен удалять атом из иерархии при уничтожении", () => {
     const atom1 = Atom.fromSchema({ meta: testSchema, id: "atom-1" })
     const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom-2" })
@@ -111,16 +92,11 @@ describe("Очистка ресурсов атома", () => {
 
   it("должен корректно обрабатывать повторные вызовы destroy", () => {
     const atom = Atom.fromSchema({ meta: testSchema, id: "atom-1" })
-
     // Проверяем, что атом зарегистрирован
     expect(Fields.get().has(atom.id)).toBe(true)
-
     // Первый вызов destroy
     atom.destroy()
-    // @ts-ignore
-    expect(atom.stateObservers.size).toBe(0)
     expect(Fields.get().has(atom.id)).toBe(false)
-
     // Второй вызов destroy не должен вызывать ошибок
     expect(() => atom.destroy()).not.toThrow()
   })

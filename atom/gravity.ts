@@ -9,7 +9,6 @@ export abstract class Gravity extends Field {
   protected constructor(_: unknown, id: string, meta: string, core?: Core) {
     super(_, id, meta)
     Gravity.coreWeakMap.set(this, core || {})
-
     // Вклеиваемся в дерево (если резерва нет — окажемся в конце корня).
     Field.fields.attachReserved(this as unknown as Atom)
   }
@@ -22,7 +21,7 @@ export abstract class Gravity extends Field {
   get snapshot(): AtomSnapshot {
     return {
       path: String(this.path),
-      state: String(this.state.current),
+      state: this.state,
       context: { ...this.λ },
     }
   }

@@ -9,6 +9,8 @@ import { processesFromSchema } from "./src/processes"
 import { reactionsFromSchema } from "./src/reactions"
 import { Field, type Hidden, type Values } from "./field"
 import { Atom } from "./atom"
+import { decoherence, type Wave } from "./src/states"
+import { type Photon } from "./em"
 
 export abstract class Strong extends Week {
   constructor(
@@ -16,7 +18,7 @@ export abstract class Strong extends Week {
     public override meta: string,
     public desc: string | undefined,
     hidden: Context<Values>,
-    override state: { current: string; states: Superposition },
+    override eigenstates: Superposition,
     override processes: Processes,
     protected override reactions: Reactions,
     core?: Core
@@ -24,36 +26,70 @@ export abstract class Strong extends Week {
     super(hidden, id, meta, core)
     this.evaluate = this.evaluate.bind(this)
     this.destroy = this.destroy.bind(this)
+    this.up = this.up.bind(this)
+    this.down = this.down.bind(this)
     this.connect()
-    this.decoheredCollapse()
+    this.measurement()
   }
 
-  public override destroy(recursive = true) {
-    this.stateObservers.clear()
-    super.destroy(recursive)
+  measurement() {
+    if (this.process) return
+
+    const eigenstates = this.eigenstates[this.state ?? Object.getOwnPropertySymbols(this.eigenstates)[0]]
+    if (!eigenstates) return
+
+    const eigenstate = Object.entries(eigenstates).find(([_, Ψ]) => decoherence(Ψ as Wave, this.λ))?.[0]
+    if (!eigenstate) return
+
+    if ((this.process = this.processes.getProcess(eigenstate))) {
+      if (!this.emitProcess(eigenstate)) return
+
+      this.state = eigenstate
+      this.action().then(this.up).catch(this.down)
+    } else if (!this.emitMeasure(eigenstate)) return
+
+    this.state = eigenstate
+    this.measurement()
   }
 
-  // ------------------------------ состояние ----------------------------------------
-
-  private stateObservers = new Set<(state: string) => void>()
-
-  /** Устанавливает состояние
-   * Даже если состояние не изменилось, отправляет сообщение о переходе (само-переходы) */
-  protected setState(state: string) {
-    this.state.current = state
-    if (this.stateObservers.size > 0) for (const observer of this.stateObservers) observer(state)
+  up() {
+    if (this.result && this.process?.success) this.process.success({ update: this.evaluate, data: this.result })
+    if (!this.emitUp()) return
+    this.process = undefined
+    this.measurement()
   }
 
-  public onCollapsed(observer: (state: string) => void): () => void {
-    this.stateObservers.add(observer)
-    return () => this.unsubscribeState(observer)
+  down() {
+    if (this.error && this.process?.error) this.process.error({ update: this.evaluate, error: this.error })
+    if (!this.emitDown()) return
+    this.error = null
+    this.process = undefined
+    this.measurement()
   }
 
-  private unsubscribeState(observer: (state: string) => void) {
-    this.stateObservers.delete(observer)
+  protected handleReaction(ev: MessageEvent) {
+    const { data } = ev as MessageEvent<Photon>
+    if (!this.hasReactions()) return
+    if (data.atom === this.id) return
+
+    for (const patch of data.patches) {
+      this.reactions.run({
+        meta: data.meta,
+        atom: data.atom,
+        timestamp: data.timestamp,
+        patch,
+        context: this.λ,
+        core: this.core,
+        state: this.state,
+        update: this.evaluate,
+        destroy: this.destroy,
+        self: this.self,
+      })
+    }
+    this.measurement()
   }
 
-  // ------------------------------ состояние ----------------------------------------
+  // ---------------------------------------------------------------------
 
   /** Создаёт атома */
   static fromSchema<M extends Meta>(config: {
@@ -65,19 +101,15 @@ export abstract class Strong extends Week {
   }): Atom {
     const { meta, id = crypto.randomUUID(), core, context = {}, path } = config
     // если указан индекс-путь — заранее резервируем слот под id
-    if (typeof path === "string" && path.length > 0) {
-      Field.fields.reserveByIndexPath(id, path)
-    }
-
+    if (typeof path === "string" && path.length > 0) Field.fields.reserveByIndexPath(id, path)
     const ctx = contextFromSchema(meta.context)
     ctx.update(context)
-
     return new Atom(
       id,
       meta.name,
       meta.desc,
       ctx,
-      { current: Object.keys(meta.states)[0] as string, states: meta.states },
+      { [Symbol(undefined)]: { [Object.keys(meta.states)[0] as string]: {} }, ...meta.states },
       processesFromSchema(meta.processes ?? {}),
       reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
       core
@@ -94,7 +126,7 @@ export abstract class Strong extends Week {
 
     // 1) Резервируем слот под будущий атом
     Field.fields.reserveSibling(id, targetId, at)
-    // 2) Создаём атома в следующей макротаске — родитель «не ждёт»
+    // 2) Создаём атом в следующей макротаске — родитель «не ждёт»
     setTimeout(() => {
       try {
         const ctx = contextFromSchema(meta.context)
@@ -109,7 +141,7 @@ export abstract class Strong extends Week {
           meta.name,
           meta.desc,
           ctx,
-          { current: Object.keys(meta.states)[0] as string, states: meta.states },
+          { [Symbol(undefined)]: { [Object.keys(meta.states)[0] as string]: {} }, ...meta.states },
           processesFromSchema(meta.processes ?? {}),
           reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
           core
@@ -159,7 +191,7 @@ export abstract class Strong extends Week {
         meta.name,
         meta.desc,
         ctx,
-        { current: Object.keys(meta.states)[0] as string, states: meta.states },
+        { [Symbol(undefined)]: { [Object.keys(meta.states)[0] as string]: {} }, ...meta.states },
         processesFromSchema(meta.processes ?? {}),
         reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
         core

@@ -15,7 +15,8 @@ export abstract class Field {
 
   public readonly id: string
   public readonly meta: string
-  protected abstract state: { current: string; states: Superposition }
+  protected abstract eigenstates: Superposition
+  protected state: string = undefined as unknown as string
 
   public readonly λ: Hidden<Values>
   public fields: Values
@@ -119,7 +120,7 @@ export abstract class Field {
   protected rollbackState() {
     const snapshot = Field.getSnapshotByLastMessage()
     if (!snapshot) throw new Error("Snapshot not found")
-    this.state.current = snapshot.state
+    this.state = snapshot.state
   }
 
   // -------------------------- Методы для работы с глобальной историей -----------------------------------------
