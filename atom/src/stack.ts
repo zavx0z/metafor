@@ -1,4 +1,4 @@
-import { Source, type Photon } from "../em.t"
+import { Initiator, type Photon } from "../em.t"
 import { type Impulse, Energy } from "./stack.t"
 export { type Impulse, Energy }
 
@@ -10,12 +10,12 @@ export function checkImpulseType(stack: Impulse[], impulse: Impulse): Energy {
     return Energy.Action
   }
   if (impulse.op === "replace") {
-    if (impulse.path === "/state" && impulse.src === Source.Success) return Energy.Success
-    if (impulse.path === "/state" && impulse.src === Source.Error) return Energy.Error
-    if (impulse.path === "/state" && impulse.src === Source.Transition) return Energy.Transition
-    if (impulse.path === "/context" && impulse.src === Source.Success) return Energy.SuccessUpdate
-    if (impulse.path === "/context" && impulse.src === Source.Error) return Energy.ErrorUpdate
-    if (impulse.path === "/context" && impulse.src === Source.Transition) return Energy.ReactionUpdate
+    if (impulse.path === "/state" && impulse.initiator === Initiator.Success) return Energy.Success
+    if (impulse.path === "/state" && impulse.initiator === Initiator.Error) return Energy.Error
+    if (impulse.path === "/state" && impulse.initiator === Initiator.Transition) return Energy.Transition
+    if (impulse.path === "/context" && impulse.initiator === Initiator.Success) return Energy.SuccessUpdate
+    if (impulse.path === "/context" && impulse.initiator === Initiator.Error) return Energy.ErrorUpdate
+    if (impulse.path === "/context" && impulse.initiator === Initiator.Transition) return Energy.ReactionUpdate
   }
   if (impulse.op === "remove") return Energy.Destroy
   return Energy.Nothing
@@ -24,7 +24,7 @@ export function checkImpulseType(stack: Impulse[], impulse: Impulse): Energy {
 export function impulseInStack(stack: Impulse[], photon: Photon) {
   for (const impulse of stack) {
     if (impulse.atom !== photon.atom) continue
-    if (impulse.src !== photon.src) continue
+    if (impulse.initiator !== photon.initiator) continue
     if (impulse.op !== photon.patches[0]!.op) continue
     if (impulse.path !== photon.patches[0]!.path) continue
     return true
@@ -41,14 +41,14 @@ export function impulseInStack(stack: Impulse[], photon: Photon) {
  *    ```js
  *     [
  *       {path: "/state", op: "test", value: state},
- *       {path: "/context", op: "replace", src: MsgSrc.Success},
+ *       {path: "/context", op: "replace", initiator: Initiator.Success},
  *       {path: "/state", op: "replace", value: state}
  *     ]
  *    ```
  *    ```js
  *     [
  *       {path: "/state", op: "test", value: state},
- *       {path: "/context", op: "replace", src: MsgSrc.Error},
+ *       {path: "/context", op: "replace", initiator: Initiator.Error},
  *       {path: "/state", op: "replace", value: state}
  *     ]
  *    ```
@@ -63,8 +63,8 @@ export function impulseInStack(stack: Impulse[], photon: Photon) {
  *    ```js
  *     [
  *       {path: "/state", op: "test", value: state},
- *       {path: "/context", op: "replace", src: MsgSrc.Reaction},
- *       {path: "/context", op: "replace", src: MsgSrc.Reaction},
+ *       {path: "/context", op: "replace", initiator: Initiator.Reaction},
+ *       {path: "/context", op: "replace", initiator: Initiator.Reaction},
  *       {path: "/state", op: "replace", value: state}
  *     ]
  *    ```
@@ -76,8 +76,8 @@ export function impulseInStack(stack: Impulse[], photon: Photon) {
  *     [
  *       {path: "/state", op: "test", value: state},
  *       {path: "/state", op: "replace", value: state}
- *       {path: "/context", op: "replace", src: MsgSrc.Reaction},
- *       {path: "/context", op: "replace", src: MsgSrc.Reaction},
+ *       {path: "/context", op: "replace", initiator: Initiator.Reaction},
+ *       {path: "/context", op: "replace", initiator: Initiator.Reaction},
  *     ]
  *    ```
  */
@@ -92,12 +92,12 @@ export function clearProcessImpulse(stack: Impulse[], state: string): Impulse[] 
     }
     // ОБНОВЛЕНИЕ КОНТЕКСТА ОБРАБОТЧИКОМ SUCCESS/ERROR
     // Успешное завершение процесса (обновление контекста) [без объявления в процессе этапа success - отсутствует]
-    if (task.path === "/context" && task.op === "replace" && task.src === Source.Success) return false
+    if (task.path === "/context" && task.op === "replace" && task.initiator === Initiator.Success) return false
     // Неуспешное завершение процесса (обновление контекста) [без объявления в процессе этапа error - отсутствует]
-    if (task.path === "/context" && task.op === "replace" && task.src === Source.Error) return false
+    if (task.path === "/context" && task.op === "replace" && task.initiator === Initiator.Error) return false
 
     // ОБРАБОТКА ВОЗМОЖНЫХ ПАТЧЕЙ ОБНОВЛЕНИЯ КОНТЕКСТА РЕАКЦИЯМИ ВНУТРИ ПРОЦЕССА
-    if (INTO && task.path === "/context" && task.op === "replace" && task.src === Source.Reaction) return false
+    if (INTO && task.path === "/context" && task.op === "replace" && task.initiator === Initiator.Reaction) return false
 
     // КОНЕЦ ПРОЦЕССА [присутствует всегда в любом переходе]
     if (task.path === "/state" && task.op === "replace" && task.value === state) {

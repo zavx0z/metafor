@@ -4,7 +4,7 @@ import type { Process } from "../atom/src/processes"
 import type { ProcessConfig } from "./process.t"
 import type { ParsedProcess, ProcessesDeclaration, ProcessesSchema } from "./process.t"
 import { destroyAppendArg, parseFunction, updateAppendArg } from "./parser/func"
-import { Source } from "../atom/em.t"
+import { Initiator } from "../atom/em.t"
 
 export type { ProcessesDeclaration, ProcessesSchema }
 
@@ -40,13 +40,13 @@ export function parseProcess<C extends Schema, I extends Core, Res = any>(proces
 
   const parsed = parseFunction(process.action, false)
   result.action = {
-    src: destroyAppendArg(process.action.toString(), `"${Source.Process}"`),
+    src: destroyAppendArg(process.action.toString(), `"${Initiator.Process}"`),
     ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
   }
 
   if (process.success) {
     const parsed = parseFunction(process.success, true)
-    const src = updateAppendArg(process.success.toString(), `"${Source.Success}"`)
+    const src = updateAppendArg(process.success.toString(), `"${Initiator.Success}"`)
     result.success = {
       src,
       ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
@@ -55,7 +55,7 @@ export function parseProcess<C extends Schema, I extends Core, Res = any>(proces
   }
   if (process.error) {
     const parsed = parseFunction(process.error)
-    const src = updateAppendArg(process.error.toString(), `"${Source.Error}"`)
+    const src = updateAppendArg(process.error.toString(), `"${Initiator.Error}"`)
     result.error = {
       src,
       ...(parsed.read.length > 0 ? { read: parsed.read } : {}),

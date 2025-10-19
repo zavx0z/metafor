@@ -16,7 +16,7 @@
  * ```
  */
 
-import type { JsonPatch, Source } from "./em.t"
+import type { JsonPatch, Initiator } from "./em.t"
 
 export type Core = Record<string, any>
 // Тип для snapshot атомов
@@ -30,6 +30,6 @@ export type AtomSnapshot = {
 export type ChunkPatches = {
   patches: JsonPatch[]
   timestamp: number
-  src: Source
+  initiator: Initiator
   atom: string
 }

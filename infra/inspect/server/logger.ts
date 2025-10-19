@@ -1,4 +1,4 @@
-import type { Message } from "../index.t"
+import type { Photon } from "../index.t"
 
 // ANSI цветовые коды
 const colors = {
@@ -18,7 +18,7 @@ const colors = {
 /**
  * Функция для цветного вывода debug логов
  */
-export function log(event: MessageEvent<Message>) {
+export function log(event: MessageEvent<Photon>) {
   const timestamp = new Date().toLocaleTimeString("ru-RU", { hour12: false })
   const meta = event.data.meta.padEnd(20)
   const actor = event.data.atom.padEnd(12)
@@ -29,42 +29,42 @@ export function log(event: MessageEvent<Message>) {
     switch (patch.path) {
       case "/state":
         console.log(
-          `${colors.gray}[${timestamp}]${colors.reset} ${colors.cyan}${meta}${colors.reset} ${
-            colors.magenta
-          }${actor}${colors.reset} ${colors.yellow}${pathStr}${colors.reset} | STATE  | ${
-            colors.magenta
-          }${patch.op.padEnd(8)}${colors.reset} | ${colors.green}${patch.value}${colors.reset}`
+          `${colors.gray}[${timestamp}]${colors.reset} ${colors.cyan}${meta}${colors.reset} ${colors.magenta}${actor}${
+            colors.reset
+          } ${colors.yellow}${pathStr}${colors.reset} | STATE  | ${colors.magenta}${patch.op.padEnd(8)}${
+            colors.reset
+          } | ${colors.green}${patch.value}${colors.reset}`
         )
         break
       case "/context":
         const contextStr = JSON.stringify(patch.value).substring(0, 50)
         console.log(
-          `${colors.gray}[${timestamp}]${colors.reset} ${colors.cyan}${meta}${colors.reset} ${
-            colors.magenta
-          }${actor}${colors.reset} ${colors.yellow}${pathStr}${colors.reset} | CONTEXT| ${
-            colors.magenta
-          }${patch.op.padEnd(8)}${colors.reset} | ${colors.white}${contextStr}${colors.reset}`
+          `${colors.gray}[${timestamp}]${colors.reset} ${colors.cyan}${meta}${colors.reset} ${colors.magenta}${actor}${
+            colors.reset
+          } ${colors.yellow}${pathStr}${colors.reset} | CONTEXT| ${colors.magenta}${patch.op.padEnd(8)}${
+            colors.reset
+          } | ${colors.white}${contextStr}${colors.reset}`
         )
         break
       case "/":
         console.log(
-          `${colors.gray}[${timestamp}]${colors.reset} ${colors.cyan}${meta}${colors.reset} ${
-            colors.magenta
-          }${actor}${colors.reset} ${colors.yellow}${pathStr}${colors.reset} | ADD    | ${
-            colors.magenta
-          }${patch.op.padEnd(8)}${colors.reset} | ${colors.cyan}${meta}${colors.reset}`
+          `${colors.gray}[${timestamp}]${colors.reset} ${colors.cyan}${meta}${colors.reset} ${colors.magenta}${actor}${
+            colors.reset
+          } ${colors.yellow}${pathStr}${colors.reset} | ADD    | ${colors.magenta}${patch.op.padEnd(8)}${
+            colors.reset
+          } | ${colors.cyan}${meta}${colors.reset}`
         )
         break
       default:
         const path = patch.path as string
         console.log(
-          `${colors.gray}[${timestamp}]${colors.reset} ${colors.cyan}${meta}${colors.reset} ${
-            colors.magenta
-          }${actor}${colors.reset} ${colors.yellow}${pathStr}${colors.reset} | ${colors.red}${path.padEnd(7)}${
+          `${colors.gray}[${timestamp}]${colors.reset} ${colors.cyan}${meta}${colors.reset} ${colors.magenta}${actor}${
             colors.reset
-          } | ${colors.magenta}${patch.op.padEnd(8)}${colors.reset} | ${colors.white}${JSON.stringify(
-            patch.value
-          ).substring(0, 30)}${colors.reset}`
+          } ${colors.yellow}${pathStr}${colors.reset} | ${colors.red}${path.padEnd(7)}${colors.reset} | ${
+            colors.magenta
+          }${patch.op.padEnd(8)}${colors.reset} | ${colors.white}${JSON.stringify(patch.value).substring(0, 30)}${
+            colors.reset
+          }`
         )
         break
     }

@@ -1,9 +1,9 @@
-import type { Source } from "../em.t"
+import type { Initiator } from "../em.t"
 
 export interface Impulse {
   atom: string
   timestamp: number
-  src: Source
+  initiator: Initiator
   op: "add" | "remove" | "replace" | "move" | "test"
   path: string
   value?: any

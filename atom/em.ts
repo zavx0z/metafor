@@ -1,7 +1,7 @@
 import { Field, type Hidden, type Values } from "./field"
 import { Gravity } from "./gravity"
 
-import { Source, type JsonPatch, type Photon } from "./em.t"
+import { Initiator, type JsonPatch, type Photon } from "./em.t"
 import {
   type Impulse,
   Energy,
@@ -10,7 +10,7 @@ import {
   impulseInStack,
 } from "./src/stack"
 
-export { Source }
+export { Initiator }
 export type { Photon, JsonPatch, Impulse }
 
 export abstract class EM extends Gravity {
@@ -29,9 +29,9 @@ export abstract class EM extends Gravity {
     this.wired = true
   }
 
-  public override destroy(recursive = true, source = Source.Nothing) {
+  public override destroy(recursive = true, initiator = Initiator.Nothing) {
     EM.charged.delete(this)
-    this.emitDestroy(source)
+    this.emitDestroy(initiator)
     this.wired = false
     if (this._onBCMessage && EM.channel) EM.channel.removeEventListener("message", this._onBCMessage)
     EM.changeStackObservers.clear()
@@ -127,10 +127,10 @@ export abstract class EM extends Gravity {
         atom.measurement()
         break
       case Energy.SuccessUpdate:
-        atom.evaluate(impulse.value, impulse.src)
+        atom.evaluate(impulse.value, impulse.initiator)
         break
       case Energy.ErrorUpdate:
-        atom.evaluate(impulse.value, impulse.src)
+        atom.evaluate(impulse.value, impulse.initiator)
         break
       case Energy.ReactionUpdate:
         atom.decoheredCollapse()
@@ -159,7 +159,7 @@ export abstract class EM extends Gravity {
       atom: this.id,
       path: this.path,
       timestamp: Date.now(),
-      src: Source.Nothing,
+      initiator: Initiator.Nothing,
       patches: [{ op: "add", path: "/", value }],
     }
     if (!EM.lock) {
@@ -192,7 +192,7 @@ export abstract class EM extends Gravity {
       atom: this.id,
       path: this.path,
       timestamp: Date.now(),
-      src: Source.Nothing,
+      initiator: Initiator.Nothing,
       patches: [{ op: "test", path: "/state", value: this.state.current }],
     }
     if (!EM.lock) {
@@ -209,13 +209,13 @@ export abstract class EM extends Gravity {
     return false
   }
 
-  protected emitEvolution(value: Partial<Hidden<Values>>, src: Source): boolean {
+  protected emitEvolution(value: Partial<Hidden<Values>>, initiator: Initiator): boolean {
     const photon: Photon = {
       meta: this.meta,
       atom: this.id,
       path: this.path,
       timestamp: Date.now(),
-      src,
+      initiator: initiator,
       patches: [{ op: "replace", path: "/context", value }],
     }
     if (!EM.lock) {
@@ -239,7 +239,7 @@ export abstract class EM extends Gravity {
       atom: this.id,
       path: this.path,
       timestamp: Date.now(),
-      src: Source.Success,
+      initiator: Initiator.Success,
       patches: [{ op: "replace", path: "/state", value }],
     }
     if (!EM.lock) {
@@ -262,7 +262,7 @@ export abstract class EM extends Gravity {
       atom: this.id,
       path: this.path,
       timestamp: Date.now(),
-      src: Source.Error,
+      initiator: Initiator.Error,
       patches: [{ op: "replace", path: "/state", value }],
     }
     if (!EM.lock) {
@@ -284,7 +284,7 @@ export abstract class EM extends Gravity {
       atom: this.id,
       path: this.path,
       timestamp: Date.now(),
-      src: Source.Transition,
+      initiator: Initiator.Transition,
       patches: [{ op: "replace", path: "/state", value: this.state.current }],
     }
     if (!EM.lock) {
@@ -301,13 +301,13 @@ export abstract class EM extends Gravity {
     return false
   }
 
-  private emitDestroy(src: Source): boolean {
+  private emitDestroy(initiator: Initiator): boolean {
     const photon: Photon = {
       meta: this.meta,
       atom: this.id,
       path: this.path,
       timestamp: Date.now(),
-      src,
+      initiator: initiator,
       patches: [{ op: "remove", path: "/" }],
     }
     if (!EM.lock) {

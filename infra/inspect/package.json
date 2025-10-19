@@ -27,6 +27,7 @@
     "web:build": "bun build web/logger.ts --outdir ./dist/web --sourcemap=linked && bun build web/debugger.ts --packages external --outdir ./dist/web --sourcemap=linked",
     "web:watch": "bun run web:build --watch",
     "server:build": "bun build server/logger.ts --outdir ./dist/server",
+    "typegen": "bun run web:typegen && bun run server:typegen",
     "web:typegen": "bunx dts-bundle-generator --out-file ./dist/web/index.d.ts -- web/index.t.ts",
     "server:typegen": "bunx dts-bundle-generator --out-file ./dist/server/index.d.ts -- server/logger.ts"
   },

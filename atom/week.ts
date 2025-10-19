@@ -1,4 +1,4 @@
-import { EM, Source, type Photon } from "./em"
+import { EM, Initiator, type Photon } from "./em"
 import type { Process, Processes } from "./src/processes"
 import { decoherence, type Wave } from "./src/states"
 import type { Reactions } from "./src/reactions"
@@ -16,9 +16,9 @@ export abstract class Week extends EM {
     this.up = this.up.bind(this)
     this.down = this.down.bind(this)
   }
-  override destroy(recursive = true, src = Source.Nothing) {
+  override destroy(recursive = true, initiator = Initiator.Nothing) {
     Week.results.delete(this)
-    super.destroy(recursive, src)
+    super.destroy(recursive, initiator)
   }
   // ------------------------------ процесс ----------------------------------------
   protected static results = new WeakMap<Week, any>()

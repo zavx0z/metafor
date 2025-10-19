@@ -3,7 +3,7 @@ import { Atom } from "./atom.ts"
 import type { Meta } from "../meta/metafor.ts"
 import { messagesFixture } from "../infra/test/fixture/message.ts"
 import { EM } from "./em.ts"
-import { Source } from "./em.t.ts"
+import { Initiator } from "./em.t.ts"
 
 describe("Каналы коммуникации между атомами", () => {
   let messagesFixtureInstance: ReturnType<typeof messagesFixture>
@@ -110,7 +110,7 @@ describe("Каналы коммуникации между атомами", () =
       const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom-2" })
 
       // Обновляем контекст первого атома
-      atom1.evaluate({ value: 5, source: "direct" }, Source.Nothing)
+      atom1.evaluate({ value: 5, source: "direct" }, Initiator.Nothing)
 
       // Ждем сообщения через фикстуру
       const messages = await messagesFixtureInstance.waitForMessages(50)
@@ -135,7 +135,7 @@ describe("Каналы коммуникации между атомами", () =
       const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom-2" })
 
       // Обновляем контекст первого атома
-      atom1.evaluate({ value: 5, source: "direct" }, Source.Nothing)
+      atom1.evaluate({ value: 5, source: "direct" }, Initiator.Nothing)
 
       // Ждем сообщения через фикстуру
       const messages = await messagesFixtureInstance.waitForMessages(50)

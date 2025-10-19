@@ -83,8 +83,8 @@ export function diffArrays(oldArr: Primitive[], newArr: Primitive[], basePointer
  * Применяет патчи (add/remove/move) к копии массива и возвращает результат.
  * Патчи применяются последовательно в том порядке, в котором они переданы.
  */
-export function applyPatchesToArray(src: Primitive[], patches: Patch[]): Primitive[] {
-  const arr = src.slice()
+export function applyPatchesToArray(primitiveArray: Primitive[], patches: Patch[]): Primitive[] {
+  const arr = primitiveArray.slice()
 
   for (const p of patches) {
     if (p.op === "add") {

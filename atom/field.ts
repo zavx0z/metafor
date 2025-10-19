@@ -4,7 +4,7 @@ import { Fields } from "./src/fields"
 import type { Atom } from "./atom"
 import type { ChunkPatches, AtomSnapshot } from "./gravity.t"
 import { applyPatchesToSnapshot } from "./src/snapshot"
-import { Source, type Photon } from "./em"
+import { Initiator, type Photon } from "./em"
 import type { Hidden, Values, Destroy } from "./field.t"
 import type { Self } from "../meta/metafor"
 
@@ -35,7 +35,7 @@ export abstract class Field {
 
   // ------------------------------ скрытые параметры ----------------------------------------
 
-  protected abstract emitEvolution(context: Partial<Hidden<Values>>, src: Source): boolean
+  protected abstract emitEvolution(context: Partial<Hidden<Values>>, initiator: Initiator): boolean
 
   /**
    * Обновляет контекст атома и возвращает обновленные значения.
@@ -43,7 +43,7 @@ export abstract class Field {
    * @param source Источник обновления.
    * @returns Обновленные значения.
    */
-  evaluate(values: Partial<Hidden<Values>>, source: Source = Source.Nothing): Partial<Hidden<Values>> {
+  evaluate(values: Partial<Hidden<Values>>, source: Initiator = Initiator.Nothing): Partial<Hidden<Values>> {
     const updated = this.#eval(values)
     if (Object.keys(updated).length > 0) {
       if (!this.emitEvolution(updated, source)) return {}

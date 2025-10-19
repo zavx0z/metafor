@@ -120,15 +120,15 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
     )
 
   // Основная функция логирования
-  const log = (message: Impulse): void => {
-    const metaStr = String(message.meta).padEnd(36, " ")
-    const pathStr = message.path
-    const atom = message.atom.includes("-") ? message.atom.slice(message.atom.lastIndexOf("-") + 1) : message.atom
-    const op = String(message.patch.op).padEnd(config.width.op, " ")
-    const path = String(message.patch.path).padEnd(config.width.path, " ")
-    const src = centerText(message.src, 4)
+  const log = (photon: Impulse): void => {
+    const metaStr = String(photon.meta).padEnd(36, " ")
+    const pathStr = photon.path
+    const atom = photon.atom.includes("-") ? photon.atom.slice(photon.atom.lastIndexOf("-") + 1) : photon.atom
+    const op = String(photon.patch.op).padEnd(config.width.op, " ")
+    const path = String(photon.patch.path).padEnd(config.width.path, " ")
+    const initiator = centerText(photon.initiator, 4)
 
-    const patch = message.patch
+    const patch = photon.patch
     const stateValue = patch.value
       ? Array.isArray(patch.value)
         ? JSON.stringify(patch.value, null, 2)
@@ -155,19 +155,19 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
       "color: #3498db; font-weight: bold",
     ]
     const msgWithOutValue = [
-      `%c${atom}%c %c${op}%c | %c${path}%c | %c${src}%c | %c${valSlot}%c${metaStr}%c${pathStr}`,
+      `%c${atom}%c %c${op}%c | %c${path}%c | %c${initiator}%c | %c${valSlot}%c${metaStr}%c${pathStr}`,
       ...baseStyles,
     ]
 
     const msgWithValue = [
-      `%c${atom}%c %c${op}%c | %c${path}%c | %c${src}%c | %c${stateValue.padEnd(valLen, " ")}%c${metaStr}%c${pathStr}`,
+      `%c${atom}%c %c${op}%c | %c${path}%c | %c${initiator}%c | %c${stateValue.padEnd(valLen, " ")}%c${metaStr}%c${pathStr}`,
       ...baseStyles.slice(0, 8),
       "color: lightskyblue; font-weight: bold",
       "color: #3498db; font-weight: bold",
       "color: #3498db; font-weight: bold",
     ]
     switch (true) {
-      case isLog(message, "/"):
+      case isLog(photon, "/"):
         config.collapseAll ? console.groupCollapsed(...msgWithOutValue) : console.group(...msgWithOutValue)
         try {
           if (typeof patch.value === "object" && patch.value !== null) {
@@ -178,7 +178,7 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
           console.groupEnd()
         }
         break
-      case isLog(message, "/context"):
+      case isLog(photon, "/context"):
         if (isError) console.group(...msgWithOutValue)
         else if (config.collapseAll) console.groupCollapsed(...msgWithOutValue)
         else console.group(...msgWithOutValue)
@@ -191,7 +191,7 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
           console.groupEnd()
         }
         break
-      case isLog(message, "/state"):
+      case isLog(photon, "/state"):
         config.collapseAll ? console.groupCollapsed(...msgWithValue) : console.group(...msgWithValue)
         try {
         } finally {

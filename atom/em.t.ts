@@ -13,7 +13,7 @@ import type { Self } from "./atom"
 
 export interface Boson extends Self {
   timestamp: number
-  src: Source
+  initiator: Initiator
 }
 
 /**
@@ -48,7 +48,7 @@ export type JsonPatch = {
   value?: any
 }
 
-export enum Source {
+export enum Initiator {
   Transition = "t",
   Process = "p",
   Success = "s",

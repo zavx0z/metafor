@@ -409,7 +409,7 @@ export class Stack extends HTMLElement {
       <span>${minSecMilliseconds}</span>
       <span>${impulse.op}</span>
       <span>${impulse.path}</span>
-      <span>${impulse.src}</span>
+      <span>${impulse.initiator}</span>
       <span>${impulse.atom.split("-").pop()}</span>
       <span>${JSON.stringify(impulse.value)}</span>
     `

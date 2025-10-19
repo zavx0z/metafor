@@ -21,7 +21,7 @@
   "scripts": {
     "upd": "bun update --latest && bun i",
     "build": "bun --filter @metafor/schema build && bun --filter @metafor/base typegen",
-    "typegen": "bun --filter @metafor/schema typegen && bun --filter @metafor/base typegen"
+    "typegen": "bun --filter @metafor/inspect typegen && bun --filter @metafor/atom typegen && bun --filter @metafor/meta typegen"
   },
   "dependencies": {
     "@zavx0z/context": "2.3.0",

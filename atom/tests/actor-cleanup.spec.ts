@@ -56,13 +56,13 @@ describe("Очистка ресурсов атома", () => {
     atom.onCollapsed(listener)
 
     // @ts-ignore Проверяем, что слушатель добавлен
-    expect(atom.stateListeners.size).toBe(1)
+    expect(atom.stateObservers.size).toBe(1)
 
     // Уничтожаем атом
     atom.destroy()
 
     //@ts-ignore Проверяем, что слушатели очищены
-    expect(atom.stateListeners.size).toBe(0)
+    expect(atom.stateObservers.size).toBe(0)
   })
 
   it("должен удалять атом из иерархии при уничтожении", () => {
@@ -118,7 +118,7 @@ describe("Очистка ресурсов атома", () => {
     // Первый вызов destroy
     atom.destroy()
     // @ts-ignore
-    expect(atom.stateListeners.size).toBe(0)
+    expect(atom.stateObservers.size).toBe(0)
     expect(Fields.get().has(atom.id)).toBe(false)
 
     // Второй вызов destroy не должен вызывать ошибок
