@@ -7,6 +7,13 @@ const css = String.raw
 export class Stack extends HTMLElement {
   private ul: HTMLUListElement
   private resizeHandle: HTMLDivElement
+  private controlPanel: HTMLDivElement
+  private opacitySlider: HTMLInputElement
+  private collapseBtn: HTMLButtonElement
+  private playBtn: HTMLButtonElement
+  private stepBtn: HTMLButtonElement
+  private clearBtn: HTMLButtonElement
+  private isCollapsed = false
   impulseSet = new Set<Impulse>()
   private displayedImpulses = new Map<Impulse, HTMLLIElement>() // Карта импульсов к DOM элементам
   private maxImpulses = 100 // Максимальное количество импульсов для отображения
@@ -15,6 +22,7 @@ export class Stack extends HTMLElement {
   private startY = 0
   private startHeight = 0
   private readonly STORAGE_KEY = "metafor-stack-height"
+  private readonly OPACITY_KEY = "metafor-stack-opacity"
 
   constructor() {
     super()
@@ -23,6 +31,61 @@ export class Stack extends HTMLElement {
         ${style}
       </style>
     `
+
+    // Создаем панель управления
+    this.controlPanel = document.createElement("div")
+    this.controlPanel.className = "control-panel"
+
+    // Создаем ползунок прозрачности
+    this.opacitySlider = document.createElement("input")
+    this.opacitySlider.type = "range"
+    this.opacitySlider.min = "0.1"
+    this.opacitySlider.max = "1"
+    this.opacitySlider.step = "0.1"
+    this.opacitySlider.value = "0.9"
+    this.opacitySlider.className = "opacity-slider"
+    this.opacitySlider.title = "Прозрачность панели"
+
+    // Создаем кнопку свернуть
+    this.collapseBtn = document.createElement("button")
+    this.collapseBtn.className = "collapse-btn"
+    this.collapseBtn.innerHTML = "−"
+    this.collapseBtn.title = "Свернуть/развернуть панель"
+
+    // Создаем кнопки управления дебагом
+    this.playBtn = document.createElement("button")
+    this.playBtn.className = "debug-btn"
+    this.playBtn.innerHTML = "▶"
+    this.playBtn.title = "Пуск/Пауза"
+
+    this.stepBtn = document.createElement("button")
+    this.stepBtn.className = "debug-btn"
+    this.stepBtn.innerHTML = "⏭"
+    this.stepBtn.title = "Шаг вперёд"
+
+    // Создаем кнопку очистки стека
+    this.clearBtn = document.createElement("button")
+    this.clearBtn.className = "clear-btn"
+    this.clearBtn.innerHTML = "🗑"
+    this.clearBtn.title = "Очистить стек"
+
+    // Создаем левую группу (корзина + слайдер)
+    const leftGroup = document.createElement("div")
+    leftGroup.className = "left-group"
+    leftGroup.appendChild(this.clearBtn)
+    leftGroup.appendChild(this.opacitySlider)
+
+    // Создаем центральную группу (кнопки дебага)
+    const centerGroup = document.createElement("div")
+    centerGroup.className = "center-group"
+    centerGroup.appendChild(this.playBtn)
+    centerGroup.appendChild(this.stepBtn)
+
+    this.controlPanel.appendChild(leftGroup)
+    this.controlPanel.appendChild(centerGroup)
+    this.controlPanel.appendChild(this.collapseBtn)
+    this.appendChild(this.controlPanel)
+
     const ul = document.createElement("ul")
     this.appendChild(ul)
     this.ul = ul
@@ -32,13 +95,16 @@ export class Stack extends HTMLElement {
     this.resizeHandle.className = "resize-handle"
     this.appendChild(this.resizeHandle)
 
-    // Загружаем сохраненную высоту
+    // Загружаем сохраненные настройки
     this.loadHeight()
+    this.loadOpacity()
 
-    // Инициализируем CSS переменную
+    // Инициализируем CSS переменные
     this.style.setProperty("--panel-height", this.panelHeight.toString())
+    this.style.setProperty("--panel-opacity", this.opacitySlider.value)
 
     this.setupResizeHandlers()
+    this.setupControlHandlers()
   }
   connectedCallback() {
     // Плавное появление панели
@@ -81,12 +147,120 @@ export class Stack extends HTMLElement {
     }
   }
 
+  private loadOpacity() {
+    try {
+      const savedOpacity = localStorage.getItem(this.OPACITY_KEY)
+      if (savedOpacity) {
+        const opacity = parseFloat(savedOpacity)
+        if (opacity >= 0.1 && opacity <= 1) {
+          this.opacitySlider.value = opacity.toString()
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to load stack opacity from localStorage:", error)
+    }
+  }
+
+  private saveOpacity() {
+    try {
+      localStorage.setItem(this.OPACITY_KEY, this.opacitySlider.value)
+    } catch (error) {
+      console.warn("Failed to save stack opacity to localStorage:", error)
+    }
+  }
+
   private setupResizeHandlers() {
     this.resizeHandle.addEventListener("mousedown", this.handleMouseDown.bind(this))
     this.resizeHandle.addEventListener("dblclick", this.handleDoubleClick.bind(this))
     document.addEventListener("mousemove", this.handleMouseMove.bind(this))
     document.addEventListener("mouseup", this.handleMouseUp.bind(this))
     window.addEventListener("resize", this.handleWindowResize.bind(this))
+  }
+
+  private setupControlHandlers() {
+    // Обработчик ползунка прозрачности
+    this.opacitySlider.addEventListener("input", () => {
+      this.style.setProperty("--panel-opacity", this.opacitySlider.value)
+      this.saveOpacity()
+    })
+
+    // Обработчик кнопки свернуть
+    this.collapseBtn.addEventListener("click", () => {
+      this.toggleCollapse()
+    })
+
+    // Обработчики кнопок управления дебагом
+    this.playBtn.addEventListener("click", () => {
+      this.handlePlayClick()
+    })
+
+    this.stepBtn.addEventListener("click", () => {
+      this.handleStepClick()
+    })
+
+    // Обработчик кнопки очистки стека
+    this.clearBtn.addEventListener("click", () => {
+      this.handleClearClick()
+    })
+  }
+
+  private toggleCollapse() {
+    this.isCollapsed = !this.isCollapsed
+
+    if (this.isCollapsed) {
+      this.collapseBtn.innerHTML = "+"
+      this.collapseBtn.title = "Развернуть панель"
+      // Плавно сворачиваем
+      this.style.transition = "height 0.3s ease"
+      this.style.setProperty("--panel-height", "32px")
+
+      // Скрываем содержимое после анимации
+      setTimeout(() => {
+        this.ul.style.display = "none"
+        this.resizeHandle.style.display = "none"
+      }, 300)
+    } else {
+      this.collapseBtn.innerHTML = "−"
+      this.collapseBtn.title = "Свернуть панель"
+      // Показываем содержимое
+      this.ul.style.display = "flex"
+      this.resizeHandle.style.display = "block"
+
+      // Плавно разворачиваем
+      this.style.transition = "height 0.3s ease"
+      this.style.setProperty("--panel-height", this.panelHeight.toString())
+    }
+  }
+
+  private handlePlayClick() {
+    // Импортируем Atom динамически, чтобы избежать циклических зависимостей
+    import("@metafor/atom").then(({ Atom }) => {
+      if (Atom.isLocked) {
+        // @ts-expect-error
+        Atom.play()
+        this.playBtn.innerHTML = "⏸"
+        this.playBtn.title = "Пауза"
+      } else {
+        // @ts-expect-error
+        Atom.pause()
+        this.playBtn.innerHTML = "▶"
+        this.playBtn.title = "Пуск"
+      }
+    })
+  }
+
+  private handleStepClick() {
+    import("@metafor/atom").then(({ Atom }) => {
+      Atom.step()
+      this.render()
+    })
+  }
+
+  private handleClearClick() {
+    // Очищаем все данные
+    this.impulseSet.clear()
+    this.displayedImpulses.clear()
+    this.ul.innerHTML = ""
   }
 
   private handleDoubleClick() {
@@ -204,10 +378,10 @@ export class Stack extends HTMLElement {
 
     li.innerHTML = `
       <span>${minSecMilliseconds}</span>
-      <span>${impulse.op}</span>
-      <span>${impulse.path}</span>
-      <span>${impulse.atom.split("-").pop()}</span>
-      <span>${JSON.stringify(impulse.value)}</span>
+            <span>${impulse.op}</span>
+            <span>${impulse.path}</span>
+            <span>${impulse.atom.split("-").pop()}</span>
+            <span>${JSON.stringify(impulse.value)}</span>
     `
 
     // Вставляем в начало списка (новые элементы сверху)
@@ -263,6 +437,7 @@ export class Stack extends HTMLElement {
 const style = css`
   metafor-stack {
     --panel-height: 300;
+    --panel-opacity: 0.9;
     display: flex;
     flex-direction: column;
     position: fixed;
@@ -270,9 +445,9 @@ const style = css`
     left: 0;
     right: 0;
     z-index: 1000;
-    background-color: rgba(37, 37, 37, 0.99);
+    background-color: rgba(37, 37, 37, var(--panel-opacity));
     border: 1px solid rgba(255, 255, 255, 0.2);
-    padding: 12px;
+    padding: 0;
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
     height: calc(var(--panel-height) * 1px);
     max-width: 100vw;
@@ -283,9 +458,149 @@ const style = css`
     line-height: 1.4;
   }
 
+  /* Панель управления */
+  metafor-stack .control-panel {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 8px;
+    background-color: rgba(0, 0, 0, 0.3);
+    border-radius: 3px;
+    margin: 3px 0px;
+    min-height: 20px;
+    position: relative;
+  }
+
+  /* Левая группа (корзина + слайдер) */
+  metafor-stack .left-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 100%;
+  }
+
+  /* Центральная группа (кнопки дебага) */
+  metafor-stack .center-group {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    transform: translate(-50%, -50%);
+    height: 100%;
+  }
+
+  metafor-stack .opacity-slider {
+    width: 60px;
+    height: 3px;
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    outline: none;
+    cursor: pointer;
+  }
+
+  metafor-stack .opacity-slider::-webkit-slider-thumb {
+    appearance: none;
+    width: 10px;
+    height: 10px;
+    background: #4caf50;
+    border-radius: 50%;
+    cursor: pointer;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3);
+  }
+
+  metafor-stack .opacity-slider::-moz-range-thumb {
+    width: 10px;
+    height: 10px;
+    background: #4caf50;
+    border-radius: 50%;
+    cursor: pointer;
+    border: none;
+    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3);
+  }
+
+  metafor-stack .collapse-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e6e6e6;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 12px;
+    font-weight: bold;
+    transition: background 0.2s ease, transform 0.1s ease;
+    align-self: center;
+  }
+
+  metafor-stack .collapse-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.05);
+  }
+
+  metafor-stack .collapse-btn:active {
+    transform: scale(0.95);
+  }
+
+  /* Кнопки управления дебагом */
+  metafor-stack .debug-btn {
+    background: rgba(255, 255, 255, 0.1);
+    color: #e6e6e6;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    border-radius: 2px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: bold;
+    transition: background 0.2s ease, transform 0.1s ease;
+  }
+
+  metafor-stack .debug-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.05);
+  }
+
+  metafor-stack .debug-btn:active {
+    transform: scale(0.95);
+  }
+
+  /* Кнопка очистки стека */
+  metafor-stack .clear-btn {
+    background: rgba(244, 67, 54, 0.2);
+    color: #ff5252;
+    border: 1px solid rgba(244, 67, 54, 0.3);
+    border-radius: 2px;
+    width: 20px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    font-size: 10px;
+    font-weight: bold;
+    transition: background 0.2s ease, transform 0.1s ease;
+  }
+
+  metafor-stack .clear-btn:hover {
+    background: rgba(244, 67, 54, 0.3);
+    transform: scale(1.05);
+  }
+
+  metafor-stack .clear-btn:active {
+    transform: scale(0.95);
+  }
+
   metafor-stack ul {
     list-style: none;
-    padding: 0;
+    padding: 12px;
     margin: 0;
     display: flex;
     flex-direction: column;

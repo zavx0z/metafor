@@ -52,7 +52,7 @@ class Debugger extends HTMLElement {
 
     // Анимация появления кнопок toolbar
     setTimeout(() => {
-      const buttons = this.#shadow?.querySelectorAll(".toolbar button")
+      const buttons = this.#shadow?.querySelectorAll(".toolbar button") as NodeListOf<HTMLElement>
       buttons?.forEach((button, index) => {
         setTimeout(() => {
           button.style.opacity = "1"
