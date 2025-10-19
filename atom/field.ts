@@ -35,7 +35,7 @@ export abstract class Field {
 
   // ------------------------------ скрытые параметры ----------------------------------------
 
-  protected abstract requestUpdateContext(context: Partial<Hidden<Values>>, src: Source): boolean
+  protected abstract emitEvolution(context: Partial<Hidden<Values>>, src: Source): boolean
 
   /**
    * Обновляет контекст атома и возвращает обновленные значения.
@@ -46,21 +46,9 @@ export abstract class Field {
   evaluate(values: Partial<Hidden<Values>>, source: Source = Source.Nothing): Partial<Hidden<Values>> {
     const updated = this.#eval(values)
     if (Object.keys(updated).length > 0) {
-      if (!this.requestUpdateContext(updated, source)) return {}
+      if (!this.emitEvolution(updated, source)) return {}
     }
     return updated
-  }
-
-  protected rollbackContext() {
-    const snapshot = Field.getSnapshotByLastMessage()
-    if (!snapshot) throw new Error("Snapshot not found")
-    this.#eval(snapshot?.context)
-  }
-
-  protected rollbackState() {
-    const snapshot = Field.getSnapshotByLastMessage()
-    if (!snapshot) throw new Error("Snapshot not found")
-    this.state.current = snapshot.state
   }
 
   // ---------------------------------------------------------------------
@@ -98,7 +86,8 @@ export abstract class Field {
     Field.fields.remove(this.id, false)
   }
   // -------------------------- История атомов -----------------------------------------
-
+  private static readonly MAX_PATCHES = 1000
+  private static readonly MAX_CHECKPOINTS = 10
   protected static histories: ChunkPatches[] = []
   protected static checkpoints: Array<{
     index: number
@@ -109,7 +98,7 @@ export abstract class Field {
   /** Последний сохраненный снапшот (метаданные) */
   private static lastSaved: { atom: string; snapshot: AtomSnapshot; timestamp: number } | null = null
 
- static propagation(photon: Photon) {
+  static propagation(photon: Photon) {
     if (!photon) return false
     for (const patch of photon.patches) {
       if (patch.path === "/" && patch.op === "add") {
@@ -121,8 +110,17 @@ export abstract class Field {
     }
   }
 
-  private static readonly MAX_PATCHES = 1000
-  private static readonly MAX_CHECKPOINTS = 10
+  protected rollbackContext() {
+    const snapshot = Field.getSnapshotByLastMessage()
+    if (!snapshot) throw new Error("Snapshot not found")
+    this.#eval(snapshot?.context)
+  }
+
+  protected rollbackState() {
+    const snapshot = Field.getSnapshotByLastMessage()
+    if (!snapshot) throw new Error("Snapshot not found")
+    this.state.current = snapshot.state
+  }
 
   // -------------------------- Методы для работы с глобальной историей -----------------------------------------
 

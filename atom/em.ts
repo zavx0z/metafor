@@ -13,7 +13,7 @@ import {
 export { Source }
 export type { Photon, JsonPatch }
 
-const DEBUG_DEBUGGER = false
+const DEBUG_DEBUGGER = true
 
 export abstract class EM extends Gravity {
   static channelName = "electromagnetic"
@@ -33,7 +33,7 @@ export abstract class EM extends Gravity {
 
   public override destroy(recursive = true, source = Source.Nothing) {
     EM.charged.delete(this)
-    this.requestDestroy(source)
+    this.emitDestroy(source)
     this.wired = false
     if (this._onBCMessage && EM.channel) EM.channel.removeEventListener("message", this._onBCMessage)
     super.destroy(recursive)
@@ -107,11 +107,11 @@ export abstract class EM extends Gravity {
         break
       case Energy.Success:
         // @ts-expect-error
-        atom.resolve()
+        atom.up()
         break
       case Energy.Error:
         // @ts-expect-error
-        atom.reject()
+        atom.down()
         break
       case Energy.Transition:
         atom.measurement()
@@ -133,7 +133,7 @@ export abstract class EM extends Gravity {
 
   // ---------------------------- сообщения ------------------------------------
 
-  protected requestInit(): boolean {
+  protected emitInit(): boolean {
     const value = this.snapshot
     const photon: Photon = {
       meta: this.meta,
@@ -165,7 +165,7 @@ export abstract class EM extends Gravity {
     }
   }
 
-  protected requestStartProcess() {
+  protected emitProcess() {
     const photon: Photon = {
       meta: this.meta,
       atom: this.id,
@@ -189,7 +189,7 @@ export abstract class EM extends Gravity {
     }
   }
 
-  protected requestUpdateContext(value: Partial<Hidden<Values>>, src: Source): boolean {
+  protected emitEvolution(value: Partial<Hidden<Values>>, src: Source): boolean {
     const photon: Photon = {
       meta: this.meta,
       atom: this.id,
@@ -213,7 +213,7 @@ export abstract class EM extends Gravity {
     }
   }
 
-  protected requestStateSuccess(): boolean {
+  protected emitUp(): boolean {
     const value = this.state.current
     const photon: Photon = {
       meta: this.meta,
@@ -237,7 +237,7 @@ export abstract class EM extends Gravity {
     }
   }
 
-  protected requestStateError(): boolean {
+  protected emitDown(): boolean {
     const value = this.state.current
     const photon: Photon = {
       meta: this.meta,
@@ -261,7 +261,7 @@ export abstract class EM extends Gravity {
     }
   }
 
-  protected requestMeasure(): boolean {
+  protected emitMeasure(): boolean {
     const photon: Photon = {
       meta: this.meta,
       atom: this.id,
@@ -285,7 +285,7 @@ export abstract class EM extends Gravity {
     }
   }
 
-  private requestDestroy(src: Source): boolean {
+  private emitDestroy(src: Source): boolean {
     const photon: Photon = {
       meta: this.meta,
       atom: this.id,

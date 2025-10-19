@@ -13,8 +13,8 @@ export abstract class Week extends EM {
 
   constructor(_: unknown, id: string, meta: string, core?: Core) {
     super(_, id, meta, core)
-    this.resolve = this.resolve.bind(this)
-    this.reject = this.reject.bind(this)
+    this.up = this.up.bind(this)
+    this.down = this.down.bind(this)
   }
   override destroy(recursive = true, src = Source.Nothing) {
     Week.results.delete(this)
@@ -41,18 +41,16 @@ export abstract class Week extends EM {
     return this.#process
   }
 
-  protected resolve() {
-    if (this.result && this.process?.success) {
-      this.process.success({ update: this.evaluate, data: this.result })
-    }
-    if (!this.requestStateSuccess()) return
+  protected up() {
+    if (this.result && this.process?.success) this.process.success({ update: this.evaluate, data: this.result })
+    if (!this.emitUp()) return
     this.process = null
     this.measurement()
   }
 
-  protected reject() {
+  protected down() {
     if (this.error && this.process?.error) this.process.error({ update: this.evaluate, error: this.error })
-    if (!this.requestStateError()) return
+    if (!this.emitDown()) return
     this.error = null
     this.process = null
     this.measurement()
@@ -62,7 +60,7 @@ export abstract class Week extends EM {
 
   /** Выполняет процесс стартового состояния */
   decoheredCollapse() {
-    if (!this.requestInit()) return
+    if (!this.emitInit()) return
     const eigenstates = this.state.states[this.state.current]
     if (!eigenstates) return
     this.collapse(this.processes.getProcess(this.state.current))
@@ -85,10 +83,10 @@ export abstract class Week extends EM {
     newState && this.setState(newState)
     if (process) {
       this.process = process
-      if (!this.requestStartProcess()) return
-      this.action().then(this.resolve).catch(this.reject)
+      if (!this.emitProcess()) return
+      this.action().then(this.up).catch(this.down)
     } else {
-      if (!this.requestMeasure()) return
+      if (!this.emitMeasure()) return
       this.measurement()
     }
   }
