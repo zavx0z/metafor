@@ -39,6 +39,27 @@ class Debugger extends HTMLElement {
 
     this.updatePlayButton()
 
+    // Анимация появления toolbar
+    const toolbar = this.#shadow?.querySelector(".toolbar") as HTMLElement
+    if (toolbar) {
+      toolbar.style.opacity = "0"
+      toolbar.style.transition = "opacity 0.4s ease"
+
+      requestAnimationFrame(() => {
+        toolbar.style.opacity = "1"
+      })
+    }
+
+    // Анимация появления кнопок toolbar
+    setTimeout(() => {
+      const buttons = this.#shadow?.querySelectorAll(".toolbar button")
+      buttons?.forEach((button, index) => {
+        setTimeout(() => {
+          button.style.opacity = "1"
+        }, index * 100) // Задержка для каскадного эффекта
+      })
+    }, 200)
+
     this.playBtn.addEventListener("click", this.handlePlayClick.bind(this))
     this.stepBtn.addEventListener("click", this.handleStepClick.bind(this))
     this.reloadBtn.addEventListener("click", this.handleReloadClick.bind(this))
@@ -127,7 +148,8 @@ const style = css`
     line-height: 1;
     font-size: 16px;
     cursor: pointer;
-    transition: background 0.15s ease, transform 0.06s ease, box-shadow 0.15s ease;
+    transition: background 0.15s ease, transform 0.06s ease, box-shadow 0.15s ease, opacity 0.3s ease;
+    opacity: 0;
   }
 
   .toolbar button:hover {
