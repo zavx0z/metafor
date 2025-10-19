@@ -451,7 +451,7 @@ const style = css`
     box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
     height: calc(var(--panel-height) * 1px);
     max-width: 100vw;
-    overflow-y: auto;
+    overflow: hidden;
     margin: 0;
     font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
     font-size: 12px;
@@ -600,11 +600,14 @@ const style = css`
 
   metafor-stack ul {
     list-style: none;
-    padding: 12px;
+    padding: 0 4px;
     margin: 0;
     display: flex;
     flex-direction: column;
     gap: 4px;
+    flex: 1;
+    overflow-y: auto;
+    min-height: 0;
   }
 
   metafor-stack li {
