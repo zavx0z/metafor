@@ -13,8 +13,6 @@ import {
 export { Source }
 export type { Photon, JsonPatch, Impulse }
 
-const DEBUG_DEBUGGER = true
-
 export abstract class EM extends Gravity {
   static channelName = "electromagnetic"
   protected abstract hasReactions(): boolean
@@ -75,8 +73,6 @@ export abstract class EM extends Gravity {
     const { patches, meta, path, ...info } = photon
     for (const patch of patches) {
       const task = { ...info, ...patch }
-      DEBUG_DEBUGGER &&
-        setTimeout(() => console.log("Next impulse: ", getImpulseType(EM.stack, task), patch.value), 100)
       EM.stack.push(task)
     }
   }
@@ -85,8 +81,6 @@ export abstract class EM extends Gravity {
     const impulse = EM.stack[EM.stack.length - 1] as Impulse
     const atom = Field.getAtom(impulse.atom)
     const energy = getImpulseType(EM.stack, impulse)
-
-    DEBUG_DEBUGGER && console.log("resume", energy)
     switch (energy) {
       case Energy.AtomCreate:
         atom.decoheredCollapse()
