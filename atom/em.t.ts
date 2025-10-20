@@ -1,14 +1,3 @@
-/**
- Сообщение для обмена данными между акторами
-
- @property meta - Хеш меты компонента-актора
- @property atom - Информация об акторе
- @property atom.index - Индекс актора по отношению к братьям в родителе
- @property atom.parent - Хеш родительской меты актора
- @property timestamp - Время отправки сообщения
- @property patches - Массив патчей для применения к актору (JSON Patch RFC 6902)
- */
-
 import type { Self } from "./atom"
 
 export interface Boson extends Self {
@@ -24,7 +13,7 @@ export interface Boson extends Self {
  * - `atom` - уникальный идентификатор актора
  * - `path` - позиционный путь в VDOM (например, "0/1/2")
  * - `timestamp` - время создания сообщения
- * - `patches` - массив изменений в формате JSON Patch
+ * - `impulses` - массив изменений в формате JSON Patch
  *
  * @example
  * ```typescript
@@ -33,12 +22,12 @@ export interface Boson extends Self {
  *   atom: "metafor-123",
  *   path: "0/1/2",
  *   timestamp: Date.now(),
- *   patches: [{ op: "replace", path: "/context", value: {name: "MetaFor"} }]
+ *   impulses: [{ op: "replace", path: "/context", value: {name: "MetaFor"} }]
  * }
  * ```
  */
 export interface Photon extends Boson {
-  patches: JsonPatch[]
+  impulses: JsonPatch[]
 }
 
 export type JsonPatch = {

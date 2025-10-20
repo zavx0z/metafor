@@ -23,7 +23,7 @@ describe.skip("MetaFor: инициализация без действия", asy
 
   test("патч add содержит полную информацию об атоме", () => {
     const message = messages[0]!
-    const patch = message.patches[0]!
+    const patch = message.impulses[0]!
     console.log(meta)
     expect(patch.op, "patch.op должен быть 'add'").toBe("add")
     expect(patch.path, "patch.path должен быть '/' ").toBe("/")
@@ -31,7 +31,7 @@ describe.skip("MetaFor: инициализация без действия", asy
       meta: meta.name,
       atom: { index: "0" },
       timestamp: expect.any(Number),
-      patches: [
+      impulses: [
         {
           op: "add",
           path: "/",
@@ -59,7 +59,7 @@ describe.skip("MetaFor: инициализация без действия", asy
   })
   test("сообщение 2", () => {
     const message = messages[1]!
-    const patch = message.patches[0]!
+    const patch = message.impulses[0]!
 
     expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
     expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
@@ -67,7 +67,7 @@ describe.skip("MetaFor: инициализация без действия", asy
       meta: meta.name,
       atom: { index: "0" },
       timestamp: expect.any(Number),
-      patches: [
+      impulses: [
         {
           op: "replace",
           path: "/state",

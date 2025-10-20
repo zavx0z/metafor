@@ -1,10 +1,10 @@
 import { describe, it, expect } from "bun:test"
 import { applyPatchesToSnapshot } from "./snapshot"
-import type { AtomSnapshot } from "../gravity.t"
+import type { AtomPayload } from "../gravity.t"
 
 describe("applyPatchesToSnapshot", () => {
   it("должен применять replace операции", () => {
-    const snapshot: AtomSnapshot = {
+    const snapshot: AtomPayload = {
       path: "/test",
       state: "initial",
       context: { value: 10, flag: false },
@@ -25,7 +25,7 @@ describe("applyPatchesToSnapshot", () => {
   })
 
   it("должен применять add операции", () => {
-    const snapshot: AtomSnapshot = {
+    const snapshot: AtomPayload = {
       path: "/test",
       state: "initial",
       context: { items: [1, 2] },
@@ -43,7 +43,7 @@ describe("applyPatchesToSnapshot", () => {
   })
 
   it("должен применять remove операции", () => {
-    const snapshot: AtomSnapshot = {
+    const snapshot: AtomPayload = {
       path: "/test",
       state: "initial",
       context: { items: [1, 2, 3], temp: "remove" },
@@ -61,7 +61,7 @@ describe("applyPatchesToSnapshot", () => {
   })
 
   it("должен применять test операции как replace", () => {
-    const snapshot: AtomSnapshot = {
+    const snapshot: AtomPayload = {
       path: "/test",
       state: "ready",
       context: { flag: false },
@@ -79,7 +79,7 @@ describe("applyPatchesToSnapshot", () => {
   })
 
   it("должен применять move операции", () => {
-    const snapshot: AtomSnapshot = {
+    const snapshot: AtomPayload = {
       path: "/test",
       state: "initial",
       context: { items: [1, 2, 3, 4] },
@@ -93,7 +93,7 @@ describe("applyPatchesToSnapshot", () => {
   })
 
   it("должен обрабатывать корневой путь /", () => {
-    const snapshot: AtomSnapshot = {
+    const snapshot: AtomPayload = {
       path: "/test",
       state: "initial",
       context: { value: 10 },
@@ -111,7 +111,7 @@ describe("applyPatchesToSnapshot", () => {
   })
 
   it("должен полностью заменять объект при корневом пути /", () => {
-    const snapshot: AtomSnapshot = {
+    const snapshot: AtomPayload = {
       path: "/old",
       state: "old",
       context: { old: "value", extra: "field" },
@@ -142,7 +142,7 @@ describe("applyPatchesToSnapshot", () => {
   })
 
   it("должен обрабатывать add операцию для корневого пути /", () => {
-    const snapshot: AtomSnapshot = {
+    const snapshot: AtomPayload = {
       path: "/old",
       state: "old",
       context: { old: "value" },
@@ -170,7 +170,7 @@ describe("applyPatchesToSnapshot", () => {
   })
 
   it("должен обрабатывать remove операцию для корневого пути /", () => {
-    const snapshot: AtomSnapshot = {
+    const snapshot: AtomPayload = {
       path: "/test",
       state: "initial",
       context: { value: 10 },
@@ -187,7 +187,7 @@ describe("applyPatchesToSnapshot", () => {
   })
 
   it("должен не изменять оригинальный снапшот", () => {
-    const snapshot: AtomSnapshot = {
+    const snapshot: AtomPayload = {
       path: "/test",
       state: "initial",
       context: { value: 10 },
@@ -203,7 +203,7 @@ describe("applyPatchesToSnapshot", () => {
   })
 
   it("должен обрабатывать пустой массив патчей", () => {
-    const snapshot: AtomSnapshot = {
+    const snapshot: AtomPayload = {
       path: "/test",
       state: "initial",
       context: { value: 10 },
@@ -215,7 +215,7 @@ describe("applyPatchesToSnapshot", () => {
   })
 
   it("должен обрабатывать сложные вложенные структуры", () => {
-    const snapshot: AtomSnapshot = {
+    const snapshot: AtomPayload = {
       path: "/test",
       state: "initial",
       context: {

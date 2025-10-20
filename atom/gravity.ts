@@ -1,6 +1,6 @@
 import type { Atom } from "./atom"
 import { Field } from "./field"
-import type { AtomSnapshot } from "./gravity.t"
+import type { AtomPayload } from "./gravity.t"
 import type { Core } from "./gravity.t"
 
 export type { Core }
@@ -18,7 +18,7 @@ export abstract class Gravity extends Field {
     super.destroy(recursive)
   }
 
-  get snapshot(): AtomSnapshot {
+  get snapshot(): AtomPayload {
     return {
       path: String(this.path),
       state: this.state,

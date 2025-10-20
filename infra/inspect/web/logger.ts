@@ -1,6 +1,6 @@
 //# sourceURL=log
 import type { Config } from "./logger.t"
-import type { Photon, Impulse } from "../index.t"
+import type { Photon, BosonLogger } from "../index.t"
 
 /**
  * Обертка с полным функционалом логирования для сериализации
@@ -110,25 +110,25 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
   }
 
   // Функция проверки логирования
-  const isLog = (message: Impulse, path: "/" | "/context" | "/state"): boolean =>
+  const isLog = (message: BosonLogger, path: "/" | "/context" | "/state"): boolean =>
     Boolean(
       config.active &&
-        message.patch.path === path &&
+        message.impulse.path === path &&
         config.path.includes(path) &&
         (!config.meta.length || config.meta.includes(message.meta)) &&
         (config.index === null || message.atom === String(config.index))
     )
 
   // Основная функция логирования
-  const log = (photon: Impulse): void => {
-    const metaStr = String(photon.meta).padEnd(36, " ")
-    const pathStr = photon.path
-    const atom = photon.atom.includes("-") ? photon.atom.slice(photon.atom.lastIndexOf("-") + 1) : photon.atom
-    const op = String(photon.patch.op).padEnd(config.width.op, " ")
-    const path = String(photon.patch.path).padEnd(config.width.path, " ")
-    const initiator = centerText(photon.initiator, 4)
+  const log = (boson: BosonLogger): void => {
+    const metaStr = String(boson.meta).padEnd(36, " ")
+    const pathStr = boson.path
+    const atom = boson.atom.includes("-") ? boson.atom.slice(boson.atom.lastIndexOf("-") + 1) : boson.atom
+    const op = String(boson.impulse.op).padEnd(config.width.op, " ")
+    const path = String(boson.impulse.path).padEnd(config.width.path, " ")
+    const initiator = centerText(boson.initiator, 4)
 
-    const patch = photon.patch
+    const patch = boson.impulse
     const stateValue = patch.value
       ? Array.isArray(patch.value)
         ? JSON.stringify(patch.value, null, 2)
@@ -160,14 +160,17 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
     ]
 
     const msgWithValue = [
-      `%c${atom}%c %c${op}%c | %c${path}%c | %c${initiator}%c | %c${stateValue.padEnd(valLen, " ")}%c${metaStr}%c${pathStr}`,
+      `%c${atom}%c %c${op}%c | %c${path}%c | %c${initiator}%c | %c${stateValue.padEnd(
+        valLen,
+        " "
+      )}%c${metaStr}%c${pathStr}`,
       ...baseStyles.slice(0, 8),
       "color: lightskyblue; font-weight: bold",
       "color: #3498db; font-weight: bold",
       "color: #3498db; font-weight: bold",
     ]
     switch (true) {
-      case isLog(photon, "/"):
+      case isLog(boson, "/"):
         config.collapseAll ? console.groupCollapsed(...msgWithOutValue) : console.group(...msgWithOutValue)
         try {
           if (typeof patch.value === "object" && patch.value !== null) {
@@ -178,7 +181,7 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
           console.groupEnd()
         }
         break
-      case isLog(photon, "/context"):
+      case isLog(boson, "/context"):
         if (isError) console.group(...msgWithOutValue)
         else if (config.collapseAll) console.groupCollapsed(...msgWithOutValue)
         else console.group(...msgWithOutValue)
@@ -191,7 +194,7 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
           console.groupEnd()
         }
         break
-      case isLog(photon, "/state"):
+      case isLog(boson, "/state"):
         config.collapseAll ? console.groupCollapsed(...msgWithValue) : console.group(...msgWithValue)
         try {
         } finally {
@@ -205,10 +208,8 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
   // Функция логирования сообщений
   const logMsg = (data: Photon | any): void => {
     if (Object.hasOwn(data, "meta")) {
-      const { patches, ...msg } = data as Photon
-      for (const patch of patches) {
-        log({ ...msg, patch } as Impulse)
-      }
+      const { impulses, ...self } = data as Photon
+      for (const impulse of impulses) log({ ...self, impulse })
     } else {
       console.log(data)
     }

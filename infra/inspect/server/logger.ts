@@ -25,7 +25,7 @@ export function log(event: MessageEvent<Photon>) {
   const pathStr = event.data.path.padEnd(8)
 
   // Выводим каждый патч отдельно
-  for (const patch of event.data.patches) {
+  for (const patch of event.data.impulses) {
     switch (patch.path) {
       case "/state":
         console.log(

@@ -90,17 +90,17 @@ describe.skip("async process", async () => {
   const message = await waitForMessages(600)
 
   test("сообщение добавления мета", () => {
-    expect(message[0]?.patches[0]?.op).toBe("add")
+    expect(message[0]?.impulses[0]?.op).toBe("add")
   })
   test("вход в состояние отключен", () => {
-    expect(message[1]?.patches[0]).toEqual({
+    expect(message[1]?.impulses[0]).toEqual({
       op: "test",
       path: "/state",
       value: "отключен",
     })
   })
   test("изменение контекста в состоянии отключен", () => {
-    expect(message[2]?.patches[0]).toEqual({
+    expect(message[2]?.impulses[0]).toEqual({
       op: "replace",
       path: "/context",
       value: {
@@ -109,21 +109,21 @@ describe.skip("async process", async () => {
     })
   })
   test("подтверждение входа в состояние отключен", () => {
-    expect(message[3]?.patches[0]).toEqual({
+    expect(message[3]?.impulses[0]).toEqual({
       op: "replace",
       path: "/state",
       value: "отключен",
     })
   })
   test("вход в состоянии подключение", () => {
-    expect(message[4]?.patches[0]).toEqual({
+    expect(message[4]?.impulses[0]).toEqual({
       op: "test",
       path: "/state",
       value: "подключение",
     })
   })
   test("изменение контекста в состоянии подключение", () => {
-    expect(message[5]?.patches[0]).toEqual({
+    expect(message[5]?.impulses[0]).toEqual({
       op: "replace",
       path: "/context",
       value: {
@@ -132,14 +132,14 @@ describe.skip("async process", async () => {
     })
   })
   test("подтверждение входа в состоянии подключение", () => {
-    expect(message[6]?.patches[0]).toEqual({
+    expect(message[6]?.impulses[0]).toEqual({
       op: "replace",
       path: "/state",
       value: "подключение",
     })
   })
   test("вход в состоянии подключен", () => {
-    expect(message[7]?.patches[0]).toEqual({
+    expect(message[7]?.impulses[0]).toEqual({
       op: "test",
       path: "/state",
       value: "подключен",

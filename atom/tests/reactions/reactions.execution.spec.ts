@@ -24,7 +24,7 @@ test("Выполнение реакций через run", () => {
     atom: "id",
     path: "/",
     timestamp: Date.now(),
-    patches: [{ op: "replace", path: "/context", value: 1 }],
+    impulses: [{ op: "replace", path: "/context", value: 1 }],
   }
 
   const registry = reactionsFromSchema<Ctx, State, {}>(
@@ -42,7 +42,7 @@ test("Выполнение реакций через run", () => {
     meta: fakeMessage.meta,
     atom: fakeMessage.atom,
     timestamp: fakeMessage.timestamp,
-    patch: fakeMessage.patches[0] as JsonPatch,
+    patch: fakeMessage.impulses[0] as JsonPatch,
     context: fakeContext,
     state: "active",
     core,

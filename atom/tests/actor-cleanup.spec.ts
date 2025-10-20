@@ -117,7 +117,7 @@ describe("Очистка ресурсов атома", () => {
         atom: "atom-1",
         path: expect.any(String),
         timestamp: expect.any(Number),
-        patches: [{ op: "remove", path: "/" }],
+        impulses: [{ op: "remove", path: "/" }],
       })
     )
 

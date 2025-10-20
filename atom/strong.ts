@@ -71,7 +71,7 @@ export abstract class Strong extends Week {
     if (!this.reactions.exists()) return
     if (data.atom === this.id) return
 
-    for (const patch of data.patches) {
+    for (const patch of data.impulses) {
       this.reactions.run({
         meta: data.meta,
         atom: data.atom,

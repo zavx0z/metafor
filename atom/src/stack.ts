@@ -25,8 +25,8 @@ export function impulseInStack(stack: Impulse[], photon: Photon) {
   for (const impulse of stack) {
     if (impulse.atom !== photon.atom) continue
     if (impulse.initiator !== photon.initiator) continue
-    if (impulse.op !== photon.patches[0]!.op) continue
-    if (impulse.path !== photon.patches[0]!.path) continue
+    if (impulse.op !== photon.impulses[0]!.op) continue
+    if (impulse.path !== photon.impulses[0]!.path) continue
     return true
   }
   return false

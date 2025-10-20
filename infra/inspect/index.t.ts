@@ -1,6 +1,6 @@
-import type { Boson, JsonPatch, Photon } from "@metafor/atom"
+import type { Boson, JsonPatch, Photon } from "../../atom/em.t"
 export type { Photon }
 
-export interface Impulse extends Boson {
-  patch: JsonPatch
+export interface BosonLogger extends Boson {
+  impulse: JsonPatch
 }

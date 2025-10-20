@@ -142,7 +142,7 @@ export type MetaFor = (
            * .reactions(reaction => [
            *   ["idle", "loading"], // Состояния, в которых активна реакция
            *   {
-           *     filter: (args) => args.meta.tag === "roadmap" && args.patches[0]?.op === "replace",
+           *     filter: (args) => args.meta.tag === "roadmap" && args.impulses[0]?.op === "replace",
            *     update: ({ update, context, patch }) => {
            *       update({
            *         lastMessage: patch.value,

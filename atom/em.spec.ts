@@ -171,8 +171,8 @@ describe("Каналы коммуникации между атомами", () =
       expect(messages.length).toBeGreaterThan(0)
 
       // Ищем сообщение с обновлением контекста (replace)
-      const contextMessage = messages.find((msg) =>
-        msg.patches.some((patch: any) => patch.op === "replace" && patch.path === "/context")
+      const contextMessage = messages.find((photon) =>
+        photon.impulses.some((patch: any) => patch.op === "replace" && patch.path === "/context")
       )
       expect(contextMessage).toBeDefined()
       expect(contextMessage!.atom).toBe("atom-1")

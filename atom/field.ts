@@ -2,7 +2,7 @@ import type { Superposition } from "../meta/states"
 import { type Context, type Update } from "@zavx0z/context"
 import { Fields } from "./src/fields"
 import type { Atom } from "./atom"
-import type { ChunkPatches, AtomSnapshot } from "./gravity.t"
+import type { ImpulsesChunk, AtomPayload } from "./gravity.t"
 import { applyPatchesToSnapshot } from "./src/snapshot"
 import { Initiator, type Photon } from "./em"
 import type { Hidden, Values, Destroy } from "./field.t"
@@ -41,13 +41,13 @@ export abstract class Field {
   /**
    * Обновляет контекст атома и возвращает обновленные значения.
    * @param values Обновляемые значения.
-   * @param source Источник обновления.
+   * @param initiator Источник обновления.
    * @returns Обновленные значения.
    */
-  evaluate(values: Partial<Hidden<Values>>, source: Initiator = Initiator.Nothing): Partial<Hidden<Values>> {
+  evaluate(values: Partial<Hidden<Values>>, initiator: Initiator = Initiator.Nothing): Partial<Hidden<Values>> {
     const updated = this.#eval(values)
     if (Object.keys(updated).length > 0) {
-      if (!this.emitEvolution(updated, source)) return {}
+      if (!this.emitEvolution(updated, initiator)) return {}
     }
     return updated
   }
@@ -89,19 +89,19 @@ export abstract class Field {
   // -------------------------- История атомов -----------------------------------------
   private static readonly MAX_PATCHES = 1000
   private static readonly MAX_CHECKPOINTS = 10
-  protected static histories: ChunkPatches[] = []
+  protected static histories: ImpulsesChunk[] = []
   protected static checkpoints: Array<{
     index: number
-    snapshots: Map<string, AtomSnapshot>
+    snapshots: Map<string, AtomPayload>
     timestamp: number
   }> = []
 
   /** Последний сохраненный снапшот (метаданные) */
-  private static lastSaved: { atom: string; snapshot: AtomSnapshot; timestamp: number } | null = null
+  private static lastSaved: { atom: string; snapshot: AtomPayload; timestamp: number } | null = null
 
   static propagation(photon: Photon) {
     if (!photon) return false
-    for (const patch of photon.patches) {
+    for (const patch of photon.impulses) {
       if (patch.path === "/" && patch.op === "add") {
         Field.saveAtomSnapshot(photon.atom, patch.value)
       } else {
@@ -125,12 +125,12 @@ export abstract class Field {
 
   // -------------------------- Методы для работы с глобальной историей -----------------------------------------
 
-  protected static pushPatches(chunk: ChunkPatches): void {
+  protected static pushPatches(chunk: ImpulsesChunk): void {
     Field.histories.push(chunk)
     if (Field.histories.length >= Field.MAX_PATCHES) Field.createCheckpoint()
   }
 
-  protected static saveAtomSnapshot(atomId: string, snapshot: AtomSnapshot): void {
+  protected static saveAtomSnapshot(atomId: string, snapshot: AtomPayload): void {
     if (Field.checkpoints.length === 0) {
       // Если нет чекпоинтов, создаем первый
       Field.createCheckpoint()
@@ -146,7 +146,7 @@ export abstract class Field {
     const fields = Fields.get()
     if (!fields) return
 
-    const snapshots = new Map<string, AtomSnapshot>()
+    const snapshots = new Map<string, AtomPayload>()
     for (const atom of fields.getAllAtoms()) snapshots.set(atom.id, atom.snapshot)
 
     const checkpoint = { index: Field.histories.length, snapshots, timestamp: Date.now() }
@@ -227,7 +227,7 @@ export abstract class Field {
   }
 
   /** Получает снапшот атома на основе последнего сообщения в истории */
-  protected static getSnapshotByLastMessage(): AtomSnapshot | null {
+  protected static getSnapshotByLastMessage(): AtomPayload | null {
     // Берем последнее сообщение в истории
     if (Field.histories.length === 0) {
       return null
@@ -256,7 +256,7 @@ export abstract class Field {
     for (const chunk of patchesToApply) {
       if (chunk.atom === atomId) {
         // Применяем патчи к снапшоту
-        snapshot = applyPatchesToSnapshot(snapshot, chunk.patches)
+        snapshot = applyPatchesToSnapshot(snapshot, chunk.impulses)
       }
     }
 
@@ -264,7 +264,7 @@ export abstract class Field {
   }
 
   /** Получает снапшот атома из последнего чекпоинта */
-  protected static getAtomSnapshotFromCheckpoint(atomId: string): AtomSnapshot | null {
+  protected static getAtomSnapshotFromCheckpoint(atomId: string): AtomPayload | null {
     if (Field.checkpoints.length === 0) {
       return null
     }
@@ -274,7 +274,7 @@ export abstract class Field {
   }
 
   /** Возвращает последний сохраненный снапшот (без вычислений) */
-  protected static getLastSavedSnapshot(): AtomSnapshot | null {
+  protected static getLastSavedSnapshot(): AtomPayload | null {
     return Field.lastSaved ? Field.lastSaved.snapshot : null
   }
 }

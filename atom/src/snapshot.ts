@@ -1,17 +1,17 @@
 import type { HistoryEntry } from "../field.t"
-import type { AtomSnapshot } from "../gravity.t"
+import type { AtomPayload } from "../gravity.t"
 import type { JsonPatch } from "../em.t"
 import type { Primitive } from "./array.t"
 
-const snapshots = new WeakMap<any, AtomSnapshot>()
+const snapshots = new WeakMap<any, AtomPayload>()
 const histories = new WeakMap<any, HistoryEntry[]>()
 
-export function setAtomSnapshot(instance: any, snapshot: AtomSnapshot) {
+export function setAtomSnapshot(instance: any, snapshot: AtomPayload) {
   snapshots.set(instance, JSON.parse(JSON.stringify(snapshot)))
   histories.set(instance, [])
 }
 
-export function getAtomSnapshot(instance: any): AtomSnapshot | undefined {
+export function getAtomSnapshot(instance: any): AtomPayload | undefined {
   return snapshots.get(instance)
 }
 
@@ -31,7 +31,7 @@ function getByPointer(snapshot: any, path: string): any {
 }
 
 /** Создаёт инверсный патч для rollback */
-function invertPatch(patch: JsonPatch, snapshot: AtomSnapshot): JsonPatch {
+function invertPatch(patch: JsonPatch, snapshot: AtomPayload): JsonPatch {
   switch (patch.op) {
     case "add":
       return { op: "remove", path: patch.path }
@@ -51,7 +51,7 @@ function invertPatch(patch: JsonPatch, snapshot: AtomSnapshot): JsonPatch {
 }
 
 /** Применяет один патч к snapshot */
-function applyPatch(snapshot: AtomSnapshot, patch: JsonPatch) {
+function applyPatch(snapshot: AtomPayload, patch: JsonPatch) {
   // Обработка корневого пути
   if (patch.path === "/") {
     if (patch.op === "move") {
@@ -187,7 +187,7 @@ export function rollbackLast(instance: any): boolean {
 }
 
 /** Применяет патчи к снапшоту (чистая функция) */
-export function applyPatchesToSnapshot(snapshot: AtomSnapshot, patches: JsonPatch[]): AtomSnapshot {
+export function applyPatchesToSnapshot(snapshot: AtomPayload, patches: JsonPatch[]): AtomPayload {
   // Создаем копию снапшота для модификации
   const result = JSON.parse(JSON.stringify(snapshot))
 

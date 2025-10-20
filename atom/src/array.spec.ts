@@ -1,7 +1,6 @@
 import { describe, it, expect } from "bun:test"
 import { diffArrays, applyPatchesToArray } from "./array"
-import type { Patch, ArrayKey } from "./array.t"
-import type { Key } from "../field.t"
+import type { Patch } from "./array.t"
 
 describe("diffArrays & applyPatchesToArray - primitives", () => {
   it("returns no patches for identical arrays", () => {

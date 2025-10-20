@@ -42,7 +42,7 @@ describe.skip("MetaFor: инициализация с действиями", asy
 
   test("сообщение 1", () => {
     const message = messages[0]!
-    const patch = message.patches[0]!
+    const patch = message.impulses[0]!
 
     expect(patch.op, "patch.op должен быть 'add'").toBe("add")
     expect(patch.path, "patch.path должен быть '/' ").toBe("/")
@@ -50,9 +50,9 @@ describe.skip("MetaFor: инициализация с действиями", asy
       meta: hex.name,
       atom: "0",
       path: "0",
-      src: Initiator.Nothing,
+      initiator: Initiator.Nothing,
       timestamp: expect.any(Number),
-      patches: [
+      impulses: [
         {
           op: "add",
           path: "/",
@@ -100,21 +100,21 @@ describe.skip("MetaFor: инициализация с действиями", asy
   describe("state_1", () => {
     test("вход", () => {
       const message = messages[1]!
-      const patch = message.patches[0]!
+      const patch = message.impulses[0]!
       expect(patch.op, "patch.op должен быть 'test'").toBe("test")
       expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
       expect(patch.value, "patch.value должен быть 'state_1'").toEqual("state_1")
     })
     test("обновление контекста", () => {
       const message = messages[2]!
-      const patch = message.patches[0]!
+      const patch = message.impulses[0]!
       expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
       expect(patch.path, "patch.path должен быть '/context' ").toBe("/context")
       expect(patch.value, "patch.value должен быть { value: 'ctx_2' }").toEqual({ value: "ctx_2" })
     })
     test("переход", () => {
       const message = messages[3]!
-      const patch = message.patches[0]!
+      const patch = message.impulses[0]!
       expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
       expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
       expect(patch.value, "patch.value должен быть state_1").toEqual("state_1")
@@ -123,21 +123,21 @@ describe.skip("MetaFor: инициализация с действиями", asy
   describe("state_2", () => {
     test("вход", () => {
       const message = messages[4]!
-      const patch = message.patches[0]!
+      const patch = message.impulses[0]!
       expect(patch.op, "patch.op должен быть 'test'").toBe("test")
       expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
       expect(patch.value, "patch.value должен быть 'state_2'").toEqual("state_2")
     })
     test("обновление контекста", () => {
       const message = messages[5]!
-      const patch = message.patches[0]!
+      const patch = message.impulses[0]!
       expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
       expect(patch.path, "patch.path должен быть '/context' ").toBe("/context")
       expect(patch.value, "patch.value должен быть { value: 'ctx_3' }").toEqual({ value: "ctx_3" })
     })
     test("переход", () => {
       const message = messages[6]!
-      const patch = message.patches[0]!
+      const patch = message.impulses[0]!
       expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
       expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
       expect(patch.value, "patch.value должен быть state_2").toEqual("state_2")
@@ -146,21 +146,21 @@ describe.skip("MetaFor: инициализация с действиями", asy
   describe("state_3", () => {
     test("вход", () => {
       const message = messages[7]!
-      const patch = message.patches[0]!
+      const patch = message.impulses[0]!
       expect(patch.op, "patch.op должен быть 'test'").toBe("test")
       expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
       expect(patch.value, "patch.value должен быть 'state_3'").toEqual("state_3")
     })
     test("обновление контекста", () => {
       const message = messages[8]!
-      const patch = message.patches[0]!
+      const patch = message.impulses[0]!
       expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
       expect(patch.path, "patch.path должен быть '/context' ").toBe("/context")
       expect(patch.value, "patch.value должен быть { value: 'ctx_4' }").toEqual({ value: "ctx_4" })
     })
     test("переход", () => {
       const message = messages[9]!
-      const patch = message.patches[0]!
+      const patch = message.impulses[0]!
       expect(patch.op, "patch.op должен быть 'replace'").toBe("replace")
       expect(patch.path, "patch.path должен быть '/state' ").toBe("/state")
       expect(patch.value, "patch.value должен быть state_3").toEqual("state_3")

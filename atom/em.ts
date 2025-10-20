@@ -54,11 +54,8 @@ export abstract class EM extends Gravity {
     EM.lock = false
   }
   private static pushImpulse(photon: Photon) {
-    const { patches, meta, path, ...info } = photon
-    for (const patch of patches) {
-      const task = { ...info, ...patch }
-      EM.stack.push(task)
-    }
+    const { impulses, meta, path, ...self } = photon
+    for (const impulse of impulses) EM.stack.push({ ...self, ...impulse })
     EM.emitStack.forEach((observer) => observer(EM.stack))
   }
   private static shiftImpulse() {
@@ -74,7 +71,7 @@ export abstract class EM extends Gravity {
       ...atom.self,
       timestamp: impulse.timestamp,
       initiator: impulse.initiator,
-      patches: [impulse],
+      impulses: [impulse],
     }
     return { atom, energy, photon }
   }
@@ -97,7 +94,7 @@ export abstract class EM extends Gravity {
         break
       case Energy.Action:
         atom.emission(photon)
-        atom.state = photon.patches[0]!.value
+        atom.state = photon.impulses[0]!.value
         atom.action().then(atom.up).catch(atom.down)
         break
       case Energy.Success:
@@ -116,6 +113,8 @@ export abstract class EM extends Gravity {
         atom.down()
         break
       case Energy.Transition:
+        atom.state = photon.impulses[0]!.value
+        atom.emission(photon)
         atom.measurement()
         break
       case Energy.SuccessUpdate:
@@ -151,7 +150,7 @@ export abstract class EM extends Gravity {
       path: this.path,
       timestamp: Date.now(),
       initiator: Initiator.Nothing,
-      patches: [{ op: "add", path: "/", value }],
+      impulses: [{ op: "add", path: "/", value }],
     }
     if (!EM.lock) {
       this.emission(photon)
@@ -168,7 +167,7 @@ export abstract class EM extends Gravity {
       path: this.path,
       timestamp: Date.now(),
       initiator: Initiator.Nothing,
-      patches: [{ op: "test", path: "/state", value: eigenstate }],
+      impulses: [{ op: "test", path: "/state", value: eigenstate }],
     }
     if (!EM.lock) {
       this.emission(photon)
@@ -186,7 +185,7 @@ export abstract class EM extends Gravity {
       path: this.path,
       timestamp: Date.now(),
       initiator: Initiator.Transition,
-      patches: [{ op: "replace", path: "/state", value: eigenstate }],
+      impulses: [{ op: "replace", path: "/state", value: eigenstate }],
     }
     if (!EM.lock) {
       this.emission(photon)
@@ -203,7 +202,7 @@ export abstract class EM extends Gravity {
       path: this.path,
       timestamp: Date.now(),
       initiator: initiator,
-      patches: [{ op: "replace", path: "/context", value }],
+      impulses: [{ op: "replace", path: "/context", value }],
     }
     if (!EM.lock) {
       this.emission(photon)
@@ -221,7 +220,7 @@ export abstract class EM extends Gravity {
       path: this.path,
       timestamp: Date.now(),
       initiator: Initiator.Success,
-      patches: [{ op: "replace", path: "/state", value }],
+      impulses: [{ op: "replace", path: "/state", value }],
     }
     if (!EM.lock) {
       this.emission(photon)
@@ -239,7 +238,7 @@ export abstract class EM extends Gravity {
       path: this.path,
       timestamp: Date.now(),
       initiator: Initiator.Error,
-      patches: [{ op: "replace", path: "/state", value }],
+      impulses: [{ op: "replace", path: "/state", value }],
     }
     if (!EM.lock) {
       this.emission(photon)
@@ -256,7 +255,7 @@ export abstract class EM extends Gravity {
       path: this.path,
       timestamp: Date.now(),
       initiator: initiator,
-      patches: [{ op: "remove", path: "/" }],
+      impulses: [{ op: "remove", path: "/" }],
     }
     if (!EM.lock) {
       this.emission(photon)

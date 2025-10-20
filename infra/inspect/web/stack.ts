@@ -170,10 +170,6 @@ export class Stack extends HTMLElement {
 
     // Применяем стили напрямую через inline стили
     this.applyPositionStyles(position)
-
-    // Временная отладка
-    console.log("Position changed to:", position)
-    console.log("Applied classes:", this.className)
   }
 
   private applyPositionStyles(position: string) {
