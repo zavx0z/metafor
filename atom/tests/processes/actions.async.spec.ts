@@ -19,6 +19,6 @@ test("chain API — поддержка async action", async () => {
     })) as ProcessesSchema
   )
 
-  const guestProcess = processes.getProcess("guest")
+  const guestProcess = processes.get("guest")
   expect(typeof guestProcess?.success, "Метод success должен быть функцией").toBe("function")
 })

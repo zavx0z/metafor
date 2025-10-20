@@ -19,7 +19,7 @@ export type { Reactions } from "./reactions.t"
  * @example
  * ```ts
  * const reactions = deserializeReactions(schema)
- * if (reactions.hasReactions()) {
+ * if (reactions.exists()) {
  *   reactions.run({
  *     context,
  *     core,
@@ -317,9 +317,9 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
         }
       }
     },
-    hasReactions: () => reactions.length > 0,
-    getAllReactions: () => reactions.map(({ states, ...reaction }) => reaction),
-    getReactions: (state: S) => {
+    exists: () => reactions.length > 0,
+    getAll: () => reactions.map(({ states, ...reaction }) => reaction),
+    get: (state: S) => {
       return reactions.filter((reaction) => reaction.states.includes(state)).map(({ states, ...reaction }) => reaction)
     },
   }

@@ -33,14 +33,14 @@ export type Reactions<C extends Schema = Schema, S extends string = string, I ex
     destroy: Destroy
     self: Self
   }) => void
-  hasReactions: () => boolean
-  getAllReactions: () => Array<{
+  exists: () => boolean
+  getAll: () => Array<{
     label: string
     desc?: string
     update: ReactionAction<C, S, I>
     getConditions: (params: { self: Self; context: Values<C> }) => any
   }>
-  getReactions: (state: S) => Array<{
+  get: (state: S) => Array<{
     label: string
     desc?: string
     update: ReactionAction<C, S, I>

@@ -41,18 +41,18 @@ describe("deserializeReactions", () => {
     const deserializedReactions = reactionsFromSchema<Ctx, State, {}>(snapshot as any)
 
     // Проверяем, что структура сохранена
-    expect(deserializedReactions.hasReactions(), "десериализованные реакции должны содержать реакции").toBe(true)
-    expect(deserializedReactions.getAllReactions().length, "количество реакций должно совпадать").toBe(2)
+    expect(deserializedReactions.exists(), "десериализованные реакции должны содержать реакции").toBe(true)
+    expect(deserializedReactions.getAll().length, "количество реакций должно совпадать").toBe(2)
 
     // Проверяем реакции
-    const reactions = deserializedReactions.getAllReactions()
+    const reactions = deserializedReactions.getAll()
     expect(reactions[0]!.label, "название первой реакции должно совпадать").toBe("test_reaction")
     expect(reactions[1]!.label, "название второй реакции должно совпадать").toBe("another_reaction")
     expect(reactions[1]!.desc, "описание должно сохраниться").toBe("Описание")
 
     // Проверяем состояния
-    const idleReactions = deserializedReactions.getReactions("idle")
-    const activeReactions = deserializedReactions.getReactions("active")
+    const idleReactions = deserializedReactions.get("idle")
+    const activeReactions = deserializedReactions.get("active")
     expect(idleReactions.length, "должна быть одна реакция для idle").toBe(1)
     expect(activeReactions.length, "должна быть одна реакция для active").toBe(1)
     expect(idleReactions[0]!.label, "реакция для idle должна быть правильной").toBe("test_reaction")
@@ -86,10 +86,8 @@ describe("deserializeReactions", () => {
     const emptySnapshot = { reactions: {}, states: {} }
     const deserializedReactions = reactionsFromSchema<Ctx, State, {}>(emptySnapshot)
 
-    expect(deserializedReactions.hasReactions(), "пустые десериализованные реакции не должны содержать реакции").toBe(
-      false
-    )
-    expect(deserializedReactions.getAllReactions().length, "количество реакций должно быть 0").toBe(0)
+    expect(deserializedReactions.exists(), "пустые десериализованные реакции не должны содержать реакции").toBe(false)
+    expect(deserializedReactions.getAll().length, "количество реакций должно быть 0").toBe(0)
   })
 
   it("снимок с метаданными", () => {
@@ -111,14 +109,14 @@ describe("deserializeReactions", () => {
 
     const deserializedReactions = reactionsFromSchema<Ctx, State, {}>(snapshotWithMetadata)
 
-    expect(deserializedReactions.hasReactions(), "десериализованные реакции должны содержать реакции").toBe(true)
+    expect(deserializedReactions.exists(), "десериализованные реакции должны содержать реакции").toBe(true)
 
-    const reactions = deserializedReactions.getAllReactions()
+    const reactions = deserializedReactions.getAll()
     expect(reactions[0]!.label, "название должно сохраниться").toBe("test")
     expect(reactions[0]!.desc, "описание должно сохраниться").toBe("desc")
 
     // Проверяем, что состояния правильно связаны
-    const idleReactions = deserializedReactions.getReactions("idle")
+    const idleReactions = deserializedReactions.get("idle")
     expect(idleReactions.length, "должна быть одна реакция для idle").toBe(1)
     expect(idleReactions[0]!.label, "реакция должна быть правильной").toBe("test")
 

@@ -17,11 +17,11 @@ test("десериализация процессов работает корр�
   const processes = processesFromSchema<S, "guest">(snapshot)
 
   // Проверяем, что функции десериализации работают
-  expect(processes.getProcess("guest"), "должен возвращать процесс").toBeDefined()
-  expect(processes.hasProcess("guest"), "должен возвращать true для существующего процесса").toBe(true)
-  expect(processes.hasProcess("nonexistent" as any), "должен возвращать false для несуществующего процесса").toBe(false)
-  expect(processes.getProcessNames(), "должен возвращать массив имен процессов").toEqual(["guest"])
-  expect(processes.getAllProcesses(), "должен возвращать объект с процессами").toHaveProperty("guest")
+  expect(processes.get("guest"), "должен возвращать процесс").toBeDefined()
+  expect(processes.has("guest"), "должен возвращать true для существующего процесса").toBe(true)
+  expect(processes.has("nonexistent" as any), "должен возвращать false для несуществующего процесса").toBe(false)
+  expect(processes.names(), "должен возвращать массив имен процессов").toEqual(["guest"])
+  expect(processes.getAll(), "должен возвращать объект с процессами").toHaveProperty("guest")
 })
 
 test("наследование - deserializeProcesses создается из snapshot", () => {
@@ -39,9 +39,9 @@ test("наследование - deserializeProcesses создается из sn
   const processes = processesFromSchema<S, "guest">(snapshot)
 
   // Проверяем, что функции десериализации работают
-  expect(processes.getProcessNames(), "должен возвращать массив с guest").toEqual(["guest"])
-  expect(processes.hasProcess("guest"), "должен возвращать true").toBe(true)
-  expect(processes.hasProcess("nonexistent" as any), "должен возвращать false").toBe(false)
+  expect(processes.names(), "должен возвращать массив с guest").toEqual(["guest"])
+  expect(processes.has("guest"), "должен возвращать true").toBe(true)
+  expect(processes.has("nonexistent" as any), "должен возвращать false").toBe(false)
 })
 
 test("десериализация процессов имеет правильный интерфейс", () => {
@@ -51,12 +51,8 @@ test("десериализация процессов имеет правиль�
   const deserialized = processesFromSchema<S, "guest">({})
 
   // Проверяем, что функции десериализации имеют правильные методы
-  expect(typeof deserialized.getProcess, "deserializeProcesses должен иметь метод getProcess").toBe("function")
-  expect(typeof deserialized.hasProcess, "deserializeProcesses должен иметь метод hasProcess").toBe("function")
-  expect(typeof deserialized.getAllProcesses, "deserializeProcesses должен иметь метод getAllProcesses").toBe(
-    "function"
-  )
-  expect(typeof deserialized.getProcessNames, "deserializeProcesses должен иметь метод getProcessNames").toBe(
-    "function"
-  )
+  expect(typeof deserialized.get, "deserializeProcesses должен иметь метод getProcess").toBe("function")
+  expect(typeof deserialized.has, "deserializeProcesses должен иметь метод hasProcess").toBe("function")
+  expect(typeof deserialized.getAll, "deserializeProcesses должен иметь метод getAllProcesses").toBe("function")
+  expect(typeof deserialized.names, "deserializeProcesses должен иметь метод getProcessNames").toBe("function")
 })

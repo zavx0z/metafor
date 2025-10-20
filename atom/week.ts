@@ -23,7 +23,7 @@ export abstract class Week extends EM {
     Week.results.set(this, result)
   }
 
-  protected set process(process: Process | undefined) {
+  set process(process: Process | undefined) {
     this.#process = process
   }
 

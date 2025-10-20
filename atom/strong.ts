@@ -29,7 +29,7 @@ export abstract class Strong extends Week {
     this.up = this.up.bind(this)
     this.down = this.down.bind(this)
     this.connect()
-    this.measurement()
+    this.emitInit() && this.measurement()
   }
 
   measurement() {
@@ -41,7 +41,7 @@ export abstract class Strong extends Week {
     const eigenstate = Object.entries(eigenstates).find(([_, Ψ]) => decoherence(Ψ as Wave, this.λ))?.[0]
     if (!eigenstate) return
 
-    if ((this.process = this.processes.getProcess(eigenstate))) {
+    if ((this.process = this.processes.get(eigenstate))) {
       if (!this.emitProcess(eigenstate)) return
 
       this.state = eigenstate
@@ -67,9 +67,8 @@ export abstract class Strong extends Week {
     this.measurement()
   }
 
-  protected handleReaction(ev: MessageEvent) {
-    const { data } = ev as MessageEvent<Photon>
-    if (!this.hasReactions()) return
+  protected handleReaction({ data }: MessageEvent<Photon>) {
+    if (!this.reactions.exists()) return
     if (data.atom === this.id) return
 
     for (const patch of data.patches) {

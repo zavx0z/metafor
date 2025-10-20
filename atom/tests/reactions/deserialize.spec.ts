@@ -39,21 +39,21 @@ describe("deserializeReactions", () => {
 
     const reactions = reactionsFromSchema<C, S, {}>(snapshot)
 
-    expect(reactions.hasReactions(), "должны быть реакции").toBe(true)
+    expect(reactions.exists(), "должны быть реакции").toBe(true)
 
-    const allReactions = reactions.getAllReactions()
+    const allReactions = reactions.getAll()
     expect(allReactions.length, "должно быть 2 реакции").toBe(2)
     expect(allReactions[0]?.label, "название первой реакции должно сохраниться").toBe("increment")
     expect(allReactions[1]?.label, "название второй реакции должно сохраниться").toBe("reset")
 
-    const idleReactions = reactions.getReactions("idle")
+    const idleReactions = reactions.get("idle")
     expect(idleReactions.length, "должна быть 1 реакция для idle").toBe(1)
     expect(idleReactions[0]?.label, "реакция для idle должна быть increment").toBe("increment")
 
-    const activeReactions = reactions.getReactions("active")
+    const activeReactions = reactions.get("active")
     expect(activeReactions.length, "должно быть 2 реакции для active").toBe(2)
 
-    const errorReactions = reactions.getReactions("error")
+    const errorReactions = reactions.get("error")
     expect(errorReactions.length, "должна быть 1 реакция для error").toBe(1)
     expect(errorReactions[0]?.label, "реакция для error должна быть reset").toBe("reset")
   })
@@ -198,8 +198,8 @@ describe("deserializeReactions", () => {
 
     const reactions = reactionsFromSchema<C, S, {}>(snapshot)
 
-    expect(reactions.hasReactions(), "не должно быть реакций").toBe(false)
-    expect(reactions.getAllReactions(), "список реакций должен быть пустым").toEqual([])
-    expect(reactions.getReactions("idle"), "реакции для idle должны быть пустыми").toEqual([])
+    expect(reactions.exists(), "не должно быть реакций").toBe(false)
+    expect(reactions.getAll(), "список реакций должен быть пустым").toEqual([])
+    expect(reactions.get("idle"), "реакции для idle должны быть пустыми").toEqual([])
   })
 })

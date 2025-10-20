@@ -22,6 +22,6 @@ test("Строгая типизация действий", () => {
     })) as ProcessesSchema
   )
 
-  const guestProcess = processes.getProcess("guest")
+  const guestProcess = processes.get("guest")
   expect(typeof guestProcess?.success).toBe("function")
 })

@@ -42,16 +42,16 @@ describe("deserializeProcesses", () => {
 
     const processes = processesFromSchema<C, S, {}>(snapshot)
 
-    expect(processes.hasProcess("increment" as S), "процесс increment должен существовать").toBe(true)
-    expect(processes.hasProcess("reset" as S), "процесс reset должен существовать").toBe(true)
-    expect(processes.hasProcess("nonexistent" as S), "несуществующий процесс не должен существовать").toBe(false)
+    expect(processes.has("increment" as S), "процесс increment должен существовать").toBe(true)
+    expect(processes.has("reset" as S), "процесс reset должен существовать").toBe(true)
+    expect(processes.has("nonexistent" as S), "несуществующий процесс не должен существовать").toBe(false)
 
-    const incrementProcess = processes.getProcess("increment" as S)
+    const incrementProcess = processes.get("increment" as S)
     expect(incrementProcess, "процесс increment должен быть найден").toBeDefined()
     expect(incrementProcess?.label, "название процесса должно сохраниться").toBe("increment")
     expect(incrementProcess?.desc, "описание процесса должно сохраниться").toBe("Increment value")
 
-    const resetProcess = processes.getProcess("reset" as S)
+    const resetProcess = processes.get("reset" as S)
     expect(resetProcess, "процесс reset должен быть найден").toBeDefined()
     expect(resetProcess?.label, "название процесса должно сохраниться").toBe("reset")
     expect(resetProcess?.success, "success обработчик должен быть восстановлен").toBeDefined()
@@ -74,7 +74,7 @@ describe("deserializeProcesses", () => {
     }
 
     const processes = processesFromSchema<C, S, {}>(snapshot)
-    const process = processes.getProcess("multiply" as S)
+    const process = processes.get("multiply" as S)
 
     expect(process, "процесс должен быть найден").toBeDefined()
 
@@ -104,7 +104,7 @@ describe("deserializeProcesses", () => {
 
     const processes = processesFromSchema<C, S, {}>(snapshot)
 
-    const allProcesses = processes.getAllProcesses()
+    const allProcesses = processes.getAll()
     expect(Object.keys(allProcesses).length, "должно быть 3 процесса").toBe(3)
     // @ts-ignore
     expect(allProcesses.process1, "процесс 1 должен существовать").toBeDefined()
@@ -113,16 +113,16 @@ describe("deserializeProcesses", () => {
     // @ts-ignore
     expect(allProcesses.process3, "процесс 3 должен существовать").toBeDefined()
 
-    const processNames = processes.getProcessNames()
+    const processNames = processes.names()
     expect(processNames, "имена процессов должны быть корректными").toEqual(["process1", "process2", "process3"])
   })
 
   test("пустой snapshot", () => {
     const processes = processesFromSchema<C, S, {}>({})
 
-    expect(processes.hasProcess("any" as S), "не должно быть процессов").toBe(false)
-    expect(processes.getProcess("any" as S), "не должно быть процессов").toBeUndefined()
-    expect(processes.getAllProcesses(), "объект процессов должен быть пустым").toEqual({} as Record<S, Process<C, {}>>)
-    expect(processes.getProcessNames(), "список имен должен быть пустым").toEqual([])
+    expect(processes.has("any" as S), "не должно быть процессов").toBe(false)
+    expect(processes.get("any" as S), "не должно быть процессов").toBeUndefined()
+    expect(processes.getAll(), "объект процессов должен быть пустым").toEqual({} as Record<S, Process<C, {}>>)
+    expect(processes.names(), "список имен должен быть пустым").toEqual([])
   })
 })

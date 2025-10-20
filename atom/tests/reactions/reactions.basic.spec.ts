@@ -34,7 +34,7 @@ test("Создание уникальных реакций", () => {
     ]) as any
   )
 
-  const all = registry.getAllReactions()
+  const all = registry.getAll()
   expect(all?.length, "уникальные реакции").toBe(2)
   expect(all?.[0]?.label, "первая реакция").toBe("inc")
   expect(all?.[1]?.label, "вторая реакция").toBe("reset")

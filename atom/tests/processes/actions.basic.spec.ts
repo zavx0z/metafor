@@ -26,8 +26,8 @@ test("Базовый chain API для действий", () => {
     })) as ProcessesSchema
   )
 
-  const guestProcess = processes.getProcess("guest")
-  const userProcess = processes.getProcess("user")
+  const guestProcess = processes.get("guest")
+  const userProcess = processes.get("user")
 
   expect(typeof guestProcess?.success, "Метод success должен быть функцией").toBe("function")
   expect(typeof guestProcess?.error, "Метод error должен быть функцией").toBe("function")

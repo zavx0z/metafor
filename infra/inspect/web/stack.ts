@@ -32,6 +32,8 @@ export class Stack extends HTMLElement {
         ${style}
       </style>
     `
+    const off = EM.onChangeStack((stack) => this.render(stack))
+    this.off = off
 
     // Создаем панель управления
     this.controlPanel = document.createElement("div")
@@ -106,14 +108,11 @@ export class Stack extends HTMLElement {
 
     this.setupResizeHandlers()
     this.setupControlHandlers()
-    
+
     // Инициализируем состояние кнопки "шаг вперёд"
     import("@metafor/atom").then(({ Atom }) => {
       this.stepBtn.disabled = !Atom.isLocked
     })
-    
-    const off = EM.onChangeStack((stack) => this.render(stack))
-    this.off = off
   }
   connectedCallback() {
     // Плавное появление панели
@@ -126,8 +125,6 @@ export class Stack extends HTMLElement {
       this.style.opacity = "1"
       this.style.transform = "translateY(0)"
     })
-    // @ts-expect-error
-    setTimeout(() => this.render(EM.stack), 200)
   }
 
   private loadHeight() {

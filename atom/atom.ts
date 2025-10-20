@@ -11,7 +11,7 @@ export class Atom extends Strong {
     }
   }
 
-  protected action(): Promise<any> {
+  action(): Promise<any> {
     return new Promise<any>((resolve, reject) => {
       if (!this.process?.action) return reject(new Error("Нечего делать!"))
       try {

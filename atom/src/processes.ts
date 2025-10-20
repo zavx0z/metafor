@@ -56,9 +56,9 @@ export function processesFromSchema<C extends Schema = Schema, S extends string 
   }
 
   return {
-    getProcess: (name: S) => processes[name],
-    hasProcess: (name: S) => name in processes,
-    getAllProcesses: () => ({ ...processes }),
-    getProcessNames: () => Object.keys(processes),
+    get: (name: S) => processes[name],
+    has: (name: S) => name in processes,
+    getAll: () => ({ ...processes }),
+    names: () => Object.keys(processes),
   }
 }

@@ -27,10 +27,10 @@ import type { Self } from "../atom"
 import type { Week } from "../week"
 
 export type Processes<C extends Schema = Schema, S extends string = string, I extends Core = Core> = {
-  getProcess: (name: S) => Process<C, I> | undefined
-  hasProcess: (name: S) => boolean
-  getAllProcesses: () => Record<S, Process<C, I>>
-  getProcessNames: () => string[]
+  get: (name: S) => Process<C, I> | undefined
+  has: (name: S) => boolean
+  getAll: () => Record<S, Process<C, I>>
+  names: () => string[]
 }
 
 /**
