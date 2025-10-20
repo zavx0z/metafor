@@ -63,7 +63,7 @@ export const style = css`
   li {
     padding: 4px 8px;
     display: grid;
-    grid-template-columns: 80px 60px 80px 30px 100px 1fr;
+    grid-template-columns: 80px 60px 80px 30px 64px 1fr;
     /* gap: 8px; */
     background-color: transparent;
     border-bottom: 1px solid #444;

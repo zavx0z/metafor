@@ -1,5 +1,6 @@
 import { type Impulse } from "@metafor/atom"
 import { style } from "./stack-table.styled"
+import { shortUUID } from "."
 
 export class StackTable extends HTMLElement {
   private ul!: HTMLUListElement
@@ -72,7 +73,7 @@ export class StackTable extends HTMLElement {
       <span>${minSecMilliseconds}</span>
       <span>${impulse.op}</span>
       <span>${impulse.path}</span>
-      <span>${impulse.atom.split("-").pop()}</span>
+      <span>${shortUUID(impulse.atom)}</span>
       <span>${JSON.stringify(impulse.value)}</span>
     `
 
@@ -104,7 +105,7 @@ export class StackTable extends HTMLElement {
       <span>${impulse.op}</span>
       <span>${impulse.path}</span>
       <span>${impulse.initiator}</span>
-      <span>${impulse.atom.split("-").pop()}</span>
+      <span>${shortUUID(impulse.atom)}</span>
       <span>${JSON.stringify(impulse.value)}</span>
     `
   }

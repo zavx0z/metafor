@@ -103,12 +103,6 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
     return `hsl(${hue}, ${saturation}%, ${lightness}%)`
   }
 
-  // Функция логирования ядра
-  const logCore = (core: Record<string, any>): void => {
-    console.log("snapshot debug: ", { ...core })
-    console.log("current  debug: ", core)
-  }
-
   // Функция проверки логирования
   const isLog = (message: BosonLogger, path: "/" | "/context" | "/state"): boolean =>
     Boolean(
@@ -118,12 +112,14 @@ function createLoggerModule(userConfig: Partial<Config> = {}) {
         (!config.meta.length || config.meta.includes(message.meta)) &&
         (config.index === null || message.atom === String(config.index))
     )
-
+  function shortUUID(uuid: string): string {
+    return uuid.slice(0, 8)
+  }
   // Основная функция логирования
   const log = (boson: BosonLogger): void => {
     const metaStr = String(boson.meta).padEnd(36, " ")
     const pathStr = boson.path
-    const atom = boson.atom.includes("-") ? boson.atom.slice(boson.atom.lastIndexOf("-") + 1) : boson.atom
+    const atom = shortUUID(boson.atom)
     const op = String(boson.impulse.op).padEnd(config.width.op, " ")
     const path = String(boson.impulse.path).padEnd(config.width.path, " ")
     const initiator = centerText(boson.initiator, 4)
