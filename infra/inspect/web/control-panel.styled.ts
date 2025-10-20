@@ -4,118 +4,171 @@ export const style = css`
     display: block;
   }
 
-  /* Панель управления */
+  /* Панель управления в стиле DevTools */
   .control-panel {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 4px 8px;
-    background-color: rgba(0, 0, 0, 0.3);
-    border-radius: 3px;
-    margin: 3px 0px;
-    min-height: 20px;
+    padding: 0 4px;
+    background-color: #1e1e1e;
+    border-bottom: 1px solid #333;
+    margin: 0;
+    height: 32px;
     position: relative;
+    flex-shrink: 0;
+  }
+
+  /* Адаптивный layout для боковых позиций */
+  .control-panel[data-layout="vertical"] {
+    flex-direction: column;
+    align-items: stretch;
+    justify-content: flex-start;
+    padding: 8px 4px;
+    gap: 4px;
+    min-height: auto;
+    min-width: 20px;
+  }
+
+  .control-panel[data-layout="vertical"] .left-group,
+  .control-panel[data-layout="vertical"] .center-group {
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    position: static;
+    transform: none;
+  }
+
+  .control-panel[data-layout="vertical"] .center-group {
+    order: -1;
+  }
+
+  .control-panel[data-layout="vertical"] .collapse-btn {
+    align-self: center;
+    margin-top: 4px;
+  }
+
+  /* Адаптация размеров для вертикального layout */
+  .control-panel[data-layout="vertical"] .opacity-slider {
+    width: 100%;
+    height: 3px;
+    transform: rotate(90deg);
+    transform-origin: center;
+  }
+
+  .control-panel[data-layout="vertical"] .position-select {
+    min-width: auto;
+    width: 100%;
+    font-size: 9px;
+    padding: 1px 3px;
+  }
+
+  .control-panel[data-layout="vertical"] .debug-btn,
+  .control-panel[data-layout="vertical"] .clear-btn {
+    width: 16px;
+    height: 16px;
+    font-size: 8px;
   }
 
   /* Левая группа (корзина + слайдер) */
   .left-group {
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 7px;
     height: 100%;
+    padding: 1px 2px;
   }
 
   /* Центральная группа (кнопки дебага) */
   .center-group {
     display: flex;
     align-items: center;
-    gap: 4px;
+    gap: 1px;
     position: absolute;
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
     height: 100%;
+    padding: 1px 2px;
   }
 
   .opacity-slider {
     width: 60px;
-    height: 3px;
-    background: rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
+    height: 2px;
+    background: #444;
+    border-radius: 1px;
     outline: none;
     cursor: pointer;
+    -webkit-appearance: none;
   }
 
   .opacity-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
     appearance: none;
-    width: 10px;
-    height: 10px;
-    background: #4caf50;
-    border-radius: 50%;
+    width: 8px;
+    height: 8px;
+    background: #666;
+    border-radius: 1px;
     cursor: pointer;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3);
+    border: none;
   }
 
   .opacity-slider::-moz-range-thumb {
-    width: 10px;
-    height: 10px;
-    background: #4caf50;
-    border-radius: 50%;
+    width: 8px;
+    height: 8px;
+    background: #666;
+    border-radius: 1px;
     cursor: pointer;
     border: none;
-    box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.3);
   }
 
-  .collapse-btn {
-    background: rgba(255, 255, 255, 0.1);
-    color: #e6e6e6;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .position-select {
+    background: #1e1e1e;
+    color: #ccc;
+    border: none;
+    border-radius: 0;
+    padding: 2px 4px;
+    font-size: 11px;
     cursor: pointer;
-    font-size: 12px;
-    font-weight: bold;
-    transition: background 0.2s ease, transform 0.1s ease;
-    align-self: center;
+    outline: none;
+    min-width: 50px;
+    height: 18px;
   }
 
-  .collapse-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: scale(1.05);
+  .position-select:hover {
+    background: #2d2d2d;
+    color: #ccc;
   }
 
-  .collapse-btn:active {
-    transform: scale(0.95);
+  .position-select option {
+    background: #1e1e1e;
+    color: #ccc;
   }
 
   /* Кнопки управления дебагом */
-  .debug-btn {
-    background: rgba(255, 255, 255, 0.1);
-    color: #e6e6e6;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    border-radius: 2px;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+  .debug-btn,
+  .collapse-btn {
+    background: #1e1e1e;
+    color: #ccc;
+    border: none;
+    border-radius: 0;
+    width: 32px;
+    height: 100%;
     cursor: pointer;
-    font-size: 10px;
-    font-weight: bold;
-    transition: background 0.2s ease, transform 0.1s ease;
+    font-size: 11px;
+    font-weight: normal;
+    outline: none;
+    padding: 0 4px;
   }
 
-  .debug-btn:hover {
-    background: rgba(255, 255, 255, 0.2);
-    transform: scale(1.05);
+  .debug-btn:hover,
+  .collapse-btn:hover {
+    background: #2d2d2d;
+    color: #ccc;
   }
 
-  .debug-btn:active {
-    transform: scale(0.95);
+  .debug-btn:active,
+  .collapse-btn:active {
+    background: #0d0d0d;
   }
 
   .debug-btn[disabled] {
@@ -138,10 +191,10 @@ export const style = css`
 
   /* Кнопка очистки стека */
   .clear-btn {
-    background: rgba(244, 67, 54, 0.2);
-    color: #ff5252;
-    border: 1px solid rgba(244, 67, 54, 0.3);
-    border-radius: 2px;
+    background: #1e1e1e;
+    color: #ff6666;
+    border: none;
+    border-radius: 0;
     width: 20px;
     height: 20px;
     display: flex;
@@ -149,16 +202,16 @@ export const style = css`
     justify-content: center;
     cursor: pointer;
     font-size: 10px;
-    font-weight: bold;
-    transition: background 0.2s ease, transform 0.1s ease;
+    font-weight: normal;
+    outline: none;
   }
 
   .clear-btn:hover {
-    background: rgba(244, 67, 54, 0.3);
-    transform: scale(1.05);
+    background: #2d2d2d;
+    color: #ff6666;
   }
 
   .clear-btn:active {
-    transform: scale(0.95);
+    background: #0d0d0d;
   }
 `

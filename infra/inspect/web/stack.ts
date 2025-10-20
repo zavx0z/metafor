@@ -16,8 +16,10 @@ export class Stack extends HTMLElement {
   private isResizing = false
   private startY = 0
   private startHeight = 0
+  private currentPosition = "bottom"
   private readonly STORAGE_KEY = "metafor-stack-height"
   private readonly OPACITY_KEY = "metafor-stack-opacity"
+  private readonly POSITION_KEY = "metafor-stack-position"
   private off: () => void
   #shadow: ShadowRoot | null = null
 
@@ -38,6 +40,10 @@ export class Stack extends HTMLElement {
     // Создаем handle для изменения размера
     this.resizeHandle = document.createElement("div")
     this.resizeHandle.className = "resize-handle"
+    this.resizeHandle.style.position = "absolute"
+    this.resizeHandle.style.zIndex = "1001"
+    // this.resizeHandle.style.backgroundColor = "rgba(255, 255, 255, 0.3)"
+    this.resizeHandle.style.cursor = "ns-resize"
 
     // Добавляем элементы в shadow root
     this.#shadow!.appendChild(this.controlPanel)
@@ -54,6 +60,9 @@ export class Stack extends HTMLElement {
     if (!localStorage.getItem(this.OPACITY_KEY)) {
       this.style.setProperty("--panel-opacity", "0.9")
     }
+
+    // Загружаем позицию (если есть сохраненная) или устанавливаем по умолчанию
+    this.loadPosition()
 
     this.setupResizeHandlers()
     this.setupControlHandlers()
@@ -111,6 +120,7 @@ export class Stack extends HTMLElement {
         if (opacity >= 0.1 && opacity <= 1) {
           this.controlPanel.setOpacity(opacity.toString())
           this.style.setProperty("--panel-opacity", opacity.toString())
+          this.stackTable.style.setProperty("--panel-opacity", opacity.toString())
         }
       }
     } catch (error) {
@@ -123,6 +133,153 @@ export class Stack extends HTMLElement {
       localStorage.setItem(this.OPACITY_KEY, opacity)
     } catch (error) {
       console.warn("Failed to save stack opacity to localStorage:", error)
+    }
+  }
+
+  private loadPosition() {
+    try {
+      const savedPosition = localStorage.getItem(this.POSITION_KEY)
+      const position = savedPosition || "bottom"
+      this.controlPanel.setPosition(position)
+      this.setPosition(position)
+    } catch (error) {
+      console.warn("Failed to load stack position from localStorage:", error)
+      // Устанавливаем позицию по умолчанию в случае ошибки
+      this.controlPanel.setPosition("bottom")
+      this.setPosition("bottom")
+    }
+  }
+
+  private savePosition(position: string) {
+    try {
+      localStorage.setItem(this.POSITION_KEY, position)
+    } catch (error) {
+      console.warn("Failed to save stack position to localStorage:", error)
+    }
+  }
+
+  private setPosition(position: string) {
+    // Сохраняем текущую позицию
+    this.currentPosition = position
+
+    // Удаляем все классы позиции
+    this.classList.remove("position-bottom", "position-top", "position-left", "position-right")
+
+    // Добавляем новый класс позиции
+    this.classList.add(`position-${position}`)
+
+    // Применяем стили напрямую через inline стили
+    this.applyPositionStyles(position)
+
+    // Временная отладка
+    console.log("Position changed to:", position)
+    console.log("Applied classes:", this.className)
+  }
+
+  private applyPositionStyles(position: string) {
+    // Сбрасываем все позиционные стили
+    this.style.top = ""
+    this.style.bottom = ""
+    this.style.left = ""
+    this.style.right = ""
+    this.style.width = ""
+    this.style.height = ""
+    this.style.flexDirection = ""
+
+    switch (position) {
+      case "top":
+        this.style.top = "0"
+        this.style.bottom = "auto"
+        this.style.left = "0"
+        this.style.right = "0"
+        this.style.height = `${this.panelHeight}px`
+        this.style.width = "auto"
+        this.style.flexDirection = "column"
+        this.style.boxShadow = "0 4px 20px rgba(0, 0, 0, 0.3)"
+        // Настраиваем resize handle для верхней позиции (снизу от панели)
+        this.resizeHandle.style.top = "auto"
+        this.resizeHandle.style.left = "0"
+        this.resizeHandle.style.right = "0"
+        this.resizeHandle.style.bottom = "0"
+        this.resizeHandle.style.width = "auto"
+        this.resizeHandle.style.height = "4px"
+        this.resizeHandle.style.cursor = "ns-resize"
+        // this.resizeHandle.style.backgroundColor = "rgba(255, 255, 255, 0.3)"
+        // Адаптируем ControlPanel для горизонтального layout
+        this.controlPanel.setAttribute("data-layout", "horizontal")
+        // Адаптируем StackTable для вертикального layout
+        this.stackTable.setAttribute("data-layout", "vertical")
+        break
+      case "left":
+        this.style.left = "0"
+        this.style.right = "auto"
+        this.style.top = "0"
+        this.style.bottom = "0"
+        this.style.width = `${this.panelHeight}px`
+        this.style.height = "auto"
+        this.style.flexDirection = "column"
+        this.style.boxShadow = "4px 0 20px rgba(0, 0, 0, 0.3)"
+        // Настраиваем resize handle для левой позиции (справа от панели)
+        this.resizeHandle.style.top = "0"
+        this.resizeHandle.style.right = "0"
+        this.resizeHandle.style.left = "auto"
+        this.resizeHandle.style.bottom = "0"
+        this.resizeHandle.style.width = "4px"
+        this.resizeHandle.style.height = "auto"
+        this.resizeHandle.style.cursor = "ew-resize"
+        // this.resizeHandle.style.backgroundColor = "rgba(255, 255, 255, 0.3)"
+        // Адаптируем ControlPanel для вертикального layout
+        this.controlPanel.setAttribute("data-layout", "vertical")
+        // Адаптируем StackTable для вертикального layout
+        this.stackTable.setAttribute("data-layout", "vertical")
+        break
+      case "right":
+        this.style.right = "0"
+        this.style.left = "auto"
+        this.style.top = "0"
+        this.style.bottom = "0"
+        this.style.width = `${this.panelHeight}px`
+        this.style.height = "auto"
+        this.style.flexDirection = "column"
+        this.style.boxShadow = "-4px 0 20px rgba(0, 0, 0, 0.3)"
+        // Настраиваем resize handle для правой позиции (слева от панели)
+        this.resizeHandle.style.top = "0"
+        this.resizeHandle.style.left = "0"
+        this.resizeHandle.style.right = "auto"
+        this.resizeHandle.style.bottom = "0"
+        this.resizeHandle.style.width = "4px"
+        this.resizeHandle.style.height = "auto"
+        this.resizeHandle.style.cursor = "ew-resize"
+        // this.resizeHandle.style.backgroundColor = "rgba(255, 255, 255, 0.3)"
+        // Адаптируем ControlPanel для вертикального layout
+        this.controlPanel.setAttribute("data-layout", "vertical")
+        // Адаптируем StackTable для вертикального layout
+        this.stackTable.setAttribute("data-layout", "vertical")
+        break
+      case "bottom":
+      default:
+        this.style.bottom = "0"
+        this.style.top = "auto"
+        this.style.left = "0"
+        this.style.right = "0"
+        this.style.height = `${this.panelHeight}px`
+        this.style.width = "auto"
+        this.style.flexDirection = "column"
+        this.style.boxShadow = "0 -4px 20px rgba(0, 0, 0, 0.3)"
+        // Настраиваем resize handle для нижней позиции (сверху от панели)
+        this.resizeHandle.style.top = "0"
+        this.resizeHandle.style.left = "0"
+        this.resizeHandle.style.right = "0"
+        this.resizeHandle.style.bottom = "auto"
+        this.resizeHandle.style.width = "auto"
+        this.resizeHandle.style.height = "4px"
+        this.resizeHandle.style.cursor = "ns-resize"
+        // this.resizeHandle.style.backgroundColor = "rgba(255, 255, 255, 0.3)"
+        // Адаптируем ControlPanel для горизонтального layout
+        this.controlPanel.setAttribute("data-layout", "horizontal")
+        // Адаптируем StackTable для вертикального layout
+        this.stackTable.setAttribute("data-layout", "vertical")
+        break
     }
   }
 
@@ -139,7 +296,15 @@ export class Stack extends HTMLElement {
     this.controlPanel.addEventListener("opacity-change", (e: Event) => {
       const customEvent = e as CustomEvent
       this.style.setProperty("--panel-opacity", customEvent.detail.value)
+      this.stackTable.style.setProperty("--panel-opacity", customEvent.detail.value)
       this.saveOpacity(customEvent.detail.value)
+    })
+
+    // Обработчик изменения позиции
+    this.controlPanel.addEventListener("position-change", (e: Event) => {
+      const customEvent = e as CustomEvent
+      this.setPosition(customEvent.detail.value)
+      this.savePosition(customEvent.detail.value)
     })
 
     // Обработчик кнопки свернуть
@@ -189,14 +354,17 @@ export class Stack extends HTMLElement {
 
       // Скрываем содержимое сразу для быстрого сворачивания
       this.stackTable.setVisible(false)
+      // Панель управления остается видимой
+      this.controlPanel.style.display = "flex"
+      this.controlPanel.style.visibility = "visible"
       // Скрываем resize handle только если панель полностью сворачивается
       if (this.panelHeight <= 32) {
         this.resizeHandle.style.display = "none"
       }
 
-      // Плавно сворачиваем
-      this.style.transition = "height 0.3s ease"
-      this.style.setProperty("--panel-height", "32px")
+      // Плавно сворачиваем всю панель
+      // CSS классы обрабатывают переходы и размеры
+      // Не нужно устанавливать inline стили, так как CSS классы это делают
 
       // Сбрасываем флаг анимации и убираем класс после завершения
       setTimeout(() => {
@@ -214,7 +382,7 @@ export class Stack extends HTMLElement {
       this.resizeHandle.style.display = "block"
 
       // Плавно разворачиваем
-      this.style.transition = "height 0.3s ease"
+      // CSS классы обрабатывают переходы, а переменная --panel-height восстанавливает размер
       this.style.setProperty("--panel-height", this.panelHeight.toString())
 
       // Сбрасываем флаг анимации и убираем класс после завершения разворачивания
@@ -286,22 +454,65 @@ export class Stack extends HTMLElement {
 
   private handleMouseDown(e: MouseEvent) {
     this.isResizing = true
-    this.startY = e.clientY
+
+    // Получаем текущую позицию для правильного курсора
+    if (this.currentPosition === "left" || this.currentPosition === "right") {
+      this.startY = e.clientX // Для боковых позиций используем clientX
+      this.resizeHandle.style.cursor = "ew-resize"
+      document.body.style.cursor = "ew-resize"
+    } else {
+      this.startY = e.clientY // Для вертикальных позиций используем clientY
+      this.resizeHandle.style.cursor = "ns-resize"
+      document.body.style.cursor = "ns-resize"
+    }
+
     this.startHeight = this.panelHeight
-    this.resizeHandle.style.cursor = "ns-resize"
-    document.body.style.cursor = "ns-resize"
     e.preventDefault()
   }
 
   private handleMouseMove(e: MouseEvent) {
     if (!this.isResizing) return
 
-    const deltaY = this.startY - e.clientY // Инвертируем для интуитивного поведения
-    const maxHeight = window.innerHeight * 0.9 // 90% от высоты экрана
-    const newHeight = Math.max(100, Math.min(maxHeight, this.startHeight + deltaY))
+    // Получаем текущую позицию
+    if (this.currentPosition === "left" || this.currentPosition === "right") {
+      // Для боковых позиций изменяем ширину
+      const deltaX = e.clientX - this.startY // startY теперь содержит clientX
+      const maxWidth = window.innerWidth * 0.9 // 90% от ширины экрана
 
-    this.panelHeight = newHeight
-    this.style.setProperty("--panel-height", newHeight.toString())
+      let newWidth
+      if (this.currentPosition === "left") {
+        // Для левой позиции: тянем вправо = увеличиваем ширину
+        newWidth = Math.max(100, Math.min(maxWidth, this.startHeight + deltaX))
+      } else {
+        // Для правой позиции: тянем влево = увеличиваем ширину (инвертируем)
+        newWidth = Math.max(100, Math.min(maxWidth, this.startHeight - deltaX))
+      }
+
+      this.panelHeight = newWidth
+      this.style.setProperty("--panel-height", newWidth.toString())
+
+      // Обновляем ширину напрямую для боковых позиций
+      this.style.width = `${newWidth}px`
+    } else {
+      // Для верхней и нижней позиций изменяем высоту
+      const deltaY = e.clientY - this.startY // startY теперь содержит clientY
+      const maxHeight = window.innerHeight * 0.9 // 90% от высоты экрана
+
+      let newHeight
+      if (this.currentPosition === "top") {
+        // Для верхней позиции: тянем вниз = увеличиваем высоту
+        newHeight = Math.max(100, Math.min(maxHeight, this.startHeight + deltaY))
+      } else {
+        // Для нижней позиции: тянем вверх = увеличиваем высоту (инвертируем)
+        newHeight = Math.max(100, Math.min(maxHeight, this.startHeight - deltaY))
+      }
+
+      this.panelHeight = newHeight
+      this.style.setProperty("--panel-height", newHeight.toString())
+
+      // Обновляем высоту напрямую для верхних/нижних позиций
+      this.style.height = `${newHeight}px`
+    }
 
     // Плавная анимация изменения размера
     this.style.transition = "none" // Отключаем transition во время перетаскивания
@@ -309,7 +520,14 @@ export class Stack extends HTMLElement {
 
   private handleMouseUp() {
     this.isResizing = false
-    this.resizeHandle.style.cursor = "ns-resize"
+
+    // Получаем текущую позицию для правильного курсора
+    if (this.currentPosition === "left" || this.currentPosition === "right") {
+      this.resizeHandle.style.cursor = "ew-resize"
+    } else {
+      this.resizeHandle.style.cursor = "ns-resize"
+    }
+
     document.body.style.cursor = ""
 
     // Восстанавливаем transition для плавных анимаций только если панель не анимируется

@@ -9,18 +9,78 @@ export const style = css`
     bottom: 0;
     left: 0;
     right: 0;
-    z-index: 1000;
-    background-color: rgba(37, 37, 37, var(--panel-opacity));
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    padding: 0;
-    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
     height: calc(var(--panel-height) * 1px);
+    width: auto;
+    z-index: 1000;
+    background-color: rgba(30, 30, 30, var(--panel-opacity));
+    border-top: 1px solid #333;
+    padding: 0;
+    box-shadow: none;
     max-width: 100vw;
+    max-height: 100vh;
     overflow: hidden;
     margin: 0;
     font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
-    font-size: 12px;
-    line-height: 1.4;
+    font-size: 11px;
+    line-height: 1.3;
+    color: #cccccc;
+  }
+
+  /* Позиции панели */
+  :host.position-bottom {
+    bottom: 0 !important;
+    top: auto !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: calc(var(--panel-height) * 1px) !important;
+    width: auto !important;
+    flex-direction: column !important;
+    border-top: 1px solid #333 !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-bottom: none !important;
+  }
+
+  :host.position-top {
+    top: 0 !important;
+    bottom: auto !important;
+    left: 0 !important;
+    right: 0 !important;
+    height: calc(var(--panel-height) * 1px) !important;
+    width: auto !important;
+    flex-direction: column !important;
+    border-bottom: 1px solid #333 !important;
+    border-left: none !important;
+    border-right: none !important;
+    border-top: none !important;
+  }
+
+  :host.position-left {
+    left: 0 !important;
+    right: auto !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: calc(var(--panel-height) * 1px) !important;
+    height: auto !important;
+    flex-direction: column !important;
+    border-right: 1px solid #333 !important;
+    border-left: none !important;
+    border-top: none !important;
+    border-bottom: none !important;
+  }
+
+  :host.position-right {
+    right: 0 !important;
+    left: auto !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: calc(var(--panel-height) * 1px) !important;
+    height: auto !important;
+    flex-direction: column !important;
+    border-left: 1px solid #333 !important;
+    border-right: none !important;
+    border-top: none !important;
+    border-bottom: none !important;
   }
 
   /* Оптимизация для быстрого сворачивания */
@@ -28,24 +88,73 @@ export const style = css`
     pointer-events: auto !important;
   }
 
+  /* Специальные стили для сворачивания боковых позиций */
+  :host.position-left.collapsing,
+  :host.position-right.collapsing {
+    transition: width 0.3s ease !important;
+  }
+
+  :host.position-bottom.collapsing,
+  :host.position-top.collapsing {
+    transition: height 0.3s ease !important;
+  }
+
+  /* Принудительное применение размеров для сворачивания */
+  :host.position-left.collapsing {
+    width: 32px !important;
+  }
+
+  :host.position-right.collapsing {
+    width: 32px !important;
+  }
+
+  :host.position-bottom.collapsing {
+    height: 20px !important;
+  }
+
+  :host.position-top.collapsing {
+    height: 20px !important;
+    /* Для верхней позиции сворачиваемся вверх - позиция уже установлена в position-top */
+  }
+
   /* Handle для изменения размера */
   .resize-handle {
     position: absolute;
-    top: 0;
-    left: 0;
-    right: 0;
-    height: 4px;
-    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.3) 50%, transparent 100%);
-    cursor: ns-resize;
     z-index: 1001;
     transition: background 0.2s ease;
   }
 
+  /* Resize handle для верхней и нижней позиций */
+  :host.position-bottom .resize-handle,
+  :host.position-top .resize-handle {
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 1px;
+    background: #555;
+    cursor: ns-resize;
+    opacity: 0.2;
+  }
+
+  /* Resize handle для левой и правой позиций */
+  :host.position-left .resize-handle,
+  :host.position-right .resize-handle {
+    top: 0;
+    left: 0;
+    bottom: 0;
+    width: 1px;
+    background: #555;
+    cursor: ew-resize;
+    opacity: 0.2;
+  }
+
   .resize-handle:hover {
-    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.6) 50%, transparent 100%);
+    background: #666;
+    opacity: 0.6;
   }
 
   .resize-handle:active {
-    background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.8) 50%, transparent 100%);
+    background: #777;
+    opacity: 0.8;
   }
 `

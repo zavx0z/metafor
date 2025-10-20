@@ -2,6 +2,7 @@ import { style } from "./control-panel.styled"
 
 export class ControlPanel extends HTMLElement {
   private opacitySlider!: HTMLInputElement
+  private positionSelect!: HTMLSelectElement
   private collapseBtn!: HTMLButtonElement
   private playBtn!: HTMLButtonElement
   private stepBtn!: HTMLButtonElement
@@ -41,6 +42,27 @@ export class ControlPanel extends HTMLElement {
     this.opacitySlider.className = "opacity-slider"
     this.opacitySlider.title = "Прозрачность панели"
 
+    // Создаем селект позиции
+    this.positionSelect = document.createElement("select")
+    this.positionSelect.className = "position-select"
+    this.positionSelect.title = "Позиция панели"
+
+    const positions = [
+      { value: "bottom", text: "Снизу" },
+      { value: "top", text: "Сверху" },
+      { value: "left", text: "Слева" },
+      { value: "right", text: "Справа" },
+    ]
+
+    positions.forEach((pos) => {
+      const option = document.createElement("option")
+      option.value = pos.value
+      option.textContent = pos.text
+      this.positionSelect.appendChild(option)
+    })
+
+    this.positionSelect.value = "bottom"
+
     // Создаем кнопку свернуть
     this.collapseBtn = document.createElement("button")
     this.collapseBtn.className = "collapse-btn"
@@ -64,11 +86,12 @@ export class ControlPanel extends HTMLElement {
     this.clearBtn.innerHTML = "🗑"
     this.clearBtn.title = "Очистить стек"
 
-    // Создаем левую группу (корзина + слайдер)
+    // Создаем левую группу (корзина + слайдер + позиция)
     const leftGroup = document.createElement("div")
     leftGroup.className = "left-group"
     leftGroup.appendChild(this.clearBtn)
     leftGroup.appendChild(this.opacitySlider)
+    leftGroup.appendChild(this.positionSelect)
 
     // Создаем центральную группу (кнопки дебага)
     const centerGroup = document.createElement("div")
@@ -88,6 +111,15 @@ export class ControlPanel extends HTMLElement {
       this.dispatchEvent(
         new CustomEvent("opacity-change", {
           detail: { value: this.opacitySlider.value },
+        })
+      )
+    })
+
+    // Обработчик селекта позиции
+    this.positionSelect.addEventListener("change", () => {
+      this.dispatchEvent(
+        new CustomEvent("position-change", {
+          detail: { value: this.positionSelect.value },
         })
       )
     })
@@ -135,6 +167,10 @@ export class ControlPanel extends HTMLElement {
 
   setStepDisabled(disabled: boolean) {
     this.stepBtn.disabled = disabled
+  }
+
+  setPosition(position: string) {
+    this.positionSelect.value = position
   }
 }
 

@@ -4,4 +4,5 @@ export interface ControlPanel extends HTMLElement {
   setOpacity(value: string): void
   setPlayState(isPlaying: boolean): void
   setStepDisabled(disabled: boolean): void
+  setPosition(position: string): void
 }

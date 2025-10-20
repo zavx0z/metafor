@@ -6,13 +6,44 @@ export const style = css`
     overflow: hidden;
   }
 
+  /* Вертикальный layout для боковых позиций */
+  :host[data-layout="vertical"] {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    width: 100%;
+  }
+
+  :host[data-layout="vertical"] ul {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 2px;
+    padding: 2px;
+  }
+
+  :host[data-layout="vertical"] li {
+    width: 100%;
+    grid-template-columns: 50px 30px 50px 15px 60px 1fr;
+    font-size: 9px;
+    padding: 3px 4px;
+    min-height: 20px;
+  }
+
+  :host[data-layout="vertical"] li span {
+    font-size: 8px;
+    padding: 1px 3px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   ul {
     list-style: none;
     padding: 0 4px;
     margin: 0;
     display: flex;
     flex-direction: column;
-    gap: 4px;
+    /* gap: 4px; */
     flex: 1;
     overflow-y: auto;
     min-height: 0;
@@ -30,53 +61,57 @@ export const style = css`
   }
 
   li {
-    padding: 8px 12px;
+    padding: 4px 8px;
     display: grid;
     grid-template-columns: 80px 60px 80px 30px 100px 1fr;
-    gap: 8px;
-    background-color: rgba(24, 24, 24, 0.87);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    border-radius: 6px;
-    transition: background-color 0.2s ease;
+    /* gap: 8px; */
+    background-color: transparent;
+    border-bottom: 1px solid #444;
+    border-radius: 0;
+    transition: background-color 0.1s ease;
+    min-height: 20px;
+    font-size: 11px;
   }
 
   li:hover {
-    background-color: rgba(255, 255, 255, 0.1);
+    background-color: rgba(40, 40, 40, var(--panel-opacity, 0.9));
   }
 
   li span {
-    padding: 4px 6px;
-    background-color: rgba(255, 255, 255, 0.08);
-    border-radius: 3px;
+    padding: 2px 4px;
+    background-color: transparent;
+    border-radius: 0;
     font-size: 11px;
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    line-height: 1.3;
+    font-family: "Monaco", "Menlo", "Ubuntu Mono", monospace;
   }
 
   li span:first-child {
-    color: #888;
-    font-weight: 500;
+    color: #999;
+    font-weight: normal;
   }
 
   li span:nth-child(2) {
     color: #4caf50;
-    font-weight: 600;
+    font-weight: bold;
     text-transform: uppercase;
   }
 
   li span:nth-child(3) {
-    color: #2196f3;
+    color: #64b5f6;
     font-family: monospace;
   }
 
   li span:nth-child(4) {
-    color: #ff9800;
-    font-weight: 500;
+    color: #ffb74d;
+    font-weight: normal;
   }
 
   li span:last-child {
-    color: #e91e63;
+    color: #e5b9c8cc;
     font-family: monospace;
     max-width: 100%;
     overflow: hidden;
@@ -86,33 +121,33 @@ export const style = css`
   /* Стили для удаленных импульсов */
   li.removed {
     opacity: 0.4;
-    background-color: rgba(20, 20, 20, 0.59);
-    border-color: rgba(255, 255, 255, 0.05);
-    transition: opacity 0.3s ease;
+    border-bottom: 1px solid #444;
+    transition: opacity 0.2s ease;
+    background-color: rgba(40, 40, 40, var(--panel-opacity, 0.9));
   }
 
   li.removed span {
     color: #666;
-    background-color: rgba(31, 31, 31, 0.6);
+    background-color: transparent;
   }
 
   li.removed span:first-child {
-    color: #444;
+    color: #555;
   }
 
   li.removed span:nth-child(2) {
-    color: #2e7d32;
+    color: #388e3c;
   }
 
   li.removed span:nth-child(3) {
-    color: #1565c0;
+    color: #21588fc4;
   }
 
   li.removed span:nth-child(4) {
-    color: #ef6c00;
+    color: #664a2dbc;
   }
 
   li.removed span:last-child {
-    color: #ad1457;
+    color: #97315ac6;
   }
 `
