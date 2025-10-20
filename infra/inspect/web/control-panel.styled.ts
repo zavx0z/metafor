@@ -9,7 +9,6 @@ export const style = css`
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 0 4px;
     background-color: #1e1e1e;
     border-bottom: 1px solid #333;
     margin: 0;
@@ -131,7 +130,7 @@ export const style = css`
     cursor: pointer;
     outline: none;
     min-width: 50px;
-    height: 18px;
+    height: 100%;
   }
 
   .position-select:hover {
@@ -195,13 +194,10 @@ export const style = css`
     color: #ff6666;
     border: none;
     border-radius: 0;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
+    width: 32px;
+    height: 100%;
     cursor: pointer;
-    font-size: 10px;
+    font-size: 11px;
     font-weight: normal;
     outline: none;
   }

@@ -171,6 +171,13 @@ export class ControlPanel extends HTMLElement {
 
   setPosition(position: string) {
     this.positionSelect.value = position
+
+    // Скрываем кнопку сворачивания для боковых позиций
+    if (position === "left" || position === "right") {
+      this.collapseBtn.style.display = "none"
+    } else {
+      this.collapseBtn.style.display = "block"
+    }
   }
 }
 

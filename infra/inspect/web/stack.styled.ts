@@ -83,38 +83,45 @@ export const style = css`
     border-bottom: none !important;
   }
 
-  /* Оптимизация для быстрого сворачивания */
-  :host.collapsing .resize-handle {
-    pointer-events: auto !important;
+  /* Стили для сворачивания панели */
+  :host.collapsed {
+    transition: height 0.3s ease, width 0.3s ease !important;
   }
 
-  /* Специальные стили для сворачивания боковых позиций */
-  :host.position-left.collapsing,
-  :host.position-right.collapsing {
-    transition: width 0.3s ease !important;
+  /* Сворачивание для нижней позиции */
+  :host.position-bottom.collapsed {
+    height: 32px !important;
   }
 
-  :host.position-bottom.collapsing,
-  :host.position-top.collapsing {
-    transition: height 0.3s ease !important;
+  /* Сворачивание для верхней позиции */
+  :host.position-top.collapsed {
+    height: 32px !important;
   }
 
-  /* Принудительное применение размеров для сворачивания */
-  :host.position-left.collapsing {
+  /* Сворачивание для левой позиции */
+  :host.position-left.collapsed {
     width: 32px !important;
   }
 
-  :host.position-right.collapsing {
+  /* Сворачивание для правой позиции */
+  :host.position-right.collapsed {
     width: 32px !important;
   }
 
-  :host.position-bottom.collapsing {
-    height: 20px !important;
+  /* Скрытие содержимого при сворачивании */
+  :host.collapsed stack-table {
+    display: none !important;
   }
 
-  :host.position-top.collapsing {
-    height: 20px !important;
-    /* Для верхней позиции сворачиваемся вверх - позиция уже установлена в position-top */
+  /* Показ только панели управления при сворачивании */
+  :host.collapsed control-panel {
+    display: flex !important;
+    visibility: visible !important;
+  }
+
+  /* Скрытие resize handle при сворачивании */
+  :host.collapsed .resize-handle {
+    display: none !important;
   }
 
   /* Handle для изменения размера */

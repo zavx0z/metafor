@@ -344,54 +344,51 @@ export class Stack extends HTMLElement {
     this.isAnimating = true
     this.isCollapsed = !this.isCollapsed
 
+    console.log("Toggle collapse:", this.isCollapsed, "Position:", this.currentPosition)
+
     // Обновляем состояние панели управления
     this.controlPanel.setCollapsed(this.isCollapsed)
 
+    // Сворачивание работает только для верхних и нижних позиций
+    if (this.currentPosition === "left" || this.currentPosition === "right") {
+      console.log("Collapse not supported for side positions")
+      this.isAnimating = false
+      return
+    }
+
     if (this.isCollapsed) {
-      // Добавляем класс для оптимизации сворачивания
-      this.classList.add("collapsing")
-      this.stackTable.classList.add("collapsing")
+      // Добавляем класс для сворачивания
+      this.classList.add("collapsed")
+      console.log("Added collapsed class, classes:", this.className)
 
-      // Скрываем содержимое сразу для быстрого сворачивания
-      this.stackTable.setVisible(false)
-      // Панель управления остается видимой
-      this.controlPanel.style.display = "flex"
-      this.controlPanel.style.visibility = "visible"
-      // Скрываем resize handle только если панель полностью сворачивается
-      if (this.panelHeight <= 32) {
-        this.resizeHandle.style.display = "none"
-      }
+      // Принудительно устанавливаем размер для сворачивания
+      this.style.height = "32px"
+      this.style.width = "100vw"
 
-      // Плавно сворачиваем всю панель
-      // CSS классы обрабатывают переходы и размеры
-      // Не нужно устанавливать inline стили, так как CSS классы это делают
-
-      // Сбрасываем флаг анимации и убираем класс после завершения
-      setTimeout(() => {
-        this.classList.remove("collapsing")
-        this.stackTable.classList.remove("collapsing")
-        this.isAnimating = false
-      }, 300)
+      // Скрываем содержимое
+      this.stackTable.style.display = "none"
+      this.resizeHandle.style.display = "none"
     } else {
-      // Добавляем класс для оптимизации разворачивания
-      this.classList.add("collapsing")
-      this.stackTable.classList.add("collapsing")
+      // Убираем класс сворачивания
+      this.classList.remove("collapsed")
+      console.log("Removed collapsed class, classes:", this.className)
 
-      // Показываем содержимое
-      this.stackTable.setVisible(true)
-      this.resizeHandle.style.display = "block"
-
-      // Плавно разворачиваем
-      // CSS классы обрабатывают переходы, а переменная --panel-height восстанавливает размер
+      // Восстанавливаем размер панели
       this.style.setProperty("--panel-height", this.panelHeight.toString())
 
-      // Сбрасываем флаг анимации и убираем класс после завершения разворачивания
-      setTimeout(() => {
-        this.classList.remove("collapsing")
-        this.stackTable.classList.remove("collapsing")
-        this.isAnimating = false
-      }, 300)
+      // Принудительно восстанавливаем размер
+      this.style.height = `${this.panelHeight}px`
+      this.style.width = "100vw"
+
+      // Показываем содержимое
+      this.stackTable.style.display = "block"
+      this.resizeHandle.style.display = "block"
     }
+
+    // Сбрасываем флаг анимации после завершения анимации
+    setTimeout(() => {
+      this.isAnimating = false
+    }, 300)
   }
 
   private handlePlayClick() {
