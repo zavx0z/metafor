@@ -23,8 +23,7 @@
 import type { Schema, Values, Update } from "@zavx0z/context"
 import type { Core } from "../gravity"
 import type { Destroy } from "../field"
-import type { Self } from "../atom"
-import type { Week } from "../week"
+import type { Atom, Self } from "../atom"
 
 export type Processes<C extends Schema = Schema, S extends string = string, I extends Core = Core> = {
   get: (name: S) => Process<C, I> | undefined
@@ -286,9 +285,9 @@ export type Process<C extends Schema = Schema, I extends Core = Core, Res = any>
   /** Основная функция процесса */
   action: (params: ActionParams<C, I>) => Res | Promise<Res>
   /** Обработчик успешного завершения */
-  success?: (params: { update: Week["evaluate"]; data: Res }) => void
+  success?: (params: { update: Atom["evaluate"]; data: Res }) => void
   /** Обработчик ошибки */
-  error?: (params: { update: Week["evaluate"]; error: Error }) => void
+  error?: (params: { update: Atom["evaluate"]; error: Error }) => void
   /** Название процесса для документации */
   label?: string
   /** Описание процесса для документации */

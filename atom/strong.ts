@@ -10,7 +10,7 @@ import { reactionsFromSchema } from "./src/reactions"
 import { Field, type Hidden, type Values } from "./field"
 import { Atom } from "./atom"
 import { decoherence, type Wave } from "./src/states"
-import { type Photon } from "./em"
+import { EM, type Photon } from "./em"
 
 export abstract class Strong extends Week {
   constructor(
@@ -88,9 +88,18 @@ export abstract class Strong extends Week {
     this.measurement()
   }
 
+  /**
+   * Обновляет контекст атома и возвращает обновленные значения.
+   * @param values Обновляемые значения.
+   * @returns Обновленные значения.
+   */
+  @EM.it
+  evaluate(values: Partial<Hidden<Values>>): Partial<Hidden<Values>> {
+    const updated = this.update(values)
+    return updated
+  }
   // ---------------------------------------------------------------------
 
-  /** Создаёт атома */
   static fromSchema<M extends Meta>(config: {
     meta: M
     id?: string

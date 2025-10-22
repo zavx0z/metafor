@@ -1,6 +1,6 @@
-import { type Impulse } from "@metafor/atom"
 import { style } from "./stack-table.styled"
 import { shortUUID } from "."
+import type { Impulse } from "../../../atom/em"
 
 export class StackTable extends HTMLElement {
   private ul!: HTMLUListElement
@@ -74,7 +74,7 @@ export class StackTable extends HTMLElement {
       <span>${impulse.op}</span>
       <span>${impulse.path}</span>
       <span>${shortUUID(impulse.atom)}</span>
-      <span>${JSON.stringify(impulse.value)}</span>
+      <span>${typeof impulse.value === "undefined" ? "" : JSON.stringify(impulse.value)}</span>
     `
 
     // Вставляем в начало списка (новые элементы сверху)

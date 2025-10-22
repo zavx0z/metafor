@@ -35,6 +35,7 @@
       "name": "@metafor/meta",
       "version": "0.4.1",
       "dependencies": {
+        "@zavx0z/context": "^2.3.0",
         "@zavx0z/template": "^2.6.1",
       },
     },

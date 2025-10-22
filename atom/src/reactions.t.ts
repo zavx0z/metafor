@@ -4,12 +4,11 @@
  * @module Reactions
  */
 
-import type { Schema, Values } from "@zavx0z/context"
+import type { Schema, Update, Values } from "@zavx0z/context"
 import type { JsonPatch } from "../em.t"
 import type { Core } from "../gravity.t"
 import type { ReactionAction } from "../../meta/reactions.t"
 import type { Self } from "../../meta/metafor"
-import type { Week } from "../week"
 import type { Destroy } from "../field"
 
 export type ReactionParams = {
@@ -29,7 +28,7 @@ export type Reactions<C extends Schema = Schema, S extends string = string, I ex
     atom: string
     timestamp: number
     patch: JsonPatch
-    update: Week["evaluate"]
+    update: Update<C>
     destroy: Destroy
     self: Self
   }) => void

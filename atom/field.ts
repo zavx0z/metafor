@@ -4,9 +4,9 @@ import { Fields } from "./src/fields"
 import type { Atom } from "./atom"
 import type { ImpulsesChunk, AtomPayload } from "./gravity.t"
 import { applyPatchesToSnapshot } from "./src/snapshot"
-import { Initiator, type Photon } from "./em"
 import type { Hidden, Values, Destroy } from "./field.t"
 import type { Self } from "../meta/metafor"
+import { EM, type Initiator, type Photon } from "./em"
 
 export type { Hidden, Values, Destroy }
 
@@ -23,13 +23,13 @@ export abstract class Field {
   static get fields(): Fields {
     return Fields.get()
   }
-  #eval: Update<Values>
+  update: Update<Values>
 
   protected constructor(_: unknown, id: string, meta: string) {
     this.id = id
     this.meta = meta
     const hidden = _ as Context<Values>
-    this.#eval = hidden.update
+    this.update = hidden.update
     this.fields = hidden.schema
     this.λ = hidden.context
   }
@@ -37,20 +37,6 @@ export abstract class Field {
   // ------------------------------ скрытые параметры ----------------------------------------
 
   protected abstract emitEvolution(context: Partial<Hidden<Values>>, initiator: Initiator): boolean
-
-  /**
-   * Обновляет контекст атома и возвращает обновленные значения.
-   * @param values Обновляемые значения.
-   * @param initiator Источник обновления.
-   * @returns Обновленные значения.
-   */
-  evaluate(values: Partial<Hidden<Values>>, initiator: Initiator = Initiator.Nothing): Partial<Hidden<Values>> {
-    const updated = this.#eval(values)
-    if (Object.keys(updated).length > 0) {
-      if (!this.emitEvolution(updated, initiator)) return {}
-    }
-    return updated
-  }
 
   // ---------------------------------------------------------------------
 
@@ -114,7 +100,7 @@ export abstract class Field {
   protected rollbackContext() {
     const snapshot = Field.getSnapshotByLastMessage()
     if (!snapshot) throw new Error("Snapshot not found")
-    this.#eval(snapshot?.context)
+    this.update(snapshot?.context)
   }
 
   protected rollbackState() {

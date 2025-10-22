@@ -23,8 +23,9 @@
   ],
   "scripts": {
     "pub": "bun publish --access public --tag latest",
+    "build": "bun run web:build && bun run server:build",
     "prepublish": "bun run web:build && bun run server:build && bun run web:typegen && bun run server:typegen",
-    "web:build": "bun build web/logger.ts --outdir ./dist/web --sourcemap=linked && bun build web/debugger.ts --packages external --outdir ./dist/web --sourcemap=linked",
+    "web:build": "bun build web/logger.ts --outdir ./dist/web --sourcemap=linked && bun build web/debugger.ts --outdir ./dist/web --sourcemap=linked",
     "web:watch": "bun run web:build --watch",
     "server:build": "bun build server/logger.ts --outdir ./dist/server",
     "typegen": "bun run web:typegen && bun run server:typegen",

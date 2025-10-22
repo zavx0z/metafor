@@ -1,10 +1,11 @@
-import { EM } from "@metafor/atom"
-import { type Impulse } from "@metafor/atom"
+import { EM } from "../../../atom/em"
+
 import { style } from "./stack.styled"
 import "./control-panel"
 import "./stack-table"
 import type { ControlPanel } from "./control-panel.t"
 import type { StackTable } from "./stack-table.t"
+import type { Impulse } from "../../../atom/em"
 
 export class Stack extends HTMLElement {
   private controlPanel: ControlPanel
@@ -29,8 +30,8 @@ export class Stack extends HTMLElement {
     const styleSheet = new CSSStyleSheet()
     styleSheet.replaceSync(style)
     this.#shadow.adoptedStyleSheets = [styleSheet]
-
-    const off = EM.onChangeStack((stack) => this.render(stack))
+    EM.lock = true
+    const off = EM.onChangeStack((stack: Impulse[]) => this.render(stack))
     this.off = off
 
     // Создаем компоненты
@@ -70,6 +71,7 @@ export class Stack extends HTMLElement {
 
     // Инициализируем состояние кнопки "шаг вперёд"
     import("@metafor/atom").then(({ Atom }) => {
+      console.log(!Atom.isLocked)
       this.controlPanel.setStepDisabled(!Atom.isLocked)
     })
   }

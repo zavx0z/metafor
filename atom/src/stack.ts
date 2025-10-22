@@ -2,22 +2,19 @@ import { Initiator, type Photon } from "../em.t"
 import { type Impulse, Energy } from "./stack.t"
 export { type Impulse, Energy }
 
-export function getImpulseType(stack: Impulse[], impulse: Impulse): Energy {
-  if (impulse.op === "add") return Energy.Init
-  if (impulse.op === "test") {
-    const lastTask = stack[stack.length - 1]
-    if (stack[0]?.op === "add") return Energy.AfterInit
-    return Energy.Action
+export function getImpulseType(impulse: Impulse): Energy {
+  const { op, path, initiator } = impulse
+  if (op === "add") return Energy.Init
+  if (op === "test") return Energy.Action
+  if (op === "replace") {
+    if (path === "/state" && initiator === Initiator.Success) return Energy.Success
+    if (path === "/state" && initiator === Initiator.Error) return Energy.Error
+    if (path === "/state" && initiator === Initiator.Transition) return Energy.Transition
+    if (path === "/context" && initiator === Initiator.Success) return Energy.SuccessUpdate
+    if (path === "/context" && initiator === Initiator.Error) return Energy.ErrorUpdate
+    if (path === "/context" && initiator.split(":")[0] === Initiator.Reaction) return Energy.ReactionUpdate
   }
-  if (impulse.op === "replace") {
-    if (impulse.path === "/state" && impulse.initiator === Initiator.Success) return Energy.Success
-    if (impulse.path === "/state" && impulse.initiator === Initiator.Error) return Energy.Error
-    if (impulse.path === "/state" && impulse.initiator === Initiator.Transition) return Energy.Transition
-    if (impulse.path === "/context" && impulse.initiator === Initiator.Success) return Energy.SuccessUpdate
-    if (impulse.path === "/context" && impulse.initiator === Initiator.Error) return Energy.ErrorUpdate
-    if (impulse.path === "/context" && impulse.initiator === Initiator.Transition) return Energy.ReactionUpdate
-  }
-  if (impulse.op === "remove") return Energy.Destroy
+  if (op === "remove") return Energy.Destroy
   return Energy.Nothing
 }
 

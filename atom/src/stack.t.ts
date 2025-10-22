@@ -13,7 +13,6 @@ export enum Energy {
   Init = "init",
   Transition = "transition",
   Action = "action",
-  AfterInit = "init-action",
   Success = "success",
   Error = "error",
   SuccessUpdate = "success-update-context",
