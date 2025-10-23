@@ -20,8 +20,8 @@
   },
   "scripts": {
     "upd": "bun update --latest && bun i",
-    "build": "bun --filter @metafor/meta build && bun --filter @metafor/atom build && bun --filter @metafor/inspect build",
-    "typegen": "bun --filter @metafor/meta typegen && bun --filter @metafor/atom typegen && bun --filter @metafor/inspect typegen",
-    "clear": "bun --filter @metafor/meta clear && bun --filter @metafor/atom clear && bun --filter @metafor/inspect clear"
+    "clear": "bun --filter @metafor/meta clear && bun --filter @metafor/atom clear && bun --filter @metafor/inspect clear",
+    "typegen": "bun --filter @metafor/meta typegen && bun --filter @metafor/atom typegen && bun i && bun --filter @metafor/inspect typegen",
+    "build": "bun --filter @metafor/meta build && bun --filter @metafor/atom build && bun --filter @metafor/inspect build"
   }
 }

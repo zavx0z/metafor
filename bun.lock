@@ -3,10 +3,6 @@
   "workspaces": {
     "": {
       "name": "metafor",
-      "dependencies": {
-        "@zavx0z/context": "2.3.0",
-        "@zavx0z/template": "^2.6.1",
-      },
       "devDependencies": {
         "@types/bun": "^1.2.23",
         "dts-bundle-generator": "^9.5.1",
@@ -27,14 +23,14 @@
     "infra/inspect": {
       "name": "@metafor/inspect",
       "version": "0.4.1",
-      "dependencies": {
+      "devDependencies": {
         "@metafor/atom": "workspace:*",
       },
     },
     "meta": {
       "name": "@metafor/meta",
       "version": "0.4.1",
-      "dependencies": {
+      "devDependencies": {
         "@zavx0z/context": "^2.3.0",
         "@zavx0z/template": "^2.6.1",
       },

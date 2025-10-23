@@ -84,7 +84,7 @@
  * @packageDocumentation
  */
 import { contextSchema, type Schema, type Types } from "@zavx0z/context"
-import { parse } from "@zavx0z/template"
+import { parse, type NodeLogical, type NodeMeta, type Node as NodeType } from "@zavx0z/template"
 import type { Core } from "../atom/gravity.t"
 
 import { validateNoUnconditionalCycles, type Superposition } from "./states"
@@ -94,7 +94,8 @@ import { serializeStyle } from "./style"
 
 import type { MetaForConfig, MetaFor, ViewDeclaration, Meta } from "./metafor.t"
 import type { Self } from "../atom/atom"
-export type { MetaFor, Meta, Self, Superposition }
+
+export type { MetaFor, Meta, Self, Superposition, NodeMeta, NodeType, NodeLogical }
 
 globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc

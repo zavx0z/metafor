@@ -33,7 +33,7 @@
     "server:build": "bun build server/logger.ts --outdir ./dist/server --sourcemap=linked --external @metafor/atom",
     "server:typegen": "bunx dts-bundle-generator --out-file ./dist/server/index.d.ts -- server/logger.ts"
   },
-  "dependencies": {
+  "devDependencies": {
     "@metafor/atom": "workspace:*"
   }
 }

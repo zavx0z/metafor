@@ -19,9 +19,9 @@
   "scripts": {
     "pub": "bun run build && bun run typegen && bun publish --access public --tag latest",
     "build": "bun run build:prod && bun run build:dev",
+    "watch": "bun run build:dev --watch",
     "typegen": "bunx dts-bundle-generator --out-file ./dist/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context -- atom.ts",
     "clear": "rm -rf ./dist && rm -rf ./node_modules",
-    "build:watch": "bun --watch build atom.ts --outdir ./dist --sourcemap=linked",
     "build:prod": "bun build atom.ts --outdir ./dist --minify --entry-naming [name].min.[ext]",
     "build:dev": "bun build atom.ts --outdir ./dist --sourcemap=linked",
     "docs": "typedoc",
