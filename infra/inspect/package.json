@@ -24,12 +24,13 @@
   "scripts": {
     "pub": "bun publish --access public --tag latest",
     "build": "bun run web:build && bun run server:build",
-    "prepublish": "bun run web:build && bun run server:build && bun run web:typegen && bun run server:typegen",
-    "web:build": "bun build web/logger.ts --outdir ./dist/web --sourcemap=linked && bun build web/debugger.ts --outdir ./dist/web --sourcemap=linked",
-    "web:watch": "bun run web:build --watch",
-    "server:build": "bun build server/logger.ts --outdir ./dist/server",
     "typegen": "bun run web:typegen && bun run server:typegen",
+    "clear": "rm -rf ./dist && rm -rf ./node_modules",
+    "prepublish": "bun run web:build && bun run server:build && bun run web:typegen && bun run server:typegen",
+    "web:build": "bun build web/logger.ts --outdir ./dist/web --sourcemap=linked --external @metafor/atom && bun build web/debugger.ts --outdir ./dist/web --sourcemap=linked --external @metafor/atom",
     "web:typegen": "bunx dts-bundle-generator --out-file ./dist/web/index.d.ts -- web/index.t.ts",
+    "web:watch": "bun run web:build --watch",
+    "server:build": "bun build server/logger.ts --outdir ./dist/server --sourcemap=linked --external @metafor/atom",
     "server:typegen": "bunx dts-bundle-generator --out-file ./dist/server/index.d.ts -- server/logger.ts"
   },
   "dependencies": {

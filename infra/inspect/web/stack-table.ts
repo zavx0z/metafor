@@ -1,6 +1,6 @@
 import { style } from "./stack-table.styled"
 import { shortUUID } from "."
-import type { Impulse } from "../../../atom/em"
+import type { Impulse } from "@metafor/atom"
 
 export class StackTable extends HTMLElement {
   private ul!: HTMLUListElement
@@ -100,13 +100,14 @@ export class StackTable extends HTMLElement {
       ":" +
       new Date(impulse.timestamp).getMilliseconds().toString().padStart(3, "0")
 
+    const value = typeof impulse.value === "undefined" ? "" : JSON.stringify(impulse.value)
     element.innerHTML = `
       <span>${minSecMilliseconds}</span>
       <span>${impulse.op}</span>
       <span>${impulse.path}</span>
       <span>${impulse.initiator}</span>
       <span>${shortUUID(impulse.atom)}</span>
-      <span>${JSON.stringify(impulse.value)}</span>
+      <span>${value}</span>
     `
   }
 

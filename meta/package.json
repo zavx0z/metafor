@@ -19,14 +19,15 @@
   "scripts": {
     "pub": "bun run build && bun run typegen && bun publish --access public --tag latest",
     "build": "bun run build:prod && bun run build:dev",
+    "typegen": "bunx dts-bundle-generator --out-file ./dist/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/template -- metafor.ts",
+    "clear": "rm -rf ./dist && rm -rf ./node_modules",
     "build:watch": "bun run build:dev --watch",
     "build:prod": "bun build metafor.ts --outdir ./dist --minify --entry-naming [name].min.[ext]",
     "build:dev": "bun build metafor.ts  --outdir ./dist --sourcemap=linked",
-    "typegen": "bunx dts-bundle-generator --out-file ./dist/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/template -- metafor.ts",
     "docs": "typedoc",
     "doc:push": "bun run script/doc.push.ts"
   },
-  "dependencies": {
+  "devDependencies": {
     "@zavx0z/context": "^2.3.0",
     "@zavx0z/template": "^2.6.1"
   }

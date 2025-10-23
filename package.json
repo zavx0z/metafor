@@ -22,10 +22,6 @@
     "upd": "bun update --latest && bun i",
     "build": "bun --filter @metafor/meta build && bun --filter @metafor/atom build && bun --filter @metafor/inspect build",
     "typegen": "bun --filter @metafor/meta typegen && bun --filter @metafor/atom typegen && bun --filter @metafor/inspect typegen",
-    "clear": "rm -rf ./atom/dist && rm -rf ./meta/dist && rm -rf ./infra/inspect/dist"
-  },
-  "dependencies": {
-    "@zavx0z/context": "2.3.0",
-    "@zavx0z/template": "^2.6.1"
+    "clear": "bun --filter @metafor/meta clear && bun --filter @metafor/atom clear && bun --filter @metafor/inspect clear"
   }
 }

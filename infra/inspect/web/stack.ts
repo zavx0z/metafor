@@ -1,11 +1,11 @@
-import { EM } from "../../../atom/em"
+import { EM } from "@metafor/atom"
 
 import { style } from "./stack.styled"
 import "./control-panel"
 import "./stack-table"
 import type { ControlPanel } from "./control-panel.t"
 import type { StackTable } from "./stack-table.t"
-import type { Impulse } from "../../../atom/em"
+import type { Impulse } from "@metafor/atom"
 
 export class Stack extends HTMLElement {
   private controlPanel: ControlPanel
@@ -71,7 +71,6 @@ export class Stack extends HTMLElement {
 
     // Инициализируем состояние кнопки "шаг вперёд"
     import("@metafor/atom").then(({ Atom }) => {
-      console.log(!Atom.isLocked)
       this.controlPanel.setStepDisabled(!Atom.isLocked)
     })
   }

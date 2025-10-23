@@ -24,7 +24,7 @@ export interface Snapshot<C extends Schema, S extends string> {
   processes?: ProcessesSchema
   /** Снимок реакций */
   reactions?: ReactionsSchema
-  /** Сериализованный view как строка template literal из @zavx0z/template */
+  /** Сериализованный view*/
   render?: string
   /** Стили компонента */
   style?: string
