@@ -40,7 +40,7 @@ type ParsedHandler = {
   /** Строковое представление функции для десериализации */
   src: string
 }
-enum ProcessType {
+export enum ProcessType {
   ACTION = "action",
   FINALLY = "finally",
 }
@@ -71,6 +71,8 @@ export type ParsedDestroy = {
   label?: string
   /** Описание процесса */
   desc?: string
+  /** Рекурсивное удаление */
+  recursive?: boolean
   before: ParsedActionHandler
 }
 

@@ -1,7 +1,7 @@
 import type { Schema } from "@zavx0z/context"
 import type { Core } from "../atom/gravity.t"
 import type { Process } from "../atom/src/processes"
-import type { DestroyConfig, ProcessConfig } from "./process.t"
+import { ProcessType, type DestroyConfig, type ProcessConfig } from "./process.t"
 import type { ParsedProcess, ParsedDestroy, ProcessesDeclaration, ProcessesSchema } from "./process.t"
 import { destroyAppendArg, parseFunction, updateAppendArg } from "./parser/func"
 import { Initiator } from "../atom/em.t"
@@ -41,7 +41,7 @@ export function parseProcess<C extends Schema, I extends Core, Res = any>(proces
 
   const parsed = parseFunction(process.action, false)
   result.action = {
-    src: destroyAppendArg(process.action.toString(), `"${Initiator.Process}"`),
+    src: process.action.toString(),
     ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
   }
 
@@ -100,7 +100,7 @@ export const processesSchema = <C extends Schema, S extends string, I extends Co
   const chains = processes(
     (config?: ProcessConfig) => {
       const chain: any = {
-        type: "process",
+        type: ProcessType.ACTION,
         label: config?.label,
         desc: config?.desc,
         _successHandler: undefined,
@@ -132,7 +132,7 @@ export const processesSchema = <C extends Schema, S extends string, I extends Co
     },
     (config?: DestroyConfig) => {
       const chain: any = {
-        type: "destroy",
+        type: ProcessType.FINALLY,
         label: config?.label,
         desc: config?.desc,
         recursive: config?.recursive,
@@ -140,6 +140,16 @@ export const processesSchema = <C extends Schema, S extends string, I extends Co
         before: (fn: any) => {
           chain._beforeHandler = fn
           return chain
+        },
+        getResult: () => {
+          const result: any = {
+            type: ProcessType.FINALLY,
+            recursive: chain.recursive,
+          }
+          if (chain._beforeHandler) result.before = chain._beforeHandler
+          if (chain.label) result.label = chain.label
+          if (chain.desc) result.desc = chain.desc
+          return result
         },
       }
       return chain
@@ -151,16 +161,22 @@ export const processesSchema = <C extends Schema, S extends string, I extends Co
   for (const key in chains) {
     if (chains[key]) {
       // Проверяем, является ли это destroy-процессом
-      if ((chains[key] as any).type === "destroy") {
-        // Это destroy-процесс, создаём специальную структуру
+      if ((chains[key] as any).type === ProcessType.FINALLY) {
+        // Это destroy-процесс, используем getResult()
         const chain = chains[key] as any
-        const parsed = chain._beforeHandler ? parseFunction(chain._beforeHandler, false) : { read: [] }
-        result[key] = {
-          type: "finally" as any,
-          before: {
-            src: chain._beforeHandler ? chain._beforeHandler.toString() : "() => {}",
-            ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
-          },
+        if ("getResult" in chain && typeof chain.getResult === "function") {
+          const chainResult = chain.getResult()
+          const parsed = chainResult.before ? parseFunction(chainResult.before, false) : { read: [] }
+          result[key] = {
+            type: ProcessType.FINALLY,
+            before: {
+              src: chainResult.before ? chainResult.before.toString() : "() => {}",
+              ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
+            },
+            ...(chainResult.label ? { label: chainResult.label } : {}),
+            ...(chainResult.desc ? { desc: chainResult.desc } : {}),
+            ...(chainResult.recursive === true ? { recursive: chainResult.recursive } : {}),
+          }
         }
       } else {
         // Обычный процесс
