@@ -20,7 +20,6 @@ export class Atom extends Strong {
           fields: this.fields,
           context: this.λ,
           core: this.core,
-          destroy: this.destroy,
         })
         if (result instanceof Promise)
           result

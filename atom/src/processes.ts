@@ -36,22 +36,39 @@ export function processesFromSchema<C extends Schema = Schema, S extends string 
     if (processData && typeof processData === "object") {
       const name = processName.replace(/\s/g, "_") // TODO: параметр отладки
       // const name = self.meta + "_" + self.atom.replace(/\//g, "_") + "_" + processName.replace(/\s/g, "_") // TODO: параметр отладки
-      const process: Process<C, I> = {
-        // Восстанавливаем action функцию из строки
-        action: new Function(`//# sourceURL=${name}_action \n return ${processData.action.src}`)() as any,
-        // Восстанавливаем success функцию если есть
-        ...(processData.success && {
-          success: new Function(`//# sourceURL=${name}_success \n return ${processData.success.src}`)() as any,
-        }),
-        // Восстанавливаем error функцию если есть
-        ...(processData.error && {
-          error: new Function(`//# sourceURL=${name}_error \n return ${processData.error.src}`)() as any,
-        }),
-        // Добавляем метаданные
-        ...(processData.label && { label: processData.label }),
-        ...(processData.desc && { desc: processData.desc }),
+
+      switch (processData.type) {
+        case "finally":
+          const destroyProcess: Process<C, I> = {
+            // Для destroy-процессов создаём action, который вызывает destroy
+            action: new Function(`//# sourceURL=${name}_destroy \n return ${processData.before.src}`)() as any,
+            // Добавляем метаданные
+            ...(processData.label && { label: processData.label }),
+            ...(processData.desc && { desc: processData.desc }),
+            // ...(processData.recursive)
+          }
+          processes[processName as S] = destroyProcess
+          break
+        case "action":
+          // Обычный процесс
+          const process: Process<C, I> = {
+            // Восстанавливаем action функцию из строки
+            action: new Function(`//# sourceURL=${name}_action \n return ${processData.action.src}`)() as any,
+            // Восстанавливаем success функцию если есть
+            ...(processData.success && {
+              success: new Function(`//# sourceURL=${name}_success \n return ${processData.success.src}`)() as any,
+            }),
+            // Восстанавливаем error функцию если есть
+            ...(processData.error && {
+              error: new Function(`//# sourceURL=${name}_error \n return ${processData.error.src}`)() as any,
+            }),
+            // Добавляем метаданные
+            ...(processData.label && { label: processData.label }),
+            ...(processData.desc && { desc: processData.desc }),
+          }
+          processes[processName as S] = process
+          break
       }
-      processes[processName as S] = process
     }
   }
 

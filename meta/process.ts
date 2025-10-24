@@ -1,8 +1,8 @@
 import type { Schema } from "@zavx0z/context"
 import type { Core } from "../atom/gravity.t"
 import type { Process } from "../atom/src/processes"
-import type { ProcessConfig } from "./process.t"
-import type { ParsedProcess, ProcessesDeclaration, ProcessesSchema } from "./process.t"
+import type { DestroyConfig, ProcessConfig } from "./process.t"
+import type { ParsedProcess, ParsedDestroy, ProcessesDeclaration, ProcessesSchema } from "./process.t"
 import { destroyAppendArg, parseFunction, updateAppendArg } from "./parser/func"
 import { Initiator } from "../atom/em.t"
 
@@ -35,6 +35,7 @@ export type { ProcessesDeclaration, ProcessesSchema }
  */
 export function parseProcess<C extends Schema, I extends Core, Res = any>(process: Process<C, I, Res>): ParsedProcess {
   const result: ParsedProcess = {} as ParsedProcess
+  result.type = "action" as any
   if (process.label) result.label = process.label
   if (process.desc) result.desc = process.desc
 
@@ -94,48 +95,82 @@ export function parseProcess<C extends Schema, I extends Core, Res = any>(proces
  */
 export const processesSchema = <C extends Schema, S extends string, I extends Core>(
   processes: ProcessesDeclaration<C, S, I>
-): ProcessesSchema | null => {
-  // Вызываем processesDeclaration с mock process
-  const chains = processes((config?: ProcessConfig) => {
-    const chain: any = {
-      label: config?.label,
-      desc: config?.desc,
-      _successHandler: undefined,
-      _errorHandler: undefined,
-      action: (fn: any) => {
-        chain.action = fn
-        return chain as any
-      },
-      success: (handler: any) => {
-        chain._successHandler = handler
-        return chain
-      },
-      error: (handler: any) => {
-        chain._errorHandler = handler
-        return chain
-      },
-      getResult: () => {
-        const result: any = {
-          action: chain.action,
-        }
-        if (chain._successHandler) result.success = chain._successHandler
-        if (chain._errorHandler) result.error = chain._errorHandler
-        if (chain.label) result.label = chain.label
-        if (chain.desc) result.desc = chain.desc
-        return result
-      },
+): ProcessesSchema => {
+  // Вызываем processesDeclaration с mock process и destroy
+  const chains = processes(
+    (config?: ProcessConfig) => {
+      const chain: any = {
+        type: "process",
+        label: config?.label,
+        desc: config?.desc,
+        _successHandler: undefined,
+        _errorHandler: undefined,
+        action: (fn: any) => {
+          chain.action = fn
+          return chain as any
+        },
+        success: (handler: any) => {
+          chain._successHandler = handler
+          return chain
+        },
+        error: (handler: any) => {
+          chain._errorHandler = handler
+          return chain
+        },
+        getResult: () => {
+          const result: any = {
+            action: chain.action,
+          }
+          if (chain._successHandler) result.success = chain._successHandler
+          if (chain._errorHandler) result.error = chain._errorHandler
+          if (chain.label) result.label = chain.label
+          if (chain.desc) result.desc = chain.desc
+          return result
+        },
+      }
+      return chain
+    },
+    (config?: DestroyConfig) => {
+      const chain: any = {
+        type: "destroy",
+        label: config?.label,
+        desc: config?.desc,
+        recursive: config?.recursive,
+        _beforeHandler: undefined,
+        before: (fn: any) => {
+          chain._beforeHandler = fn
+          return chain
+        },
+      }
+      return chain
     }
-    return chain
-  })
+  )
 
   // Парсим каждый chain
-  const result: Record<string, ParsedProcess> = {}
+  const result: Record<string, ParsedProcess | ParsedDestroy> = {}
   for (const key in chains) {
     if (chains[key]) {
-      result[key] = parseProcess(chains[key].getResult())
+      // Проверяем, является ли это destroy-процессом
+      if ((chains[key] as any).type === "destroy") {
+        // Это destroy-процесс, создаём специальную структуру
+        const chain = chains[key] as any
+        const parsed = chain._beforeHandler ? parseFunction(chain._beforeHandler, false) : { read: [] }
+        result[key] = {
+          type: "finally" as any,
+          before: {
+            src: chain._beforeHandler ? chain._beforeHandler.toString() : "() => {}",
+            ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
+          },
+        }
+      } else {
+        // Обычный процесс
+        if ("getResult" in chains[key] && typeof chains[key].getResult === "function") {
+          result[key] = parseProcess(chains[key].getResult())
+        }
+      }
     }
   }
 
-  if (Object.keys(result).length === 0) return null
+  if (Object.keys(result).length === 0) return {}
   return result
 }

@@ -110,7 +110,7 @@ describe("Каналы коммуникации между атомами", () =
       const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom-2" })
 
       // Обновляем контекст первого атома
-      atom1.evaluate({ value: 5, source: "direct" }, Initiator.Nothing)
+      atom1.evaluate({ value: 5, source: "direct" })
 
       // Ждем сообщения через фикстуру
       const messages = await messagesFixtureInstance.waitForMessages(50)

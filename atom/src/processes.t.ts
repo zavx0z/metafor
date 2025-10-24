@@ -20,10 +20,11 @@
  * @module Processes
  */
 
-import type { Schema, Values, Update } from "@zavx0z/context"
+import type { Schema, Values } from "@zavx0z/context"
 import type { Core } from "../gravity"
 import type { Destroy } from "../field"
 import type { Atom, Self } from "../atom"
+import type { ActionChain } from "../../meta/process.t"
 
 export type Processes<C extends Schema = Schema, S extends string = string, I extends Core = Core> = {
   get: (name: S) => Process<C, I> | undefined
@@ -106,151 +107,6 @@ export type ActionParams<C extends Schema, I extends Core> = {
   fields: C
   /** Полный идентификатор атома */
   self: Self
-  /** Функция для уничтожения атома */
-  destroy: Destroy
-}
-
-/**
- * Цепочка для декларации action с типобезопасной поддержкой success и error.
- * Позволяет удобно и строго типизировано описывать обработчики процессов автомата.
- *
- * @template C - схема контекста автомата
- * @template Res - возвращаемый тип результата action
- *
- * @example
- * ```typescript
- * const chain = action(({ context, core, fields, self, destroy }) => {
- *   // Доступ ко всем параметрам процесса
- *   // destroy() доступен в процессах
- *   return { name: context.name }
- * })
- *   .success(({ update, data }) => update({ name: data.name }))
- *   .error(({ update, error }) => update({ name: error.message }))
- *
- * chain.getResult() // { action, success, error }
- * ```
- */
-export type ActionChain<C extends Schema, I extends Core, Res> = {
-  /**
-   * Основная функция процесса, вызывается автоматом.
-   *
-   * Получает полный набор параметров для выполнения процесса и должна вернуть результат или выбросить исключение.
-   *
-   * @param params - объект с параметрами процесса:
-   *   - `context` - текущий контекст атома
-   *   - `core` - ядро атома для сложных данных
-   *   - `fields` - схема контекста для валидации и установки значений по умолчанию
-   *   - `self` - полный идентификатор атома
-   *   - `destroy` - функция для уничтожения атома
-   * @returns результат процесса (может быть промисом)
-   *
-   * @example
-   * ```typescript
-   * action: ({ context, core, fields, self, destroy }) => {
-   *   // Доступ к контексту
-   *   console.log(context.email, context.password)
-   *
-   *   // Доступ к ядру
-   *   core.users.push({ name: context.name })
-   *
-   *   // Доступ к схеме для валидации
-   *   const isValid = fields.email.validate(context.email)
-   *
-   *   // destroy() доступен для уничтожения атома
-   *   // self.meta, self.atom, self.path доступны
-   *
-   *   // Возврат результата
-   *   return { userId: 123, token: "abc" }
-   * }
-   * ```
-   */
-  action: (params: ActionParams<C, I>) => Res | Promise<Res>
-
-  /**
-   * Добавляет обработчик успешного завершения процесса.
-   *
-   * Вызывается когда action завершился успешно (не выбросил исключение).
-   * Получает функцию update для изменения контекста и данные от action.
-   *
-   * **ВАЖНО: success обработчик должен быть синхронным.**
-   * Асинхронные операции выполняйте только в action функциях.
-   * Для последовательных асинхронных операций создавайте отдельные процессы.
-   *
-   * @param handler - функция, вызываемая при успехе (получает update и data)
-   * @returns цепочку для дальнейшего конфигурирования
-   *
-   * @example
-   * ```typescript
-   * // Предпочтительный формат success/error
-   * .success(({ update, data }) => update({ status: data.status }))
-   * .error(({ update, error }) => update({ status: "error", error: error.message }))
-   *
-   * // Расширенный формат
-   * .success(({ update, data }) => {
-   *   // Обновляем контекст данными от action
-   *   update({
-   *     userId: data.userId,
-   *     token: data.token,
-   *     isAuthenticated: true,
-   *     error: ""
-   *   })
-   * })
-   * ```
-   */
-  success: (handler: (params: { update: Update<C>; data: Res }) => void) => ActionChain<C, I, Res>
-
-  /**
-   * Добавляет обработчик ошибки выполнения процесса.
-   *
-   * Вызывается когда action выбросил исключение.
-   * Получает функцию update для изменения контекста и объект ошибки.
-   *
-   * **ВАЖНО: error обработчик должен быть синхронным.**
-   * Асинхронные операции выполняйте только в action функциях.
-   * Для последовательных асинхронных операций создавайте отдельные процессы.
-   *
-   * @param handler - функция, вызываемая при ошибке (получает update и error типа Error)
-   * @returns цепочку для дальнейшего конфигурирования
-   *
-   * @example
-   * ```typescript
-   * // Предпочтительный формат success/error
-   * .success(({ update, data }) => update({ status: data.status }))
-   * .error(({ update, error }) => update({ status: "error", error: error.message }))
-   *
-   * // Расширенный формат
-   * .error(({ update, error }) => {
-   *   // Обрабатываем ошибку
-   *   update({
-   *     error: error.message,
-   *     isAuthenticated: false,
-   *     isLoading: false
-   *   })
-   * })
-   * ```
-   */
-  error: (handler: (params: { update: Update<C>; error: Error }) => void) => ActionChain<C, I, Res>
-
-  /**
-   * Возвращает итоговый объект конфигурации процесса для автомата.
-   *
-   * Содержит все обработчики и метаданные процесса.
-   *
-   * @returns объект с action, success, error, label и desc (если заданы)
-   *
-   * @example
-   * ```typescript
-   * const processConfig = chain.getResult()
-   * // {
-   * //   action: Function,
-   * //   success: Function,
-   * //   error: Function,
-   * //   label: "Авторизация",
-   * //   desc: "Процесс входа пользователя"
-   * // }
-   * ```
-   */
-  getResult: () => Process<C, I, Res>
 }
 
 /**
@@ -292,7 +148,6 @@ export type Process<C extends Schema = Schema, I extends Core = Core, Res = any>
   label?: string
   /** Описание процесса для документации */
   desc?: string
-  destroy?: (recursive?: boolean) => void
 }
 
 /**
