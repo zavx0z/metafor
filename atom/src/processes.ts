@@ -41,17 +41,19 @@ export function processesFromSchema<C extends Schema = Schema, S extends string 
         case "finally":
           const destroyProcess: Process<C, I> = {
             // Для destroy-процессов создаём action, который вызывает destroy
+            type: processData.type,
             action: new Function(`//# sourceURL=${name}_destroy \n return ${processData.before.src}`)() as any,
             // Добавляем метаданные
             ...(processData.label && { label: processData.label }),
             ...(processData.desc && { desc: processData.desc }),
-            // ...(processData.recursive)
+            ...(processData.recursive && { recursive: processData.recursive }),
           }
           processes[processName as S] = destroyProcess
           break
         case "action":
           // Обычный процесс
           const process: Process<C, I> = {
+            type: processData.type,
             // Восстанавливаем action функцию из строки
             action: new Function(`//# sourceURL=${name}_action \n return ${processData.action.src}`)() as any,
             // Восстанавливаем success функцию если есть

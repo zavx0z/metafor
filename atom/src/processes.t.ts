@@ -24,7 +24,7 @@ import type { Schema, Values } from "@zavx0z/context"
 import type { Core } from "../gravity"
 import type { Destroy } from "../field"
 import type { Atom, Self } from "../atom"
-import type { ActionChain } from "../../meta/process.t"
+import type { ActionChain, ProcessType } from "../../meta/process.t"
 
 export type Processes<C extends Schema = Schema, S extends string = string, I extends Core = Core> = {
   get: (name: S) => Process<C, I> | undefined
@@ -138,6 +138,8 @@ export type ActionParams<C extends Schema, I extends Core> = {
  * ```
  */
 export type Process<C extends Schema = Schema, I extends Core = Core, Res = any> = {
+  type: ProcessType.ACTION | ProcessType.FINALLY
+  recursive?: boolean
   /** Основная функция процесса */
   action: (params: ActionParams<C, I>) => Res | Promise<Res>
   /** Обработчик успешного завершения */
