@@ -11,6 +11,7 @@ import { Field, type Hidden, type Values } from "./field"
 import { Atom } from "./atom"
 import { decoherence, type Wave } from "./src/states"
 import { EM, type Photon } from "./em"
+import { ProcessType } from "../meta/process.t"
 
 export abstract class Strong extends Week {
   constructor(
@@ -42,8 +43,12 @@ export abstract class Strong extends Week {
     if (!eigenstate) return
 
     if ((this.process = this.processes.get(eigenstate))) {
-      if (!this.emitProcess(eigenstate)) return
+      if (this.process.type === ProcessType.FINALLY) {
+        this.destroy()
+        return
+      }
 
+      if (!this.emitProcess(eigenstate)) return
       this.state = eigenstate
       this.action().then(this.up).catch(this.down)
     } else if (!this.emitMeasure(eigenstate)) return
@@ -51,6 +56,8 @@ export abstract class Strong extends Week {
     this.state = eigenstate
     this.measurement()
   }
+
+
 
   up() {
     if (this.result && this.process?.success) this.process.success({ update: this.evaluate, data: this.result })

@@ -25,36 +25,7 @@ export abstract class EM extends Gravity {
     EM.channel && EM.channel.addEventListener("message", this.handleReaction)
   }
 
-  private static destroy(target: EM, propertyKey: string, descriptor: PropertyDescriptor) {
-    const originalMethod = descriptor.value
-    descriptor.value = function (...args: any[]) {
-      const { meta, id, path, emission } = this as EM
-      const photon: Photon = {
-        meta,
-        atom: id,
-        path,
-        timestamp: Date.now(),
-        initiator: args[1],
-        impulses: [{ op: "remove", path: "/" }],
-      }
-      if (!EM._lock) {
-        originalMethod.apply(this, args)
-        Field.propagation(photon)
-        EM.channel && EM.channel.postMessage(photon)
-        return
-      }
-      const impulse = EM.stack.at(-1)
-      if (impulse && impulse.atom === id && impulse.op === "remove") {
-        EM.shiftImpulse()
-        Field.propagation(photon)
-        EM.channel && EM.channel.postMessage(photon)
-      } else {
-        EM.pushImpulse(photon)
-      }
-    }
-  }
-
-  @EM.destroy
+  @EM.it
   public override destroy(recursive = true, initiator = Initiator.Nothing) {
     // EM.emitStack.clear()
     EM.charged.delete(this)
@@ -164,31 +135,43 @@ export abstract class EM extends Gravity {
   static it(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value
     descriptor.value = function (this: Atom, ...args: any[]) {
-      const [value, initiator] = args
-      const photon: Photon = {
+      let photon: Partial<Photon> = {
         meta: this.meta,
         atom: this.id,
         path: this.path,
         timestamp: Date.now(),
-        initiator: initiator,
-        impulses: [{ op: "replace", path: "/context", value }],
+      }
+
+      if (propertyKey === "destroy") {
+        const [initiator] = args
+
+        photon.initiator = initiator
+        photon.impulses = [{ op: "remove", path: "/" }]
+
+        console.log(photon)
+      } else if (propertyKey === "evaluate") {
+        const [value, initiator] = args
+        photon.initiator = initiator
+        photon.impulses = [{ op: "replace", path: "/context", value }]
       }
 
       if (!EM._lock) {
-        const updated = originalMethod.apply(this, args)
+        if (propertyKey === "evaluate") {
+          const updated = originalMethod.apply(this, args)
 
-        if (Object.keys(updated).length > 0) {
-          Field.propagation(photon)
-          for (const atom of EM.charged) {
-            if (atom === this) continue
-            atom.handleReaction({ data: photon } as MessageEvent<Photon>)
+          if (Object.keys(updated).length > 0) {
+            Field.propagation(photon as Photon)
+            for (const atom of EM.charged) {
+              if (atom === this) continue
+              atom.handleReaction({ data: photon } as MessageEvent<Photon>)
+            }
+            EM.channel && EM.channel.postMessage(photon)
+            return
           }
-          EM.channel && EM.channel.postMessage(photon)
-          return
         }
       }
 
-      EM.pushImpulse(photon)
+      EM.pushImpulse(photon as Photon)
     }
   }
   /** ---------------------------- Обработка импульсов действий ------------------------------------
@@ -221,6 +204,24 @@ export abstract class EM extends Gravity {
   }
 
   protected emitProcess(eigenstate: string) {
+    const photon: Photon = {
+      meta: this.meta,
+      atom: this.id,
+      path: this.path,
+      timestamp: Date.now(),
+      initiator: Initiator.Nothing,
+      impulses: [{ op: "test", path: "/state", value: eigenstate }],
+    }
+    if (!EM._lock) {
+      this.emission(photon)
+      return true
+    }
+    EM.pushImpulse(photon)
+    this.measurement()
+    return false
+  }
+
+  protected emitDestroy(eigenstate: string) {
     const photon: Photon = {
       meta: this.meta,
       atom: this.id,
