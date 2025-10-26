@@ -1,6 +1,6 @@
 import { Gravity } from "./gravity"
 
-import { Initiator, type JsonPatch, type Photon } from "./em.t"
+import { Initiator, type JsonPatch, type Photon, type WrappedMethod } from "./em.t"
 import { type Impulse, Energy, getImpulseType } from "./src/stack"
 import type { Reactions } from "./src/reactions"
 import type { Atom } from "./atom"
@@ -12,6 +12,42 @@ export type { Photon, JsonPatch, Impulse }
 export abstract class EM extends Gravity {
   static CHANNEL = "electromagnetic"
   protected static channel: BroadcastChannel = new BroadcastChannel(EM.CHANNEL)
+
+  /**
+   * Безопасно вызывает оригинальный метод, если он обернут декоратором @it
+   * @param method - метод, который может быть обернут декоратором
+   * @param context - контекст для вызова (this)
+   * @param args - аргументы для передачи в метод
+   */
+  public static callOriginal<T extends (...args: any[]) => any>(
+    method: T | WrappedMethod<T>,
+    context: any,
+    ...args: Parameters<T>
+  ): ReturnType<T> {
+    const wrappedMethod = method as WrappedMethod<T>
+    if ("original" in wrappedMethod && wrappedMethod.original) {
+      return wrappedMethod.original.call(context, ...args)
+    } else {
+      return (method as T).call(context, ...args)
+    }
+  }
+
+  /**
+   * Правильно биндит метод с сохранением свойства original
+   * @param method - метод для биндинга
+   * @param context - контекст для биндинга (this)
+   */
+  public static bindWithOriginal<T extends (...args: any[]) => any>(
+    method: T | WrappedMethod<T>,
+    context: any
+  ): T & { original?: T } {
+    const boundMethod = method.bind(context)
+    const wrappedMethod = method as WrappedMethod<T>
+    if ("original" in wrappedMethod && wrappedMethod.original) {
+      ;(boundMethod as any).original = wrappedMethod.original
+    }
+    return boundMethod as T & { original?: T }
+  }
 
   protected abstract handleReaction(ev: MessageEvent<Photon>): void
   protected abstract reactions: Reactions
@@ -62,10 +98,7 @@ export abstract class EM extends Gravity {
     for (const impulse of impulses) EM.stack.push({ ...self, ...impulse })
     EM.emitStack.forEach((observer) => observer(EM.stack))
   }
-  private static shiftImpulse() {
-    EM.stack.shift()
-    EM.emitStack.forEach((observer) => observer(EM.stack))
-  }
+
   private static getImpulse() {
     const impulse = EM.stack.shift() as Impulse
 
@@ -120,6 +153,7 @@ export abstract class EM extends Gravity {
         atom.measurement()
         break
       case Energy.SuccessUpdate:
+        EM.callOriginal(atom.evaluate, atom, photon.impulses[0]?.value)
         atom.emission(photon)
         break
       case Energy.ErrorUpdate:
@@ -134,7 +168,8 @@ export abstract class EM extends Gravity {
   }
   static it(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value
-    descriptor.value = function (this: Atom, ...args: any[]) {
+
+    const wrappedMethod = function (this: Atom, ...args: any[]) {
       let photon: Partial<Photon> = {
         meta: this.meta,
         atom: this.id,
@@ -147,18 +182,13 @@ export abstract class EM extends Gravity {
 
         photon.initiator = initiator
         photon.impulses = [{ op: "remove", path: "/" }]
-
-        console.log(photon)
+        EM.pushImpulse(photon as Photon)
       } else if (propertyKey === "evaluate") {
         const [value, initiator] = args
         photon.initiator = initiator
         photon.impulses = [{ op: "replace", path: "/context", value }]
-      }
-
-      if (!EM._lock) {
-        if (propertyKey === "evaluate") {
+        if (!EM._lock) {
           const updated = originalMethod.apply(this, args)
-
           if (Object.keys(updated).length > 0) {
             Field.propagation(photon as Photon)
             for (const atom of EM.charged) {
@@ -169,10 +199,17 @@ export abstract class EM extends Gravity {
             return
           }
         }
+        EM.pushImpulse(photon as Photon)
+      } else {
+        // Для других методов просто вызываем оригинальный метод без обертки
+        return originalMethod.apply(this, args)
       }
-
-      EM.pushImpulse(photon as Photon)
     }
+
+    // Добавляем ссылку на оригинальный метод для возможности вызова без обертки
+    ;(wrappedMethod as WrappedMethod<typeof originalMethod>).original = originalMethod
+
+    descriptor.value = wrappedMethod
   }
   /** ---------------------------- Обработка импульсов действий ------------------------------------
    * 1. Нормальный режим

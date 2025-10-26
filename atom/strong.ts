@@ -25,7 +25,8 @@ export abstract class Strong extends Week {
     core?: Core
   ) {
     super(hidden, id, meta, core)
-    this.evaluate = this.evaluate.bind(this)
+
+    this.evaluate = EM.bindWithOriginal(this.evaluate, this)
     this.destroy = this.destroy.bind(this)
     this.up = this.up.bind(this)
     this.down = this.down.bind(this)
@@ -43,21 +44,21 @@ export abstract class Strong extends Week {
     if (!eigenstate) return
 
     if ((this.process = this.processes.get(eigenstate))) {
-      if (this.process.type === ProcessType.FINALLY) {
-        this.destroy()
-        return
+      switch (this.process.type) {
+        case ProcessType.ACTION:
+          if (!this.emitProcess(eigenstate)) return
+          this.state = eigenstate
+          this.action().then(this.up).catch(this.down)
+          return
+        case ProcessType.FINALLY:
+          this.destroy()
+          return
       }
-
-      if (!this.emitProcess(eigenstate)) return
-      this.state = eigenstate
-      this.action().then(this.up).catch(this.down)
     } else if (!this.emitMeasure(eigenstate)) return
 
     this.state = eigenstate
     this.measurement()
   }
-
-
 
   up() {
     if (this.result && this.process?.success) this.process.success({ update: this.evaluate, data: this.result })

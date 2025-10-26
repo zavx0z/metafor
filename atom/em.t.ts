@@ -45,3 +45,12 @@ export enum Initiator {
   Reaction = "r",
   Nothing = "",
 }
+
+/**
+ * Интерфейс для методов, обернутых декоратором @it
+ * Предоставляет доступ к оригинальному методу через свойство `original`
+ */
+export interface WrappedMethod<T extends (...args: any[]) => any> extends Function {
+  (...args: Parameters<T>): ReturnType<T>
+  original: T
+}
