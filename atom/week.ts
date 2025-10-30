@@ -5,6 +5,7 @@ export abstract class Week extends EM {
   protected abstract processes: Processes
   protected abstract action(): Promise<any>
 
+  @EM.it
   override destroy(recursive = true, initiator = Initiator.Nothing) {
     Week.results.delete(this)
     super.destroy(recursive, initiator)

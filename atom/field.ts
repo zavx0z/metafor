@@ -34,10 +34,6 @@ export abstract class Field {
     this.λ = hidden.context
   }
 
-  // ------------------------------ скрытые параметры ----------------------------------------
-
-  protected abstract emitEvolution(context: Partial<Hidden<Values>>, initiator: Initiator): boolean
-
   // ---------------------------------------------------------------------
 
   protected static get atoms() {

@@ -1,5 +1,4 @@
 import { Gravity } from "./gravity"
-
 import { Initiator, type JsonPatch, type Photon, type WrappedMethod } from "./em.t"
 import { type Impulse, Energy, getImpulseType } from "./src/stack"
 import type { Reactions } from "./src/reactions"
@@ -61,7 +60,6 @@ export abstract class EM extends Gravity {
     EM.channel && EM.channel.addEventListener("message", this.handleReaction)
   }
 
-  @EM.it
   public override destroy(recursive = true, initiator = Initiator.Nothing) {
     // EM.emitStack.clear()
     EM.charged.delete(this)
@@ -162,35 +160,51 @@ export abstract class EM extends Gravity {
       case Energy.ReactionUpdate:
         break
       case Energy.Destroy:
-        atom.destroy()
+        EM.callOriginal(atom.destroy, atom)
+        atom.emission(photon)
         break
     }
   }
   static it(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
     const originalMethod = descriptor.value
 
-    const wrappedMethod = function (this: Atom, ...args: any[]) {
-      let photon: Partial<Photon> = {
-        meta: this.meta,
-        atom: this.id,
-        path: this.path,
-        timestamp: Date.now(),
-      }
+    let wrappedMethod: Function
 
-      if (propertyKey === "destroy") {
+    if (propertyKey === "destroy") {
+      wrappedMethod = function (this: Atom, ...args: any[]) {
         const [initiator] = args
-
-        photon.initiator = initiator
-        photon.impulses = [{ op: "remove", path: "/" }]
-        EM.pushImpulse(photon as Photon)
-      } else if (propertyKey === "evaluate") {
+        const photon: Photon = {
+          meta: this.meta,
+          atom: this.id,
+          path: this.path,
+          timestamp: Date.now(),
+          initiator: initiator,
+          impulses: [{ op: "remove", path: "/" }],
+        }
+        if (!EM._lock) {
+          originalMethod.apply(this, args)
+          Field.propagation(photon)
+          EM.channel && EM.channel.postMessage(photon)
+          return
+        }
+        EM.pushImpulse(photon)
+      }
+    } else if (propertyKey === "evaluate") {
+      wrappedMethod = function (this: Atom, ...args: any[]) {
         const [value, initiator] = args
-        photon.initiator = initiator
-        photon.impulses = [{ op: "replace", path: "/context", value }]
+        const photon: Photon = {
+          meta: this.meta,
+          atom: this.id,
+          path: this.path,
+          timestamp: Date.now(),
+          initiator: initiator,
+          impulses: [{ op: "replace", path: "/context", value }],
+        }
+
         if (!EM._lock) {
           const updated = originalMethod.apply(this, args)
           if (Object.keys(updated).length > 0) {
-            Field.propagation(photon as Photon)
+            Field.propagation(photon)
             for (const atom of EM.charged) {
               if (atom === this) continue
               atom.handleReaction({ data: photon } as MessageEvent<Photon>)
@@ -199,16 +213,17 @@ export abstract class EM extends Gravity {
             return
           }
         }
-        EM.pushImpulse(photon as Photon)
-      } else {
-        // Для других методов просто вызываем оригинальный метод без обертки
+        EM.pushImpulse(photon)
+      }
+    } else {
+      // Для других методов просто вызываем оригинальный метод без обертки
+      wrappedMethod = function (this: Atom, ...args: any[]) {
         return originalMethod.apply(this, args)
       }
     }
 
     // Добавляем ссылку на оригинальный метод для возможности вызова без обертки
     ;(wrappedMethod as WrappedMethod<typeof originalMethod>).original = originalMethod
-
     descriptor.value = wrappedMethod
   }
   /** ---------------------------- Обработка импульсов действий ------------------------------------
@@ -258,24 +273,6 @@ export abstract class EM extends Gravity {
     return false
   }
 
-  protected emitDestroy(eigenstate: string) {
-    const photon: Photon = {
-      meta: this.meta,
-      atom: this.id,
-      path: this.path,
-      timestamp: Date.now(),
-      initiator: Initiator.Nothing,
-      impulses: [{ op: "test", path: "/state", value: eigenstate }],
-    }
-    if (!EM._lock) {
-      this.emission(photon)
-      return true
-    }
-    EM.pushImpulse(photon)
-    this.measurement()
-    return false
-  }
-
   protected emitMeasure(eigenstate: string): boolean {
     const photon: Photon = {
       meta: this.meta,
@@ -284,23 +281,6 @@ export abstract class EM extends Gravity {
       timestamp: Date.now(),
       initiator: Initiator.Transition,
       impulses: [{ op: "replace", path: "/state", value: eigenstate }],
-    }
-    if (!EM._lock) {
-      this.emission(photon)
-      return true
-    }
-    EM.pushImpulse(photon)
-    return false
-  }
-
-  protected emitEvolution(value: Partial<Hidden<Values>>, initiator: Initiator): boolean {
-    const photon: Photon = {
-      meta: this.meta,
-      atom: this.id,
-      path: this.path,
-      timestamp: Date.now(),
-      initiator: initiator,
-      impulses: [{ op: "replace", path: "/context", value }],
     }
     if (!EM._lock) {
       this.emission(photon)

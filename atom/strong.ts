@@ -27,7 +27,7 @@ export abstract class Strong extends Week {
     super(hidden, id, meta, core)
 
     this.evaluate = EM.bindWithOriginal(this.evaluate, this)
-    this.destroy = this.destroy.bind(this)
+    this.destroy = EM.bindWithOriginal(this.destroy, this)
     this.up = this.up.bind(this)
     this.down = this.down.bind(this)
     this.connect()
@@ -51,7 +51,7 @@ export abstract class Strong extends Week {
           this.action().then(this.up).catch(this.down)
           return
         case ProcessType.FINALLY:
-          this.destroy()
+          this.destroy(this.process.recursive ?? false)
           return
       }
     } else if (!this.emitMeasure(eigenstate)) return
