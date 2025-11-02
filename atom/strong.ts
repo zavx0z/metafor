@@ -90,7 +90,6 @@ export abstract class Strong extends Week {
         core: this.core,
         state: this.state,
         update: this.evaluate,
-        destroy: this.destroy,
         self: this.self,
       })
     }

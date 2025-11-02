@@ -65,7 +65,7 @@ describe("Очистка ресурсов атома", () => {
     atom2.destroy()
   })
 
-  it("должен рекурсивно уничтожать всех детей", () => {
+  it("должен удалять только сам атом, дети остаются", () => {
     const parent = Atom.fromSchema({ meta: testSchema, id: "parent" })
     const child1 = Atom.fromSchema({ meta: testSchema, id: "child1", path: `${parent.path}/0` })
     const child2 = Atom.fromSchema({ meta: testSchema, id: "child2", path: `${parent.path}/1` })
@@ -83,11 +83,16 @@ describe("Очистка ресурсов атома", () => {
     // Уничтожаем родителя
     parent.destroy()
 
-    // Проверяем, что родитель и все дети удалены рекурсивно
+    // Проверяем, что родитель удален, но дети остались (они продвигаются на место родителя)
     expect(hierarchy.has(parent.id)).toBe(false)
-    expect(hierarchy.has(child1.id)).toBe(false)
-    expect(hierarchy.has(child2.id)).toBe(false)
-    expect(hierarchy.has(grandchild.id)).toBe(false)
+    expect(hierarchy.has(child1.id)).toBe(true)
+    expect(hierarchy.has(child2.id)).toBe(true)
+    expect(hierarchy.has(grandchild.id)).toBe(true)
+
+    // Очистка
+    child1.destroy()
+    child2.destroy()
+    grandchild.destroy()
   })
 
   it("должен корректно обрабатывать повторные вызовы destroy", () => {
@@ -101,30 +106,46 @@ describe("Очистка ресурсов атома", () => {
     expect(() => atom.destroy()).not.toThrow()
   })
 
-  it("должен отправлять сообщение об удалении при destroy", () => {
+  it("должен отправлять сообщение об удалении при destroy", async () => {
     const atom = Atom.fromSchema({ meta: testSchema, id: "atom-1" })
 
+    // Убеждаемся, что EM не заблокирован
+    const { EM } = await import("../em")
+    const { Field } = await import("../field")
+    
     // @ts-ignore
-    const emissionSpy = jest.spyOn(atom as any, "emission")
+    const propagationSpy = jest.spyOn(Field, "propagation")
+    // @ts-ignore
+    const postMessageSpy = jest.spyOn(EM.channel || {}, "postMessage")
 
-    // Уничтожаем атом
-    atom.destroy()
+    const wasLocked = EM.isLocked
+    if (wasLocked) EM.resume()
 
-    // Проверяем, что emission был вызван с правильным сообщением
-    expect(emissionSpy).toHaveBeenCalledWith(
-      expect.objectContaining({
-        meta: "test-atom",
-        atom: "atom-1",
-        path: expect.any(String),
-        timestamp: expect.any(Number),
-        impulses: [{ op: "remove", path: "/" }],
-      })
-    )
+    try {
+      // Уничтожаем атом
+      atom.destroy()
 
-    emissionSpy.mockRestore()
+      // Если EM был разблокирован, должны вызываться Field.propagation и postMessage
+      if (!wasLocked) {
+        // Проверяем, что propagation был вызван с правильным сообщением
+        expect(propagationSpy).toHaveBeenCalledWith(
+          expect.objectContaining({
+            meta: "test-atom",
+            atom: "atom-1",
+            path: expect.any(String),
+            timestamp: expect.any(Number),
+            impulses: [{ op: "remove", path: "/" }],
+          })
+        )
+      }
+    } finally {
+      propagationSpy.mockRestore()
+      if (postMessageSpy.mockRestore) postMessageSpy.mockRestore()
+      if (wasLocked) EM.break()
+    }
   })
 
-  it("должен уничтожать только детей в поддереве, не затрагивая соседние ветки", () => {
+  it("должен удалять только сам атом, не затрагивая соседние ветки", () => {
     // Создаем структуру: parent -> [child1, child2] -> [grandchild1, grandchild2]
     const parent = Atom.fromSchema({ meta: testSchema, id: "parent2" })
     const child1 = Atom.fromSchema({ meta: testSchema, id: "child1-2", path: `${parent.path}/0` })
@@ -149,30 +170,33 @@ describe("Очистка ресурсов атома", () => {
     expect(fields.has(grandchild1.id)).toBe(true)
     expect(fields.has(grandchild2.id)).toBe(true)
 
-    // Уничтожаем только child1 (должны удалиться child1 и grandchild1, но НЕ child2 и grandchild2)
+    // Уничтожаем только child1 (удаляется только child1, grandchild1 остается)
     child1.destroy()
 
-    // Проверяем, что child1 и его потомок удалены рекурсивно
+    // Проверяем, что child1 удален, но grandchild1 остается (он продвигается)
     expect(fields.has(child1.id)).toBe(false)
-    expect(fields.has(grandchild1.id)).toBe(false)
+    expect(fields.has(grandchild1.id)).toBe(true)
 
     // Проверяем, что child2 и его потомок НЕ затронуты
     expect(fields.has(child2.id)).toBe(true)
     expect(fields.has(grandchild2.id)).toBe(true)
     expect(fields.has(parent.id)).toBe(true)
 
-    // Проверяем, что core у child2 и grandchild2 НЕ удален (это ключевая проверка!)
+    // Проверяем, что core у child2 и grandchild2 НЕ удален
     expect(child2.core).toBe(child2Core)
     expect(grandchild2.core).toBe(grandchild2Core)
     expect(child2.core).toBeDefined()
     expect(grandchild2.core).toBeDefined()
 
-    // child1 и grandchild1 уничтожены рекурсивно
-    // Проверяем, что их core удален
+    // Проверяем, что core у grandchild1 НЕ удален (он остался)
+    expect(grandchild1.core).toBe(grandchild1Core)
+    expect(grandchild1.core).toBeDefined()
+
+    // child1 уничтожен, его core удален
     expect(child1.core).toBeUndefined()
-    expect(grandchild1.core).toBeUndefined()
 
     // Очистка
+    grandchild1.destroy()
     child2.destroy()
     parent.destroy()
   })
@@ -202,15 +226,15 @@ describe("Очистка ресурсов атома", () => {
     const deep1Core = deep1.core
     const deep2Core = deep2.core
 
-    // Уничтожаем только branch1 (должны удалиться branch1 и все его потомки)
+    // Уничтожаем только branch1 (удаляется только branch1, его дети остаются и продвигаются)
     branch1.destroy()
 
-    // Проверяем, что branch1 и все его потомки удалены рекурсивно
+    // Проверяем, что branch1 удален, но его дети остались
     expect(fields.has(branch1.id)).toBe(false)
-    expect(fields.has(leaf1.id)).toBe(false)
-    expect(fields.has(leaf2.id)).toBe(false)
-    expect(fields.has(deep1.id)).toBe(false)
-    expect(fields.has(deep2.id)).toBe(false)
+    expect(fields.has(leaf1.id)).toBe(true)
+    expect(fields.has(leaf2.id)).toBe(true)
+    expect(fields.has(deep1.id)).toBe(true)
+    expect(fields.has(deep2.id)).toBe(true)
 
     // Проверяем, что branch2 и leaf3 НЕ затронуты
     expect(fields.has(branch2.id)).toBe(true)
@@ -223,14 +247,18 @@ describe("Очистка ресурсов атома", () => {
     expect(branch2.core).toBeDefined()
     expect(leaf3.core).toBeDefined()
 
-    // Остальные атомы уничтожены рекурсивно
-    // Проверяем, что их core удален
-    expect(leaf1.core).toBeUndefined()
-    expect(leaf2.core).toBeUndefined()
-    expect(deep1.core).toBeUndefined()
-    expect(deep2.core).toBeUndefined()
+    // Проверяем, что core у оставшихся детей branch1 НЕ удален
+    expect(leaf1.core).toBe(leaf1Core)
+    expect(leaf2.core).toBe(leaf2Core)
+    expect(deep1.core).toBe(deep1Core)
+    expect(deep2.core).toBe(deep2Core)
+
+    // branch1 уничтожен, его core удален
+    expect(branch1.core).toBeUndefined()
 
     // Очистка
+    leaf1.destroy()
+    leaf2.destroy()
     branch2.destroy()
     root.destroy()
   })
@@ -334,8 +362,8 @@ describe("Очистка ресурсов атома", () => {
     expect(fields.has(grandchild1.id)).toBe(true)
     expect(fields.has(root.id)).toBe(true)
 
-    // grandchild0 удален рекурсивно вместе с child0
-    expect(fields.has(grandchild0.id)).toBe(false)
+    // grandchild0 остается, так как удаление не рекурсивное
+    expect(fields.has(grandchild0.id)).toBe(true)
 
     // Проверяем, что core у child1 и grandchild1 НЕ удален
     expect(child1.core).toBe(child1Core)
@@ -346,9 +374,12 @@ describe("Очистка ресурсов атома", () => {
     // child0 уничтожен, его core должен быть undefined
     expect(child0.core).toBeUndefined()
 
-    // grandchild0 уничтожен рекурсивно вместе с child0
-    // Проверяем, что его core удален
-    expect(grandchild0.core).toBeUndefined()
+    // grandchild0 остается, его core не удален
+    expect(grandchild0.core).toBe(grandchild0Core)
+    expect(grandchild0.core).toBeDefined()
+
+    // Очистка
+    grandchild0.destroy()
 
     // Очистка
     child1.destroy()

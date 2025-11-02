@@ -390,7 +390,12 @@ describe("parseChain — несколько chain", () => {
             "read": [
               "foo",
             ],
-            "src": Any<String>,
+            "src": 
+      "async ({ context }) => {
+              await new Promise((resolve) => setTimeout(resolve, 10));
+              return context.foo;
+            }"
+      ,
           },
           "type": "action",
         },
@@ -400,16 +405,16 @@ describe("parseChain — несколько chain", () => {
               "foo",
               "bar",
             ],
-            "src": Any<String>,
+            "src": "({ context }) => ({ foo: context.foo, bar: context.bar })",
           },
           "error": {
-            "src": Any<String>,
+            "src": "({ update, error }) => update({ bar: 0 }, "e")",
             "write": [
               "bar",
             ],
           },
           "success": {
-            "src": Any<String>,
+            "src": "({ update, data }) => update({ foo: data.foo }, "s")",
             "write": [
               "foo",
             ],
@@ -421,7 +426,7 @@ describe("parseChain — несколько chain", () => {
             "read": [
               "foo",
             ],
-            "src": Any<String>,
+            "src": "({ context }) => context.foo",
           },
           "type": "action",
         },
@@ -445,12 +450,12 @@ describe("parseChain — несколько chain", () => {
         // Очистка временных данных
         core.cleanup = true
       }),
-      finalize: destroy({ label: "Финализация", recursive: true }).before(({ core }) => {
+      finalize: destroy({ label: "Финализация" }).before(({ core }) => {
         // Финальная обработка
         core.bar = 999
       }),
       simple: destroy({ label: "Простое удаление" }),
-      nonRecursive: destroy({ label: "Не рекурсивное удаление", recursive: false }).before(({ core }) => {
+      nonRecursive: destroy({ label: "Не рекурсивное удаление" }).before(({ core }) => {
         // Обработка без рекурсии
         core.bar = 0
       }),
@@ -463,7 +468,7 @@ describe("parseChain — несколько chain", () => {
           "before": {
             "src": 
       "({ core }) => {
-              core.cleanup = !0;
+              core.cleanup = true;
             }"
       ,
           },
@@ -480,7 +485,6 @@ describe("parseChain — несколько chain", () => {
       ,
           },
           "label": "Финализация",
-          "recursive": true,
           "type": "finally",
         },
         "nonRecursive": {

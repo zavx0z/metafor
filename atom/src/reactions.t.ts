@@ -9,7 +9,6 @@ import type { JsonPatch } from "../em.t"
 import type { Core } from "../gravity.t"
 import type { ReactionAction } from "../../meta/reactions.t"
 import type { Self } from "../../meta/metafor"
-import type { Destroy } from "../field"
 
 export type ReactionParams = {
   meta: string
@@ -29,7 +28,6 @@ export type Reactions<C extends Schema = Schema, S extends string = string, I ex
     timestamp: number
     patch: JsonPatch
     update: Update<C>
-    destroy: Destroy
     self: Self
   }) => void
   exists: () => boolean

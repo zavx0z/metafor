@@ -304,7 +304,6 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
           // Выполняем реакцию
           reaction.update({
             update: params.update as Update<C>,
-            destroy: params.destroy,
             context: params.context as Values<C>,
             core: params.core as I,
             meta: params.meta,

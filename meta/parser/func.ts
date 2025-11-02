@@ -28,6 +28,24 @@ export function destroyAppendArg(funcString: string, arg: string) {
 }
 
 /**
+ * Нормализует строковое представление функции, заменяя минифицированные булевы значения.
+ * Заменяет `!0` на `true` и `!1` на `false` для более читаемого вывода.
+ *
+ * @param funcString - строковое представление функции
+ * @returns нормализованная строка
+ *
+ * @example
+ * ```ts
+ * const fn = ({ core }) => { core.active = true }
+ * const str = normalizeFunctionString(fn.toString())
+ * // "({ core }) => { core.active = true }"
+ * ```
+ */
+export function normalizeFunctionString(funcString: string): string {
+  return funcString.replace(/!0\b/g, "true").replace(/!1\b/g, "false")
+}
+
+/**
  * Парсит функцию и извлекает информацию о полях контекста, которые читаются и записываются.
  *
  * Анализирует код функции с помощью регулярных выражений для поиска:

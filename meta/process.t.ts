@@ -71,8 +71,6 @@ export type ParsedDestroy = {
   label?: string
   /** Описание процесса */
   desc?: string
-  /** Рекурсивное удаление */
-  recursive?: boolean
   before: ParsedActionHandler
 }
 
@@ -89,10 +87,7 @@ interface BaseProcessConfig {
   desc?: string
 }
 
-export interface DestroyConfig extends BaseProcessConfig {
-  /** */
-  recursive?: boolean
-}
+export interface DestroyConfig extends BaseProcessConfig {}
 
 export interface ProcessConfig extends BaseProcessConfig {}
 

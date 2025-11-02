@@ -3,7 +3,7 @@ import type { Core } from "../atom/gravity.t"
 import type { Process } from "../atom/src/processes"
 import { ProcessType, type DestroyConfig, type ProcessConfig } from "./process.t"
 import type { ParsedProcess, ParsedDestroy, ProcessesDeclaration, ProcessesSchema } from "./process.t"
-import { destroyAppendArg, parseFunction, updateAppendArg } from "./parser/func"
+import { destroyAppendArg, normalizeFunctionString, parseFunction, updateAppendArg } from "./parser/func"
 import { Initiator } from "../atom/em.t"
 
 export type { ProcessesDeclaration, ProcessesSchema }
@@ -41,13 +41,13 @@ export function parseProcess<C extends Schema, I extends Core, Res = any>(proces
 
   const parsed = parseFunction(process.action, false)
   result.action = {
-    src: process.action.toString(),
+    src: normalizeFunctionString(process.action.toString()),
     ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
   }
 
   if (process.success) {
     const parsed = parseFunction(process.success, true)
-    const src = updateAppendArg(process.success.toString(), `"${Initiator.Success}"`)
+    const src = normalizeFunctionString(updateAppendArg(process.success.toString(), `"${Initiator.Success}"`))
     result.success = {
       src,
       ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
@@ -56,7 +56,7 @@ export function parseProcess<C extends Schema, I extends Core, Res = any>(proces
   }
   if (process.error) {
     const parsed = parseFunction(process.error)
-    const src = updateAppendArg(process.error.toString(), `"${Initiator.Error}"`)
+    const src = normalizeFunctionString(updateAppendArg(process.error.toString(), `"${Initiator.Error}"`))
     result.error = {
       src,
       ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
@@ -135,7 +135,6 @@ export const processesSchema = <C extends Schema, S extends string, I extends Co
         type: ProcessType.FINALLY,
         label: config?.label,
         desc: config?.desc,
-        recursive: config?.recursive,
         _beforeHandler: undefined,
         before: (fn: any) => {
           chain._beforeHandler = fn
@@ -144,7 +143,6 @@ export const processesSchema = <C extends Schema, S extends string, I extends Co
         getResult: () => {
           const result: any = {
             type: ProcessType.FINALLY,
-            recursive: chain.recursive,
           }
           if (chain._beforeHandler) result.before = chain._beforeHandler
           if (chain.label) result.label = chain.label
@@ -170,12 +168,11 @@ export const processesSchema = <C extends Schema, S extends string, I extends Co
           result[key] = {
             type: ProcessType.FINALLY,
             before: {
-              src: chainResult.before ? chainResult.before.toString() : "() => {}",
+              src: chainResult.before ? normalizeFunctionString(chainResult.before.toString()) : "() => {}",
               ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
             },
             ...(chainResult.label ? { label: chainResult.label } : {}),
             ...(chainResult.desc ? { desc: chainResult.desc } : {}),
-            ...(chainResult.recursive === true ? { recursive: chainResult.recursive } : {}),
           }
         }
       } else {

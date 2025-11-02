@@ -33,7 +33,7 @@ test("Полный пример с destroy", () => {
           })
           .success(({ data, update }) => update({ current: data }))
           .error(({ error, update }) => update({ error: error.message })),
-        конец: destroy({ recursive: false }).before(({ core }) => {}),
+        конец: destroy().before(({ core }) => {}),
       })
     )
   )

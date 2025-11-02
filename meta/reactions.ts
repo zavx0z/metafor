@@ -3,7 +3,7 @@ import type { Core } from "../atom/gravity.t"
 import type { ReactionFilterConditions } from "../atom/src/condition.t"
 import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction } from "./reactions.t"
 import type { Self } from "./metafor"
-import { destroyAppendArg, extractFields, updateAppendArg } from "./parser/func"
+import { extractFields, normalizeFunctionString, updateAppendArg } from "./parser/func"
 import { Initiator } from "../atom/em.t"
 export type { ReactionsDeclaration, ReactionsSchema }
 
@@ -23,13 +23,12 @@ export const reactionsSchema = <C extends Schema, S extends string, I extends Co
         const id = reactionAutoId++
 
         // const fnTrim = trimArrow(update.toString()) // FIXME: или не обрезать или проверять на rest
-        const destroySrc = destroyAppendArg(update.toString(), `"${Initiator.Reaction}:${id}"`)
-        const src = updateAppendArg(destroySrc, `"${Initiator.Reaction}:${id}"`)
+        const src = normalizeFunctionString(updateAppendArg(update.toString(), `"${Initiator.Reaction}:${id}"`))
 
         reactions[id] = {
           label,
           ...(desc && { desc }),
-          cond: filter.toString(),
+          cond: normalizeFunctionString(filter.toString()),
           read,
           write,
           src,

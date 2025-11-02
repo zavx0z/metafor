@@ -4,7 +4,6 @@ import type { Core } from "../atom/gravity.t"
 import type { ReactionFilterConditions } from "../atom/src/condition.t"
 import type { ReactionParams } from "../atom/src/reactions.t"
 import type { Self } from "../atom/atom"
-import type { Destroy } from "../atom/field.t"
 
 /**
  * Конфигурация одной реакции
@@ -59,9 +58,8 @@ export type Reaction<C extends Schema, S extends string, I extends Core> = {
  *     ["idle", "loading"], // Состояния
  *     reaction({ label: "Обработка сообщений" })
  *       .filter(({ self }) => ({ meta: "user", atom: self.atom.split("/")[1] }))
- *       .equal(({ update, patch, destroy }) => {
+ *       .equal(({ update, patch }) => {
  *         update({ lastMessage: patch.value })
- *         // destroy() доступен в equal, но не в filter
  *       })
  *   ]
  * ]
@@ -75,9 +73,9 @@ export type ReactionsDeclaration<C extends Schema, S extends string, I extends C
     /** Описание реакции */
     desc?: string
   }) => {
-    /** Добавляет декларативные фильтры (использует SelfInfo без destroy) */
+    /** Добавляет декларативные фильтры */
     filter: (filter: (params: { self: Self; context: Values<C> }) => ReactionFilterConditions) => {
-      /** Добавляет функцию обработки события (использует Self с destroy) */
+      /** Добавляет функцию обработки события */
       equal: (reaction: ReactionAction<C, S, I>) => Reaction<C, S, I> & {
         /** Метод для регистрации состояний */
         registerStates: (states: S[]) => void
@@ -118,7 +116,6 @@ export type ReactionsSchema = {
  * ```typescript
  * const updateFn: ReactionUpdate<MyContext, "idle" | "loading"> = ({
  *   update,    // Функция для обновления контекста
- *   destroy,   // Функция для уничтожения актора
  *   context,   // Текущий контекст
  *   core,      // Core объект
  *   meta,      // Мета-информация отправителя
@@ -133,7 +130,6 @@ export type ReactionsSchema = {
  *     lastMessage: patch.value,
  *     messageCount: context.messageCount + 1
  *   })
- *   // destroy() доступен для уничтожения актора
  * }
  * ```
  */
@@ -141,8 +137,6 @@ export type ReactionsSchema = {
 export type ReactionAction<C extends Schema, S extends string, I extends Core> = (args: {
   /** Функция для обновления контекста */
   update: Update<C>
-  /** Функция для уничтожения актора */
-  destroy: Destroy
   /** Текущий контекст */
   context: Values<C>
   /** Core объект */

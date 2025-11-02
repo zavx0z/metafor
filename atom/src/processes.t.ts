@@ -139,7 +139,6 @@ export type ActionParams<C extends Schema, I extends Core> = {
  */
 export type Process<C extends Schema = Schema, I extends Core = Core, Res = any> = {
   type: ProcessType.ACTION | ProcessType.FINALLY
-  recursive?: boolean
   /** Основная функция процесса */
   action: (params: ActionParams<C, I>) => Res | Promise<Res>
   /** Обработчик успешного завершения */
