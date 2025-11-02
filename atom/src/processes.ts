@@ -7,6 +7,7 @@ import type { Schema } from "@zavx0z/context"
 import type { Process, Processes } from "./processes.t"
 import type { Core } from "../gravity.t"
 import type { ProcessesSchema } from "../../meta/process.t"
+import { ProcessType } from "../../meta/process.t"
 
 export type { Process, Processes }
 
@@ -38,39 +39,47 @@ export function processesFromSchema<C extends Schema = Schema, S extends string 
       // const name = self.meta + "_" + self.atom.replace(/\//g, "_") + "_" + processName.replace(/\s/g, "_") // TODO: параметр отладки
 
       // Определяем тип процесса: если есть поле "before" - это destroy, иначе action
-      const processType = processData.type || ("before" in processData ? "finally" : "action")
+      const processType: ProcessType = processData.type || ("before" in processData ? ProcessType.FINALLY : ProcessType.ACTION)
 
       switch (processType) {
-        case "finally":
-          const destroyProcess: Process<C, I> = {
-            // Для destroy-процессов создаём action, который вызывает destroy
-            type: processType,
-            action: new Function(`//# sourceURL=${name}_destroy \n return ${processData.before.src}`)() as any,
-            // Добавляем метаданные
-            ...(processData.label && { label: processData.label }),
-            ...(processData.desc && { desc: processData.desc }),
+        case ProcessType.FINALLY:
+          // Type guard для ParsedDestroy
+          if ("before" in processData) {
+            const destroyData = processData as Extract<typeof processData, { before: any }>
+            const destroyProcess: Process<C, I> = {
+              // Для destroy-процессов создаём action, который вызывает destroy
+              type: processType,
+              action: new Function(`//# sourceURL=${name}_destroy \n return ${destroyData.before.src}`)() as any,
+              // Добавляем метаданные
+              ...(destroyData.label && { label: destroyData.label }),
+              ...(destroyData.desc && { desc: destroyData.desc }),
+            }
+            processes[processName as S] = destroyProcess
           }
-          processes[processName as S] = destroyProcess
           break
-        case "action":
-          // Обычный процесс
-          const process: Process<C, I> = {
-            type: processType,
-            // Восстанавливаем action функцию из строки
-            action: new Function(`//# sourceURL=${name}_action \n return ${processData.action.src}`)() as any,
-            // Восстанавливаем success функцию если есть
-            ...(processData.success && {
-              success: new Function(`//# sourceURL=${name}_success \n return ${processData.success.src}`)() as any,
-            }),
-            // Восстанавливаем error функцию если есть
-            ...(processData.error && {
-              error: new Function(`//# sourceURL=${name}_error \n return ${processData.error.src}`)() as any,
-            }),
-            // Добавляем метаданные
-            ...(processData.label && { label: processData.label }),
-            ...(processData.desc && { desc: processData.desc }),
+        case ProcessType.ACTION:
+          // Type guard для ParsedProcess
+          if ("action" in processData) {
+            const actionData = processData as Extract<typeof processData, { action: any }>
+            // Обычный процесс
+            const process: Process<C, I> = {
+              type: processType,
+              // Восстанавливаем action функцию из строки
+              action: new Function(`//# sourceURL=${name}_action \n return ${actionData.action.src}`)() as any,
+              // Восстанавливаем success функцию если есть
+              ...(actionData.success && {
+                success: new Function(`//# sourceURL=${name}_success \n return ${actionData.success.src}`)() as any,
+              }),
+              // Восстанавливаем error функцию если есть
+              ...(actionData.error && {
+                error: new Function(`//# sourceURL=${name}_error \n return ${actionData.error.src}`)() as any,
+              }),
+              // Добавляем метаданные
+              ...(actionData.label && { label: actionData.label }),
+              ...(actionData.desc && { desc: actionData.desc }),
+            }
+            processes[processName as S] = process
           }
-          processes[processName as S] = process
           break
       }
     }
