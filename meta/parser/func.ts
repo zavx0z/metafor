@@ -23,9 +23,7 @@ export function trimArrow(funcString: string) {
 }
 
 export function destroyAppendArg(funcString: string, arg: string) {
-  if (funcString.includes("destroy()")) return funcString.replace("destroy()", `destroy(true, ${arg})`)
-  if (funcString.includes("destroy(true)")) return funcString.replace("destroy(true)", `destroy(true, ${arg})`)
-  if (funcString.includes("destroy(false)")) return funcString.replace("destroy(false)", `destroy(false, ${arg})`)
+  if (funcString.includes("destroy()")) return funcString.replace("destroy()", `destroy(${arg})`)
   return funcString
 }
 

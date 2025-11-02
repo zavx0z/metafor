@@ -12,6 +12,7 @@ import { Atom } from "./atom"
 import { decoherence, type Wave } from "./src/states"
 import { EM, type Photon } from "./em"
 import { ProcessType } from "../meta/process.t"
+import { Initiator } from "./em"
 
 export abstract class Strong extends Week {
   constructor(
@@ -51,7 +52,7 @@ export abstract class Strong extends Week {
           this.action().then(this.up).catch(this.down)
           return
         case ProcessType.FINALLY:
-          this.destroy(this.process.recursive ?? false)
+          this.destroy(Initiator.Transition)
           return
       }
     } else if (!this.emitMeasure(eigenstate)) return

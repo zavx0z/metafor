@@ -6,9 +6,9 @@ export abstract class Week extends EM {
   protected abstract action(): Promise<any>
 
   @EM.it
-  override destroy(recursive = true, initiator = Initiator.Nothing) {
+  override destroy(initiator = Initiator.Nothing) {
     Week.results.delete(this)
-    super.destroy(recursive, initiator)
+    super.destroy(initiator)
   }
 
   // ------------------------------ процесс ----------------------------------------

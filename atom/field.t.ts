@@ -28,4 +28,4 @@ export type Listener<E extends EventName> = (payload: Payloads[E]) => void
 
 export type HistoryEntry = { forward: JsonPatch[]; inverse: JsonPatch[] }
 
-export type Destroy = (recursive?: boolean) => void
+export type Destroy = () => void

@@ -55,17 +55,7 @@ export abstract class Field {
     return Field.fields.getChildren(parentId)
   }
 
-  public destroy(recursive: boolean) {
-    if (recursive) {
-      while (true) {
-        const children = Field.fields.getChildren(this.id)
-        if (children.length === 0) break
-        const childId = children[0]! // Берем первого ребенка
-        const childAtom = Field.fields.getAtom(childId)
-        if (childAtom) childAtom.destroy(true)
-        else break // Если атом не найден, выходим из цикла
-      }
-    } // false, так как мы уже обработали детей
+  public destroy() {
     Field.fields.remove(this.id, false)
   }
   // -------------------------- История атомов -----------------------------------------

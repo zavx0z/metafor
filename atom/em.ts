@@ -1,9 +1,9 @@
 import { Gravity } from "./gravity"
 import { Initiator, type JsonPatch, type Photon, type WrappedMethod } from "./em.t"
-import { type Impulse, Energy, getImpulseType } from "./src/stack"
+import { type Impulse, Energy, getImpulseType, impulseInStack } from "./src/stack"
 import type { Reactions } from "./src/reactions"
 import type { Atom } from "./atom"
-import { Field, type Hidden, type Values } from "./field"
+import { Field } from "./field"
 
 export { Initiator }
 export type { Photon, JsonPatch, Impulse }
@@ -60,11 +60,11 @@ export abstract class EM extends Gravity {
     EM.channel && EM.channel.addEventListener("message", this.handleReaction)
   }
 
-  public override destroy(recursive = true, initiator = Initiator.Nothing) {
+  public override destroy(initiator = Initiator.Nothing) {
     // EM.emitStack.clear()
     EM.charged.delete(this)
     EM.channel && EM.channel.removeEventListener("message", this.handleReaction)
-    super.destroy(recursive)
+    super.destroy()
   }
 
   protected emission(photon: Photon) {
@@ -101,7 +101,13 @@ export abstract class EM extends Gravity {
     const impulse = EM.stack.shift() as Impulse
 
     EM.emitStack.forEach((observer) => observer(EM.stack))
-    const atom = Field.getAtom(impulse.atom)
+    let atom: ReturnType<typeof Field.getAtom> | null = null
+    try {
+      atom = Field.getAtom(impulse.atom)
+    } catch {
+      // Атом уже удалён — считаем импульс устаревшим и пропускаем его
+      return null
+    }
     const energy = getImpulseType(impulse)
     const photon: Photon = {
       ...atom.self,
@@ -119,7 +125,9 @@ export abstract class EM extends Gravity {
   protected abstract measurement(): void
   /** Выполняет импульс из стека. */
   public static step() {
-    const { atom, energy, photon } = EM.getImpulse()
+    const packet = EM.getImpulse()
+    if (!packet) return
+    const { atom, energy, photon } = packet
     switch (energy) {
       case Energy.Init:
         atom.emission(photon)
@@ -131,11 +139,11 @@ export abstract class EM extends Gravity {
         atom.action().then(atom.up).catch(atom.down)
         break
       case Energy.Success:
-        if (EM.stack.length && EM.stack.at(-1)?.atom === atom.id) {
-          const { photon: ctxPhoton } = EM.getImpulse()
-          atom.emission(ctxPhoton)
-          EM.pushImpulse(photon)
-          break
+        // Если следующий импульс в очереди относится к тому же атому (например, обновление контекста),
+        // сначала обработаем его, а затем завершим успех процесса без возврата успеха обратно в стек.
+        if (EM.stack.length && EM.stack[0]?.atom === atom.id) {
+          const ctx = EM.getImpulse()
+          if (ctx) atom.emission(ctx.photon)
         }
         atom.emission(photon)
         atom.process = undefined
@@ -158,10 +166,12 @@ export abstract class EM extends Gravity {
         atom.emission(photon)
         break
       case Energy.ReactionUpdate:
+        EM.callOriginal(atom.evaluate, atom, photon.impulses[0]?.value)
+        atom.emission(photon)
         break
       case Energy.Destroy:
-        EM.callOriginal(atom.destroy, atom)
         atom.emission(photon)
+        EM.callOriginal(atom.destroy, atom)
         break
     }
   }
@@ -187,6 +197,7 @@ export abstract class EM extends Gravity {
           EM.channel && EM.channel.postMessage(photon)
           return
         }
+        if (impulseInStack(EM.stack, photon)) return
         EM.pushImpulse(photon)
       }
     } else if (propertyKey === "evaluate") {
@@ -210,9 +221,11 @@ export abstract class EM extends Gravity {
               atom.handleReaction({ data: photon } as MessageEvent<Photon>)
             }
             EM.channel && EM.channel.postMessage(photon)
-            return
           }
+          // В разблокированном режиме не помещаем «пустые» обновления в стек
+          return
         }
+        // В режиме lock — всегда складываем фотон в стек для последовательной обработки
         EM.pushImpulse(photon)
       }
     } else {

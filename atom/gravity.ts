@@ -13,9 +13,9 @@ export abstract class Gravity extends Field {
     Field.fields.attachReserved(this as unknown as Atom)
   }
 
-  public override destroy(recursive = true) {
+  public override destroy() {
     Gravity.coreWeakMap.delete(this)
-    super.destroy(recursive)
+    super.destroy()
   }
 
   get snapshot(): AtomPayload {
