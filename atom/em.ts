@@ -146,10 +146,10 @@ export abstract class EM extends Gravity {
         atom.measurement()
         break
       case Energy.Error:
-        EM.callOriginal(atom.down, atom)
         atom.process = undefined
         atom.error = null
         atom.emission(photon)
+        atom.measurement()
         break
       case Energy.Transition:
         atom.state = photon.impulses[0]!.value

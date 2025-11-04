@@ -44,10 +44,11 @@ export abstract class Strong extends Week {
     const eigenstate = Object.entries(eigenstates).find(([_, Ψ]) => decoherence(Ψ as Wave, this.λ))?.[0]
     if (!eigenstate) return
 
+    this.state = eigenstate
+
     if ((this.process = this.processes.get(eigenstate))) {
       switch (this.process.type) {
         case ProcessType.ACTION:
-          this.state = eigenstate
           this.action().then(this.up).catch(this.down)
           return
         case ProcessType.FINALLY:
@@ -56,7 +57,6 @@ export abstract class Strong extends Week {
       }
     } else if (!this.emitMeasure(eigenstate)) return
 
-    this.state = eigenstate
     this.measurement()
   }
 
@@ -195,7 +195,7 @@ export abstract class Strong extends Week {
     const ctx = contextFromSchema(meta.context)
     ctx.update(context)
 
-    // создаём атома на следующем тике:
+    // создаём атом на следующем тике:
     setTimeout(() => {
       // базовый конструктор прикрепит к зарезервированному слоту и отправит init
       new Atom(

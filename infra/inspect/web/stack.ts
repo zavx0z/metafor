@@ -30,7 +30,7 @@ export class Stack extends HTMLElement {
     const styleSheet = new CSSStyleSheet()
     styleSheet.replaceSync(style)
     this.#shadow.adoptedStyleSheets = [styleSheet]
-    EM.lock = true
+    // EM.lock = true
     const off = EM.onChangeStack((stack: Impulse[]) => this.render(stack))
     this.off = off
 
