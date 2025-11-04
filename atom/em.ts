@@ -13,42 +13,6 @@ export abstract class EM extends Gravity {
   static CHANNEL = "electromagnetic"
   protected static channel: BroadcastChannel = new BroadcastChannel(EM.CHANNEL)
 
-  /**
-   * Безопасно вызывает оригинальный метод, если он обернут декоратором @it
-   * @param method - метод, который может быть обернут декоратором
-   * @param context - контекст для вызова (this)
-   * @param args - аргументы для передачи в метод
-   */
-  public static callOriginal<T extends (...args: any[]) => any>(
-    method: T | WrappedMethod<T>,
-    context: any,
-    ...args: Parameters<T>
-  ): ReturnType<T> {
-    const wrappedMethod = method as WrappedMethod<T>
-    if ("original" in wrappedMethod && wrappedMethod.original) {
-      return wrappedMethod.original.call(context, ...args)
-    } else {
-      return (method as T).call(context, ...args)
-    }
-  }
-
-  /**
-   * Правильно биндит метод с сохранением свойства original
-   * @param method - метод для биндинга
-   * @param context - контекст для биндинга (this)
-   */
-  public static bindWithOriginal<T extends (...args: any[]) => any>(
-    method: T | WrappedMethod<T>,
-    context: any
-  ): T & { original?: T } {
-    const boundMethod = method.bind(context)
-    const wrappedMethod = method as WrappedMethod<T>
-    if ("original" in wrappedMethod && wrappedMethod.original) {
-      ;(boundMethod as any).original = wrappedMethod.original
-    }
-    return boundMethod as T & { original?: T }
-  }
-
   protected abstract handleReaction(ev: MessageEvent<Photon>): void
   protected abstract reactions: Reactions
   private static charged = new Set<EM>()
@@ -124,7 +88,7 @@ export abstract class EM extends Gravity {
     return () => EM.emitStack.delete(observer)
   }
 
-  protected abstract measurement(): void
+  protected abstract measurement(state: string): void
   /** Выполняет импульс из стека. */
   public static step() {
     const packet = EM.getImpulse()
@@ -133,7 +97,7 @@ export abstract class EM extends Gravity {
     switch (energy) {
       case Energy.Init:
         atom.emission(photon)
-        atom.measurement()
+        EM.callOriginal(atom.init, atom)
         break
       case Energy.Action:
         atom.emission(photon)
@@ -141,20 +105,17 @@ export abstract class EM extends Gravity {
         EM.callOriginal(atom.action, atom).then(atom.up).catch(atom.down)
         break
       case Energy.Success:
-        atom.process = undefined
         atom.emission(photon)
-        atom.measurement()
+        atom.measurement(photon.impulses[0]!.value)
         break
       case Energy.Error:
-        atom.process = undefined
-        atom.error = null
         atom.emission(photon)
-        atom.measurement()
+        atom.measurement(photon.impulses[0]!.value)
         break
       case Energy.Transition:
         atom.state = photon.impulses[0]!.value
         atom.emission(photon)
-        atom.measurement()
+        atom.measurement(photon.impulses[0]!.value)
         break
       case Energy.SuccessUpdate:
         EM.callOriginal(atom.evaluate, atom, photon.impulses[0]?.value)
@@ -179,8 +140,23 @@ export abstract class EM extends Gravity {
     const originalMethod = descriptor.value
 
     let wrappedMethod: Function
-
-    if (propertyKey === "destroy") {
+    if (propertyKey === "init") {
+      wrappedMethod = function (this: Atom, ...args: any[]) {
+        const [initiator] = args
+        const value = this.snapshot
+        const photon: Photon = {
+          ...this.self,
+          timestamp: Date.now(),
+          initiator: Initiator.Nothing,
+          impulses: [{ op: "add", path: "/", value }],
+        }
+        if (!EM._lock) {
+          this.emission(photon)
+          return originalMethod.apply(this, args)
+        }
+        EM.putImpulse(photon)
+      }
+    } else if (propertyKey === "destroy") {
       wrappedMethod = function (this: Atom, ...args: any[]) {
         const [initiator] = args
         const photon: Photon = {
@@ -305,5 +281,41 @@ export abstract class EM extends Gravity {
     }
     EM.putImpulse(photon)
     return false
+  }
+
+  /**
+   * Безопасно вызывает оригинальный метод, если он обернут декоратором @it
+   * @param method - метод, который может быть обернут декоратором
+   * @param context - контекст для вызова (this)
+   * @param args - аргументы для передачи в метод
+   */
+  public static callOriginal<T extends (...args: any[]) => any>(
+    method: T | WrappedMethod<T>,
+    context: any,
+    ...args: Parameters<T>
+  ): ReturnType<T> {
+    const wrappedMethod = method as WrappedMethod<T>
+    if ("original" in wrappedMethod && wrappedMethod.original) {
+      return wrappedMethod.original.call(context, ...args)
+    } else {
+      return (method as T).call(context, ...args)
+    }
+  }
+
+  /**
+   * Правильно биндит метод с сохранением свойства original
+   * @param method - метод для биндинга
+   * @param context - контекст для биндинга (this)
+   */
+  public static bindWithOriginal<T extends (...args: any[]) => any>(
+    method: T | WrappedMethod<T>,
+    context: any
+  ): T & { original?: T } {
+    const boundMethod = method.bind(context)
+    const wrappedMethod = method as WrappedMethod<T>
+    if ("original" in wrappedMethod && wrappedMethod.original) {
+      ;(boundMethod as any).original = wrappedMethod.original
+    }
+    return boundMethod as T & { original?: T }
   }
 }

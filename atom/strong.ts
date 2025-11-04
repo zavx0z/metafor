@@ -32,13 +32,19 @@ export abstract class Strong extends Week {
     this.up = EM.bindWithOriginal(this.up, this)
     this.down = EM.bindWithOriginal(this.down, this)
     this.connect()
-    this.emitInit() && this.measurement()
+    this.init()
   }
 
-  measurement() {
+  @EM.it
+  init(initiator = Initiator.Nothing) {
+    const initialState = Object.getOwnPropertySymbols(this.eigenstates)[0]
+    this.measurement(initialState as unknown as string)
+  }
+
+  measurement(state: string) {
     if (this.process) return
 
-    const eigenstates = this.eigenstates[this.state ?? Object.getOwnPropertySymbols(this.eigenstates)[0]]
+    const eigenstates = this.eigenstates[state]
     if (!eigenstates) return
 
     const eigenstate = Object.entries(eigenstates).find(([_, Ψ]) => decoherence(Ψ as Wave, this.λ))?.[0]
@@ -57,19 +63,23 @@ export abstract class Strong extends Week {
       }
     } else if (!this.emitMeasure(eigenstate)) return
 
-    this.measurement()
+    this.measurement(eigenstate)
   }
 
   @EM.it
   up() {
     if (this.result && this.process?.success) this.process.success({ update: this.evaluate, data: this.result })
-    this.measurement()
+    this.process = undefined
+    this.result = undefined
+    this.measurement(this.state)
   }
 
   @EM.it
   down() {
     if (this.error && this.process?.error) this.process.error({ update: this.evaluate, error: this.error })
-    this.measurement()
+    this.process = undefined
+    this.error = null
+    this.measurement(this.state)
   }
 
   protected handleReaction({ data }: MessageEvent<Photon>) {
@@ -89,7 +99,7 @@ export abstract class Strong extends Week {
         self: this.self,
       })
     }
-    this.measurement()
+    this.measurement(this.state)
   }
 
   /**

@@ -40,7 +40,7 @@ export class Atom extends Strong {
       } catch (error) {
         let normError: Error
         if (error instanceof Error) normError = error
-        if (typeof error === "string") normError = new Error(error)
+        else if (typeof error === "string") normError = new Error(error)
         else {
           normError = new Error(error ? JSON.stringify(error) : "Ошибка без основания!")
           console.error(`В состоянии: ${this.state} - не понятно что произошло!`)
