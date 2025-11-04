@@ -29,8 +29,8 @@ export abstract class Strong extends Week {
 
     this.evaluate = EM.bindWithOriginal(this.evaluate, this)
     this.destroy = EM.bindWithOriginal(this.destroy, this)
-    this.up = this.up.bind(this)
-    this.down = this.down.bind(this)
+    this.up = EM.bindWithOriginal(this.up, this)
+    this.down = EM.bindWithOriginal(this.down, this)
     this.connect()
     this.emitInit() && this.measurement()
   }
@@ -47,7 +47,6 @@ export abstract class Strong extends Week {
     if ((this.process = this.processes.get(eigenstate))) {
       switch (this.process.type) {
         case ProcessType.ACTION:
-          if (!this.emitProcess(eigenstate)) return
           this.state = eigenstate
           this.action().then(this.up).catch(this.down)
           return
@@ -61,18 +60,15 @@ export abstract class Strong extends Week {
     this.measurement()
   }
 
+  @EM.it
   up() {
     if (this.result && this.process?.success) this.process.success({ update: this.evaluate, data: this.result })
-    if (!this.emitUp()) return
-    this.process = undefined
     this.measurement()
   }
 
+  @EM.it
   down() {
     if (this.error && this.process?.error) this.process.error({ update: this.evaluate, error: this.error })
-    if (!this.emitDown()) return
-    this.error = null
-    this.process = undefined
     this.measurement()
   }
 

@@ -4,6 +4,7 @@ import { type Impulse, Energy, getImpulseType, impulseInStack } from "./src/stac
 import type { Reactions } from "./src/reactions"
 import type { Atom } from "./atom"
 import { Field } from "./field"
+import { contextFromSchema } from "@zavx0z/context"
 
 export { Initiator }
 export type { Photon, JsonPatch, Impulse }
@@ -91,7 +92,7 @@ export abstract class EM extends Gravity {
   public static resume() {
     EM._lock = false
   }
-  private static pushImpulse(photon: Photon) {
+  private static putImpulse(photon: Photon) {
     const { impulses, meta, path, ...self } = photon
     for (const impulse of impulses) EM.stack.push({ ...self, ...impulse })
     EM.emitStack.forEach((observer) => observer(EM.stack))
@@ -117,6 +118,7 @@ export abstract class EM extends Gravity {
     }
     return { atom, energy, photon }
   }
+
   public static onChangeStack(observer: (stack: Impulse[]) => void) {
     EM.emitStack.add(observer)
     return () => EM.emitStack.delete(observer)
@@ -136,22 +138,18 @@ export abstract class EM extends Gravity {
       case Energy.Action:
         atom.emission(photon)
         atom.state = photon.impulses[0]!.value
-        atom.action().then(atom.up).catch(atom.down)
+        EM.callOriginal(atom.action, atom).then(atom.up).catch(atom.down)
         break
       case Energy.Success:
-        // Если следующий импульс в очереди относится к тому же атому (например, обновление контекста),
-        // сначала обработаем его, а затем завершим успех процесса без возврата успеха обратно в стек.
-        if (EM.stack.length && EM.stack[0]?.atom === atom.id) {
-          const ctx = EM.getImpulse()
-          if (ctx) atom.emission(ctx.photon)
-        }
-        atom.emission(photon)
         atom.process = undefined
+        atom.emission(photon)
         atom.measurement()
         break
       case Energy.Error:
+        EM.callOriginal(atom.down, atom)
+        atom.process = undefined
+        atom.error = null
         atom.emission(photon)
-        atom.down()
         break
       case Energy.Transition:
         atom.state = photon.impulses[0]!.value
@@ -173,6 +171,8 @@ export abstract class EM extends Gravity {
         atom.emission(photon)
         EM.callOriginal(atom.destroy, atom)
         break
+      default:
+        break
     }
   }
   static it(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
@@ -184,58 +184,84 @@ export abstract class EM extends Gravity {
       wrappedMethod = function (this: Atom, ...args: any[]) {
         const [initiator] = args
         const photon: Photon = {
-          meta: this.meta,
-          atom: this.id,
-          path: this.path,
+          ...this.self,
           timestamp: Date.now(),
           initiator: initiator,
           impulses: [{ op: "remove", path: "/" }],
         }
         if (!EM._lock) {
           originalMethod.apply(this, args)
-          Field.propagation(photon)
-          EM.channel && EM.channel.postMessage(photon)
+          this.emission(photon)
           return
         }
         if (impulseInStack(EM.stack, photon)) return
-        EM.pushImpulse(photon)
+        EM.putImpulse(photon)
+      }
+    } else if (propertyKey === "action") {
+      wrappedMethod = function (this: Atom, ...args: any[]) {
+        const photon: Photon = {
+          ...this.self,
+          timestamp: Date.now(),
+          initiator: Initiator.Nothing,
+          impulses: [{ op: "test", path: "/state", value: this.state }],
+        }
+        if (!EM._lock) {
+          this.emission(photon)
+          return originalMethod.apply(this, args)
+        }
+        EM.putImpulse(photon)
+        return Promise.resolve("$skip")
+      }
+    } else if (["up", "down"].includes(propertyKey)) {
+      wrappedMethod = function (this: Atom, ...args: any[]) {
+        if (args[0] === "$skip") return
+        const value = this.state
+        const photon: Photon = {
+          ...this.self,
+          timestamp: Date.now(),
+          initiator: propertyKey === "up" ? Initiator.Success : Initiator.Error,
+          impulses: [{ op: "replace", path: "/state", value }],
+        }
+        originalMethod.apply(this, args)
+        if (!EM._lock) {
+          this.emission(photon)
+          return
+        }
+        EM.putImpulse(photon)
       }
     } else if (propertyKey === "evaluate") {
       wrappedMethod = function (this: Atom, ...args: any[]) {
-        const [value, initiator] = args
-        const photon: Photon = {
-          meta: this.meta,
-          atom: this.id,
-          path: this.path,
+        const [values, initiator] = args
+        const photon: Partial<Photon> = {
+          ...this.self,
           timestamp: Date.now(),
           initiator: initiator,
-          impulses: [{ op: "replace", path: "/context", value }],
         }
 
         if (!EM._lock) {
           const updated = originalMethod.apply(this, args)
-          if (Object.keys(updated).length > 0) {
-            Field.propagation(photon)
-            for (const atom of EM.charged) {
-              if (atom === this) continue
-              atom.handleReaction({ data: photon } as MessageEvent<Photon>)
-            }
-            EM.channel && EM.channel.postMessage(photon)
-          }
-          // В разблокированном режиме не помещаем «пустые» обновления в стек
-          return
+          if (!Object.keys(updated).length) return
+
+          photon.impulses = [{ op: "replace", path: "/context", value: updated }]
+          this.emission(photon as Photon)
+          return updated
         }
-        // В режиме lock — всегда складываем фотон в стек для последовательной обработки
-        EM.pushImpulse(photon)
+
+        const ctx = contextFromSchema(this.fields)
+        ctx.update(this.λ)
+        const updated = ctx.update(values)
+        if (!Object.keys(updated).length) return
+
+        photon.impulses = [{ op: "replace", path: "/context", value: updated }]
+        if (impulseInStack(EM.stack, photon as Photon)) return
+        EM.putImpulse(photon as Photon)
+        return updated
       }
     } else {
-      // Для других методов просто вызываем оригинальный метод без обертки
       wrappedMethod = function (this: Atom, ...args: any[]) {
         return originalMethod.apply(this, args)
       }
     }
-
-    // Добавляем ссылку на оригинальный метод для возможности вызова без обертки
     ;(wrappedMethod as WrappedMethod<typeof originalMethod>).original = originalMethod
     descriptor.value = wrappedMethod
   }
@@ -253,9 +279,7 @@ export abstract class EM extends Gravity {
   protected emitInit(): boolean {
     const value = this.snapshot
     const photon: Photon = {
-      meta: this.meta,
-      atom: this.id,
-      path: this.path,
+      ...this.self,
       timestamp: Date.now(),
       initiator: Initiator.Nothing,
       impulses: [{ op: "add", path: "/", value }],
@@ -264,33 +288,13 @@ export abstract class EM extends Gravity {
       this.emission(photon)
       return true
     }
-    EM.pushImpulse(photon)
-    return false
-  }
-
-  protected emitProcess(eigenstate: string) {
-    const photon: Photon = {
-      meta: this.meta,
-      atom: this.id,
-      path: this.path,
-      timestamp: Date.now(),
-      initiator: Initiator.Nothing,
-      impulses: [{ op: "test", path: "/state", value: eigenstate }],
-    }
-    if (!EM._lock) {
-      this.emission(photon)
-      return true
-    }
-    EM.pushImpulse(photon)
-    this.measurement()
+    EM.putImpulse(photon)
     return false
   }
 
   protected emitMeasure(eigenstate: string): boolean {
     const photon: Photon = {
-      meta: this.meta,
-      atom: this.id,
-      path: this.path,
+      ...this.self,
       timestamp: Date.now(),
       initiator: Initiator.Transition,
       impulses: [{ op: "replace", path: "/state", value: eigenstate }],
@@ -299,43 +303,7 @@ export abstract class EM extends Gravity {
       this.emission(photon)
       return true
     }
-    EM.pushImpulse(photon)
-    return false
-  }
-
-  protected emitUp(): boolean {
-    const value = this.state
-    const photon: Photon = {
-      meta: this.meta,
-      atom: this.id,
-      path: this.path,
-      timestamp: Date.now(),
-      initiator: Initiator.Success,
-      impulses: [{ op: "replace", path: "/state", value }],
-    }
-    if (!EM._lock) {
-      this.emission(photon)
-      return true
-    }
-    EM.pushImpulse(photon)
-    return false
-  }
-
-  protected emitDown(): boolean {
-    const value = this.state
-    const photon: Photon = {
-      meta: this.meta,
-      atom: this.id,
-      path: this.path,
-      timestamp: Date.now(),
-      initiator: Initiator.Error,
-      impulses: [{ op: "replace", path: "/state", value }],
-    }
-    if (!EM._lock) {
-      this.emission(photon)
-      return true
-    }
-    EM.pushImpulse(photon)
+    EM.putImpulse(photon)
     return false
   }
 }

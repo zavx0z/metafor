@@ -1,3 +1,4 @@
+import { EM } from "./em"
 import { Strong } from "./strong"
 export { EM } from "./em"
 export { type Impulse } from "./em"
@@ -11,6 +12,7 @@ export class Atom extends Strong {
     }
   }
 
+  @EM.it
   action(): Promise<any> {
     return new Promise<any>((resolve, reject) => {
       if (!this.process?.action) return reject(new Error("Нечего делать!"))

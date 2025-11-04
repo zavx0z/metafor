@@ -28,7 +28,7 @@ export abstract class Week extends EM {
     this.#process = process
   }
 
-  get process() {
+  get process(): Process | undefined {
     return this.#process
   }
 }

@@ -6,7 +6,7 @@ import type { ImpulsesChunk, AtomPayload } from "./gravity.t"
 import { applyPatchesToSnapshot } from "./src/snapshot"
 import type { Hidden, Values, Destroy } from "./field.t"
 import type { Self } from "../meta/metafor"
-import { EM, type Initiator, type Photon } from "./em"
+import { type Photon } from "./em"
 
 export type { Hidden, Values, Destroy }
 
