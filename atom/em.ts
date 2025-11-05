@@ -104,19 +104,25 @@ export abstract class EM extends Gravity {
         atom.state = photon.impulses[0]!.value
         EM.callOriginal(atom.action, atom).then(atom.up).catch(atom.down)
         break
-      case Energy.Success:
+      case Energy.Success: {
         atom.emission(photon)
-        atom.measurement(photon.impulses[0]!.value)
+        const next = atom.measurement(photon.impulses[0]!.value)
+        next && EM.callOriginal(atom.up, atom)
         break
-      case Energy.Error:
+      }
+      case Energy.Error: {
         atom.emission(photon)
-        atom.measurement(photon.impulses[0]!.value)
+        const next = atom.measurement(photon.impulses[0]!.value)
+        next && EM.callOriginal(atom.down, atom)
         break
-      case Energy.Transition:
+      }
+      case Energy.Transition: {
         atom.state = photon.impulses[0]!.value
         atom.emission(photon)
-        atom.measurement(photon.impulses[0]!.value)
+        const next = atom.measurement(photon.impulses[0]!.value)
+        next && atom.collapse(next)
         break
+      }
       case Energy.SuccessUpdate:
         EM.callOriginal(atom.evaluate, atom, photon.impulses[0]?.value)
         atom.emission(photon)
@@ -149,6 +155,21 @@ export abstract class EM extends Gravity {
           timestamp: Date.now(),
           initiator: Initiator.Nothing,
           impulses: [{ op: "add", path: "/", value }],
+        }
+        if (!EM._lock) {
+          this.emission(photon)
+          return originalMethod.apply(this, args)
+        }
+        EM.putImpulse(photon)
+      }
+    } else if (propertyKey === "transition") {
+      wrappedMethod = function (this: Atom, ...args: any[]) {
+        const [state] = args
+        const photon: Photon = {
+          ...this.self,
+          timestamp: Date.now(),
+          initiator: Initiator.Transition,
+          impulses: [{ op: "replace", path: "/state", value: state }],
         }
         if (!EM._lock) {
           this.emission(photon)
@@ -240,47 +261,6 @@ export abstract class EM extends Gravity {
     }
     ;(wrappedMethod as WrappedMethod<typeof originalMethod>).original = originalMethod
     descriptor.value = wrappedMethod
-  }
-  /** ---------------------------- Обработка импульсов действий ------------------------------------
-   * 1. Нормальный режим
-   *    - эмит и ранний выход
-   * 2. Режим EM.lock
-   *    - Первый проход
-   *      - помещение импульсов фотона в конец стека (обязательно)
-   *    - Второй проход
-   *      - удаление из стека (не обязательно)
-   *      - эмит (обязательно)
-   */
-
-  protected emitInit(): boolean {
-    const value = this.snapshot
-    const photon: Photon = {
-      ...this.self,
-      timestamp: Date.now(),
-      initiator: Initiator.Nothing,
-      impulses: [{ op: "add", path: "/", value }],
-    }
-    if (!EM._lock) {
-      this.emission(photon)
-      return true
-    }
-    EM.putImpulse(photon)
-    return false
-  }
-
-  protected emitMeasure(eigenstate: string): boolean {
-    const photon: Photon = {
-      ...this.self,
-      timestamp: Date.now(),
-      initiator: Initiator.Transition,
-      impulses: [{ op: "replace", path: "/state", value: eigenstate }],
-    }
-    if (!EM._lock) {
-      this.emission(photon)
-      return true
-    }
-    EM.putImpulse(photon)
-    return false
   }
 
   /**

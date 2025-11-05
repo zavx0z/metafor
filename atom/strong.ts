@@ -1,7 +1,7 @@
 import { Week } from "./week"
 import type { Core } from "./gravity"
 import type { Meta, Superposition } from "../meta/metafor"
-import type { Processes } from "./src/processes"
+import type { Process, Processes } from "./src/processes"
 import type { Reactions } from "./src/reactions"
 import type { Context } from "@zavx0z/context"
 import { contextFromSchema } from "@zavx0z/context"
@@ -37,11 +37,11 @@ export abstract class Strong extends Week {
 
   @EM.it
   init(initiator = Initiator.Nothing) {
-    const initialState = Object.getOwnPropertySymbols(this.eigenstates)[0]
-    this.measurement(initialState as unknown as string)
+    const available = this.measurement(Object.getOwnPropertySymbols(this.eigenstates)[0] as unknown as string)
+    available && this.collapse(available)
   }
 
-  measurement(state: string) {
+  measurement(state: string): { state: string; process: Process | undefined } | undefined {
     if (this.process) return
 
     const eigenstates = this.eigenstates[state]
@@ -50,20 +50,33 @@ export abstract class Strong extends Week {
     const eigenstate = Object.entries(eigenstates).find(([_, Ψ]) => decoherence(Ψ as Wave, this.λ))?.[0]
     if (!eigenstate) return
 
-    this.state = eigenstate
+    const process = this.processes.get(eigenstate)
+    return { state: eigenstate, process }
+  }
 
-    if ((this.process = this.processes.get(eigenstate))) {
-      switch (this.process.type) {
+  collapse({ state, process }: { state: string; process: Process | undefined }) {
+    this.state = state
+    if (process) {
+      this.process = process
+      switch (process.type) {
         case ProcessType.ACTION:
           this.action().then(this.up).catch(this.down)
-          return
+          break
         case ProcessType.FINALLY:
           this.destroy(Initiator.Transition)
-          return
+          break
       }
-    } else if (!this.emitMeasure(eigenstate)) return
+    } else {
+      this.transition(state)
+    }
+  }
 
-    this.measurement(eigenstate)
+  @EM.it
+  transition(state: string) {
+    const available = this.measurement(state)
+    if (available) {
+      this.collapse(available)
+    }
   }
 
   @EM.it
@@ -71,7 +84,10 @@ export abstract class Strong extends Week {
     if (this.result && this.process?.success) this.process.success({ update: this.evaluate, data: this.result })
     this.process = undefined
     this.result = undefined
-    this.measurement(this.state)
+    const available = this.measurement(this.state)
+    if (available) {
+      this.collapse(available)
+    }
   }
 
   @EM.it
@@ -79,7 +95,21 @@ export abstract class Strong extends Week {
     if (this.error && this.process?.error) this.process.error({ update: this.evaluate, error: this.error })
     this.process = undefined
     this.error = null
-    this.measurement(this.state)
+    const available = this.measurement(this.state)
+    if (available) {
+      this.collapse(available)
+    }
+  }
+
+  /**
+   * Обновляет контекст атома и возвращает обновленные значения.
+   * @param values Обновляемые значения.
+   * @returns Обновленные значения.
+   */
+  @EM.it
+  evaluate(values: Partial<Hidden<Values>>): Partial<Hidden<Values>> {
+    const updated = this.update(values)
+    return updated
   }
 
   protected handleReaction({ data }: MessageEvent<Photon>) {
@@ -100,17 +130,6 @@ export abstract class Strong extends Week {
       })
     }
     this.measurement(this.state)
-  }
-
-  /**
-   * Обновляет контекст атома и возвращает обновленные значения.
-   * @param values Обновляемые значения.
-   * @returns Обновленные значения.
-   */
-  @EM.it
-  evaluate(values: Partial<Hidden<Values>>): Partial<Hidden<Values>> {
-    const updated = this.update(values)
-    return updated
   }
   // ---------------------------------------------------------------------
 
