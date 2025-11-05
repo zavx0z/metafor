@@ -107,8 +107,7 @@ export abstract class EM extends Gravity {
       }
       case Energy.Success: {
         atom.emission(photon)
-        const next = atom.measurement(photon.impulses[0]!.value)
-        next && EM.callOriginal(atom.up, atom)
+        EM.callOriginal(atom.up, atom)
         break
       }
       case Energy.Error: {
@@ -124,15 +123,11 @@ export abstract class EM extends Gravity {
         next && atom.collapse(next)
         break
       }
-      case Energy.SuccessUpdate:
-        EM.callOriginal(atom.evaluate, atom, photon.impulses[0]?.value)
-        atom.emission(photon)
-        break
-      case Energy.ErrorUpdate:
-        atom.emission(photon)
-        break
       case Energy.ReactionUpdate:
-        EM.callOriginal(atom.evaluate, atom, photon.impulses[0]?.value)
+      case Energy.SuccessUpdate:
+      case Energy.ErrorUpdate:
+        const values = photon.impulses[0]?.value
+        EM.callOriginal(atom.evaluate, atom, values)
         atom.emission(photon)
         break
       case Energy.Destroy:
@@ -201,7 +196,44 @@ export abstract class EM extends Gravity {
         }
         break
       }
-      case "up":
+      case "up": {
+        wrapped = function (this: Atom, ...args: any[]) {
+          const [result] = args
+          if (result === "$skip") return
+          const value = this.state
+          const photon: Photon = {
+            ...this.self,
+            timestamp: Date.now(),
+            initiator: Initiator.Success,
+            impulses: [{ op: "replace", path: "/state", value }],
+          }
+          if (!EM._lock) {
+            original.apply(this, args)
+            this.emission(photon)
+            return
+          }
+
+          if (this.result && this.process?.success) {
+            const λ = contextFromSchema(this.fields)
+            λ.update(this.λ)
+
+            λ.onUpdate((value) =>
+              EM.putImpulse({
+                ...this.self,
+                timestamp: Date.now(),
+                initiator: Initiator.Success,
+                impulses: [{ op: "replace", path: "/context", value }],
+              })
+            )
+
+            this.process.success({ update: λ.update, data: this.result })
+            λ.clearSubscribers()
+          }
+
+          EM.putImpulse(photon)
+        }
+        break
+      }
       case "down": {
         wrapped = function (this: Atom, ...args: any[]) {
           if (args[0] === "$skip") return
@@ -209,7 +241,7 @@ export abstract class EM extends Gravity {
           const photon: Photon = {
             ...this.self,
             timestamp: Date.now(),
-            initiator: name === "up" ? Initiator.Success : Initiator.Error,
+            initiator: Initiator.Error,
             impulses: [{ op: "replace", path: "/state", value }],
           }
           if (!EM._lock) {
