@@ -28,6 +28,6 @@
     "doc:push": "bun run script/doc.push.ts"
   },
   "dependencies": {
-    "@zavx0z/context": "2.3.0"
+    "@zavx0z/context": "2.3.1"
   }
 }

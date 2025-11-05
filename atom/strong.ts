@@ -37,8 +37,8 @@ export abstract class Strong extends Week {
 
   @EM.it
   init(initiator = Initiator.Nothing) {
-    const available = this.measurement(Object.getOwnPropertySymbols(this.eigenstates)[0] as unknown as string)
-    available && this.collapse(available)
+    const eigenstate = this.measurement(Object.getOwnPropertySymbols(this.eigenstates)[0] as unknown as string)
+    eigenstate && this.collapse(eigenstate)
   }
 
   measurement(state: string): { state: string; process: Process | undefined } | undefined {
@@ -56,9 +56,9 @@ export abstract class Strong extends Week {
 
   setState(state: string) {
     this.state = state
-    // const available = this.measurement(state)
-    // if (available) {
-    //   this.collapse(available)
+    // const eigenstate = this.measurement(state)
+    // if (eigenstate) {
+    //   this.collapse(eigenstate)
     // }
   }
 
@@ -79,10 +79,8 @@ export abstract class Strong extends Week {
   @EM.it
   transition(state: string) {
     this.setState(state)
-    const available = this.measurement(state)
-    if (available) {
-      this.collapse(available)
-    }
+    const eigenstate = this.measurement(state)
+    eigenstate && this.collapse(eigenstate)
   }
 
   @EM.it
@@ -90,10 +88,8 @@ export abstract class Strong extends Week {
     if (this.result && this.process?.success) this.process.success({ update: this.evaluate, data: this.result })
     this.process = undefined
     this.result = undefined
-    const available = this.measurement(this.state)
-    if (available) {
-      this.collapse(available)
-    }
+    const eigenstate = this.measurement(this.state)
+    eigenstate && this.collapse(eigenstate)
   }
 
   @EM.it
@@ -101,10 +97,8 @@ export abstract class Strong extends Week {
     if (this.error && this.process?.error) this.process.error({ update: this.evaluate, error: this.error })
     this.process = undefined
     this.error = null
-    const available = this.measurement(this.state)
-    if (available) {
-      this.collapse(available)
-    }
+    const eigenstate = this.measurement(this.state)
+    eigenstate && this.collapse(eigenstate)
   }
 
   /**

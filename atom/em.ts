@@ -123,13 +123,19 @@ export abstract class EM extends Gravity {
         next && atom.collapse(next)
         break
       }
-      case Energy.ReactionUpdate:
       case Energy.SuccessUpdate:
       case Energy.ErrorUpdate:
         const values = photon.impulses[0]?.value
         EM.callOriginal(atom.evaluate, atom, values)
         atom.emission(photon)
         break
+      case Energy.ReactionUpdate: {
+        const values = photon.impulses[0]?.value
+        EM.callOriginal(atom.evaluate, atom, values)
+        atom.emission(photon)
+        atom.measurement(atom.state)
+        break
+      }
       case Energy.Destroy:
         atom.emission(photon)
         EM.callOriginal(atom.destroy, atom)
