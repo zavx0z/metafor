@@ -13,7 +13,8 @@ export class Atom extends Strong {
   }
 
   @EM.it
-  action(): Promise<any> {
+  action(state: string): Promise<any> {
+    this.setState(state)
     return new Promise<any>((resolve, reject) => {
       if (!this.process?.action) return reject(new Error("Нечего делать!"))
       try {

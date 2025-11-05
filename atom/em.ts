@@ -25,7 +25,7 @@ export abstract class EM extends Gravity {
     EM.channel && EM.channel.addEventListener("message", this.handleReaction)
   }
 
-  public override destroy(initiator = Initiator.Nothing) {
+  public override destroy() {
     // EM.emitStack.clear()
     EM.charged.delete(this)
     EM.channel && EM.channel.removeEventListener("message", this.handleReaction)
@@ -99,11 +99,12 @@ export abstract class EM extends Gravity {
         atom.emission(photon)
         EM.callOriginal(atom.init, atom)
         break
-      case Energy.Action:
+      case Energy.Action: {
+        const state = photon.impulses[0]!.value
         atom.emission(photon)
-        atom.state = photon.impulses[0]!.value
-        EM.callOriginal(atom.action, atom).then(atom.up).catch(atom.down)
+        EM.callOriginal(atom.action, atom, state).then(atom.up).catch(atom.down)
         break
+      }
       case Energy.Success: {
         atom.emission(photon)
         const next = atom.measurement(photon.impulses[0]!.value)
@@ -142,125 +143,142 @@ export abstract class EM extends Gravity {
         break
     }
   }
-  static it(target: any, propertyKey: string, descriptor: PropertyDescriptor) {
-    const originalMethod = descriptor.value
+  static it(target: any, name: string, descriptor: PropertyDescriptor) {
+    const original = descriptor.value
+    let wrapped: Function
 
-    let wrappedMethod: Function
-    if (propertyKey === "init") {
-      wrappedMethod = function (this: Atom, ...args: any[]) {
-        const [initiator] = args
-        const value = this.snapshot
-        const photon: Photon = {
-          ...this.self,
-          timestamp: Date.now(),
-          initiator: Initiator.Nothing,
-          impulses: [{ op: "add", path: "/", value }],
+    switch (name) {
+      case "init": {
+        wrapped = function (this: Atom, ...args: any[]) {
+          // const [initiator] = args
+          const value = this.snapshot
+          const photon: Photon = {
+            ...this.self,
+            timestamp: Date.now(),
+            initiator: Initiator.Nothing,
+            impulses: [{ op: "add", path: "/", value }],
+          }
+          if (!EM._lock) {
+            this.emission(photon)
+            return original.apply(this, args)
+          }
+          EM.putImpulse(photon)
         }
-        if (!EM._lock) {
-          this.emission(photon)
-          return originalMethod.apply(this, args)
-        }
-        EM.putImpulse(photon)
+        break
       }
-    } else if (propertyKey === "transition") {
-      wrappedMethod = function (this: Atom, ...args: any[]) {
-        const [state] = args
-        const photon: Photon = {
-          ...this.self,
-          timestamp: Date.now(),
-          initiator: Initiator.Transition,
-          impulses: [{ op: "replace", path: "/state", value: state }],
+      case "transition": {
+        wrapped = function (this: Atom, ...args: any[]) {
+          const [state] = args
+          const photon: Photon = {
+            ...this.self,
+            timestamp: Date.now(),
+            initiator: Initiator.Transition,
+            impulses: [{ op: "replace", path: "/state", value: state }],
+          }
+          if (!EM._lock) {
+            this.emission(photon)
+            return original.apply(this, args)
+          }
+          EM.putImpulse(photon)
         }
-        if (!EM._lock) {
-          this.emission(photon)
-          return originalMethod.apply(this, args)
-        }
-        EM.putImpulse(photon)
+        break
       }
-    } else if (propertyKey === "destroy") {
-      wrappedMethod = function (this: Atom, ...args: any[]) {
-        const [initiator] = args
-        const photon: Photon = {
-          ...this.self,
-          timestamp: Date.now(),
-          initiator: initiator,
-          impulses: [{ op: "remove", path: "/" }],
+      case "action": {
+        wrapped = function (this: Atom, ...args: any[]) {
+          const [state] = args
+          const photon: Photon = {
+            ...this.self,
+            timestamp: Date.now(),
+            initiator: Initiator.Nothing,
+            impulses: [{ op: "test", path: "/state", value: state }],
+          }
+          if (!EM._lock) {
+            this.emission(photon)
+            return original.apply(this, args)
+          }
+          EM.putImpulse(photon)
+          return Promise.resolve("$skip")
         }
-        if (!EM._lock) {
-          originalMethod.apply(this, args)
-          this.emission(photon)
-          return
-        }
-        if (impulseInStack(EM.stack, photon)) return
-        EM.putImpulse(photon)
+        break
       }
-    } else if (propertyKey === "action") {
-      wrappedMethod = function (this: Atom, ...args: any[]) {
-        const photon: Photon = {
-          ...this.self,
-          timestamp: Date.now(),
-          initiator: Initiator.Nothing,
-          impulses: [{ op: "test", path: "/state", value: this.state }],
+      case "up":
+      case "down": {
+        wrapped = function (this: Atom, ...args: any[]) {
+          if (args[0] === "$skip") return
+          const value = this.state
+          const photon: Photon = {
+            ...this.self,
+            timestamp: Date.now(),
+            initiator: name === "up" ? Initiator.Success : Initiator.Error,
+            impulses: [{ op: "replace", path: "/state", value }],
+          }
+          if (!EM._lock) {
+            original.apply(this, args)
+            this.emission(photon)
+            return
+          }
+          EM.putImpulse(photon)
         }
-        if (!EM._lock) {
-          this.emission(photon)
-          return originalMethod.apply(this, args)
-        }
-        EM.putImpulse(photon)
-        return Promise.resolve("$skip")
+        break
       }
-    } else if (["up", "down"].includes(propertyKey)) {
-      wrappedMethod = function (this: Atom, ...args: any[]) {
-        if (args[0] === "$skip") return
-        const value = this.state
-        const photon: Photon = {
-          ...this.self,
-          timestamp: Date.now(),
-          initiator: propertyKey === "up" ? Initiator.Success : Initiator.Error,
-          impulses: [{ op: "replace", path: "/state", value }],
-        }
-        originalMethod.apply(this, args)
-        if (!EM._lock) {
-          this.emission(photon)
-          return
-        }
-        EM.putImpulse(photon)
-      }
-    } else if (propertyKey === "evaluate") {
-      wrappedMethod = function (this: Atom, ...args: any[]) {
-        const [values, initiator] = args
-        const photon: Partial<Photon> = {
-          ...this.self,
-          timestamp: Date.now(),
-          initiator: initiator,
-        }
+      case "evaluate": {
+        wrapped = function (this: Atom, ...args: any[]) {
+          const [values, initiator] = args
+          const photon: Partial<Photon> = {
+            ...this.self,
+            timestamp: Date.now(),
+            initiator: initiator,
+          }
 
-        if (!EM._lock) {
-          const updated = originalMethod.apply(this, args)
+          if (!EM._lock) {
+            const updated = original.apply(this, args)
+            if (!Object.keys(updated).length) return
+
+            photon.impulses = [{ op: "replace", path: "/context", value: updated }]
+            this.emission(photon as Photon)
+            return updated
+          }
+
+          const ctx = contextFromSchema(this.fields)
+          ctx.update(this.λ)
+          const updated = ctx.update(values)
           if (!Object.keys(updated).length) return
 
           photon.impulses = [{ op: "replace", path: "/context", value: updated }]
-          this.emission(photon as Photon)
+          if (impulseInStack(EM.stack, photon as Photon)) return
+          EM.putImpulse(photon as Photon)
           return updated
         }
-
-        const ctx = contextFromSchema(this.fields)
-        ctx.update(this.λ)
-        const updated = ctx.update(values)
-        if (!Object.keys(updated).length) return
-
-        photon.impulses = [{ op: "replace", path: "/context", value: updated }]
-        if (impulseInStack(EM.stack, photon as Photon)) return
-        EM.putImpulse(photon as Photon)
-        return updated
+        break
       }
-    } else {
-      wrappedMethod = function (this: Atom, ...args: any[]) {
-        return originalMethod.apply(this, args)
+      case "destroy": {
+        wrapped = function (this: Atom, ...args: any[]) {
+          const [initiator] = args
+          const photon: Photon = {
+            ...this.self,
+            timestamp: Date.now(),
+            initiator: initiator,
+            impulses: [{ op: "remove", path: "/" }],
+          }
+          if (!EM._lock) {
+            original.apply(this, args)
+            this.emission(photon)
+            return
+          }
+          if (impulseInStack(EM.stack, photon)) return
+          EM.putImpulse(photon)
+        }
+        break
+      }
+      default: {
+        wrapped = function (this: Atom, ...args: any[]) {
+          return original.apply(this, args)
+        }
+        break
       }
     }
-    ;(wrappedMethod as WrappedMethod<typeof originalMethod>).original = originalMethod
-    descriptor.value = wrappedMethod
+    ;(wrapped as WrappedMethod<typeof original>).original = original
+    descriptor.value = wrapped
   }
 
   /**

@@ -54,25 +54,31 @@ export abstract class Strong extends Week {
     return { state: eigenstate, process }
   }
 
-  collapse({ state, process }: { state: string; process: Process | undefined }) {
+  setState(state: string) {
     this.state = state
-    if (process) {
-      this.process = process
-      switch (process.type) {
-        case ProcessType.ACTION:
-          this.action().then(this.up).catch(this.down)
-          break
-        case ProcessType.FINALLY:
-          this.destroy(Initiator.Transition)
-          break
-      }
-    } else {
-      this.transition(state)
+    // const available = this.measurement(state)
+    // if (available) {
+    //   this.collapse(available)
+    // }
+  }
+
+  collapse({ state, process }: { state: string; process: Process | undefined }) {
+    if (!process) return this.transition(state)
+
+    this.process = process
+    switch (process.type) {
+      case ProcessType.ACTION:
+        this.action(state).then(this.up).catch(this.down)
+        break
+      case ProcessType.FINALLY:
+        this.destroy()
+        break
     }
   }
 
   @EM.it
   transition(state: string) {
+    this.setState(state)
     const available = this.measurement(state)
     if (available) {
       this.collapse(available)

@@ -1,14 +1,14 @@
-import { EM, Initiator } from "./em"
+import { EM } from "./em"
 import type { Process, Processes } from "./src/processes"
 
 export abstract class Week extends EM {
   protected abstract processes: Processes
-  protected abstract action(): Promise<any>
+  protected abstract action(state: string): Promise<any>
 
   @EM.it
-  override destroy(initiator = Initiator.Nothing) {
+  override destroy() {
     Week.results.delete(this)
-    super.destroy(initiator)
+    super.destroy()
   }
 
   // ------------------------------ процесс ----------------------------------------
