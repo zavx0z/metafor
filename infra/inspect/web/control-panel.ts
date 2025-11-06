@@ -1,9 +1,13 @@
 import { style } from "./control-panel.styled"
 
+type DockKey = "left" | "bottom" | "right" | "top"
+
 export class ControlPanel extends HTMLElement {
   private opacitySlider!: HTMLInputElement
-  private positionSelect!: HTMLSelectElement
+  private dockBtns!: Record<DockKey, HTMLButtonElement>
   private collapseBtn!: HTMLButtonElement
+  private menuBtn!: HTMLButtonElement
+  private menu!: HTMLDivElement
   private playBtn!: HTMLButtonElement
   private stepBtn!: HTMLButtonElement
   private clearBtn!: HTMLButtonElement
@@ -32,7 +36,51 @@ export class ControlPanel extends HTMLElement {
     const controlPanel = document.createElement("div")
     controlPanel.className = "control-panel"
 
-    // Создаем ползунок прозрачности
+    // Кнопка меню (три точки)
+    this.menuBtn = document.createElement("button")
+    this.menuBtn.className = "menu-btn"
+    this.menuBtn.innerHTML = "⋮"
+    this.menuBtn.title = "Меню настроек"
+
+    // Меню
+    this.menu = document.createElement("div")
+    this.menu.className = "menu hidden"
+
+    // Блок Dock side
+    const dockBlock = document.createElement("div")
+    dockBlock.className = "menu-section dock"
+    const dockTitle = document.createElement("div")
+    dockTitle.className = "menu-title"
+    dockTitle.textContent = "Dock side"
+    const dockGrid = document.createElement("div")
+    dockGrid.className = "dock-grid"
+    this.dockBtns = {
+      left: document.createElement("button"),
+      bottom: document.createElement("button"),
+      right: document.createElement("button"),
+      top: document.createElement("button"),
+    }
+    this.dockBtns.left.className = "dock-btn left"
+    this.dockBtns.left.title = "Слева"
+    this.dockBtns.left.innerHTML = "▌"
+    this.dockBtns.bottom.className = "dock-btn bottom"
+    this.dockBtns.bottom.title = "Снизу"
+    this.dockBtns.bottom.innerHTML = "▁"
+    this.dockBtns.right.className = "dock-btn right"
+    this.dockBtns.right.title = "Справа"
+    this.dockBtns.right.innerHTML = "▐"
+    this.dockBtns.top.className = "dock-btn top"
+    this.dockBtns.top.title = "Сверху"
+    this.dockBtns.top.innerHTML = "▔"
+    dockGrid.append(this.dockBtns.left, this.dockBtns.bottom, this.dockBtns.right, this.dockBtns.top)
+    dockBlock.append(dockTitle, dockGrid)
+
+    // Блок прозрачности
+    const opacityBlock = document.createElement("div")
+    opacityBlock.className = "menu-section opacity"
+    const opacityLabel = document.createElement("div")
+    opacityLabel.className = "menu-title"
+    opacityLabel.textContent = "Opacity"
     this.opacitySlider = document.createElement("input")
     this.opacitySlider.type = "range"
     this.opacitySlider.min = "0.1"
@@ -40,28 +88,9 @@ export class ControlPanel extends HTMLElement {
     this.opacitySlider.step = "0.1"
     this.opacitySlider.value = "0.9"
     this.opacitySlider.className = "opacity-slider"
-    this.opacitySlider.title = "Прозрачность панели"
+    opacityBlock.append(opacityLabel, this.opacitySlider)
 
-    // Создаем селект позиции
-    this.positionSelect = document.createElement("select")
-    this.positionSelect.className = "position-select"
-    this.positionSelect.title = "Позиция панели"
-
-    const positions = [
-      { value: "bottom", text: "Снизу" },
-      { value: "top", text: "Сверху" },
-      { value: "left", text: "Слева" },
-      { value: "right", text: "Справа" },
-    ]
-
-    positions.forEach((pos) => {
-      const option = document.createElement("option")
-      option.value = pos.value
-      option.textContent = pos.text
-      this.positionSelect.appendChild(option)
-    })
-
-    this.positionSelect.value = "bottom"
+    this.menu.append(dockBlock, opacityBlock)
 
     // Создаем кнопку свернуть
     this.collapseBtn = document.createElement("button")
@@ -86,12 +115,11 @@ export class ControlPanel extends HTMLElement {
     this.clearBtn.innerHTML = "🗑"
     this.clearBtn.title = "Очистить стек"
 
-    // Создаем левую группу (корзина + слайдер + позиция)
+    // Создаем левую группу
     const leftGroup = document.createElement("div")
     leftGroup.className = "left-group"
     leftGroup.appendChild(this.clearBtn)
-    leftGroup.appendChild(this.opacitySlider)
-    leftGroup.appendChild(this.positionSelect)
+    leftGroup.appendChild(this.menuBtn)
 
     // Создаем центральную группу (кнопки дебага)
     const centerGroup = document.createElement("div")
@@ -103,26 +131,48 @@ export class ControlPanel extends HTMLElement {
     controlPanel.appendChild(centerGroup)
     controlPanel.appendChild(this.collapseBtn)
     this.#shadow!.appendChild(controlPanel)
+    this.#shadow!.appendChild(this.menu)
   }
 
   private setupEventHandlers() {
-    // Обработчик ползунка прозрачности
-    this.opacitySlider.addEventListener("input", () => {
-      this.dispatchEvent(
-        new CustomEvent("opacity-change", {
-          detail: { value: this.opacitySlider.value },
-        })
-      )
+    // Обработчик открытия/закрытия меню
+    const toggleMenu = () => {
+      if (this.menu.classList.contains("hidden")) {
+        this.menu.classList.remove("hidden")
+      } else {
+        this.menu.classList.add("hidden")
+      }
+    }
+    this.menuBtn.addEventListener("click", (e: MouseEvent) => {
+      e.stopPropagation()
+      toggleMenu()
+    })
+    document.addEventListener("click", () => {
+      this.menu.classList.add("hidden")
     })
 
-    // Обработчик селекта позиции
-    this.positionSelect.addEventListener("change", () => {
-      this.dispatchEvent(
-        new CustomEvent("position-change", {
-          detail: { value: this.positionSelect.value },
+    // Обработчик ползунка прозрачности (внутри меню)
+    this.opacitySlider.oninput = () => {
+      const evt = new window.CustomEvent("opacity-change", {
+        detail: { value: this.opacitySlider.value },
+      })
+      this.dispatchEvent(evt)
+    }
+
+    // Обработчики кнопок дока
+    ;(Object.entries(this.dockBtns) as [DockKey, HTMLButtonElement][]).forEach(
+      ([pos, btn]: [DockKey, HTMLButtonElement]) => {
+        btn.addEventListener("click", (e: MouseEvent) => {
+          e.stopPropagation()
+          this.dispatchEvent(
+            new CustomEvent("position-change", {
+              detail: { value: pos },
+            })
+          )
+          this.menu.classList.add("hidden")
         })
-      )
-    })
+      }
+    )
 
     // Обработчик кнопки свернуть
     this.collapseBtn.addEventListener("click", () => {
@@ -170,7 +220,9 @@ export class ControlPanel extends HTMLElement {
   }
 
   setPosition(position: string) {
-    this.positionSelect.value = position
+    Object.values(this.dockBtns).forEach((b) => b.classList.remove("active"))
+    const btn = this.dockBtns[position as DockKey]
+    if (btn) btn.classList.add("active")
 
     // Скрываем кнопку сворачивания для боковых позиций
     if (position === "left" || position === "right") {

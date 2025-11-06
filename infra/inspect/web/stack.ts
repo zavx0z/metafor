@@ -341,14 +341,14 @@ export class Stack extends HTMLElement {
     this.isAnimating = true
     this.isCollapsed = !this.isCollapsed
 
-    console.log("Toggle collapse:", this.isCollapsed, "Position:", this.currentPosition)
+    // console.log("Toggle collapse:", this.isCollapsed, "Position:", this.currentPosition)
 
     // Обновляем состояние панели управления
     this.controlPanel.setCollapsed(this.isCollapsed)
 
     // Сворачивание работает только для верхних и нижних позиций
     if (this.currentPosition === "left" || this.currentPosition === "right") {
-      console.log("Collapse not supported for side positions")
+      // console.log("Collapse not supported for side positions")
       this.isAnimating = false
       return
     }
@@ -356,7 +356,7 @@ export class Stack extends HTMLElement {
     if (this.isCollapsed) {
       // Добавляем класс для сворачивания
       this.classList.add("collapsed")
-      console.log("Added collapsed class, classes:", this.className)
+      // console.log("Added collapsed class, classes:", this.className)
 
       // Принудительно устанавливаем размер для сворачивания
       this.style.height = "32px"
@@ -368,7 +368,7 @@ export class Stack extends HTMLElement {
     } else {
       // Убираем класс сворачивания
       this.classList.remove("collapsed")
-      console.log("Removed collapsed class, classes:", this.className)
+      // console.log("Removed collapsed class, classes:", this.className)
 
       // Восстанавливаем размер панели
       this.style.setProperty("--panel-height", this.panelHeight.toString())

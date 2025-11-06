@@ -9,10 +9,10 @@ export const style = css`
     display: flex;
     align-items: center;
     justify-content: space-between;
-    background-color: #1e1e1e;
+    background-color: #274044;
     border-bottom: 1px solid #333;
     margin: 0;
-    height: 32px;
+    height: 26px;
     position: relative;
     flex-shrink: 0;
   }
@@ -72,9 +72,94 @@ export const style = css`
   .left-group {
     display: flex;
     align-items: center;
-    gap: 7px;
+    /* gap: 7px; */
     height: 100%;
     padding: 1px 2px;
+  }
+
+  /* Кнопки панели: единый базовый стиль */
+  .control-panel button {
+    background: transparent;
+    border: none;
+    border-radius: 100px;
+    width: 26px;
+    height: 26px;
+    cursor: pointer;
+    font-size: 11px;
+    line-height: 1;
+    outline: none;
+    padding: 0;
+    color: #ccc;
+  }
+
+  .control-panel button:hover {
+    background: #3e575b;
+  }
+
+  .control-panel button:active {
+    background: #4e6e73;
+  }
+
+  /* Меню в стиле DevTools */
+  .menu {
+    position: absolute;
+    top: 32px;
+    left: 4px;
+    background: #1f1f1f;
+    border: 1px solid #333;
+    border-radius: 4px;
+    min-width: 220px;
+    box-shadow: 0 6px 24px rgba(0, 0, 0, 0.4);
+    padding: 6px 0;
+    z-index: 1002;
+  }
+
+  .menu.hidden {
+    display: none;
+  }
+
+  .menu-section {
+    padding: 6px 8px;
+  }
+
+  .menu-title {
+    color: #aaa;
+    font-size: 11px;
+    padding: 2px 4px 6px;
+  }
+
+  .dock-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 28px);
+    gap: 6px;
+    padding: 0 4px 4px;
+  }
+
+  .dock-btn {
+    background: #262626;
+    color: #ccc;
+    border: 1px solid #333;
+    border-radius: 2px;
+    width: 28px;
+    height: 24px;
+    cursor: pointer;
+    font-size: 14px;
+    line-height: 1;
+  }
+
+  .dock-btn:hover {
+    background: #2f2f2f;
+  }
+
+  .dock-btn.active {
+    border-color: #4a90e2;
+    box-shadow: 0 0 0 1px #4a90e2 inset;
+  }
+
+  /* Ползунок прозрачности внутри меню */
+  .menu .opacity-slider {
+    width: 180px;
+    height: 2px;
   }
 
   /* Центральная группа (кнопки дебага) */
@@ -143,31 +228,11 @@ export const style = css`
     color: #ccc;
   }
 
-  /* Кнопки управления дебагом */
+  /* Индивидуальные цвета */
   .debug-btn,
-  .collapse-btn {
-    background: #1e1e1e;
+  .collapse-btn,
+  .menu-btn {
     color: #ccc;
-    border: none;
-    border-radius: 0;
-    width: 32px;
-    height: 100%;
-    cursor: pointer;
-    font-size: 11px;
-    font-weight: normal;
-    outline: none;
-    padding: 0 4px;
-  }
-
-  .debug-btn:hover,
-  .collapse-btn:hover {
-    background: #2d2d2d;
-    color: #ccc;
-  }
-
-  .debug-btn:active,
-  .collapse-btn:active {
-    background: #0d0d0d;
   }
 
   .debug-btn[disabled] {
@@ -188,26 +253,8 @@ export const style = css`
     background: rgba(255, 255, 255, 0.05);
   }
 
-  /* Кнопка очистки стека */
+  /* Кнопка очистки стека: красный цвет */
   .clear-btn {
-    background: #1e1e1e;
     color: #ff6666;
-    border: none;
-    border-radius: 0;
-    width: 32px;
-    height: 100%;
-    cursor: pointer;
-    font-size: 11px;
-    font-weight: normal;
-    outline: none;
-  }
-
-  .clear-btn:hover {
-    background: #2d2d2d;
-    color: #ff6666;
-  }
-
-  .clear-btn:active {
-    background: #0d0d0d;
   }
 `
