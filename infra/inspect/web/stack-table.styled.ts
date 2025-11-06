@@ -3,6 +3,7 @@ export const style = css`
   :host {
     display: block;
     flex: 1;
+    min-height: 0;
     overflow: hidden;
   }
 
@@ -44,7 +45,7 @@ export const style = css`
     display: flex;
     flex-direction: column;
     /* gap: 4px; */
-    flex: 1;
+    height: 100%;
     overflow-y: auto;
     min-height: 0;
   }
