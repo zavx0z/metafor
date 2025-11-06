@@ -29,7 +29,7 @@ export type Reactions<C extends Schema = Schema, S extends string = string, I ex
     patch: JsonPatch
     update: Update<C>
     self: Self
-  }) => void
+  }) => boolean
   exists: () => boolean
   getAll: () => Array<{
     label: string

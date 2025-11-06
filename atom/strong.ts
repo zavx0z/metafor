@@ -115,9 +115,9 @@ export abstract class Strong extends Week {
   protected handleReaction({ data }: MessageEvent<Photon>) {
     if (!this.reactions.exists()) return
     if (data.atom === this.id) return
-
+    let anyEqual = false
     for (const patch of data.impulses) {
-      this.reactions.run({
+      const eq = this.reactions.run({
         meta: data.meta,
         atom: data.atom,
         timestamp: data.timestamp,
@@ -128,8 +128,12 @@ export abstract class Strong extends Week {
         update: this.evaluate,
         self: this.self,
       })
+      eq && (anyEqual = true)
     }
-    this.measurement(this.state)
+    if (anyEqual) {
+      const eigenstate = this.measurement(this.state)
+      eigenstate && this.collapse(eigenstate)
+    }
   }
   // ---------------------------------------------------------------------
 

@@ -280,6 +280,7 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
 
   return {
     run: (params) => {
+      let anyEqual = false
       for (const reaction of reactions) {
         // Проверяем, что реакция активна для текущего состояния
         if (!reaction.states.includes(params.state)) continue
@@ -301,7 +302,7 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
             self: params.self,
           })
         ) {
-          // Выполняем реакцию
+          anyEqual = true
           reaction.update({
             update: params.update as Update<C>,
             context: params.context as Values<C>,
@@ -315,6 +316,7 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
           })
         }
       }
+      return anyEqual
     },
     exists: () => reactions.length > 0,
     getAll: () => reactions.map(({ states, ...reaction }) => reaction),

@@ -133,7 +133,9 @@ export abstract class EM extends Gravity {
         const values = photon.impulses[0]?.value
         EM.callOriginal(atom.evaluate, atom, values)
         atom.emission(photon)
-        atom.measurement(atom.state)
+
+        const eigenstate = atom.measurement(atom.state)
+        eigenstate && atom.collapse(eigenstate)
         break
       }
       case Energy.Destroy:
@@ -295,7 +297,7 @@ export abstract class EM extends Gravity {
           const photon: Photon = {
             ...this.self,
             timestamp: Date.now(),
-            initiator: initiator,
+            initiator: initiator ?? Initiator.Process,
             impulses: [{ op: "remove", path: "/" }],
           }
           if (!EM._lock) {
