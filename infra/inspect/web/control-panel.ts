@@ -4,6 +4,7 @@ type DockKey = "left" | "bottom" | "right" | "top"
 
 export class ControlPanel extends HTMLElement {
   private opacitySlider!: HTMLInputElement
+  private stepDelaySlider!: HTMLInputElement
   private dockBtns!: Record<DockKey, HTMLButtonElement>
   private collapseBtn!: HTMLButtonElement
   private menuBtn!: HTMLButtonElement
@@ -109,6 +110,19 @@ export class ControlPanel extends HTMLElement {
     this.stepBtn.innerHTML = "⏭"
     this.stepBtn.title = "Шаг вперёд"
 
+    // Создаем слайдер замедления выполнения
+    this.stepDelaySlider = document.createElement("input")
+    this.stepDelaySlider.type = "range"
+    this.stepDelaySlider.min = "0"
+    this.stepDelaySlider.max = "5000"
+    this.stepDelaySlider.step = "10"
+    this.stepDelaySlider.value = "0"
+    this.stepDelaySlider.className = "step-delay-slider"
+    this.stepDelaySlider.title = "Замедление выполнения (мс)"
+    const stepDelayValue = document.createElement("span")
+    stepDelayValue.className = "step-delay-value"
+    stepDelayValue.textContent = "0 мс"
+
     // Создаем кнопку очистки стека
     this.clearBtn = document.createElement("button")
     this.clearBtn.className = "clear-btn"
@@ -121,11 +135,16 @@ export class ControlPanel extends HTMLElement {
     leftGroup.appendChild(this.clearBtn)
     leftGroup.appendChild(this.menuBtn)
 
-    // Создаем центральную группу (кнопки дебага)
+    // Создаем центральную группу (кнопки дебага и слайдер замедления)
     const centerGroup = document.createElement("div")
     centerGroup.className = "center-group"
     centerGroup.appendChild(this.playBtn)
     centerGroup.appendChild(this.stepBtn)
+    const stepDelayContainer = document.createElement("div")
+    stepDelayContainer.className = "step-delay-container"
+    stepDelayContainer.appendChild(this.stepDelaySlider)
+    stepDelayContainer.appendChild(stepDelayValue)
+    centerGroup.appendChild(stepDelayContainer)
 
     controlPanel.appendChild(leftGroup)
     controlPanel.appendChild(centerGroup)
@@ -155,6 +174,19 @@ export class ControlPanel extends HTMLElement {
     this.opacitySlider.oninput = () => {
       const evt = new window.CustomEvent("opacity-change", {
         detail: { value: this.opacitySlider.value },
+      })
+      this.dispatchEvent(evt)
+    }
+
+    // Обработчик ползунка замедления выполнения
+    this.stepDelaySlider.oninput = () => {
+      const value = parseInt(this.stepDelaySlider.value, 10)
+      const stepDelayValue = this.#shadow?.querySelector(".step-delay-value")
+      if (stepDelayValue) {
+        stepDelayValue.textContent = value === 0 ? "0 мс" : `${value} мс`
+      }
+      const evt = new window.CustomEvent("step-delay-change", {
+        detail: { value },
       })
       this.dispatchEvent(evt)
     }

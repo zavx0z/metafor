@@ -21,6 +21,9 @@ export class Stack extends HTMLElement {
   private readonly STORAGE_KEY = "metafor-stack-height"
   private readonly OPACITY_KEY = "metafor-stack-opacity"
   private readonly POSITION_KEY = "metafor-stack-position"
+  private readonly STEP_DELAY_KEY = "metafor-step-delay"
+  private stepDelay = 0
+  private stepIntervalId: ReturnType<typeof setInterval> | null = null
   private off: () => void
   #shadow: ShadowRoot | null = null
 
@@ -64,6 +67,9 @@ export class Stack extends HTMLElement {
 
     // Загружаем позицию (если есть сохраненная) или устанавливаем по умолчанию
     this.loadPosition()
+
+    // Загружаем таймаут замедления
+    this.loadStepDelay()
 
     this.setupResizeHandlers()
     this.setupControlHandlers()
@@ -156,6 +162,70 @@ export class Stack extends HTMLElement {
       localStorage.setItem(this.POSITION_KEY, position)
     } catch (error) {
       console.warn("Failed to save stack position to localStorage:", error)
+    }
+  }
+
+  private loadStepDelay() {
+    try {
+      const savedDelay = localStorage.getItem(this.STEP_DELAY_KEY)
+      if (savedDelay) {
+        const delay = parseInt(savedDelay, 10)
+        if (delay >= 0 && delay <= 5000) {
+          this.stepDelay = delay
+          // Обновляем значение в control-panel
+          const stepDelaySlider = this.controlPanel.shadowRoot?.querySelector(
+            ".step-delay-slider"
+          ) as HTMLInputElement
+          const stepDelayValue = this.controlPanel.shadowRoot?.querySelector(
+            ".step-delay-value"
+          ) as HTMLElement
+          if (stepDelaySlider) {
+            stepDelaySlider.value = delay.toString()
+          }
+          if (stepDelayValue) {
+            stepDelayValue.textContent = delay === 0 ? "0 мс" : `${delay} мс`
+          }
+        }
+      }
+    } catch (error) {
+      console.warn("Failed to load step delay from localStorage:", error)
+    }
+  }
+
+  private saveStepDelay(delay: number) {
+    try {
+      localStorage.setItem(this.STEP_DELAY_KEY, delay.toString())
+    } catch (error) {
+      console.warn("Failed to save step delay to localStorage:", error)
+    }
+  }
+
+  private startAutoStep() {
+    // Останавливаем предыдущий интервал, если он был запущен
+    this.stopAutoStep()
+
+    // Запускаем автоматический step с задержкой
+    this.stepIntervalId = setInterval(() => {
+      // Проверяем, что система заблокирована и замедление включено
+      import("@metafor/atom").then(({ Atom }) => {
+        if (Atom.isLocked && this.stepDelay > 0) {
+          EM.step()
+        } else {
+          // Если система разблокирована или замедление отключено, останавливаем
+          this.stopAutoStep()
+          // Если система разблокирована, обновляем состояние кнопки
+          if (!Atom.isLocked) {
+            this.controlPanel.setPlayState(true)
+          }
+        }
+      })
+    }, this.stepDelay)
+  }
+
+  private stopAutoStep() {
+    if (this.stepIntervalId !== null) {
+      clearInterval(this.stepIntervalId)
+      this.stepIntervalId = null
     }
   }
 
@@ -322,6 +392,20 @@ export class Stack extends HTMLElement {
     this.controlPanel.addEventListener("clear", () => {
       this.handleClearClick()
     })
+
+    // Обработчик изменения таймаута замедления
+    this.controlPanel.addEventListener("step-delay-change", (e: Event) => {
+      const customEvent = e as CustomEvent
+      this.stepDelay = customEvent.detail.value
+      this.saveStepDelay(this.stepDelay)
+      // Если замедление отключено, останавливаем автоматический step
+      if (this.stepDelay === 0) {
+        this.stopAutoStep()
+      } else if (this.stepIntervalId !== null) {
+        // Если автоматический step уже запущен, перезапускаем с новым таймаутом
+        this.startAutoStep()
+      }
+    })
   }
 
   private setupAnimationHandlers() {
@@ -392,13 +476,22 @@ export class Stack extends HTMLElement {
     // Импортируем Atom динамически, чтобы избежать циклических зависимостей
     import("@metafor/atom").then(({ Atom }) => {
       if (Atom.isLocked) {
-        // @ts-expect-error
-        Atom.play()
-        this.controlPanel.setPlayState(true)
+        // Если установлен таймаут замедления, запускаем автоматический step
+        // Система остается заблокированной, но автоматически выполняет шаги
+        if (this.stepDelay > 0) {
+          this.startAutoStep()
+          this.controlPanel.setPlayState(true)
+        } else {
+          // Если замедление не установлено, возобновляем выполнение нормально
+          EM.resume()
+          this.controlPanel.setPlayState(true)
+        }
       } else {
-        // @ts-expect-error
-        Atom.pause()
+        // Ставим на паузу
+        EM.break()
         this.controlPanel.setPlayState(false)
+        // Останавливаем автоматический step
+        this.stopAutoStep()
       }
       // Обновляем состояние кнопки "шаг вперёд"
       this.controlPanel.setStepDisabled(!Atom.isLocked)
@@ -538,6 +631,7 @@ export class Stack extends HTMLElement {
 
   disconnectedCallback() {
     this.off?.()
+    this.stopAutoStep()
   }
 }
 

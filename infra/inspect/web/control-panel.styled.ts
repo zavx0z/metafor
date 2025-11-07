@@ -68,6 +68,24 @@ export const style = css`
     font-size: 8px;
   }
 
+  .control-panel[data-layout="vertical"] .step-delay-container {
+    flex-direction: column;
+    gap: 2px;
+    margin-left: 0;
+  }
+
+  .control-panel[data-layout="vertical"] .step-delay-slider {
+    width: 100%;
+    height: 3px;
+    transform: rotate(90deg);
+    transform-origin: center;
+  }
+
+  .control-panel[data-layout="vertical"] .step-delay-value {
+    font-size: 8px;
+    min-width: auto;
+  }
+
   /* Левая группа (корзина + слайдер) */
   .left-group {
     display: flex;
@@ -166,13 +184,59 @@ export const style = css`
   .center-group {
     display: flex;
     align-items: center;
-    gap: 1px;
+    gap: 4px;
     position: absolute;
     left: 50%;
     top: 50%;
     transform: translate(-50%, -50%);
     height: 100%;
     padding: 1px 2px;
+  }
+
+  /* Контейнер для слайдера замедления */
+  .step-delay-container {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-left: 4px;
+  }
+
+  /* Слайдер замедления выполнения на панели */
+  .step-delay-slider {
+    width: 80px;
+    height: 2px;
+    background: #444;
+    border-radius: 1px;
+    outline: none;
+    cursor: pointer;
+    -webkit-appearance: none;
+  }
+
+  .step-delay-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 8px;
+    height: 8px;
+    background: #666;
+    border-radius: 1px;
+    cursor: pointer;
+    border: none;
+  }
+
+  .step-delay-slider::-moz-range-thumb {
+    width: 8px;
+    height: 8px;
+    background: #666;
+    border-radius: 1px;
+    cursor: pointer;
+    border: none;
+  }
+
+  .step-delay-value {
+    color: #aaa;
+    font-size: 10px;
+    min-width: 35px;
+    text-align: left;
   }
 
   .opacity-slider {
