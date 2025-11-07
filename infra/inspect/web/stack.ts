@@ -476,11 +476,17 @@ export class Stack extends HTMLElement {
     // Импортируем Atom динамически, чтобы избежать циклических зависимостей
     import("@metafor/atom").then(({ Atom }) => {
       if (Atom.isLocked) {
-        // Если установлен таймаут замедления, запускаем автоматический step
-        // Система остается заблокированной, но автоматически выполняет шаги
+        // Если установлен таймаут замедления
         if (this.stepDelay > 0) {
-          this.startAutoStep()
-          this.controlPanel.setPlayState(true)
+          // Если автоматический step уже запущен - останавливаем (пауза)
+          if (this.stepIntervalId !== null) {
+            this.stopAutoStep()
+            this.controlPanel.setPlayState(false)
+          } else {
+            // Если не запущен - запускаем (play)
+            this.startAutoStep()
+            this.controlPanel.setPlayState(true)
+          }
         } else {
           // Если замедление не установлено, возобновляем выполнение нормально
           EM.resume()
