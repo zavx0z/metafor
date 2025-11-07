@@ -410,6 +410,7 @@ export class Stack extends HTMLElement {
   }
 
   private handleClearClick() {
+    EM.clearStack()
     // Очищаем все данные
     this.stackTable.clear()
   }

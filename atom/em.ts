@@ -9,6 +9,71 @@ import { contextFromSchema } from "@zavx0z/context"
 export { Initiator }
 export type { Photon, JsonPatch, Impulse }
 
+type StackObserver = (stack: Impulse[]) => void
+
+class EMDebugController {
+  #locked = false
+  readonly #stack: Impulse[] = []
+  readonly #observers = new Set<StackObserver>()
+
+  get isLocked(): boolean {
+    return this.#locked
+  }
+
+  set isLocked(state: boolean) {
+    this.#locked = state
+  }
+
+  break() {
+    this.#locked = true
+  }
+
+  resume() {
+    this.#locked = false
+  }
+
+  enqueue(photon: Photon) {
+    const { impulses, meta, path, ...rest } = photon
+    for (const impulse of impulses) {
+      this.#stack.push({ ...rest, ...impulse })
+    }
+    this.emit()
+  }
+
+  dequeue(): Impulse | undefined {
+    if (!this.#stack.length) return undefined
+    const impulse = this.#stack.shift()
+    this.emit()
+    return impulse
+  }
+
+  has(photon: Photon) {
+    return impulseInStack(this.#stack, photon)
+  }
+
+  subscribe(observer: StackObserver) {
+    this.#observers.add(observer)
+    return () => this.#observers.delete(observer)
+  }
+
+  peek(): Impulse[] {
+    if (!this.#stack.length) return []
+    return this.#stack.slice()
+  }
+
+  clear() {
+    if (!this.#stack.length) return
+    this.#stack.length = 0
+    this.emit()
+  }
+
+  private emit() {
+    if (!this.#observers.size) return
+    const snapshot = this.peek()
+    for (const observer of this.#observers) observer(snapshot)
+  }
+}
+
 export abstract class EM extends Gravity {
   static CHANNEL = "electromagnetic"
   protected static channel: BroadcastChannel = new BroadcastChannel(EM.CHANNEL)
@@ -16,9 +81,7 @@ export abstract class EM extends Gravity {
   protected abstract handleReaction(ev: MessageEvent<Photon>): void
   protected abstract reactions: Reactions
   private static charged = new Set<EM>()
-
-  private static stack: Impulse[] = []
-  private static emitStack = new Set<(stack: Impulse[]) => void>()
+  private static readonly debug = new EMDebugController()
 
   protected connect() {
     EM.charged.add(this)
@@ -43,29 +106,40 @@ export abstract class EM extends Gravity {
 
   // --------------------------------------------------------
 
-  private static _lock = false
   public static get isLocked(): boolean {
-    return EM._lock
+    return EM.debug.isLocked
   }
   public static set lock(val: boolean) {
-    EM._lock = val
+    EM.debug.isLocked = val
   }
   public static break() {
-    EM._lock = true
+    EM.debug.break()
   }
   public static resume() {
-    EM._lock = false
+    EM.debug.resume()
+  }
+  public static pause() {
+    EM.break()
+  }
+  public static play() {
+    EM.resume()
+    EM.flush()
+  }
+  public static flush(limit = Number.POSITIVE_INFINITY) {
+    let processed = 0
+    while (processed < limit && EM.step()) processed += 1
+    return processed
+  }
+  public static clearStack() {
+    EM.debug.clear()
   }
   private static putImpulse(photon: Photon) {
-    const { impulses, meta, path, ...self } = photon
-    for (const impulse of impulses) EM.stack.push({ ...self, ...impulse })
-    EM.emitStack.forEach((observer) => observer(EM.stack))
+    EM.debug.enqueue(photon)
   }
 
   private static getImpulse() {
-    const impulse = EM.stack.shift() as Impulse
-
-    EM.emitStack.forEach((observer) => observer(EM.stack))
+    const impulse = EM.debug.dequeue()
+    if (!impulse) return null
     let atom: ReturnType<typeof Field.getAtom> | null = null
     try {
       atom = Field.getAtom(impulse.atom)
@@ -84,15 +158,14 @@ export abstract class EM extends Gravity {
   }
 
   public static onChangeStack(observer: (stack: Impulse[]) => void) {
-    EM.emitStack.add(observer)
-    return () => EM.emitStack.delete(observer)
+    return EM.debug.subscribe(observer)
   }
 
   protected abstract measurement(state: string): void
   /** Выполняет импульс из стека. */
-  public static step() {
+  public static step(): boolean {
     const packet = EM.getImpulse()
-    if (!packet) return
+    if (!packet) return false
     const { atom, energy, photon } = packet
     switch (energy) {
       case Energy.Init:
@@ -143,8 +216,9 @@ export abstract class EM extends Gravity {
         EM.callOriginal(atom.destroy, atom)
         break
       default:
-        break
+        return false
     }
+    return true
   }
   static it(target: any, name: string, descriptor: PropertyDescriptor) {
     const original = descriptor.value
@@ -153,7 +227,6 @@ export abstract class EM extends Gravity {
     switch (name) {
       case "init": {
         wrapped = function (this: Atom, ...args: any[]) {
-          // const [initiator] = args
           const value = this.snapshot
           const photon: Photon = {
             ...this.self,
@@ -161,7 +234,7 @@ export abstract class EM extends Gravity {
             initiator: Initiator.Nothing,
             impulses: [{ op: "add", path: "/", value }],
           }
-          if (!EM._lock) {
+          if (!EM.isLocked) {
             this.emission(photon)
             return original.apply(this, args)
           }
@@ -178,7 +251,7 @@ export abstract class EM extends Gravity {
             initiator: Initiator.Transition,
             impulses: [{ op: "replace", path: "/state", value: state }],
           }
-          if (!EM._lock) {
+          if (!EM.isLocked) {
             this.emission(photon)
             return original.apply(this, args)
           }
@@ -195,7 +268,7 @@ export abstract class EM extends Gravity {
             initiator: Initiator.Nothing,
             impulses: [{ op: "test", path: "/state", value: state }],
           }
-          if (!EM._lock) {
+          if (!EM.isLocked) {
             this.emission(photon)
             return original.apply(this, args)
           }
@@ -215,7 +288,7 @@ export abstract class EM extends Gravity {
             initiator: Initiator.Success,
             impulses: [{ op: "replace", path: "/state", value }],
           }
-          if (!EM._lock) {
+          if (!EM.isLocked) {
             original.apply(this, args)
             this.emission(photon)
             return
@@ -252,7 +325,7 @@ export abstract class EM extends Gravity {
             initiator: Initiator.Error,
             impulses: [{ op: "replace", path: "/state", value }],
           }
-          if (!EM._lock) {
+          if (!EM.isLocked) {
             original.apply(this, args)
             this.emission(photon)
             return
@@ -270,7 +343,7 @@ export abstract class EM extends Gravity {
             initiator: initiator,
           }
 
-          if (!EM._lock) {
+          if (!EM.isLocked) {
             const updated = original.apply(this, args)
             if (!Object.keys(updated).length) return
 
@@ -285,7 +358,7 @@ export abstract class EM extends Gravity {
           if (!Object.keys(updated).length) return
 
           photon.impulses = [{ op: "replace", path: "/context", value: updated }]
-          if (impulseInStack(EM.stack, photon as Photon)) return
+          if (EM.debug.has(photon as Photon)) return
           EM.putImpulse(photon as Photon)
           return updated
         }
@@ -300,12 +373,12 @@ export abstract class EM extends Gravity {
             initiator: initiator ?? Initiator.Process,
             impulses: [{ op: "remove", path: "/" }],
           }
-          if (!EM._lock) {
+          if (!EM.isLocked) {
             original.apply(this, args)
             this.emission(photon)
             return
           }
-          if (impulseInStack(EM.stack, photon)) return
+          if (EM.debug.has(photon)) return
           EM.putImpulse(photon)
         }
         break
