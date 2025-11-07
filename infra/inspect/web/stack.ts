@@ -217,15 +217,20 @@ export class Stack extends HTMLElement {
           if (!Atom.isLocked) {
             this.controlPanel.setPlayState(true)
           }
+          this.notifyDebuggerState()
         }
       })
     }, this.stepDelay)
+    // Уведомляем debugger о запуске автоматического step
+    this.notifyDebuggerState()
   }
 
   private stopAutoStep() {
     if (this.stepIntervalId !== null) {
       clearInterval(this.stepIntervalId)
       this.stepIntervalId = null
+      // Уведомляем debugger об остановке автоматического step
+      this.notifyDebuggerState()
     }
   }
 
@@ -398,13 +403,59 @@ export class Stack extends HTMLElement {
       const customEvent = e as CustomEvent
       this.stepDelay = customEvent.detail.value
       this.saveStepDelay(this.stepDelay)
-      // Если замедление отключено, останавливаем автоматический step
-      if (this.stepDelay === 0) {
-        this.stopAutoStep()
-      } else if (this.stepIntervalId !== null) {
-        // Если автоматический step уже запущен, перезапускаем с новым таймаутом
-        this.startAutoStep()
+      
+      // Если автоматический step уже запущен, всегда перезапускаем с новым таймаутом
+      if (this.stepIntervalId !== null) {
+        if (this.stepDelay > 0) {
+          // Перезапускаем с новым таймаутом
+          this.startAutoStep()
+        } else {
+          // Останавливаем если задержка стала 0
+          this.stopAutoStep()
+        }
       }
+      // Уведомляем debugger о изменении состояния
+      this.notifyDebuggerState()
+    })
+
+    // Слушаем запросы на изменение состояния от debugger
+    document.addEventListener("play-request", (() => {
+      this.handlePlayClick()
+    }) as EventListener)
+
+    document.addEventListener("step-request", (() => {
+      this.handleStepClick()
+    }) as EventListener)
+
+    // Слушаем изменения состояния блокировки от любых источников
+    document.addEventListener("atom-lock-state-change", ((e: CustomEvent) => {
+      const { isLocked } = e.detail
+      import("@metafor/atom").then(({ Atom }) => {
+        this.controlPanel.setStepDisabled(!isLocked)
+        if (!isLocked && this.stepIntervalId) {
+          // Если система разблокирована, останавливаем автоматический step
+          this.stopAutoStep()
+          this.controlPanel.setPlayState(true)
+        }
+        this.notifyDebuggerState()
+      })
+    }) as EventListener)
+  }
+
+  private notifyDebuggerState() {
+    // Уведомляем debugger о текущем состоянии (единый источник истины)
+    import("@metafor/atom").then(({ Atom }) => {
+      const isPlaying = !Atom.isLocked || this.stepIntervalId !== null
+      document.dispatchEvent(
+        new CustomEvent("debugger-state-update", {
+          detail: {
+            isPlaying,
+            isLocked: Atom.isLocked,
+            stepDelay: this.stepDelay,
+            hasAutoStep: this.stepIntervalId !== null,
+          },
+        })
+      )
     })
   }
 
@@ -501,6 +552,14 @@ export class Stack extends HTMLElement {
       }
       // Обновляем состояние кнопки "шаг вперёд"
       this.controlPanel.setStepDisabled(!Atom.isLocked)
+      // Уведомляем debugger о изменении состояния
+      this.notifyDebuggerState()
+      // Уведомляем о изменении состояния блокировки
+      document.dispatchEvent(
+        new CustomEvent("atom-lock-state-change", {
+          detail: { isLocked: Atom.isLocked },
+        })
+      )
     })
   }
 

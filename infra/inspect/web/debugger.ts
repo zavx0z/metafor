@@ -1,4 +1,5 @@
 import { Atom } from "@metafor/atom"
+import { EM } from "@metafor/atom"
 import type { Stack } from "./stack"
 import "./stack"
 import { style } from "./debugger.styled"
@@ -20,11 +21,30 @@ class Debugger extends HTMLElement {
     styleSheet.replaceSync(style)
     this.#shadow.adoptedStyleSheets = [styleSheet]
     if (this.hasAttribute("brk")) {
-      Atom.break()
+      EM.break()
       this.render()
     } else {
       this.updateVisibility()
     }
+    this.setupStateListener()
+  }
+
+  private setupStateListener() {
+    // Слушаем изменения состояния от stack (единый источник истины)
+    document.addEventListener("debugger-state-update", ((e: CustomEvent) => {
+      const { isPlaying, isLocked, stepDelay, hasAutoStep } = e.detail
+      this.updatePlayButtonFromState(isPlaying, isLocked, hasAutoStep)
+      this.stepBtn!.disabled = !isLocked
+    }) as EventListener)
+
+    // Слушаем изменения состояния блокировки
+    document.addEventListener("atom-lock-state-change", ((e: CustomEvent) => {
+      const { isLocked } = e.detail
+      if (this.stepBtn) {
+        this.stepBtn.disabled = !isLocked
+      }
+      this.updatePlayButton()
+    }) as EventListener)
   }
   render() {
     if (!this.hasAttribute("brk")) return
@@ -121,8 +141,21 @@ class Debugger extends HTMLElement {
     if (name !== "brk") return
     // presence attribute: set => newValue is "" (empty string) or some value; remove => null
     const shouldBreak = newValue !== null
-    if (shouldBreak && !Atom.isLocked) Atom.break()
-    else if (!shouldBreak && Atom.isLocked) Atom.resume()
+    if (shouldBreak && !Atom.isLocked) {
+      EM.break()
+      document.dispatchEvent(
+        new CustomEvent("atom-lock-state-change", {
+          detail: { isLocked: true },
+        })
+      )
+    } else if (!shouldBreak && Atom.isLocked) {
+      EM.resume()
+      document.dispatchEvent(
+        new CustomEvent("atom-lock-state-change", {
+          detail: { isLocked: false },
+        })
+      )
+    }
     this.updateVisibility()
     this.updatePlayButton()
   }
@@ -133,26 +166,46 @@ class Debugger extends HTMLElement {
     // locked (paused) → показываем ▶ (Resume)
     // running → показываем ⏸ (Pause)
     this.playBtn.textContent = Atom.isLocked ? "▶" : "⏸"
-
-    // Блокируем кнопку "шаг вперёд" когда Atom не заблокирован
     this.stepBtn.disabled = !Atom.isLocked
   }
 
-  private handlePlayClick(): void {
-    if (!Atom.isLocked) {
-      Atom.break()
+  private updatePlayButtonFromState(isPlaying: boolean, isLocked: boolean, hasAutoStep: boolean): void {
+    if (!this.playBtn) return
+    // Если включено замедление и автоматический step запущен - показываем ⏸ (Pause)
+    if (hasAutoStep && isLocked) {
+      this.playBtn.textContent = "⏸"
     } else {
-      Atom.resume()
+      this.playBtn.textContent = isLocked ? "▶" : "⏸"
     }
-    this.updatePlayButton()
+  }
+
+  private handlePlayClick(): void {
+    // Отправляем запрос на изменение состояния в stack (единый источник истины)
+    document.dispatchEvent(
+      new CustomEvent("play-request", {
+        detail: {},
+      })
+    )
   }
 
   private handleStepClick(): void {
-    Atom.step()
+    // Отправляем запрос на выполнение step в stack
+    document.dispatchEvent(
+      new CustomEvent("step-request", {
+        detail: {},
+      })
+    )
   }
 
   private handleReloadClick(): void {
     window.location.reload()
+  }
+
+  disconnectedCallback(): void {
+    if (this.toolbar && this.#toolbarClickHandler) {
+      this.toolbar.removeEventListener("click", this.#toolbarClickHandler)
+      this.#toolbarClickHandler = null
+    }
   }
 }
 
