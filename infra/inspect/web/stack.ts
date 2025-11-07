@@ -412,6 +412,18 @@ export class Stack extends HTMLElement {
         } else {
           // Останавливаем если задержка стала 0
           this.stopAutoStep()
+          // Если система заблокирована и задержка стала 0, автоматически разблокируем
+          import("@metafor/atom").then(({ Atom }) => {
+            if (Atom.isLocked) {
+              EM.resume()
+              this.controlPanel.setPlayState(true)
+              document.dispatchEvent(
+                new CustomEvent("atom-lock-state-change", {
+                  detail: { isLocked: false },
+                })
+              )
+            }
+          })
         }
       }
       // Уведомляем debugger о изменении состояния
