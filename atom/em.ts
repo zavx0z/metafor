@@ -54,7 +54,16 @@ export abstract class EM extends Gravity {
     EM._lock = true
   }
   public static resume() {
+    // Обрабатываем накопленные импульсы до момента, когда останется один
+    while (EM.stack.length > 1) {
+      EM.step()
+    }
+    // Убираем блокировку
     EM._lock = false
+    // Запускаем последний импульс
+    if (EM.stack.length === 1) {
+      EM.step()
+    }
   }
   private static putImpulse(photon: Photon) {
     const { impulses, meta, path, ...self } = photon
