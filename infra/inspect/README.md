@@ -100,14 +100,17 @@ Web component for step-by-step debugging of atoms in the browser with intuitive 
 ### ✅ Implemented
 
 - **Control element:** fixed panel with buttons — "reload", "pause/resume", "step"
-- **Pause/resume:** global atom system (`atom.break()` / `atom.resume()`)
-- **Step execution:** next message (`atom.step()`)
+- **Pause/resume:** global atom system (`EM.break()` / `EM.resume()`)
+- **Step execution:** next message (`EM.step()`)
 - **Start pause:** through `brk` attribute
 - **State indicator:** button shows action — ▶ (resume), ⏸ (pause)
+- **Slow motion:** step execution with configurable delay (0-5000 ms) via slider on control panel
+- **Automatic step execution:** when slow motion is enabled, steps are executed automatically with the specified delay
+- **State synchronization:** debugger toolbar and stack control panel are synchronized
+- **Auto-unlock:** when delay is set to 0 during execution, system automatically unlocks and continues normal execution
 
 ### 🕓 In Development
 
-- [ ] **Slow motion:** step execution with delay
 - [ ] **Logger integration:** into debugger for detailed analysis
 - [ ] **Breakpoints:** by message parameters (meta, atom, path, timestamp, src, patches)
 
@@ -115,10 +118,10 @@ Web component for step-by-step debugging of atoms in the browser with intuitive 
 
 ## 📋 TODO
 
-- [ ] Pause/resume
+- [x] Pause/resume
 - [x] Step
 - [x] Reload
-- [ ] Slow motion (slow‑mo)
+- [x] Slow motion (slow‑mo)
 - [x] Start breakpoint (`brk`)
 - [ ] Logger integration in debugger
 - [ ] Breakpoints by message parameters

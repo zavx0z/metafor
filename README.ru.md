@@ -95,7 +95,7 @@ MetaFor разрабатывается как универсальный фун�
 ## 📅 Краткосрочные планы
 
 - [x] [`@metafor/inspect`](infra/inspect/README.md) - вывод изменений и инициаторов изменений в консоль браузера
-- [ ] [`@metafor/inspect`](infra/inspect/README.md) - остановка и замедление времени системы (debugger)
+- [x] [`@metafor/inspect`](infra/inspect/README.md) - остановка и замедление времени системы (debugger)
 - [ ] `@metafor/virtual` - визуализация виртуальными частицами в процессе инициализации зависимостей графической системы
 - [ ] `@metafor/mesh` - система 3D
 - [ ] `@metafor/xr` - система VR/AR

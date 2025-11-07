@@ -96,7 +96,7 @@ For detailed information about capabilities, API, and usage examples of MetaFor,
 ## 📅 Short-term Plans
 
 - [x] [`@metafor/inspect`](infra/inspect/README.md) - print changes and initiators in the browser console
-- [ ] [`@metafor/inspect`](infra/inspect/README.md) - pause and slow down system time (debugger)
+- [x] [`@metafor/inspect`](infra/inspect/README.md) - pause and slow down system time (debugger)
 - [ ] `@metafor/virtual` - visualize with virtual particles during initialization of graphics system dependencies
 - [ ] `@metafor/mesh` - 3D system
 - [ ] `@metafor/xr` - VR/AR system
