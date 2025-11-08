@@ -33,6 +33,22 @@ export function load({ src, dst = document.body, mode = "tree", debug = false }:
     }
   }
 
+  function handleVisibilityChange() {
+    const visible = !document.hidden
+    debug && console.log(`👁️ Tab visibility changed: ${visible ? "visible" : "hidden"}`)
+    worker.postMessage({ type: "visibility-change", visible })
+  }
+
+  document.addEventListener("visibilitychange", handleVisibilityChange)
+
+  function handleResize() {
+    const width = window.innerWidth
+    const height = window.innerHeight
+    debug && console.log(`📏 Window resized: ${width}x${height}`)
+    worker.postMessage({ type: "resize", width, height })
+  }
+  window.addEventListener("resize", handleResize)
+
   const offscreenCanvas = canvas.transferControlToOffscreen()
   worker.postMessage(
     {
@@ -44,4 +60,13 @@ export function load({ src, dst = document.body, mode = "tree", debug = false }:
     },
     [offscreenCanvas]
   )
+
+  return function () {
+    // Отписываемся от событий
+    document.removeEventListener("visibilitychange", handleVisibilityChange)
+    window.removeEventListener("resize", handleResize)
+    debug && console.log("💥 Terminating worker")
+    worker.postMessage({ type: "destroy" })
+    worker.terminate()
+  }
 }
