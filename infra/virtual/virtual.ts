@@ -1,5 +1,6 @@
 import { line, quantum, tree } from "./config.js"
 import type { LoaderParams } from "./virtual.t.js"
+import { Atom } from "@metafor/atom"
 
 function createCanvas() {
   const canvas = document.createElement("canvas")
@@ -14,24 +15,15 @@ function createCanvas() {
   return canvas
 }
 
-export function load({ src, dst = document.body, mode = "tree", debug = false }: LoaderParams) {
+let pathsRequestPending = false
+let pathsDebounceTimer: ReturnType<typeof setTimeout> | null = null
+let pathsDebounceDelay = 100 // мс
+
+export async function load({ src, dst = document.body, mode = "tree", debug = false }: LoaderParams) {
   const canvas = createCanvas()
   dst.append(canvas)
 
   const worker = new Worker(src, { type: "module" })
-  worker.onerror = (error) => {
-    console.error("Worker error:", error)
-    console.error("Error details:", error.message, error.filename, error.lineno)
-  }
-  worker.onmessage = (event) => {
-    if (event.data.type === "worker-ready") {
-      debug && console.log("✅ Worker ready, initializing Atom")
-      // this.initializeAtom()
-    } else if (event.data.type === "request-paths") {
-      debug && console.log("📥 Worker requested paths")
-      // this.requestPathsDebounced()
-    }
-  }
 
   function handleVisibilityChange() {
     const visible = !document.hidden
@@ -61,12 +53,57 @@ export function load({ src, dst = document.body, mode = "tree", debug = false }:
     [offscreenCanvas]
   )
 
-  return function () {
-    // Отписываемся от событий
-    document.removeEventListener("visibilitychange", handleVisibilityChange)
-    window.removeEventListener("resize", handleResize)
-    debug && console.log("💥 Terminating worker")
-    worker.postMessage({ type: "destroy" })
-    worker.terminate()
+  function requestPathsDebounced() {
+    // Устанавливаем флаг, что запрос активен
+    pathsRequestPending = true
+    // Очищаем предыдущий таймер
+    if (pathsDebounceTimer) {
+      clearTimeout(pathsDebounceTimer)
+    }
+    // Устанавливаем новый таймер
+    pathsDebounceTimer = setTimeout(() => {
+      sendPathsToWorker()
+      pathsRequestPending = false
+      pathsDebounceTimer = null
+    }, pathsDebounceDelay)
   }
+
+  /**
+   * Отправка путей частиц в worker
+   */
+  function sendPathsToWorker() {
+    // Получаем пути всех активных частиц из builder
+    const activePaths = Atom.getAllAddresses()
+    // Если нет активных частиц, не отправляем пустой массив
+    if (!activePaths || activePaths.length === 0) {
+      debug && console.log("📤 No active particles, skipping paths update")
+      return
+    }
+    debug && console.log("📤 Sending paths to worker:", activePaths)
+    // Отправляем обновленные пути в worker
+    worker.postMessage({ type: "update-paths", paths: activePaths })
+  }
+
+  return new Promise((resolve, reject) => {
+    worker.onerror = (error) => {
+      console.error("Worker error:", error)
+      reject(error)
+    }
+    worker.onmessage = (event) => {
+      if (event.data.type === "worker-ready") {
+        debug && console.log("✅ Worker ready, initializing Atom")
+        resolve(function destroy() {
+          // Отписываемся от событий
+          document.removeEventListener("visibilitychange", handleVisibilityChange)
+          window.removeEventListener("resize", handleResize)
+          debug && console.log("💥 Terminating virtual worker")
+          worker.postMessage({ type: "destroy" })
+          worker.terminate()
+        })
+      } else if (event.data.type === "request-paths") {
+        debug && console.log("📥 Worker requested paths")
+        requestPathsDebounced()
+      }
+    }
+  })
 }

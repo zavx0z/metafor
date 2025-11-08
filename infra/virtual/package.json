@@ -18,13 +18,10 @@
     "typescript": "^5"
   },
   "scripts": {
-    "pub": "bun publish --access public --tag latest",
-    "build": "bun run build:loader && bun run build:worker",
-    "build:watch": "bun run build --watch",
-    "build:loader": "bun build ./virtual.ts --outdir ./dist --sourcemap=linked --external @metafor/atom",
-    "build:worker": "bun build ./worker.js --outdir ./dist --sourcemap=linked",
-    "typegen": "bunx dts-bundle-generator --out-file ./dist/virtual.d.ts -- virtual.ts",
     "clear": "rm -rf ./dist && rm -rf ./node_modules",
-    "prepublish": "bun run web:build && bun run server:build && bun run web:typegen && bun run server:typegen"
+    "build": "bun build ./virtual.ts ./worker.js --outdir ./dist --sourcemap=linked --external @metafor/atom",
+    "build:watch": "bun run build --watch",
+    "typegen": "bunx dts-bundle-generator --out-file ./dist/virtual.d.ts -- virtual.ts",
+    "pub": "bun publish --access public --tag latest"
   }
 }

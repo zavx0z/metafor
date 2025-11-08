@@ -17,7 +17,11 @@
     </script>
     <script type="module">
       import { load } from "./dist/virtual.js"
-      load({ src: "./dist/worker.js", debug: true })
+      import { Atom } from "@metafor/atom"
+
+      const destroy = await load({ src: "./dist/worker.js", debug: true })
+
+      // destroy()
     </script>
     <style>
       body {

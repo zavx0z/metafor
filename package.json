@@ -21,7 +21,7 @@
   "scripts": {
     "upd": "bun update --latest && bun i",
     "clear": "bun --filter @metafor/meta clear && bun --filter @metafor/atom clear && bun --filter @metafor/inspect clear && bun --filter @metafor/virtual clear",
-    "typegen": "bun --filter @metafor/meta typegen && bun --filter @metafor/atom typegen && bun i && bun --filter @metafor/inspect typegen && bun --filter @metafor/virtual typegen",
-    "build": "bun --filter @metafor/meta build && bun --filter @metafor/atom build && bun --filter @metafor/inspect build && bun --filter @metafor/virtual build"
+    "typegen": "bun --filter @metafor/meta typegen && bun --filter @metafor/atom typegen && bun --filter @metafor/virtual typegen && bun i && bun --filter @metafor/inspect typegen",
+    "build": "bun --filter @metafor/meta build && bun --filter @metafor/atom build && bun --filter @metafor/virtual build && bun --filter @metafor/inspect build"
   }
 }
