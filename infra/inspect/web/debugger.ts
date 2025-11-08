@@ -126,13 +126,6 @@ class Debugger extends HTMLElement {
     }
   }
 
-  disconnectedCallback(): void {
-    if (this.toolbar && this.#toolbarClickHandler) {
-      this.toolbar.removeEventListener("click", this.#toolbarClickHandler)
-      this.#toolbarClickHandler = null
-    }
-  }
-
   static get observedAttributes(): string[] {
     return ["brk"]
   }

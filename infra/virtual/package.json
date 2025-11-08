@@ -1,0 +1,27 @@
+{
+  "name": "@metafor/virtual",
+  "type": "module",
+  "private": false,
+  "exports": {
+    ".": {
+      "import": "./dist/virtual.js",
+      "types": "./dist/virtual.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "devDependencies": {
+    "@metafor/atom": "workspace:*"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  },
+  "scripts": {
+    "pub": "bun publish --access public --tag latest",
+    "build": "bun build ./virtual.js --outdir ./dist --sourcemap=linked --external @metafor/atom",
+    "typegen": "bunx dts-bundle-generator --out-file ./dist/virtual.d.ts -- worker-virtual.t.ts",
+    "clear": "rm -rf ./dist && rm -rf ./node_modules",
+    "prepublish": "bun run web:build && bun run server:build && bun run web:typegen && bun run server:typegen"
+  }
+}

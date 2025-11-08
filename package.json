@@ -10,7 +10,7 @@
     "./infra/*"
   ],
   "devDependencies": {
-    "@types/bun": "^1.3.1",
+    "@types/bun": "^1.3.2",
     "dts-bundle-generator": "^9.5.1",
     "typedoc": "^0.28.14",
     "typedoc-plugin-merge-modules": "^7.0.0"
@@ -20,8 +20,8 @@
   },
   "scripts": {
     "upd": "bun update --latest && bun i",
-    "clear": "bun --filter @metafor/meta clear && bun --filter @metafor/atom clear && bun --filter @metafor/inspect clear",
-    "typegen": "bun --filter @metafor/meta typegen && bun --filter @metafor/atom typegen && bun i && bun --filter @metafor/inspect typegen",
-    "build": "bun --filter @metafor/meta build && bun --filter @metafor/atom build && bun --filter @metafor/inspect build"
+    "clear": "bun --filter @metafor/meta clear && bun --filter @metafor/atom clear && bun --filter @metafor/inspect clear && bun --filter @metafor/virtual clear",
+    "typegen": "bun --filter @metafor/meta typegen && bun --filter @metafor/atom typegen && bun i && bun --filter @metafor/inspect typegen && bun --filter @metafor/virtual typegen",
+    "build": "bun --filter @metafor/meta build && bun --filter @metafor/atom build && bun --filter @metafor/inspect build && bun --filter @metafor/virtual build"
   }
 }
