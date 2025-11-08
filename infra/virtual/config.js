@@ -1,4 +1,4 @@
-/** @type {Partial<import("./worker-virtual.t").ParticlesConfig>} */
+/** @type {Partial<import("./worker.t").ParticlesConfig>} */
 export const line = {
   debug: false,
   layout: "line",
@@ -60,7 +60,7 @@ export const line = {
 }
 const nodeSize = 22
 const fontSize = 10
-/** @type {Partial<import("./worker-virtual.t").ParticlesConfig>} */
+/** @type {Partial<import("./worker.t").ParticlesConfig>} */
 export const tree = {
   layout: "tree",
   // частицы

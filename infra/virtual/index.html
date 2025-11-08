@@ -6,19 +6,19 @@
     <link
       rel="icon"
       href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIGZpbGw9IiMxMjEyMTIiLz48cGF0aCBkPSJNOCAxNkgyNE0xNiA4VjI0IiBzdHJva2U9IiM5RTlCRUMiIHN0cm9rZS13aWR0aD0iMiIvPjwvc3ZnPg==" />
-    <title>WebXR 3D Gallery</title>
+    <title>Virtual</title>
     <script type="importmap">
       {
         "imports": {
-          "@zavx0z/context": "../node_modules/@zavx0z/context/dist/index.js",
-          "@metafor/meta": "./node_modules/@metafor/meta/dist/metafor.js",
-          "@metafor/atom": "./node_modules/@metafor/atom/dist/atom.js",
-          "@metafor/inspect/web/logger": "./node_modules/@metafor/inspect/dist/web/logger.js",
-          "@metafor/inspect/web/debugger": "./node_modules/@metafor/inspect/dist/web/debugger.js"
+          "@metafor/atom": "../../atom/dist/atom.js",
+          "@metafor/virtual": "./dist"
         }
       }
     </script>
-    <script type="module" src="./space.js"></script>
+    <script type="module">
+      import { load } from "./dist/virtual.js"
+      load({ src: "./dist/worker.js", debug: true })
+    </script>
     <style>
       body {
         margin: 0;
@@ -31,6 +31,5 @@
   </head>
   <body>
     <meta-inspect brk></meta-inspect>
-    <meta-for src="/meta/canvas.js" mode="tree" log></meta-for>
   </body>
 </html>

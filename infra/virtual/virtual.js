@@ -1,9 +1,9 @@
-import { line, quantum, tree } from "./worker-virtual.config.js"
+import { line, quantum, tree } from "./config.js"
 import { Atom } from "@metafor/atom"
 
 // Флаг для включения/отключения отладочных логов
 // Установите в true для включения логов: const DEBUG = true
-const DEBUG = false
+const DEBUG = true
 
 /**
  * Условное логирование - выводит лог только если DEBUG = true
@@ -23,7 +23,6 @@ class Virtual extends HTMLElement {
 
   constructor() {
     super()
-    // Atom.lock = true
     this.handleVisibilityChange = this.handleVisibilityChange.bind(this)
     this.handleResize = this.handleResize.bind(this)
   }

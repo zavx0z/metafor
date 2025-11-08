@@ -9,16 +9,16 @@
 // ───────────────────────────────────────────────────────────────────────────────
 
 /**
- * @typedef {import('./worker-virtual.t.js').ParticlesConfig} ParticlesConfig
- * @typedef {import('./worker-virtual.t.js').Particle} Particle
- * @typedef {import('./worker-virtual.t.js').Flare} Flare
- * @typedef {import('./worker-virtual.t.js').Center} Center
- * @typedef {import('./worker-virtual.t.js').LayoutMode} LayoutMode
- * @typedef {import('./worker-virtual.t.js').LinkMode} LinkMode
- * @typedef {import('./worker-virtual.t.js').AngleDistribution} AngleDistribution
- * @typedef {import('./worker-virtual.t.js').OrbitLineAt} OrbitLineAt
- * @typedef {import('./worker-virtual.t.js').TreeConfig} TreeConfig
- * @typedef {import('./worker-virtual.t.js').LabelConfig} LabelConfig
+ * @typedef {import('./worker.t.js').ParticlesConfig} ParticlesConfig
+ * @typedef {import('./worker.t.js').Particle} Particle
+ * @typedef {import('./worker.t.js').Flare} Flare
+ * @typedef {import('./worker.t.js').Center} Center
+ * @typedef {import('./worker.t.js').LayoutMode} LayoutMode
+ * @typedef {import('./worker.t.js').LinkMode} LinkMode
+ * @typedef {import('./worker.t.js').AngleDistribution} AngleDistribution
+ * @typedef {import('./worker.t.js').OrbitLineAt} OrbitLineAt
+ * @typedef {import('./worker.t.js').TreeConfig} TreeConfig
+ * @typedef {import('./worker.t.js').LabelConfig} LabelConfig
  */
 /**
  * @param {string} uuid
