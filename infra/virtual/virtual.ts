@@ -19,7 +19,12 @@ let pathsRequestPending = false
 let pathsDebounceTimer: ReturnType<typeof setTimeout> | null = null
 let pathsDebounceDelay = 100 // мс
 
-export async function load({ src, dst = document.body, mode = "tree", debug = false }: LoaderParams) {
+export async function load({
+  src,
+  dst = document.body,
+  mode = "tree",
+  debug = false,
+}: LoaderParams): Promise<Function> {
   const canvas = createCanvas()
   dst.append(canvas)
 
