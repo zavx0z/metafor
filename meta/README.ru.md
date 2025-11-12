@@ -341,7 +341,7 @@ const adminComponentName = "admin-component" // имя admin компонент�
       ["idle", "loading"], // Состояния, в которых активна реакция
       reaction({ label: "Обработка сообщений от user компонента" })
         .filter({
-          meta: userComponentHash, // Хеш меты компонента-отправителя
+          meta: userComponentHash, // Название компонента-отправителя из MetaFor("label")
           op: "replace", // Операция: "add" | "replace" | "remove" | "test"
           path: "/context", // Путь: "/" | "/context" | "/state"
           value: { userId: { gt: 0 } }, // Условия на значение
