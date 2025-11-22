@@ -1,131 +1,94 @@
-# 🧩 @metafor/inspect — atom Debugging
+# @metafor/inspect
 
-[← Main](../../README.md) | **English** | [Русский](README.ru.md)
+[← Back to root](../../README.md) | **English** | [Русский](README.ru.md)
 
-A tool for step-by-step debugging and analysis of atom behavior in MetaFor. Implements three approaches to debugging asynchronous and parallel code, each providing different levels of control over time, context, and execution order.
+## Purpose
 
----
+- Tooling for observing the MetaFor field: impulse stack, time control, logging.
+- Works on the same `BroadcastChannel`/`EM` events as atoms, so the view is consistent with runtime behaviour.
+- README captures the feature set; full API lives in Typedoc (`infra/inspect/docs/typedoc/index.html`).
 
-## 🎯 Approaches Overview
+## Modules
 
-| Approach                 | Goal                    | Key Idea                                                | Status         |
-| :----------------------- | :---------------------- | :------------------------------------------------------ | :------------- |
-| **1. Depth‑First Trace** | View call sequences     | Recursive traversal deep into asynchronous atom chains | ✅ Implemented |
-| **2. Snapshot & Replay** | Analyze state over time | Save snapshots and replay execution history             | 🕓 In Progress |
-| **3. Logical Threads**   | Manage parallel tasks   | Split async calls into logical threads                  | 🕓 In Progress |
+| Module                         | Description                                         |
+| ------------------------------ | --------------------------------------------------- |
+| `web/debugger` (`meta-inspect`)| Web component with time controls and stack viewer   |
+| `web/logger`                   | Lightweight console/panel logger for impulses       |
+| `server/logger`                | Bun/Node logger that streams impulses server-side   |
 
----
+## Quick start (web)
 
-## 🔍 Debugging Approaches
+```html
+<script type="module" src="@metafor/inspect/web/debugger"></script>
+<meta-inspect brk></meta-inspect>
+```
 
-### 1. Depth‑First Trace (implemented)
+- `brk` pauses the system right after mount (`EM.break()`).
+- Removing the attribute or pressing ▶ resumes (`EM.resume()`).
 
-**Deep traversal** — linear representation of asynchronous atom calls as a single stack.  
-Asynchronous chains are recursively unfolded, allowing to view execution context "in depth" without breaking the logic of interaction between atoms.
+### Programmatic API
 
-**Advantages:**
+```ts
+import { startInspect } from "@metafor/inspect"
 
-- ✅ Convenient for analyzing atom action sequences
-- ✅ Integrated with MetaFor task system (TaskType, Electromagnetic)
-- ✅ Used by default as the main tracing mode
+startInspect({
+  target: document.body,
+  breakpoint: true,
+  slowmo: 250, // delay between EM.step() calls in ms
+})
+```
 
-**Limitations:**
+## Capabilities
 
-- ⚠️ Doesn't reflect real execution order (`event loop` remains outside the model)
+- Pause/resume (`EM.break` / `EM.resume`).
+- Step-through execution via `EM.step()`, including slow-mo slider.
+- Live impulse stack with meta/atom/path/op/value/timestamp.
+- Synced controls between the debugger UI and stack UI.
+- Automatic draining of queued impulses when resuming.
 
-### 2. Snapshot & Replay (in progress)
+### Photon properties in the UI
 
-**Snapshots and rollbacks** — mechanism for recording atom state and reversible changes (patches) with playback capability.  
-Allows "rewinding" execution to any point in history, analyzing side effects and atom system state over time.
+- **Intensity** — number of patches inside each impulse.
+- **Colour** — `meta`/`atom`, showing which emitter produced the photon.
+- **Polarisation** — JSON Patch `path`/`op`, indicating mutation direction.
+- **Phase** — `timestamp` and EM stack position.
 
-**Capabilities:**
+The debugger literally surfaces the same encoded information that a photon carries in the physical analogy.
 
-- ✅ Restore or repeat any sequence of atom events
-- 🕓 Implementation through `Field.getSnapshotByLastMessage()` and atom snapshot system
-- 🕓 Integration with MetaFor context and state system
+### Roadmap
 
-**Requirements:**
+- Breakpoints by `meta`, `atom`, `path`, `op`.
+- Visual integration with `@metafor/virtual`.
+- Remote control of `Field` checkpoints from the debugger.
 
-- ⚠️ Requires meta-atoms for most external resources (WebSocket, timers, etc.)
+## Server logger
 
-### 3. Logical Threads (in progress)
+```ts
+import { createServerLogger } from "@metafor/inspect/server"
 
-**Logical threads** — model of step-by-step execution of asynchronous tasks as separate "virtual stacks".  
-Virtual stacks are the atoms themselves. This is the ability to debug branches of the interaction graph between atoms.
+const logger = createServerLogger({ port: 8777 })
+logger.start()
+```
 
-**Capabilities:**
+- Serialises impulses to stdout or a custom transport.
+- Runs under Bun/Node and listens to EM events via BroadcastChannel/WebSocket.
 
-- ✅ Deterministic control of parallel atom scenarios
-- ✅ Partially implemented through task system and stack management in `Electromagnetic`
-- 🕓 Integration with atom state and transition system
+## Commands
 
-**Plans:**
+| Command              | Purpose                                         |
+| -------------------- | ----------------------------------------------- |
+| `bun run build`      | Build both web and server bundles               |
+| `bun run web:build`  | Build only the web tooling                      |
+| `bun run server:build` | Build only the server logger                 |
+| `bun run typegen`    | Generate d.ts for web/server artefacts          |
+| `bun run docs`       | Typedoc (`infra/inspect/docs/typedoc/index.html`) |
+| `bun run clear`      | Remove `dist` and `node_modules`                |
 
-- 📌 Full integration with BroadcastChannel system and inter-atom messaging
+## Docs & tests
 
----
+- **Typedoc** documents `startInspect`, `createServerLogger`, component attributes, and events.
+- **Examples** live in `infra/inspect/web/*.ts` and `infra/inspect/server/logger.ts`.
+- **Tests** are currently manual; reuse Happy DOM setups from the main repo (`bun test --filter inspect`) when automating scenarios.
 
-## 🚀 Quick Start
+For the underlying physics of impulses and time control, see `../.cursor/rules/metafor.mdc`.
 
-### Web Component `meta-inspect`
-
-Web component for step-by-step debugging of atoms in the browser with intuitive control interface.
-
-#### Setup
-
-1. **Import module:**
-
-   ```html
-   <script type="module" src="@metafor/inspect/web/debugger"></script>
-   ```
-
-2. **Add component:**
-
-   ```html
-   <!-- with pause on start -->
-   <meta-inspect brk></meta-inspect>
-
-   <!-- without pause on start -->
-   <meta-inspect></meta-inspect>
-   ```
-
-#### Attributes
-
-- **`brk`** — when present, pauses the system immediately after component connection. Removing the attribute unpauses
-
----
-
-## ⚙️ Functionality
-
-### ✅ Implemented
-
-- **Control element:** fixed panel with buttons — "reload", "pause/resume", "step"
-- **Pause/resume:** global atom system (`EM.break()` / `EM.resume()`)
-- **Step execution:** next message (`EM.step()`)
-- **Start pause:** through `brk` attribute
-- **State indicator:** button shows action — ▶ (resume), ⏸ (pause)
-- **Slow motion:** step execution with configurable delay (0-5000 ms) via slider on control panel
-- **Automatic step execution:** when slow motion is enabled, steps are executed automatically with the specified delay
-- **State synchronization:** debugger toolbar and stack control panel are synchronized
-- **Auto-unlock:** when delay is set to 0 during execution, system automatically unlocks and continues normal execution
-
-### 🕓 In Development
-
-- [ ] **Logger integration:** into debugger for detailed analysis
-- [ ] **Breakpoints:** by message parameters (meta, atom, path, timestamp, src, patches)
-
----
-
-## 📋 TODO
-
-- [x] Pause/resume
-- [x] Step
-- [x] Reload
-- [x] Slow motion (slow‑mo)
-- [x] Start breakpoint (`brk`)
-- [ ] Logger integration in debugger
-- [ ] Breakpoints by message parameters
-
----
-
-[← Main](../../README.md) | **English** | [Русский](README.ru.md)

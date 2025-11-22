@@ -11,7 +11,7 @@ export type { Photon, JsonPatch, Impulse }
 
 export abstract class EM extends Gravity {
   static CHANNEL = "electromagnetic"
-  protected static channel: BroadcastChannel = new BroadcastChannel(EM.CHANNEL)
+  protected static channel: BroadcastChannel | null = new BroadcastChannel(EM.CHANNEL)
 
   protected abstract handleReaction(ev: MessageEvent<Photon>): void
   protected abstract reactions: Reactions
@@ -22,14 +22,42 @@ export abstract class EM extends Gravity {
 
   protected connect() {
     EM.charged.add(this)
-    EM.channel && EM.channel.addEventListener("message", this.handleReaction)
+    if (EM.channel) {
+      EM.channel.addEventListener("message", this.handleReaction)
+    }
   }
 
   public override destroy() {
     // EM.emitStack.clear()
     EM.charged.delete(this)
-    EM.channel && EM.channel.removeEventListener("message", this.handleReaction)
+    if (EM.channel) {
+      EM.channel.removeEventListener("message", this.handleReaction)
+    }
     super.destroy()
+  }
+
+  /**
+   * Безопасно заменяет канал коммуникации
+   * Удаляет все обработчики со старого канала перед заменой
+   * @internal Используется только в тестах
+   */
+  protected static setChannel(newChannel: BroadcastChannel | null) {
+    const oldChannel = EM.channel
+    if (oldChannel) {
+      // Удаляем все обработчики со старого канала
+      for (const atom of EM.charged) {
+        oldChannel.removeEventListener("message", atom.handleReaction)
+      }
+      // Закрываем старый канал
+      oldChannel.close()
+    }
+    EM.channel = newChannel
+    // Добавляем обработчики к новому каналу
+    if (newChannel) {
+      for (const atom of EM.charged) {
+        newChannel.addEventListener("message", atom.handleReaction)
+      }
+    }
   }
 
   protected emission(photon: Photon) {
@@ -38,7 +66,9 @@ export abstract class EM extends Gravity {
       if (atom === this) continue
       atom.handleReaction({ data: photon } as MessageEvent<Photon>)
     }
-    EM.channel && EM.channel.postMessage(photon)
+    if (EM.channel) {
+      EM.channel.postMessage(photon)
+    }
   }
 
   // --------------------------------------------------------
@@ -280,7 +310,7 @@ export abstract class EM extends Gravity {
           }
 
           if (!EM._lock) {
-            const updated = original.apply(this, args)
+            const updated = original.apply(this, [values])
             if (!Object.keys(updated).length) return
 
             photon.impulses = [{ op: "replace", path: "/context", value: updated }]

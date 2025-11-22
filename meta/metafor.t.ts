@@ -313,16 +313,6 @@ export interface ViewDeclaration<C extends Schema, I extends Core, S extends str
    */
   render?: (params: ViewDefinitionParams<C, I, S>) => void
   /**
-   * Функция, вызываемая после монтирования компонента в DOM.
-   * Используется для инициализации после рендера.
-   */
-  onMount?: ({ core }: { core: I }) => void
-  /**
-   * Функция, вызываемая при уничтожении компонента.
-   * Используется для очистки ресурсов.
-   */
-  onDestroy?: ({ core }: { core: I }) => void
-  /**
    * Функция для определения CSS-стилей компонента.
    * Получает функцию css для создания инкапсулированных стилей.
    */

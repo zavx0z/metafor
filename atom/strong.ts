@@ -104,10 +104,11 @@ export abstract class Strong extends Week {
   /**
    * Обновляет контекст атома и возвращает обновленные значения.
    * @param values Обновляемые значения.
+   * @param initiator Инициатор обновления (используется внутренне).
    * @returns Обновленные значения.
    */
   @EM.it
-  evaluate(values: Partial<Hidden<Values>>): Partial<Hidden<Values>> {
+  evaluate(values: Partial<Hidden<Values>>, initiator?: Initiator): Partial<Hidden<Values>> {
     const updated = this.update(values)
     return updated
   }
@@ -137,6 +138,52 @@ export abstract class Strong extends Week {
   }
   // ---------------------------------------------------------------------
 
+  /**
+   * Создаёт атом из схемы мета
+   *
+   * @param config - Конфигурация создания атома
+   * @param config.meta - Схема мета, созданная через MetaFor()
+   * @param config.id - Уникальный идентификатор атома (по умолчанию генерируется через crypto.randomUUID())
+   * @param config.core - Core объект для хранения сложных данных
+   * @param config.context - Начальные значения контекста
+   * @param config.path - Индексный путь атома в иерархии (опционально)
+   * @returns Экземпляр атома
+   *
+   * @example
+   * ```typescript
+   * const atom = Atom.fromSchema({
+   *   meta: {
+   *     name: "counter",
+   *     context: contextSchema((t) => ({
+   *       value: t.number.required(0)
+   *     })),
+   *     states: { idle: {} },
+   *     processes: {},
+   *     reactions: { reactions: {}, states: {} },
+   *     core: {}
+   *   },
+   *   id: "counter-1"
+   * })
+   * ```
+   *
+   * @example Создание с начальным контекстом
+   * ```typescript
+   * const atom = Atom.fromSchema({
+   *   meta: counterMeta,
+   *   id: "counter-1",
+   *   context: { value: 10 }
+   * })
+   * ```
+   *
+   * @example Создание с указанием пути
+   * ```typescript
+   * const atom = Atom.fromSchema({
+   *   meta: counterMeta,
+   *   id: "counter-1",
+   *   path: "0/1/2"
+   * })
+   * ```
+   */
   static fromSchema<M extends Meta>(config: {
     meta: M
     id?: string
