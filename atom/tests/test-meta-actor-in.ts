@@ -39,7 +39,6 @@ describe("Фильтрация по meta и atom с in/notIn", () => {
       core,
       update: fakeUpdate,
       self: { meta: "admin", atom: "test-atom", path: "0" },
-      destroy: () => {},
     })
 
     expect(core.called, "реакция должна сработать когда meta входит в массив").toBe(true)
@@ -68,7 +67,6 @@ describe("Фильтрация по meta и atom с in/notIn", () => {
       core,
       update: fakeUpdate,
       self: { meta: "moderator", atom: "test-atom", path: "0" },
-      destroy: () => {},
     })
 
     expect(core.called, "реакция НЕ должна сработать когда meta НЕ входит в массив").toBe(false)
@@ -97,7 +95,6 @@ describe("Фильтрация по meta и atom с in/notIn", () => {
       core,
       update: fakeUpdate,
       self: { meta: "test", atom: "atom-2", path: "0" },
-      destroy: () => {},
     })
 
     expect(core.called, "реакция должна сработать когда atom входит в массив").toBe(true)
@@ -126,7 +123,6 @@ describe("Фильтрация по meta и atom с in/notIn", () => {
       core,
       update: fakeUpdate,
       self: { meta: "active", atom: "test-atom", path: "0" },
-      destroy: () => {},
     })
 
     expect(core.called, "реакция должна сработать когда meta НЕ входит в исключающий массив").toBe(true)
@@ -155,7 +151,6 @@ describe("Фильтрация по meta и atom с in/notIn", () => {
       core,
       update: fakeUpdate,
       self: { meta: "test", atom: "blocked-1", path: "0" },
-      destroy: () => {},
     })
 
     expect(core.called, "реакция НЕ должна сработать когда atom входит в исключающий массив").toBe(false)
