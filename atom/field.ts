@@ -137,6 +137,10 @@ export abstract class Field {
     }
   }
 
+  protected static historyChunks(): readonly ImpulsesChunk[] {
+    return Field.histories.slice()
+  }
+
   /** Откатывает всю систему к указанному времени */
   protected static rollbackSystem(targetTimestamp: number): boolean {
     // Находим ближайший чекпоинт

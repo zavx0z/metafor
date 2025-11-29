@@ -299,6 +299,10 @@ export const style = css`
     color: #ccc;
   }
 
+  .history-btn {
+    color: #64b5f6;
+  }
+
   .debug-btn[disabled] {
     opacity: 0.3;
     cursor: not-allowed;

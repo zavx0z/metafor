@@ -1,6 +1,7 @@
 import { EM } from "@metafor/atom"
 
 import { style } from "./stack.styled"
+import { HistoryNavigator } from "./history-navigator"
 import "./control-panel"
 import "./stack-table"
 import type { ControlPanel } from "./control-panel.t"
@@ -24,6 +25,9 @@ export class Stack extends HTMLElement {
   private readonly STEP_DELAY_KEY = "metafor-step-delay"
   private stepDelay = 0
   private stepIntervalId: ReturnType<typeof setInterval> | null = null
+  private historyNavigator = new HistoryNavigator<Impulse>()
+  private isHistoryMode = false
+  private lastKnownStack: Impulse[] = []
   private off: () => void
   #shadow: ShadowRoot | null = null
 
@@ -393,6 +397,10 @@ export class Stack extends HTMLElement {
       this.handleStepClick()
     })
 
+    this.controlPanel.addEventListener("history-back", () => {
+      this.handleHistoryBackClick()
+    })
+
     // Обработчик кнопки очистки стека
     this.controlPanel.addEventListener("clear", () => {
       this.handleClearClick()
@@ -465,6 +473,7 @@ export class Stack extends HTMLElement {
             isLocked: Atom.isLocked,
             stepDelay: this.stepDelay,
             hasAutoStep: this.stepIntervalId !== null,
+            isHistoryMode: this.isHistoryMode,
           },
         })
       )
@@ -536,6 +545,7 @@ export class Stack extends HTMLElement {
   }
 
   private handlePlayClick() {
+    this.exitHistoryMode()
     // Импортируем Atom динамически, чтобы избежать циклических зависимостей
     import("@metafor/atom").then(({ Atom }) => {
       if (Atom.isLocked) {
@@ -576,12 +586,52 @@ export class Stack extends HTMLElement {
   }
 
   private handleStepClick() {
+    this.exitHistoryMode()
     EM.step()
   }
 
   private handleClearClick() {
+    this.exitHistoryMode()
     // Очищаем все данные
     this.stackTable.clear()
+  }
+
+  private handleHistoryBackClick() {
+    const historyChunks = EM.getHistoryChunks()
+    if (!historyChunks.length) return
+
+    if (!this.isHistoryMode) {
+      this.historyNavigator.load(historyChunks)
+      const snapshot = this.historyNavigator.current()
+      if (!snapshot?.length) return
+      this.enterHistoryMode(snapshot)
+      return
+    }
+
+    const snapshot = this.historyNavigator.stepBack()
+    if (!snapshot) return
+    this.renderHistorySnapshot(snapshot)
+  }
+
+  private enterHistoryMode(snapshot: Impulse[]) {
+    this.isHistoryMode = true
+    this.setAttribute("data-history-mode", "true")
+    this.stackTable.setHistoryMode(true)
+    this.stackTable.renderSnapshot(snapshot)
+  }
+
+  private renderHistorySnapshot(snapshot: Impulse[]) {
+    this.stackTable.renderSnapshot(snapshot)
+  }
+
+  private exitHistoryMode() {
+    if (!this.isHistoryMode) return
+    this.isHistoryMode = false
+    this.historyNavigator.reset()
+    this.removeAttribute("data-history-mode")
+    this.stackTable.setHistoryMode(false)
+    this.stackTable.clear()
+    this.stackTable.render(this.lastKnownStack ?? [])
   }
 
   private handleDoubleClick() {
@@ -703,6 +753,8 @@ export class Stack extends HTMLElement {
     this.saveHeight()
   }
   public render(currentStack: Impulse[]) {
+    this.lastKnownStack = currentStack
+    if (this.isHistoryMode) return
     this.stackTable.render(currentStack)
   }
 

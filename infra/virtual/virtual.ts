@@ -97,6 +97,8 @@ export async function load({
     worker.onmessage = (event) => {
       if (event.data.type === "worker-ready") {
         debug && console.log("✅ Worker ready, initializing Atom")
+        // Отправляем воркеру актуальное состояние сразу, чтобы частицы появились мгновенно
+        sendPathsToWorker()
         resolve(function destroy() {
           // Отписываемся от событий
           document.removeEventListener("visibilitychange", handleVisibilityChange)

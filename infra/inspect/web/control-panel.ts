@@ -11,6 +11,7 @@ export class ControlPanel extends HTMLElement {
   private menu!: HTMLDivElement
   private playBtn!: HTMLButtonElement
   private stepBtn!: HTMLButtonElement
+  private historyBtn!: HTMLButtonElement
   private clearBtn!: HTMLButtonElement
   #shadow: ShadowRoot | null = null
 
@@ -110,6 +111,11 @@ export class ControlPanel extends HTMLElement {
     this.stepBtn.innerHTML = "⏭"
     this.stepBtn.title = "Шаг вперёд"
 
+    this.historyBtn = document.createElement("button")
+    this.historyBtn.className = "debug-btn history-btn"
+    this.historyBtn.innerHTML = "⏮"
+    this.historyBtn.title = "Шаг назад по истории"
+
     // Создаем слайдер замедления выполнения
     this.stepDelaySlider = document.createElement("input")
     this.stepDelaySlider.type = "range"
@@ -139,6 +145,7 @@ export class ControlPanel extends HTMLElement {
     const centerGroup = document.createElement("div")
     centerGroup.className = "center-group"
     centerGroup.appendChild(this.playBtn)
+    centerGroup.appendChild(this.historyBtn)
     centerGroup.appendChild(this.stepBtn)
     const stepDelayContainer = document.createElement("div")
     stepDelayContainer.className = "step-delay-container"
@@ -218,6 +225,10 @@ export class ControlPanel extends HTMLElement {
 
     this.stepBtn.addEventListener("click", () => {
       this.dispatchEvent(new CustomEvent("step"))
+    })
+
+    this.historyBtn.addEventListener("click", () => {
+      this.dispatchEvent(new CustomEvent("history-back"))
     })
 
     // Обработчик кнопки очистки стека

@@ -55,6 +55,22 @@ export class StackTable extends HTMLElement {
     }
   }
 
+  public renderSnapshot(impulses: Impulse[]) {
+    this.clear()
+    impulses.forEach((impulse) => {
+      this.impulseSet.add(impulse)
+      this.addImpulseElement(impulse, true)
+    })
+  }
+
+  public setHistoryMode(enabled: boolean) {
+    if (enabled) {
+      this.setAttribute("data-history-mode", "true")
+      return
+    }
+    this.removeAttribute("data-history-mode")
+  }
+
   private addImpulseElement(impulse: Impulse, isActive: boolean) {
     const li = document.createElement("li")
     li.className = isActive ? "" : "removed"

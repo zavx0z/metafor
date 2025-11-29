@@ -11,6 +11,7 @@ describe("Каналы коммуникации между атомами", () =
   beforeEach(() => {
     // @ts-ignore
     EM.charged.clear()
+    EM.clearHistory()
     messagesFixtureInstance = messagesFixture({ meta: "test-atom" })
   })
 
@@ -156,6 +157,46 @@ describe("Каналы коммуникации между атомами", () =
 
       atom1.destroy()
       atom2.destroy()
+    })
+  })
+
+  describe("История импульсов", () => {
+    let atom: Atom
+    let chunks: ReturnType<typeof EM.getHistoryChunks>
+    let lastChunk: ReturnType<typeof EM.getHistoryChunks>[number]
+
+    beforeEach(() => {
+      atom = Atom.fromSchema({ meta: simpleTestSchema, id: "history-atom" })
+      atom.evaluate({ value: 10 })
+      chunks = EM.getHistoryChunks()
+      lastChunk = chunks[chunks.length - 1] ?? []
+    })
+
+    afterEach(() => {
+      atom.destroy()
+    })
+
+    it("создает хотя бы один срез после evaluate", () => {
+      expect(
+        chunks.length,
+        "история должна содержать хотя бы один срез после evaluate"
+      ).toBeGreaterThan(0)
+    })
+
+    it("срез содержит патчи импульсов", () => {
+      expect(lastChunk.length, "срез должен содержать патчи импульсов").toBeGreaterThan(0)
+    })
+
+    it("фиксирует источник атома в срезе", () => {
+      expect(
+        lastChunk[0]?.atom,
+        "атом в истории совпадает с источником изменений"
+      ).toBe("history-atom")
+    })
+
+    it("сохраняет патч контекста в истории", () => {
+      const hasContextPatch = lastChunk.some((impulse) => impulse.path === "/context")
+      expect(hasContextPatch, "контекст должен обновляться в истории").toBe(true)
     })
   })
 

@@ -4,6 +4,7 @@ import { type Impulse, Energy, getImpulseType, impulseInStack } from "./src/stac
 import type { Reactions } from "./src/reactions"
 import type { Atom } from "./atom"
 import { Field } from "./field"
+import type { ImpulsesChunk } from "./gravity.t"
 import { contextFromSchema } from "@zavx0z/context"
 
 export { Initiator }
@@ -125,6 +126,24 @@ export abstract class EM extends Gravity {
   public static onChangeStack(observer: (stack: Impulse[]) => void) {
     EM.emitStack.add(observer)
     return () => EM.emitStack.delete(observer)
+  }
+
+  public static getHistoryChunks(): Impulse[][] {
+    const chunks = Field.historyChunks()
+    return chunks.map((chunk: ImpulsesChunk) =>
+      chunk.impulses.map((patch) => ({
+        atom: chunk.atom,
+        timestamp: chunk.timestamp,
+        initiator: chunk.initiator,
+        op: patch.op,
+        path: patch.path,
+        value: patch.value,
+      }))
+    )
+  }
+
+  public static clearHistory() {
+    Field.clearGlobalHistory()
   }
 
   protected abstract measurement(state: string): void

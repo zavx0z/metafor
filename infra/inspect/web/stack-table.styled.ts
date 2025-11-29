@@ -151,4 +151,17 @@ export const style = css`
   li.removed span:last-child {
     color: #97315ac6;
   }
+
+  :host([data-history-mode="true"]) li {
+    background-color: rgba(100, 149, 237, 0.08);
+    border-bottom-color: rgba(100, 149, 237, 0.4);
+  }
+
+  :host([data-history-mode="true"]) li span:first-child {
+    color: #90caf9;
+  }
+
+  :host([data-history-mode="true"]) li span:nth-child(2) {
+    color: #bbdefb;
+  }
 `

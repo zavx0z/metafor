@@ -26,6 +26,11 @@ export const style = css`
     color: #cccccc;
   }
 
+  :host([data-history-mode="true"]) {
+    box-shadow: 0 0 0 2px rgba(100, 149, 237, 0.35);
+    background-color: rgba(20, 30, 50, var(--panel-opacity));
+  }
+
   /* Позиции панели */
   :host.position-bottom {
     bottom: 0 !important;
