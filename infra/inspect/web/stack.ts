@@ -597,20 +597,20 @@ export class Stack extends HTMLElement {
   }
 
   private handleHistoryBackClick() {
-    const historyChunks = EM.getHistoryChunks()
-    if (!historyChunks.length) return
+    // const historyChunks = EM.getHistoryChunks()
+    // if (!historyChunks.length) return
 
-    if (!this.isHistoryMode) {
-      this.historyNavigator.load(historyChunks)
-      const snapshot = this.historyNavigator.current()
-      if (!snapshot?.length) return
-      this.enterHistoryMode(snapshot)
-      return
-    }
+    // if (!this.isHistoryMode) {
+    //   this.historyNavigator.load(historyChunks)
+    //   const snapshot = this.historyNavigator.current()
+    //   if (!snapshot?.length) return
+    //   this.enterHistoryMode(snapshot)
+    //   return
+    // }
 
-    const snapshot = this.historyNavigator.stepBack()
-    if (!snapshot) return
-    this.renderHistorySnapshot(snapshot)
+    // const snapshot = this.historyNavigator.stepBack()
+    // if (!snapshot) return
+    // this.renderHistorySnapshot(snapshot)
   }
 
   private enterHistoryMode(snapshot: Impulse[]) {
