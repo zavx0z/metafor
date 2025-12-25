@@ -23,7 +23,7 @@
         }
       }
     </script>
-    <!-- <script type="module" src="./index.js"></script> -->
+    <script type="module" src="./space.js"></script>
     <style>
       body {
         margin: 0;
@@ -35,12 +35,10 @@
     </style>
     <script type="module">
       import "@metafor/inspect/web/debugger"
-      import { threadLog } from "@metafor/inspect/web/logger"
-      await threadLog()
     </script>
   </head>
   <body>
     <meta-inspect brk></meta-inspect>
-    <meta-for src="/meta/canvas.js" mode="tree" log></meta-for>
+    <meta-for src="meta/canvas.js" mode="tree" log></meta-for>
   </body>
 </html>
