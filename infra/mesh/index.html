@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link
+      rel="icon"
+      href="data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIHZpZXdCb3g9IjAgMCAzMiAzMiIgZmlsbD0ibm9uZSIgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzIwMDAvc3ZnIj48cmVjdCB3aWR0aD0iMzIiIGhlaWdodD0iMzIiIGZpbGw9IiMxMjEyMTIiLz48cGF0aCBkPSJNOCAxNkgyNE0xNiA4VjI0IiBzdHJva2U9IiM5RTlCRUMiIHN0cm9rZS13aWR0aD0iMiIvPjwvc3ZnPg==" />
+    <title>WebXR 3D Gallery</title>
+    <script type="importmap">
+      {
+        "imports": {
+          "three": "https://unpkg.com/three@0.158.0/build/three.module.js",
+          "three/addons/": "https://unpkg.com/three@0.158.0/examples/jsm/",
+          "@zavx0z/context": "../node_modules/@zavx0z/context/dist/index.js",
+          "@metafor/meta": "../../meta/dist/metafor.js",
+          "@metafor/atom": "../../atom/dist/atom.js",
+          "@metafor/virtual": "../virtual/dist/virtual.js",
+          "@metafor/inspect/web/logger": "../inspect/dist/web/logger.js",
+          "@metafor/inspect/web/debugger": "../inspect/dist/web/debugger.js",
+          "nodes/": "./nodes/",
+          "meta/": "./meta/"
+        }
+      }
+    </script>
+    <!-- <script type="module" src="./index.js"></script> -->
+    <style>
+      body {
+        margin: 0;
+        padding: 0;
+        background: #000;
+        font-family: Arial, sans-serif;
+        overflow: hidden;
+      }
+    </style>
+    <script type="module">
+      import "@metafor/inspect/web/debugger"
+      import { threadLog } from "@metafor/inspect/web/logger"
+      await threadLog()
+    </script>
+  </head>
+  <body>
+    <meta-inspect brk></meta-inspect>
+    <meta-for src="/meta/canvas.js" mode="tree" log></meta-for>
+  </body>
+</html>
