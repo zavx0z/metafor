@@ -1,0 +1,20 @@
+
+exclude:
+  - node_modules
+  - dist
+  - .git
+  - .vscode
+  - zavx0z.yaml
+  - .idx
+  - .idea
+  - .cursor
+  - tmp
+  - .gitignore
+  - bun.lock
+  - .DS_Store
+  - tests
+  - .firebase
+  - .firebaserc
+  - bunfig.toml
+  - .github
+  - shared
