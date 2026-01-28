@@ -38,7 +38,7 @@ import type { ReactionsDeclaration } from "./reactions"
  */
 export type MetaFor = (
   name: string,
-  config?: MetaForConfig
+  config?: MetaForConfig,
 ) => {
   /**
    * Регистрирует схему контекста для автомата.
@@ -60,7 +60,7 @@ export type MetaFor = (
    * ```
    */
   context<C extends Schema>(
-    schema: (types: Types) => C
+    schema: (types: Types) => C,
   ): {
     /**
      * Регистрирует переходы автомата между состояниями.
@@ -76,7 +76,7 @@ export type MetaFor = (
      * @returns chain API для вызова .core(...)
      */
     states<S extends string>(
-      states: Superposition<S, C>
+      states: Superposition<S, C>,
     ): {
       /**
        * Регистрирует core объект для автомата.
@@ -104,7 +104,7 @@ export type MetaFor = (
        * ```
        */
       core<I extends Core>(
-        core?: I
+        core?: I,
       ): {
         /**
          * Регистрирует процессы автомата для нужных состояний.
@@ -196,6 +196,36 @@ declare global {
     MetaFor: MetaFor
   }
   //@ts-ignore
+  /**
+   * MetaFor — фабрика для создания web-компонента-атома конечного автомата
+   * @param name - имя атома (используется для создания тега `meta-${name}`)
+   * @returns chain API: context() -> states() -> core() -> processes() -> reactions() -> view()
+   *
+   * **Важно:** Итоговый тег компонента формируется как `meta-${name}`,
+   * где name — это имя компонента, переданное в конструктор.
+   */
+  /**
+   * Основной API MetaFor для создания компонентов
+   *
+   * Предоставляет цепочку методов для настройки компонента:
+   * - `context()` - определение типизированного контекста
+   * - `states()` - определение состояний и переходов
+   * - `core()` - настройка ядра для сложных данных
+   * - `processes()` - определение процессов (действий)
+   * - `reactions()` - определение реакций на события
+   * - `view()` - определение представления компонента
+   *
+   * @example
+   * ```typescript
+   * const component = MetaFor("my-component")
+   *   .context((types) => ({ name: types.string.required("") }))
+   *   .states({ idle: { loading: {} } })
+   *   .core({ users: [] })
+   *   .processes((process) => ({ load: process().action(...) }))
+   *   .reactions((reaction) => [...])
+   *   .view({ render: ({ context }) => html`<div>${context.name}</div>` })
+   * ```
+   */
   var MetaFor: MetaFor
 }
 export {}

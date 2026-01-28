@@ -1,14 +1,11 @@
 {
-  "name": "mesh",
+  "name": "@metafor/mesh",
   "module": "index.ts",
   "type": "module",
   "private": true,
   "devDependencies": {
     "@types/bun": "latest",
     "@types/three": "^0.182.0"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
   },
   "dependencies": {
     "@types/three": "^0.182.0",
