@@ -13,7 +13,7 @@
       "import": "./dist/web/debugger.js",
       "types": "./dist/web/index.d.ts"
     },
-    "./server": {
+    "./server/logger": {
       "import": "./dist/server/logger.js",
       "types": "./dist/server/index.d.ts"
     }
