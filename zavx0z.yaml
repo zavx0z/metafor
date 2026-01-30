@@ -18,3 +18,5 @@ exclude:
   - bunfig.toml
   - .github
   - shared
+  - firebase.json
+  - .firebaserc

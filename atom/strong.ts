@@ -1,4 +1,4 @@
-import { Week } from "./week"
+import { Weak } from "./weak"
 import type { Core } from "./gravity"
 import type { Meta, Superposition } from "../meta/metafor"
 import type { Process, Processes } from "./src/processes"
@@ -14,7 +14,7 @@ import { EM, type Photon } from "./em"
 import { ProcessType } from "../meta/process.t"
 import { Initiator } from "./em"
 
-export abstract class Strong extends Week {
+export abstract class Strong extends Weak {
   constructor(
     public override id: string,
     public override meta: string,
