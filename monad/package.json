@@ -7,7 +7,6 @@
     "example": "bun run ./examples/server.ts",
     "setup:browsers": "npx puppeteer browsers install chrome",
     "example-headless": "bun run ./examples/headless.ts",
-    "example-native": "bun run ./examples/native.ts",
     "build": "bun build ./src/index.ts --outdir ./dist --target browser",
     "test": "bun test"
   },

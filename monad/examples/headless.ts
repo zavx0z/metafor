@@ -33,6 +33,7 @@ import { join } from "path"
         const build = await Bun.build({
           entrypoints: [join(import.meta.dir, "client.ts")],
           target: "browser",
+          loader: { ".wgsl": "text" },
         })
         return new Response(build.outputs[0])
       }
