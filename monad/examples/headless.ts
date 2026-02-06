@@ -3,44 +3,30 @@ import { serve } from "bun"
 import { join } from "path"
 
 // Автономный Headless Runner
-// 1. Поднимает локальный сервер Bun
-// 2. Запускает Headless Chrome
-// 3. Выполняет симуляцию WebGPU
 ;(async () => {
   // --- 1. Встроенный сервер ---
   const server = serve({
-    port: 0, // Случайный свободный порт
+    port: 0,
     async fetch(req) {
       const url = new URL(req.url)
+      let path = url.pathname
+      if (path === "/") path = "/index.html"
+      if (path === "/favicon.ico") return new Response(null, { status: 204 })
 
-      if (url.pathname === "/") {
-        return new Response(
-          `
-<!DOCTYPE html>
-<html>
-<head><title>Headless Host</title></head>
-<body>
-  <div id="status">Init...</div>
-  <pre id="output"></pre>
-  <script type="module" src="/client.js"></script>
-</body>
-</html>`,
-          { headers: { "Content-Type": "text/html" } },
-        )
+      const build = await Bun.build({
+        entrypoints: [join(import.meta.dir, "index.html")],
+        publicPath: "/",
+        naming: "[name].[ext]",
+        target: "browser",
+        loader: { ".wgsl": "text" },
+      })
+
+      if (!build.success) {
+        return new Response(build.logs.join("\n"), { status: 500 })
       }
 
-      if (url.pathname === "/client.js") {
-        const build = await Bun.build({
-          entrypoints: [join(import.meta.dir, "client.ts")],
-          target: "browser",
-          loader: { ".wgsl": "text" },
-        })
-        return new Response(build.outputs[0])
-      }
-
-      if (url.pathname === "/favicon.ico") {
-        return new Response(null, { status: 204 })
-      }
+      const artifact = build.outputs.find((out) => out.path.endsWith(path))
+      if (artifact) return new Response(artifact)
 
       return new Response("Not Found", { status: 404 })
     },
@@ -75,31 +61,22 @@ import { join } from "path"
       headless: true,
       args: ["--no-sandbox", "--enable-unsafe-webgpu", "--disable-vulkan-fallback-to-gl", "--disable-vulkan-surface"],
     }
-
     if (execPath) {
       launchOptions.executablePath = execPath
     }
 
     const browser = await puppeteer.launch(launchOptions)
-
     const page = await browser.newPage()
 
-    // Проброс консоли браузера в терминал
     page.on("console", (msg) => {
-      const text = msg.text()
-      // Фильтруем системный шум, если нужно
-      console.log(`[BROWSER] ${text}`)
+      console.log(`[BROWSER] ${msg.text()}`)
     })
 
-    // Обработка ошибок страницы
     page.on("pageerror", (err) => {
       console.error(`[BROWSER ERROR]`, err)
     })
 
     await page.goto(HOST, { waitUntil: "networkidle0" })
-
-    // Ждем выполнения (в client.ts логгируется результат)
-    // Даем 3 секунды на инициализацию и расчет шейдеров
     await new Promise((r) => setTimeout(r, 3000))
 
     await browser.close()

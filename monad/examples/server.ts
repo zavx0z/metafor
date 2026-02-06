@@ -1,47 +1,32 @@
 import { serve } from "bun"
 import { join } from "path"
 
-// Сервер для отдачи HTML и сборки клиента на лету
+// Сервер для отдачи Fullstack приложения (HTML + Client)
 const server = serve({
   port: 3000,
   async fetch(req) {
     const url = new URL(req.url)
+    let path = url.pathname
+    if (path === "/") path = "/index.html"
 
-    // 1. Отдаем HTML страницу
-    if (url.pathname === "/") {
-      return new Response(
-        `
-<!DOCTYPE html>
-<html lang="ru">
-<head>
-  <meta charset="UTF-8">
-  <title>Monad WebGPU Demo</title>
-  <style>
-    body { background: #111; color: #eee; font-family: monospace; padding: 20px; }
-    h1 { color: #ad72f8; }
-    pre { background: #222; padding: 15px; border-radius: 5px; border: 1px solid #444; }
-    #status { font-weight: bold; margin-bottom: 10px; }
-  </style>
-</head>
-<body>
-  <h1>@metafor/monad</h1>
-  <div id="status">Загрузка WebGPU...</div>
-  <pre id="output"></pre>
-  <script type="module" src="/client.js"></script>
-</body>
-</html>`,
-        { headers: { "Content-Type": "text/html" } },
-      )
+    // Используем HTML как точку входа. Bun автоматически соберет подключенный <script src="./client.ts">
+    const build = await Bun.build({
+      entrypoints: [join(import.meta.dir, "index.html")],
+      publicPath: "/",
+      naming: "[name].[ext]", // Сохраняем имена файлов плоскими (index.html, client.js)
+      target: "browser",
+      loader: { ".wgsl": "text" },
+    })
+
+    if (!build.success) {
+      return new Response(build.logs.join("\n"), { status: 500 })
     }
 
-    // 2. Собираем и отдаем JS клиента (SSR Build)
-    if (url.pathname === "/client.js") {
-      const build = await Bun.build({
-        entrypoints: [join(import.meta.dir, "client.ts")],
-        target: "browser",
-        loader: { ".wgsl": "text" },
-      })
-      return new Response(build.outputs[0])
+    // Ищем запрошенный файл среди артефактов сборки
+    const artifact = build.outputs.find((out) => out.path.endsWith(path))
+    
+    if (artifact) {
+      return new Response(artifact)
     }
 
     return new Response("Not Found", { status: 404 })
