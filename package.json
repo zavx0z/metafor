@@ -5,6 +5,7 @@
   "type": "module",
   "private": true,
   "workspaces": [
+    "./monad",
     "./meta",
     "./atom",
     "./infra/*"
