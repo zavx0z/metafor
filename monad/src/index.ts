@@ -5,7 +5,6 @@
  */
 import { GPUBackend } from "./backend"
 import { RulesCompiler } from "./compiler"
-import { TYPE } from "./common"
 
 /**
  * Система управления Монадами (Агентами).

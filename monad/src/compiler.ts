@@ -156,6 +156,25 @@ export class RulesCompiler {
         case "lte":
           checks.push({ op: OP.LTE, val: v })
           break
+        // Atom-like extended conditions
+        case "notGt":
+          checks.push({ op: OP.LTE, val: v }) // ! >  == <=
+          break
+        case "notGte":
+          checks.push({ op: OP.LT, val: v })  // ! >= == <
+          break
+        case "notLt":
+          checks.push({ op: OP.GTE, val: v }) // ! <  == >=
+          break
+        case "notLte":
+          checks.push({ op: OP.GT, val: v })  // ! <= == >
+          break
+        case "between":
+          if (Array.isArray(v) && v.length === 2) {
+            checks.push({ op: OP.GTE, val: v[0] })
+            checks.push({ op: OP.LTE, val: v[1] })
+          }
+          break
       }
     }
     return checks

@@ -1,4 +1,4 @@
-import shaderSource from "./classify.wgsl"
+import shaderSource from "./classify.wgsl" with { type: "text" }
 
 /**
  * Низкоуровневый драйвер WebGPU.
