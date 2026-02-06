@@ -1,10 +1,13 @@
-import shaderSource from "./classify.wgsl"
+import shaderSource from "./classify"
 
+/**
+ * Низкоуровневый драйвер WebGPU.
+ * Отвечает за управление буферами (VRAM), пайплайнами и отправку команд на исполнение.
+ */
 export class GPUBackend {
   private device: GPUDevice
   private pipeline: GPUComputePipeline | null = null
   private bindGroup: GPUBindGroup | null = null
-
   private buffers: Record<string, GPUBuffer> = {}
   private stagingBuffer: GPUBuffer | null = null
 
@@ -12,6 +15,15 @@ export class GPUBackend {
     this.device = device
   }
 
+  /**
+   * Инициализирует ресурсы GPU.
+   * **Side Effect:** Аллоцирует буферы, компилирует шейдер, создает BindGroup.
+   *
+   * @param params - Данные для начальной загрузки в буферы.
+   * * `states`: Исходные состояния монад.
+   * * `bytecode`: Скомпилированные правила.
+   * * `contextMap`: Таблица адресации глобальных переменных.
+   */
   async init(params: {
     monadCount: number
     mapStride: number
@@ -23,16 +35,15 @@ export class GPUBackend {
     tableOffset: number
   }) {
     const module = this.device.createShaderModule({ code: shaderSource })
-
     this.pipeline = this.device.createComputePipeline({
       layout: "auto",
       compute: { module, entryPoint: "main" },
     })
 
-    // Create Buffers
+    // Создание буферов
     this.buffers.floats = this.createStorageBuffer(params.globalFloats)
     this.buffers.uints = this.createStorageBuffer(params.globalUints)
-    this.buffers.states = this.createStorageBuffer(params.states, true) // src/dst
+    this.buffers.states = this.createStorageBuffer(params.states, true) // источник/назначение
     this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.monadCount), true)
     this.buffers.map = this.createStorageBuffer(params.contextMap)
     this.buffers.bytecode = this.createStorageBuffer(params.bytecode)
@@ -59,6 +70,11 @@ export class GPUBackend {
     })
   }
 
+  /**
+   * Выполняет Compute Pass.
+   * 1. Диспетчеризует задачи (Workgroups).
+   * 2. Меняет буферы состояний местами (Ping-Pong: new -> old).
+   */
   run() {
     if (!this.pipeline || !this.bindGroup) return
 
@@ -67,19 +83,22 @@ export class GPUBackend {
     pass.setPipeline(this.pipeline)
     pass.setBindGroup(0, this.bindGroup)
 
-    // Read monad count from uniforms buffer size or store it?
-    // Assuming we stored it or can deduce. For simplicity, pass as arg or store in class.
-    // Using hardcoded 64 workgroup size.
+    // Читать кол-во монад из размера uniforms буфера или хранить его?
+    // Полагаем, что сохранили или можем вывести. Для простоты передаем аргументом или храним в классе.
+    // Используем хардкод размера рабочей группы 64.
     const count = this.buffers.newStates.size / 4
     pass.dispatchWorkgroups(Math.ceil(count / 64))
     pass.end()
 
-    // Swap logic: copy new -> old
+    // Логика свопа: копируем новые -> старые
     cmd.copyBufferToBuffer(this.buffers.newStates, 0, this.buffers.states, 0, this.buffers.newStates.size)
-
     this.device.queue.submit([cmd.finish()])
   }
 
+  /**
+   * Асинхронно читает массив состояний из GPU.
+   * **Внимание:** Требует синхронизации с CPU (медленно).
+   */
   async read(): Promise<Uint32Array> {
     const cmd = this.device.createCommandEncoder()
     cmd.copyBufferToBuffer(this.buffers.states, 0, this.stagingBuffer!, 0, this.buffers.states.size)
@@ -91,9 +110,9 @@ export class GPUBackend {
     return copy
   }
 
-  writeGlobal(offset: number, data: ArrayBufferView, type: 'float' | 'uint') {
-     const buffer = type === 'float' ? this.buffers.floats : this.buffers.uints;
-     this.device.queue.writeBuffer(buffer, offset, data as any);
+  writeGlobal(offset: number, data: ArrayBufferView, type: "float" | "uint") {
+    const buffer = type === "float" ? this.buffers.floats : this.buffers.uints
+    this.device.queue.writeBuffer(buffer, offset, data as any)
   }
 
   private createBuffer(data: ArrayBufferView, usage: GPUBufferUsageFlags) {

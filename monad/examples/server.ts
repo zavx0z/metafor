@@ -39,7 +39,7 @@ const server = serve({
       const build = await Bun.build({
         entrypoints: [join(import.meta.dir, "client.ts")],
         target: "browser",
-        loader: { ".wgsl": "text" }, // Поддержка импорта шейдеров
+        // loader: { ".wgsl": "text" }, // Больше не нужно, используем .ts модуль
       })
       return new Response(build.outputs[0])
     }

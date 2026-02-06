@@ -5,6 +5,9 @@
   "main": "./src/index.ts",
   "scripts": {
     "example": "bun run ./examples/server.ts",
+    "setup:browsers": "npx puppeteer browsers install chrome",
+    "example-headless": "bun run ./examples/headless.ts",
+    "example-native": "bun run ./examples/native.ts",
     "build": "bun build ./src/index.ts --outdir ./dist --target browser",
     "test": "bun test"
   },
@@ -13,6 +16,7 @@
   },
   "devDependencies": {
     "@webgpu/types": "^0.1.32",
-    "@zavx0z/context": "^2.3.1"
+    "@zavx0z/context": "^2.3.1",
+    "puppeteer": "^24.37.2"
   }
 }

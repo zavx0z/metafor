@@ -1,52 +1,70 @@
+/**
+ * Основной модуль библиотеки @metafor/monad.
+ * Предоставляет высокоуровневый API для управления массовыми симуляциями на GPU.
+ * @packageDocumentation
+ */
 import { GPUBackend } from "./backend"
 import { RulesCompiler } from "./compiler"
 import { TYPE } from "./common"
 
+/**
+ * Система управления Монадами (Агентами).
+ * Фасад, объединяющий компилятор правил и GPU-бэкенд.
+ */
 export class MonadSystem {
   private backend: GPUBackend
   private compiler = new RulesCompiler()
 
-  // Maps
+  // Карты маппинга
   private stateMap: Record<string, number> = {}
   private reverseStateMap: string[] = []
   private fieldMap: Record<string, { type: number; index: number }> = {}
 
+  /**
+   * @param device - Инициализированный `GPUDevice`.
+   */
   constructor(device: GPUDevice) {
     this.backend = new GPUBackend(device)
   }
 
+  /**
+   * Инициализирует систему: компилирует правила, выделяет память и загружает данные.
+   *
+   * @param config - Конфигурация симуляции.
+   * * `statesConfig`: Граф переходов (Суперпозиция).
+   * * `contextSchema`: Описание типов данных.
+   * * `monads`: Список начальных состояний агентов.
+   */
   async init(config: {
-    statesConfig: any // Superposition
+    statesConfig: any // Суперпозиция (Superposition)
     contextSchema: any
     monads: Array<{ id: string; state: string; context: any }>
     globalContextSize: { floats: number; uints: number }
   }) {
-    // 1. Compile Rules
+    // 1. Компиляция правил
     const compiled = this.compiler.compile(config.statesConfig, config.contextSchema)
     this.stateMap = compiled.stateMap
     this.reverseStateMap = Object.keys(compiled.stateMap)
     this.fieldMap = compiled.fieldMap
 
-    // 2. Prepare Data Buffers
+    // 2. Подготовка буферов данных
     const monadCount = config.monads.length
     const states = new Uint32Array(monadCount)
 
-    // Context Map: monad -> local indices -> global indices
-    // We need to know how many fields per monad. Assuming all monads share the Schema.
+    // Карта контекста: монада -> локальные индексы -> глобальные индексы
+    // Нам нужно знать количество полей на монаду. Полагаем, что у всех монад одна схема.
     const fieldsCount = Object.keys(this.fieldMap).length
     const contextMap = new Uint32Array(monadCount * fieldsCount)
 
-    // Init Monads Data
+    // Инициализация данных монад
     config.monads.forEach((m, idx) => {
       states[idx] = this.stateMap[m.state] ?? 0
-
-      // Here we map local fields to global slots.
-      // In a real scenario, 'm.context' might contain pointers or we allocate slots now.
-      // Simplification: We assume CPU orchestrator manages Global Context Allocation separately
-      // and passes us the indices.
-      // For this demo, let's assume m.context IS the list of global indices.
-
-      // Example: m.context = { hp: 10, pos: 15 } where 10 and 15 are global indices.
+      // Здесь мы маппим локальные поля на глобальные слоты.
+      // В реальности 'm.context' может содержать указатели, или мы аллоцируем слоты сейчас.
+      // Упрощение: Мы полагаем, что CPU-оркестратор управляет аллокацией глобального контекста отдельно
+      // и передает нам индексы.
+      // Для демо считаем, что m.context ЭТО список глобальных индексов.
+      // Пример: m.context = { hp: 10, pos: 15 }, где 10 и 15 — глобальные индексы.
       for (const [key, globalIdx] of Object.entries(m.context)) {
         const field = this.fieldMap[key]
         if (field) {
@@ -55,7 +73,7 @@ export class MonadSystem {
       }
     })
 
-    // 3. Init Backend
+    // 3. Инициализация бэкенда
     await this.backend.init({
       monadCount,
       mapStride: fieldsCount,
@@ -68,21 +86,36 @@ export class MonadSystem {
     })
   }
 
+  /**
+   * Обновляет значения в глобальном контексте.
+   * Используется для изменения внешних условий (время, погода, ввод игрока).
+   *
+   * @param globalUpdates - Словарь `{ индекс: значение }`.
+   * @param type - Тип буфера (`float` или `uint`).
+   */
   updateContext(globalUpdates: Record<number, number | boolean>, type: "float" | "uint") {
-    // In production, buffer writes
-    // For now, we update one by one or create a big array.
-    // API requires array.
-    // Simplified wrapper:
+    // В продакшене — запись в буферы.
+    // Пока обновляем по одному или создаем большой массив.
+    // API требует массив.
+    // Упрощенная обертка:
     for (const [idx, val] of Object.entries(globalUpdates)) {
       const arr = type === "float" ? new Float32Array([Number(val)]) : new Uint32Array([Number(val)])
       this.backend.writeGlobal(Number(idx) * 4, arr, type)
     }
   }
 
+  /**
+   * Выполняет один такт симуляции.
+   * Отправляет команды вычисления на GPU.
+   */
   step() {
     this.backend.run()
   }
 
+  /**
+   * Возвращает текущие текстовые метки состояний всех монад.
+   * @returns Массив строк (например `['IDLE', 'WALK']`).
+   */
   async getStates(): Promise<string[]> {
     const raw = await this.backend.read()
     return Array.from(raw).map((id) => this.reverseStateMap[id])

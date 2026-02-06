@@ -1,38 +1,52 @@
 import { OP, TYPE, type CompiledRules } from "./common"
 
-// Simplified types to avoid complex imports from MetaFor
+// Упрощенные типы, чтобы избежать сложных импортов из MetaFor
 type ConditionValue = number | boolean | string | { [key: string]: any }
 type Wave = Record<string, ConditionValue>
 type Transitions = Record<string, Wave | null>
 type Superposition = Record<string, Transitions | null>
 
+/**
+ * Компилятор логических правил в байт-код WGSL.
+ *
+ * **Задача:** Преобразовать JSON-граф состояний в плоский массив `uint32`,
+ * который может быть исполнен Compute Shader'ом.
+ */
 export class RulesCompiler {
   private bytecode: number[] = []
   private states: string[] = []
   private fields: Record<string, { type: number; index: number }> = {}
   private fieldCounters = { float: 0, uint: 0 }
 
+  /**
+   * Транслирует конфигурацию состояний в байт-код.
+   *
+   * @param superposition - Граф переходов: `{ State: { Target: { Condition } } }`.
+   * @param contextSchema - Схема типов полей (`hp: "number"`). Определяет memory layout.
+   *
+   * @returns Структура с байт-кодом и картами маппинга.
+   */
   compile(superposition: Superposition, contextSchema: Record<string, any>): CompiledRules {
     this.bytecode = []
     this.states = Object.keys(superposition)
     this.buildFieldMap(contextSchema)
 
-    // 1. Reserve space for State Table
+    // 1. Резервируем место для таблицы состояний
     const stateTableOffset = this.bytecode.length
-    // Placeholder for each state's offset
+    // Заглушка для смещения каждого состояния
     for (let i = 0; i < this.states.length; i++) this.bytecode.push(0)
 
-    // 2. Compile each state
+    // 2. Компилируем каждое состояние
     for (let i = 0; i < this.states.length; i++) {
       const stateName = this.states[i]
       const transitions = superposition[stateName] || {}
 
-      // Save pointer to this state block in the table
+      // Сохраняем указатель на этот блок состояния в таблице
       const stateBlockPtr = this.bytecode.length
       this.bytecode[stateTableOffset + i] = stateBlockPtr
 
       const transitionKeys = Object.keys(transitions)
-      this.bytecode.push(transitionKeys.length) // transitionCount
+      this.bytecode.push(transitionKeys.length) // количество переходов (transitionCount)
 
       for (const targetName of transitionKeys) {
         const targetIdx = this.states.indexOf(targetName)
@@ -40,36 +54,35 @@ export class RulesCompiler {
 
         const conditions = transitions[targetName] || {}
 
-        // Transition Header
+        // Заголовок перехода
         this.bytecode.push(targetIdx)
 
-        // We need to jump to conditions block. We'll push a placeholder, compile conditions, then fix it.
-        // Actually, we can just compile conditions *after* the transition list, but for cache locality
-        // it's often better to put them close. Let's append conditions immediately after.
-        // But wait, the format expects [target, condPtr].
-        // So we push target, then placeholder for condPtr.
+        // Нам нужно прыгнуть к блоку условий. Пушим заглушку, компилируем условия, потом фиксим.
+        // Вообще, можно скомпилировать условия *после* списка переходов, но для локальности кэша
+        // лучше поместить их рядом. Добавим условия сразу после.
+        // Но формат ожидает [target, condPtr].
+        // Так что пушим цель, затем заглушку для condPtr.
         const condPtrIdx = this.bytecode.length
         this.bytecode.push(0)
-
-        // But since we are iterating, we can't easily put blocks "after".
-        // Let's use a separate buffer for conditions or just append to end of bytecode array later?
-        // Simpler: Just append conditions NOW and link.
-        // Oh wait, if I append now, the next transition header will be after the conditions.
-        // That's fine. The bytecode is a flat array, pointers are absolute indices.
+        // Но так как мы итерируемся, мы не можем легко поместить блоки "после".
+        // Использовать отдельный буфер для условий или просто добавить в конец массива байт-кода позже?
+        // Проще: Добавить условия СЕЙЧАС и связать.
+        // Ой, если добавить сейчас, следующий заголовок перехода будет после условий.
+        // Это нормально. Байт-код — это плоский массив, указатели — абсолютные индексы.
       }
 
-      // Now fill the condition blocks for this state's transitions
+      // Теперь заполняем блоки условий для переходов этого состояния
       let transitionIdx = 0
       for (const targetName of transitionKeys) {
         const conditions = transitions[targetName] || {}
 
-        // The location of the transition definition:
-        // stateBlockPtr + 1 (count) + transitionIdx * 2
+        // Местоположение определения перехода:
+        // stateBlockPtr + 1 (кол-во) + transitionIdx * 2
         const trBase = stateBlockPtr + 1 + transitionIdx * 2
 
-        // Start condition block
+        // Начало блока условий
         const condBlockPtr = this.bytecode.length
-        this.bytecode[trBase + 1] = condBlockPtr // Link from transition to here
+        this.bytecode[trBase + 1] = condBlockPtr // Ссылка с перехода сюда
 
         this.compileConditions(conditions)
         transitionIdx++
@@ -85,14 +98,14 @@ export class RulesCompiler {
   }
 
   private buildFieldMap(schema: Record<string, any>) {
-    // Naive schema mapping. In reality, should parse Zavx0z Schema.
-    // Assuming schema is { key: "number" | "boolean" | ... }
+    // Наивный маппинг схемы. В реальности нужно парсить Zavx0z Schema.
+    // Полагаем, что схема { key: "number" | "boolean" | ... }
     for (const key in schema) {
-      const typeStr = String(schema[key]) // simplistic
+      const typeStr = String(schema[key]) // упрощенно
       if (typeStr.includes("number")) {
         this.fields[key] = { type: TYPE.FLOAT, index: this.fieldCounters.float++ }
       } else {
-        // bools, strings (interned), enums -> UINT
+        // булевы, строки (интернированные), перечисления -> UINT
         this.fields[key] = { type: TYPE.UINT, index: this.fieldCounters.uint++ }
       }
     }
@@ -101,7 +114,6 @@ export class RulesCompiler {
   private compileConditions(wave: Wave) {
     const entries = Object.entries(wave)
     this.bytecode.push(entries.length)
-
     for (const [key, cond] of entries) {
       const field = this.fields[key]
       if (!field) throw new Error(`Unknown field in conditions: ${key}`)
@@ -120,9 +132,8 @@ export class RulesCompiler {
     if (typeof cond !== "object" || cond === null) {
       return [{ op: OP.EQ, val: cond }]
     }
-
     const checks: { op: number; val: any }[] = []
-    // Handle complex object { gt: 5, lte: 10 }
+    // Обработка сложного объекта { gt: 5, lte: 10 }
     for (const [k, v] of Object.entries(cond)) {
       switch (k) {
         case "eq":
@@ -158,10 +169,10 @@ export class RulesCompiler {
     if (type === TYPE.BOOL) {
       return val ? 1 : 0
     }
-    // UINT / Strings
+    // UINT / Строки
     if (typeof val === "string") {
-      // TODO: Implement String Interning or HashMap
-      return 0 // Placeholder
+      // TODO: Реализовать интернирование строк или HashMap
+      return 0 // Заглушка
     }
     return Number(val)
   }
