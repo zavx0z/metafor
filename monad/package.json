@@ -7,7 +7,9 @@
     "example": "bun run ./examples/server.ts",
     "setup:browsers": "npx puppeteer browsers install chrome",
     "build": "bun build ./src/index.ts --outdir ./dist --target browser",
-    "test": "bun test"
+    "test": "bun test",
+    "test:logic": "bun test tests/monad.logic.test.ts",
+    "test:e2e": "bun test tests/e2e.test.ts"
   },
   "peerDependencies": {
     "typescript": "^5.0.0"
