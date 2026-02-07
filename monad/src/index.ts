@@ -3,9 +3,8 @@
  * @packageDocumentation
  */
 
-import { GPUBackend } from "./backend";
-import { RulesCompiler } from "./compiler";
-import type { CompiledRules } from "./common";
+import { GPUBackend } from "./backend"
+import { RulesCompiler } from "./compiler"
 
 /**
  * Конфигурация для инициализации `MonadSystem`.
@@ -21,23 +20,23 @@ export interface MonadSystemConfig {
    * }
    * ```
    */
-  statesConfig: any;
+  statesConfig: any
 
   /**
    * Схема, описывающая типы данных полей контекста для каждой монады.
    * @example ` { hp: "number", isAlive: "boolean" }`
    */
-  contextSchema: Record<string, string>;
+  contextSchema: Record<string, string>
 
   /**
    * Массив начальных состояний для каждой монады (агента).
    */
-  monads: Array<{ id: string; state: string; context: any }>;
+  monads: Array<{ id: string; state: string; context: any }>
 
   /**
    * Размеры глобальных буферов контекста, которые будут аллоцированы на GPU.
    */
-  globalContextSize: { floats: number; uints: number };
+  globalContextSize: { floats: number; uints: number }
 }
 
 /**

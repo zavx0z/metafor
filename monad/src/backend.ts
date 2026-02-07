@@ -1,4 +1,4 @@
-import shaderSource from "./classify.wgsl";
+import shaderSource from "./classify.wgsl" with {type: "text"}
 
 /**
  * Низкоуровневый драйвер для взаимодействия с WebGPU API.
@@ -10,7 +10,7 @@ import shaderSource from "./classify.wgsl";
  * - Чтение результатов вычислений обратно с GPU на CPU.
  *
  * @internal
- * Этот класс не предназначен для прямого использования. 
+ * Этот класс не предназначен для прямого использования.
  * Взаимодействие с ним осуществляется через фасад `MonadSystem`.
  */
 export class GPUBackend {

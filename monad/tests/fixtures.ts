@@ -48,16 +48,11 @@ export async function createHeadlessFixture() {
   const browser = await puppeteer.launch(launchOptions)
 
   const page = await browser.newPage()
-  const logs: string[] = []
-
-  page.on("console", (msg) => logs.push(msg.text()))
-  page.on("pageerror", (err: any) => logs.push(`ERROR: ${err.message}`))
 
   return {
     server,
     browser,
     page,
-    logs,
     url: HOST,
     cleanup: async () => {
       await browser.close()

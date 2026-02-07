@@ -1,11 +1,11 @@
-import { OP, TYPE, type CompiledRules } from "./common";
+import { OP, TYPE, type CompiledRules } from "./common"
 
 // Упрощенные типы для представления конфигурации правил.
 // В реальном проекте они могут быть более сложными и импортироваться из общего пакета.
-type ConditionValue = number | boolean | string | { [key: string]: any };
-type Wave = Record<string, ConditionValue>;
-type Transitions = Record<string, Wave | null>;
-type Superposition = Record<string, Transitions | null>;
+type ConditionValue = number | boolean | string | { [key: string]: any }
+type Wave = Record<string, ConditionValue>
+type Transitions = Record<string, Wave | null>
+type Superposition = Record<string, Transitions | null>
 
 /**
  * Компилятор логических правил.
@@ -168,13 +168,13 @@ export class RulesCompiler {
           checks.push({ op: OP.LTE, val: v }) // ! >  == <=
           break
         case "notGte":
-          checks.push({ op: OP.LT, val: v })  // ! >= == <
+          checks.push({ op: OP.LT, val: v }) // ! >= == <
           break
         case "notLt":
           checks.push({ op: OP.GTE, val: v }) // ! <  == >=
           break
         case "notLte":
-          checks.push({ op: OP.GT, val: v })  // ! <= == >
+          checks.push({ op: OP.GT, val: v }) // ! <= == >
           break
         case "between":
           if (Array.isArray(v) && v.length === 2) {

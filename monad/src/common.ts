@@ -21,7 +21,7 @@ export const OP = {
   GTE: 4,
   /** Меньше или равно (`<=`) */
   LTE: 5,
-} as const;
+} as const
 
 /**
  * Типы данных для полей контекста.
@@ -35,13 +35,13 @@ export const TYPE = {
   UINT: 1,
   /** Псевдоним для UINT, используется для ясности при работе с булевыми значениями. */
   BOOL: 2,
-} as const;
+} as const
 
 /**
  * Числовой идентификатор состояния, соответствующий его индексу в таблице состояний.
  * @typedef {number} StateID
  */
-export type StateID = number;
+export type StateID = number
 
 /**
  * Представляет результат компиляции правил — артефакты, готовые для загрузки на GPU.
@@ -57,23 +57,23 @@ export interface CompiledRules {
    * 3. **Блоки переходов (Transition Blocks):** Содержат указатели на условия.
    * 4. **Блоки условий (Condition Blocks):** Набор инструкций для проверки полей контекста.
    */
-  bytecode: Uint32Array;
+  bytecode: Uint32Array
 
   /**
    * Смещение (в `u32` словах) от начала `bytecode` до таблицы состояний.
    */
-  stateTableOffset: number;
+  stateTableOffset: number
 
   /**
    * Карта, связывающая имена полей контекста (например, `"hp"`) с их типом и локальным индексом внутри группы полей.
    * Используется для определения, из какого буфера (`floats`/`uints`) и по какому смещению читать данные на GPU.
    * @example ` { hp: { type: 0, index: 0 }, mana: { type: 0, index: 1 } }`
    */
-  fieldMap: Record<string, { type: number; index: number }>;
+  fieldMap: Record<string, { type: number; index: number }>
 
   /**
    * Карта, связывающая строковые имена состояний (например, `"IDLE"`) с их числовыми идентификаторами (`StateID`).
    * @example ` { "IDLE": 0, "WALK": 1, "DEAD": 2 }`
    */
-  stateMap: Record<string, number>;
+  stateMap: Record<string, number>
 }
