@@ -1,16 +1,23 @@
-import { OP, TYPE, type CompiledRules } from "./common"
+import { OP, TYPE, type CompiledRules } from "./common";
 
-// Упрощенные типы, чтобы избежать сложных импортов из MetaFor
-type ConditionValue = number | boolean | string | { [key: string]: any }
-type Wave = Record<string, ConditionValue>
-type Transitions = Record<string, Wave | null>
-type Superposition = Record<string, Transitions | null>
+// Упрощенные типы для представления конфигурации правил.
+// В реальном проекте они могут быть более сложными и импортироваться из общего пакета.
+type ConditionValue = number | boolean | string | { [key: string]: any };
+type Wave = Record<string, ConditionValue>;
+type Transitions = Record<string, Wave | null>;
+type Superposition = Record<string, Transitions | null>;
 
 /**
- * Компилятор логических правил в байт-код WGSL.
+ * Компилятор логических правил.
  *
- * **Задача:** Преобразовать JSON-граф состояний в плоский массив `uint32`,
- * который может быть исполнен Compute Shader'ом.
+ * **Основная задача:** преобразовать человекочитаемый JSON-объект с правилами
+ * (граф состояний) в плоский `Uint32Array` (байт-код), который может быть
+ * эффективно исполнен параллельно на GPU в Compute Shader.
+ *
+ * Этот процесс включает:
+ * 1. **Парсинг схемы:** Создание карты полей (`fieldMap`) для трансляции имен (`hp`) в индексы.
+ * 2. **Построение карты состояний:** Присвоение уникальных ID каждому состоянию.
+ * 3. **Генерация байт-кода:** Формирование инструкций для кастомной виртуальной машины, которая будет работать в шейдере.
  */
 export class RulesCompiler {
   private bytecode: number[] = []
@@ -98,7 +105,7 @@ export class RulesCompiler {
   }
 
   private buildFieldMap(schema: Record<string, any>) {
-    // Наивный маппинг схемы. В реальности нужно парсить Zavx0z Schema.
+    // Наивный маппинг схемы. В реальности нужно парсить zavx0z Schema.
     // Полагаем, что схема { key: "number" | "boolean" | ... }
     for (const key in schema) {
       const typeStr = String(schema[key]) // упрощенно

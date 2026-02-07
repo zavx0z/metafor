@@ -1,14 +1,57 @@
 /**
- * Основной модуль библиотеки @metafor/monad.
- * Предоставляет высокоуровневый API для управления массовыми симуляциями на GPU.
+ * @file Основной модуль библиотеки `@metafor/monad`, предоставляющий высокоуровневый API.
  * @packageDocumentation
  */
-import { GPUBackend } from "./backend"
-import { RulesCompiler } from "./compiler"
+
+import { GPUBackend } from "./backend";
+import { RulesCompiler } from "./compiler";
+import type { CompiledRules } from "./common";
 
 /**
- * Система управления Монадами (Агентами).
- * Фасад, объединяющий компилятор правил и GPU-бэкенд.
+ * Конфигурация для инициализации `MonadSystem`.
+ */
+export interface MonadSystemConfig {
+  /**
+   * Граф состояний и переходов между ними.
+   * @example
+   * ```json
+   * {
+   *   "IDLE": { "WALK": { "mana": { "gt": 10 } } },
+   *   "WALK": { "IDLE": { "mana": { "lte": 10 } } }
+   * }
+   * ```
+   */
+  statesConfig: any;
+
+  /**
+   * Схема, описывающая типы данных полей контекста для каждой монады.
+   * @example ` { hp: "number", isAlive: "boolean" }`
+   */
+  contextSchema: Record<string, string>;
+
+  /**
+   * Массив начальных состояний для каждой монады (агента).
+   */
+  monads: Array<{ id: string; state: string; context: any }>;
+
+  /**
+   * Размеры глобальных буферов контекста, которые будут аллоцированы на GPU.
+   */
+  globalContextSize: { floats: number; uints: number };
+}
+
+/**
+ * `MonadSystem` — это главный класс библиотеки.
+ *
+ * Он представляет собой высокоуровневый фасад, который скрывает сложность
+ * компиляции правил и низкоуровневого взаимодействия с WebGPU.
+ *
+ * **Основной воркфлоу:**
+ * 1. **Создание:** `new MonadSystem(device)`
+ * 2. **Инициализация:** `await system.init({...})`. На этом шаге правила компилируются в байт-код,
+ *    создаются GPU-буферы и загружаются начальные данные.
+ * 3. **Симуляция:** `system.step()` для выполнения одного такта вычислений на GPU.
+ * 4. **Получение результатов:** `await system.getStates()` для чтения итоговых состояний.
  */
 export class MonadSystem {
   private backend: GPUBackend
