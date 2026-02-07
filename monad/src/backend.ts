@@ -35,12 +35,12 @@ export class GPUBackend {
    */
   async init(params: {
     monadCount: number
-    mapStride: number
+    blockStride: number
+    floatFieldCount: number
     bytecode: Uint32Array
     states: Uint32Array
-    contextMap: Uint32Array
-    globalFloats: Float32Array
-    globalUints: Uint32Array
+    contextDataFloats: Float32Array
+    contextDataUints: Uint32Array
     tableOffset: number
   }) {
     const module = this.device.createShaderModule({ code: shaderSource })
@@ -49,15 +49,21 @@ export class GPUBackend {
       compute: { module, entryPoint: "main" },
     })
 
-    // Создание буферов
-    this.buffers.floats = this.createStorageBuffer(params.globalFloats)
-    this.buffers.uints = this.createStorageBuffer(params.globalUints)
+    // Создание буферов контекста агентов (блоковая модель)
+    this.buffers.floats = this.createStorageBuffer(params.contextDataFloats)
+    this.buffers.uints = this.createStorageBuffer(params.contextDataUints)
     this.buffers.states = this.createStorageBuffer(params.states, true) // источник/назначение
     this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.monadCount), true)
-    this.buffers.map = this.createStorageBuffer(params.contextMap)
+    // contextMap удален - не используется в блочной модели
+    this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.monadCount), true)
     this.buffers.bytecode = this.createStorageBuffer(params.bytecode)
 
-    const uniforms = new Uint32Array([params.monadCount, params.mapStride, params.tableOffset])
+    const uniforms = new Uint32Array([
+      params.monadCount,
+      params.blockStride,
+      params.tableOffset,
+      params.floatFieldCount
+    ])
     this.buffers.uniforms = this.createBuffer(uniforms, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST)
 
     this.stagingBuffer = this.device.createBuffer({
@@ -72,7 +78,7 @@ export class GPUBackend {
         { binding: 1, resource: { buffer: this.buffers.uints } },
         { binding: 2, resource: { buffer: this.buffers.states } },
         { binding: 3, resource: { buffer: this.buffers.newStates } },
-        { binding: 4, resource: { buffer: this.buffers.map } },
+        // binding 4 (contextMap) удален - не используется в блочной модели
         { binding: 5, resource: { buffer: this.buffers.bytecode } },
         { binding: 6, resource: { buffer: this.buffers.uniforms } },
       ],
@@ -119,9 +125,23 @@ export class GPUBackend {
     return copy
   }
 
-  writeGlobal(offset: number, data: ArrayBufferView, type: "float" | "uint") {
-    const buffer = type === "float" ? this.buffers.floats : this.buffers.uints
-    this.device.queue.writeBuffer(buffer, offset, data as any)
+  /**
+   * Обновляет значение поля контекста для конкретного агента.
+   * @param agentId - ID агента (индекс в массиве)
+   * @param fieldOffset - смещение поля внутри блока агента (из fieldMap)
+   * @param value - новое значение поля (число)
+   * @param isFloat - если true, значение записывается в буфер floats, иначе в uints
+   */
+  writeContextValue(agentId: number, fieldOffset: number, value: number, isFloat: boolean) {
+    const buffer = isFloat ? this.buffers.floats : this.buffers.uints;
+    const wordSize = 4; // 4 байта на u32/f32 слово
+    // Для простоты: предполагаем, что все поля одного типа хранятся последовательно:
+    // FLOAT: [агент0_поле0, агент0_поле1, ..., агент1_поле0, ...]
+    // UINT: аналогично отдельно в своем буфере.
+    const offset = fieldOffset * wordSize;
+    
+    const data = isFloat ? new Float32Array([value]) : new Uint32Array([value]);
+    this.device.queue.writeBuffer(buffer, offset, data);
   }
 
   private createBuffer(data: ArrayBufferView, usage: GPUBufferUsageFlags) {

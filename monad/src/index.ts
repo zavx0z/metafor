@@ -32,11 +32,6 @@ export interface MonadSystemConfig {
    * Массив начальных состояний для каждой монады (агента).
    */
   monads: Array<{ id: string; state: string; context: any }>
-
-  /**
-   * Размеры глобальных буферов контекста, которые будут аллоцированы на GPU.
-   */
-  globalContextSize: { floats: number; uints: number }
 }
 
 /**
@@ -80,7 +75,6 @@ export class MonadSystem {
     statesConfig: any // Суперпозиция (Superposition)
     contextSchema: any
     monads: Array<{ id: string; state: string; context: any }>
-    globalContextSize: { floats: number; uints: number }
   }) {
     // 1. Компиляция правил
     const compiled = this.compiler.compile(config.statesConfig, config.contextSchema)
@@ -88,61 +82,79 @@ export class MonadSystem {
     this.reverseStateMap = Object.keys(compiled.stateMap)
     this.fieldMap = compiled.fieldMap
 
-    // 2. Подготовка буферов данных
-    const monadCount = config.monads.length
-    const states = new Uint32Array(monadCount)
-
-    // Карта контекста: монада -> локальные индексы -> глобальные индексы
-    // Нам нужно знать количество полей на монаду. Полагаем, что у всех монад одна схема.
-    const fieldsCount = Object.keys(this.fieldMap).length
-    const contextMap = new Uint32Array(monadCount * fieldsCount)
-
-    // Инициализация данных монад
-    config.monads.forEach((m, idx) => {
-      states[idx] = this.stateMap[m.state] ?? 0
-      // Здесь мы маппим локальные поля на глобальные слоты.
-      // В реальности 'm.context' может содержать указатели, или мы аллоцируем слоты сейчас.
-      // Упрощение: Мы полагаем, что CPU-оркестратор управляет аллокацией глобального контекста отдельно
-      // и передает нам индексы.
-      // Для демо считаем, что m.context ЭТО список глобальных индексов.
-      // Пример: m.context = { hp: 10, pos: 15 }, где 10 и 15 — глобальные индексы.
-      for (const [key, globalIdx] of Object.entries(m.context)) {
-        const field = this.fieldMap[key]
-        if (field) {
-          contextMap[idx * fieldsCount + field.index] = Number(globalIdx)
+    // 2. Подготовка буферов данных в блочной модели памяти
+    const monadCount = config.monads.length;
+    const states = new Uint32Array(monadCount);
+    
+    // Рассчитываем размер блока памяти на одного агента
+    const fieldCount = compiled.fieldCount;
+    const floatFields = Object.values(this.fieldMap).filter(f => f.type === 0).length;
+    const uintFields = fieldCount - floatFields;
+    const blockStride = fieldCount; // Количество слов в блоке на агента (упрощенно)
+    
+    // Выделяем буферы для контекста всех агентов (блоковая модель)
+    // Каждый агент получает непрерывный блок памяти: [float поля...][uint поля...]
+    const contextDataFloats = new Float32Array(monadCount * floatFields);
+    const contextDataUints = new Uint32Array(monadCount * uintFields);
+    
+    // Инициализация данных монад - теперь передаем реальные значения, а не индексы!
+    config.monads.forEach((m, agentIdx) => {
+      states[agentIdx] = this.stateMap[m.state] ?? 0;
+      
+      // Заполняем буферы контекста реальными значениями из контекста агента.
+      // FLOAT поля хранятся отдельно от UINT в разных буферах.
+      for (const [key, value] of Object.entries(m.context)) {
+        const field = this.fieldMap[key];
+        if (!field) continue;
+        // FLOAT поля: индекс = (номер_агента * количество_float_полей) + локальный_индекс_поля_типа
+        if (field.type === 0) { // FLOAT
+          const floatIdx = agentIdx * floatFields + field.index;
+          contextDataFloats[floatIdx] = Number(value);
+        } else { // UINT/BOOL
+          const uintIdx = agentIdx * uintFields + field.index;
+          contextDataUints[uintIdx] = Number(value);
         }
       }
-    })
+    });
 
-    // 3. Инициализация бэкенда
+    // 3. Инициализация бэкенда с блочной моделью памяти
     await this.backend.init({
       monadCount,
-      mapStride: fieldsCount,
+      blockStride,
+      floatFieldCount: floatFields,
       bytecode: compiled.bytecode,
       states,
-      contextMap,
-      globalFloats: new Float32Array(config.globalContextSize.floats),
-      globalUints: new Uint32Array(config.globalContextSize.uints),
+      contextDataFloats,
+      contextDataUints,
       tableOffset: compiled.stateTableOffset,
-    })
+    });
   }
 
   /**
-   * Обновляет значения в глобальном контексте.
-   * Используется для изменения внешних условий (время, погода, ввод игрока).
+   * Обновляет значение поля контекста для конкретного агента.
+   * Теперь передаем реальные значения, а не индексы буфера!
    *
-   * @param globalUpdates - Словарь `{ индекс: значение }`.
-   * @param type - Тип буфера (`float` или `uint`).
+   * @param agentIndex - Индекс агента (0..monadCount-1)
+   * @param fieldName - Имя поля контекста (например, "hp", "mana")
+   * @param value - Новое значение поля (число или булево)
    */
-  updateContext(globalUpdates: Record<number, number | boolean>, type: "float" | "uint") {
-    // В продакшене — запись в буферы.
-    // Пока обновляем по одному или создаем большой массив.
-    // API требует массив.
-    // Упрощенная обертка:
-    for (const [idx, val] of Object.entries(globalUpdates)) {
-      const arr = type === "float" ? new Float32Array([Number(val)]) : new Uint32Array([Number(val)])
-      this.backend.writeGlobal(Number(idx) * 4, arr, type)
+  updateContext(agentIndex: number, fieldName: string, value: number | boolean) {
+    const field = this.fieldMap[fieldName];
+    if (!field) {
+      console.warn(`Unknown field: ${fieldName}`);
+      return;
     }
+    
+    // Определяем тип поля для правильной записи в буфер
+    const isFloat = field.type === 0;
+    
+    // Вычисляем абсолютный индекс в буфере: (агент * количество_полей_типа) + локальный_индекс_поля_типа
+    const fieldCountOfType = field.type === 0 ? 
+      Object.values(this.fieldMap).filter(f => f.type === 0).length : 
+      Object.values(this.fieldMap).filter(f => f.type !== 0).length;
+    const absoluteIndex = agentIndex * fieldCountOfType + field.index;
+    
+    this.backend.writeContextValue(agentIndex, absoluteIndex, Number(value), isFloat);
   }
 
   /**

@@ -101,6 +101,7 @@ export class RulesCompiler {
       stateTableOffset,
       fieldMap: this.fields,
       stateMap: Object.fromEntries(this.states.map((s, i) => [s, i])),
+      fieldCount: Object.keys(this.fields).length,
     }
   }
 

@@ -1,23 +1,34 @@
 struct Uniforms {
   monadCount : u32,
-  mapStride : u32,
+  blockStride : u32,  // Количество слов в блоке памяти на одного агента
   tableOffset : u32,
+  floatFieldCount : u32,  // Количество полей типа FLOAT в блоке
 };
 
 @group(0) @binding(0) var<storage, read_write> floats : array<f32>;
 @group(0) @binding(1) var<storage, read_write> uints : array<u32>;
 @group(0) @binding(2) var<storage, read> states : array<u32>;
 @group(0) @binding(3) var<storage, read_write> newStates : array<u32>;
-@group(0) @binding(4) var<storage, read> contextMap : array<u32>;
+// contextMap удален - используется блочная модель памяти
 @group(0) @binding(5) var<storage, read> bytecode : array<u32>;
 @group(0) @binding(6) var<uniform> u : Uniforms;
 
-fn get_val(dtype: u32, idx: u32, mid: u32) -> f32 {
-    let global_idx = contextMap[mid * u.mapStride + idx];
+// Блочная модель памяти: каждый агент имеет фиксированный блок памяти
+// Блок структурирован как: [float поля...] [uint поля...]
+// Доступ: buffer[agentBase + fieldOffset]
+
+fn get_val(dtype: u32, fieldIdx: u32, agentId: u32) -> f32 {
+    let agentBase = agentId * u.blockStride;
+    
+    // FLOAT поля хранятся в начале блока (в буфере floats)
     if (dtype == 0u) {
-        return floats[global_idx];
-    } else {
-        return f32(uints[global_idx]);
+        return floats[agentBase + fieldIdx];
+    } 
+    // UINT/BOOL поля хранятся после FLOAT полей (в буфере uints)
+    else {
+        // Смещение для UINT полей: пропускаем все FLOAT поля в блоке
+        let uintOffset = agentBase + u.floatFieldCount + fieldIdx;
+        return f32(uints[uintOffset]);
     }
 }
 
@@ -42,6 +53,7 @@ fn main(@builtin(global_invocation_id) id : vec3<u32>) {
     let current_state = states[idx];
     var next_state = current_state;
 
+    // Получаем блок условий для текущего состояния из таблицы состояний (которая находится в начале байткода)
     let state_ptr = bytecode[u.tableOffset + current_state];
     let tr_count = bytecode[state_ptr];
     
