@@ -5,6 +5,41 @@ import { join } from "node:path"
 import { serve } from "bun"
 import { afterAll, beforeAll } from "bun:test"
 
+// ==================== КОНФИГУРАЦИЯ ====================
+
+// Таймауты
+const TEARDOWN_TIMEOUT_MS = 20000 // Таймаут для завершения работы фикстуры после всех тестов
+const PUPPETEER_TIMEOUT_MS = 45000 // Таймаут для операций Puppeteer (навигация, ожидание элементов)
+const WEBGPU_WAIT_MS = 444 // Время ожидания завершения асинхронных операций WebGPU
+
+// Пути к браузерам (macOS)
+const BROWSER_PATHS_MACOS = [
+  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+  "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
+]
+
+// Директории
+const OUT_DIR_NAME = "dist-test" // Директория для сборки библиотеки для тестирования
+
+// Параметры запуска Puppeteer
+const LAUNCH_OPTIONS: any = {
+  headless: true, // Запуск в headless-режиме (без графического интерфейса)
+  args: [
+    "--no-sandbox", // Отключение песочницы для Docker/CI
+    "--enable-unsafe-webgpu", // Включение WebGPU (экспериментальная функция)
+    "--disable-vulkan-fallback-to-gl", // Отключение Vulkan fallback на GL
+    "--disable-vulkan-surface", // Отключение Vulkan поверхности
+  ],
+}
+
+// Параметры сервера Bun
+const SERVER_OPTIONS = {
+  port: 0, // Автоматический выбор свободного порта
+  development: { hmr: false, console: true }, // Отключение HMR, включение консоли
+}
+
+// ==================== КОНЕЦ КОНФИГУРАЦИИ ====================
+
 // Инициализируем фикстуру один раз перед всеми тестами
 beforeAll(async () => {
   await MonadTestFixture.setup()
@@ -13,18 +48,14 @@ beforeAll(async () => {
 // Закрываем фикстуру один раз после всех тестов
 afterAll(async () => {
   await MonadTestFixture.teardown()
-}, 20000)
+}, TEARDOWN_TIMEOUT_MS)
 
 /**
  * Вспомогательная функция для получения пути к исполняемому файлу браузера.
  */
 function getExecutablePath(): string | undefined {
   if (process.platform === "darwin") {
-    const paths = [
-      "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-      "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
-    ]
-    for (const p of paths) {
+    for (const p of BROWSER_PATHS_MACOS) {
       if (existsSync(p)) return p
     }
   }
@@ -57,7 +88,7 @@ export class MonadTestFixture {
     if (this.browser) return
 
     const packageRoot = join(import.meta.dir, "..")
-    const outDir = join(packageRoot, "dist-test")
+    const outDir = join(packageRoot, OUT_DIR_NAME)
 
     // Собираем библиотеку для тестирования
     await Bun.build({
@@ -66,10 +97,7 @@ export class MonadTestFixture {
       target: "browser",
     })
 
-    const launchOptions: any = {
-      headless: true,
-      args: ["--no-sandbox", "--enable-unsafe-webgpu", "--disable-vulkan-fallback-to-gl", "--disable-vulkan-surface"],
-    }
+    const launchOptions: any = { ...LAUNCH_OPTIONS }
 
     const execPath = getExecutablePath()
     if (execPath) launchOptions.executablePath = execPath
@@ -78,8 +106,7 @@ export class MonadTestFixture {
 
     // Создаем сервер для тестов
     this.server = serve({
-      port: 0,
-      development: { hmr: false, console: true },
+      ...SERVER_OPTIONS,
       routes: {
         "/test": async (req) => {
           const url = new URL(req.url)
@@ -212,7 +239,7 @@ export class MonadTestFixture {
     // Асинхронно удаляем тестовую директорию
     try {
       const packageRoot = join(import.meta.dir, "..")
-      const outDir = join(packageRoot, "dist-test")
+      const outDir = join(packageRoot, OUT_DIR_NAME)
       if (existsSync(outDir)) {
         // Используем асинхронное удаление с помощью Bun
         await Bun.$`rm -rf ${outDir}`.quiet()
@@ -237,8 +264,8 @@ export class MonadTestFixture {
     }
 
     const page = await MonadTestFixture.browser.newPage()
-    page.setDefaultNavigationTimeout(45000)
-    page.setDefaultTimeout(45000)
+    page.setDefaultNavigationTimeout(PUPPETEER_TIMEOUT_MS)
+    page.setDefaultTimeout(PUPPETEER_TIMEOUT_MS)
 
     try {
       const testData = {
@@ -250,7 +277,7 @@ export class MonadTestFixture {
       }
 
       const testUrl = `${MonadTestFixture.baseUrl}/test?data=${encodeURIComponent(JSON.stringify(testData))}`
-      await page.goto(testUrl, { waitUntil: "networkidle2", timeout: 45000 })
+      await page.goto(testUrl, { waitUntil: "networkidle2", timeout: PUPPETEER_TIMEOUT_MS })
 
       // Ждем появления результата с отладочным логированием
       if (this.debug) {
@@ -258,12 +285,12 @@ export class MonadTestFixture {
       }
 
       const resultElement = await page.waitForSelector("#result", {
-        timeout: 45000,
+        timeout: PUPPETEER_TIMEOUT_MS,
         visible: true,
       })
 
       // Даем достаточно времени для завершения асинхронных операций WebGPU
-      await new Promise((resolve) => setTimeout(resolve, 2000))
+      await new Promise((resolve) => setTimeout(resolve, WEBGPU_WAIT_MS))
 
       // Получаем и логируем содержимое страницы для отладки
       const pageContent = await page.content()
