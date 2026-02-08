@@ -1,5 +1,8 @@
 {
   "name": "@metafor/monad",
+  "description": "Высокопроизводительный движок конечных автоматов на WebGPU для массовых симуляций агентов.",
+  "author": "zavx0z",
+  "license": "MIT",
   "version": "0.1.0",
   "main": "./src/index.ts",
   "devDependencies": {

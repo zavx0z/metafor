@@ -50,8 +50,16 @@ export class GPUBackend {
     })
 
     // Создание буферов контекста агентов (блоковая модель)
-    this.buffers.floats = this.createStorageBuffer(params.contextDataFloats)
-    this.buffers.uints = this.createStorageBuffer(params.contextDataUints)
+    // ВАЖНО: Избегаем буферов нулевого размера (вызывает неопределённое поведение в WebGPU)
+    const safeFloats = params.contextDataFloats.byteLength > 0 
+      ? params.contextDataFloats 
+      : new Float32Array([0.0])
+    const safeUints = params.contextDataUints.byteLength > 0 
+      ? params.contextDataUints 
+      : new Uint32Array([0])
+    
+    this.buffers.floats = this.createStorageBuffer(safeFloats)
+    this.buffers.uints = this.createStorageBuffer(safeUints)
     this.buffers.states = this.createStorageBuffer(params.states, true) // источник/назначение
 
     this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.monadCount), true)
