@@ -1,8 +1,14 @@
 /**
- * @file Основной модуль библиотеки `@metafor/monad`, предоставляющий высокоуровневый API.
+ * Модуль управления массивными симуляциями агентов на GPU.
+ * 
+ * ## Архитектура
+ * Библиотека реализует архитектуру **Entity-Component-System (ECS)** на базе **WebGPU Compute Shaders**.
+ * 
+ * * **Superposition (State Graph):** Логика переходов, компилируемая в байт-код кастомной VM.
+ * * **Block Memory Model (SoA):** Данные агентов хранятся в плоских буферах (`floats`, `uints`) для когерентного доступа памяти (memory coalescing).
+ * 
  * @packageDocumentation
  */
-
 import { GPUBackend } from "./backend"
 import { RulesCompiler } from "./compiler"
 
@@ -22,27 +28,25 @@ export interface MonadSystemConfig {
    */
   statesConfig: any
   /**
-   * Схема, описывающая типы данных полей контекста для каждой монады.
-   * Поддерживает строгую типизацию для оптимизации памяти на GPU.
-   *
-   * ### Поддерживаемые типы
-   * | Schema Type | GPU Type | Description |
+   * Схема памяти агента. Определяет layout буферов (Struct of Arrays).
+   * 
+   * Используется компилятором для:
+   * 1. Расчета смещений в буферах `floats` и `uints`.
+   * 2. Генерации инструкций доступа к памяти в байт-коде.
+   * 
+   * | Input Schema | Internal GPU Type | Memory Storage |
    * | :--- | :--- | :--- |
-   * | `{ type: "float" }` | `f32` | Дробные числа |
-   * | `{ type: "integer" }` | `u32` | Целые числа, счетчики |
-   * | `{ type: "boolean" }` | `u32` | Флаги (0/1) |
-   * | `{ type: "string" }` | `u32` | Указатели (Pointer) |
-   * | `{ type: "enum", values: [...] }` | `u32` | Индексы массива значений |
-   * | `{ type: "array<float>" }` | `u32` | Pointer -> Heap (`[len, f32...]`) |
-   * | `{ type: "array<integer>" }` | `u32` | Pointer -> Heap (`[len, u32...]`) |
-   * | `{ type: "array<string>" }` | `u32` | Pointer -> Heap (`[len, ptr...]`) |
-   *
-   * @example 
-   * ```json
-   * {
-   *   "hp": { "type": "float" },
-   *   "role": { "type": "enum", "values": ["USER", "ADMIN"] },
-   *   "tags": { "type": "array<string>" }
+   * | `{ type: "float" }` | `TYPE.FLOAT` | `buffer_floats` (f32) |
+   * | `{ type: "integer" }` | `TYPE.UINT` | `buffer_uints` (u32) |
+   * | `{ type: "boolean" }` | `TYPE.BOOL` | `buffer_uints` (0/1) |
+   * | `{ type: "enum", ... }` | `TYPE.UINT` | `buffer_uints` (index) |
+   * | `{ type: "array<T>" }` | `TYPE.ARRAY` | `buffer_uints` (pointer -> heap) |
+   * 
+   * @example
+   * ```ts
+   * const schema = {
+   *   hp: { type: "float" },
+   *   status: { type: "enum", values: ["ALIVE", "DEAD"] }
    * }
    * ```
    */

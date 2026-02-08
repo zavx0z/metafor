@@ -34,9 +34,9 @@ describe("Тесты валидации фикстуры", () => {
           DEAD: null,
         },
         contextSchema: {
-          hp: "number",
-          mana: "number",
-          isAlive: "boolean",
+          hp: { type: "float" },
+          mana: { type: "float" },
+          isAlive: { type: "boolean" },
         },
         monads: [
           { id: "m1", state: "IDLE", context: { hp: 100, mana: 100, isAlive: true } },

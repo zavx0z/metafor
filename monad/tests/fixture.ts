@@ -244,7 +244,7 @@ export class MonadTestFixture {
    */
   async runSimulation(params: {
     statesConfig: any
-    contextSchema: Record<string, string>
+    contextSchema: Record<string, any>
     monads: Array<{ id: string; state: string; context: any }>
     updates?: Array<{ agentIndex: number; fieldName: string; value: number | boolean }>
     steps?: number

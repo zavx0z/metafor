@@ -2,9 +2,9 @@ import { MonadSystem } from "../src/index"
 
 // Схема и правила
 const CONTEXT_SCHEMA = {
-  hp: "number",
-  mana: "number",
-  isAlive: "boolean",
+  hp: { type: "float" },
+  mana: { type: "float" },
+  isAlive: { type: "boolean" },
 }
 
 const RULES = {
