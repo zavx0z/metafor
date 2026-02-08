@@ -12,53 +12,48 @@ function getExecutablePath(): string | undefined {
     const paths = [
       "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
       "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
-    ];
+    ]
     for (const p of paths) {
-      if (existsSync(p)) return p;
+      if (existsSync(p)) return p
     }
   }
-  return undefined;
+  return undefined
 }
 
 /**
  * Фикстура для запуска симуляции монад в браузере с реальным устройством.
  */
 export class MonadTestFixture {
-  private static browser: puppeteerTypes.Browser | null = null;
-  private static server: any = null;
-  private static baseUrl = "";
+  private static browser: puppeteerTypes.Browser | null = null
+  private static server: any = null
+  private static baseUrl = ""
 
   /**
    * Инициализирует общий браузер и сервер для всех тестов.
    * Вызывается один раз перед запуском всех тестов.
    */
   static async setup() {
-    if (this.browser) return;
+    if (this.browser) return
 
-    const packageRoot = join(import.meta.dir, "..");
-    const outDir = join(packageRoot, "dist-test");
+    const packageRoot = join(import.meta.dir, "..")
+    const outDir = join(packageRoot, "dist-test")
 
-    // Build the library for testing
+    // Собираем библиотеку для тестирования
     await Bun.build({
       entrypoints: [join(packageRoot, "src", "index.ts")],
       outdir: outDir,
       target: "browser",
-    });
+    })
 
     const launchOptions: any = {
       headless: true,
-      args: [
-        "--no-sandbox",
-        "--enable-unsafe-webgpu",
-        "--disable-vulkan-fallback-to-gl",
-        "--disable-vulkan-surface",
-      ],
-    };
+      args: ["--no-sandbox", "--enable-unsafe-webgpu", "--disable-vulkan-fallback-to-gl", "--disable-vulkan-surface"],
+    }
 
-    const execPath = getExecutablePath();
-    if (execPath) launchOptions.executablePath = execPath;
+    const execPath = getExecutablePath()
+    if (execPath) launchOptions.executablePath = execPath
 
-    this.browser = await puppeteer.launch(launchOptions);
+    this.browser = await puppeteer.launch(launchOptions)
 
     // Создаем сервер для тестов
     this.server = serve({
@@ -66,14 +61,14 @@ export class MonadTestFixture {
       development: { hmr: true, console: true },
       routes: {
         "/test": async (req) => {
-          const url = new URL(req.url);
-          const params = url.searchParams.get("data");
+          const url = new URL(req.url)
+          const params = url.searchParams.get("data")
           if (!params) {
-            return new Response("Missing test parameters", { status: 400 });
+            return new Response("Missing test parameters", { status: 400 })
           }
 
           try {
-            const testData = JSON.parse(params);
+            const testData = JSON.parse(params)
             const html = `
 <!DOCTYPE html>
 <html>
@@ -108,10 +103,17 @@ export class MonadTestFixture {
         monads: ${JSON.stringify(testData.monads)},
       });
       
-      ${testData.updates ? testData.updates.map((u: any) => 
-        `console.log('[TEST] Updating context: agent=${u.agentIndex}, field=${u.fieldName}, value=${JSON.stringify(u.value)}');
-        system.updateContext(${u.agentIndex}, "${u.fieldName}", ${JSON.stringify(u.value)});`
-      ).join("\n      ") : ""}
+      ${
+        testData.updates
+          ? testData.updates
+              .map(
+                (u: any) =>
+                  `console.log('[TEST] Updating context: agent=${u.agentIndex}, field=${u.fieldName}, value=${JSON.stringify(u.value)}');
+        system.updateContext(${u.agentIndex}, "${u.fieldName}", ${JSON.stringify(u.value)});`,
+              )
+              .join("\n      ")
+          : ""
+      }
       
 const stepCount = ${testData.steps !== undefined ? testData.steps : 1};
 console.log('[TEST] Running ' + stepCount + ' step(s)...');
@@ -139,22 +141,22 @@ for (let i = 0; i < stepCount; i++) {
 </script>
 </body>
 </html>
-            `;
-            return new Response(html, { headers: { "Content-Type": "text/html" } });
+            `
+            return new Response(html, { headers: { "Content-Type": "text/html" } })
           } catch (e) {
-            return new Response(`Error: ${e}`, { status: 500 });
+            return new Response(`Error: ${e}`, { status: 500 })
           }
         },
       },
       async fetch(req) {
-        const url = new URL(req.url);
+        const url = new URL(req.url)
         if (url.pathname.startsWith("/dist-test/")) {
-          return new Response(Bun.file(join(packageRoot, url.pathname)));
+          return new Response(Bun.file(join(packageRoot, url.pathname)))
         }
-        return new Response("Not Found", { status: 404 });
+        return new Response("Not Found", { status: 404 })
       },
-    });
-    this.baseUrl = `http://localhost:${this.server.port}`;
+    })
+    this.baseUrl = `http://localhost:${this.server.port}`
   }
 
   /**
@@ -163,17 +165,17 @@ for (let i = 0; i < stepCount; i++) {
    */
   static async teardown() {
     if (this.browser) {
-      await this.browser.close();
-      this.browser = null;
+      await this.browser.close()
+      this.browser = null
     }
     if (this.server) {
-      this.server.stop();
-      this.server = null;
+      this.server.stop()
+      this.server = null
     }
-    const packageRoot = join(import.meta.dir, "..");
-    const outDir = join(packageRoot, "dist-test");
+    const packageRoot = join(import.meta.dir, "..")
+    const outDir = join(packageRoot, "dist-test")
     if (existsSync(outDir)) {
-      rmSync(outDir, { recursive: true, force: true });
+      rmSync(outDir, { recursive: true, force: true })
     }
   }
 
@@ -181,94 +183,94 @@ for (let i = 0; i < stepCount; i++) {
    * Запускает симуляцию с заданными параметрами в новой вкладке.
    */
   async runSimulation(params: {
-    statesConfig: any;
-    contextSchema: Record<string, string>;
-    monads: Array<{ id: string; state: string; context: any }>;
-    updates?: Array<{ agentIndex: number; fieldName: string; value: number | boolean }>;
-    steps?: number;
+    statesConfig: any
+    contextSchema: Record<string, string>
+    monads: Array<{ id: string; state: string; context: any }>
+    updates?: Array<{ agentIndex: number; fieldName: string; value: number | boolean }>
+    steps?: number
   }): Promise<{ success: boolean; states?: string[]; error?: string; stack?: string }> {
     if (!MonadTestFixture.browser || !MonadTestFixture.baseUrl) {
-      throw new Error("Fixture not initialized. Call MonadTestFixture.setup() first");
+      throw new Error("Fixture not initialized. Call MonadTestFixture.setup() first")
     }
 
-    const page = await MonadTestFixture.browser.newPage();
-    page.setDefaultNavigationTimeout(45000);
-    page.setDefaultTimeout(45000);
+    const page = await MonadTestFixture.browser.newPage()
+    page.setDefaultNavigationTimeout(45000)
+    page.setDefaultTimeout(45000)
 
     try {
-const testData = {
-  statesConfig: params.statesConfig,
-  contextSchema: params.contextSchema,
-  monads: params.monads,
-  updates: params.updates || [],
-  steps: params.steps !== undefined ? params.steps : 1,
-};
+      const testData = {
+        statesConfig: params.statesConfig,
+        contextSchema: params.contextSchema,
+        monads: params.monads,
+        updates: params.updates || [],
+        steps: params.steps !== undefined ? params.steps : 1,
+      }
 
-      const testUrl = `${MonadTestFixture.baseUrl}/test?data=${encodeURIComponent(JSON.stringify(testData))}`;
-      await page.goto(testUrl, { waitUntil: "networkidle2", timeout: 45000 });
+      const testUrl = `${MonadTestFixture.baseUrl}/test?data=${encodeURIComponent(JSON.stringify(testData))}`
+      await page.goto(testUrl, { waitUntil: "networkidle2", timeout: 45000 })
 
       // Ждем появления результата с отладочным логированием
-      console.log('[FIXTURE] Waiting for #result element...');
-      
-      const resultElement = await page.waitForSelector('#result', { 
+      console.log("[FIXTURE] Waiting for #result element...")
+
+      const resultElement = await page.waitForSelector("#result", {
         timeout: 45000,
-        visible: true 
-      });
+        visible: true,
+      })
 
       // Даем достаточно времени для завершения асинхронных операций WebGPU
-      await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      // Получаем и логируем содержимое страницы для отладки
-      const pageContent = await page.content();
-      console.log('[FIXTURE] Page content (first 1000 chars):', pageContent.substring(0, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 2000))
 
-      const resultText = await resultElement!.evaluate((el: any) => el.textContent?.trim() || '');
-      console.log('[FIXTURE] Result text:', resultText);
-      
-      if (!resultText || resultText === '') {
+      // Получаем и логируем содержимое страницы для отладки
+      const pageContent = await page.content()
+      console.log("[FIXTURE] Page content (first 1000 chars):", pageContent.substring(0, 1000))
+
+      const resultText = await resultElement!.evaluate((el: any) => el.textContent?.trim() || "")
+      console.log("[FIXTURE] Result text:", resultText)
+
+      if (!resultText || resultText === "") {
         // Получаем ошибки консоли браузера для отладки
         const consoleLogs = await page.evaluate(() => {
           // @ts-ignore
-          return window.__testLogs || [];
-        });
-        console.error('[FIXTURE] Empty result. Browser console logs:', consoleLogs);
-        throw new Error("Empty result from test page");
+          return window.__testLogs || []
+        })
+        console.error("[FIXTURE] Empty result. Browser console logs:", consoleLogs)
+        throw new Error("Empty result from test page")
       }
 
       try {
-        return JSON.parse(resultText);
+        return JSON.parse(resultText)
       } catch (parseError) {
-        console.error('[FIXTURE] Failed to parse result:', resultText);
-        throw new Error(`Invalid JSON in result: ${resultText}`);
+        console.error("[FIXTURE] Failed to parse result:", resultText)
+        throw new Error(`Invalid JSON in result: ${resultText}`)
       }
     } catch (error) {
-      console.error("[FIXTURE] Test simulation error:", error);
-      
+      console.error("[FIXTURE] Test simulation error:", error)
+
       // Получаем ошибки консоли браузера для отладки
       try {
         const browserLogs = await page.evaluate(() => {
           // @ts-ignore
-          const logs = window.__testLogs || [];
+          const logs = window.__testLogs || []
           // @ts-ignore
-          const errors = window.__testErrors || [];
-          return { logs, errors };
-        });
-        console.error('[FIXTURE] Browser logs:', browserLogs);
+          const errors = window.__testErrors || []
+          return { logs, errors }
+        })
+        console.error("[FIXTURE] Browser logs:", browserLogs)
       } catch (e) {
-        console.error('[FIXTURE] Could not get browser logs:', e);
+        console.error("[FIXTURE] Could not get browser logs:", e)
       }
-      
-      return { 
-        success: false, 
+
+      return {
+        success: false,
         error: error instanceof Error ? error.message : String(error),
-        ...(error instanceof Error && error.stack ? { stack: error.stack } : {})
-      };
+        ...(error instanceof Error && error.stack ? { stack: error.stack } : {}),
+      }
     } finally {
       // Закрываем только вкладку, не браузер
       try {
-        await page.close();
+        await page.close()
       } catch (closeError) {
-        console.warn('[FIXTURE] Error closing page:', closeError);
+        console.warn("[FIXTURE] Error closing page:", closeError)
       }
     }
   }
@@ -278,5 +280,5 @@ const testData = {
  * Создает фикстуру для использования в тестах.
  */
 export function createMonadFixture() {
-  return new MonadTestFixture();
+  return new MonadTestFixture()
 }

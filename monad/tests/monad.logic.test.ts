@@ -11,11 +11,11 @@ afterAll(async () => {
   await MonadTestFixture.teardown()
 })
 
-describe("MonadSystem Logic Tests (Real GPU)", () => {
+describe("MonadSystem — Тесты логики (реальное устройство GPU)", () => {
   const fixture = new MonadTestFixture()
 
-  describe("Basic State Transitions", () => {
-    test("should transition from IDLE to DEAD when hp <= 0", async () => {
+  describe("Базовые переходы состояний", () => {
+    test("должен перейти из состояния IDLE в DEAD при здоровье <= 0", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -49,7 +49,7 @@ describe("MonadSystem Logic Tests (Real GPU)", () => {
       expect(result.states![1]).toBe("DEAD")
     })
 
-    test("should transition from IDLE to PATROL when hp > 50", async () => {
+    test("должен перейти из состояния IDLE в PATROL при здоровье > 50", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -75,7 +75,7 @@ describe("MonadSystem Logic Tests (Real GPU)", () => {
       expect(result.states![1]).toBe("IDLE")
     })
 
-    test("should transition from IDLE to PATROL when hp >= 50", async () => {
+    test("должен перейти из состояния IDLE в PATROL при здоровье >= 50", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -101,7 +101,7 @@ describe("MonadSystem Logic Tests (Real GPU)", () => {
       expect(result.states![1]).toBe("IDLE")
     })
 
-    test("should transition from IDLE to PATROL when hp < 50", async () => {
+    test("должен перейти из состояния IDLE в PATROL при здоровье < 50", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -128,8 +128,8 @@ describe("MonadSystem Logic Tests (Real GPU)", () => {
     })
   })
 
-  describe("Boolean Conditions", () => {
-    test("should transition when boolean field is true", async () => {
+  describe("Булевы условия", () => {
+    test("должен перейти при значении булевого поля = true", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -155,7 +155,7 @@ describe("MonadSystem Logic Tests (Real GPU)", () => {
       expect(result.states![1]).toBe("IDLE")
     })
 
-    test("should transition when boolean field is false", async () => {
+    test("должен перейти при значении булевого поля = false", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           ACTIVE: {
@@ -182,8 +182,8 @@ describe("MonadSystem Logic Tests (Real GPU)", () => {
     })
   })
 
-  describe("Multiple Conditions", () => {
-    test("should transition when both conditions are met", async () => {
+  describe("Множественные условия", () => {
+    test("должен перейти когда выполнены оба условия", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -217,8 +217,8 @@ describe("MonadSystem Logic Tests (Real GPU)", () => {
     })
   })
 
-  describe("Update Context", () => {
-    test("should transition after context update", async () => {
+  describe("Обновление контекста", () => {
+    test("должен перейти после обновления контекста", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -240,7 +240,7 @@ describe("MonadSystem Logic Tests (Real GPU)", () => {
       expect(result.states![0]).toBe("DEAD")
     })
 
-    test("should not transition after context update if condition not met", async () => {
+    test("не должен перейти после обновления контекста если условие не выполнено", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -263,8 +263,8 @@ describe("MonadSystem Logic Tests (Real GPU)", () => {
     })
   })
 
-  describe("Multi-step Simulation", () => {
-    test("should transition through multiple states", async () => {
+  describe("Многошаговая симуляция", () => {
+    test("должен пройти через несколько состояний", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -291,8 +291,8 @@ describe("MonadSystem Logic Tests (Real GPU)", () => {
     })
   })
 
-  describe("Edge Cases", () => {
-    test("should handle multiple agents with same initial state", async () => {
+  describe("Пограничные случаи", () => {
+    test("должен обработать несколько агентов с одинаковым начальным состоянием", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -313,14 +313,14 @@ describe("MonadSystem Logic Tests (Real GPU)", () => {
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
 
-      // Агенты 1 и 2 должны перейти в состояние ACTIVE
+      // Агенты 1 и 2 должны перейти в состояние ACTIVE (hp > 0)
       expect(result.states![0]).toBe("ACTIVE")
       expect(result.states![1]).toBe("ACTIVE")
-      // Агент 3 должен остаться в состоянии IDLE
+      // Агент 3 должен остаться в состоянии IDLE (hp = 0 не > 0)
       expect(result.states![2]).toBe("IDLE")
     })
 
-    test("should handle agents with different initial states", async () => {
+    test("должен обработать агентов с разными начальными состояниями", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -342,9 +342,9 @@ describe("MonadSystem Logic Tests (Real GPU)", () => {
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
 
-      // Агент 1 должен перейти из IDLE в ACTIVE (hp = 100 > 50)
+      // Агент 1 должен перейти из состояния IDLE в ACTIVE (hp = 100 > 50)
       expect(result.states![0]).toBe("ACTIVE")
-      // Агент 2 должен перейти из ACTIVE в IDLE (hp = 30 <= 50)
+      // Агент 2 должен перейти из состояния ACTIVE в IDLE (hp = 30 <= 50)
       expect(result.states![1]).toBe("IDLE")
     })
   })

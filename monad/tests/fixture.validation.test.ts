@@ -11,11 +11,11 @@ afterAll(async () => {
   await MonadTestFixture.teardown()
 })
 
-describe("Fixture Validation Tests", () => {
+describe("Тесты валидации фикстуры", () => {
   const fixture = new MonadTestFixture()
 
-  describe("Client.ts Example Data", () => {
-    test('should produce ["IDLE", "DEAD"] after update and step', async () => {
+  describe("Данные из примера Client.ts", () => {
+    test('должен вернуть ["IDLE", "DEAD"] после обновления и шага', async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -63,7 +63,7 @@ describe("Fixture Validation Tests", () => {
       expect(result.states![1]).toBe("DEAD")
     })
 
-    test('should start with ["IDLE", "IDLE"] before update', async () => {
+    test('должен начинаться с ["IDLE", "IDLE"] до обновления', async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -97,7 +97,7 @@ describe("Fixture Validation Tests", () => {
       expect(result.states![1]).toBe("IDLE")
     })
 
-    test("should transition m2 to DEAD immediately (hp=0)", async () => {
+    test("должен немедленно перевести агента m2 в состояние DEAD (hp=0)", async () => {
       const testData = {
         statesConfig: {
           IDLE: {
@@ -113,21 +113,21 @@ describe("Fixture Validation Tests", () => {
         debug: true,
       }
 
-      console.log('[DEBUG] Test config:', JSON.stringify(testData, null, 2))
-      console.log('[DEBUG] hp value:', testData.monads[0]!.context?.hp)
-      console.log('[DEBUG] Expected transition: IDLE -> DEAD because hp <= 0')
+      console.log('[DEBUG] Конфигурация теста:', JSON.stringify(testData, null, 2))
+      console.log('[DEBUG] Значение hp:', testData.monads[0]!.context?.hp)
+      console.log('[DEBUG] Ожидаемый переход: IDLE -> DEAD потому что hp <= 0')
       
       const result = await fixture.runSimulation(testData)
 
-      console.log('[DEBUG] Test result:', JSON.stringify(result))
-      console.log('[DEBUG] Actual state:', result.states![0])
+      console.log('[DEBUG] Результат теста:', JSON.stringify(result))
+      console.log('[DEBUG] Фактическое состояние:', result.states![0])
       
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
       expect(result.states![0]).toBe("DEAD")
     })
 
-    test("should transition to DEAD when hp is negative", async () => {
+    test("должен перейти в состояние DEAD когда здоровье отрицательное", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -147,7 +147,7 @@ describe("Fixture Validation Tests", () => {
       expect(result.states![0]).toBe("DEAD")
     })
 
-    test("should NOT transition to DEAD when hp is positive", async () => {
+    test("НЕ должен перейти в состояние DEAD когда здоровье положительное", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -167,7 +167,7 @@ describe("Fixture Validation Tests", () => {
       expect(result.states![0]).toBe("IDLE")
     })
 
-    test("should keep m1 in IDLE when hp=50 (not >50 and not <=0)", async () => {
+    test("должен оставить агента m1 в состоянии IDLE когда здоровье = 50 (не >50 и не <=0)", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
