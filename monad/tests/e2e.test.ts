@@ -22,8 +22,9 @@ test("MonadSystem runs simulation on GPU", async () => {
 
     expect(status).toContain("✅ WebGPU Active");
     expect(output).toContain("Начальные состояния: [\"IDLE\",\"IDLE\"]");
-    // Note: In the current example logic, values are treated as indices to empty memory (0), resulting in DEAD state.
-    expect(output).toContain("Новые состояния:     [\"DEAD\",\"DEAD\"]");
+    // Агент 0: hp=100 -> update до 50 -> не удовлетворяет условиям (не >50 и не <=0) -> остается IDLE
+    // Агент 1: hp=0 -> удовлетворяет условию hp<=0 -> переходит в DEAD
+    expect(output).toContain("Новые состояния:     [\"IDLE\",\"DEAD\"]");
 
   } finally {
     await cleanup();

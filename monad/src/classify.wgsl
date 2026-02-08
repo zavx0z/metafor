@@ -1,8 +1,8 @@
 struct Uniforms {
   monadCount : u32,
-  blockStride : u32,  // Количество слов в блоке памяти на одного агента
+  floatFieldCount : u32,  // Количество полей типа FLOAT на агента
+  uintFieldCount : u32,   // Количество полей типа UINT на агента
   tableOffset : u32,
-  floatFieldCount : u32,  // Количество полей типа FLOAT в блоке
 };
 
 @group(0) @binding(0) var<storage, read_write> floats : array<f32>;
@@ -14,21 +14,18 @@ struct Uniforms {
 @group(0) @binding(6) var<uniform> u : Uniforms;
 
 // Блочная модель памяти: каждый агент имеет фиксированный блок памяти
-// Блок структурирован как: [float поля...] [uint поля...]
-// Доступ: buffer[agentBase + fieldOffset]
+// FLOAT поля всех агентов хранятся последовательно в буфере floats
+// UINT поля всех агентов хранятся последовательно в буфере uints
+// Доступ: buffer[agentId * поля_на_агента + локальный_индекс_поля]
 
 fn get_val(dtype: u32, fieldIdx: u32, agentId: u32) -> f32 {
-    let agentBase = agentId * u.blockStride;
-    
-    // FLOAT поля хранятся в начале блока (в буфере floats)
+    // FLOAT поля: индекс = (агент * количество_float_полей) + локальный_индекс_поля
     if (dtype == 0u) {
-        return floats[agentBase + fieldIdx];
-    } 
-    // UINT/BOOL поля хранятся после FLOAT полей (в буфере uints)
+        return floats[agentId * u.floatFieldCount + fieldIdx];
+    }
+    // UINT/BOOL поля: индекс = (агент * количество_uint_полей) + локальный_индекс_поля
     else {
-        // Смещение для UINT полей: пропускаем все FLOAT поля в блоке
-        let uintOffset = agentBase + u.floatFieldCount + fieldIdx;
-        return f32(uints[uintOffset]);
+        return f32(uints[agentId * u.uintFieldCount + fieldIdx]);
     }
 }
 

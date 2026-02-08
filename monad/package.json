@@ -1,22 +1,23 @@
 {
   "name": "@metafor/monad",
   "version": "0.1.0",
-  "type": "module",
   "main": "./src/index.ts",
+  "devDependencies": {
+    "@webgpu/types": "^0.1.32",
+    "@zavx0z/context": "^2.3.1",
+    "puppeteer": "^24.37.2"
+  },
+  "peerDependencies": {
+    "typescript": "^5.0.0"
+  },
   "scripts": {
     "example": "bun run ./examples/server.ts",
     "setup:browsers": "npx puppeteer browsers install chrome",
     "build": "bun build ./src/index.ts --outdir ./dist --target browser",
     "test": "bun test",
     "test:logic": "bun test tests/monad.logic.test.ts",
-    "test:e2e": "bun test tests/e2e.test.ts"
+    "test:e2e": "bun test tests/e2e.test.ts",
+    "webgpu": "bun run ./webgpu.ts"
   },
-  "peerDependencies": {
-    "typescript": "^5.0.0"
-  },
-  "devDependencies": {
-    "@webgpu/types": "^0.1.32",
-    "@zavx0z/context": "^2.3.1",
-    "puppeteer": "^24.37.2"
-  }
+  "type": "module"
 }

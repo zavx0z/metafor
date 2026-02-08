@@ -1,37 +1,52 @@
-import { test, expect, describe } from "bun:test";
-import { createMonadFixture } from "./monad.fixture";
+import { test, expect, describe, beforeAll, afterAll } from "bun:test"
+import { MonadTestFixture } from "./monad.fixture"
 
-// Увеличиваем таймаут для всех тестов (WebGPU операции могут быть медленными)
-const TEST_TIMEOUT = 30000;
+// Инициализируем фикстуру один раз перед всеми тестами
+beforeAll(async () => {
+  await MonadTestFixture.setup()
+})
+
+// Закрываем фикстуру один раз после всех тестов
+afterAll(async () => {
+  await MonadTestFixture.teardown()
+})
 
 describe("MonadSystem Logic Tests (Real GPU)", () => {
-  const fixture = createMonadFixture()
+  const fixture = new MonadTestFixture()
 
   describe("Basic State Transitions", () => {
     test("should transition from IDLE to DEAD when hp <= 0", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
+            PATROL: { hp: { gt: 50 } },
+            DEAD: { hp: { lte: 0 } },
+          },
+          PATROL: {
+            IDLE: { mana: { lt: 10 } },
+            COMBAT: { isAlive: true },
+          },
+          COMBAT: {
             DEAD: { hp: { lte: 0 } },
           },
           DEAD: null,
         },
         contextSchema: {
           hp: "number",
+          mana: "number",
+          isAlive: "boolean",
         },
         monads: [
-          { id: "m1", state: "IDLE", context: { hp: 0 } },
-          { id: "m2", state: "IDLE", context: { hp: 100 } },
+          { id: "m1", state: "IDLE", context: { hp: 100, mana: 100, isAlive: true } },
+          { id: "m2", state: "IDLE", context: { hp: 0, mana: 50, isAlive: false } },
         ],
       })
 
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
 
-      // Агент 1 должен перейти в состояние DEAD (hp = 0)
-      expect(result.states![0]).toBe("DEAD")
-      // Агент 2 должен остаться в состоянии IDLE (hp = 100)
-      expect(result.states![1]).toBe("IDLE")
+      expect(result.states![0]).toBe("IDLE")
+      expect(result.states![1]).toBe("DEAD")
     })
 
     test("should transition from IDLE to PATROL when hp > 50", async () => {

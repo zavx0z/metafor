@@ -35,8 +35,8 @@ export class GPUBackend {
    */
   async init(params: {
     monadCount: number
-    blockStride: number
     floatFieldCount: number
+    uintFieldCount: number
     bytecode: Uint32Array
     states: Uint32Array
     contextDataFloats: Float32Array
@@ -53,16 +53,15 @@ export class GPUBackend {
     this.buffers.floats = this.createStorageBuffer(params.contextDataFloats)
     this.buffers.uints = this.createStorageBuffer(params.contextDataUints)
     this.buffers.states = this.createStorageBuffer(params.states, true) // источник/назначение
-    this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.monadCount), true)
-    // contextMap удален - не используется в блочной модели
+
     this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.monadCount), true)
     this.buffers.bytecode = this.createStorageBuffer(params.bytecode)
 
     const uniforms = new Uint32Array([
       params.monadCount,
-      params.blockStride,
-      params.tableOffset,
-      params.floatFieldCount
+      params.floatFieldCount,
+      params.uintFieldCount,
+      params.tableOffset
     ])
     this.buffers.uniforms = this.createBuffer(uniforms, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST)
 
@@ -127,19 +126,17 @@ export class GPUBackend {
 
   /**
    * Обновляет значение поля контекста для конкретного агента.
-   * @param agentId - ID агента (индекс в массиве)
-   * @param fieldOffset - смещение поля внутри блока агента (из fieldMap)
+   * @param bufferIndex - абсолютный индекс в буфере (уже включает agentId * fieldCountOfType + field.index)
    * @param value - новое значение поля (число)
    * @param isFloat - если true, значение записывается в буфер floats, иначе в uints
    */
-  writeContextValue(agentId: number, fieldOffset: number, value: number, isFloat: boolean) {
+  writeContextValue(bufferIndex: number, value: number, isFloat: boolean) {
     const buffer = isFloat ? this.buffers.floats : this.buffers.uints;
     const wordSize = 4; // 4 байта на u32/f32 слово
-    // Для простоты: предполагаем, что все поля одного типа хранятся последовательно:
+    // Блочная модель: все поля одного типа хранятся последовательно
     // FLOAT: [агент0_поле0, агент0_поле1, ..., агент1_поле0, ...]
-    // UINT: аналогично отдельно в своем буфере.
-    const offset = fieldOffset * wordSize;
-    
+    // UINT: аналогично отдельно в своем буфере
+    const offset = bufferIndex * wordSize;
     const data = isFloat ? new Float32Array([value]) : new Uint32Array([value]);
     this.device.queue.writeBuffer(buffer, offset, data);
   }

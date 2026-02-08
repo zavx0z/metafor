@@ -120,8 +120,8 @@ export class MonadSystem {
     // 3. Инициализация бэкенда с блочной моделью памяти
     await this.backend.init({
       monadCount,
-      blockStride,
       floatFieldCount: floatFields,
+      uintFieldCount: uintFields,
       bytecode: compiled.bytecode,
       states,
       contextDataFloats,
@@ -132,7 +132,7 @@ export class MonadSystem {
 
   /**
    * Обновляет значение поля контекста для конкретного агента.
-   * Теперь передаем реальные значения, а не индексы буфера!
+   * Передаем реальные значения, а не индексы буфера.
    *
    * @param agentIndex - Индекс агента (0..monadCount-1)
    * @param fieldName - Имя поля контекста (например, "hp", "mana")
@@ -144,17 +144,14 @@ export class MonadSystem {
       console.warn(`Unknown field: ${fieldName}`);
       return;
     }
-    
     // Определяем тип поля для правильной записи в буфер
     const isFloat = field.type === 0;
-    
     // Вычисляем абсолютный индекс в буфере: (агент * количество_полей_типа) + локальный_индекс_поля_типа
-    const fieldCountOfType = field.type === 0 ? 
-      Object.values(this.fieldMap).filter(f => f.type === 0).length : 
+    const fieldCountOfType = field.type === 0 ?
+      Object.values(this.fieldMap).filter(f => f.type === 0).length :
       Object.values(this.fieldMap).filter(f => f.type !== 0).length;
     const absoluteIndex = agentIndex * fieldCountOfType + field.index;
-    
-    this.backend.writeContextValue(agentIndex, absoluteIndex, Number(value), isFloat);
+    this.backend.writeContextValue(absoluteIndex, Number(value), isFloat);
   }
 
   /**
