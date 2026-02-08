@@ -21,12 +21,32 @@ export interface MonadSystemConfig {
    * ```
    */
   statesConfig: any
-
   /**
    * Схема, описывающая типы данных полей контекста для каждой монады.
-   * @example ` { hp: "number", isAlive: "boolean" }`
+   * Поддерживает строгую типизацию для оптимизации памяти на GPU.
+   *
+   * ### Поддерживаемые типы
+   * | Schema Type | GPU Type | Description |
+   * | :--- | :--- | :--- |
+   * | `{ type: "float" }` | `f32` | Дробные числа |
+   * | `{ type: "integer" }` | `u32` | Целые числа, счетчики |
+   * | `{ type: "boolean" }` | `u32` | Флаги (0/1) |
+   * | `{ type: "string" }` | `u32` | Указатели (Pointer) |
+   * | `{ type: "enum", values: [...] }` | `u32` | Индексы массива значений |
+   * | `{ type: "array<float>" }` | `u32` | Pointer -> Heap (`[len, f32...]`) |
+   * | `{ type: "array<integer>" }` | `u32` | Pointer -> Heap (`[len, u32...]`) |
+   * | `{ type: "array<string>" }` | `u32` | Pointer -> Heap (`[len, ptr...]`) |
+   *
+   * @example 
+   * ```json
+   * {
+   *   "hp": { "type": "float" },
+   *   "role": { "type": "enum", "values": ["USER", "ADMIN"] },
+   *   "tags": { "type": "array<string>" }
+   * }
+   * ```
    */
-  contextSchema: Record<string, string>
+  contextSchema: any
 
   /**
    * Массив начальных состояний для каждой монады (агента).

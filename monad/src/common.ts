@@ -85,7 +85,12 @@ export interface CompiledRules {
    * Используется для определения, из какого буфера (`floats`/`uints`) и по какому смещению читать данные на GPU.
    * @example ` { hp: { type: 0, index: 0 }, mana: { type: 0, index: 1 } }`
    */
-  fieldMap: Record<string, { type: number; index: number }>
+  fieldMap: Record<string, { 
+    type: number; 
+    index: number;
+    subType?: number;
+    enumValues?: any[];
+  }>
 
   /**
    * Карта, связывающая строковые имена состояний (например, `"IDLE"`) с их числовыми идентификаторами (`StateID`).

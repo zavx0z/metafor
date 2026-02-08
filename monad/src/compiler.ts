@@ -22,7 +22,12 @@ type Superposition = Record<string, Transitions | null | undefined>
 export class RulesCompiler {
   private bytecode: number[] = []
   private states: string[] = []
-  private fields: Record<string, { type: number; index: number }> = {}
+  private fields: Record<string, { 
+    type: number; 
+    index: number; 
+    subType?: number | undefined; 
+    enumValues?: any[] | undefined;
+  }> = {}
   private fieldCounters = { float: 0, uint: 0 }
 
   /**
@@ -99,7 +104,7 @@ export class RulesCompiler {
     return {
       bytecode: new Uint32Array(this.bytecode),
       stateTableOffset,
-      fieldMap: this.fields,
+      fieldMap: this.fields as Record<string, { type: number; index: number; subType?: number; enumValues?: any[]; }>,
       stateMap: Object.fromEntries(this.states.map((s, i) => [s, i])),
       fieldCount: Object.keys(this.fields).length,
     }
@@ -108,27 +113,54 @@ export class RulesCompiler {
   private buildFieldMap(schema: Record<string, any>) {
     for (const key in schema) {
       const def = schema[key]
-      // Нормализация типа: обрабатываем строку или объект
-      // { hp: "number" } или { tags: { type: "array", items: "string" } }
-      let typeCode: number = TYPE.UINT
       
-      if (typeof def === "string") {
-        if (def.includes("number") || def.includes("float")) typeCode = TYPE.FLOAT
-        else if (def.includes("boolean") || def.includes("bool")) typeCode = TYPE.BOOL
-        else if (def.includes("string")) typeCode = TYPE.STRING
-        else typeCode = TYPE.UINT // enum, int, unknown
-      } else if (typeof def === "object" && def !== null) {
-        if (def.type === "array") typeCode = TYPE.ARRAY
-        else if (def.type === "number" || def.type === "float") typeCode = TYPE.FLOAT
-        else if (def.type === "boolean" || def.type === "bool") typeCode = TYPE.BOOL
-        else if (def.type === "string") typeCode = TYPE.STRING
+      let typeCode: number = TYPE.UINT
+      let subType: number | undefined = undefined
+      let enumValues: any[] | undefined = undefined
+
+      // Нормализация определения типа
+      // Поддержка строк только для обратной совместимости или краткости ('float')
+      const typeStr = typeof def === "string" ? def : def.type
+      const metaValues = (typeof def === "object" && def !== null) ? (def.values || def.enum) : undefined
+
+      // 1. Парсинг дженериков: array<float>
+      const arrayMatch = /^array<(.+)>$/.exec(typeStr)
+      const enumMatch = /^enum<(.+)>$/.exec(typeStr) // enum<float>, enum<string> и т.д.
+
+      if (arrayMatch) {
+        typeCode = TYPE.ARRAY
+        const innerType = arrayMatch[1]
+        if (innerType === "float") subType = TYPE.FLOAT
+        else if (innerType === "integer") subType = TYPE.UINT
+        else if (innerType === "string") subType = TYPE.STRING
+        else throw new Error(`Unsupported array subtype: ${innerType}`)
+      } 
+      else if (typeStr === "enum" || enumMatch || metaValues) {
+        typeCode = TYPE.UINT
+        enumValues = metaValues
+        if (!Array.isArray(enumValues)) throw new Error(`Enum field '${key}' requires 'values' array`)
+      }
+      else if (typeStr === "float" || typeStr === "number") {
+        typeCode = TYPE.FLOAT
+      }
+      else if (typeStr === "integer") {
+        typeCode = TYPE.UINT
+      }
+      else if (typeStr === "boolean") {
+        typeCode = TYPE.BOOL
+      }
+      else if (typeStr === "string") {
+        typeCode = TYPE.STRING
+      }
+      else {
+         // Fallback default
+         typeCode = TYPE.UINT
       }
 
       if (typeCode === TYPE.FLOAT) {
-        this.fields[key] = { type: typeCode, index: this.fieldCounters.float++ }
+        this.fields[key] = { type: typeCode, index: this.fieldCounters.float++, subType, enumValues }
       } else {
-        // UINT, BOOL, STRING, ARRAY используют uint-буфер (или слоты в нём)
-        this.fields[key] = { type: typeCode, index: this.fieldCounters.uint++ }
+        this.fields[key] = { type: typeCode, index: this.fieldCounters.uint++, subType, enumValues }
       }
     }
   }
@@ -193,11 +225,12 @@ export class RulesCompiler {
            // Формат списка в хипе: [count, val1, val2...]
            blockHeap.push(check.val.length)
            for (const v of check.val) {
-             blockHeap.push(this.encodeValue(field!.type, v))
+             // Передаем поле для контекста (Enum values, Array subtype)
+             blockHeap.push(this.encodeValue(field!.type, v, field as { subType?: number | undefined; enumValues?: any[] | undefined; } | undefined))
            }
            this.bytecode.push(ptr)
         } else {
-           this.bytecode.push(this.encodeValue(field!.type, check.val))
+           this.bytecode.push(this.encodeValue(field!.type, check.val, field as { subType?: number | undefined; enumValues?: any[] | undefined; } | undefined))
         }
       }
     }
@@ -268,7 +301,17 @@ export class RulesCompiler {
     return checks
   }
 
-  private encodeValue(type: number, val: any): number {
+  private encodeValue(inputType: number, val: any, contextField?: { subType?: number | undefined; enumValues?: any[] | undefined; }): number {
+    // 1. Обработка ENUM: превращаем значение в индекс
+    if (contextField?.enumValues) {
+      const idx = contextField.enumValues.indexOf(val)
+      if (idx === -1) throw new Error(`Value '${val}' not found in enum values: [${contextField.enumValues}]`)
+      return idx
+    }
+
+    // Если это элемент массива, используем подтип массива как тип значения
+    const type = contextField?.subType !== undefined ? contextField.subType : inputType
+
     if (type === TYPE.FLOAT) {
       const buf = new Float32Array([Number(val)])
       return new Uint32Array(buf.buffer)[0]!
