@@ -113,14 +113,14 @@ describe("Тесты валидации фикстуры", () => {
         debug: true,
       }
 
-      console.log('[DEBUG] Конфигурация теста:', JSON.stringify(testData, null, 2))
-      console.log('[DEBUG] Значение hp:', testData.monads[0]!.context?.hp)
-      console.log('[DEBUG] Ожидаемый переход: IDLE -> DEAD потому что hp <= 0')
+      // console.log('[DEBUG] Конфигурация теста:', JSON.stringify(testData, null, 2))
+      // console.log('[DEBUG] Значение hp:', testData.monads[0]!.context?.hp)
+      // console.log('[DEBUG] Ожидаемый переход: IDLE -> DEAD потому что hp <= 0')
       
       const result = await fixture.runSimulation(testData)
 
-      console.log('[DEBUG] Результат теста:', JSON.stringify(result))
-      console.log('[DEBUG] Фактическое состояние:', result.states![0])
+      // console.log('[DEBUG] Результат теста:', JSON.stringify(result))
+      // console.log('[DEBUG] Фактическое состояние:', result.states![0])
       
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()

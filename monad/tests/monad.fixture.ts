@@ -27,6 +27,16 @@ export class MonadTestFixture {
   private static browser: puppeteerTypes.Browser | null = null
   private static server: any = null
   private static baseUrl = ""
+  private debug: boolean = false
+
+  /**
+   * Создает экземпляр фикстуры для тестирования.
+   * @param options Опции фикстуры
+   * @param options.debug Включить отладочные логи
+   */
+  constructor(options?: { debug?: boolean }) {
+    this.debug = options?.debug ?? false
+  }
 
   /**
    * Инициализирует общий браузер и сервер для всех тестов.
@@ -210,7 +220,9 @@ for (let i = 0; i < stepCount; i++) {
       await page.goto(testUrl, { waitUntil: "networkidle2", timeout: 45000 })
 
       // Ждем появления результата с отладочным логированием
-      console.log("[FIXTURE] Waiting for #result element...")
+      if (this.debug) {
+        console.log("[FIXTURE] Waiting for #result element...")
+      }
 
       const resultElement = await page.waitForSelector("#result", {
         timeout: 45000,
@@ -222,10 +234,14 @@ for (let i = 0; i < stepCount; i++) {
 
       // Получаем и логируем содержимое страницы для отладки
       const pageContent = await page.content()
-      console.log("[FIXTURE] Page content (first 1000 chars):", pageContent.substring(0, 1000))
+      if (this.debug) {
+        console.log("[FIXTURE] Page content (first 1000 chars):", pageContent.substring(0, 1000))
+      }
 
       const resultText = await resultElement!.evaluate((el: any) => el.textContent?.trim() || "")
-      console.log("[FIXTURE] Result text:", resultText)
+      if (this.debug) {
+        console.log("[FIXTURE] Result text:", resultText)
+      }
 
       if (!resultText || resultText === "") {
         // Получаем ошибки консоли браузера для отладки
@@ -278,7 +294,9 @@ for (let i = 0; i < stepCount; i++) {
 
 /**
  * Создает фикстуру для использования в тестах.
+ * @param options Опции фикстуры
+ * @param options.debug Включить отладочные логи
  */
-export function createMonadFixture() {
-  return new MonadTestFixture()
+export function createMonadFixture(options?: { debug?: boolean }) {
+  return new MonadTestFixture(options)
 }
