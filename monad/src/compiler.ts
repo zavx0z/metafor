@@ -106,17 +106,29 @@ export class RulesCompiler {
   }
 
   private buildFieldMap(schema: Record<string, any>) {
-    // Наивный маппинг схемы. В реальности нужно парсить zavx0z Schema.
-    // Полагаем, что схема { key: "number" | "boolean" | ... }
     for (const key in schema) {
-      const typeStr = String(schema[key]) // упрощенно
-      if (typeStr.includes("number")) {
-        this.fields[key] = { type: TYPE.FLOAT, index: this.fieldCounters.float++ }
-      } else if (typeStr.includes("boolean")) {
-        this.fields[key] = { type: TYPE.BOOL, index: this.fieldCounters.uint++ }
+      const def = schema[key]
+      // Нормализация типа: обрабатываем строку или объект
+      // { hp: "number" } или { tags: { type: "array", items: "string" } }
+      let typeCode: number = TYPE.UINT
+      
+      if (typeof def === "string") {
+        if (def.includes("number") || def.includes("float")) typeCode = TYPE.FLOAT
+        else if (def.includes("boolean") || def.includes("bool")) typeCode = TYPE.BOOL
+        else if (def.includes("string")) typeCode = TYPE.STRING
+        else typeCode = TYPE.UINT // enum, int, unknown
+      } else if (typeof def === "object" && def !== null) {
+        if (def.type === "array") typeCode = TYPE.ARRAY
+        else if (def.type === "number" || def.type === "float") typeCode = TYPE.FLOAT
+        else if (def.type === "boolean" || def.type === "bool") typeCode = TYPE.BOOL
+        else if (def.type === "string") typeCode = TYPE.STRING
+      }
+
+      if (typeCode === TYPE.FLOAT) {
+        this.fields[key] = { type: typeCode, index: this.fieldCounters.float++ }
       } else {
-        // строки (интернированные), перечисления -> UINT
-        this.fields[key] = { type: TYPE.UINT, index: this.fieldCounters.uint++ }
+        // UINT, BOOL, STRING, ARRAY используют uint-буфер (или слоты в нём)
+        this.fields[key] = { type: typeCode, index: this.fieldCounters.uint++ }
       }
     }
   }
@@ -124,17 +136,75 @@ export class RulesCompiler {
   private compileConditions(wave: Wave) {
     const entries = Object.entries(wave)
     this.bytecode.push(entries.length)
+    
+    // Мы должны записать все инструкции, а затем, возможно, данные (кучу), 
+    // на которые ссылаются инструкции (например, списки для IN).
+    // Для этого сначала генерируем все инструкции и данные в буфер.
+    
+    const blockInstructions: number[] = []
+    const blockHeap: number[] = []
+    
+    // Текущий смещение начала инструкций (относительно всего байткода)
+    // this.bytecode.length (header) + 0
+    let baseOffset = this.bytecode.length
+    
     for (const [key, cond] of entries) {
       const field = this.fields[key]
       if (!field) throw new Error(`Unknown field in conditions: ${key}`)
+      const checks = this.parseCondition(cond)
+      
+      for (const check of checks) {
+        blockInstructions.push(field.type)
+        blockInstructions.push(field.index)
+        blockInstructions.push(check.op)
+        
+        // Если значение требует кучи (массив), мы должны вычислить указатель
+        if (Array.isArray(check.val) && (check.op === OP.IN || check.op === OP.NOT_IN)) {
+          // Указатель = baseOffset + размер_всех_инструкций_блока + текущий_размер_кучи
+          // Но мы не знаем полный размер всех инструкций заранее, если делаем это в один проход?
+          // Мы знаем! Мы просто накапливаем instructions.
+          // Но нам нужно знать FINAL length of instructions чтобы дать правильный pointer.
+          // Поэтому сначала соберем все check-и, потом закодируем.
+        }
+      }
+    }
 
+    // Второй проход: кодирование с правильными смещениями
+    // Считаем полное количество инструкций (слов)
+    let totalInstructionsSize = 0
+    for (const [key, cond] of entries) {
+      const checks = this.parseCondition(cond)
+      totalInstructionsSize += checks.length * 4
+    }
+
+    const startOfHeap = baseOffset + totalInstructionsSize
+
+    for (const [key, cond] of entries) {
+      const field = this.fields[key]
       const checks = this.parseCondition(cond)
       for (const check of checks) {
-        this.bytecode.push(field.type)
-        this.bytecode.push(field.index)
+        this.bytecode.push(field!.type)
+        this.bytecode.push(field!.index)
         this.bytecode.push(check.op)
-        this.bytecode.push(this.encodeValue(field.type, check.val))
+        
+        if (Array.isArray(check.val) && (check.op === OP.IN || check.op === OP.NOT_IN)) {
+           // Это список значений. Записываем его в heap.
+           const ptr = startOfHeap + blockHeap.length
+           // Формат списка в хипе: [count, val1, val2...]
+           blockHeap.push(check.val.length)
+           for (const v of check.val) {
+             blockHeap.push(this.encodeValue(field!.type, v))
+           }
+           this.bytecode.push(ptr)
+        } else {
+           this.bytecode.push(this.encodeValue(field!.type, check.val))
+        }
       }
+    }
+    
+    // Записываем накопленные данные кучи после инструкций
+    for (const w of blockHeap) {
+      this.bytecode.push(w)
     }
   }
 
@@ -166,6 +236,14 @@ export class RulesCompiler {
         case "lte":
           checks.push({ op: OP.LTE, val: v })
           break
+
+        case "in":
+          checks.push({ op: OP.IN, val: v })
+          break
+        case "notIn":
+          checks.push({ op: OP.NOT_IN, val: v })
+          break
+
         // Atom-like extended conditions
         case "notGt":
           checks.push({ op: OP.LTE, val: v }) // ! >  == <=

@@ -1,8 +1,20 @@
-import { test, expect, describe } from "bun:test"
+import { test, expect, describe, beforeAll, afterAll, beforeEach } from "bun:test"
 import { MonadTestFixture } from "./fixture"
 
 describe("Тесты валидации фикстуры", () => {
-  const fixture = new MonadTestFixture()
+  let fixture: MonadTestFixture
+
+  beforeAll(async () => {
+    await MonadTestFixture.setup()
+  })
+
+  afterAll(async () => {
+    await MonadTestFixture.teardown()
+  }, 20000)
+
+  beforeEach(() => {
+    fixture = new MonadTestFixture()
+  })
 
   describe("Данные из примера Client.ts", () => {
     test('должен вернуть ["IDLE", "DEAD"] после обновления и шага', async () => {

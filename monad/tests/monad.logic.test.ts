@@ -2,6 +2,8 @@ import { test, expect, describe, beforeAll, afterAll } from "bun:test"
 import { MonadTestFixture } from "./fixture"
 
 describe("MonadSystem — Тесты логики (реальное устройство GPU)", () => {
+  beforeAll(async () => await MonadTestFixture.setup())
+  afterAll(async () => await MonadTestFixture.teardown(), 20000)
   const fixture = new MonadTestFixture()
 
   describe("Базовые переходы состояний", () => {
