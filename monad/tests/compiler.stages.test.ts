@@ -107,5 +107,55 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
       expect(floatView[0]).toBeCloseTo(36.6)
       console.log(`✅ Float закодирован: ${floatView[0]}`)
     })
+
+    test("оператор 'include' должен генерировать OP.INCLUDE", () => {
+      const compiler = new RulesCompiler()
+      // Инвентарь с integer предметами
+      const schema = { items: { type: "array<integer>" } }
+      const config = {
+        IDLE: {
+          EQUIP: { items: { include: 555 } }
+        },
+        EQUIP: null
+      }
+      
+      const result = compiler.compile(config, schema)
+      const bc = Array.from(result.bytecode)
+      
+      // Ищем [ARRAY_TYPE, IDX, OP.INCLUDE, VAL]
+      let found = false
+      for (let i = 0; i < bc.length - 3; i++) {
+        if (bc[i+2] === OP.INCLUDE) {
+          expect(bc[i+3]).toBe(555)
+          found = true
+          break
+        }
+      }
+      expect(found).toBe(true)
+      console.log("✅ OP.INCLUDE сгенерирован корректно")
+    })
+
+    test("оператор 'isEmpty' должен принимать boolean", () => {
+      const compiler = new RulesCompiler()
+      const schema = { tags: { type: "array<string>" } }
+      const config = {
+        S1: { S2: { tags: { isEmpty: true } } },
+        S2: null
+      }
+      
+      const result = compiler.compile(config, schema)
+      const bc = Array.from(result.bytecode)
+      
+      let found = false
+      for (let i = 0; i < bc.length - 3; i++) {
+        if (bc[i+2] === OP.IS_EMPTY) {
+          expect(bc[i+3]).toBe(1) // true -> 1
+          found = true
+          break
+        }
+      }
+      expect(found).toBe(true)
+      console.log("✅ OP.IS_EMPTY с аргументом true сгенерирован")
+    })
   })
 })

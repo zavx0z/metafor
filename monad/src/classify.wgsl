@@ -7,8 +7,6 @@ struct Uniforms {
     tableOffset: u32,
 }
 
-;
-
 @group(0) @binding(0)
 var<storage, read_write> floats: array<f32>;
 @group(0) @binding(1)
@@ -17,7 +15,6 @@ var<storage, read_write> uints: array<u32>;
 var<storage, read> states: array<u32>;
 @group(0) @binding(3)
 var<storage, read_write> newStates: array<u32>;
-// contextMap удален - используется блочная модель памяти
 @group(0) @binding(5)
 var<storage, read> bytecode: array<u32>;
 @group(0) @binding(6)
@@ -95,6 +92,80 @@ fn check_cond(op: u32, val_a: f32, val_b_raw: u32, dtype: u32) -> bool {
             return !found;
         }
         // NOT_IN
+    }
+
+    // Операторы массивов (INCLUDE / LENGTH / IS_EMPTY)
+    // val_a = указатель на массив в буфере uints (heap)
+    // val_b = значение для поиска или сравнения
+    if (op >= 8u && op <= 11u) {
+        let heap_ptr = u32(val_a);
+        // Защита от нулевого указателя (0 = null)
+        if (heap_ptr == 0u) {
+            // Если массив null, длина 0.
+            // isEmpty (11) -> true (если val_b == 1)
+            // length (10) -> сравниваем 0 с val_b
+            if (op == 11u) {
+                return val_b_raw == 1u;
+            }
+            if (op == 10u) {
+                return 0u == val_b_raw;
+            }
+            return false;
+        }
+
+        let len = uints[heap_ptr];
+
+        // OP.LENGTH (10)
+        if (op == 10u) {
+            return len == val_b_raw;
+        }
+
+        // OP.IS_EMPTY (11)
+        if (op == 11u) {
+            let is_empty = (len == 0u);
+            let expected = (val_b_raw == 1u);
+            return is_empty == expected;
+        }
+
+        // OP.INCLUDE (8) / OP.NOT_INCLUDE (9)
+        // Линейный поиск в куче
+        if (op == 8u || op == 9u) {
+            var found = false;
+            for (var i = 0u; i < len; i = i + 1u) {
+                let item_raw = uints[heap_ptr + 1u + i];
+                var item_val = f32(item_raw);
+                // Если массив float, элементы в куче bitcast-нуты.
+                // Нам нужно привести их к f32 для сравнения с val_b (который тоже f32, даже если закодирован как u32)
+                // НО! val_b_raw приходит уже как биты.
+                // Если мы сравниваем биты (u32), то bitcast не нужен, если мы уверены в точности.
+                // Однако check_cond принимает val_a: f32.
+                // Для универсальности, сравним сырые биты для точного совпадения (EQ).
+
+                // Если подтип float, нужно ли декодировать?
+                // val_b (искомое) передается как аргумент.
+                // Если это INCLUDE <float>, то val_b уже сконвертирован в f32 (аргумент функции).
+                // А item_raw - это u32.
+
+                if (dtype == 0u) {
+                    // dtype здесь - это тип САМОГО ПОЛЯ (ARRAY). Это 4.
+                    // Мы не знаем subType внутри шейдера (он не передан).
+                    // Эвристика: мы сравниваем item_raw (u32) с val_b_raw (u32).
+                    // Так как компилятор кодирует оба значения одинаково (bitcast),
+                    // прямое сравнение u32 корректно для EQ.
+                }
+
+                if (item_raw == val_b_raw) {
+                    found = true;
+                    break;
+                }
+            }
+            if (op == 8u) {
+                return found;
+            }
+            if (op == 9u) {
+                return !found;
+            }
+        }
     }
 
     return false;

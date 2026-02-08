@@ -275,6 +275,20 @@ export class RulesCompiler {
           checks.push({ op: OP.NOT_IN, val: v })
           break
 
+        // Array Operators
+        case "include":
+          checks.push({ op: OP.INCLUDE, val: v })
+          break
+        case "notInclude":
+          checks.push({ op: OP.NOT_INCLUDE, val: v })
+          break
+        case "length":
+          checks.push({ op: OP.LENGTH, val: v })
+          break
+        case "isEmpty":
+          checks.push({ op: OP.IS_EMPTY, val: v })
+          break
+
         // Atom-like extended conditions
         case "notGt":
           checks.push({ op: OP.LTE, val: v }) // ! >  == <=
@@ -308,6 +322,7 @@ export class RulesCompiler {
     }
 
     // Если это элемент массива, используем подтип массива как тип значения
+    // Это важно для 'include': если поле array<float>, то значение поиска 1.5 нужно bitcast-ить
     const type = contextField?.subType !== undefined ? contextField.subType : inputType
 
     if (type === TYPE.FLOAT) {
