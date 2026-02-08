@@ -1,4 +1,5 @@
 import puppeteer from "puppeteer"
+import type * as puppeteerTypes from "puppeteer"
 import { existsSync, rmSync } from "node:fs"
 import { join } from "node:path"
 import { serve } from "bun"
@@ -23,7 +24,7 @@ function getExecutablePath(): string | undefined {
  * Фикстура для запуска симуляции монад в браузере с реальным устройством.
  */
 export class MonadTestFixture {
-  private static browser: puppeteer.Browser | null = null;
+  private static browser: puppeteerTypes.Browser | null = null;
   private static server: any = null;
   private static baseUrl = "";
 
@@ -221,7 +222,7 @@ const testData = {
       const pageContent = await page.content();
       console.log('[FIXTURE] Page content (first 1000 chars):', pageContent.substring(0, 1000));
 
-      const resultText = await resultElement.evaluate((el: any) => el.textContent?.trim() || '');
+      const resultText = await resultElement!.evaluate((el: any) => el.textContent?.trim() || '');
       console.log('[FIXTURE] Result text:', resultText);
       
       if (!resultText || resultText === '') {
@@ -260,7 +261,7 @@ const testData = {
       return { 
         success: false, 
         error: error instanceof Error ? error.message : String(error),
-        stack: error instanceof Error ? error.stack : undefined
+        ...(error instanceof Error && error.stack ? { stack: error.stack } : {})
       };
     } finally {
       // Закрываем только вкладку, не браузер

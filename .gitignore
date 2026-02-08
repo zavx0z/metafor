@@ -1,6 +1,7 @@
 node_modules
 tmp
 dist
+dist-test
 __snapshots__
 .idea
 .DS_Store

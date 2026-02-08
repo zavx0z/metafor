@@ -114,7 +114,7 @@ describe("Fixture Validation Tests", () => {
       }
 
       console.log('[DEBUG] Test config:', JSON.stringify(testData, null, 2))
-      console.log('[DEBUG] hp value:', testData.monads[0].context.hp)
+      console.log('[DEBUG] hp value:', testData.monads[0]!.context?.hp)
       console.log('[DEBUG] Expected transition: IDLE -> DEAD because hp <= 0')
       
       const result = await fixture.runSimulation(testData)

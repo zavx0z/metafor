@@ -91,6 +91,10 @@ export class GPUBackend {
    */
   run() {
     if (!this.pipeline || !this.bindGroup) return
+    if (!this.buffers.newStates || !this.buffers.states) {
+      console.error('Buffers are not initialized')
+      return
+    }
 
     const cmd = this.device.createCommandEncoder()
     const pass = cmd.beginComputePass()
@@ -114,13 +118,16 @@ export class GPUBackend {
    * **Внимание:** Требует синхронизации с CPU (медленно).
    */
   async read(): Promise<Uint32Array> {
+    if (!this.buffers.states || !this.stagingBuffer) {
+      throw new Error('Buffers are not initialized')
+    }
     const cmd = this.device.createCommandEncoder()
-    cmd.copyBufferToBuffer(this.buffers.states, 0, this.stagingBuffer!, 0, this.buffers.states.size)
+    cmd.copyBufferToBuffer(this.buffers.states, 0, this.stagingBuffer, 0, this.buffers.states.size)
     this.device.queue.submit([cmd.finish()])
 
-    await this.stagingBuffer!.mapAsync(GPUMapMode.READ)
-    const copy = new Uint32Array(this.stagingBuffer!.getMappedRange().slice(0))
-    this.stagingBuffer!.unmap()
+    await this.stagingBuffer.mapAsync(GPUMapMode.READ)
+    const copy = new Uint32Array(this.stagingBuffer.getMappedRange().slice(0))
+    this.stagingBuffer.unmap()
     return copy
   }
 
@@ -132,6 +139,10 @@ export class GPUBackend {
    */
   writeContextValue(bufferIndex: number, value: number, isFloat: boolean) {
     const buffer = isFloat ? this.buffers.floats : this.buffers.uints;
+    if (!buffer) {
+      console.warn('Buffer not found');
+      return;
+    }
     const wordSize = 4; // 4 байта на u32/f32 слово
     // Блочная модель: все поля одного типа хранятся последовательно
     // FLOAT: [агент0_поле0, агент0_поле1, ..., агент1_поле0, ...]

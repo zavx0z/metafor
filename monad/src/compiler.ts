@@ -4,8 +4,8 @@ import { OP, TYPE, type CompiledRules } from "./common"
 // В реальном проекте они могут быть более сложными и импортироваться из общего пакета.
 type ConditionValue = number | boolean | string | { [key: string]: any }
 type Wave = Record<string, ConditionValue>
-type Transitions = Record<string, Wave | null>
-type Superposition = Record<string, Transitions | null>
+type Transitions = Record<string, Wave | null | undefined>
+type Superposition = Record<string, Transitions | null | undefined>
 
 /**
  * Компилятор логических правил.
@@ -45,7 +45,7 @@ export class RulesCompiler {
 
     // 2. Компилируем каждое состояние
     for (let i = 0; i < this.states.length; i++) {
-      const stateName = this.states[i]
+      const stateName = this.states[i]!
       const transitions = superposition[stateName] || {}
 
       // Сохраняем указатель на этот блок состояния в таблице
@@ -112,8 +112,10 @@ export class RulesCompiler {
       const typeStr = String(schema[key]) // упрощенно
       if (typeStr.includes("number")) {
         this.fields[key] = { type: TYPE.FLOAT, index: this.fieldCounters.float++ }
+      } else if (typeStr.includes("boolean")) {
+        this.fields[key] = { type: TYPE.BOOL, index: this.fieldCounters.uint++ }
       } else {
-        // булевы, строки (интернированные), перечисления -> UINT
+        // строки (интернированные), перечисления -> UINT
         this.fields[key] = { type: TYPE.UINT, index: this.fieldCounters.uint++ }
       }
     }
@@ -191,7 +193,7 @@ export class RulesCompiler {
   private encodeValue(type: number, val: any): number {
     if (type === TYPE.FLOAT) {
       const buf = new Float32Array([Number(val)])
-      return new Uint32Array(buf.buffer)[0]
+      return new Uint32Array(buf.buffer)[0]!
     }
     if (type === TYPE.BOOL) {
       return val ? 1 : 0

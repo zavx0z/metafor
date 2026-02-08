@@ -168,6 +168,6 @@ export class MonadSystem {
    */
   async getStates(): Promise<string[]> {
     const raw = await this.backend.read()
-    return Array.from(raw).map((id) => this.reverseStateMap[id])
+    return Array.from(raw).map((id) => this.reverseStateMap[id]!)
   }
 }
