@@ -1,15 +1,5 @@
-import { test, expect, beforeAll, afterAll, describe } from "bun:test"
-import { MonadTestFixture } from "./monad.fixture"
-
-// Инициализируем фикстуру один раз перед всеми тестами
-beforeAll(async () => {
-  await MonadTestFixture.setup()
-})
-
-// Закрываем фикстуру один раз после всех тестов
-afterAll(async () => {
-  await MonadTestFixture.teardown()
-})
+import { test, expect, describe } from "bun:test"
+import { MonadTestFixture } from "./fixture"
 
 describe("Тесты валидации фикстуры", () => {
   const fixture = new MonadTestFixture()
@@ -116,12 +106,12 @@ describe("Тесты валидации фикстуры", () => {
       // console.log('[DEBUG] Конфигурация теста:', JSON.stringify(testData, null, 2))
       // console.log('[DEBUG] Значение hp:', testData.monads[0]!.context?.hp)
       // console.log('[DEBUG] Ожидаемый переход: IDLE -> DEAD потому что hp <= 0')
-      
+
       const result = await fixture.runSimulation(testData)
 
       // console.log('[DEBUG] Результат теста:', JSON.stringify(result))
       // console.log('[DEBUG] Фактическое состояние:', result.states![0])
-      
+
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
       expect(result.states![0]).toBe("DEAD")

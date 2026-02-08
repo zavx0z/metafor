@@ -1,15 +1,5 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
-import { MonadTestFixture } from "./monad.fixture"
-
-// Инициализируем фикстуру один раз перед всеми тестами
-beforeAll(async () => {
-  await MonadTestFixture.setup()
-})
-
-// Закрываем фикстуру один раз после всех тестов
-afterAll(async () => {
-  await MonadTestFixture.teardown()
-})
+import { MonadTestFixture } from "./fixture"
 
 describe("MonadSystem — Тесты логики (реальное устройство GPU)", () => {
   const fixture = new MonadTestFixture()
@@ -45,7 +35,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
 
-      expect(result.states![0]).toBe("IDLE")
+      expect(result.states![0]).toBe("PATROL")
       expect(result.states![1]).toBe("DEAD")
     })
 

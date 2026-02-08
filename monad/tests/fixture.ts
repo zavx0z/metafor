@@ -1,8 +1,19 @@
 import puppeteer from "puppeteer"
 import type * as puppeteerTypes from "puppeteer"
-import { existsSync, rmSync } from "node:fs"
+import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { serve } from "bun"
+import { afterAll, beforeAll } from "bun:test"
+
+// Инициализируем фикстуру один раз перед всеми тестами
+beforeAll(async () => {
+  await MonadTestFixture.setup()
+})
+
+// Закрываем фикстуру один раз после всех тестов
+afterAll(async () => {
+  await MonadTestFixture.teardown()
+}, 20000)
 
 /**
  * Вспомогательная функция для получения пути к исполняемому файлу браузера.
@@ -68,91 +79,90 @@ export class MonadTestFixture {
     // Создаем сервер для тестов
     this.server = serve({
       port: 0,
-      development: { hmr: true, console: true },
+      development: { hmr: false, console: true },
       routes: {
         "/test": async (req) => {
           const url = new URL(req.url)
           const params = url.searchParams.get("data")
-          if (!params) {
-            return new Response("Missing test parameters", { status: 400 })
-          }
-
+          if (!params) return new Response("Missing test parameters", { status: 400 })
           try {
             const testData = JSON.parse(params)
-            const html = `
-<!DOCTYPE html>
-<html>
-<head><meta charset="UTF-8"><title>Monad Test</title></head>
-<body>
-<div id="result"></div>
-<script type="module">
-  import { MonadSystem } from '/dist-test/index.js';
-  
-  async function run() {
-    try {
-      console.log('[TEST] Starting simulation...');
-      
-      if (!navigator.gpu) {
-        throw new Error('WebGPU not supported in this browser');
-      }
-      
-      console.log('[TEST] Requesting GPU adapter...');
-      const adapter = await navigator.gpu.requestAdapter();
-      if (!adapter) throw new Error('Failed to request GPU adapter');
-      
-      console.log('[TEST] Requesting GPU device...');
-      const device = await adapter.requestDevice();
-      
-      console.log('[TEST] Creating MonadSystem...');
-      const system = new MonadSystem(device);
-      
-      console.log('[TEST] Initializing with config:', ${JSON.stringify(testData.statesConfig)});
-      await system.init({
-        statesConfig: ${JSON.stringify(testData.statesConfig)},
-        contextSchema: ${JSON.stringify(testData.contextSchema)},
-        monads: ${JSON.stringify(testData.monads)},
-      });
-      
-      ${
-        testData.updates
-          ? testData.updates
-              .map(
-                (u: any) =>
-                  `console.log('[TEST] Updating context: agent=${u.agentIndex}, field=${u.fieldName}, value=${JSON.stringify(u.value)}');
+            return new Response(
+              html`
+                <!DOCTYPE html>
+                <html>
+                  <head>
+                    <meta charset="UTF-8" />
+                    <title>Monad Test</title>
+                  </head>
+                  <body>
+                    <div id="result"></div>
+                    <script type="module">
+                      import { MonadSystem } from "/dist-test/index.js"
+
+                      async function run() {
+                        try {
+                          console.log("[TEST] Starting simulation...")
+
+                          if (!navigator.gpu) {
+                            throw new Error("WebGPU not supported in this browser")
+                          }
+
+                          console.log("[TEST] Requesting GPU adapter...")
+                          const adapter = await navigator.gpu.requestAdapter()
+                          if (!adapter) throw new Error("Failed to request GPU adapter")
+
+                          console.log("[TEST] Requesting GPU device...")
+                          const device = await adapter.requestDevice()
+
+                          console.log("[TEST] Creating MonadSystem...")
+                          const system = new MonadSystem(device)
+
+                          console.log("[TEST] Initializing with config:", ${JSON.stringify(testData.statesConfig)})
+                          await system.init({
+                            statesConfig: ${JSON.stringify(testData.statesConfig)},
+                            contextSchema: ${JSON.stringify(testData.contextSchema)},
+                            monads: ${JSON.stringify(testData.monads)},
+                          })
+
+                          ${testData.updates
+                            ? testData.updates
+                                .map(
+                                  (u: any) =>
+                                    `console.log('[TEST] Updating context: agent=${u.agentIndex}, field=${u.fieldName}, value=${JSON.stringify(u.value)}');
         system.updateContext(${u.agentIndex}, "${u.fieldName}", ${JSON.stringify(u.value)});`,
-              )
-              .join("\n      ")
-          : ""
-      }
-      
-const stepCount = ${testData.steps !== undefined ? testData.steps : 1};
-console.log('[TEST] Running ' + stepCount + ' step(s)...');
-for (let i = 0; i < stepCount; i++) {
-  system.step();
-}
-      
-      console.log('[TEST] Getting final states...');
-      const states = await system.getStates();
-      
-      console.log('[TEST] Success! States:', states);
-      document.getElementById('result').textContent = JSON.stringify({ success: true, states });
-    } catch (e) {
-      console.error('[TEST] Error:', e);
-      document.getElementById('result').textContent = JSON.stringify({ 
-        success: false, 
-        error: e.message,
-        stack: e.stack 
-      });
-    }
-  }
-  
-  // Запускаем после полной загрузки DOM
-  document.addEventListener('DOMContentLoaded', run);
-</script>
-</body>
-</html>
-            `
-            return new Response(html, { headers: { "Content-Type": "text/html" } })
+                                )
+                                .join("\n      ")
+                            : ""}
+
+                          const stepCount = ${testData.steps !== undefined ? testData.steps : 1}
+                          console.log("[TEST] Running " + stepCount + " step(s)...")
+                          for (let i = 0; i < stepCount; i++) {
+                            system.step()
+                          }
+
+                          console.log("[TEST] Getting final states...")
+                          const states = await system.getStates()
+
+                          console.log("[TEST] Success! States:", states)
+                          document.getElementById("result").textContent = JSON.stringify({ success: true, states })
+                        } catch (e) {
+                          console.error("[TEST] Error:", e)
+                          document.getElementById("result").textContent = JSON.stringify({
+                            success: false,
+                            error: e.message,
+                            stack: e.stack,
+                          })
+                        }
+                      }
+                      // Запускаем после полной загрузки DOM
+                      document.addEventListener("DOMContentLoaded", run)
+                    </script>
+                  </body>
+                </html>
+              `,
+              { headers: { "Content-Type": "text/html" } },
+            )
           } catch (e) {
             return new Response(`Error: ${e}`, { status: 500 })
           }
@@ -174,18 +184,41 @@ for (let i = 0; i < stepCount; i++) {
    * Вызывается один раз после завершения всех тестов.
    */
   static async teardown() {
+    // Закрываем браузер с обработкой ошибок
     if (this.browser) {
-      await this.browser.close()
-      this.browser = null
+      try {
+        const pages = await this.browser.pages()
+        // Закрываем все открытые страницы
+        await Promise.all(pages.map((page) => page.close().catch(() => {})))
+        await this.browser.close()
+      } catch (error) {
+        console.warn("[FIXTURE] Error closing browser:", error)
+      } finally {
+        this.browser = null
+      }
     }
+
+    // Останавливаем сервер
     if (this.server) {
-      this.server.stop()
-      this.server = null
+      try {
+        this.server.stop()
+      } catch (error) {
+        console.warn("[FIXTURE] Error stopping server:", error)
+      } finally {
+        this.server = null
+      }
     }
-    const packageRoot = join(import.meta.dir, "..")
-    const outDir = join(packageRoot, "dist-test")
-    if (existsSync(outDir)) {
-      rmSync(outDir, { recursive: true, force: true })
+
+    // Асинхронно удаляем тестовую директорию
+    try {
+      const packageRoot = join(import.meta.dir, "..")
+      const outDir = join(packageRoot, "dist-test")
+      if (existsSync(outDir)) {
+        // Используем асинхронное удаление с помощью Bun
+        await Bun.$`rm -rf ${outDir}`.quiet()
+      }
+    } catch (error) {
+      console.warn("[FIXTURE] Error cleaning up dist-test:", error)
     }
   }
 
@@ -300,3 +333,4 @@ for (let i = 0; i < stepCount; i++) {
 export function createMonadFixture(options?: { debug?: boolean }) {
   return new MonadTestFixture(options)
 }
+const html = String.raw
