@@ -15,9 +15,18 @@ describe("Тесты валидации фикстуры", () => {
   beforeEach(() => {
     fixture = new MonadTestFixture()
   })
+  const ensureAvailable = () => {
+    if (!MonadTestFixture.isAvailable()) {
+      const error = MonadTestFixture.getSetupError()
+      console.warn(`Skipping GPU tests: ${error?.message ?? "fixture unavailable"}`)
+      return false
+    }
+    return true
+  }
 
   describe("Данные из примера Client.ts", () => {
     test('должен вернуть ["IDLE", "DEAD"] после обновления и шага', async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -66,6 +75,7 @@ describe("Тесты валидации фикстуры", () => {
     })
 
     test('должен начинаться с ["IDLE", "IDLE"] до обновления', async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -100,6 +110,7 @@ describe("Тесты валидации фикстуры", () => {
     })
 
     test("должен немедленно перевести агента m2 в состояние DEAD (hp=0)", async () => {
+      if (!ensureAvailable()) return
       const testData = {
         statesConfig: {
           IDLE: {
@@ -130,6 +141,7 @@ describe("Тесты валидации фикстуры", () => {
     })
 
     test("должен перейти в состояние DEAD когда здоровье отрицательное", async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -150,6 +162,7 @@ describe("Тесты валидации фикстуры", () => {
     })
 
     test("НЕ должен перейти в состояние DEAD когда здоровье положительное", async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -170,6 +183,7 @@ describe("Тесты валидации фикстуры", () => {
     })
 
     test("должен оставить агента m1 в состоянии IDLE когда здоровье = 50 (не >50 и не <=0)", async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {

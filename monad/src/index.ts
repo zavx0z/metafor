@@ -195,3 +195,8 @@ export class MonadSystem {
     return Array.from(raw).map((id) => this.reverseStateMap[id]!)
   }
 }
+
+export { ContextBuilder } from "./ContextBuilder"
+export { ContextManager } from "./ContextManager"
+export { GlobalFieldRegistry, FieldType } from "./GlobalFieldRegistry"
+export { HeapAllocator } from "./HeapAllocator"

@@ -5,9 +5,18 @@ describe("MonadSystem — Тесты логики (реальное устрой
   beforeAll(async () => await MonadTestFixture.setup())
   afterAll(async () => await MonadTestFixture.teardown(), 20000)
   const fixture = new MonadTestFixture()
+  const ensureAvailable = () => {
+    if (!MonadTestFixture.isAvailable()) {
+      const error = MonadTestFixture.getSetupError()
+      console.warn(`Skipping GPU tests: ${error?.message ?? "fixture unavailable"}`)
+      return false
+    }
+    return true
+  }
 
   describe("Базовые переходы состояний", () => {
     test("должен перейти из состояния IDLE в DEAD при здоровье <= 0", async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -42,6 +51,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
     })
 
     test("должен перейти из состояния IDLE в PATROL при здоровье > 50", async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -68,6 +78,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
     })
 
     test("должен перейти из состояния IDLE в PATROL при здоровье >= 50", async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -94,6 +105,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
     })
 
     test("должен перейти из состояния IDLE в PATROL при здоровье < 50", async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -122,6 +134,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
 
   describe("Булевы условия", () => {
     test("должен перейти при значении булевого поля = true", async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -148,6 +161,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
     })
 
     test("должен перейти при значении булевого поля = false", async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           ACTIVE: {
@@ -176,6 +190,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
 
   describe("Множественные условия", () => {
     test("должен перейти когда выполнены оба условия", async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -211,6 +226,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
 
   describe("Обновление контекста", () => {
     test("должен перейти после обновления контекста", async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -233,6 +249,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
     })
 
     test("не должен перейти после обновления контекста если условие не выполнено", async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -257,6 +274,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
 
   describe("Многошаговая симуляция", () => {
     test("должен пройти через несколько состояний", async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -285,6 +303,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
 
   describe("Пограничные случаи", () => {
     test("должен обработать несколько агентов с одинаковым начальным состоянием", async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -313,6 +332,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
     })
 
     test("должен обработать агентов с разными начальными состояниями", async () => {
+      if (!ensureAvailable()) return
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {

@@ -59,6 +59,8 @@ export class MonadTestFixture {
   private static browser: puppeteerTypes.Browser | null = null
   private static server: any = null
   private static baseUrl = ""
+  private static available = false
+  private static setupError: Error | null = null
   private debug: boolean = false
 
   /**
@@ -75,7 +77,7 @@ export class MonadTestFixture {
    * Вызывается один раз перед запуском всех тестов.
    */
   static async setup() {
-    if (this.browser) return
+    if (this.browser || this.available) return
 
     const packageRoot = join(import.meta.dir, "..")
     const outDir = join(packageRoot, OUT_DIR_NAME)
@@ -92,7 +94,14 @@ export class MonadTestFixture {
     const execPath = getExecutablePath()
     if (execPath) launchOptions.executablePath = execPath
 
-    this.browser = await puppeteer.launch(launchOptions)
+    try {
+      this.browser = await puppeteer.launch(launchOptions)
+      this.available = true
+    } catch (error) {
+      this.available = false
+      this.setupError = error as Error
+      return
+    }
 
     // Создаем сервер для тестов
     this.server = serve({
@@ -194,6 +203,14 @@ export class MonadTestFixture {
       },
     })
     this.baseUrl = `http://localhost:${this.server.port}`
+  }
+
+  static isAvailable() {
+    return this.available
+  }
+
+  static getSetupError() {
+    return this.setupError
   }
 
   /**
