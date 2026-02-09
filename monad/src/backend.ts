@@ -1,14 +1,14 @@
-import shaderSource from "./classify.wgsl" with {type: "text"}
+import shaderSource from "./classify.wgsl" with { type: "text" }
 
 /**
  * Драйвер WebGPU. Управляет ресурсами видеопамяти (VRAM).
- * 
+ *
  * **Ответственность:**
  * * Аллокация и инициализация `GPUBuffer` (Storage/Uniform).
  * * Создание `ComputePipeline` и `BindGroup`.
  * * Диспетчеризация команд `dispatchWorkgroups`.
  * * Синхронизация данных VRAM <-> RAM (Readback).
- * 
+ *
  * @internal Используется только внутри `MonadSystem`.
  */
 export class GPUBackend {
@@ -33,12 +33,10 @@ export class GPUBackend {
    */
   async init(params: {
     monadCount: number
-    floatFieldCount: number
-    uintFieldCount: number
     bytecode: Uint32Array
     states: Uint32Array
-    contextDataFloats: Float32Array
-    contextDataUints: Uint32Array
+    agentDescriptors: Uint32Array
+    heap: Uint32Array
     tableOffset: number
   }) {
     const module = this.device.createShaderModule({ code: shaderSource })
@@ -47,28 +45,15 @@ export class GPUBackend {
       compute: { module, entryPoint: "main" },
     })
 
-    // Создание буферов контекста агентов (блоковая модель)
-    // ВАЖНО: Избегаем буферов нулевого размера (вызывает неопределённое поведение в WebGPU)
-    const safeFloats = params.contextDataFloats.byteLength > 0 
-      ? params.contextDataFloats 
-      : new Float32Array([0.0])
-    const safeUints = params.contextDataUints.byteLength > 0 
-      ? params.contextDataUints 
-      : new Uint32Array([0])
-    
-    this.buffers.floats = this.createStorageBuffer(safeFloats)
-    this.buffers.uints = this.createStorageBuffer(safeUints)
+    // Создание буферов для новой архитектуры кучи
+    this.buffers.agentDescriptors = this.createStorageBuffer(params.agentDescriptors)
+    this.buffers.heap = this.createStorageBuffer(params.heap)
     this.buffers.states = this.createStorageBuffer(params.states, true) // источник/назначение
 
     this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.monadCount), true)
     this.buffers.bytecode = this.createStorageBuffer(params.bytecode)
 
-    const uniforms = new Uint32Array([
-      params.monadCount,
-      params.floatFieldCount,
-      params.uintFieldCount,
-      params.tableOffset
-    ])
+    const uniforms = new Uint32Array([params.monadCount, params.tableOffset])
     this.buffers.uniforms = this.createBuffer(uniforms, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST)
 
     this.stagingBuffer = this.device.createBuffer({
@@ -79,13 +64,12 @@ export class GPUBackend {
     this.bindGroup = this.device.createBindGroup({
       layout: this.pipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: { buffer: this.buffers.floats } },
-        { binding: 1, resource: { buffer: this.buffers.uints } },
+        { binding: 0, resource: { buffer: this.buffers.agentDescriptors } },
+        { binding: 1, resource: { buffer: this.buffers.heap } },
         { binding: 2, resource: { buffer: this.buffers.states } },
         { binding: 3, resource: { buffer: this.buffers.newStates } },
-        // binding 4 (contextMap) удален - не используется в блочной модели
-        { binding: 5, resource: { buffer: this.buffers.bytecode } },
-        { binding: 6, resource: { buffer: this.buffers.uniforms } },
+        { binding: 4, resource: { buffer: this.buffers.bytecode } },
+        { binding: 5, resource: { buffer: this.buffers.uniforms } },
       ],
     })
   }
@@ -98,7 +82,7 @@ export class GPUBackend {
   run() {
     if (!this.pipeline || !this.bindGroup) return
     if (!this.buffers.newStates || !this.buffers.states) {
-      console.error('Buffers are not initialized')
+      console.error("Buffers are not initialized")
       return
     }
 
@@ -125,7 +109,7 @@ export class GPUBackend {
    */
   async read(): Promise<Uint32Array> {
     if (!this.buffers.states || !this.stagingBuffer) {
-      throw new Error('Buffers are not initialized')
+      throw new Error("Buffers are not initialized")
     }
     const cmd = this.device.createCommandEncoder()
     cmd.copyBufferToBuffer(this.buffers.states, 0, this.stagingBuffer, 0, this.buffers.states.size)
@@ -135,27 +119,6 @@ export class GPUBackend {
     const copy = new Uint32Array(this.stagingBuffer.getMappedRange().slice(0))
     this.stagingBuffer.unmap()
     return copy
-  }
-
-  /**
-   * Обновляет значение поля контекста для конкретного агента.
-   * @param bufferIndex - абсолютный индекс в буфере (уже включает agentId * fieldCountOfType + field.index)
-   * @param value - новое значение поля (число)
-   * @param isFloat - если true, значение записывается в буфер floats, иначе в uints
-   */
-  writeContextValue(bufferIndex: number, value: number, isFloat: boolean) {
-    const buffer = isFloat ? this.buffers.floats : this.buffers.uints;
-    if (!buffer) {
-      console.warn('Buffer not found');
-      return;
-    }
-    const wordSize = 4; // 4 байта на u32/f32 слово
-    // Блочная модель: все поля одного типа хранятся последовательно
-    // FLOAT: [агент0_поле0, агент0_поле1, ..., агент1_поле0, ...]
-    // UINT: аналогично отдельно в своем буфере
-    const offset = bufferIndex * wordSize;
-    const data = isFloat ? new Float32Array([value]) : new Uint32Array([value]);
-    this.device.queue.writeBuffer(buffer, offset, data);
   }
 
   private createBuffer(data: ArrayBufferView, usage: GPUBufferUsageFlags) {

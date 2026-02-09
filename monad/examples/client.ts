@@ -56,10 +56,6 @@ async function run() {
         { id: "m2", state: "IDLE", context: { hp: 0, mana: 50, isAlive: false } },
       ],
     })
-    
-    // Пример обновления контекста - передаем реальные значения!
-    system.updateContext(0, "hp", 50); // Агент 0: уменьшаем здоровье до 50
-
     const startStates = await system.getStates()
     log(`Начальные состояния: ${JSON.stringify(startStates)}`)
 

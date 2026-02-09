@@ -11,6 +11,7 @@
  */
 import { GPUBackend } from "./backend"
 import { RulesCompiler } from "./compiler"
+import { ContextManager, FieldType, GlobalFieldRegistry, type FieldTypeValue } from "./context"
 
 /**
  * Конфигурация для инициализации `MonadSystem`.
@@ -74,17 +75,18 @@ export interface MonadSystemConfig {
 export class MonadSystem {
   private backend: GPUBackend
   private compiler = new RulesCompiler()
+  private contextManager: ContextManager
 
   // Карты маппинга
   private stateMap: Record<string, number> = {}
   private reverseStateMap: string[] = []
-  private fieldMap: Record<string, { type: number; index: number }> = {}
 
   /**
    * @param device - Инициализированный `GPUDevice`.
    */
   constructor(device: GPUDevice) {
     this.backend = new GPUBackend(device)
+    this.contextManager = new ContextManager(device)
   }
 
   /**
@@ -100,83 +102,68 @@ export class MonadSystem {
     contextSchema: any
     monads: Array<{ id: string; state: string; context: any }>
   }) {
-    // 1. Компиляция правил
-    const compiled = this.compiler.compile(config.statesConfig, config.contextSchema)
-    this.stateMap = compiled.stateMap
-    this.reverseStateMap = Object.keys(compiled.stateMap)
-    this.fieldMap = compiled.fieldMap
-
-    // 2. Подготовка буферов данных в блочной модели памяти
-    const monadCount = config.monads.length;
-    const states = new Uint32Array(monadCount);
+    // 1. Регистрируем поля из схемы в глобальном реестре.
+    const registry = GlobalFieldRegistry.getInstance();
     
-    // Рассчитываем размер блока памяти на одного агента
-    const fieldCount = compiled.fieldCount;
-    const floatFields = Object.values(this.fieldMap).filter(f => f.type === 0).length;
-    const uintFields = fieldCount - floatFields;
-    const blockStride = fieldCount; // Количество слов в блоке на агента (упрощенно)
-    
-    // Выделяем буферы для контекста всех агентов (блоковая модель)
-    // Каждый агент получает непрерывный блок памяти: [float поля...][uint поля...]
-    const contextDataFloats = new Float32Array(monadCount * floatFields);
-    const contextDataUints = new Uint32Array(monadCount * uintFields);
-    
-    // Инициализация данных монад - теперь передаем реальные значения, а не индексы!
-    config.monads.forEach((m, agentIdx) => {
-      states[agentIdx] = this.stateMap[m.state] ?? 0;
+    for (const [name, def] of Object.entries(config.contextSchema)) {
+      const defTyped = def as { type?: string } | string;
+      const typeStr = typeof defTyped === 'string' ? defTyped : defTyped.type;
+      let fieldType: FieldTypeValue;
       
-      // Заполняем буферы контекста реальными значениями из контекста агента.
-      // FLOAT поля хранятся отдельно от UINT в разных буферах.
-      for (const [key, value] of Object.entries(m.context)) {
-        const field = this.fieldMap[key];
-        if (!field) continue;
-        // FLOAT поля: индекс = (номер_агента * количество_float_полей) + локальный_индекс_поля_типа
-        if (field.type === 0) { // FLOAT
-          const floatIdx = agentIdx * floatFields + field.index;
-          contextDataFloats[floatIdx] = Number(value);
-        } else { // UINT/BOOL
-          const uintIdx = agentIdx * uintFields + field.index;
-          contextDataUints[uintIdx] = Number(value);
+      // Маппинг человекопонятных типов -> FieldType.
+      switch (typeStr) {
+        case 'float':
+        case 'number':
+          fieldType = FieldType.F32;
+          break;
+        case 'integer':
+          fieldType = FieldType.U32;
+          break;
+        case 'boolean':
+          fieldType = FieldType.BOOL;
+          break;
+        case 'string':
+          fieldType = FieldType.STRING_PTR;
+          break;
+            default:
+        if (typeof typeStr === 'string' && /^array<.+>$/.test(typeStr)) {
+          fieldType = FieldType.ARRAY_PTR;
+        } else if (typeof typeStr === 'string' && /^enum<.+>$/.test(typeStr) || (typeof defTyped !== 'string' && 'values' in defTyped && defTyped.values)) {
+          fieldType = FieldType.U32;
+        } else {
+          fieldType = FieldType.U32;
         }
-      }
-    });
+      }registry.register(name, fieldType);
+    }
 
-    // 3. Инициализация бэкенда с блочной моделью памяти
+    // 2. Создаём агентов — менеджер сам группирует поля!
+    const agentIds = this.contextManager.createAgents(
+      config.monads.map(m => m.context)
+    );
+
+    // 3. Компилируем правила FSM (field_id вместо [тип, индекс]).
+    const compiled = this.compiler.compile(config.statesConfig, {});
+    this.stateMap = compiled.stateMap;
+    this.reverseStateMap = Object.keys(compiled.stateMap);
+
+    // 4. Инициализируем бэкенд.
+    const states = new Uint32Array(
+      config.monads.map(m => this.stateMap[m.state] ?? 0)
+    );
+    
+    const { agentDescriptors, heap } = this.contextManager.getGPUBuffers();
+    
     await this.backend.init({
-      monadCount,
-      floatFieldCount: floatFields,
-      uintFieldCount: uintFields,
+      monadCount: config.monads.length,
       bytecode: compiled.bytecode,
       states,
-      contextDataFloats,
-      contextDataUints,
+      agentDescriptors,
+      heap,
       tableOffset: compiled.stateTableOffset,
     });
   }
 
-  /**
-   * Обновляет значение поля контекста для конкретного агента.
-   * Передаем реальные значения, а не индексы буфера.
-   *
-   * @param agentIndex - Индекс агента (0..monadCount-1)
-   * @param fieldName - Имя поля контекста (например, "hp", "mana")
-   * @param value - Новое значение поля (число или булево)
-   */
-  updateContext(agentIndex: number, fieldName: string, value: number | boolean) {
-    const field = this.fieldMap[fieldName];
-    if (!field) {
-      console.warn(`Unknown field: ${fieldName}`);
-      return;
-    }
-    // Определяем тип поля для правильной записи в буфер
-    const isFloat = field.type === 0;
-    // Вычисляем абсолютный индекс в буфере: (агент * количество_полей_типа) + локальный_индекс_поля_типа
-    const fieldCountOfType = field.type === 0 ?
-      Object.values(this.fieldMap).filter(f => f.type === 0).length :
-      Object.values(this.fieldMap).filter(f => f.type !== 0).length;
-    const absoluteIndex = agentIndex * fieldCountOfType + field.index;
-    this.backend.writeContextValue(absoluteIndex, Number(value), isFloat);
-  }
+
 
   /**
    * Выполняет один такт симуляции.
