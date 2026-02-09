@@ -80,6 +80,7 @@ export class MonadSystem {
   // Карты маппинга
   private stateMap: Record<string, number> = {}
   private reverseStateMap: string[] = []
+  private agentIds: number[] = []
 
   /**
    * @param device - Инициализированный `GPUDevice`.
@@ -106,9 +107,11 @@ export class MonadSystem {
     const registry = GlobalFieldRegistry.getInstance()
 
     for (const [name, def] of Object.entries(config.contextSchema)) {
-      const defTyped = def as { type?: string } | string
+      const defTyped = def as { type?: string; values?: any[] } | string
       const typeStr = typeof defTyped === "string" ? defTyped : defTyped.type
       let fieldType: FieldTypeValue
+      let elementType: string | undefined
+      const enumValues = typeof defTyped !== "string" && "values" in defTyped ? defTyped.values : undefined
 
       // Маппинг человекопонятных типов -> FieldType.
       switch (typeStr) {
@@ -128,6 +131,7 @@ export class MonadSystem {
         default:
           if (typeof typeStr === "string" && /^array<.+>$/.test(typeStr)) {
             fieldType = FieldType.ARRAY_PTR
+            elementType = typeStr.match(/^array<(.+)>$/)?.[1]
           } else if (
             (typeof typeStr === "string" && /^enum<.+>$/.test(typeStr)) ||
             (typeof defTyped !== "string" && "values" in defTyped && defTyped.values)
@@ -137,14 +141,16 @@ export class MonadSystem {
             fieldType = FieldType.U32
           }
       }
-      registry.register(name, fieldType)
+      if (!registry.has(name)) {
+        registry.register(name, fieldType, { elementType, enumValues })
+      }
     }
 
     // 2. Создаём агентов — менеджер сам группирует поля!
-    const agentIds = this.contextManager.createAgents(config.monads.map((m) => m.context))
+    this.agentIds = this.contextManager.createAgents(config.monads.map((m) => m.context))
 
     // 3. Компилируем правила FSM (field_id вместо [тип, индекс]).
-    const compiled = this.compiler.compile(config.statesConfig, {})
+    const compiled = this.compiler.compile(config.statesConfig, config.contextSchema)
     this.stateMap = compiled.stateMap
     this.reverseStateMap = Object.keys(compiled.stateMap)
 
@@ -178,5 +184,22 @@ export class MonadSystem {
   async getStates(): Promise<string[]> {
     const raw = await this.backend.read()
     return Array.from(raw).map((id) => this.reverseStateMap[id]!)
+  }
+
+  /**
+   * Обновить поле контекста конкретного агента и синхронизировать изменения с GPU.
+   */
+  updateContext(agentIndex: number, fieldName: string, value: unknown): void {
+    const agentId = this.agentIds[agentIndex]
+    if (agentId === undefined) {
+      throw new Error(`Неизвестный индекс агента: ${agentIndex}`)
+    }
+
+    this.contextManager.updateAgentField(agentId, fieldName, value)
+    if (this.contextManager.isHeapDirty()) {
+      const { heap } = this.contextManager.getGPUBuffers()
+      this.backend.updateHeap(heap)
+      this.contextManager.clearDirtyFlag()
+    }
   }
 }

@@ -206,7 +206,7 @@ export class ContextBuilder {
     const extraAllocs: Array<{ offset: number, size: number, data?: Uint32Array }> = []
     const dataView = new DataView(blockView.buffer)
 
-    for (const layout of fieldLayouts) {
+  for (const layout of fieldLayouts) {
       const offsetBytes = layout.offsetInWords * 4
 
       switch (layout.meta.type) {
@@ -246,6 +246,46 @@ export class ContextBuilder {
           // Записываем указатель на строку в блок.
           dataView.setUint32(offsetBytes, stringBlock.offset, true)
           dataView.setUint32(offsetBytes + 4, encoded.length, true)
+          break
+        }
+        case FieldType.ARRAY_PTR: {
+          if (!Array.isArray(layout.value)) {
+            throw new Error(`Ожидался массив для поля '${layout.name}'`)
+          }
+
+          const elementType = layout.meta.elementType
+          const values = layout.value as unknown[]
+          const arrayWords = values.length + 1
+          const arrayBlock = this.allocator.alloc(arrayWords)
+          if (!arrayBlock) {
+            throw new Error(`Недостаточно памяти для массива длиной ${values.length}`)
+          }
+
+          const arrayView = new Uint32Array(arrayBlock.size)
+          arrayView[0] = values.length
+
+          for (let i = 0; i < values.length; i++) {
+            const item = values[i]
+            if (elementType === "float" || elementType === "number") {
+              const buf = new Float32Array([Number(item)])
+              arrayView[i + 1] = new Uint32Array(buf.buffer)[0]!
+            } else if (elementType === "integer" || elementType === "boolean") {
+              arrayView[i + 1] = Number(item)
+            } else if (elementType === "string") {
+              throw new Error(`Массивы строк пока не поддерживаются для поля '${layout.name}'`)
+            } else {
+              arrayView[i + 1] = Number(item)
+            }
+          }
+
+          extraAllocs.push({
+            offset: arrayBlock.offset,
+            size: arrayBlock.size,
+            data: arrayView,
+          })
+
+          dataView.setUint32(offsetBytes, arrayBlock.offset, true)
+          dataView.setUint32(offsetBytes + 4, values.length, true)
           break
         }
         default:
