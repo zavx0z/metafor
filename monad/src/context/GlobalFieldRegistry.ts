@@ -83,6 +83,9 @@ export class GlobalFieldRegistry {
    * @internal
    */
   static reset(): void {
+    if (GlobalFieldRegistry.instance && GlobalFieldRegistry.instance.nextId > 0) {
+      throw new Error('Cannot reset registry after fields have been registered')
+    }
     GlobalFieldRegistry.instance = null
   }
 

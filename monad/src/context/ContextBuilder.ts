@@ -31,8 +31,10 @@ export interface BuildResult {
   blockPtr: number
   /** Размер блока в словах */
   blockSize: number
+  /** Данные блока для записи в кучу */
+  blockView: Uint32Array
   /** Дополнительные аллокации (строки, массивы) */
-  extraAllocs: AllocResult[]
+  extraAllocs: Array<{ offset: number, size: number, data?: Uint32Array }>
 }
 
 /**
@@ -201,7 +203,7 @@ export class ContextBuilder {
     }
 
     // Заполняем значения полей и аллоцируем данные переменного размера.
-    const extraAllocs: AllocResult[] = []
+    const extraAllocs: Array<{ offset: number, size: number, data?: Uint32Array }> = []
     const dataView = new DataView(blockView.buffer)
 
     for (const layout of fieldLayouts) {
@@ -235,7 +237,11 @@ export class ContextBuilder {
 
           // Копируем в кучу.
           const heapWords = new Uint32Array(stringView.buffer)
-          extraAllocs.push({ offset: stringBlock.offset, size: stringBlock.size })
+          extraAllocs.push({ 
+            offset: stringBlock.offset, 
+            size: stringBlock.size,
+            data: heapWords
+          })
 
           // Записываем указатель на строку в блок.
           dataView.setUint32(offsetBytes, stringBlock.offset, true)
@@ -250,6 +256,7 @@ export class ContextBuilder {
     return {
       blockPtr: blockAlloc.offset,
       blockSize: totalSize,
+      blockView,
       extraAllocs,
     }
   }

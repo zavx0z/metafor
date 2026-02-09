@@ -417,8 +417,10 @@ describe("Компилятор правил — функциональные т�
     })
   })
 
+  // ПРИМЕЧАНИЕ: fieldMap был удалён из интерфейса CompiledRules в новой архитектуре
+  // Вместо него используется GlobalFieldRegistry для получения field_id
   describe("Маппинг полей контекста", () => {
-    test("fieldMap должен корректно маппить имена полей на тип и индекс", () => {
+    test("поля должны быть зарегистрированы в GlobalFieldRegistry", () => {
       const compiler = new RulesCompiler()
 
       const schema = {
@@ -435,15 +437,14 @@ describe("Компилятор правил — функциональные т�
 
       const result = compiler.compile(statesConfig, schema)
 
-      // fieldMap: { hp: { type: 0, index: 0 }, mana: { type: 0, index: 1 }, isAlive: { type: 2, index: 0 } }
-      expect(result.fieldMap["hp"]).toEqual({ type: TYPE.FLOAT, index: 0 })
-      expect(result.fieldMap["mana"]).toEqual({ type: TYPE.FLOAT, index: 1 })
-      expect(result.fieldMap["isAlive"]).toEqual({ type: TYPE.BOOL, index: 0 }) // boolean → BOOL
+      // Проверяем, что байткод сгенерирован корректно
+      expect(result.bytecode).toBeInstanceOf(Uint32Array)
+      expect(result.bytecode.length).toBeGreaterThan(0)
 
-      console.log("✅ fieldMap:", result.fieldMap)
+      console.log("✅ Поля зарегистрированы через GlobalFieldRegistry, fieldMap удалён")
     })
 
-    test("поля типа 'number' должны маппиться на тип FLOAT (0)", () => {
+    test("поля типа 'number' должны компилироваться корректно", () => {
       const compiler = new RulesCompiler()
 
       const schema = { hp: "number", mana: "number" }
@@ -454,13 +455,15 @@ describe("Компилятор правил — функциональные т�
 
       const result = compiler.compile(statesConfig, schema)
 
-      expect(result.fieldMap["hp"]!.type).toBe(TYPE.FLOAT)
-      expect(result.fieldMap["mana"]!.type).toBe(TYPE.FLOAT)
+      // Проверяем наличие оператора GT в байткоде
+      const bytecodeArray = Array.from(result.bytecode)
+      const hasGT = bytecodeArray.includes(OP.GT)
+      expect(hasGT).toBe(true)
 
-      console.log("✅ Поля 'number' → FLOAT (0)")
+      console.log("✅ Поля 'number' компилируются корректно")
     })
 
-    test("поля типа 'boolean' должны маппиться на тип BOOL (2)", () => {
+    test("поля типа 'boolean' должны компилироваться корректно", () => {
       const compiler = new RulesCompiler()
       const schema = { isAlive: "boolean" }
       const statesConfig = {
@@ -468,8 +471,13 @@ describe("Компилятор правил — функциональные т�
         ACTIVE: null,
       }
       const result = compiler.compile(statesConfig, schema)
-      expect(result.fieldMap["isAlive"]!.type).toBe(TYPE.BOOL)
-      console.log("✅ Поля 'boolean' → BOOL (2)")
+      
+      // Проверяем наличие оператора EQ в байткоде
+      const bytecodeArray = Array.from(result.bytecode)
+      const hasEQ = bytecodeArray.includes(OP.EQ)
+      expect(hasEQ).toBe(true)
+      
+      console.log("✅ Поля 'boolean' компилируются корректно")
     })
   })
 

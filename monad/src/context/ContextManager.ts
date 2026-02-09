@@ -91,7 +91,10 @@ export class ContextManager {
   /** Флаг "грязной" кучи (нужно обновить GPU буфер) */
   private heapDirty: boolean = false
 
-  constructor(public readonly device: GPUDevice, config: ContextManagerConfig = {}) {
+  constructor(
+    public readonly device: GPUDevice,
+    config: ContextManagerConfig = {},
+  ) {
     const heapSize = config.heapSize ?? 16384 // 64KB по умолчанию
     const reserveFirst = config.reserveFirst ?? 1 // Резервируем слово 0 как null-указатель
 
@@ -125,14 +128,21 @@ export class ContextManager {
     const result = this.builder.build(context, { sharedPtrs: [] })
     const sharedId = this.nextSharedId++
 
-    // Записываем блок в кучу.
-    this.heapData.set(new Uint32Array(result.blockSize), result.blockPtr)
+    // Записываем основной блок в кучу.
+    this.heapData.set(result.blockView, result.blockPtr)
+    
+    // Записываем дополнительные аллокации (строки, массивы)
+    for (const alloc of result.extraAllocs) {
+      if (alloc.data) {
+        this.heapData.set(alloc.data, alloc.offset)
+      }
+    }
 
     const sharedInfo: SharedContextInfo = {
       id: sharedId,
       blockPtr: result.blockPtr,
       blockSize: result.blockSize,
-      extraAllocs: result.extraAllocs,
+      extraAllocs: result.extraAllocs.map(({ offset, size }) => ({ offset, size })),
     }
 
     this.sharedContexts.set(sharedId, sharedInfo)
@@ -159,15 +169,22 @@ export class ContextManager {
 
     const result = this.builder.build(context, { sharedPtrs })
 
-    // Записываем блок в кучу.
-    this.heapData.set(new Uint32Array(result.blockSize), result.blockPtr)
+    // Записываем основной блок в кучу.
+    this.heapData.set(result.blockView, result.blockPtr)
+    
+    // Записываем дополнительные аллокации (строки, массивы)
+    for (const alloc of result.extraAllocs) {
+      if (alloc.data) {
+        this.heapData.set(alloc.data, alloc.offset)
+      }
+    }
 
     const agentId = this.nextAgentId++
     const agentInfo: AgentInfo = {
       id: agentId,
       blockPtr: result.blockPtr,
       blockSize: result.blockSize,
-      extraAllocs: result.extraAllocs,
+      extraAllocs: result.extraAllocs.map(({ offset, size }) => ({ offset, size })),
       sharedPtrs,
     }
 
@@ -198,29 +215,21 @@ export class ContextManager {
     fieldUsage.forEach((agentIds, field) => {
       if (agentIds.size >= 2) {
         // Ключ группировки = отсортированный список владельцев.
-        const key = Array.from(agentIds)
-          .sort()
-          .join(",")
+        const key = Array.from(agentIds).sort().join(",")
 
         if (!sharedBlocks.has(key)) {
           // Находим ВСЕ поля с этим же набором владельцев.
           const fieldsForGroup = [...fieldUsage.entries()]
             .filter(([, ids]) => {
               const idsArr = Array.from(ids).sort()
-              return (
-                idsArr.length === agentIds.size &&
-                idsArr.every((id, i) => id === Array.from(agentIds).sort()[i])
-              )
+              return idsArr.length === agentIds.size && idsArr.every((id, i) => id === Array.from(agentIds).sort()[i])
             })
             .map(([f]) => f)
 
-      // Создаём разделяемый блок со всеми полями группы.
-      const firstAgentIdx = Array.from(agentIds)[0]!
-      const agentData = agents[firstAgentIdx]!
-      const context = Object.fromEntries(
-        fieldsForGroup.map((f) => [f, agentData[f]])
-      )
-
+          // Создаём разделяемый блок со всеми полями группы.
+          const firstAgentIdx = Array.from(agentIds)[0] as number
+          const agentData = agents[firstAgentIdx] as Record<string, unknown>
+          const context = Object.fromEntries(fieldsForGroup.map((f) => [f, agentData[f]]))
           const result = this.builder.build(context, { sharedPtrs: [] })
           this.heapData.set(new Uint32Array(result.blockSize), result.blockPtr)
 
@@ -240,9 +249,7 @@ export class ContextManager {
       Object.keys(agent).forEach((field) => {
         const agentIds = fieldUsage.get(field)!
         if (agentIds.size >= 2) {
-          const key = Array.from(agentIds)
-            .sort()
-            .join(",")
+          const key = Array.from(agentIds).sort().join(",")
           sharedPtrs.push(sharedBlocks.get(key)!)
           delete localContext[field]
         }

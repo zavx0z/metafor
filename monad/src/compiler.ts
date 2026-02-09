@@ -1,4 +1,5 @@
 import { OP, TYPE, type CompiledRules } from "./common"
+import { GlobalFieldRegistry, FieldType } from "./context"
 
 // Упрощенные типы для представления конфигурации правил.
 // В реальном проекте они могут быть более сложными и импортироваться из общего пакета.
@@ -21,14 +22,11 @@ export class RulesCompiler {
   private bytecode: number[] = []
   private states: string[] = []
   private fields: Record<string, { 
+    fieldId: number; 
     type: number; 
-    index: number; 
     subType?: number | undefined; 
     enumValues?: any[] | undefined;
-  }> = {}
-  private fieldCounters = { float: 0, uint: 0 }
-
-  /**
+  }> = {}/**
    * Транслирует конфигурацию состояний в байт-код.
    *
    * @param superposition - Граф переходов: `{ State: { Target: { Condition } } }`.
@@ -36,12 +34,19 @@ export class RulesCompiler {
    *
    * @returns Структура с байт-кодом и картами маппинга.
    */
-  compile(superposition: Superposition, contextSchema: Record<string, any>): CompiledRules {
+    compile(superposition: Superposition, contextSchema?: Record<string, any>): CompiledRules {
     this.bytecode = []
     this.states = Object.keys(superposition)
-    this.buildFieldMap(contextSchema)
-
-    // 1. Резервируем место для таблицы состояний
+    
+    // Вместо SoA fieldMap используем GlobalFieldRegistry для получения field_id
+    // Поля должны быть уже зарегистрированы через contextSchema в MonadSystem.init()
+    // Если схема передана, регистрируем поля, но не строим SoA маппинг
+    if (contextSchema) {
+      this.registerFieldsFromSchema(contextSchema)
+    } else {
+      // Поля должны быть уже зарегистрированы
+      this.validateFieldsFromSuperposition(superposition)
+    }// 1. Резервируем место для таблицы состояний
     const stateTableOffset = this.bytecode.length
     // Заглушка для смещения каждого состояния
     for (let i = 0; i < this.states.length; i++) this.bytecode.push(0)
@@ -102,138 +107,146 @@ export class RulesCompiler {
     return {
       bytecode: new Uint32Array(this.bytecode),
       stateTableOffset,
-      fieldMap: this.fields as Record<string, { type: number; index: number; subType?: number; enumValues?: any[]; }>,
       stateMap: Object.fromEntries(this.states.map((s, i) => [s, i])),
-      fieldCount: Object.keys(this.fields).length,
     }
   }
 
-  private buildFieldMap(schema: Record<string, any>) {
-    for (const key in schema) {
-      const def = schema[key]
-      
-      let typeCode: number = TYPE.UINT
+    private registerFieldsFromSchema(schema: Record<string, any>) {
+    // Используем глобальный реестр для регистрации полей
+    const registry = GlobalFieldRegistry.getInstance()
+    
+    for (const [name, def] of Object.entries(schema)) {
+      const defTyped = def as { type?: string; values?: any[] } | string
+      const typeStr = typeof defTyped === "string" ? defTyped : defTyped.type
+      let fieldType: import("./context").FieldTypeValue
       let subType: number | undefined = undefined
       let enumValues: any[] | undefined = undefined
-
-      // Нормализация определения типа
-      // Поддержка строк только для обратной совместимости или краткости ('float')
-      const typeStr = typeof def === "string" ? def : def.type
-      const metaValues = (typeof def === "object" && def !== null) ? (def.values || def.enum) : undefined
-
-      // 1. Парсинг дженериков: array<float>
-      const arrayMatch = /^array<(.+)>$/.exec(typeStr)
-      const enumMatch = /^enum<(.+)>$/.exec(typeStr) // enum<float>, enum<string> и т.д.
-
-      if (arrayMatch) {
-        typeCode = TYPE.ARRAY
-        const innerType = arrayMatch[1]
-        if (innerType === "float") subType = TYPE.FLOAT
-        else if (innerType === "integer") subType = TYPE.UINT
-        else if (innerType === "string") subType = TYPE.STRING
-        else throw new Error(`Unsupported array subtype: ${innerType}`)
-      } 
-      else if (typeStr === "enum" || enumMatch || metaValues) {
-        typeCode = TYPE.UINT
-        enumValues = metaValues
-        if (!Array.isArray(enumValues)) throw new Error(`Enum field '${key}' requires 'values' array`)
+      
+      // Маппинг человекопонятных типов -> FieldType
+      switch (typeStr) {
+        case "float":
+        case "number":
+          fieldType = FieldType.F32
+          break
+        case "integer":
+          fieldType = FieldType.U32
+          break
+        case "boolean":
+          fieldType = FieldType.BOOL
+          break
+        case "string":
+          fieldType = FieldType.STRING_PTR
+          break
+        default:
+          if (typeof typeStr === "string" && /^array<.+>$/.test(typeStr)) {
+            fieldType = FieldType.ARRAY_PTR
+            const innerType = typeStr.match(/^array<(.+)>$/)?.[1]
+            if (innerType === "float") subType = TYPE.FLOAT
+            else if (innerType === "integer") subType = TYPE.UINT
+            else if (innerType === "string") subType = TYPE.STRING
+            else throw new Error(`Unsupported array subtype: ${innerType}`)
+          } else if ((typeof typeStr === "string" && /^enum<.+>$/.test(typeStr)) ||
+                     (typeof defTyped !== "string" && defTyped.values)) {
+            fieldType = FieldType.U32 // U32 для enum
+            enumValues = typeof defTyped !== "string" && defTyped.values ? defTyped.values : []
+          } else {
+            fieldType = FieldType.U32 // U32 по умолчанию
+          }
       }
-      else if (typeStr === "float" || typeStr === "number") {
-        typeCode = TYPE.FLOAT
+      
+      // Регистрируем поле, если еще не зарегистрировано
+      if (!registry.has(name)) {
+        registry.register(name, fieldType)
       }
-      else if (typeStr === "integer") {
-        typeCode = TYPE.UINT
+      
+      // Получаем fieldId и сохраняем информацию о поле
+      const fieldId = registry.getId(name)
+      // Преобразуем FieldType в TYPE для совместимости со старой системой
+      let typeCode: number
+      switch (fieldType) {
+        case FieldType.F32:
+          typeCode = TYPE.FLOAT
+          break
+        case FieldType.U32:
+          typeCode = TYPE.UINT
+          break
+        case FieldType.BOOL:
+          typeCode = TYPE.BOOL
+          break
+        case FieldType.STRING_PTR:
+          typeCode = TYPE.STRING
+          break
+        case FieldType.ARRAY_PTR:
+          typeCode = TYPE.ARRAY
+          break
+        default:
+          typeCode = TYPE.UINT
       }
-      else if (typeStr === "boolean") {
-        typeCode = TYPE.BOOL
-      }
-      else if (typeStr === "string") {
-        typeCode = TYPE.STRING
-      }
-      else {
-         // Fallback default
-         typeCode = TYPE.UINT
-      }
-
-      if (typeCode === TYPE.FLOAT) {
-        this.fields[key] = { type: typeCode, index: this.fieldCounters.float++, subType, enumValues }
-      } else {
-        this.fields[key] = { type: typeCode, index: this.fieldCounters.uint++, subType, enumValues }
+      
+      this.fields[name] = { fieldId, type: typeCode, subType, enumValues }
+    }
+  }
+  
+  private validateFieldsFromSuperposition(superposition: Superposition) {
+    // Проверяем, что все поля из правил зарегистрированы в глобальном реестре
+    const registry = GlobalFieldRegistry.getInstance()
+    
+    for (const state in superposition) {
+      const transitions = superposition[state]
+      if (!transitions) continue
+      
+      for (const target in transitions) {
+        const conditions = transitions[target]
+        if (!conditions) continue
+        
+        for (const field in conditions) {
+          if (!registry.has(field)) {
+            throw new Error(`Field '${field}' is not registered in GlobalFieldRegistry`)
+          }
+        }
       }
     }
   }
+
 
   private compileConditions(wave: Wave) {
     const entries = Object.entries(wave)
     this.bytecode.push(entries.length)
-    
-    // Мы должны записать все инструкции, а затем, возможно, данные (кучу), 
-    // на которые ссылаются инструкции (например, списки для IN).
-    // Для этого сначала генерируем все инструкции и данные в буфер.
-    
-    const blockInstructions: number[] = []
+    // Генерируем инструкции: [field_id, op, value] (3 слова на условие)
+    // Для массивов (IN/NOT_IN) value = указатель на кучу со списком значений.
     const blockHeap: number[] = []
-    
-    // Текущий смещение начала инструкций (относительно всего байткода)
-    // this.bytecode.length (header) + 0
-    let baseOffset = this.bytecode.length
-    
+    const baseOffset = this.bytecode.length
+    // Считаем полный размер инструкций (3 слова на каждую проверку)
+    let totalInstructionsSize = 0
+    for (const [key, cond] of entries) {
+      const checks = this.parseCondition(cond)
+      totalInstructionsSize += checks.length * 3
+    }
+    const startOfHeap = baseOffset + totalInstructionsSize
+    // Генерируем инструкции с правильными указателями на кучу.
     for (const [key, cond] of entries) {
       const field = this.fields[key]
       if (!field) throw new Error(`Unknown field in conditions: ${key}`)
       const checks = this.parseCondition(cond)
-      
       for (const check of checks) {
-        blockInstructions.push(field.type)
-        blockInstructions.push(field.index)
-        blockInstructions.push(check.op)
-        
-        // Если значение требует кучи (массив), мы должны вычислить указатель
-        if (Array.isArray(check.val) && (check.op === OP.IN || check.op === OP.NOT_IN)) {
-          // Указатель = baseOffset + размер_всех_инструкций_блока + текущий_размер_кучи
-          // Но мы не знаем полный размер всех инструкций заранее, если делаем это в один проход?
-          // Мы знаем! Мы просто накапливаем instructions.
-          // Но нам нужно знать FINAL length of instructions чтобы дать правильный pointer.
-          // Поэтому сначала соберем все check-и, потом закодируем.
-        }
-      }
-    }
-
-    // Второй проход: кодирование с правильными смещениями
-    // Считаем полное количество инструкций (слов)
-    let totalInstructionsSize = 0
-    for (const [key, cond] of entries) {
-      const checks = this.parseCondition(cond)
-      totalInstructionsSize += checks.length * 4
-    }
-
-    const startOfHeap = baseOffset + totalInstructionsSize
-
-    for (const [key, cond] of entries) {
-      const field = this.fields[key]
-      const checks = this.parseCondition(cond)
-      for (const check of checks) {
-        this.bytecode.push(field!.type)
-        this.bytecode.push(field!.index)
+        // 1. field_id (вместо [тип, индекс])
+        this.bytecode.push(field.fieldId)
+        // 2. оператор.
         this.bytecode.push(check.op)
-        
+        // 3. значение (или указатель на кучу для массивов).
         if (Array.isArray(check.val) && (check.op === OP.IN || check.op === OP.NOT_IN)) {
-           // Это список значений. Записываем его в heap.
-           const ptr = startOfHeap + blockHeap.length
-           // Формат списка в хипе: [count, val1, val2...]
-           blockHeap.push(check.val.length)
-           for (const v of check.val) {
-             // Передаем поле для контекста (Enum values, Array subtype)
-             blockHeap.push(this.encodeValue(field!.type, v, field as { subType?: number | undefined; enumValues?: any[] | undefined; } | undefined))
-           }
-           this.bytecode.push(ptr)
+          const ptr = startOfHeap + blockHeap.length
+          blockHeap.push(check.val.length)
+          for (const v of check.val) {
+            blockHeap.push(this.encodeValue(field.type, v, field as { subType?: number | undefined; enumValues?: any[] | undefined; } | undefined))
+          }
+          this.bytecode.push(ptr)
         } else {
-           this.bytecode.push(this.encodeValue(field!.type, check.val, field as { subType?: number | undefined; enumValues?: any[] | undefined; } | undefined))
+          this.bytecode.push(this.encodeValue(field.type, check.val, field as { subType?: number | undefined; enumValues?: any[] | undefined; } | undefined))
         }
       }
     }
-    
-    // Записываем накопленные данные кучи после инструкций
+    // Записываем кучу после инструкций.
     for (const w of blockHeap) {
       this.bytecode.push(w)
     }

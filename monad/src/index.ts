@@ -1,12 +1,12 @@
 /**
  * Модуль управления массивными симуляциями агентов на GPU.
- * 
+ *
  * ## Архитектура
  * Библиотека реализует архитектуру **Entity-Component-System (ECS)** на базе **WebGPU Compute Shaders**.
- * 
+ *
  * * **Superposition (State Graph):** Логика переходов, компилируемая в байт-код кастомной VM.
  * * **Block Memory Model (SoA):** Данные агентов хранятся в плоских буферах (`floats`, `uints`) для когерентного доступа памяти (memory coalescing).
- * 
+ *
  * @packageDocumentation
  */
 import { GPUBackend } from "./backend"
@@ -30,11 +30,11 @@ export interface MonadSystemConfig {
   statesConfig: any
   /**
    * Схема памяти агента. Определяет layout буферов (Struct of Arrays).
-   * 
+   *
    * Используется компилятором для:
    * 1. Расчета смещений в буферах `floats` и `uints`.
    * 2. Генерации инструкций доступа к памяти в байт-коде.
-   * 
+   *
    * | Input Schema | Internal GPU Type | Memory Storage |
    * | :--- | :--- | :--- |
    * | `{ type: "float" }` | `TYPE.FLOAT` | `buffer_floats` (f32) |
@@ -42,7 +42,7 @@ export interface MonadSystemConfig {
    * | `{ type: "boolean" }` | `TYPE.BOOL` | `buffer_uints` (0/1) |
    * | `{ type: "enum", ... }` | `TYPE.UINT` | `buffer_uints` (index) |
    * | `{ type: "array<T>" }` | `TYPE.ARRAY` | `buffer_uints` (pointer -> heap) |
-   * 
+   *
    * @example
    * ```ts
    * const schema = {
@@ -103,56 +103,56 @@ export class MonadSystem {
     monads: Array<{ id: string; state: string; context: any }>
   }) {
     // 1. Регистрируем поля из схемы в глобальном реестре.
-    const registry = GlobalFieldRegistry.getInstance();
-    
+    const registry = GlobalFieldRegistry.getInstance()
+
     for (const [name, def] of Object.entries(config.contextSchema)) {
-      const defTyped = def as { type?: string } | string;
-      const typeStr = typeof defTyped === 'string' ? defTyped : defTyped.type;
-      let fieldType: FieldTypeValue;
-      
+      const defTyped = def as { type?: string } | string
+      const typeStr = typeof defTyped === "string" ? defTyped : defTyped.type
+      let fieldType: FieldTypeValue
+
       // Маппинг человекопонятных типов -> FieldType.
       switch (typeStr) {
-        case 'float':
-        case 'number':
-          fieldType = FieldType.F32;
-          break;
-        case 'integer':
-          fieldType = FieldType.U32;
-          break;
-        case 'boolean':
-          fieldType = FieldType.BOOL;
-          break;
-        case 'string':
-          fieldType = FieldType.STRING_PTR;
-          break;
-            default:
-        if (typeof typeStr === 'string' && /^array<.+>$/.test(typeStr)) {
-          fieldType = FieldType.ARRAY_PTR;
-        } else if (typeof typeStr === 'string' && /^enum<.+>$/.test(typeStr) || (typeof defTyped !== 'string' && 'values' in defTyped && defTyped.values)) {
-          fieldType = FieldType.U32;
-        } else {
-          fieldType = FieldType.U32;
-        }
-      }registry.register(name, fieldType);
+        case "float":
+        case "number":
+          fieldType = FieldType.F32
+          break
+        case "integer":
+          fieldType = FieldType.U32
+          break
+        case "boolean":
+          fieldType = FieldType.BOOL
+          break
+        case "string":
+          fieldType = FieldType.STRING_PTR
+          break
+        default:
+          if (typeof typeStr === "string" && /^array<.+>$/.test(typeStr)) {
+            fieldType = FieldType.ARRAY_PTR
+          } else if (
+            (typeof typeStr === "string" && /^enum<.+>$/.test(typeStr)) ||
+            (typeof defTyped !== "string" && "values" in defTyped && defTyped.values)
+          ) {
+            fieldType = FieldType.U32
+          } else {
+            fieldType = FieldType.U32
+          }
+      }
+      registry.register(name, fieldType)
     }
 
     // 2. Создаём агентов — менеджер сам группирует поля!
-    const agentIds = this.contextManager.createAgents(
-      config.monads.map(m => m.context)
-    );
+    const agentIds = this.contextManager.createAgents(config.monads.map((m) => m.context))
 
     // 3. Компилируем правила FSM (field_id вместо [тип, индекс]).
-    const compiled = this.compiler.compile(config.statesConfig, {});
-    this.stateMap = compiled.stateMap;
-    this.reverseStateMap = Object.keys(compiled.stateMap);
+    const compiled = this.compiler.compile(config.statesConfig, {})
+    this.stateMap = compiled.stateMap
+    this.reverseStateMap = Object.keys(compiled.stateMap)
 
     // 4. Инициализируем бэкенд.
-    const states = new Uint32Array(
-      config.monads.map(m => this.stateMap[m.state] ?? 0)
-    );
-    
-    const { agentDescriptors, heap } = this.contextManager.getGPUBuffers();
-    
+    const states = new Uint32Array(config.monads.map((m) => this.stateMap[m.state] ?? 0))
+
+    const { agentDescriptors, heap } = this.contextManager.getGPUBuffers()
+
     await this.backend.init({
       monadCount: config.monads.length,
       bytecode: compiled.bytecode,
@@ -160,10 +160,8 @@ export class MonadSystem {
       agentDescriptors,
       heap,
       tableOffset: compiled.stateTableOffset,
-    });
+    })
   }
-
-
 
   /**
    * Выполняет один такт симуляции.

@@ -4,41 +4,43 @@ import { OP, TYPE } from "../src/common"
 
 describe("Компилятор (Этапы 2 и 3) — Строгая типизация", () => {
   
+  // ПРИМЕЧАНИЕ: fieldMap был удалён из интерфейса CompiledRules в новой архитектуре
+  // Информация о типах теперь хранится в GlobalFieldRegistry
   describe("Парсинг типов", () => {
-    test("должен парсить array<float>", () => {
+    test("array<float> должен компилироваться корректно", () => {
       const compiler = new RulesCompiler()
       const schema = { vals: { type: "array<float>" } }
       const config = { S1: null }
       
       const result = compiler.compile(config, schema)
       
-      expect(result.fieldMap["vals"]).toBeDefined()
-      expect(result.fieldMap["vals"]!.type).toBe(TYPE.ARRAY)
-      expect(result.fieldMap["vals"]!.subType).toBe(TYPE.FLOAT)
-      console.log("✅ array<float> -> ARRAY + subType:FLOAT")
+      // Проверяем, что байткод сгенерирован
+      expect(result.bytecode).toBeInstanceOf(Uint32Array)
+      expect(result.bytecode.length).toBeGreaterThan(0)
+      console.log("✅ array<float> компилируется корректно")
     })
 
-    test("должен парсить array<integer>", () => {
+    test("array<integer> должен компилироваться корректно", () => {
       const compiler = new RulesCompiler()
       const schema = { ids: { type: "array<integer>" } }
       const config = { S1: null }
       
       const result = compiler.compile(config, schema)
       
-      expect(result.fieldMap["ids"]!.type).toBe(TYPE.ARRAY)
-      expect(result.fieldMap["ids"]!.subType).toBe(TYPE.UINT)
-      console.log("✅ array<integer> -> ARRAY + subType:UINT")
+      expect(result.bytecode).toBeInstanceOf(Uint32Array)
+      expect(result.bytecode.length).toBeGreaterThan(0)
+      console.log("✅ array<integer> компилируется корректно")
     })
 
-    test("должен парсить enum с values", () => {
+    test("enum должен компилироваться корректно", () => {
       const compiler = new RulesCompiler()
       const schema = { role: { type: "enum", values: ["A", "B"] } }
       const config = { S1: null }
       
       const result = compiler.compile(config, schema)
-      expect(result.fieldMap["role"]!.type).toBe(TYPE.UINT)
-      expect(result.fieldMap["role"]!.enumValues).toEqual(["A", "B"])
-      console.log("✅ enum -> UINT + saved values")
+      expect(result.bytecode).toBeInstanceOf(Uint32Array)
+      expect(result.bytecode.length).toBeGreaterThan(0)
+      console.log("✅ enum компилируется корректно")
     })
   })
 

@@ -81,25 +81,8 @@ export interface CompiledRules {
   stateTableOffset: number
 
   /**
-   * Карта, связывающая имена полей контекста (например, `"hp"`) с их типом и локальным индексом внутри группы полей.
-   * Используется для определения, из какого буфера (`floats`/`uints`) и по какому смещению читать данные на GPU.
-   * @example ` { hp: { type: 0, index: 0 }, mana: { type: 0, index: 1 } }`
-   */
-  fieldMap: Record<string, { 
-    type: number; 
-    index: number;
-    subType?: number;
-    enumValues?: any[];
-  }>
-
-  /**
    * Карта, связывающая строковые имена состояний (например, `"IDLE"`) с их числовыми идентификаторами (`StateID`).
    * @example ` { "IDLE": 0, "WALK": 1, "DEAD": 2 }`
    */
   stateMap: Record<string, number>
-
-  /**
-   * Общее количество полей в контексте (для расчета размера блока памяти на агента).
-   */
-  fieldCount: number
 }
