@@ -1,5 +1,6 @@
 import { watch } from "fs"
-import { dirname, basename, join } from "path"
+import { dirname, basename, join, isAbsolute } from "path"
+import { pathToFileURL } from "url"
 
 // Обработка аргументов командной строки
 const args = process.argv.slice(2)
@@ -9,7 +10,7 @@ const isWatchMode = args.includes("--watch")
 let inputFile = "meta.ts"
 const fileArgIndex = args.indexOf("--file")
 if (fileArgIndex !== -1 && args[fileArgIndex + 1]) {
-  inputFile = args[fileArgIndex + 1]
+  inputFile = args[fileArgIndex + 1]!
 } else {
   // Ищем позиционный аргумент (не начинающийся с --)
   const positionalArg = args.find(arg => !arg.startsWith("--"))
@@ -18,36 +19,12 @@ if (fileArgIndex !== -1 && args[fileArgIndex + 1]) {
   }
 }
 
-// Функция для очистки кэша модуля
-function clearModuleCache(modulePath: string) {
-  const absolutePath = require.resolve(modulePath)
-
-  // Удаляем из кэша require.cache (для CommonJS)
-  if (require.cache[absolutePath]) {
-    delete require.cache[absolutePath]
-  }
-
-  // Удаляем из кэша module._cache (для ES модулей в Bun)
-  // @ts-ignore - _cache может быть не в типах
-  if (typeof Bun !== "undefined" && Bun._cache) {
-    // @ts-ignore
-    delete Bun._cache[absolutePath]
-  }
-
-  // Также удаляем из import.meta.cache если доступно
-  // @ts-ignore
-  if (import.meta.cache && import.meta.cache.has(absolutePath)) {
-    // @ts-ignore
-    import.meta.cache.delete(absolutePath)
-  }
-}
-
 async function build() {
   try {
     const cwd = process.cwd()
 
     // Проверяем существование входного файла
-    const inputFilePath = join(cwd, inputFile)
+    const inputFilePath = isAbsolute(inputFile) ? inputFile : join(cwd, inputFile)
     const inputFileHandle = Bun.file(inputFilePath)
 
     if (!(await inputFileHandle.exists())) {
@@ -57,16 +34,14 @@ async function build() {
 
     // Формируем путь к выходному файлу (рядом с исходным, с тем же именем, но .json)
     const inputDir = dirname(inputFilePath)
-    const inputBaseName = basename(inputFile, ".ts")
+    const inputBaseName = basename(inputFilePath, ".ts")
     const outputPath = join(inputDir, `${inputBaseName}.json`)
 
-    // Очищаем кэш перед импортом, чтобы загрузить свежую версию
-    clearModuleCache(`./${inputFile}`)
-
     // Импорт модуля с добавлением временной метки, чтобы избежать кэширования
-    // Добавляем query-параметр чтобы обойти кэш импорта
+    // Используем file:// URL для корректного импорта
     const timestamp = Date.now()
-    const module = await import(`./${inputFile}?t=${timestamp}`)
+    const fileUrl = pathToFileURL(inputFilePath).href
+    const module = await import(`${fileUrl}?t=${timestamp}`)
 
     const data = module.default
 
@@ -101,10 +76,13 @@ build()
 // Запуск watcher только если передан --watch
 if (isWatchMode) {
   try {
+    const cwd = process.cwd()
+    const watchPath = isAbsolute(inputFile) ? inputFile : join(cwd, inputFile)
+    
     console.log(`👀 Отслеживание изменений в ${inputFile}...`)
     console.log("Нажмите Ctrl+C для остановки")
 
-    const watcher = watch(inputFile, async (event, filename) => {
+    const watcher = watch(watchPath, async (event, filename) => {
       if (filename && event === "change") {
         console.log(`\n🔄 ${filename} изменен, пересборка...`)
 

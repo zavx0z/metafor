@@ -8,7 +8,8 @@
     "./monad",
     "./meta",
     "./atom",
-    "./infra/*"
+    "./infra/*",
+    "./build"
   ],
   "devDependencies": {
     "@types/bun": "^1.3.3",
