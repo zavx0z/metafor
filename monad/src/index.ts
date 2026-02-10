@@ -150,7 +150,7 @@ export class MonadSystem {
     this.agentIds = this.contextManager.createAgents(config.monads.map((m) => m.context))
 
     // 3. Компилируем правила FSM ([type, field_id, op, value]).
-    const compiled = this.compiler.compile(config.statesConfig, config.contextSchema)
+    const compiled = this.compiler.compile(config.statesConfig, config.contextSchema, { preserveRegistry: true })
     this.stateMap = compiled.stateMap
     this.reverseStateMap = Object.keys(compiled.stateMap)
 

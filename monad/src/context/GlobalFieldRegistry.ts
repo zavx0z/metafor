@@ -94,6 +94,19 @@ export class GlobalFieldRegistry {
   }
 
   /**
+   * Полностью очистить реестр полей, включая уже зарегистрированные.
+   * @internal
+   */
+  static clear(): void {
+    if (!GlobalFieldRegistry.instance) {
+      return
+    }
+    GlobalFieldRegistry.instance.nameToMeta.clear()
+    GlobalFieldRegistry.instance.idToMeta.clear()
+    GlobalFieldRegistry.instance.nextId = 0
+  }
+
+  /**
    * Зарегистрировать новое поле.
    *
    * @param name - Строковое имя поля (например, 'hp', 'name')

@@ -36,7 +36,11 @@ export class RulesCompiler {
    *
    * @returns Структура с байт-кодом и картами маппинга.
    */
-  compile(superposition: Superposition, contextSchema?: Record<string, any>): CompiledRules {
+  compile(
+    superposition: Superposition,
+    contextSchema?: Record<string, any>,
+    options: { preserveRegistry?: boolean } = {},
+  ): CompiledRules {
     this.bytecode = []
     this.states = Object.keys(superposition)
     this.fields = {}
@@ -45,6 +49,9 @@ export class RulesCompiler {
     // Поля должны быть уже зарегистрированы через contextSchema в MonadSystem.init()
     // Если схема передана, регистрируем поля, но не строим SoA маппинг
     if (contextSchema) {
+      if (!options.preserveRegistry) {
+        GlobalFieldRegistry.clear()
+      }
       this.registerFieldsFromSchema(contextSchema)
     } else {
       // Поля должны быть уже зарегистрированы
