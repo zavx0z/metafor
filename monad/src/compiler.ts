@@ -9,14 +9,35 @@ type Transitions = Record<string, Wave | null | undefined>
 type Superposition = Record<string, Transitions | null | undefined>
 
 /**
- * Транслятор JSON-правил в байт-код GPU VM.
+ * Транслятор JSON-правил в байт-код для кастомной VM на GPU.
  * 
- * Решает задачу **сериализации графа переходов** в линейный массив `u32`.
+ * ### Архитектура байт-кода (v2.x):
  * 
- * **Особенности реализации:**
- * * **Memory Layout:** Автоматически распределяет поля по типам (`float` vs `uint`) для соответствия архитектуре буферов SoA.
- * * **Constant Folding:** Превращает значения `enum` и строковые литералы в числовые индексы на этапе компиляции.
- * * **Heap Generation:** Статические массивы из условий (`in: [...]`) записываются в конец байт-кода как "куча".
+ * **Структура памяти (линейный массив u32):**
+ * 1. Таблица состояний (State Table) — массив указателей на блоки состояний.
+ * 2. Блоки состояний (State Blocks) — количество переходов + пары [targetState, conditionPtr].
+ * 3. Блоки условий (Condition Blocks) — количество условий + инструкции [type, field_id, op, value].
+ * 4. Куча (Heap) — статические данные (списки для операторов IN/NOT_IN).
+ * 
+ * ### Формат инструкции условия (4 слова):
+ * ```
+ * [0] type:      TYPE.FLOAT, TYPE.UINT, TYPE.BOOL, TYPE.ARRAY
+ * [1] field_id:  числовой идентификатор поля из GlobalFieldRegistry
+ * [2] op:        OP.EQ, OP.GT, OP.IN, OP.INCLUDE, ...
+ * [3] value:     закодированное значение или указатель на кучу
+ * ```
+ * 
+ * ### Особенности реализации:
+ * * **Constant Folding:** Значения enum преобразуются в индексы на этапе компиляции.
+ * * **Bitcast для float:** Числа с плавающей точкой кодируются через bitcast в u32.
+ * * **Куча в байт-коде:** Списки значений для операторов IN/NOT_IN хранятся в конце байт-кода.
+ * * **Расширенные операторы:** Поддержка атомарных условий (between, notGt, notLte).
+ * 
+ * ### Важные ограничения:
+ * * **Все состояния-цели** должны быть объявлены в корне superposition (даже если null).
+ * * **Поля должны быть зарегистрированы** в GlobalFieldRegistry до компиляции.
+ * * **Нет проверки циклов** в графе состояний (бесконечные переходы возможны).
+ * * **Размер байт-кода не ограничен** (может превысить лимиты GPU-буфера).
  */
 export class RulesCompiler {
   private bytecode: number[] = []
@@ -29,12 +50,49 @@ export class RulesCompiler {
   }> = {}
 
   /**
-   * Транслирует конфигурацию состояний в байт-код.
+   * Транслирует конфигурацию состояний в байт-код для GPU.
+   * 
+   * ### Алгоритм компиляции:
+   * 1. Регистрация полей из схемы в GlobalFieldRegistry (получение field_id).
+   * 2. Построение таблицы состояний с резервированием места для указателей.
+   * 3. Для каждого состояния:
+   *    * Запись количества переходов.
+   *    * Для каждого перехода: запись targetState + указателя на блок условий (позже заполняется).
+   *    * Компиляция условий перехода в блок инструкций.
+   * 4. Заполнение указателей на блоки условий в переходах.
+   * 
+   * ### Структура результата:
+   * * `bytecode: Uint32Array` — плоский массив с программой VM.
+   * * `stateTableOffset: number` — смещение таблицы состояний в байт-коде (всегда 0).
+   * * `stateMap: Record<string, number>` — маппинг имён состояний на числовые ID.
    *
-   * @param superposition - Граф переходов: `{ State: { Target: { Condition } } }`.
-   * @param contextSchema - Схема типов полей (`hp: "number"`). Определяет memory layout.
-   *
-   * @returns Структура с байт-кодом и картами маппинга.
+   * @param superposition - Граф переходов. Формат:
+   * ```ts
+   * {
+   *   "IDLE": { "PATROL": { hp: { gt: 50 } } },
+   *   "PATROL": null // Обязательно объявить все состояния
+   * }
+   * ```
+   * @param contextSchema - Схема типов данных. Если не передана, предполагается,
+   * что поля уже зарегистрированы в GlobalFieldRegistry.
+   * @param options - Дополнительные опции компиляции.
+   * @param options.preserveRegistry - Если true, не очищает GlobalFieldRegistry перед регистрацией.
+   * 
+   * @returns {CompiledRules} Скомпилированные правила, готовые для загрузки в GPUBackend.
+   * 
+   * @throws {Error} Если:
+   * * Обнаружено состояние-цель, не объявленное в superposition.
+   * * Поле из условий не зарегистрировано в GlobalFieldRegistry.
+   * * Значение enum не найдено в списке допустимых значений.
+   * 
+   * @example
+   * ```ts
+   * const compiler = new RulesCompiler();
+   * const rules = compiler.compile(
+   *   { IDLE: { PATROL: { hp: { gt: 50 } } }, PATROL: null },
+   *   { hp: "number" }
+   * );
+   * ```
    */
   compile(
     superposition: Superposition,
@@ -173,26 +231,44 @@ export class RulesCompiler {
       
       // Получаем fieldId и сохраняем информацию о поле
       const fieldId = registry.getId(name)
-      // Преобразуем FieldType в TYPE для совместимости со старой системой
+      // Мост между системами типов: преобразование FieldType (контекст) → TYPE (байткод)
+      //
+      // Исторический контекст:
+      // * FieldType (0=F32, 1=U32, 2=BOOL, 3=STRING_PTR, 4=ARRAY_PTR, 5=SHARED_PTR) — используется в контексте и куче
+      // * TYPE (0=FLOAT, 1=UINT, 2=BOOL, 3=STRING, 4=ARRAY) — используется в байткоде VM
+      //
+      // Маппинг:
+      // - F32 → FLOAT (оба 0) — прямое соответствие
+      // - U32 → UINT (1 → 1) — прямое соответствие  
+      // - BOOL → BOOL (2 → 2) — прямое соответствие
+      // - STRING_PTR → STRING (3 → 3) — указатель в куче → тип строки в VM
+      // - ARRAY_PTR → ARRAY (4 → 4) — указатель в куче → тип массива в VM
+      // - SHARED_PTR → UINT (5 → 1) — SHARED_PTR обрабатывается отдельно в шейдере
       let typeCode: number
       switch (fieldType) {
         case FieldType.F32:
-          typeCode = TYPE.FLOAT
+          typeCode = TYPE.FLOAT  // 0 → 0
           break
         case FieldType.U32:
-          typeCode = TYPE.UINT
+          typeCode = TYPE.UINT   // 1 → 1
           break
         case FieldType.BOOL:
-          typeCode = TYPE.BOOL
+          typeCode = TYPE.BOOL   // 2 → 2
           break
         case FieldType.STRING_PTR:
-          typeCode = TYPE.STRING
+          typeCode = TYPE.STRING // 3 → 3 (указатель на строку в куче)
           break
         case FieldType.ARRAY_PTR:
-          typeCode = TYPE.ARRAY
+          typeCode = TYPE.ARRAY  // 4 → 4 (указатель на массив в куче)
+          break
+        case FieldType.SHARED_PTR:
+          // SHARED_PTR не имеет прямого соответствия в TYPE
+          // В байткоде SHARED_PTR поля не включаются в условия — они обрабатываются
+          // рекурсивно в шейдере через get_field_value_recursive
+          typeCode = TYPE.UINT   // Запасной вариант
           break
         default:
-          typeCode = TYPE.UINT
+          typeCode = TYPE.UINT   // Неизвестный тип → UINT
       }
       
       this.fields[name] = { fieldId, type: typeCode, subType, enumValues }
@@ -202,25 +278,31 @@ export class RulesCompiler {
   private loadFieldsFromRegistry() {
     const registry = GlobalFieldRegistry.getInstance()
     for (const meta of registry.getAll()) {
+      // Мост между системами типов: преобразование FieldType (контекст) → TYPE (байткод)
+      // Аналогично преобразованию в registerFieldsFromSchema, но для уже зарегистрированных полей
       let typeCode: number
       switch (meta.type) {
         case FieldType.F32:
-          typeCode = TYPE.FLOAT
+          typeCode = TYPE.FLOAT  // 0 → 0
           break
         case FieldType.U32:
-          typeCode = TYPE.UINT
+          typeCode = TYPE.UINT   // 1 → 1
           break
         case FieldType.BOOL:
-          typeCode = TYPE.BOOL
+          typeCode = TYPE.BOOL   // 2 → 2
           break
         case FieldType.STRING_PTR:
-          typeCode = TYPE.STRING
+          typeCode = TYPE.STRING // 3 → 3 (указатель на строку в куче)
           break
         case FieldType.ARRAY_PTR:
-          typeCode = TYPE.ARRAY
+          typeCode = TYPE.ARRAY  // 4 → 4 (указатель на массив в куче)
+          break
+        case FieldType.SHARED_PTR:
+          // SHARED_PTR не используется напрямую в условиях байткода
+          typeCode = TYPE.UINT   // Запасной вариант
           break
         default:
-          typeCode = TYPE.UINT
+          typeCode = TYPE.UINT   // Неизвестный тип → UINT
       }
 
       let subType: number | undefined
