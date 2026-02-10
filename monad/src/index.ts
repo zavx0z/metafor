@@ -189,7 +189,11 @@ export class MonadSystem {
           }
       }
       if (!registry.has(name)) {
-        registry.register(name, fieldType, { elementType, enumValues })
+        const registerOptions = {
+          ...(elementType !== undefined ? { elementType } : {}),
+          ...(enumValues !== undefined ? { enumValues } : {}),
+        }
+        registry.register(name, fieldType, registerOptions)
       }
     }
 

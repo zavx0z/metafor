@@ -1,5 +1,6 @@
 import { OP, TYPE, type CompiledRules } from "./common"
 import { GlobalFieldRegistry, FieldType } from "./context"
+import { fieldTypeToBytecodeType } from "./typeBridge"
 
 // Упрощенные типы для представления конфигурации правил.
 // В реальном проекте они могут быть более сложными и импортироваться из общего пакета.
@@ -226,51 +227,18 @@ export class RulesCompiler {
       
       // Регистрируем поле, если еще не зарегистрировано
       if (!registry.has(name)) {
-        registry.register(name, fieldType, { elementType: typeof typeStr === "string" ? typeStr.match(/^array<(.+)>$/)?.[1] : undefined, enumValues })
+        const elementType = typeof typeStr === "string" ? typeStr.match(/^array<(.+)>$/)?.[1] : undefined
+        const registerOptions = {
+          ...(elementType !== undefined ? { elementType } : {}),
+          ...(enumValues !== undefined ? { enumValues } : {}),
+        }
+        registry.register(name, fieldType, registerOptions)
       }
       
       // Получаем fieldId и сохраняем информацию о поле
       const fieldId = registry.getId(name)
-      // Мост между системами типов: преобразование FieldType (контекст) → TYPE (байткод)
-      //
-      // Исторический контекст:
-      // * FieldType (0=F32, 1=U32, 2=BOOL, 3=STRING_PTR, 4=ARRAY_PTR, 5=SHARED_PTR) — используется в контексте и куче
-      // * TYPE (0=FLOAT, 1=UINT, 2=BOOL, 3=STRING, 4=ARRAY) — используется в байткоде VM
-      //
-      // Маппинг:
-      // - F32 → FLOAT (оба 0) — прямое соответствие
-      // - U32 → UINT (1 → 1) — прямое соответствие  
-      // - BOOL → BOOL (2 → 2) — прямое соответствие
-      // - STRING_PTR → STRING (3 → 3) — указатель в куче → тип строки в VM
-      // - ARRAY_PTR → ARRAY (4 → 4) — указатель в куче → тип массива в VM
-      // - SHARED_PTR → UINT (5 → 1) — SHARED_PTR обрабатывается отдельно в шейдере
-      let typeCode: number
-      switch (fieldType) {
-        case FieldType.F32:
-          typeCode = TYPE.FLOAT  // 0 → 0
-          break
-        case FieldType.U32:
-          typeCode = TYPE.UINT   // 1 → 1
-          break
-        case FieldType.BOOL:
-          typeCode = TYPE.BOOL   // 2 → 2
-          break
-        case FieldType.STRING_PTR:
-          typeCode = TYPE.STRING // 3 → 3 (указатель на строку в куче)
-          break
-        case FieldType.ARRAY_PTR:
-          typeCode = TYPE.ARRAY  // 4 → 4 (указатель на массив в куче)
-          break
-        case FieldType.SHARED_PTR:
-          // SHARED_PTR не имеет прямого соответствия в TYPE
-          // В байткоде SHARED_PTR поля не включаются в условия — они обрабатываются
-          // рекурсивно в шейдере через get_field_value_recursive
-          typeCode = TYPE.UINT   // Запасной вариант
-          break
-        default:
-          typeCode = TYPE.UINT   // Неизвестный тип → UINT
-      }
-      
+      const typeCode = fieldTypeToBytecodeType(fieldType)
+
       this.fields[name] = { fieldId, type: typeCode, subType, enumValues }
     }
   }
@@ -278,32 +246,7 @@ export class RulesCompiler {
   private loadFieldsFromRegistry() {
     const registry = GlobalFieldRegistry.getInstance()
     for (const meta of registry.getAll()) {
-      // Мост между системами типов: преобразование FieldType (контекст) → TYPE (байткод)
-      // Аналогично преобразованию в registerFieldsFromSchema, но для уже зарегистрированных полей
-      let typeCode: number
-      switch (meta.type) {
-        case FieldType.F32:
-          typeCode = TYPE.FLOAT  // 0 → 0
-          break
-        case FieldType.U32:
-          typeCode = TYPE.UINT   // 1 → 1
-          break
-        case FieldType.BOOL:
-          typeCode = TYPE.BOOL   // 2 → 2
-          break
-        case FieldType.STRING_PTR:
-          typeCode = TYPE.STRING // 3 → 3 (указатель на строку в куче)
-          break
-        case FieldType.ARRAY_PTR:
-          typeCode = TYPE.ARRAY  // 4 → 4 (указатель на массив в куче)
-          break
-        case FieldType.SHARED_PTR:
-          // SHARED_PTR не используется напрямую в условиях байткода
-          typeCode = TYPE.UINT   // Запасной вариант
-          break
-        default:
-          typeCode = TYPE.UINT   // Неизвестный тип → UINT
-      }
+      const typeCode = fieldTypeToBytecodeType(meta.type)
 
       let subType: number | undefined
       switch (meta.elementType) {

@@ -125,7 +125,7 @@ export class GPUBackend {
     if (!this.buffers.heap) {
       throw new Error("Buffers are not initialized")
     }
-    this.device.queue.writeBuffer(this.buffers.heap, 0, heap)
+    this.device.queue.writeBuffer(this.buffers.heap, 0, heap as Uint32Array<ArrayBuffer>)
   }
 
   private createBuffer(data: ArrayBufferView, usage: GPUBufferUsageFlags) {
