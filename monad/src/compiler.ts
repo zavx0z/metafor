@@ -262,15 +262,15 @@ export class RulesCompiler {
   private compileConditions(wave: Wave) {
     const entries = Object.entries(wave)
     this.bytecode.push(entries.length)
-    // Генерируем инструкции: [field_id, op, value] (3 слова на условие)
+    // Генерируем инструкции: [type, field_id, op, value] (4 слова на условие)
     // Для массивов (IN/NOT_IN) value = указатель на кучу со списком значений.
     const blockHeap: number[] = []
     const baseOffset = this.bytecode.length
-    // Считаем полный размер инструкций (3 слова на каждую проверку)
+    // Считаем полный размер инструкций (4 слова на каждую проверку)
     let totalInstructionsSize = 0
     for (const [key, cond] of entries) {
       const checks = this.parseCondition(cond)
-      totalInstructionsSize += checks.length * 3
+      totalInstructionsSize += checks.length * 4
     }
     const startOfHeap = baseOffset + totalInstructionsSize
     // Генерируем инструкции с правильными указателями на кучу.
@@ -279,11 +279,13 @@ export class RulesCompiler {
       if (!field) throw new Error(`Unknown field in conditions: ${key}`)
       const checks = this.parseCondition(cond)
       for (const check of checks) {
-        // 1. field_id (вместо [тип, индекс])
+        // 1. type
+        this.bytecode.push(field.type)
+        // 2. field_id
         this.bytecode.push(field.fieldId)
-        // 2. оператор.
+        // 3. оператор.
         this.bytecode.push(check.op)
-        // 3. значение (или указатель на кучу для массивов).
+        // 4. значение (или указатель на кучу для массивов).
         if (Array.isArray(check.val) && (check.op === OP.IN || check.op === OP.NOT_IN)) {
           const ptr = startOfHeap + blockHeap.length
           blockHeap.push(check.val.length)

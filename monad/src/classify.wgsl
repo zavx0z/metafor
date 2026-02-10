@@ -116,13 +116,14 @@ fn get_field_value_recursive(agent_id: u32, field_id: u32) -> f32 {
 // Основные функции для работы с правилами FSM
 // ============================================================================
 
-fn check_cond(op: u32, val_a: f32, val_b_raw: u32) -> bool {
+fn check_cond(op: u32, field_type: u32, val_a: f32, val_b_raw: u32) -> bool {
   // Базовые скалярные сравнения
   if (op <= 5u) {
     var val_b = f32(val_b_raw);
-    // Для операторов с плавающей точкой (как в байткоде) используем bitcast.
-    // Компилятор кодирует значения как биты f32, даже если это целые числа.
-    val_b = bitcast<f32>(val_b_raw);
+    if (field_type == 0u) {
+      // Для операторов с плавающей точкой используем bitcast.
+      val_b = bitcast<f32>(val_b_raw);
+    }
     if (op == 0u) {
       return val_a == val_b;
     }
@@ -151,7 +152,10 @@ fn check_cond(op: u32, val_a: f32, val_b_raw: u32) -> bool {
     var found = false;
     for (var i = 0u; i < count; i = i + 1u) {
       let item_raw = bytecode[list_ptr + 1u + i];
-      let item_val = bitcast<f32>(item_raw);
+      var item_val = f32(item_raw);
+      if (field_type == 0u) {
+        item_val = bitcast<f32>(item_raw);
+      }
       if (val_a == item_val) {
         found = true;
         break;
@@ -241,12 +245,13 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     var passed = true;
 
     for (var k = 0u; k < cond_count; k = k + 1u) {
-      let c_base = cond_ptr + 1u + k * 3u;
-      let field_id = bytecode[c_base];
-      let op = bytecode[c_base + 1u];
-      let val_encoded = bytecode[c_base + 2u];
+      let c_base = cond_ptr + 1u + k * 4u;
+      let field_type = bytecode[c_base];
+      let field_id = bytecode[c_base + 1u];
+      let op = bytecode[c_base + 2u];
+      let val_encoded = bytecode[c_base + 3u];
       let real_val = get_field_value_recursive(idx, field_id);
-      if (!check_cond(op, real_val, val_encoded)) {
+      if (!check_cond(op, field_type, real_val, val_encoded)) {
         passed = false;
         break;
       }
