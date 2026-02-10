@@ -1,0 +1,49 @@
+{
+  "name": "json-patch-manager",
+  "states": {
+    "патчи разделены": {
+      "завершено": {
+        "patches": {
+          "isEmpty": true
+        }
+      }
+    },
+    "завершено": null
+  },
+  "context": {
+    "src": {
+      "type": "string",
+      "required": true,
+      "default": "./tmp/edit.json",
+      "label": "JSON-patch путь"
+    },
+    "patches": {
+      "type": "array",
+      "required": true,
+      "default": [],
+      "label": "разделенные патчи"
+    }
+  },
+  "core": {},
+  "processes": {
+    "патчи разделены": {
+      "type": "action",
+      "action": {
+        "src": "({ context }) => {\n    return {};\n  }"
+      },
+      "success": {
+        "src": "({ update }) => {\n    update({ src: \"\", patches: [] }, \"s\");\n  }",
+        "write": [
+          "src",
+          "patches"
+        ]
+      }
+    },
+    "завершено": {
+      "type": "finally",
+      "before": {
+        "src": "() => {}"
+      }
+    }
+  }
+}
