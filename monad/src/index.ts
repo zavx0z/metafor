@@ -149,7 +149,7 @@ export class MonadSystem {
     // 2. Создаём агентов — менеджер сам группирует поля!
     this.agentIds = this.contextManager.createAgents(config.monads.map((m) => m.context))
 
-    // 3. Компилируем правила FSM (field_id вместо [тип, индекс]).
+    // 3. Компилируем правила FSM ([type, field_id, op, value]).
     const compiled = this.compiler.compile(config.statesConfig, config.contextSchema)
     this.stateMap = compiled.stateMap
     this.reverseStateMap = Object.keys(compiled.stateMap)
