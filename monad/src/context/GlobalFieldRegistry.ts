@@ -39,6 +39,10 @@ export interface FieldMeta {
   fieldId: number
   /** Тип данных */
   type: FieldTypeValue
+  /** Тип элементов для массивов */
+  elementType?: string
+  /** Возможные значения enum (если применимо) */
+  enumValues?: any[]
 }
 
 /**
@@ -97,13 +101,13 @@ export class GlobalFieldRegistry {
    * @returns ID зарегистрированного поля
    * @throws Error если поле с таким именем уже зарегистрировано
    */
-  register(name: string, type: FieldTypeValue): number {
+  register(name: string, type: FieldTypeValue, options: { elementType?: string; enumValues?: any[] } = {}): number {
     if (this.nameToMeta.has(name)) {
       throw new Error(`Поле '${name}' уже зарегистрировано`)
     }
 
     const fieldId = this.nextId++
-    const meta: FieldMeta = { fieldId, type, name }
+    const meta: FieldMeta = { fieldId, type, name, elementType: options.elementType, enumValues: options.enumValues }
     this.nameToMeta.set(name, meta)
     this.idToMeta.set(fieldId, meta)
     return fieldId

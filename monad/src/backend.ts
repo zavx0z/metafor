@@ -53,7 +53,7 @@ export class GPUBackend {
     this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.monadCount), true)
     this.buffers.bytecode = this.createStorageBuffer(params.bytecode)
 
-    const uniforms = new Uint32Array([params.monadCount, params.tableOffset])
+    const uniforms = new Uint32Array([params.monadCount, params.tableOffset, 0, 0])
     this.buffers.uniforms = this.createBuffer(uniforms, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST)
 
     this.stagingBuffer = this.device.createBuffer({
@@ -119,6 +119,13 @@ export class GPUBackend {
     const copy = new Uint32Array(this.stagingBuffer.getMappedRange().slice(0))
     this.stagingBuffer.unmap()
     return copy
+  }
+
+  updateHeap(heap: Uint32Array) {
+    if (!this.buffers.heap) {
+      throw new Error("Buffers are not initialized")
+    }
+    this.device.queue.writeBuffer(this.buffers.heap, 0, heap)
   }
 
   private createBuffer(data: ArrayBufferView, usage: GPUBufferUsageFlags) {

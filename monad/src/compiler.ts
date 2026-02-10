@@ -26,7 +26,9 @@ export class RulesCompiler {
     type: number; 
     subType?: number | undefined; 
     enumValues?: any[] | undefined;
-  }> = {}/**
+  }> = {}
+
+  /**
    * Транслирует конфигурацию состояний в байт-код.
    *
    * @param superposition - Граф переходов: `{ State: { Target: { Condition } } }`.
@@ -34,9 +36,10 @@ export class RulesCompiler {
    *
    * @returns Структура с байт-кодом и картами маппинга.
    */
-    compile(superposition: Superposition, contextSchema?: Record<string, any>): CompiledRules {
+  compile(superposition: Superposition, contextSchema?: Record<string, any>): CompiledRules {
     this.bytecode = []
     this.states = Object.keys(superposition)
+    this.fields = {}
     
     // Вместо SoA fieldMap используем GlobalFieldRegistry для получения field_id
     // Поля должны быть уже зарегистрированы через contextSchema в MonadSystem.init()
@@ -46,7 +49,9 @@ export class RulesCompiler {
     } else {
       // Поля должны быть уже зарегистрированы
       this.validateFieldsFromSuperposition(superposition)
-    }// 1. Резервируем место для таблицы состояний
+      this.loadFieldsFromRegistry()
+    }
+    // 1. Резервируем место для таблицы состояний
     const stateTableOffset = this.bytecode.length
     // Заглушка для смещения каждого состояния
     for (let i = 0; i < this.states.length; i++) this.bytecode.push(0)
@@ -111,7 +116,7 @@ export class RulesCompiler {
     }
   }
 
-    private registerFieldsFromSchema(schema: Record<string, any>) {
+  private registerFieldsFromSchema(schema: Record<string, any>) {
     // Используем глобальный реестр для регистрации полей
     const registry = GlobalFieldRegistry.getInstance()
     
@@ -156,7 +161,7 @@ export class RulesCompiler {
       
       // Регистрируем поле, если еще не зарегистрировано
       if (!registry.has(name)) {
-        registry.register(name, fieldType)
+        registry.register(name, fieldType, { elementType: typeof typeStr === "string" ? typeStr.match(/^array<(.+)>$/)?.[1] : undefined, enumValues })
       }
       
       // Получаем fieldId и сохраняем информацию о поле
@@ -184,6 +189,51 @@ export class RulesCompiler {
       }
       
       this.fields[name] = { fieldId, type: typeCode, subType, enumValues }
+    }
+  }
+
+  private loadFieldsFromRegistry() {
+    const registry = GlobalFieldRegistry.getInstance()
+    for (const meta of registry.getAll()) {
+      let typeCode: number
+      switch (meta.type) {
+        case FieldType.F32:
+          typeCode = TYPE.FLOAT
+          break
+        case FieldType.U32:
+          typeCode = TYPE.UINT
+          break
+        case FieldType.BOOL:
+          typeCode = TYPE.BOOL
+          break
+        case FieldType.STRING_PTR:
+          typeCode = TYPE.STRING
+          break
+        case FieldType.ARRAY_PTR:
+          typeCode = TYPE.ARRAY
+          break
+        default:
+          typeCode = TYPE.UINT
+      }
+
+      let subType: number | undefined
+      switch (meta.elementType) {
+        case "float":
+        case "number":
+          subType = TYPE.FLOAT
+          break
+        case "integer":
+        case "boolean":
+          subType = TYPE.UINT
+          break
+        case "string":
+          subType = TYPE.STRING
+          break
+        default:
+          subType = undefined
+      }
+
+      this.fields[meta.name] = { fieldId: meta.fieldId, type: typeCode, subType, enumValues: meta.enumValues }
     }
   }
   

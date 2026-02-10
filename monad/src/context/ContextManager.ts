@@ -114,8 +114,8 @@ export class ContextManager {
    * @param type - Тип поля
    * @returns ID поля
    */
-  registerField(name: string, type: FieldTypeValue): number {
-    return this.registry.register(name, type)
+  registerField(name: string, type: FieldTypeValue, options: { elementType?: string; enumValues?: any[] } = {}): number {
+    return this.registry.register(name, type, options)
   }
 
   /**
@@ -209,72 +209,64 @@ export class ContextManager {
       })
     })
 
-    // 2. Группировка: поля с одинаковым набором владельцев -> один блок.
-    const sharedBlocks = new Map<string, number>() // key -> blockPtr
-
-    fieldUsage.forEach((agentIds, field) => {
-      if (agentIds.size >= 2) {
-        // Ключ группировки = отсортированный список владельцев.
-        const key = Array.from(agentIds).sort().join(",")
-
-        if (!sharedBlocks.has(key)) {
-          // Находим ВСЕ поля с этим же набором владельцев.
-          const fieldsForGroup = [...fieldUsage.entries()]
-            .filter(([, ids]) => {
-              const idsArr = Array.from(ids).sort()
-              return idsArr.length === agentIds.size && idsArr.every((id, i) => id === Array.from(agentIds).sort()[i])
-            })
-            .map(([f]) => f)
-
-          // Создаём разделяемый блок со всеми полями группы.
-          const firstAgentIdx = Array.from(agentIds)[0] as number
-          const agentData = agents[firstAgentIdx] as Record<string, unknown>
-          const context = Object.fromEntries(fieldsForGroup.map((f) => [f, agentData[f]]))
-          const result = this.builder.build(context, { sharedPtrs: [] })
-          this.heapData.set(new Uint32Array(result.blockSize), result.blockPtr)
-
-          sharedBlocks.set(key, result.blockPtr)
-        }
+    const valueEquals = (left: unknown, right: unknown): boolean => {
+      if (Array.isArray(left) && Array.isArray(right)) {
+        if (left.length !== right.length) return false
+        return left.every((value, idx) => Object.is(value, right[idx]))
       }
+      return Object.is(left, right)
+    }
+
+    // 2. Группировка: поля с одинаковым набором владельцев -> один shared блок.
+    const sharedGroups = new Map<string, Set<string>>() // key -> fields
+    fieldUsage.forEach((agentIds, field) => {
+      if (agentIds.size < 2) return
+
+      const key = Array.from(agentIds).sort().join(",")
+      const ids = Array.from(agentIds)
+      const firstValue = agents[ids[0]!]?.[field]
+      const allSame = ids.every((idx) => valueEquals(agents[idx]![field], firstValue))
+      if (!allSame) return
+
+      if (!sharedGroups.has(key)) {
+        sharedGroups.set(key, new Set())
+      }
+      sharedGroups.get(key)!.add(field)
+    })
+
+    const sharedContextIds = new Map<string, number>() // key -> sharedContextId
+    sharedGroups.forEach((fields, key) => {
+      const agentIds = key.split(",").map((value) => Number(value))
+      const firstAgentIdx = agentIds[0]!
+      const agentData = agents[firstAgentIdx] as Record<string, unknown>
+      const context = Object.fromEntries(Array.from(fields).map((field) => [field, agentData[field]]))
+      const sharedId = this.createSharedContext(context)
+      sharedContextIds.set(key, sharedId)
     })
 
     // 3. Создание агентов с указателями на разделяемые блоки.
     const agentIds: number[] = []
 
     agents.forEach((agent, idx) => {
-      const sharedPtrs: number[] = []
+      const sharedIds: number[] = []
+      const usedGroupKeys = new Set<string>()
       const localContext: Record<string, unknown> = { ...agent }
 
-      // Удаляем из локального контекста поля, попавшие в разделяемые блоки.
       Object.keys(agent).forEach((field) => {
         const agentIds = fieldUsage.get(field)!
-        if (agentIds.size >= 2) {
-          const key = Array.from(agentIds).sort().join(",")
-          sharedPtrs.push(sharedBlocks.get(key)!)
-          delete localContext[field]
+        if (agentIds.size < 2) return
+
+        const key = Array.from(agentIds).sort().join(",")
+        if (!sharedContextIds.has(key)) return
+
+        delete localContext[field]
+        if (!usedGroupKeys.has(key)) {
+          sharedIds.push(sharedContextIds.get(key)!)
+          usedGroupKeys.add(key)
         }
       })
 
-      const agentId = this.createAgent(localContext, [])
-      // Обновляем sharedPtrs для агента.
-      const agentInfo = this.agents.get(agentId)!
-      agentInfo.sharedPtrs = sharedPtrs
-
-      // Записываем указатели в кучу.
-      const block = this.heapData.slice(agentInfo.blockPtr, agentInfo.blockPtr + agentInfo.blockSize)
-      const localCount = block[0]!
-      const sharedCount = sharedPtrs.length
-
-      // Обновляем заголовок.
-      block[1] = sharedCount
-      const sharedPtrsOffset = 2 + localCount * 2
-
-      // Записываем указатели.
-      for (let i = 0; i < sharedCount; i++) {
-        block[sharedPtrsOffset + i] = sharedPtrs[i]!
-      }
-
-      this.heapData.set(block, agentInfo.blockPtr)
+      const agentId = this.createAgent(localContext, sharedIds)
       agentIds.push(agentId)
     })
 
@@ -354,10 +346,60 @@ export class ContextManager {
 
         const heapWords = new Uint32Array(stringView.buffer)
         agent.extraAllocs.push({ offset: newBlock.offset, size: newBlock.size })
+        this.heapData.set(heapWords, newBlock.offset)
 
         // Обновляем указатель в блоке агента.
         this.heapData[absoluteOffset] = newBlock.offset
         this.heapData[absoluteOffset + 1] = encoded.length
+        break
+      }
+      case FieldType.ARRAY_PTR: {
+        const oldOffset = this.heapData[absoluteOffset]!
+        const oldLength = this.heapData[absoluteOffset + 1]!
+        if (oldOffset > 0) {
+          const oldWordCount = oldLength + 1
+          this.allocator.free(oldOffset, oldWordCount)
+
+          const idx = agent.extraAllocs.findIndex((a) => a.offset === oldOffset)
+          if (idx >= 0) {
+            agent.extraAllocs.splice(idx, 1)
+          }
+        }
+
+        if (!Array.isArray(newValue)) {
+          throw new Error(`Ожидался массив для поля '${fieldName}'`)
+        }
+
+        const meta = this.registry.getMeta(fieldName)
+        const elementType = meta?.elementType
+        const values = newValue as unknown[]
+        const newWordCount = values.length + 1
+        const newBlock = this.allocator.alloc(newWordCount)
+        if (!newBlock) {
+          throw new Error(`Недостаточно памяти для массива`)
+        }
+
+        const arrayView = new Uint32Array(newBlock.size)
+        arrayView[0] = values.length
+        for (let i = 0; i < values.length; i++) {
+          const item = values[i]
+          if (elementType === "float" || elementType === "number") {
+            const buf = new Float32Array([Number(item)])
+            arrayView[i + 1] = new Uint32Array(buf.buffer)[0]!
+          } else if (elementType === "integer" || elementType === "boolean") {
+            arrayView[i + 1] = Number(item)
+          } else if (elementType === "string") {
+            throw new Error(`Массивы строк пока не поддерживаются для поля '${fieldName}'`)
+          } else {
+            arrayView[i + 1] = Number(item)
+          }
+        }
+
+        this.heapData.set(arrayView, newBlock.offset)
+        agent.extraAllocs.push({ offset: newBlock.offset, size: newBlock.size })
+
+        this.heapData[absoluteOffset] = newBlock.offset
+        this.heapData[absoluteOffset + 1] = values.length
         break
       }
       default:
