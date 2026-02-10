@@ -120,7 +120,13 @@ export class GlobalFieldRegistry {
     }
 
     const fieldId = this.nextId++
-    const meta: FieldMeta = { fieldId, type, name, elementType: options.elementType, enumValues: options.enumValues }
+    const meta: FieldMeta = {
+      fieldId,
+      type,
+      name,
+      ...(options.elementType !== undefined ? { elementType: options.elementType } : {}),
+      ...(options.enumValues !== undefined ? { enumValues: options.enumValues } : {}),
+    }
     this.nameToMeta.set(name, meta)
     this.idToMeta.set(fieldId, meta)
     return fieldId
