@@ -11,3 +11,4 @@ docs
 *.sqlite*
 *.db*
 .meta-modcache
+.quoder

@@ -1,12 +1,8 @@
 {
-  "name": "json-patch-manager",
+  "name": "git",
   "states": {
-    "патчи разделены": {
-      "завершено": {
-        "patches": {
-          "isEmpty": true
-        }
-      }
+    "коммит": {
+      "завершено": {}
     },
     "завершено": null
   },
@@ -26,7 +22,7 @@
   },
   "core": {},
   "processes": {
-    "патчи разделены": {
+    "коммит": {
       "type": "action",
       "action": {
         "src": "({ context }) => {\n    return {};\n  }"
