@@ -2,9 +2,9 @@
  * Модуль управления массивными симуляциями агентов на GPU.
  *
  * ## Архитектура (v2.x)
- * 
+ *
  * **Ядро (Core Pattern):** Библиотека реализует паттерн **Data-Oriented Design** с акцентом на параллелизм GPU.
- * 
+ *
  * ### Ключевые компоненты:
  * 1. **ContextManager** — управление памятью агентов в формате "самоописываемых блоков" с автоматической группировкой общих полей.
  * 2. **RulesCompiler** — транслятор JSON-правил в байт-код для кастомной VM, исполняемой в compute shader.
@@ -25,6 +25,27 @@
 import { GPUBackend } from "./backend"
 import { RulesCompiler } from "./compiler"
 import { ContextManager, FieldType, GlobalFieldRegistry, type FieldTypeValue } from "./context"
+
+// ========== Типы для описания схемы контекста ==========
+/**
+ * Определение типа поля в contextSchema.
+ * Может быть объектом с полем type и дополнительными параметрами.
+ */
+export type FieldDefinition =
+  | { type: "float" }
+  | { type: "integer" }
+  | { type: "boolean" }
+  | { type: "string" }
+  | { type: "array<string>" }
+  | { type: "array<number>" }
+  | { type: "enum<string>"; values: string[] }
+  | { type: "enum<number>"; values: number[] }
+
+/**
+ * Схема контекста агента.
+ * Ключ — имя поля, значение — определение типа.
+ */
+export type ContextSchema = Record<string, FieldDefinition>
 
 /**
  * Конфигурация для инициализации `MonadSystem`.
@@ -64,7 +85,7 @@ export interface MonadSystemConfig {
    * }
    * ```
    */
-  contextSchema: any
+  contextSchema: ContextSchema
 
   /**
    * Массив начальных состояний для каждой монады (агента).
@@ -105,13 +126,13 @@ export class MonadSystem {
 
   /**
    * Инициализирует систему: компилирует правила, выделяет память и загружает данные.
-   * 
+   *
    * ### Алгоритм инициализации:
    * 1. Регистрация полей в GlobalFieldRegistry (создание field_id).
    * 2. Создание агентов через ContextManager с автоматической группировкой общих полей.
    * 3. Компиляция графа переходов в байт-код кастомной VM.
    * 4. Инициализация GPU-буферов и создание compute pipeline.
-   * 
+   *
    * ### Валидация входных данных:
    * * Каждое состояние, упомянутое как цель перехода, должно быть объявлено в корне statesConfig.
    * * Все поля, используемые в условиях, должны быть описаны в contextSchema.
@@ -128,12 +149,12 @@ export class MonadSystem {
    * * `"enum"` → целочисленный индекс (значения в `values: [...]`).
    * @param config.monads - Массив агентов для инициализации.
    * **Формат:** `{ id: string, state: string, context: Record<string, unknown> }`
-   * 
+   *
    * @throws {Error} Если:
    * * WebGPU не поддерживается или устройство недоступно.
    * * Обнаружено неизвестное состояние или поле.
    * * Не удалось аллоцировать память в GPU-куче.
-   * 
+   *
    * @example
    * ```ts
    * await system.init({
@@ -147,7 +168,7 @@ export class MonadSystem {
    */
   async init(config: {
     statesConfig: any // Суперпозиция (Superposition)
-    contextSchema: any
+    contextSchema: ContextSchema
     monads: Array<{ id: string; state: string; context: any }>
   }) {
     // 1. Регистрируем поля из схемы в глобальном реестре.
@@ -175,14 +196,20 @@ export class MonadSystem {
         case "string":
           fieldType = FieldType.STRING_PTR
           break
+        case "array<string>":
+          fieldType = FieldType.ARRAY_PTR
+          elementType = "string"
+          break
+        case "array<number>":
+          fieldType = FieldType.ARRAY_PTR
+          elementType = "number"
+          break
+        case "enum<string>":
+        case "enum<number>":
+          fieldType = FieldType.U32
+          break
         default:
-          if (typeof typeStr === "string" && /^array<.+>$/.test(typeStr)) {
-            fieldType = FieldType.ARRAY_PTR
-            elementType = typeStr.match(/^array<(.+)>$/)?.[1]
-          } else if (
-            (typeof typeStr === "string" && /^enum<.+>$/.test(typeStr)) ||
-            (typeof defTyped !== "string" && "values" in defTyped && defTyped.values)
-          ) {
+          if (typeof defTyped !== "string" && "values" in defTyped && defTyped.values) {
             fieldType = FieldType.U32
           } else {
             fieldType = FieldType.U32
@@ -222,12 +249,12 @@ export class MonadSystem {
 
   /**
    * Выполняет один такт симуляции, запуская compute shader на GPU.
-   * 
+   *
    * ### Алгоритм работы:
    * 1. Запуск compute pass с байт-кодом правил и данными агентов.
    * 2. Каждый GPU-инвариант обрабатывает одного агента (workgroup size = 64).
    * 3. После выполнения копирование результатов из `newStates` в `states` (ping-pong swap).
-   * 
+   *
    * ### Производительность:
    * * Compute shader выполняется асинхронно относительно CPU.
    * * Для синхронизации используйте `await system.getStates()`.
@@ -241,19 +268,19 @@ export class MonadSystem {
 
   /**
    * Асинхронно читает текущие состояния агентов из GPU.
-   * 
+   *
    * ### Внутренняя работа:
    * 1. Копирование данных из GPU-буфера `states` в staging buffer.
    * 2. Асинхронное отображение (map) памяти для чтения CPU.
    * 3. Преобразование числовых StateID в строковые имена через reverseStateMap.
-   * 
+   *
    * ### Важно:
    * * Это **дорогая операция** (синхронизация CPU-GPU).
    * * Не вызывайте чаще необходимого (например, только для визуализации).
    * * Для проверки логики используйте {@link step} без промежуточного чтения.
-   * 
+   *
    * @returns Promise, разрешающийся в массив строковых имен состояний в порядке агентов.
-   * 
+   *
    * @example
    * ```ts
    * // После 10 шагов симуляции
@@ -268,7 +295,7 @@ export class MonadSystem {
 
   /**
    * Обновляет поле контекста конкретного агента и синхронизирует изменения с GPU.
-   * 
+   *
    * ### Алгоритм обновления:
    * 1. Поиск блока агента в куче через agentDescriptors.
    * 2. Для скалярных типов (числа, булевы) — прямая запись в кучу.
@@ -277,22 +304,22 @@ export class MonadSystem {
    *    * Аллокация нового блока с новыми данными.
    *    * Обновление указателя в блоке агента.
    * 4. Если куча изменилась (heapDirty), копирование всей кучи в GPU-буфер.
-   * 
+   *
    * ### Ограничения:
    * * **Тип поля должен совпадать** с зарегистрированным в schema.
    * * **Нет проверки на переполнение кучи** — может выбросить ошибку аллокатора.
    * * **Не атомарно на GPU** — изменения видны в следующем шаге симуляции.
-   * 
+   *
    * @param agentIndex - Порядковый индекс агента в массиве monads (0-based).
    * @param fieldName - Имя поля, зарегистрированное в contextSchema.
    * @param value - Новое значение (тип должен соответствовать схеме).
-   * 
+   *
    * @throws {Error} Если:
    * * agentIndex выходит за границы массива агентов.
    * * fieldName не зарегистрировано в GlobalFieldRegistry.
    * * Поле не найдено в блоке агента (отсутствует в контексте).
    * * Не удалось аллоцировать память для значения переменного размера.
-   * 
+   *
    * @example
    * ```ts
    * // Уменьшить здоровье героя на 30
