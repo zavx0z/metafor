@@ -1,4 +1,4 @@
-import shaderSource from "./classify.wgsl" with { type: "text" }
+import shaderSource from "./evolution.wgsl" with { type: "text" }
 
 /**
  * Параметры инициализации GPU-бэкенда.
