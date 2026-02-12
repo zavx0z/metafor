@@ -34,8 +34,8 @@ describe("Тесты валидации фикстуры", () => {
           DEAD: null,
         },
         contextSchema: {
-          hp: { type: "float" },
-          mana: { type: "float" },
+          hp: { type: "number" },
+          mana: { type: "number" },
           isAlive: { type: "boolean" },
         },
         monads: [
@@ -82,9 +82,9 @@ describe("Тесты валидации фикстуры", () => {
           DEAD: null,
         },
         contextSchema: {
-          hp: "number",
-          mana: "number",
-          isAlive: "boolean",
+          hp: { type: "number" },
+          mana: { type: "number" },
+          isAlive: { type: "boolean" },
         },
         monads: [
           { id: "m1", state: "IDLE", context: { hp: 100, mana: 100, isAlive: true } },
@@ -108,7 +108,7 @@ describe("Тесты валидации фикстуры", () => {
           DEAD: null,
         },
         contextSchema: {
-          hp: "number",
+          hp: { type: "number" },
         },
         monads: [{ id: "m2", state: "IDLE", context: { hp: 0 } }],
         steps: 1,

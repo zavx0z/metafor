@@ -7,9 +7,9 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
   // ПРИМЕЧАНИЕ: fieldMap был удалён из интерфейса CompiledRules в новой архитектуре
   // Информация о типах теперь хранится в GlobalFieldRegistry
   describe("Парсинг типов", () => {
-    test("array<float> должен компилироваться корректно", () => {
+    test("array<number> должен компилироваться корректно", () => {
       const compiler = new RulesCompiler()
-      const schema = { vals: { type: "array<float>" } }
+      const schema = { vals: { type: "array<number>" } }
       const config = { S1: null }
       
       const result = compiler.compile(config, schema)
@@ -17,37 +17,37 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
       // Проверяем, что байткод сгенерирован
       expect(result.bytecode).toBeInstanceOf(Uint32Array)
       expect(result.bytecode.length).toBeGreaterThan(0)
-      console.log("✅ array<float> компилируется корректно")
+      console.log("✅ array<number> компилируется корректно")
     })
 
-    test("array<integer> должен компилироваться корректно", () => {
+    test("array<string> должен компилироваться корректно", () => {
       const compiler = new RulesCompiler()
-      const schema = { ids: { type: "array<integer>" } }
+      const schema = { ids: { type: "array<string>" } }
       const config = { S1: null }
       
       const result = compiler.compile(config, schema)
       
       expect(result.bytecode).toBeInstanceOf(Uint32Array)
       expect(result.bytecode.length).toBeGreaterThan(0)
-      console.log("✅ array<integer> компилируется корректно")
+      console.log("✅ array<string> компилируется корректно")
     })
 
-    test("enum должен компилироваться корректно", () => {
+    test("enum<string> должен компилироваться корректно", () => {
       const compiler = new RulesCompiler()
-      const schema = { role: { type: "enum", values: ["A", "B"] } }
+      const schema = { role: { type: "enum<string>", values: ["A", "B"] } }
       const config = { S1: null }
       
       const result = compiler.compile(config, schema)
       expect(result.bytecode).toBeInstanceOf(Uint32Array)
       expect(result.bytecode.length).toBeGreaterThan(0)
-      console.log("✅ enum компилируется корректно")
+      console.log("✅ enum<string> компилируется корректно")
     })
   })
 
   describe("Кодирование значений (Этап 3)", () => {
     test("оператор 'in' должен кодировать ENUM как индексы", () => {
       const compiler = new RulesCompiler()
-      const schema = { role: { type: "enum", values: ["IDLE", "WALK", "RUN"] } }
+      const schema = { role: { type: "enum<string>", values: ["IDLE", "WALK", "RUN"] } }
       const config = {
         IDLE: {
           MOVING: { role: { in: ["WALK", "RUN"] } } // WALK->1, RUN->2
@@ -80,9 +80,9 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
       console.log(`✅ Enum значения в списке закодированы как индексы: ${item1}, ${item2}`)
     })
 
-    test("array<float> список должен кодироваться через bitcast", () => {
+    test("number список должен кодироваться через bitcast", () => {
       const compiler = new RulesCompiler()
-      const schema = { temp: { type: "float" } }
+      const schema = { temp: { type: "number" } }
       const vals = [36.6, 40.0]
       const config = {
         S1: {
@@ -112,8 +112,8 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
 
     test("оператор 'include' должен генерировать OP.INCLUDE", () => {
       const compiler = new RulesCompiler()
-      // Инвентарь с integer предметами
-      const schema = { items: { type: "array<integer>" } }
+      // Инвентарь с числовыми предметами
+      const schema = { items: { type: "array<number>" } }
       const config = {
         IDLE: {
           EQUIP: { items: { include: 555 } }
@@ -125,10 +125,12 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
       const bc = Array.from(result.bytecode)
       
       // Ищем [ARRAY_TYPE, IDX, OP.INCLUDE, VAL]
+      // Для array<number> значение 555 кодируется через bitcast float→u32
+      const expected555 = new Uint32Array(new Float32Array([555]).buffer)[0]!
       let found = false
       for (let i = 0; i < bc.length - 3; i++) {
         if (bc[i+2] === OP.INCLUDE) {
-          expect(bc[i+3]).toBe(555)
+          expect(bc[i+3]).toBe(expected555)
           found = true
           break
         }

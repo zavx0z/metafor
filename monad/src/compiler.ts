@@ -11,15 +11,15 @@ type Superposition = Record<string, Transitions | null | undefined>
 
 /**
  * Транслятор JSON-правил в байт-код для кастомной VM на GPU.
- * 
+ *
  * ### Архитектура байт-кода (v2.x):
- * 
+ *
  * **Структура памяти (линейный массив u32):**
  * 1. Таблица состояний (State Table) — массив указателей на блоки состояний.
  * 2. Блоки состояний (State Blocks) — количество переходов + пары [targetState, conditionPtr].
  * 3. Блоки условий (Condition Blocks) — количество условий + инструкции [type, field_id, op, value].
  * 4. Куча (Heap) — статические данные (списки для операторов IN/NOT_IN).
- * 
+ *
  * ### Формат инструкции условия (4 слова):
  * ```
  * [0] type:      TYPE.FLOAT, TYPE.UINT, TYPE.BOOL, TYPE.ARRAY
@@ -27,13 +27,13 @@ type Superposition = Record<string, Transitions | null | undefined>
  * [2] op:        OP.EQ, OP.GT, OP.IN, OP.INCLUDE, ...
  * [3] value:     закодированное значение или указатель на кучу
  * ```
- * 
+ *
  * ### Особенности реализации:
  * * **Constant Folding:** Значения enum преобразуются в индексы на этапе компиляции.
  * * **Bitcast для float:** Числа с плавающей точкой кодируются через bitcast в u32.
  * * **Куча в байт-коде:** Списки значений для операторов IN/NOT_IN хранятся в конце байт-кода.
  * * **Расширенные операторы:** Поддержка атомарных условий (between, notGt, notLte).
- * 
+ *
  * ### Важные ограничения:
  * * **Все состояния-цели** должны быть объявлены в корне superposition (даже если null).
  * * **Поля должны быть зарегистрированы** в GlobalFieldRegistry до компиляции.
@@ -43,16 +43,19 @@ type Superposition = Record<string, Transitions | null | undefined>
 export class RulesCompiler {
   private bytecode: number[] = []
   private states: string[] = []
-  private fields: Record<string, { 
-    fieldId: number; 
-    type: number; 
-    subType?: number | undefined; 
-    enumValues?: any[] | undefined;
-  }> = {}
+  private fields: Record<
+    string,
+    {
+      fieldId: number
+      type: number
+      subType?: number | undefined
+      enumValues?: any[] | undefined
+    }
+  > = {}
 
   /**
    * Транслирует конфигурацию состояний в байт-код для GPU.
-   * 
+   *
    * ### Алгоритм компиляции:
    * 1. Регистрация полей из схемы в GlobalFieldRegistry (получение field_id).
    * 2. Построение таблицы состояний с резервированием места для указателей.
@@ -61,7 +64,7 @@ export class RulesCompiler {
    *    * Для каждого перехода: запись targetState + указателя на блок условий (позже заполняется).
    *    * Компиляция условий перехода в блок инструкций.
    * 4. Заполнение указателей на блоки условий в переходах.
-   * 
+   *
    * ### Структура результата:
    * * `bytecode: Uint32Array` — плоский массив с программой VM.
    * * `stateTableOffset: number` — смещение таблицы состояний в байт-коде (всегда 0).
@@ -78,14 +81,14 @@ export class RulesCompiler {
    * что поля уже зарегистрированы в GlobalFieldRegistry.
    * @param options - Дополнительные опции компиляции.
    * @param options.preserveRegistry - Если true, не очищает GlobalFieldRegistry перед регистрацией.
-   * 
+   *
    * @returns {CompiledRules} Скомпилированные правила, готовые для загрузки в GPUBackend.
-   * 
+   *
    * @throws {Error} Если:
    * * Обнаружено состояние-цель, не объявленное в superposition.
    * * Поле из условий не зарегистрировано в GlobalFieldRegistry.
    * * Значение enum не найдено в списке допустимых значений.
-   * 
+   *
    * @example
    * ```ts
    * const compiler = new RulesCompiler();
@@ -103,7 +106,7 @@ export class RulesCompiler {
     this.bytecode = []
     this.states = Object.keys(superposition)
     this.fields = {}
-    
+
     // Вместо SoA fieldMap используем GlobalFieldRegistry для получения field_id
     // Поля должны быть уже зарегистрированы через contextSchema в MonadSystem.init()
     // Если схема передана, регистрируем поля, но не строим SoA маппинг
@@ -185,22 +188,18 @@ export class RulesCompiler {
   private registerFieldsFromSchema(schema: Record<string, any>) {
     // Используем глобальный реестр для регистрации полей
     const registry = GlobalFieldRegistry.getInstance()
-    
+
     for (const [name, def] of Object.entries(schema)) {
       const defTyped = def as { type?: string; values?: any[] } | string
       const typeStr = typeof defTyped === "string" ? defTyped : defTyped.type
       let fieldType: import("./context").FieldTypeValue
-      let subType: number | undefined = undefined
+      let elementType: string | undefined
       let enumValues: any[] | undefined = undefined
-      
+
       // Маппинг человекопонятных типов -> FieldType
       switch (typeStr) {
-        case "float":
         case "number":
           fieldType = FieldType.F32
-          break
-        case "integer":
-          fieldType = FieldType.U32
           break
         case "boolean":
           fieldType = FieldType.BOOL
@@ -208,36 +207,40 @@ export class RulesCompiler {
         case "string":
           fieldType = FieldType.STRING_PTR
           break
+        case "array<string>":
+          fieldType = FieldType.ARRAY_PTR
+          elementType = "string"
+          break
+        case "array<number>":
+          fieldType = FieldType.ARRAY_PTR
+          elementType = "number"
+          break
+        case "enum<string>":
+        case "enum<number>":
+          fieldType = FieldType.U32
+          enumValues = typeof defTyped !== "string" && "values" in defTyped ? defTyped.values : []
+          break
         default:
-          if (typeof typeStr === "string" && /^array<.+>$/.test(typeStr)) {
-            fieldType = FieldType.ARRAY_PTR
-            const innerType = typeStr.match(/^array<(.+)>$/)?.[1]
-            if (innerType === "float") subType = TYPE.FLOAT
-            else if (innerType === "integer") subType = TYPE.UINT
-            else if (innerType === "string") subType = TYPE.STRING
-            else throw new Error(`Unsupported array subtype: ${innerType}`)
-          } else if ((typeof typeStr === "string" && /^enum<.+>$/.test(typeStr)) ||
-                     (typeof defTyped !== "string" && defTyped.values)) {
-            fieldType = FieldType.U32 // U32 для enum
-            enumValues = typeof defTyped !== "string" && defTyped.values ? defTyped.values : []
-          } else {
-            fieldType = FieldType.U32 // U32 по умолчанию
-          }
+          throw new Error(`Unknown field type: ${typeStr}`)
       }
-      
+
       // Регистрируем поле, если еще не зарегистрировано
       if (!registry.has(name)) {
-        const elementType = typeof typeStr === "string" ? typeStr.match(/^array<(.+)>$/)?.[1] : undefined
         const registerOptions = {
           ...(elementType !== undefined ? { elementType } : {}),
           ...(enumValues !== undefined ? { enumValues } : {}),
         }
         registry.register(name, fieldType, registerOptions)
       }
-      
+
       // Получаем fieldId и сохраняем информацию о поле
       const fieldId = registry.getId(name)
       const typeCode = fieldTypeToBytecodeType(fieldType)
+
+      // Вычисляем subType для array (для кодирования значений в байткоде)
+      let subType: number | undefined = undefined
+      if (elementType === "string") subType = TYPE.STRING
+      else if (elementType === "number") subType = TYPE.FLOAT
 
       this.fields[name] = { fieldId, type: typeCode, subType, enumValues }
     }
@@ -250,13 +253,8 @@ export class RulesCompiler {
 
       let subType: number | undefined
       switch (meta.elementType) {
-        case "float":
         case "number":
           subType = TYPE.FLOAT
-          break
-        case "integer":
-        case "boolean":
-          subType = TYPE.UINT
           break
         case "string":
           subType = TYPE.STRING
@@ -268,19 +266,19 @@ export class RulesCompiler {
       this.fields[meta.name] = { fieldId: meta.fieldId, type: typeCode, subType, enumValues: meta.enumValues }
     }
   }
-  
+
   private validateFieldsFromSuperposition(superposition: Superposition) {
     // Проверяем, что все поля из правил зарегистрированы в глобальном реестре
     const registry = GlobalFieldRegistry.getInstance()
-    
+
     for (const state in superposition) {
       const transitions = superposition[state]
       if (!transitions) continue
-      
+
       for (const target in transitions) {
         const conditions = transitions[target]
         if (!conditions) continue
-        
+
         for (const field in conditions) {
           if (!registry.has(field)) {
             throw new Error(`Field '${field}' is not registered in GlobalFieldRegistry`)
@@ -289,7 +287,6 @@ export class RulesCompiler {
       }
     }
   }
-
 
   private compileConditions(wave: Wave) {
     const entries = Object.entries(wave)
@@ -322,11 +319,23 @@ export class RulesCompiler {
           const ptr = startOfHeap + blockHeap.length
           blockHeap.push(check.val.length)
           for (const v of check.val) {
-            blockHeap.push(this.encodeValue(field.type, v, field as { subType?: number | undefined; enumValues?: any[] | undefined; } | undefined))
+            blockHeap.push(
+              this.encodeValue(
+                field.type,
+                v,
+                field as { subType?: number | undefined; enumValues?: any[] | undefined } | undefined,
+              ),
+            )
           }
           this.bytecode.push(ptr)
         } else {
-          this.bytecode.push(this.encodeValue(field.type, check.val, field as { subType?: number | undefined; enumValues?: any[] | undefined; } | undefined))
+          this.bytecode.push(
+            this.encodeValue(
+              field.type,
+              check.val,
+              field as { subType?: number | undefined; enumValues?: any[] | undefined } | undefined,
+            ),
+          )
         }
       }
     }
@@ -410,7 +419,11 @@ export class RulesCompiler {
     return checks
   }
 
-  private encodeValue(inputType: number, val: any, contextField?: { subType?: number | undefined; enumValues?: any[] | undefined; }): number {
+  private encodeValue(
+    inputType: number,
+    val: any,
+    contextField?: { subType?: number | undefined; enumValues?: any[] | undefined },
+  ): number {
     // 1. Обработка ENUM: превращаем значение в индекс
     if (contextField?.enumValues) {
       const idx = contextField.enumValues.indexOf(val)

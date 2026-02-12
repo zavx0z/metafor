@@ -40,8 +40,8 @@ try {
       DEAD: null,
     },
     contextSchema: {
-      hp: { type: "float" },
-      mana: { type: "float" },
+      hp: { type: "number" },
+      mana: { type: "number" },
       isAlive: { type: "boolean" },
     },
     monads: [

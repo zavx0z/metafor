@@ -22,7 +22,7 @@ describe("Компилятор правил — функциональные т�
         IDLE: { DEAD: { hp: { lte: 0 } } },
         DEAD: null, // ← обязательно объявляем состояние-цель!
       }
-      const schema = { hp: { type: "float" } }
+      const schema = { hp: { type: "number" } }
 
       const result = compiler.compile(statesConfig, schema)
       const bytecodeArray = Array.from(result.bytecode)
@@ -43,7 +43,7 @@ describe("Компилятор правил — функциональные т�
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null, // ← объявляем цель перехода
       }
-      const schema = { hp: "number" }
+      const schema = { hp: { type: "number" } }
 
       const result = compiler.compile(statesConfig, schema)
       const bytecodeArray = Array.from(result.bytecode)
@@ -79,7 +79,7 @@ describe("Компилятор правил — функциональные т�
         PATROL: { IDLE: { mana: { lt: 10 } } },
         IDLE: null,
       }
-      const schema = { mana: { type: "float" } }
+      const schema = { mana: { type: "number" } }
 
       const result = compiler.compile(statesConfig, schema)
       const bytecodeArray = Array.from(result.bytecode)
@@ -115,7 +115,7 @@ describe("Компилятор правил — функциональные т�
         ACTIVE: { IDLE: { isAlive: { neq: false } } },
         IDLE: null,
       }
-      const schema = { isAlive: "boolean" }
+      const schema = { isAlive: { type: "boolean" } }
 
       const result = compiler.compile(statesConfig, schema)
       const bytecodeArray = Array.from(result.bytecode)
@@ -208,7 +208,7 @@ describe("Компилятор правил — функциональные т�
         PATROL: { IDLE: { mana: { lt: 10 } } },
         DEAD: null,
       }
-      const schema = { hp: "number", mana: "number" }
+      const schema = { hp: { type: "number" }, mana: { type: "number" } }
 
       const result = compiler.compile(statesConfig, schema)
 

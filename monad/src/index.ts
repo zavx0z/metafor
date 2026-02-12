@@ -32,8 +32,7 @@ import { ContextManager, FieldType, GlobalFieldRegistry, type FieldTypeValue } f
  * Может быть объектом с полем type и дополнительными параметрами.
  */
 export type FieldDefinition =
-  | { type: "float" }
-  | { type: "integer" }
+  | { type: "number" }
   | { type: "boolean" }
   | { type: "string" }
   | { type: "array<string>" }
@@ -71,17 +70,18 @@ export interface MonadSystemConfig {
    *
    * | Input Schema | Internal GPU Type | Memory Storage |
    * | :--- | :--- | :--- |
-   * | `{ type: "float" }` | `TYPE.FLOAT` | `buffer_floats` (f32) |
-   * | `{ type: "integer" }` | `TYPE.UINT` | `buffer_uints` (u32) |
+   * | `{ type: "number" }` | `TYPE.FLOAT` | `buffer_floats` (f32) |
    * | `{ type: "boolean" }` | `TYPE.BOOL` | `buffer_uints` (0/1) |
-   * | `{ type: "enum", ... }` | `TYPE.UINT` | `buffer_uints` (index) |
-   * | `{ type: "array<T>" }` | `TYPE.ARRAY` | `buffer_uints` (pointer -> heap) |
+   * | `{ type: "enum<string>", values: string[] }` | `TYPE.UINT` | `buffer_uints` (index) |
+   * | `{ type: "enum<number>", values: number[] }` | `TYPE.UINT` | `buffer_uints` (index) |
+   * | `{ type: "array<string>" }` | `TYPE.ARRAY` | `buffer_uints` (pointer -> heap) |
+   * | `{ type: "array<number>" }` | `TYPE.ARRAY` | `buffer_uints` (pointer -> heap) |
    *
    * @example
    * ```ts
    * const schema = {
-   *   hp: { type: "float" },
-   *   status: { type: "enum", values: ["ALIVE", "DEAD"] }
+   *   hp: { type: "number" },
+   *   status: { type: "enum<string>", values: ["ALIVE", "DEAD"] }
    * }
    * ```
    */
@@ -141,12 +141,14 @@ export class MonadSystem {
    * @param config - Конфигурация симуляции.
    * @param config.statesConfig - Граф переходов в формате { [state]: { [target]: { [field]: condition } } }.
    * **Пример:** `{ "IDLE": { "PATROL": { "hp": { "gt": 50 } } } }`
-   * @param config.contextSchema - Схема типов данных. Поддерживаемые типы:
-   * * `"float"`, `"number"` → 32-битное число с плавающей точкой.
-   * * `"integer"` → 32-битное беззнаковое целое.
-   * * `"boolean"` → 0/1 значение.
-   * * `"array<T>"` → массив элементов типа T (хранится в куче).
-   * * `"enum"` → целочисленный индекс (значения в `values: [...]`).
+   * @param config.contextSchema - Схема типов данных. Определяется объектами:
+   * * `{ type: "number" }` → 32-битное число с плавающей точкой (f32).
+   * * `{ type: "boolean" }` → 0/1 значение.
+   * * `{ type: "string" }` → строка (хранится в куче).
+   * * `{ type: "array<string>" }` → массив строк (хранится в куче).
+   * * `{ type: "array<number>" }` → массив чисел (хранится в куче).
+   * * `{ type: "enum<string>", values: string[] }` → перечисление строк.
+   * * `{ type: "enum<number>", values: number[] }` → перечисление чисел.
    * @param config.monads - Массив агентов для инициализации.
    * **Формат:** `{ id: string, state: string, context: Record<string, unknown> }`
    *
@@ -159,7 +161,7 @@ export class MonadSystem {
    * ```ts
    * await system.init({
    *   statesConfig: { IDLE: { PATROL: { hp: { gt: 50 } } } },
-   *   contextSchema: { hp: "number" },
+   *   contextSchema: { hp: { type: "number" } },
    *   monads: [
    *     { id: "hero", state: "IDLE", context: { hp: 100 } }
    *   ]
@@ -183,12 +185,8 @@ export class MonadSystem {
 
       // Маппинг человекопонятных типов -> FieldType.
       switch (typeStr) {
-        case "float":
         case "number":
           fieldType = FieldType.F32
-          break
-        case "integer":
-          fieldType = FieldType.U32
           break
         case "boolean":
           fieldType = FieldType.BOOL
@@ -209,11 +207,7 @@ export class MonadSystem {
           fieldType = FieldType.U32
           break
         default:
-          if (typeof defTyped !== "string" && "values" in defTyped && defTyped.values) {
-            fieldType = FieldType.U32
-          } else {
-            fieldType = FieldType.U32
-          }
+          throw new Error(`Unknown field type in contextSchema: '${typeStr}' for field '${name}'`)
       }
       if (!registry.has(name)) {
         const registerOptions = {

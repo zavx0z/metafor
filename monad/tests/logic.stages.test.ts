@@ -18,7 +18,7 @@ describe("MonadSystem — Логика новых этапов (GPU)", () => {
           AIR: null,
           MOVING: null,
         },
-        contextSchema: { mode: { type: "integer" } },
+        contextSchema: { mode: { type: "number" } },
         monads: [
           { id: "m1", state: "GROUND", context: { mode: 1 } }, // WALK -> MOVING
           { id: "m2", state: "GROUND", context: { mode: 3 } }, // FLY -> AIR
@@ -40,7 +40,7 @@ describe("MonadSystem — Логика новых этапов (GPU)", () => {
           },
           CRITICAL: null,
         },
-        contextSchema: { temperature: { type: "float" } },
+        contextSchema: { temperature: { type: "number" } },
         monads: [
           { id: "m1", state: "NORMAL", context: { temperature: 36.6 } },
           { id: "m2", state: "NORMAL", context: { temperature: 37.0 } },
@@ -64,7 +64,7 @@ describe("MonadSystem — Логика новых этапов (GPU)", () => {
           },
           GAME: null,
         },
-        contextSchema: { role: { type: "integer" } },
+        contextSchema: { role: { type: "number" } },
         monads: [
           { id: "m1", state: "LOBBY", context: { role: 1 } }, // Player -> GAME
           { id: "m2", state: "LOBBY", context: { role: 0 } }, // Spectator -> LOBBY
@@ -89,7 +89,7 @@ describe("MonadSystem — Логика новых этапов (GPU)", () => {
           },
           WIN: null,
         },
-        contextSchema: { score: { type: "integer" }, badge: { type: "integer" } },
+        contextSchema: { score: { type: "number" }, badge: { type: "number" } },
         monads: [
           { id: "m1", state: "START", context: { score: 150, badge: 5 } }, // OK
           { id: "m2", state: "START", context: { score: 150, badge: 1 } }, // Badge fail

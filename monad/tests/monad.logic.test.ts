@@ -24,9 +24,9 @@ describe("MonadSystem — Тесты логики (реальное устрой
           DEAD: null,
         },
         contextSchema: {
-          hp: "number",
-          mana: "number",
-          isAlive: "boolean",
+          hp: { type: "number" },
+          mana: { type: "number" },
+          isAlive: { type: "boolean" },
         },
         monads: [
           { id: "m1", state: "IDLE", context: { hp: 100, mana: 100, isAlive: true } },
@@ -50,7 +50,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
           PATROL: null,
         },
         contextSchema: {
-          hp: "number",
+          hp: { type: "number" },
         },
         monads: [
           { id: "m1", state: "IDLE", context: { hp: 100 } },
@@ -130,7 +130,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
           ACTIVE: null,
         },
         contextSchema: {
-          isAlive: "boolean",
+          isAlive: { type: "boolean" },
         },
         monads: [
           { id: "m1", state: "IDLE", context: { isAlive: true } },
