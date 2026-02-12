@@ -345,12 +345,7 @@ describe("Boundary — Тип FLOAT (number)", () => {
   })
 
   describe("Составные условия (between)", () => {
-    // ПРИМЕЧАНИЕ: Оператор between компилируется в два условия: gte и lte.
-    // Текущая реализация проверяет условия независимо, поэтому between работает
-    // как "первое условие ИЛИ второе", а не как "первое И второе".
-    // Это известное поведение, которое может быть изменено в будущем.
-    test.skip("должен перейти если значение в диапазоне (требует AND логики для одного поля)", async () => {
-      // SKIP: Текущая реализация не поддерживает AND логику для множественных условий одного поля
+    test("должен перейти если значение в диапазоне", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { between: [10, 20] } } },
         ACTIVE: null,
@@ -368,38 +363,12 @@ describe("Boundary — Тип FLOAT (number)", () => {
 
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
+      // between компилируется в gte(10) AND lte(20)
       expect(result.states![0]).toBe("IDLE") // 9 < 10
       expect(result.states![1]).toBe("ACTIVE") // 10 >= 10 && 10 <= 20
       expect(result.states![2]).toBe("ACTIVE") // 15 >= 10 && 15 <= 20
       expect(result.states![3]).toBe("ACTIVE") // 20 >= 10 && 20 <= 20
       expect(result.states![4]).toBe("IDLE") // 21 > 20
-    })
-
-    test("должен перейти если выполнено хотя бы одно из условий between (текущее поведение)", async () => {
-      const superposition = {
-        IDLE: { ACTIVE: { value: { between: [10, 20] } } },
-        ACTIVE: null,
-      }
-      const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
-          { id: "q1", state: "IDLE", brane: { value: 9 }, superposition },
-          { id: "q2", state: "IDLE", brane: { value: 10 }, superposition },
-          { id: "q3", state: "IDLE", brane: { value: 15 }, superposition },
-          { id: "q4", state: "IDLE", brane: { value: 20 }, superposition },
-          { id: "q5", state: "IDLE", brane: { value: 21 }, superposition },
-        ],
-      })
-
-      expect(result.success).toBe(true)
-      expect(result.states).toBeDefined()
-      // Текущее поведение: between компилируется в gte(10) и lte(20)
-      // Если выполнено хотя бы одно условие - переход происходит
-      expect(result.states![0]).toBe("IDLE") // 9 < 10 (ни одно условие)
-      expect(result.states![1]).toBe("ACTIVE") // 10 >= 10 (первое условие)
-      expect(result.states![2]).toBe("ACTIVE") // 15 >= 10 && 15 <= 20 (оба условия)
-      expect(result.states![3]).toBe("ACTIVE") // 20 >= 10 && 20 <= 20 (оба условия)
-      expect(result.states![4]).toBe("ACTIVE") // 21 >= 10 (первое условие)
     })
   })
 
@@ -490,10 +459,7 @@ describe("Boundary — Тип FLOAT (number)", () => {
   })
 
   describe("Множественные условия", () => {
-    // ПРИМЕЧАНИЕ: Множественные условия для одного поля работают как OR в текущей реализации.
-    // Для AND логики нужно использовать разные поля.
-    test.skip("должен перейти при выполнении всех условий для одного поля (требует AND логики)", async () => {
-      // SKIP: Текущая реализация использует OR логику для условий одного поля
+    test("должен перейти при выполнении всех условий для одного поля (AND логика)", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { gte: 10, lte: 20 } } },
         ACTIVE: null,
@@ -509,31 +475,10 @@ describe("Boundary — Тип FLOAT (number)", () => {
 
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
-      expect(result.states![0]).toBe("IDLE") // 9 < 10
-      expect(result.states![1]).toBe("ACTIVE") // 15 >= 10 && 15 <= 20
-      expect(result.states![2]).toBe("IDLE") // 21 > 20
-    })
-
-    test("должен перейти при выполнении любого из условий для одного поля (текущее OR поведение)", async () => {
-      const superposition = {
-        IDLE: { ACTIVE: { value: { gte: 10, lte: 20 } } },
-        ACTIVE: null,
-      }
-      const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
-          { id: "q1", state: "IDLE", brane: { value: 9 }, superposition },
-          { id: "q2", state: "IDLE", brane: { value: 15 }, superposition },
-          { id: "q3", state: "IDLE", brane: { value: 21 }, superposition },
-        ],
-      })
-
-      expect(result.success).toBe(true)
-      expect(result.states).toBeDefined()
-      // Текущее поведение: условия OR
-      expect(result.states![0]).toBe("IDLE") // 9 < 10 (ни одно условие)
+      // Все условия для одного поля проверяются с AND логикой
+      expect(result.states![0]).toBe("IDLE") // 9 < 10 (не проходит gte)
       expect(result.states![1]).toBe("ACTIVE") // 15 >= 10 && 15 <= 20 (оба условия)
-      expect(result.states![2]).toBe("ACTIVE") // 21 >= 10 (первое условие)
+      expect(result.states![2]).toBe("IDLE") // 21 > 20 (не проходит lte)
     })
   })
 })

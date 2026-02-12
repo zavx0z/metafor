@@ -291,17 +291,20 @@ export class RulesCompiler {
 
   private compileConditions(wave: CollapseConditions) {
     const entries = Object.entries(wave)
-    this.bytecode.push(entries.length)
+    // Сначала подсчитаем общее количество условий (инструкций)
+    // Для { value: { gte: 10, lte: 20 } } будет 2 инструкции
+    let totalConditions = 0
+    for (const [key, cond] of entries) {
+      const checks = this.parseCondition(cond)
+      totalConditions += checks.length
+    }
+    this.bytecode.push(totalConditions)
     // Генерируем инструкции: [type, field_id, op, value] (4 слова на условие)
     // Для массивов (IN/NOT_IN) value = указатель на кучу со списком значений.
     const blockHeap: number[] = []
     const baseOffset = this.bytecode.length
     // Считаем полный размер инструкций (4 слова на каждую проверку)
-    let totalInstructionsSize = 0
-    for (const [key, cond] of entries) {
-      const checks = this.parseCondition(cond)
-      totalInstructionsSize += checks.length * 4
-    }
+    const totalInstructionsSize = totalConditions * 4
     const startOfHeap = baseOffset + totalInstructionsSize
     // Генерируем инструкции с правильными указателями на кучу.
     for (const [key, cond] of entries) {
