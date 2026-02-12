@@ -10,7 +10,7 @@
     "typescript": "^5"
   },
   "scripts": {
-    "build": "bun index ./example/meta.ts",
-    "build:watch": "bun index ./example/meta.ts --watch"
+    "build": "bun cli ./example/meta.ts",
+    "build:watch": "bun cli ./example/meta.ts --watch"
   }
 }
