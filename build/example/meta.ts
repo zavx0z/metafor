@@ -3,7 +3,7 @@ import "@metafor/meta"
 const meta = MetaFor("git")
   .context((t) => ({
     src: t.string.required("./tmp/edit.json", { label: "JSON-patch путь" }),
-    patches: t.array.required<number>([], { label: "разделенные патчи" }),
+    patches: t.array.required<string>([], { label: "разделенные патчи" }),
   }))
   .states({
     коммит: {

@@ -14,7 +14,7 @@
       "label": "JSON-patch путь"
     },
     "patches": {
-      "type": "array",
+      "type": "array<string>",
       "required": true,
       "default": [],
       "label": "разделенные патчи"

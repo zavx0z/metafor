@@ -1,30 +1,8 @@
 import { watch } from "fs"
 import { dirname, basename, join, isAbsolute } from "path"
 import { pathToFileURL } from "url"
+import { convertMetaToMonadIntermediate } from "./contextToMonad"
 
-// Функция для очистки кэша модуля
-function clearModuleCache(modulePath: string) {
-  const absolutePath = require.resolve(modulePath)
-
-  // Удаляем из кэша require.cache (для CommonJS)
-  if (require.cache[absolutePath]) {
-    delete require.cache[absolutePath]
-  }
-
-  // Удаляем из кэша module._cache (для ES модулей в Bun)
-  // @ts-ignore - _cache может быть не в типах
-  if (typeof Bun !== "undefined" && Bun._cache) {
-    // @ts-ignore
-    delete Bun._cache[absolutePath]
-  }
-
-  // Также удаляем из import.meta.cache если доступно
-  // @ts-ignore
-  if (import.meta.cache && import.meta.cache.has(absolutePath)) {
-    // @ts-ignore
-    import.meta.cache.delete(absolutePath)
-  }
-}
 
 // Обработка аргументов командной строки
 const args = process.argv.slice(2)
@@ -43,6 +21,14 @@ if (fileArgIndex !== -1 && args[fileArgIndex + 1]) {
   }
 }
 
+/**
+ * Выполняет сборку meta-файла:
+ * - Проверяет существование входного файла.
+ * - Импортирует модуль с query-параметром для обхода кэша.
+ * - Преобразует через convertMetaToMonadIntermediate с передачей исходного текста.
+ * - Записывает результат в JSON рядом с исходным файлом.
+ * - Выводит размер сгенерированного файла.
+ */
 async function build() {
   try {
     const cwd = process.cwd()
@@ -61,8 +47,6 @@ async function build() {
     const inputBaseName = basename(inputFilePath, ".ts")
     const outputPath = join(inputDir, `${inputBaseName}.json`)
 
-    // Очищаем кэш модуля перед импортом
-    clearModuleCache(inputFilePath)
 
     // Импорт модуля с добавлением временной метки для обхода кэша
     const fileUrl = pathToFileURL(inputFilePath).href
@@ -76,8 +60,9 @@ async function build() {
       return
     }
 
-    const json = JSON.stringify(data, null, 2)
-
+    const sourceText = await inputFileHandle.text()
+    const normalized = convertMetaToMonadIntermediate(data, sourceText)
+    const json = JSON.stringify(normalized, null, 2)
     await Bun.write(outputPath, json)
 
     // Расчет размера файла
