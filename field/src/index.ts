@@ -1,12 +1,10 @@
 /**
- * Модуль управления массивными симуляциями агентов на GPU.
- *
- * ## Архитектура (v2.x)
+ * Модуль эволюции квантов поля на GPU.
  *
  * **Ядро (Core Pattern):** Библиотека реализует паттерн **Data-Oriented Design** с акцентом на параллелизм GPU.
  *
  * ### Ключевые компоненты:
- * 1. **ContextManager** — управление памятью агентов в формате "самоописываемых блоков" с автоматической группировкой общих полей.
+ * 1. **ContextManager** — управление памятью квантов в формате "самоописываемых блоков" с автоматической группировкой общих полей.
  * 2. **RulesCompiler** — транслятор JSON-правил в байт-код для кастомной VM, исполняемой в compute shader.
  * 3. **GPUBackend** — драйвер WebGPU, управляющий VRAM и диспетчеризацией вычислительных работ.
  *
@@ -47,9 +45,9 @@ export type FieldDefinition =
 export type ContextSchema = Record<string, FieldDefinition>
 
 /**
- * Конфигурация для инициализации `MonadSystem`.
+ * Конфигурация для инициализации `QuantumFieldSystem`.
  */
-export interface MonadSystemConfig {
+export interface QuantumFieldSystemConfig {
   /**
    * Граф состояний и переходов между ними.
    * @example
@@ -88,25 +86,25 @@ export interface MonadSystemConfig {
   contextSchema: ContextSchema
 
   /**
-   * Массив начальных состояний для каждой монады (агента).
+   * Массив начальных состояний для каждого кванта.
    */
-  monads: Array<{ id: string; state: string; context: any }>
+  quanta: Array<{ id: string; state: string; context: any }>
 }
 
 /**
- * `MonadSystem` — это главный класс библиотеки.
+ * `QuantumFieldSystem` — это главный класс библиотеки.
  *
  * Он представляет собой высокоуровневый фасад, который скрывает сложность
  * компиляции правил и низкоуровневого взаимодействия с WebGPU.
  *
  * **Основной воркфлоу:**
- * 1. **Создание:** `new MonadSystem(device)`
+ * 1. **Создание:** `new QuantumFieldSystem(device)`
  * 2. **Инициализация:** `await system.init({...})`. На этом шаге правила компилируются в байт-код,
  *    создаются GPU-буферы и загружаются начальные данные.
  * 3. **Симуляция:** `system.step()` для выполнения одного такта вычислений на GPU.
  * 4. **Получение результатов:** `await system.getStates()` для чтения итоговых состояний.
  */
-export class MonadSystem {
+export class QuantumFieldSystem {
   private backend: GPUBackend
   private compiler = new RulesCompiler()
   private contextManager: ContextManager
@@ -136,7 +134,7 @@ export class MonadSystem {
    * ### Валидация входных данных:
    * * Каждое состояние, упомянутое как цель перехода, должно быть объявлено в корне statesConfig.
    * * Все поля, используемые в условиях, должны быть описаны в contextSchema.
-   * * Начальные состояния monads должны существовать в stateMap.
+   * * Начальные состояния quanta должны существовать в stateMap.
    *
    * @param config - Конфигурация симуляции.
    * @param config.statesConfig - Граф переходов в формате { [state]: { [target]: { [field]: condition } } }.
@@ -149,7 +147,7 @@ export class MonadSystem {
    * * `{ type: "array<number>" }` → массив чисел (хранится в куче).
    * * `{ type: "enum<string>", values: string[] }` → перечисление строк.
    * * `{ type: "enum<number>", values: number[] }` → перечисление чисел.
-   * @param config.monads - Массив агентов для инициализации.
+   * @param config.quanta - Массив квантов для инициализации.
    * **Формат:** `{ id: string, state: string, context: Record<string, unknown> }`
    *
    * @throws {Error} Если:
@@ -162,17 +160,13 @@ export class MonadSystem {
    * await system.init({
    *   statesConfig: { IDLE: { PATROL: { hp: { gt: 50 } } } },
    *   contextSchema: { hp: { type: "number" } },
-   *   monads: [
+   *   quanta: [
    *     { id: "hero", state: "IDLE", context: { hp: 100 } }
    *   ]
    * });
    * ```
    */
-  async init(config: {
-    statesConfig: any // Суперпозиция (Superposition)
-    contextSchema: ContextSchema
-    monads: Array<{ id: string; state: string; context: any }>
-  }) {
+  async init(config: QuantumFieldSystemConfig) {
     // 1. Регистрируем поля из схемы в глобальном реестре.
     const registry = GlobalFieldRegistry.getInstance()
 
@@ -218,8 +212,8 @@ export class MonadSystem {
       }
     }
 
-    // 2. Создаём агентов — менеджер сам группирует поля!
-    this.agentIds = this.contextManager.createAgents(config.monads.map((m) => m.context))
+    // 2. Создаём кванты — менеджер сам группирует поля!
+    this.agentIds = this.contextManager.createAgents(config.quanta.map((q) => q.context))
 
     // 3. Компилируем правила FSM ([type, field_id, op, value]).
     const compiled = this.compiler.compile(config.statesConfig, config.contextSchema, { preserveRegistry: true })
@@ -227,12 +221,12 @@ export class MonadSystem {
     this.reverseStateMap = Object.keys(compiled.stateMap)
 
     // 4. Инициализируем бэкенд.
-    const states = new Uint32Array(config.monads.map((m) => this.stateMap[m.state] ?? 0))
+    const states = new Uint32Array(config.quanta.map((q) => this.stateMap[q.state] ?? 0))
 
     const { agentDescriptors, heap } = this.contextManager.getGPUBuffers()
 
     await this.backend.init({
-      monadCount: config.monads.length,
+      quantaCount: config.quanta.length,
       bytecode: compiled.bytecode,
       states,
       agentDescriptors,
@@ -304,7 +298,7 @@ export class MonadSystem {
    * * **Нет проверки на переполнение кучи** — может выбросить ошибку аллокатора.
    * * **Не атомарно на GPU** — изменения видны в следующем шаге симуляции.
    *
-   * @param agentIndex - Порядковый индекс агента в массиве monads (0-based).
+   * @param agentIndex - Порядковый индекс кванта в массиве quanta (0-based).
    * @param fieldName - Имя поля, зарегистрированное в contextSchema.
    * @param value - Новое значение (тип должен соответствовать схеме).
    *

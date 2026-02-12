@@ -108,7 +108,7 @@ export class RulesCompiler {
     this.fields = {}
 
     // Вместо SoA fieldMap используем GlobalFieldRegistry для получения field_id
-    // Поля должны быть уже зарегистрированы через contextSchema в MonadSystem.init()
+    // Поля должны быть уже зарегистрированы через contextSchema в QuantumFieldSystem.init()
     // Если схема передана, регистрируем поля, но не строим SoA маппинг
     if (contextSchema) {
       if (!options.preserveRegistry) {

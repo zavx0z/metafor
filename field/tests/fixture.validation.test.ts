@@ -1,19 +1,19 @@
 import { test, expect, describe, beforeAll, afterAll, beforeEach } from "bun:test"
-import { MonadTestFixture } from "./fixture"
+import { QuantumFieldTestFixture } from "./fixture"
 
 describe("Тесты валидации фикстуры", () => {
-  let fixture: MonadTestFixture
+  let fixture: QuantumFieldTestFixture
 
   beforeAll(async () => {
-    await MonadTestFixture.setup()
+    await QuantumFieldTestFixture.setup()
   })
 
   afterAll(async () => {
-    await MonadTestFixture.teardown()
+    await QuantumFieldTestFixture.teardown()
   }, 20000)
 
   beforeEach(() => {
-    fixture = new MonadTestFixture()
+    fixture = new QuantumFieldTestFixture()
   })
 
   describe("Данные из примера Client.ts", () => {
@@ -38,9 +38,9 @@ describe("Тесты валидации фикстуры", () => {
           mana: { type: "number" },
           isAlive: { type: "boolean" },
         },
-        monads: [
-          { id: "m1", state: "IDLE", context: { hp: 100, mana: 100, isAlive: true } },
-          { id: "m2", state: "IDLE", context: { hp: 0, mana: 50, isAlive: false } },
+        quanta: [
+          { id: "q1", state: "IDLE", context: { hp: 100, mana: 100, isAlive: true } },
+          { id: "q2", state: "IDLE", context: { hp: 0, mana: 50, isAlive: false } },
         ],
         updates: [{ agentIndex: 0, fieldName: "hp", value: 50 }],
         steps: 1,
@@ -86,9 +86,9 @@ describe("Тесты валидации фикстуры", () => {
           mana: { type: "number" },
           isAlive: { type: "boolean" },
         },
-        monads: [
-          { id: "m1", state: "IDLE", context: { hp: 100, mana: 100, isAlive: true } },
-          { id: "m2", state: "IDLE", context: { hp: 0, mana: 50, isAlive: false } },
+        quanta: [
+          { id: "q1", state: "IDLE", context: { hp: 100, mana: 100, isAlive: true } },
+          { id: "q2", state: "IDLE", context: { hp: 0, mana: 50, isAlive: false } },
         ],
         steps: 0,
       })
@@ -99,7 +99,7 @@ describe("Тесты валидации фикстуры", () => {
       expect(result.states![1]).toBe("IDLE")
     })
 
-    test("должен немедленно перевести агента m2 в состояние DEAD (hp=0)", async () => {
+    test("должен немедленно перевести квант q2 в состояние DEAD (hp=0)", async () => {
       const testData = {
         statesConfig: {
           IDLE: {
@@ -110,13 +110,13 @@ describe("Тесты валидации фикстуры", () => {
         contextSchema: {
           hp: { type: "number" },
         },
-        monads: [{ id: "m2", state: "IDLE", context: { hp: 0 } }],
+        quanta: [{ id: "q2", state: "IDLE", context: { hp: 0 } }],
         steps: 1,
         debug: true,
       }
 
       // console.log('[DEBUG] Конфигурация теста:', JSON.stringify(testData, null, 2))
-      // console.log('[DEBUG] Значение hp:', testData.monads[0]!.context?.hp)
+      // console.log('[DEBUG] Значение hp:', testData.quanta[0]!.context?.hp)
       // console.log('[DEBUG] Ожидаемый переход: IDLE -> DEAD потому что hp <= 0')
 
       const result = await fixture.runSimulation(testData)
@@ -140,7 +140,7 @@ describe("Тесты валидации фикстуры", () => {
         contextSchema: {
           hp: "number",
         },
-        monads: [{ id: "m1", state: "IDLE", context: { hp: -10 } }],
+        quanta: [{ id: "q1", state: "IDLE", context: { hp: -10 } }],
         steps: 1,
       })
 
@@ -160,7 +160,7 @@ describe("Тесты валидации фикстуры", () => {
         contextSchema: {
           hp: "number",
         },
-        monads: [{ id: "m1", state: "IDLE", context: { hp: 10 } }],
+        quanta: [{ id: "q1", state: "IDLE", context: { hp: 10 } }],
         steps: 1,
       })
 
@@ -169,7 +169,7 @@ describe("Тесты валидации фикстуры", () => {
       expect(result.states![0]).toBe("IDLE")
     })
 
-    test("должен оставить агента m1 в состоянии IDLE когда здоровье = 50 (не >50 и не <=0)", async () => {
+    test("должен оставить квант q1 в состоянии IDLE когда здоровье = 50 (не >50 и не <=0)", async () => {
       const result = await fixture.runSimulation({
         statesConfig: {
           IDLE: {
@@ -182,7 +182,7 @@ describe("Тесты валидации фикстуры", () => {
         contextSchema: {
           hp: "number",
         },
-        monads: [{ id: "m1", state: "IDLE", context: { hp: 50 } }],
+        quanta: [{ id: "q1", state: "IDLE", context: { hp: 50 } }],
         steps: 1,
       })
 

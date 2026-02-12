@@ -1,10 +1,10 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
-import { MonadTestFixture } from "./fixture"
+import { QuantumFieldTestFixture } from "./fixture"
 
-describe("MonadSystem — Тесты логики (реальное устройство GPU)", () => {
-  beforeAll(async () => await MonadTestFixture.setup())
-  afterAll(async () => await MonadTestFixture.teardown(), 20000)
-  const fixture = new MonadTestFixture()
+describe("QuantumFieldSystem — Тесты логики (реальное устройство GPU)", () => {
+  beforeAll(async () => await QuantumFieldTestFixture.setup())
+  afterAll(async () => await QuantumFieldTestFixture.teardown(), 20000)
+  const fixture = new QuantumFieldTestFixture()
 
   describe("Базовые переходы состояний", () => {
     test("должен перейти из состояния IDLE в DEAD при здоровье <= 0", async () => {
@@ -28,9 +28,9 @@ describe("MonadSystem — Тесты логики (реальное устрой
           mana: { type: "number" },
           isAlive: { type: "boolean" },
         },
-        monads: [
-          { id: "m1", state: "IDLE", context: { hp: 100, mana: 100, isAlive: true } },
-          { id: "m2", state: "IDLE", context: { hp: 0, mana: 50, isAlive: false } },
+        quanta: [
+          { id: "q1", state: "IDLE", context: { hp: 100, mana: 100, isAlive: true } },
+          { id: "q2", state: "IDLE", context: { hp: 0, mana: 50, isAlive: false } },
         ],
       })
 
@@ -52,9 +52,9 @@ describe("MonadSystem — Тесты логики (реальное устрой
         contextSchema: {
           hp: { type: "number" },
         },
-        monads: [
-          { id: "m1", state: "IDLE", context: { hp: 100 } },
-          { id: "m2", state: "IDLE", context: { hp: 50 } },
+        quanta: [
+          { id: "q1", state: "IDLE", context: { hp: 100 } },
+          { id: "q2", state: "IDLE", context: { hp: 50 } },
         ],
       })
 
@@ -78,9 +78,9 @@ describe("MonadSystem — Тесты логики (реальное устрой
         contextSchema: {
           hp: "number",
         },
-        monads: [
-          { id: "m1", state: "IDLE", context: { hp: 50 } },
-          { id: "m2", state: "IDLE", context: { hp: 49 } },
+        quanta: [
+          { id: "q1", state: "IDLE", context: { hp: 50 } },
+          { id: "q2", state: "IDLE", context: { hp: 49 } },
         ],
       })
 
@@ -104,9 +104,9 @@ describe("MonadSystem — Тесты логики (реальное устрой
         contextSchema: {
           hp: "number",
         },
-        monads: [
-          { id: "m1", state: "IDLE", context: { hp: 49 } },
-          { id: "m2", state: "IDLE", context: { hp: 50 } },
+        quanta: [
+          { id: "q1", state: "IDLE", context: { hp: 49 } },
+          { id: "q2", state: "IDLE", context: { hp: 50 } },
         ],
       })
 
@@ -132,9 +132,9 @@ describe("MonadSystem — Тесты логики (реальное устрой
         contextSchema: {
           isAlive: { type: "boolean" },
         },
-        monads: [
-          { id: "m1", state: "IDLE", context: { isAlive: true } },
-          { id: "m2", state: "IDLE", context: { isAlive: false } },
+        quanta: [
+          { id: "q1", state: "IDLE", context: { isAlive: true } },
+          { id: "q2", state: "IDLE", context: { isAlive: false } },
         ],
       })
 
@@ -158,9 +158,9 @@ describe("MonadSystem — Тесты логики (реальное устрой
         contextSchema: {
           isAlive: "boolean",
         },
-        monads: [
-          { id: "m1", state: "ACTIVE", context: { isAlive: false } },
-          { id: "m2", state: "ACTIVE", context: { isAlive: true } },
+        quanta: [
+          { id: "q1", state: "ACTIVE", context: { isAlive: false } },
+          { id: "q2", state: "ACTIVE", context: { isAlive: true } },
         ],
       })
 
@@ -190,10 +190,10 @@ describe("MonadSystem — Тесты логики (реальное устрой
           hp: "number",
           mana: "number",
         },
-        monads: [
-          { id: "m1", state: "IDLE", context: { hp: 100, mana: 50 } },
-          { id: "m2", state: "IDLE", context: { hp: 100, mana: 10 } },
-          { id: "m3", state: "IDLE", context: { hp: 30, mana: 50 } },
+        quanta: [
+          { id: "q1", state: "IDLE", context: { hp: 100, mana: 50 } },
+          { id: "q2", state: "IDLE", context: { hp: 100, mana: 10 } },
+          { id: "q3", state: "IDLE", context: { hp: 30, mana: 50 } },
         ],
       })
 
@@ -221,7 +221,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
         contextSchema: {
           hp: "number",
         },
-        monads: [{ id: "m1", state: "IDLE", context: { hp: 100 } }],
+        quanta: [{ id: "q1", state: "IDLE", context: { hp: 100 } }],
         updates: [{ agentIndex: 0, fieldName: "hp", value: 0 }],
       })
 
@@ -243,7 +243,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
         contextSchema: {
           hp: "number",
         },
-        monads: [{ id: "m1", state: "IDLE", context: { hp: 100 } }],
+        quanta: [{ id: "q1", state: "IDLE", context: { hp: 100 } }],
         updates: [{ agentIndex: 0, fieldName: "hp", value: 50 }],
       })
 
@@ -271,7 +271,7 @@ describe("MonadSystem — Тесты логики (реальное устрой
           hp: "number",
           mana: "number",
         },
-        monads: [{ id: "m1", state: "IDLE", context: { hp: 100, mana: 5 } }],
+        quanta: [{ id: "q1", state: "IDLE", context: { hp: 100, mana: 5 } }],
         steps: 2,
       })
 
@@ -295,10 +295,10 @@ describe("MonadSystem — Тесты логики (реальное устрой
         contextSchema: {
           hp: "number",
         },
-        monads: [
-          { id: "m1", state: "IDLE", context: { hp: 100 } },
-          { id: "m2", state: "IDLE", context: { hp: 200 } },
-          { id: "m3", state: "IDLE", context: { hp: 0 } },
+        quanta: [
+          { id: "q1", state: "IDLE", context: { hp: 100 } },
+          { id: "q2", state: "IDLE", context: { hp: 200 } },
+          { id: "q3", state: "IDLE", context: { hp: 0 } },
         ],
       })
 
@@ -325,9 +325,9 @@ describe("MonadSystem — Тесты логики (реальное устрой
         contextSchema: {
           hp: "number",
         },
-        monads: [
-          { id: "m1", state: "IDLE", context: { hp: 100 } },
-          { id: "m2", state: "ACTIVE", context: { hp: 30 } },
+        quanta: [
+          { id: "q1", state: "IDLE", context: { hp: 100 } },
+          { id: "q2", state: "ACTIVE", context: { hp: 30 } },
         ],
       })
 

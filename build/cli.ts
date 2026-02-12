@@ -1,7 +1,7 @@
 import { watch } from "fs"
 import { dirname, basename, join, isAbsolute } from "path"
 import { pathToFileURL } from "url"
-import { convertMetaToMonadIntermediate } from "./contextToMonad"
+import { convertMetaToFieldIntermediate } from "./contextToField"
 
 
 // Обработка аргументов командной строки
@@ -25,7 +25,7 @@ if (fileArgIndex !== -1 && args[fileArgIndex + 1]) {
  * Выполняет сборку meta-файла:
  * - Проверяет существование входного файла.
  * - Импортирует модуль с query-параметром для обхода кэша.
- * - Преобразует через convertMetaToMonadIntermediate с передачей исходного текста.
+ * - Преобразует через convertMetaToFieldIntermediate с передачей исходного текста.
  * - Записывает результат в JSON рядом с исходным файлом.
  * - Выводит размер сгенерированного файла.
  */
@@ -61,7 +61,7 @@ async function build() {
     }
 
     const sourceText = await inputFileHandle.text()
-    const normalized = convertMetaToMonadIntermediate(data, sourceText)
+    const normalized = convertMetaToFieldIntermediate(data, sourceText)
     const json = JSON.stringify(normalized, null, 2)
     await Bun.write(outputPath, json)
 

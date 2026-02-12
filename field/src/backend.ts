@@ -9,7 +9,7 @@ import shaderSource from "./classify.wgsl" with { type: "text" }
  * * Диспетчеризация команд `dispatchWorkgroups`.
  * * Синхронизация данных VRAM <-> RAM (Readback).
  *
- * @internal Используется только внутри `MonadSystem`.
+ * @internal Используется только внутри `QuantumFieldSystem`.
  */
 export class GPUBackend {
   private device: GPUDevice
@@ -27,12 +27,12 @@ export class GPUBackend {
    * **Side Effect:** Аллоцирует буферы, компилирует шейдер, создает BindGroup.
    *
    * @param params - Данные для начальной загрузки в буферы.
-   * * `states`: Исходные состояния монад.
+   * * `states`: Исходные состояния квантов.
    * * `bytecode`: Скомпилированные правила.
    * * `contextMap`: Таблица адресации глобальных переменных.
    */
   async init(params: {
-    monadCount: number
+    quantaCount: number
     bytecode: Uint32Array
     states: Uint32Array
     agentDescriptors: Uint32Array
@@ -50,10 +50,10 @@ export class GPUBackend {
     this.buffers.heap = this.createStorageBuffer(params.heap)
     this.buffers.states = this.createStorageBuffer(params.states, true) // источник/назначение
 
-    this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.monadCount), true)
+    this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.quantaCount), true)
     this.buffers.bytecode = this.createStorageBuffer(params.bytecode)
 
-    const uniforms = new Uint32Array([params.monadCount, params.tableOffset, 0, 0])
+    const uniforms = new Uint32Array([params.quantaCount, params.tableOffset, 0, 0])
     this.buffers.uniforms = this.createBuffer(uniforms, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST)
 
     this.stagingBuffer = this.device.createBuffer({
@@ -91,7 +91,7 @@ export class GPUBackend {
     pass.setPipeline(this.pipeline)
     pass.setBindGroup(0, this.bindGroup)
 
-    // Читать кол-во монад из размера uniforms буфера или хранить его?
+    // Читать кол-во квантов из размера uniforms буфера или хранить его?
     // Полагаем, что сохранили или можем вывести. Для простоты передаем аргументом или храним в классе.
     // Используем хардкод размера рабочей группы 64.
     const count = this.buffers.newStates.size / 4

@@ -1,10 +1,10 @@
 import { test, expect, describe, beforeAll, afterAll, beforeEach } from "bun:test"
-import { MonadTestFixture } from "./fixture"
+import { QuantumFieldTestFixture } from "./fixture"
 
-describe("MonadSystem — Логика новых этапов (GPU)", () => {
-  beforeAll(async () => await MonadTestFixture.setup())
-  afterAll(async () => await MonadTestFixture.teardown(), 20000)
-  const fixture = new MonadTestFixture()
+describe("QuantumFieldSystem — Логика новых этапов (GPU)", () => {
+  beforeAll(async () => await QuantumFieldTestFixture.setup())
+  afterAll(async () => await QuantumFieldTestFixture.teardown(), 20000)
+  const fixture = new QuantumFieldTestFixture()
 
   describe("Оператор IN (Списки)", () => {
     test("должен переходить, если значение есть в списке (Integer/Enum)", async () => {
@@ -19,10 +19,10 @@ describe("MonadSystem — Логика новых этапов (GPU)", () => {
           MOVING: null,
         },
         contextSchema: { mode: { type: "number" } },
-        monads: [
-          { id: "m1", state: "GROUND", context: { mode: 1 } }, // WALK -> MOVING
-          { id: "m2", state: "GROUND", context: { mode: 3 } }, // FLY -> AIR
-          { id: "m3", state: "GROUND", context: { mode: 0 } }, // IDLE -> остаться
+        quanta: [
+          { id: "q1", state: "GROUND", context: { mode: 1 } }, // WALK -> MOVING
+          { id: "q2", state: "GROUND", context: { mode: 3 } }, // FLY -> AIR
+          { id: "q3", state: "GROUND", context: { mode: 0 } }, // IDLE -> остаться
         ],
       })
 
@@ -41,10 +41,10 @@ describe("MonadSystem — Логика новых этапов (GPU)", () => {
           CRITICAL: null,
         },
         contextSchema: { temperature: { type: "number" } },
-        monads: [
-          { id: "m1", state: "NORMAL", context: { temperature: 36.6 } },
-          { id: "m2", state: "NORMAL", context: { temperature: 37.0 } },
-          { id: "m3", state: "NORMAL", context: { temperature: 40.0 } },
+        quanta: [
+          { id: "q1", state: "NORMAL", context: { temperature: 36.6 } },
+          { id: "q2", state: "NORMAL", context: { temperature: 37.0 } },
+          { id: "q3", state: "NORMAL", context: { temperature: 40.0 } },
         ],
       })
 
@@ -65,9 +65,9 @@ describe("MonadSystem — Логика новых этапов (GPU)", () => {
           GAME: null,
         },
         contextSchema: { role: { type: "number" } },
-        monads: [
-          { id: "m1", state: "LOBBY", context: { role: 1 } }, // Player -> GAME
-          { id: "m2", state: "LOBBY", context: { role: 0 } }, // Spectator -> LOBBY
+        quanta: [
+          { id: "q1", state: "LOBBY", context: { role: 1 } }, // Player -> GAME
+          { id: "q2", state: "LOBBY", context: { role: 0 } }, // Spectator -> LOBBY
         ],
       })
 
@@ -90,10 +90,10 @@ describe("MonadSystem — Логика новых этапов (GPU)", () => {
           WIN: null,
         },
         contextSchema: { score: { type: "number" }, badge: { type: "number" } },
-        monads: [
-          { id: "m1", state: "START", context: { score: 150, badge: 5 } }, // OK
-          { id: "m2", state: "START", context: { score: 150, badge: 1 } }, // Badge fail
-          { id: "m3", state: "START", context: { score: 50, badge: 7 } }, // Score fail
+        quanta: [
+          { id: "q1", state: "START", context: { score: 150, badge: 5 } }, // OK
+          { id: "q2", state: "START", context: { score: 150, badge: 1 } }, // Badge fail
+          { id: "q3", state: "START", context: { score: 50, badge: 7 } }, // Score fail
         ],
       })
 

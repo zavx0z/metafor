@@ -37,7 +37,7 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
 }
 
 /**
- * Преобразует объект мета-описания в промежуточный формат Monad, обогащая типы массивов и enum.
+ * Преобразует объект мета-описания в промежуточный формат поля, обогащая типы массивов и enum.
  * Для полей типа 'array' добавляет параметр типа (например, array<string>), выводя его из дефолтного значения или из generic в исходном коде.
  * Для полей типа 'enum' добавляет параметр типа (enum<string> или enum<number>).
  * @param meta - Исходный объект мета, полученный из default export.
@@ -45,7 +45,7 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
  * @returns Новый объект с тем же набором полей, но с уточнёнными типами.
  * @throws Ошибка, если не удаётся вывести тип элементов массива или enum.
  */
-export function convertMetaToMonadIntermediate(meta: MetaLike, sourceText?: string): MetaLike {
+export function convertMetaToFieldIntermediate(meta: MetaLike, sourceText?: string): MetaLike {
   const context = meta?.context
   if (!context || typeof context !== "object") return meta
 

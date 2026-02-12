@@ -1,6 +1,6 @@
 {
-  "name": "@metafor/monad",
-  "description": "Высокопроизводительный движок конечных автоматов на WebGPU для массовых симуляций агентов.",
+  "name": "@metafor/field",
+  "description": "Квантовый движок полей на WebGPU: компиляция правил в байт-код и эволюция квантов на GPU.",
   "author": "zavx0z",
   "license": "MIT",
   "version": "0.1.0",
@@ -21,9 +21,8 @@
     "setup:browsers": "npx puppeteer browsers install chrome",
     "build": "bun build ./src/index.ts --outdir ./dist --target browser",
     "test": "bun test",
-    "test:logic": "bun test tests/monad.logic.test.ts",
-    "test:e2e": "bun test tests/e2e.test.ts",
-    "webgpu": "bun run ./webgpu.ts"
+    "test:logic": "bun test tests/field.logic.test.ts",
+    "docs": "typedoc"
   },
   "type": "module"
 }

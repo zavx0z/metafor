@@ -1,4 +1,4 @@
-import { MonadSystem } from "../src/index"
+import { QuantumFieldSystem } from "../src/index"
 
 const out = document.getElementById("output")!
 const status = document.getElementById("status")!
@@ -21,7 +21,7 @@ try {
   status.innerText = "✅ WebGPU Active"
   status.style.color = "#4af626"
 
-  const system = new MonadSystem(device)
+  const system = new QuantumFieldSystem(device)
 
   log("--- Инициализация ---")
   await system.init({
@@ -44,9 +44,9 @@ try {
       mana: { type: "number" },
       isAlive: { type: "boolean" },
     },
-    monads: [
-      { id: "m1", state: "IDLE", context: { hp: 100, mana: 100, isAlive: true } },
-      { id: "m2", state: "IDLE", context: { hp: 0, mana: 50, isAlive: false } },
+    quanta: [
+      { id: "q1", state: "IDLE", context: { hp: 100, mana: 100, isAlive: true } },
+      { id: "q2", state: "IDLE", context: { hp: 0, mana: 50, isAlive: false } },
     ],
   })
   const startStates = await system.getStates()

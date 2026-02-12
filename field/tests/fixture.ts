@@ -53,9 +53,9 @@ function getExecutablePath(): string | undefined {
 }
 
 /**
- * Фикстура для запуска симуляции монад в браузере с реальным устройством.
+ * Фикстура для запуска эволюции квантов поля в браузере с реальным устройством.
  */
-export class MonadTestFixture {
+export class QuantumFieldTestFixture {
   private static browser: puppeteerTypes.Browser | null = null
   private static server: any = null
   private static baseUrl = ""
@@ -110,12 +110,12 @@ export class MonadTestFixture {
                 <html>
                   <head>
                     <meta charset="UTF-8" />
-                    <title>Monad Test</title>
+                    <title>Quantum Field Test</title>
                   </head>
                   <body>
                     <div id="result"></div>
                     <script type="module">
-                      import { MonadSystem } from "/dist-test/index.js"
+                      import { QuantumFieldSystem } from "/dist-test/index.js"
 
                       async function run() {
                         try {
@@ -132,14 +132,14 @@ export class MonadTestFixture {
                           console.log("[TEST] Requesting GPU device...")
                           const device = await adapter.requestDevice()
 
-                          console.log("[TEST] Creating MonadSystem...")
-                          const system = new MonadSystem(device)
+                          console.log("[TEST] Creating QuantumFieldSystem...")
+                          const system = new QuantumFieldSystem(device)
 
                           console.log("[TEST] Initializing with config:", ${JSON.stringify(testData.statesConfig)})
                           await system.init({
                             statesConfig: ${JSON.stringify(testData.statesConfig)},
                             contextSchema: ${JSON.stringify(testData.contextSchema)},
-                            monads: ${JSON.stringify(testData.monads)},
+                            quanta: ${JSON.stringify(testData.quanta)},
                           })
 
                           ${testData.updates
@@ -245,15 +245,15 @@ export class MonadTestFixture {
   async runSimulation(params: {
     statesConfig: any
     contextSchema: Record<string, any>
-    monads: Array<{ id: string; state: string; context: any }>
+    quanta: Array<{ id: string; state: string; context: any }>
     updates?: Array<{ agentIndex: number; fieldName: string; value: number | boolean }>
     steps?: number
   }): Promise<{ success: boolean; states?: string[]; error?: string; stack?: string }> {
-    if (!MonadTestFixture.browser || !MonadTestFixture.baseUrl) {
-      throw new Error("Fixture not initialized. Call MonadTestFixture.setup() first")
+    if (!QuantumFieldTestFixture.browser || !QuantumFieldTestFixture.baseUrl) {
+      throw new Error("Fixture not initialized. Call QuantumFieldTestFixture.setup() first")
     }
 
-    const page = await MonadTestFixture.browser.newPage()
+    const page = await QuantumFieldTestFixture.browser.newPage()
     page.setDefaultNavigationTimeout(PUPPETEER_TIMEOUT_MS)
     page.setDefaultTimeout(PUPPETEER_TIMEOUT_MS)
 
@@ -261,12 +261,12 @@ export class MonadTestFixture {
       const testData = {
         statesConfig: params.statesConfig,
         contextSchema: params.contextSchema,
-        monads: params.monads,
+        quanta: params.quanta,
         updates: params.updates || [],
         steps: params.steps !== undefined ? params.steps : 1,
       }
 
-      const testUrl = `${MonadTestFixture.baseUrl}/test?data=${encodeURIComponent(JSON.stringify(testData))}`
+      const testUrl = `${QuantumFieldTestFixture.baseUrl}/test?data=${encodeURIComponent(JSON.stringify(testData))}`
       await page.goto(testUrl, { waitUntil: "networkidle2", timeout: PUPPETEER_TIMEOUT_MS })
 
       // Ждем появления результата с отладочным логированием
@@ -347,7 +347,7 @@ export class MonadTestFixture {
  * @param options Опции фикстуры
  * @param options.debug Включить отладочные логи
  */
-export function createMonadFixture(options?: { debug?: boolean }) {
-  return new MonadTestFixture(options)
+export function createQuantumFieldFixture(options?: { debug?: boolean }) {
+  return new QuantumFieldTestFixture(options)
 }
 const html = String.raw
