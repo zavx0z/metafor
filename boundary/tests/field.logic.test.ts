@@ -318,4 +318,164 @@ describe("Boundary — Тесты логики (реальное устройс�
       expect(result.states![1]).toBe("IDLE")
     })
   })
+
+  describe("Поля с разными superposition", () => {
+    test("каждое поле имеет свою superposition с разными состояниями", async () => {
+      // Поле 1: воин — переходит в COMBAT при высоком hp
+      const warriorSuperposition = {
+        IDLE: { COMBAT: { hp: { gt: 80 } } },
+        COMBAT: null,
+      }
+
+      // Поле 2: маг — переходит in MEDITATION при низком mana
+      const mageSuperposition = {
+        IDLE: { MEDITATION: { mana: { lt: 20 } } },
+        MEDITATION: null,
+      }
+
+      // Поле 3: разведчик — переходит в SCOUT при hp > 30
+      const scoutSuperposition = {
+        IDLE: { SCOUT: { hp: { gt: 30 } } },
+        SCOUT: null,
+      }
+
+      const result = await fixture.runSimulation({
+        branes: {
+          hp: "number",
+          mana: "number",
+        },
+        fields: [
+          { id: "warrior", state: "IDLE", brane: { hp: 90, mana: 50 }, superposition: warriorSuperposition },
+          { id: "mage", state: "IDLE", brane: { hp: 50, mana: 10 }, superposition: mageSuperposition },
+          { id: "scout", state: "IDLE", brane: { hp: 60, mana: 30 }, superposition: scoutSuperposition },
+        ],
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.states).toBeDefined()
+
+      // Воин: hp = 90 > 80 → COMBAT
+      expect(result.states![0]).toBe("COMBAT")
+      // Маг: mana = 10 < 20 → MEDITATION
+      expect(result.states![1]).toBe("MEDITATION")
+      // Разведчик: hp = 60 > 30 → SCOUT
+      expect(result.states![2]).toBe("SCOUT")
+    })
+
+    test("поля с одинаковыми состояниями, но разными условиями перехода", async () => {
+      // Оба поля начинают в IDLE и могут перейти в ACTIVE,
+      // но с разными порогами hp
+
+      const lowThresholdSuperposition = {
+        IDLE: { ACTIVE: { hp: { gt: 30 } } },
+        ACTIVE: null,
+      }
+
+      const highThresholdSuperposition = {
+        IDLE: { ACTIVE: { hp: { gt: 70 } } },
+        ACTIVE: null,
+      }
+
+      const result = await fixture.runSimulation({
+        branes: {
+          hp: "number",
+        },
+        fields: [
+          { id: "q1", state: "IDLE", brane: { hp: 50 }, superposition: lowThresholdSuperposition },
+          { id: "q2", state: "IDLE", brane: { hp: 50 }, superposition: highThresholdSuperposition },
+        ],
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.states).toBeDefined()
+
+      // Поле 1: hp = 50 > 30 → ACTIVE (низкий порог)
+      expect(result.states![0]).toBe("ACTIVE")
+      // Поле 2: hp = 50 не > 70 → IDLE (высокий порог)
+      expect(result.states![1]).toBe("IDLE")
+    })
+
+    test("поля с полностью разными машинами состояний", async () => {
+      // Агрессивный юнит: IDLE → ATTACK → VICTORY
+      const aggressiveSuperposition = {
+        IDLE: { ATTACK: { hp: { gt: 50 } } },
+        ATTACK: { VICTORY: { hp: { gt: 90 } } },
+        VICTORY: null,
+      }
+
+      // Оборонительный юнит: IDLE → DEFEND → FORTIFY
+      const defensiveSuperposition = {
+        IDLE: { DEFEND: { hp: { lte: 50 } } },
+        DEFEND: { FORTIFY: { hp: { lte: 20 } } },
+        FORTIFY: null,
+      }
+
+      const result = await fixture.runSimulation({
+        branes: {
+          hp: "number",
+        },
+        fields: [
+          { id: "aggressive", state: "IDLE", brane: { hp: 95 }, superposition: aggressiveSuperposition },
+          { id: "defensive", state: "IDLE", brane: { hp: 15 }, superposition: defensiveSuperposition },
+        ],
+        steps: 2,
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.states).toBeDefined()
+
+      // Агрессивный: IDLE → ATTACK (hp=95>50) → VICTORY (hp=95>90)
+      expect(result.states![0]).toBe("VICTORY")
+      // Оборонительный: IDLE → DEFEND (hp=15<=50) → FORTIFY (hp=15<=20)
+      expect(result.states![1]).toBe("FORTIFY")
+    })
+
+    test("поля с разными типами условий в superposition", async () => {
+      // Поле 1: переход по числовому условию
+      const numericSuperposition = {
+        IDLE: { ACTIVE: { hp: { gt: 50 } } },
+        ACTIVE: null,
+      }
+
+      // Поле 2: переход по булеву условию
+      const booleanSuperposition = {
+        IDLE: { ACTIVE: { isAlive: true } },
+        ACTIVE: null,
+      }
+
+      // Поле 3: переход по множественному условию
+      const multiConditionSuperposition = {
+        IDLE: {
+          ACTIVE: {
+            hp: { gt: 30 },
+            mana: { gt: 20 },
+          },
+        },
+        ACTIVE: null,
+      }
+
+      const result = await fixture.runSimulation({
+        branes: {
+          hp: "number",
+          mana: "number",
+          isAlive: "boolean",
+        },
+        fields: [
+          { id: "q1", state: "IDLE", brane: { hp: 60, mana: 0, isAlive: false }, superposition: numericSuperposition },
+          { id: "q2", state: "IDLE", brane: { hp: 0, mana: 0, isAlive: true }, superposition: booleanSuperposition },
+          { id: "q3", state: "IDLE", brane: { hp: 40, mana: 30, isAlive: false }, superposition: multiConditionSuperposition },
+        ],
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.states).toBeDefined()
+
+      // Поле 1: hp = 60 > 50 → ACTIVE
+      expect(result.states![0]).toBe("ACTIVE")
+      // Поле 2: isAlive = true → ACTIVE
+      expect(result.states![1]).toBe("ACTIVE")
+      // Поле 3: hp = 40 > 30 И mana = 30 > 20 → ACTIVE
+      expect(result.states![2]).toBe("ACTIVE")
+    })
+  })
 })

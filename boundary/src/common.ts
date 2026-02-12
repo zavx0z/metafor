@@ -81,8 +81,62 @@ export interface CompiledRules {
   stateTableOffset: number
 
   /**
-   * Карта, связывающая строковые имена состояний (например, `"IDLE"`) с их числовыми идентификаторами (`StateID`).
+ * Карта, связывающая строковые имена состояний (например, `"IDLE"`) с их числовыми идентификаторами (`StateID`).
    * @example ` { "IDLE": 0, "WALK": 1, "DEAD": 2 }`
    */
   stateMap: Record<string, number>
+}
+
+/**
+ * Результат компиляции одной superposition для отдельного поля.
+ * Содержит bytecode и метаданные для интерпретации состояний.
+ */
+export interface CompiledFieldRules {
+  /**
+   * Скомпилированные правила в виде плоского массива u32.
+   * Структура аналогична CompiledRules.bytecode.
+   */
+  bytecode: Uint32Array
+
+  /**
+   * Карта имён состояний в числовые ID.
+   * Каждое поле имеет свой независимый stateMap.
+   */
+  stateMap: Record<string, number>
+
+  /**
+   * Обратный маппинг: числовой ID → имя состояния.
+   * Используется для декодирования результатов GPU.
+   */
+  reverseStateMap: string[]
+}
+
+/**
+ * Результат компиляции ансамбля superposition для всех полей границы.
+ * Содержит конкатенированный bytecode и таблицу смещений.
+ */
+export interface CompiledEnsemble {
+  /**
+   * Конкатенированный bytecode всех полей.
+   * Структура: [field0_bytecode][field1_bytecode][field2_bytecode]...
+   */
+  bytecode: Uint32Array
+
+  /**
+   * Таблица смещений для каждого поля в конкатенированном bytecode.
+   * bytecodeOffsets[i] — смещение начала bytecode для поля i.
+   */
+  bytecodeOffsets: Uint32Array
+
+  /**
+   * Массив stateMap для каждого поля.
+   * stateMaps[i] — маппинг имён состояний в ID для поля i.
+   */
+  stateMaps: Record<string, number>[]
+
+  /**
+   * Массив обратных маппингов для каждого поля.
+   * reverseStateMaps[i] — маппинг ID в имена для поля i.
+   */
+  reverseStateMaps: string[][]
 }

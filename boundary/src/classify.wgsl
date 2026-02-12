@@ -1,8 +1,27 @@
+/**
+ * Uniform-буфер для compute-шейдера классификации.
+ * 
+ * **Выравнивание:** Структура занимает ровно 16 байт (4 × u32),
+ * что соответствует минимальному требованию WebGPU для uniform buffers.
+ * Padding-поля обязательны — GPU ожидает кратность 16 байтам.
+ * 
+ * @see https://www.w3.org/TR/WGSL/#alignment-and-size
+ */
 struct Uniforms {
+  /**
+   * Количество полей (field) в текущем батче.
+   * 
+   * Используется в `main()` для защиты от out-of-bounds доступа:
+   * compute-шейдер запускается с фиксированным числом workgroups,
+   * и потоки с `id.x >= fieldCount` досрочно завершаются.
+   */
   fieldCount: u32,
-  tableOffset: u32,
+  /** Padding для выравнивания до 16 байт. Значение игнорируется GPU. */
   _pad0: u32,
+  /** Padding для выравнивания до 16 байт. Значение игнорируется GPU. */
   _pad1: u32,
+  /** Padding для выравнивания до 16 байт. Значение игнорируется GPU. */
+  _pad2: u32,
 }
 
 @group(0) @binding(0)
@@ -17,12 +36,15 @@ var<storage, read_write> newStates: array<u32>;
 var<storage, read> bytecode: array<u32>;
 @group(0) @binding(5)
 var<uniform> u: Uniforms;
+@group(0) @binding(6)
+var<storage, read> bytecode_offsets: array<u32>;
 // ============================================================================
 // Вспомогательные функции для работы с кучей (из браны)
 // ============================================================================
 
 fn get_field_block_ptr(field_index: u32) -> u32 {
-  return field_descriptors[field_index];
+  // field_descriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
+  return field_descriptors[field_index * 2u];
 }
 
 fn get_local_field_count(block_ptr: u32) -> u32 {
@@ -233,19 +255,24 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
   let current_state = states[idx];
   var next_state = current_state;
 
-  // Получаем блок условий для текущего состояния из таблицы состояний (которая находится в начале байткода)
-  let state_ptr = bytecode[u.tableOffset + current_state];
-  let tr_count = bytecode[state_ptr];
+  // Получаем указатель на блок браны и смещение bytecode для этого поля
+  // field_descriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
+  let block_ptr = field_descriptors[idx * 2u];
+  let bytecode_base = bytecode_offsets[idx];
+
+  // Таблица состояний всегда в начале bytecode (offset 0)
+  let state_ptr = bytecode[bytecode_base + current_state];
+  let tr_count = bytecode[bytecode_base + state_ptr];
 
   for (var i = 0u; i < tr_count; i = i + 1u) {
-    let tr_offset = state_ptr + 1u + i * 2u;
+    let tr_offset = bytecode_base + state_ptr + 1u + i * 2u;
     let target_state = bytecode[tr_offset];
     let cond_ptr = bytecode[tr_offset + 1u];
-    let cond_count = bytecode[cond_ptr];
+    let cond_count = bytecode[bytecode_base + cond_ptr];
     var passed = true;
 
     for (var k = 0u; k < cond_count; k = k + 1u) {
-      let c_base = cond_ptr + 1u + k * 4u;
+      let c_base = bytecode_base + cond_ptr + 1u + k * 4u;
       let field_type = bytecode[c_base];
       let target_field_id = bytecode[c_base + 1u];
       let op = bytecode[c_base + 2u];

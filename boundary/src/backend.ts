@@ -1,6 +1,24 @@
 import shaderSource from "./classify.wgsl" with { type: "text" }
 
 /**
+ * Параметры инициализации GPU-бэкенда.
+ */
+interface BackendInitParams {
+  /** Количество полей в границе */
+  fieldCount: number
+  /** Конкатенированный bytecode всех полей */
+  bytecode: Uint32Array
+  /** Таблица смещений bytecode для каждого поля */
+  bytecodeOffsets: Uint32Array
+  /** Начальные состояния полей (числовые ID) */
+  states: Uint32Array
+  /** Дескрипторы полей: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...] */
+  fieldDescriptors: Uint32Array
+  /** Куча с данными бран */
+  heap: Uint32Array
+}
+
+/**
  * Драйвер WebGPU. Управляет ресурсами видеопамяти (VRAM).
  *
  * **Ответственность:**
@@ -8,6 +26,14 @@ import shaderSource from "./classify.wgsl" with { type: "text" }
  * * Создание `ComputePipeline` и `BindGroup`.
  * * Диспетчеризация команд `dispatchWorkgroups`.
  * * Синхронизация данных VRAM <-> RAM (Readback).
+ *
+ * ### Формат fieldDescriptors (v2.x):
+ * ```
+ * fieldDescriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
+ * ```
+ * Каждое поле имеет два значения:
+ * - `block_ptr` — указатель на блок браны в куче
+ * - `bytecode_offset` — смещение начала bytecode в буфере bytecode
  *
  * @internal Используется только внутри `Boundary`.
  */
@@ -27,17 +53,8 @@ export class GPUBackend {
    * **Side Effect:** Аллоцирует буферы, компилирует шейдер, создает BindGroup.
    *
    * @param params - Данные для начальной загрузки в буферы.
-   * * `states`: Исходные состояния полей.
-   * * `bytecode`: Скомпилированные правила.
    */
-  async init(params: {
-    fieldCount: number
-    bytecode: Uint32Array
-    states: Uint32Array
-    fieldDescriptors: Uint32Array
-    heap: Uint32Array
-    tableOffset: number
-  }) {
+  async init(params: BackendInitParams) {
     const module = this.device.createShaderModule({ code: shaderSource })
     this.pipeline = this.device.createComputePipeline({
       layout: "auto",
@@ -51,8 +68,10 @@ export class GPUBackend {
 
     this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.fieldCount), true)
     this.buffers.bytecode = this.createStorageBuffer(params.bytecode)
+    this.buffers.bytecodeOffsets = this.createStorageBuffer(params.bytecodeOffsets)
 
-    const uniforms = new Uint32Array([params.fieldCount, params.tableOffset, 0, 0])
+    // uniforms: [fieldCount, reserved, reserved, reserved]
+    const uniforms = new Uint32Array([params.fieldCount, 0, 0, 0])
     this.buffers.uniforms = this.createBuffer(uniforms, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST)
 
     this.stagingBuffer = this.device.createBuffer({
@@ -69,6 +88,7 @@ export class GPUBackend {
         { binding: 3, resource: { buffer: this.buffers.newStates } },
         { binding: 4, resource: { buffer: this.buffers.bytecode } },
         { binding: 5, resource: { buffer: this.buffers.uniforms } },
+        { binding: 6, resource: { buffer: this.buffers.bytecodeOffsets } },
       ],
     })
   }

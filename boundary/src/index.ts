@@ -135,9 +135,11 @@ export class Boundary {
   private compiler = new RulesCompiler()
   private braneManager: BraneManager
 
-  // Карты маппинга
-  private stateMap: Record<string, number> = {}
-  private reverseStateMap: string[] = []
+  /** Массив stateMap для каждого поля (индивидуальные суперпозиции) */
+  private stateMaps: Record<string, number>[] = []
+  /** Массив обратных маппингов для декодирования результатов */
+  private reverseStateMaps: string[][] = []
+  /** ID полей в BraneManager */
   private fieldIds: number[] = []
 
   /**
@@ -154,14 +156,19 @@ export class Boundary {
    * ### Алгоритм инициализации:
    * 1. Регистрация компонент браны в GlobalFieldRegistry (создание field_id).
    * 2. Создание полей через BraneManager с автоматической группировкой общих данных.
-   * 3. Объединение индивидуальных суперпозиций в единый граф переходов.
-   * 4. Компиляция графа переходов в байт-код кастомной VM.
-   * 5. Инициализация GPU-буферов и создание compute pipeline.
+   * 3. Компиляция каждой индивидуальной суперпозиции в отдельный bytecode.
+   * 4. Инициализация GPU-буферов и создание compute pipeline.
+   *
+   * ### Индивидуальные суперпозиции:
+   * Каждое поле имеет свой независимый граф переходов. Это позволяет:
+   * - Разные условия переходов для разных полей
+   * - Разные наборы состояний для разных типов юнитов
+   * - Конфликты условий без перезаписи
    *
    * ### Валидация входных данных:
    * * Каждое состояние, упомянутое как цель перехода, должно быть объявлено в суперпозиции.
    * * Все компоненты, используемые в условиях, должны быть описаны в branes.
-   * * Начальные состояния полей должны существовать в stateMap.
+   * * Начальные состояния полей должны существовать в соответствующем stateMap.
    *
    * @param config - Конфигурация границы.
    * @param config.branes - Схема типов данных браны.
@@ -178,12 +185,21 @@ export class Boundary {
    *   branes: { hp: { type: "number" } },
    *   fields: [
    *     {
-   *       id: "hero",
+   *       id: "warrior",
    *       brane: { hp: 100 },
    *       state: "IDLE",
    *       superposition: {
-   *         IDLE: { PATROL: { hp: { gt: 50 } } },
-   *         PATROL: null
+   *         IDLE: { COMBAT: { hp: { gt: 80 } } },
+   *         COMBAT: null
+   *       }
+   *     },
+   *     {
+   *       id: "mage",
+   *       brane: { hp: 50 },
+   *       state: "IDLE",
+   *       superposition: {
+   *         IDLE: { MEDITATE: { hp: { lt: 30 } } },
+   *         MEDITATE: null
    *       }
    *     }
    *   ]
@@ -239,53 +255,37 @@ export class Boundary {
     // 2. Создаём поля — менеджер сам группирует общие данные бран!
     this.fieldIds = this.braneManager.createEnsemble(config.fields.map((f) => f.brane))
 
-    // 3. Объединяем индивидуальные суперпозиции в единый граф переходов.
-    //    Собираем все уникальные состояния из всех суперпозиций.
-    const mergedSuperposition: Record<string, Record<string, any> | null> = {}
-    for (const field of config.fields) {
-      for (const [stateName, transitions] of Object.entries(field.superposition)) {
-        if (transitions === null) {
-          // Терминальное состояние — добавляем если ещё нет
-          if (!(stateName in mergedSuperposition)) {
-            mergedSuperposition[stateName] = null
-          }
-          continue
-        }
-        if (!mergedSuperposition[stateName] || mergedSuperposition[stateName] === null) {
-          mergedSuperposition[stateName] = {}
-        }
-        // Мержим переходы
-        for (const [targetState, conditions] of Object.entries(transitions)) {
-          if (conditions && typeof conditions === "object") {
-            const existing = (mergedSuperposition[stateName] as Record<string, any>)[targetState]
-            if (existing) {
-              // Объединяем условия
-              Object.assign(existing, conditions)
-            } else {
-              (mergedSuperposition[stateName] as Record<string, any>)[targetState] = { ...conditions }
-            }
-          }
-        }
-      }
+    // 3. Компилируем каждую индивидуальную суперпозицию отдельно.
+    const compiled = this.compiler.compileEnsemble(
+      config.fields.map((f) => f.superposition),
+      config.branes,
+    )
+    this.stateMaps = compiled.stateMaps
+    this.reverseStateMaps = compiled.reverseStateMaps
+
+    // 4. Формируем начальные состояния (каждое поле использует свой stateMap).
+    const states = new Uint32Array(
+      config.fields.map((f, i) => this.stateMaps[i]![f.state] ?? 0),
+    )
+
+    // 5. Получаем буферы бран и создаём fieldDescriptors в новом формате.
+    const { fieldDescriptors: braneDescriptors, heap } = this.braneManager.getGPUBuffers()
+
+    // Формируем fieldDescriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
+    const fieldDescriptors = new Uint32Array(config.fields.length * 2)
+    for (let i = 0; i < config.fields.length; i++) {
+      fieldDescriptors[i * 2] = braneDescriptors[i]! // block_ptr
+      fieldDescriptors[i * 2 + 1] = compiled.bytecodeOffsets[i]! // bytecode_offset
     }
 
-    // 4. Компилируем правила FSM ([type, field_id, op, value]).
-    const compiled = this.compiler.compile(mergedSuperposition, config.branes, { preserveRegistry: true })
-    this.stateMap = compiled.stateMap
-    this.reverseStateMap = Object.keys(compiled.stateMap)
-
-    // 5. Инициализируем бэкенд.
-    const states = new Uint32Array(config.fields.map((f) => this.stateMap[f.state] ?? 0))
-
-    const { fieldDescriptors, heap } = this.braneManager.getGPUBuffers()
-
+    // 6. Инициализируем бэкенд.
     await this.backend.init({
       fieldCount: config.fields.length,
       bytecode: compiled.bytecode,
+      bytecodeOffsets: compiled.bytecodeOffsets,
       states,
       fieldDescriptors,
       heap,
-      tableOffset: compiled.stateTableOffset,
     })
   }
 
@@ -332,7 +332,8 @@ export class Boundary {
    */
   async getStates(): Promise<string[]> {
     const raw = await this.backend.read()
-    return Array.from(raw).map((id) => this.reverseStateMap[id]!)
+    // Каждое поле использует свой reverseStateMap для декодирования ID
+    return Array.from(raw).map((id, i) => this.reverseStateMaps[i]![id]!)
   }
 
   /**

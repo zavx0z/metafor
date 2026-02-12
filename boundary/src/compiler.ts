@@ -1,4 +1,4 @@
-import { OP, TYPE, type CompiledRules } from "./common"
+import { OP, TYPE, type CompiledRules, type CompiledFieldRules, type CompiledEnsemble } from "./common"
 import { GlobalFieldRegistry, FieldType } from "./context"
 import { fieldTypeToBytecodeType } from "./typeBridge"
 
@@ -449,5 +449,99 @@ export class RulesCompiler {
       return 0 // Заглушка
     }
     return Number(val)
+  }
+
+  /**
+   * Компилирует одну superposition в bytecode для отдельного поля.
+   *
+   * В отличие от `compile()`, этот метод возвращает полную информацию
+   * о stateMap и reverseStateMap для декодирования результатов.
+   *
+   * @param superposition - Граф переходов состояний
+   * @param branes - Схема типов данных браны
+   * @param options - Опции компиляции
+   * @returns Скомпилированные правила с метаданными
+   */
+  compileSingle(
+    superposition: Superposition,
+    branes: Record<string, any> = {},
+    options: { preserveRegistry?: boolean } = {},
+  ): CompiledFieldRules {
+    const result = this.compile(superposition, branes, options)
+    const reverseStateMap = Object.keys(result.stateMap)
+
+    return {
+      bytecode: result.bytecode,
+      stateMap: result.stateMap,
+      reverseStateMap,
+    }
+  }
+
+  /**
+   * Компилирует массив superposition в единый конкатенированный bytecode.
+   *
+   * Каждое поле получает свой независимый bytecode со своей таблицей состояний.
+   * Это позволяет полям иметь разные графы переходов с разными условиями.
+   *
+   * ### Структура результата:
+   * ```
+   * bytecode:           [field0_bc][field1_bc][field2_bc]...
+   * bytecodeOffsets:    [0, len0, len0+len1, ...]
+   * stateMaps:          [{IDLE:0,...}, {IDLE:0,...}, ...]
+   * reverseStateMaps:   [["IDLE",...], ["IDLE",...], ...]
+   * ```
+   *
+   * @param superpositions - Массив графов переходов (по одному на поле)
+   * @param branes - Схема типов данных браны (общая для всех полей)
+   * @returns Скомпилированный ансамбль с таблицей смещений
+   *
+   * @example
+   * ```ts
+   * const compiler = new RulesCompiler()
+   * const ensemble = compiler.compileEnsemble(
+   *   [
+   *     { IDLE: { COMBAT: { hp: { gt: 80 } } }, COMBAT: null },
+   *     { IDLE: { MEDITATE: { mana: { lt: 20 } } }, MEDITATE: null },
+   *   ],
+   *   { hp: "number", mana: "number" }
+   * )
+   * ```
+   */
+  compileEnsemble(
+    superpositions: Superposition[],
+    branes: Record<string, any> = {},
+  ): CompiledEnsemble {
+    // Очищаем реестр перед первой компиляцией
+    GlobalFieldRegistry.clear()
+
+    // Компилируем каждую superposition отдельно
+    const compiled: CompiledFieldRules[] = []
+    for (let i = 0; i < superpositions.length; i++) {
+      // preserveRegistry=true для всех кроме первой, чтобы сохранить зарегистрированные поля
+      compiled.push(
+        this.compileSingle(superpositions[i]!, branes, { preserveRegistry: i > 0 }),
+      )
+    }
+
+    // Вычисляем общий размер bytecode
+    const totalLength = compiled.reduce((sum, c) => sum + c.bytecode.length, 0)
+
+    // Создаём конкатенированный bytecode и таблицу смещений
+    const bytecode = new Uint32Array(totalLength)
+    const bytecodeOffsets = new Uint32Array(superpositions.length)
+
+    let offset = 0
+    for (let i = 0; i < compiled.length; i++) {
+      bytecodeOffsets[i] = offset
+      bytecode.set(compiled[i]!.bytecode, offset)
+      offset += compiled[i]!.bytecode.length
+    }
+
+    return {
+      bytecode,
+      bytecodeOffsets,
+      stateMaps: compiled.map((c) => c.stateMap),
+      reverseStateMaps: compiled.map((c) => c.reverseStateMap),
+    }
   }
 }
