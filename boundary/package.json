@@ -1,6 +1,6 @@
 {
-  "name": "@metafor/field",
-  "description": "Квантовый движок полей на WebGPU: компиляция правил в байт-код и эволюция квантов на GPU.",
+  "name": "@metafor/boundary",
+  "description": "Граница (Boundary) — движок квантовых полей на WebGPU: компиляция правил суперпозиции в байт-код и эволюция полей на GPU.",
   "author": "zavx0z",
   "license": "MIT",
   "version": "0.1.0",

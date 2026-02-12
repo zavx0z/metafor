@@ -105,9 +105,9 @@ function getExecutablePath(): string | undefined {
 }
 
 /**
- * Фикстура для запуска эволюции квантов поля в браузере с реальным устройством.
+ * Фикстура для запуска эволюции полей на границе (Boundary) в браузере с реальным GPU-устройством.
  */
-export class QuantumFieldTestFixture {
+export class BoundaryTestFixture {
   private static browser: puppeteerTypes.Browser | null = null
   private static server: any = null
   private static baseUrl = ""
@@ -183,16 +183,16 @@ export class QuantumFieldTestFixture {
                 <html>
                   <head>
                     <meta charset="UTF-8" />
-                    <title>Quantum Field Test</title>
+                    <title>Boundary Test</title>
                   </head>
                   <body>
                     <div id="result"></div>
                     <script type="module">
-                      import { QuantumFieldSystem } from "/dist-test/index.js"
+                      import { Boundary } from "/dist-test/index.js"
 
                       async function run() {
                         try {
-                          console.log("[TEST] Starting simulation...")
+                          console.log("[TEST] Starting boundary simulation...")
 
                           if (!navigator.gpu) {
                             throw new Error("WebGPU not supported in this browser")
@@ -205,22 +205,21 @@ export class QuantumFieldTestFixture {
                           console.log("[TEST] Requesting GPU device...")
                           const device = await adapter.requestDevice()
 
-                          console.log("[TEST] Creating QuantumFieldSystem...")
-                          const system = new QuantumFieldSystem(device)
+                          console.log("[TEST] Creating Boundary...")
+                          const boundary = new Boundary(device)
 
-                          console.log("[TEST] Initializing with config:", ${JSON.stringify(testData.superposition)})
-                          await system.init({
-                            superposition: ${JSON.stringify(testData.superposition)},
+                          console.log("[TEST] Initializing with config:", ${JSON.stringify(testData.branes)})
+                          await boundary.init({
                             branes: ${JSON.stringify(testData.branes)},
-                            quanta: ${JSON.stringify(testData.quanta)},
+                            fields: ${JSON.stringify(testData.fields)},
                           })
 
                           ${testData.updates
                             ? testData.updates
                                 .map(
                                   (u: any) =>
-                                    `console.log('[TEST] Updating brane: agent=${u.agentIndex}, field=${u.fieldName}, value=${JSON.stringify(u.value)}');
-        system.updateBraneField(${u.agentIndex}, "${u.fieldName}", ${JSON.stringify(u.value)});`,
+                                    `console.log('[TEST] Updating brane: field=${u.fieldIndex}, component=${u.componentName}, value=${JSON.stringify(u.value)}');
+        boundary.updateBraneField(${u.fieldIndex}, "${u.componentName}", ${JSON.stringify(u.value)});`,
                                 )
                                 .join("\n      ")
                             : ""}
@@ -228,11 +227,11 @@ export class QuantumFieldTestFixture {
                           const stepCount = ${testData.steps !== undefined ? testData.steps : 1}
                           console.log("[TEST] Running " + stepCount + " step(s)...")
                           for (let i = 0; i < stepCount; i++) {
-                            system.step()
+                            boundary.step()
                           }
 
                           console.log("[TEST] Getting final states...")
-                          const states = await system.getStates()
+                          const states = await boundary.getStates()
 
                           console.log("[TEST] Success! States:", states)
                           document.getElementById("result").textContent = JSON.stringify({ success: true, states })
@@ -314,32 +313,35 @@ export class QuantumFieldTestFixture {
 
   /**
    * Запускает симуляцию с заданными параметрами в новой вкладке.
+   *
+   * @param params.branes - Схема типов данных браны
+   * @param params.fields - Массив полей с бранами, состояниями и суперпозициями
+   * @param params.updates - Обновления компонент бран перед шагом
+   * @param params.steps - Количество шагов симуляции
    */
   async runSimulation(params: {
-    superposition: any
     branes: Record<string, any>
-    quanta: Array<{ id: string; state: string; brane: any }>
-    updates?: Array<{ agentIndex: number; fieldName: string; value: number | boolean }>
+    fields: Array<{ id: string; state: string; brane: any; superposition: any }>
+    updates?: Array<{ fieldIndex: number; componentName: string; value: number | boolean }>
     steps?: number
   }): Promise<{ success: boolean; states?: string[]; error?: string; stack?: string }> {
-    if (!QuantumFieldTestFixture.browser || !QuantumFieldTestFixture.baseUrl) {
-      throw new Error("Fixture not initialized. Call QuantumFieldTestFixture.setup() first")
+    if (!BoundaryTestFixture.browser || !BoundaryTestFixture.baseUrl) {
+      throw new Error("Fixture not initialized. Call BoundaryTestFixture.setup() first")
     }
 
-    const page = await QuantumFieldTestFixture.browser.newPage()
+    const page = await BoundaryTestFixture.browser.newPage()
     page.setDefaultNavigationTimeout(PUPPETEER_TIMEOUT_MS)
     page.setDefaultTimeout(PUPPETEER_TIMEOUT_MS)
 
     try {
       const testData = {
-        superposition: params.superposition,
         branes: params.branes,
-        quanta: params.quanta,
+        fields: params.fields,
         updates: params.updates || [],
         steps: params.steps !== undefined ? params.steps : 1,
       }
 
-      const testUrl = `${QuantumFieldTestFixture.baseUrl}/test?data=${encodeURIComponent(JSON.stringify(testData))}`
+      const testUrl = `${BoundaryTestFixture.baseUrl}/test?data=${encodeURIComponent(JSON.stringify(testData))}`
       await page.goto(testUrl, { waitUntil: "networkidle2", timeout: PUPPETEER_TIMEOUT_MS })
 
       // Ждем появления результата с отладочным логированием
@@ -415,12 +417,19 @@ export class QuantumFieldTestFixture {
   }
 }
 
+// Обратная совместимость
+export { BoundaryTestFixture as QuantumFieldTestFixture }
+
 /**
  * Создает фикстуру для использования в тестах.
  * @param options Опции фикстуры
  * @param options.debug Включить отладочные логи
  */
-export function createQuantumFieldFixture(options?: { debug?: boolean }) {
-  return new QuantumFieldTestFixture(options)
+export function createBoundaryFixture(options?: { debug?: boolean }) {
+  return new BoundaryTestFixture(options)
 }
+
+// Обратная совместимость
+export { createBoundaryFixture as createQuantumFieldFixture }
+
 const html = String.raw

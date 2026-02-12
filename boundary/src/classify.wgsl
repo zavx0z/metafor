@@ -1,12 +1,12 @@
 struct Uniforms {
-  quantaCount: u32,
+  fieldCount: u32,
   tableOffset: u32,
   _pad0: u32,
   _pad1: u32,
 }
 
 @group(0) @binding(0)
-var<storage, read> quantum_descriptors: array<u32>;
+var<storage, read> field_descriptors: array<u32>;
 @group(0) @binding(1)
 var<storage, read> heap: array<u32>;
 @group(0) @binding(2)
@@ -21,15 +21,15 @@ var<uniform> u: Uniforms;
 // Вспомогательные функции для работы с кучей (из браны)
 // ============================================================================
 
-fn get_quantum_block_ptr(quantum_id: u32) -> u32 {
-  return quantum_descriptors[quantum_id];
+fn get_field_block_ptr(field_index: u32) -> u32 {
+  return field_descriptors[field_index];
 }
 
 fn get_local_field_count(block_ptr: u32) -> u32 {
   return heap[block_ptr];
 }
 
-fn get_shared_count(block_ptr: u32) -> u32 {
+fn get_entangled_count(block_ptr: u32) -> u32 {
   return heap[block_ptr + 1u];
 }
 
@@ -58,10 +58,10 @@ fn find_field(block_ptr: u32, target_field_id: u32) -> vec4<u32> {
   return vec4<u32>(0u, 0u, 0u, 0u);
 }
 
-fn get_field_value_recursive(quantum_id: u32, field_id: u32) -> f32 {
-  // Ищем в локальном блоке кванта
-  let block_ptr = get_quantum_block_ptr(quantum_id);
-  let result = find_field(block_ptr, field_id);
+fn get_field_value_recursive(field_index: u32, target_field_id: u32) -> f32 {
+  // Ищем в локальном блоке поля
+  let block_ptr = get_field_block_ptr(field_index);
+  let result = find_field(block_ptr, target_field_id);
 
   if (result.x == 1u) {
     let meta_data = result.z;
@@ -75,35 +75,35 @@ fn get_field_value_recursive(quantum_id: u32, field_id: u32) -> f32 {
     return f32(heap[result.w]);
   }
 
-  // Если не нашли, ищем в разделяемых блоках
-  let shared_count = heap[block_ptr + 1u];
+  // Если не нашли, ищем в entangled блоках
+  let entangled_count = heap[block_ptr + 1u];
 
   var i: u32 = 0u;
   loop {
-    if (i >= shared_count) {
+    if (i >= entangled_count) {
       break;
     }
 
-    // Получаем указатель на разделяемый блок (после заголовка)
-    let shared_ptrs_offset = block_ptr + 2u + get_local_field_count(block_ptr) * 2u;
-    let shared_ptr = heap[shared_ptrs_offset + i];
+    // Получаем указатель на entangled блок (после заголовка)
+    let entangled_ptrs_offset = block_ptr + 2u + get_local_field_count(block_ptr) * 2u;
+    let entangled_ptr = heap[entangled_ptrs_offset + i];
 
-    if (shared_ptr == 0u) {
+    if (entangled_ptr == 0u) {
       i = i + 1u;
       continue;
     }
 
-    let shared_result = find_field(shared_ptr, field_id);
-    if (shared_result.x == 1u) {
-      let meta_data = shared_result.z;
+    let entangled_result = find_field(entangled_ptr, target_field_id);
+    if (entangled_result.x == 1u) {
+      let meta_data = entangled_result.z;
       let field_type = (meta_data >> 24u) & 0xFFu;
 
       if (field_type == 0u) {
         // F32
-        return bitcast<f32>(heap[shared_result.w]);
+        return bitcast<f32>(heap[entangled_result.w]);
       }
 
-      return f32(heap[shared_result.w]);
+      return f32(heap[entangled_result.w]);
     }
 
     i = i + 1u;
@@ -226,7 +226,7 @@ fn check_cond(op: u32, field_type: u32, val_a: f32, val_b_raw: u32) -> bool {
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
   let idx = id.x;
-  if (idx >= u.quantaCount) {
+  if (idx >= u.fieldCount) {
     return;
   }
 
@@ -247,10 +247,10 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     for (var k = 0u; k < cond_count; k = k + 1u) {
       let c_base = cond_ptr + 1u + k * 4u;
       let field_type = bytecode[c_base];
-      let field_id = bytecode[c_base + 1u];
+      let target_field_id = bytecode[c_base + 1u];
       let op = bytecode[c_base + 2u];
       let val_encoded = bytecode[c_base + 3u];
-      let real_val = get_field_value_recursive(idx, field_id);
+      let real_val = get_field_value_recursive(idx, target_field_id);
       if (!check_cond(op, field_type, real_val, val_encoded)) {
         passed = false;
         break;

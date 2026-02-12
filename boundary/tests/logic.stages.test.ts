@@ -1,0 +1,106 @@
+import { test, expect, describe, beforeAll, afterAll, beforeEach } from "bun:test"
+import { BoundaryTestFixture } from "./fixture"
+
+describe("Boundary — Логика новых этапов (GPU)", () => {
+  beforeAll(async () => await BoundaryTestFixture.setup())
+  afterAll(async () => await BoundaryTestFixture.teardown(), 20000)
+  const fixture = new BoundaryTestFixture()
+
+  describe("Оператор IN (Списки)", () => {
+    test("должен переходить, если значение есть в списке (Integer/Enum)", async () => {
+      const superposition = {
+        GROUND: {
+          AIR: { mode: { in: [3] } }, // FLY
+          MOVING: { mode: { in: [1, 2] } }, // WALK, RUN
+        },
+        AIR: null,
+        MOVING: null,
+      }
+      // Эмуляция Enum: 0=IDLE, 1=WALK, 2=RUN, 3=FLY
+      const result = await fixture.runSimulation({
+        branes: { mode: { type: "number" } },
+        fields: [
+          { id: "q1", state: "GROUND", brane: { mode: 1 }, superposition }, // WALK -> MOVING
+          { id: "q2", state: "GROUND", brane: { mode: 3 }, superposition }, // FLY -> AIR
+          { id: "q3", state: "GROUND", brane: { mode: 0 }, superposition }, // IDLE -> остаться
+        ],
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.states![0]).toBe("MOVING")
+      expect(result.states![1]).toBe("AIR")
+      expect(result.states![2]).toBe("GROUND")
+    })
+
+    test("должен переходить, если float значение есть в списке", async () => {
+      const superposition = {
+        NORMAL: {
+          CRITICAL: { temperature: { in: [36.6, 40.0] } },
+        },
+        CRITICAL: null,
+      }
+      const result = await fixture.runSimulation({
+        branes: { temperature: { type: "number" } },
+        fields: [
+          { id: "q1", state: "NORMAL", brane: { temperature: 36.6 }, superposition },
+          { id: "q2", state: "NORMAL", brane: { temperature: 37.0 }, superposition },
+          { id: "q3", state: "NORMAL", brane: { temperature: 40.0 }, superposition },
+        ],
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.states![0]).toBe("CRITICAL") // 36.6 found
+      expect(result.states![1]).toBe("NORMAL") // 37.0 not found
+      expect(result.states![2]).toBe("CRITICAL") // 40.0 found
+    })
+  })
+
+  describe("Оператор NOT_IN (Исключение)", () => {
+    test("должен переходить, если значения НЕТ в списке", async () => {
+      const superposition = {
+        LOBBY: {
+          GAME: { role: { notIn: [0] } }, // 0 = Spectator (не играет)
+        },
+        GAME: null,
+      }
+      const result = await fixture.runSimulation({
+        branes: { role: { type: "number" } },
+        fields: [
+          { id: "q1", state: "LOBBY", brane: { role: 1 }, superposition }, // Player -> GAME
+          { id: "q2", state: "LOBBY", brane: { role: 0 }, superposition }, // Spectator -> LOBBY
+        ],
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.states![0]).toBe("GAME")
+      expect(result.states![1]).toBe("LOBBY")
+    })
+  })
+
+  describe("Комбинированные условия", () => {
+    test("должен работать mix из диапазонов и списков", async () => {
+      const superposition = {
+        START: {
+          WIN: {
+            score: { gt: 100 },
+            badge: { in: [5, 7] }, // 5=Gold, 7=Platinum
+          },
+        },
+        WIN: null,
+      }
+      const result = await fixture.runSimulation({
+        branes: { score: { type: "number" }, badge: { type: "number" } },
+        fields: [
+          { id: "q1", state: "START", brane: { score: 150, badge: 5 }, superposition }, // OK
+          { id: "q2", state: "START", brane: { score: 150, badge: 1 }, superposition }, // Badge fail
+          { id: "q3", state: "START", brane: { score: 50, badge: 7 }, superposition }, // Score fail
+        ],
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.states![0]).toBe("WIN")
+      expect(result.states![1]).toBe("START")
+      expect(result.states![2]).toBe("START")
+    })
+  })
+})

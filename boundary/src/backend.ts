@@ -9,7 +9,7 @@ import shaderSource from "./classify.wgsl" with { type: "text" }
  * * Диспетчеризация команд `dispatchWorkgroups`.
  * * Синхронизация данных VRAM <-> RAM (Readback).
  *
- * @internal Используется только внутри `QuantumFieldSystem`.
+ * @internal Используется только внутри `Boundary`.
  */
 export class GPUBackend {
   private device: GPUDevice
@@ -27,14 +27,14 @@ export class GPUBackend {
    * **Side Effect:** Аллоцирует буферы, компилирует шейдер, создает BindGroup.
    *
    * @param params - Данные для начальной загрузки в буферы.
-   * * `states`: Исходные состояния квантов.
+   * * `states`: Исходные состояния полей.
    * * `bytecode`: Скомпилированные правила.
    */
   async init(params: {
-    quantumCount: number
+    fieldCount: number
     bytecode: Uint32Array
     states: Uint32Array
-    quantumDescriptors: Uint32Array
+    fieldDescriptors: Uint32Array
     heap: Uint32Array
     tableOffset: number
   }) {
@@ -44,15 +44,15 @@ export class GPUBackend {
       compute: { module, entryPoint: "main" },
     })
 
-    // Создание буферов для новой архитектуры кучи
-    this.buffers.quantumDescriptors = this.createStorageBuffer(params.quantumDescriptors)
+    // Создание буферов для архитектуры кучи
+    this.buffers.fieldDescriptors = this.createStorageBuffer(params.fieldDescriptors)
     this.buffers.heap = this.createStorageBuffer(params.heap)
     this.buffers.states = this.createStorageBuffer(params.states, true) // источник/назначение
 
-    this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.quantumCount), true)
+    this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.fieldCount), true)
     this.buffers.bytecode = this.createStorageBuffer(params.bytecode)
 
-    const uniforms = new Uint32Array([params.quantumCount, params.tableOffset, 0, 0])
+    const uniforms = new Uint32Array([params.fieldCount, params.tableOffset, 0, 0])
     this.buffers.uniforms = this.createBuffer(uniforms, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST)
 
     this.stagingBuffer = this.device.createBuffer({
@@ -63,7 +63,7 @@ export class GPUBackend {
     this.bindGroup = this.device.createBindGroup({
       layout: this.pipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: { buffer: this.buffers.quantumDescriptors } },
+        { binding: 0, resource: { buffer: this.buffers.fieldDescriptors } },
         { binding: 1, resource: { buffer: this.buffers.heap } },
         { binding: 2, resource: { buffer: this.buffers.states } },
         { binding: 3, resource: { buffer: this.buffers.newStates } },
@@ -90,9 +90,8 @@ export class GPUBackend {
     pass.setPipeline(this.pipeline)
     pass.setBindGroup(0, this.bindGroup)
 
-    // Читать кол-во квантов из размера uniforms буфера или хранить его?
-    // Полагаем, что сохранили или можем вывести. Для простоты передаем аргументом или храним в классе.
-    // Используем хардкод размера рабочей группы 64.
+    // Количество полей определяется размером буфера newStates.
+    // Используем размер рабочей группы 64.
     const count = this.buffers.newStates.size / 4
     pass.dispatchWorkgroups(Math.ceil(count / 64))
     pass.end()

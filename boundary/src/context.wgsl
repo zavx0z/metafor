@@ -24,14 +24,14 @@ const TYPE_SHARED_PTR: u32 = 5u;
 
 // Буферы
 @group(0) @binding(0)
-var<storage, read> quantum_descriptors: array<u32>;
+var<storage, read> field_descriptors: array<u32>;
 
 @group(0) @binding(1)
 var<storage, read> heap: array<u32>;
 
 // Uniforms
 struct Uniforms {
-  agent_count: u32,
+  field_count: u32,
 }
 
 @group(0) @binding(2)
@@ -42,14 +42,14 @@ var<uniform> uniforms: Uniforms;
 // ============================================================================
 
 /**
- * Получить указатель на блок агента.
+ * Получить указатель на блок поля.
  *
- * @param quantum_id - Индекс агента
- * @return Указатель (смещение) на блок агента в куче
+ * @param field_index - Индекс поля
+ * @return Указатель (смещение) на блок поля в куче
  */
 
-fn get_quantum_block_ptr(quantum_id: u32) -> u32 {
-  return quantum_descriptors[quantum_id];
+fn get_field_block_ptr(field_index: u32) -> u32 {
+  return field_descriptors[field_index];
 }
 
 /**
@@ -111,14 +111,14 @@ fn find_field(block_ptr: u32, target_field_id: u32) -> vec4<u32> {
 /**
  * Получить значение u32 поля.
  *
- * @param quantum_id - Индекс агента
- * @param field_id - ID поля
+ * @param field_index - Индекс поля
+ * @param target_field_id - ID поля
  * @return Значение поля (0 если не найдено)
  */
 
-fn get_field_u32(quantum_id: u32, field_id: u32) -> u32 {
-  let block_ptr = get_quantum_block_ptr(quantum_id);
-  let result = find_field(block_ptr, field_id);
+fn get_field_u32(field_index: u32, target_field_id: u32) -> u32 {
+  let block_ptr = get_field_block_ptr(field_index);
+  let result = find_field(block_ptr, target_field_id);
 
   if (result.x == 0u) {
     return 0u;
@@ -131,14 +131,14 @@ fn get_field_u32(quantum_id: u32, field_id: u32) -> u32 {
 /**
  * Получить значение f32 поля.
  *
- * @param quantum_id - Индекс агента
- * @param field_id - ID поля
+ * @param field_index - Индекс поля
+ * @param target_field_id - ID поля
  * @return Значение поля (0.0 если не найдено)
  */
 
-fn get_field_f32(quantum_id: u32, field_id: u32) -> f32 {
-  let block_ptr = get_quantum_block_ptr(quantum_id);
-  let result = find_field(block_ptr, field_id);
+fn get_field_f32(field_index: u32, target_field_id: u32) -> f32 {
+  let block_ptr = get_field_block_ptr(field_index);
+  let result = find_field(block_ptr, target_field_id);
 
   if (result.x == 0u) {
     return 0.0;
@@ -159,57 +159,57 @@ fn get_field_f32(quantum_id: u32, field_id: u32) -> f32 {
 /**
  * Получить значение bool поля.
  *
- * @param quantum_id - Индекс агента
- * @param field_id - ID поля
+ * @param field_index - Индекс поля
+ * @param target_field_id - ID поля
  * @return Значение поля (false если не найдено)
  */
 
-fn get_field_bool(quantum_id: u32, field_id: u32) -> bool {
-  return get_field_u32(quantum_id, field_id) != 0u;
+fn get_field_bool(field_index: u32, target_field_id: u32) -> bool {
+  return get_field_u32(field_index, target_field_id) != 0u;
 }
 
 /**
- * Получить указатель на shared брану.
+ * Получить указатель на entangled брану.
  *
- * @param quantum_id - Индекс агента
- * @param shared_idx - Индекс shared браны (0, 1, ...)
- * @return Указатель на блок shared браны в куче (0 если не найден)
+ * @param field_index - Индекс поля
+ * @param entangled_idx - Индекс entangled браны (0, 1, ...)
+ * @return Указатель на блок entangled браны в куче (0 если не найден)
  */
 
-fn get_shared_brane_ptr(quantum_id: u32, shared_idx: u32) -> u32 {
-  let block_ptr = get_quantum_block_ptr(quantum_id);
+fn get_entangled_brane_ptr(field_index: u32, entangled_idx: u32) -> u32 {
+  let block_ptr = get_field_block_ptr(field_index);
   let local_count = heap[block_ptr];
   let shared_count = heap[block_ptr + 1u];
 
-  if (shared_idx >= shared_count) {
+  if (entangled_idx >= shared_count) {
     return 0u;
     // Индекс за границами.
   }
 
-  // Shared указатели начинаются после заголовка (2 + local_count * 2).
-  let shared_ptrs_offset = block_ptr + 2u + local_count * 2u;
-  return heap[shared_ptrs_offset + shared_idx];
+  // Entangled указатели начинаются после заголовка (2 + local_count * 2).
+  let entangled_ptrs_offset = block_ptr + 2u + local_count * 2u;
+  return heap[entangled_ptrs_offset + entangled_idx];
 }
 
 /**
- * Получить значение поля из shared браны.
+ * Получить значение поля из entangled браны.
  *
- * Рекурсивно ищет поле в блоке агента, затем во всех его разделяемых блоках.
+ * Рекурсивно ищет поле в блоке поля, затем во всех его разделяемых блоках.
  *
- * @param quantum_id - Индекс агента
- * @param field_id - ID поля
+ * @param field_index - Индекс поля
+ * @param target_field_id - ID поля
  * @return Значение поля (0.0 если не найдено)
  */
 
-fn get_field_value_recursive(quantum_id: u32, field_id: u32) -> f32 {
-  // Сначала ищем в локальном блоке агента.
-  let local_value = get_field_f32(quantum_id, field_id);
-  if (local_value != 0.0 || find_field(get_quantum_block_ptr(quantum_id), field_id).x == 1u) {
+fn get_field_value_recursive(field_index: u32, target_field_id: u32) -> f32 {
+  // Сначала ищем в локальном блоке поля.
+  let local_value = get_field_f32(field_index, target_field_id);
+  if (local_value != 0.0 || find_field(get_field_block_ptr(field_index), target_field_id).x == 1u) {
     return local_value;
   }
 
   // Если не нашли, ищем в разделяемых блоках.
-  let block_ptr = get_quantum_block_ptr(quantum_id);
+  let block_ptr = get_field_block_ptr(field_index);
   let shared_count = heap[block_ptr + 1u];
 
   var i: u32 = 0u;
@@ -218,23 +218,23 @@ fn get_field_value_recursive(quantum_id: u32, field_id: u32) -> f32 {
       break;
     }
 
-    let shared_ptr = get_shared_brane_ptr(quantum_id, i);
-    if (shared_ptr == 0u) {
+    let entangled_ptr = get_entangled_brane_ptr(field_index, i);
+    if (entangled_ptr == 0u) {
       i = i + 1u;
       continue;
     }
 
-    let shared_result = find_field(shared_ptr, field_id);
-    if (shared_result.x == 1u) {
-      // Нашли в shared блоке.
-      let meta_data = shared_result.z;
+    let entangled_result = find_field(entangled_ptr, target_field_id);
+    if (entangled_result.x == 1u) {
+      // Нашли в entangled блоке.
+      let meta_data = entangled_result.z;
       let field_type = (meta_data >> 24u) & 0xFFu;
 
       if (field_type == TYPE_F32) {
-        return bitcast<f32>(heap[shared_result.w]);
+        return bitcast<f32>(heap[entangled_result.w]);
       }
 
-      return f32(heap[shared_result.w]);
+      return f32(heap[entangled_result.w]);
     }
 
     i = i + 1u;

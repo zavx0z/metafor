@@ -18,7 +18,7 @@ function inferArrayElementTypeFromDefault(value: unknown): ArrayElementType | un
  * Извлекает из исходного кода типы элементов для массивов, объявленных через t.array.required<Type>(...).
  * Используется для преобразования типа 'array' в 'array<string>' или 'array<number>' в промежуточном представлении.
  * @param sourceText - Исходный текст файла, в котором определена брана.
- * @returns Объект, где ключ — имя поля массива, значение — тип элемента ('string' | 'number').
+ * @returns Объект, где ключ — имя компоненты массива, значение — тип элемента ('string' | 'number').
  */
 export function extractArrayElementTypesFromSource(sourceText: string): Record<string, ArrayElementType> {
   const result: Record<string, ArrayElementType> = {}
@@ -41,12 +41,14 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
 }
 
 /**
- * Преобразует объект мета-описания в промежуточный формат поля, обогащая типы массивов и enum.
- * Для полей типа 'array' добавляет параметр типа (например, array<string>), выводя его из дефолтного значения или из generic в исходном коде.
- * Для полей типа 'enum' добавляет параметр типа (enum<string> или enum<number>).
+ * Преобразует объект мета-описания в промежуточный формат для границы (Boundary),
+ * обогащая типы массивов и enum.
+ * Для компонент типа 'array' добавляет параметр типа (например, array<string>),
+ * выводя его из дефолтного значения или из generic в исходном коде.
+ * Для компонент типа 'enum' добавляет параметр типа (enum<string> или enum<number>).
  * @param meta - Исходный объект мета, полученный из default export.
  * @param sourceText - Исходный код файла, используется для извлечения generic-типов массивов.
- * @returns Новый объект с тем же набором полей, но с уточнёнными типами.
+ * @returns Новый объект с тем же набором компонент, но с уточнёнными типами.
  * @throws Ошибка, если не удаётся вывести тип элементов массива или enum.
  */
 export function convertMetaToFieldIntermediate(meta: MetaLike, sourceText?: string): MetaLike {
@@ -72,7 +74,7 @@ export function convertMetaToFieldIntermediate(meta: MetaLike, sourceText?: stri
 
       if (!elementType) {
         throw new Error(
-          `Не удалось вывести тип элементов массива для поля '${fieldName}'. ` +
+          `Не удалось вывести тип элементов массива для компоненты '${fieldName}'. ` +
             `Добавь generic: t.array.required<number>([]) / t.array.required<string>([]) или задай непустой default.`,
         )
       }
@@ -86,7 +88,7 @@ export function convertMetaToFieldIntermediate(meta: MetaLike, sourceText?: stri
       const valueType = inferEnumValueType(values)
 
       if (!valueType) {
-        throw new Error(`Не удалось вывести тип значений enum для поля '${fieldName}'. values должен быть string[] или number[].`)
+        throw new Error(`Не удалось вывести тип значений enum для компоненты '${fieldName}'. values должен быть string[] или number[].`)
       }
 
       const nextDef: Record<string, any> = { ...def, type: `enum<${valueType}>`, values }

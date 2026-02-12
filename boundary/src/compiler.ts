@@ -2,11 +2,12 @@ import { OP, TYPE, type CompiledRules } from "./common"
 import { GlobalFieldRegistry, FieldType } from "./context"
 import { fieldTypeToBytecodeType } from "./typeBridge"
 
-// Упрощенные типы для представления конфигурации правил.
-// В реальном проекте они могут быть более сложными и импортироваться из общего пакета.
+// Типы для представления конфигурации правил суперпозиции.
 type ConditionValue = number | boolean | string | { [key: string]: any }
-type Wave = Record<string, ConditionValue>
-type Transitions = Record<string, Wave | null | undefined>
+/** Условия коллапса — набор проверок компонент браны для перехода между состояниями */
+type CollapseConditions = Record<string, ConditionValue>
+type Transitions = Record<string, CollapseConditions | null | undefined>
+/** Суперпозиция — граф возможных состояний и условий переходов */
 type Superposition = Record<string, Transitions | null | undefined>
 
 /**
@@ -263,7 +264,7 @@ export class RulesCompiler {
           subType = undefined
       }
 
-      this.fields[meta.name] = { fieldId: meta.fieldId, type: typeCode, subType, enumValues: meta.enumValues }
+      this.fields[meta.name] = { fieldId: meta.componentId, type: typeCode, subType, enumValues: meta.enumValues }
     }
   }
 
@@ -288,7 +289,7 @@ export class RulesCompiler {
     }
   }
 
-  private compileConditions(wave: Wave) {
+  private compileConditions(wave: CollapseConditions) {
     const entries = Object.entries(wave)
     this.bytecode.push(entries.length)
     // Генерируем инструкции: [type, field_id, op, value] (4 слова на условие)
