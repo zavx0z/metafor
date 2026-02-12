@@ -25,7 +25,7 @@ try {
 
   log("--- Инициализация ---")
   await system.init({
-    statesConfig: {
+    superposition: {
       IDLE: {
         PATROL: { hp: { gt: 50 } },
         DEAD: { hp: { lte: 0 } },
@@ -39,14 +39,14 @@ try {
       },
       DEAD: null,
     },
-    contextSchema: {
+    branes: {
       hp: { type: "number" },
       mana: { type: "number" },
       isAlive: { type: "boolean" },
     },
     quanta: [
-      { id: "q1", state: "IDLE", context: { hp: 100, mana: 100, isAlive: true } },
-      { id: "q2", state: "IDLE", context: { hp: 0, mana: 50, isAlive: false } },
+      { id: "q1", state: "IDLE", brane: { hp: 100, mana: 100, isAlive: true } },
+      { id: "q2", state: "IDLE", brane: { hp: 0, mana: 50, isAlive: false } },
     ],
   })
   const startStates = await system.getStates()

@@ -1,5 +1,5 @@
 /**
- * @file Конструктор самоописываемых блоков контекста.
+ * @file Конструктор самоописываемых блоков браны.
  *
  * Формирует блоки данных с заголовком метаданных для эффективного чтения на GPU.
  *
@@ -7,13 +7,13 @@
  * ```
  * [HEADER]
  * ├── local_field_count: u32
- * ├── shared_context_count: u32
+ * ├── shared_brane_count: u32
  * └── field_descriptors[local_field_count]:
  *     ├── field_id: u32
  *     └── packed_meta: u32  // (type << 24) | (size << 16) | offset
  *
  * [BODY]
- * ├── shared_ptrs[shared_context_count]: u32[]
+ * ├── shared_ptrs[shared_brane_count]: u32[]
  * └── field_values[]: значения полей (за которыми следуют выделения строк/массивов)
  * ```
  *
@@ -90,7 +90,9 @@ export function encodeString(str: string): Uint32Array {
     dataView.setUint8(4 + i, bytes[i]!)
   }
   return result
-}/**
+}
+
+/**
  * Декодировать строку из массива u32.
  *
  * @param data - Массив u32
@@ -119,7 +121,7 @@ function getFieldSize(type: FieldTypeValue, value: unknown): number {
       // Указатель на массив: [heapOffset, length]
       return 2
     case FieldType.SHARED_PTR:
-      // Указатель на shared контекст (уже в заголовке)
+      // Указатель на shared брану (уже в заголовке)
       return 0
     default:
       return 1
@@ -127,9 +129,9 @@ function getFieldSize(type: FieldTypeValue, value: unknown): number {
 }
 
 /**
- * Конструктор блоков контекста.
+ * Конструктор блоков браны.
  */
-export class ContextBuilder {
+export class BraneBuilder {
   private encoder = new TextEncoder()
 
   constructor(
@@ -138,18 +140,18 @@ export class ContextBuilder {
   ) {}
 
   /**
-   * Построить блок контекста.
+   * Построить блок браны.
    *
-   * @param context - Объект с полями {имя: значение}
+   * @param brane - Объект с полями {имя: значение}
    * @param options - Опции построения
    * @returns Результат построения блока и дополнительных аллокаций (строки, массивы)
    */
-  build(context: Record<string, unknown>, options: BuildOptions = {}): BuildResult {
+  build(brane: Record<string, unknown>, options: BuildOptions = {}): BuildResult {
     const sharedPtrs = options.sharedPtrs ?? []
     const sharedCount = sharedPtrs.length
 
     // Сортируем поля по имени для детерминизма.
-    const localEntries = Object.entries(context)
+    const localEntries = Object.entries(brane)
       .map(([name, value]) => {
         const meta = this.registry.getMeta(name)
         if (!meta) {
@@ -206,7 +208,7 @@ export class ContextBuilder {
     const extraAllocs: Array<{ offset: number, size: number, data?: Uint32Array }> = []
     const dataView = new DataView(blockView.buffer)
 
-  for (const layout of fieldLayouts) {
+    for (const layout of fieldLayouts) {
       const offsetBytes = layout.offsetInWords * 4
 
       switch (layout.meta.type) {
@@ -304,14 +306,14 @@ export class ContextBuilder {
   /**
    * Вычислить размер блока без аллокации (для предварительной оценки).
    */
-  calculateSize(context: Record<string, unknown>, sharedPtrsCount: number = 0): number {
+  calculateSize(brane: Record<string, unknown>, sharedPtrsCount: number = 0): number {
     let fieldCount = 0
     let fieldsSize = 0
-    for (const [name] of Object.entries(context)) {
+    for (const [name] of Object.entries(brane)) {
       const meta = this.registry.getMeta(name)
       if (!meta) continue
       fieldCount++
-      fieldsSize += getFieldSize(meta.type, context[name])
+      fieldsSize += getFieldSize(meta.type, brane[name])
     }
     // header + shared_ptrs + fields
     return 2 + fieldCount * 2 + sharedPtrsCount + fieldsSize

@@ -16,5 +16,10 @@
     "outDir": "./dist",
     "declaration": true
   },
-  "extends": "../tsconfig.json"
+  "extends": "../tsconfig.json",
+  "exclude": [
+    "docs",
+    "dist",
+    "dist-test"
+  ]
 }

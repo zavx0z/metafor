@@ -10,7 +10,7 @@ describe("QuantumFieldSystem — Логика новых этапов (GPU)", ()
     test("должен переходить, если значение есть в списке (Integer/Enum)", async () => {
       // Эмуляция Enum: 0=IDLE, 1=WALK, 2=RUN, 3=FLY
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           GROUND: {
             AIR: { mode: { in: [3] } }, // FLY
             MOVING: { mode: { in: [1, 2] } }, // WALK, RUN
@@ -18,11 +18,11 @@ describe("QuantumFieldSystem — Логика новых этапов (GPU)", ()
           AIR: null,
           MOVING: null,
         },
-        contextSchema: { mode: { type: "number" } },
+        branes: { mode: { type: "number" } },
         quanta: [
-          { id: "q1", state: "GROUND", context: { mode: 1 } }, // WALK -> MOVING
-          { id: "q2", state: "GROUND", context: { mode: 3 } }, // FLY -> AIR
-          { id: "q3", state: "GROUND", context: { mode: 0 } }, // IDLE -> остаться
+          { id: "q1", state: "GROUND", brane: { mode: 1 } }, // WALK -> MOVING
+          { id: "q2", state: "GROUND", brane: { mode: 3 } }, // FLY -> AIR
+          { id: "q3", state: "GROUND", brane: { mode: 0 } }, // IDLE -> остаться
         ],
       })
 
@@ -34,17 +34,17 @@ describe("QuantumFieldSystem — Логика новых этапов (GPU)", ()
 
     test("должен переходить, если float значение есть в списке", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           NORMAL: {
             CRITICAL: { temperature: { in: [36.6, 40.0] } },
           },
           CRITICAL: null,
         },
-        contextSchema: { temperature: { type: "number" } },
+        branes: { temperature: { type: "number" } },
         quanta: [
-          { id: "q1", state: "NORMAL", context: { temperature: 36.6 } },
-          { id: "q2", state: "NORMAL", context: { temperature: 37.0 } },
-          { id: "q3", state: "NORMAL", context: { temperature: 40.0 } },
+          { id: "q1", state: "NORMAL", brane: { temperature: 36.6 } },
+          { id: "q2", state: "NORMAL", brane: { temperature: 37.0 } },
+          { id: "q3", state: "NORMAL", brane: { temperature: 40.0 } },
         ],
       })
 
@@ -58,16 +58,16 @@ describe("QuantumFieldSystem — Логика новых этапов (GPU)", ()
   describe("Оператор NOT_IN (Исключение)", () => {
     test("должен переходить, если значения НЕТ в списке", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           LOBBY: {
             GAME: { role: { notIn: [0] } }, // 0 = Spectator (не играет)
           },
           GAME: null,
         },
-        contextSchema: { role: { type: "number" } },
+        branes: { role: { type: "number" } },
         quanta: [
-          { id: "q1", state: "LOBBY", context: { role: 1 } }, // Player -> GAME
-          { id: "q2", state: "LOBBY", context: { role: 0 } }, // Spectator -> LOBBY
+          { id: "q1", state: "LOBBY", brane: { role: 1 } }, // Player -> GAME
+          { id: "q2", state: "LOBBY", brane: { role: 0 } }, // Spectator -> LOBBY
         ],
       })
 
@@ -80,7 +80,7 @@ describe("QuantumFieldSystem — Логика новых этапов (GPU)", ()
   describe("Комбинированные условия", () => {
     test("должен работать mix из диапазонов и списков", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           START: {
             WIN: {
               score: { gt: 100 },
@@ -89,11 +89,11 @@ describe("QuantumFieldSystem — Логика новых этапов (GPU)", ()
           },
           WIN: null,
         },
-        contextSchema: { score: { type: "number" }, badge: { type: "number" } },
+        branes: { score: { type: "number" }, badge: { type: "number" } },
         quanta: [
-          { id: "q1", state: "START", context: { score: 150, badge: 5 } }, // OK
-          { id: "q2", state: "START", context: { score: 150, badge: 1 } }, // Badge fail
-          { id: "q3", state: "START", context: { score: 50, badge: 7 } }, // Score fail
+          { id: "q1", state: "START", brane: { score: 150, badge: 5 } }, // OK
+          { id: "q2", state: "START", brane: { score: 150, badge: 1 } }, // Badge fail
+          { id: "q3", state: "START", brane: { score: 50, badge: 7 } }, // Score fail
         ],
       })
 

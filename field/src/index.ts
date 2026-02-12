@@ -4,32 +4,32 @@
  * **Ядро (Core Pattern):** Библиотека реализует паттерн **Data-Oriented Design** с акцентом на параллелизм GPU.
  *
  * ### Ключевые компоненты:
- * 1. **ContextManager** — управление памятью квантов в формате "самоописываемых блоков" с автоматической группировкой общих полей.
+ * 1. **BraneManager** — управление памятью квантов (бранами) в формате "самоописываемых блоков" с автоматической группировкой общих полей.
  * 2. **RulesCompiler** — транслятор JSON-правил в байт-код для кастомной VM, исполняемой в compute shader.
  * 3. **GPUBackend** — драйвер WebGPU, управляющий VRAM и диспетчеризацией вычислительных работ.
  *
  * ### Особенности памяти (Memory Layout):
  * * **Глобальная куча (heap):** Единый GPUBuffer с менеджером свободных блоков (free-list).
  * * **Указатели (pointers):** Все ссылки — абсолютные смещения в словах (u32) от начала кучи.
- * * **Shared контексты:** Поля с одинаковыми значениями у нескольких агентов автоматически группируются в разделяемые блокы.
+ * * **Shared браны:** Поля с одинаковыми значениями у нескольких агентов автоматически группируются в разделяемые блокы.
  *
  * ### Важные ограничения:
  * * **Нет обратной совместимости:** Формат байт-кода и структура кучи могут меняться между минорными версиями.
  * * **Только WebGPU:** Требует поддержки `navigator.gpu` и устройства с compute shader capability.
- * * **Размер кучи фиксирован:** По умолчанию 16384 слов (64KB), конфигурируется в ContextManagerConfig.
+ * * **Размер кучи фиксирован:** По умолчанию 16384 слов (64KB), конфигурируется в BraneManagerConfig.
  *
  * @packageDocumentation
  */
 import { GPUBackend } from "./backend"
 import { RulesCompiler } from "./compiler"
-import { ContextManager, FieldType, GlobalFieldRegistry, type FieldTypeValue } from "./context"
+import { BraneManager, FieldType, GlobalFieldRegistry, type FieldTypeValue } from "./context"
 
-// ========== Типы для описания схемы контекста ==========
+// ========== Типы для описания схемы браны ==========
 /**
- * Определение типа поля в contextSchema.
+ * Определение типа компоненты в branes.
  * Может быть объектом с полем type и дополнительными параметрами.
  */
-export type FieldDefinition =
+export type BraneFieldDefinition =
   | { type: "number" }
   | { type: "boolean" }
   | { type: "string" }
@@ -39,17 +39,17 @@ export type FieldDefinition =
   | { type: "enum<number>"; values: number[] }
 
 /**
- * Схема контекста агента.
- * Ключ — имя поля, значение — определение типа.
+ * Схема браны кванта.
+ * Ключ — имя компоненты, значение — определение типа.
  */
-export type ContextSchema = Record<string, FieldDefinition>
+export type BraneSchema = Record<string, BraneFieldDefinition>
 
 /**
  * Конфигурация для инициализации `QuantumFieldSystem`.
  */
 export interface QuantumFieldSystemConfig {
   /**
-   * Граф состояний и переходов между ними.
+   * Суперпозиция возможных состояний и переходов между ними.
    * @example
    * ```json
    * {
@@ -58,7 +58,7 @@ export interface QuantumFieldSystemConfig {
    * }
    * ```
    */
-  statesConfig: any
+  superposition: any
   /**
    * Схема памяти агента. Определяет layout буферов (Struct of Arrays).
    *
@@ -83,12 +83,12 @@ export interface QuantumFieldSystemConfig {
    * }
    * ```
    */
-  contextSchema: ContextSchema
+  branes: BraneSchema
 
   /**
-   * Массив начальных состояний для каждого кванта.
+   * Массив квантов с их начальными бранами и состояниями.
    */
-  quanta: Array<{ id: string; state: string; context: any }>
+  quanta: Array<{ id: string; state: string; brane: any }>
 }
 
 /**
@@ -107,7 +107,7 @@ export interface QuantumFieldSystemConfig {
 export class QuantumFieldSystem {
   private backend: GPUBackend
   private compiler = new RulesCompiler()
-  private contextManager: ContextManager
+  private braneManager: BraneManager
 
   // Карты маппинга
   private stateMap: Record<string, number> = {}
@@ -119,7 +119,7 @@ export class QuantumFieldSystem {
    */
   constructor(device: GPUDevice) {
     this.backend = new GPUBackend(device)
-    this.contextManager = new ContextManager(device)
+    this.braneManager = new BraneManager(device)
   }
 
   /**
@@ -127,19 +127,19 @@ export class QuantumFieldSystem {
    *
    * ### Алгоритм инициализации:
    * 1. Регистрация полей в GlobalFieldRegistry (создание field_id).
-   * 2. Создание агентов через ContextManager с автоматической группировкой общих полей.
+   * 2. Создание агентов через BraneManager с автоматической группировкой общих полей.
    * 3. Компиляция графа переходов в байт-код кастомной VM.
    * 4. Инициализация GPU-буферов и создание compute pipeline.
    *
    * ### Валидация входных данных:
-   * * Каждое состояние, упомянутое как цель перехода, должно быть объявлено в корне statesConfig.
-   * * Все поля, используемые в условиях, должны быть описаны в contextSchema.
+   * * Каждое состояние, упомянутое как цель перехода, должно быть объявлено в корне superposition.
+   * * Все компоненты, используемые в условиях, должны быть описаны в branes.
    * * Начальные состояния quanta должны существовать в stateMap.
    *
    * @param config - Конфигурация симуляции.
-   * @param config.statesConfig - Граф переходов в формате { [state]: { [target]: { [field]: condition } } }.
+   * @param config.superposition - Суперпозиция переходов в формате { [state]: { [target]: { [field]: condition } } }.
    * **Пример:** `{ "IDLE": { "PATROL": { "hp": { "gt": 50 } } } }`
-   * @param config.contextSchema - Схема типов данных. Определяется объектами:
+   * @param config.branes - Схема типов данных. Определяется объектами:
    * * `{ type: "number" }` → 32-битное число с плавающей точкой (f32).
    * * `{ type: "boolean" }` → 0/1 значение.
    * * `{ type: "string" }` → строка (хранится в куче).
@@ -148,7 +148,7 @@ export class QuantumFieldSystem {
    * * `{ type: "enum<string>", values: string[] }` → перечисление строк.
    * * `{ type: "enum<number>", values: number[] }` → перечисление чисел.
    * @param config.quanta - Массив квантов для инициализации.
-   * **Формат:** `{ id: string, state: string, context: Record<string, unknown> }`
+   * **Формат:** `{ id: string, state: string, brane: Record<string, unknown> }`
    *
    * @throws {Error} Если:
    * * WebGPU не поддерживается или устройство недоступно.
@@ -158,10 +158,10 @@ export class QuantumFieldSystem {
    * @example
    * ```ts
    * await system.init({
-   *   statesConfig: { IDLE: { PATROL: { hp: { gt: 50 } } } },
-   *   contextSchema: { hp: { type: "number" } },
+   *   superposition: { IDLE: { PATROL: { hp: { gt: 50 } } } },
+   *   branes: { hp: { type: "number" } },
    *   quanta: [
-   *     { id: "hero", state: "IDLE", context: { hp: 100 } }
+   *     { id: "hero", state: "IDLE", brane: { hp: 100 } }
    *   ]
    * });
    * ```
@@ -170,7 +170,7 @@ export class QuantumFieldSystem {
     // 1. Регистрируем поля из схемы в глобальном реестре.
     const registry = GlobalFieldRegistry.getInstance()
 
-    for (const [name, def] of Object.entries(config.contextSchema)) {
+    for (const [name, def] of Object.entries(config.branes)) {
       const defTyped = def as { type?: string; values?: any[] } | string
       const typeStr = typeof defTyped === "string" ? defTyped : defTyped.type
       let fieldType: FieldTypeValue
@@ -201,7 +201,7 @@ export class QuantumFieldSystem {
           fieldType = FieldType.U32
           break
         default:
-          throw new Error(`Unknown field type in contextSchema: '${typeStr}' for field '${name}'`)
+          throw new Error(`Unknown field type in branes: '${typeStr}' for field '${name}'`)
       }
       if (!registry.has(name)) {
         const registerOptions = {
@@ -213,23 +213,23 @@ export class QuantumFieldSystem {
     }
 
     // 2. Создаём кванты — менеджер сам группирует поля!
-    this.agentIds = this.contextManager.createAgents(config.quanta.map((q) => q.context))
+    this.agentIds = this.braneManager.createSuperposition(config.quanta.map((q) => q.brane))
 
     // 3. Компилируем правила FSM ([type, field_id, op, value]).
-    const compiled = this.compiler.compile(config.statesConfig, config.contextSchema, { preserveRegistry: true })
+    const compiled = this.compiler.compile(config.superposition, config.branes, { preserveRegistry: true })
     this.stateMap = compiled.stateMap
     this.reverseStateMap = Object.keys(compiled.stateMap)
 
     // 4. Инициализируем бэкенд.
     const states = new Uint32Array(config.quanta.map((q) => this.stateMap[q.state] ?? 0))
 
-    const { agentDescriptors, heap } = this.contextManager.getGPUBuffers()
+    const { quantumDescriptors, heap } = this.braneManager.getGPUBuffers()
 
     await this.backend.init({
-      quantaCount: config.quanta.length,
+      quantumCount: config.quanta.length,
       bytecode: compiled.bytecode,
       states,
-      agentDescriptors,
+      quantumDescriptors,
       heap,
       tableOffset: compiled.stateTableOffset,
     })
@@ -282,7 +282,7 @@ export class QuantumFieldSystem {
   }
 
   /**
-   * Обновляет поле контекста конкретного агента и синхронизирует изменения с GPU.
+   * Обновляет компоненту браны конкретного кванта и синхронизирует изменения с GPU.
    *
    * ### Алгоритм обновления:
    * 1. Поиск блока агента в куче через agentDescriptors.
@@ -299,32 +299,32 @@ export class QuantumFieldSystem {
    * * **Не атомарно на GPU** — изменения видны в следующем шаге симуляции.
    *
    * @param agentIndex - Порядковый индекс кванта в массиве quanta (0-based).
-   * @param fieldName - Имя поля, зарегистрированное в contextSchema.
+   * @param fieldName - Имя компоненты, зарегистрированное в branes.
    * @param value - Новое значение (тип должен соответствовать схеме).
    *
    * @throws {Error} Если:
    * * agentIndex выходит за границы массива агентов.
    * * fieldName не зарегистрировано в GlobalFieldRegistry.
-   * * Поле не найдено в блоке агента (отсутствует в контексте).
+   * * Поле не найдено в блоке агента (отсутствует в бране).
    * * Не удалось аллоцировать память для значения переменного размера.
    *
    * @example
    * ```ts
    * // Уменьшить здоровье героя на 30
-   * system.updateContext(0, "hp", 70);
+   * system.updateBraneField(0, "hp", 70);
    * ```
    */
-  updateContext(agentIndex: number, fieldName: string, value: unknown): void {
+  updateBraneField(agentIndex: number, fieldName: string, value: unknown): void {
     const agentId = this.agentIds[agentIndex]
     if (agentId === undefined) {
       throw new Error(`Неизвестный индекс агента: ${agentIndex}`)
     }
 
-    this.contextManager.updateAgentField(agentId, fieldName, value)
-    if (this.contextManager.isHeapDirty()) {
-      const { heap } = this.contextManager.getGPUBuffers()
+    this.braneManager.updateBraneField(agentId, fieldName, value)
+    if (this.braneManager.isHeapDirty()) {
+      const { heap } = this.braneManager.getGPUBuffers()
       this.backend.updateHeap(heap)
-      this.contextManager.clearDirtyFlag()
+      this.braneManager.clearDirtyFlag()
     }
   }
 }

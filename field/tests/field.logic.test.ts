@@ -9,7 +9,7 @@ describe("QuantumFieldSystem — Тесты логики (реальное ус�
   describe("Базовые переходы состояний", () => {
     test("должен перейти из состояния IDLE в DEAD при здоровье <= 0", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           IDLE: {
             PATROL: { hp: { gt: 50 } },
             DEAD: { hp: { lte: 0 } },
@@ -23,14 +23,14 @@ describe("QuantumFieldSystem — Тесты логики (реальное ус�
           },
           DEAD: null,
         },
-        contextSchema: {
+        branes: {
           hp: { type: "number" },
           mana: { type: "number" },
           isAlive: { type: "boolean" },
         },
         quanta: [
-          { id: "q1", state: "IDLE", context: { hp: 100, mana: 100, isAlive: true } },
-          { id: "q2", state: "IDLE", context: { hp: 0, mana: 50, isAlive: false } },
+          { id: "q1", state: "IDLE", brane: { hp: 100, mana: 100, isAlive: true } },
+          { id: "q2", state: "IDLE", brane: { hp: 0, mana: 50, isAlive: false } },
         ],
       })
 
@@ -43,18 +43,18 @@ describe("QuantumFieldSystem — Тесты логики (реальное ус�
 
     test("должен перейти из состояния IDLE в PATROL при здоровье > 50", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           IDLE: {
             PATROL: { hp: { gt: 50 } },
           },
           PATROL: null,
         },
-        contextSchema: {
+        branes: {
           hp: { type: "number" },
         },
         quanta: [
-          { id: "q1", state: "IDLE", context: { hp: 100 } },
-          { id: "q2", state: "IDLE", context: { hp: 50 } },
+          { id: "q1", state: "IDLE", brane: { hp: 100 } },
+          { id: "q2", state: "IDLE", brane: { hp: 50 } },
         ],
       })
 
@@ -69,18 +69,18 @@ describe("QuantumFieldSystem — Тесты логики (реальное ус�
 
     test("должен перейти из состояния IDLE в PATROL при здоровье >= 50", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           IDLE: {
             PATROL: { hp: { gte: 50 } },
           },
           PATROL: null,
         },
-        contextSchema: {
+        branes: {
           hp: "number",
         },
         quanta: [
-          { id: "q1", state: "IDLE", context: { hp: 50 } },
-          { id: "q2", state: "IDLE", context: { hp: 49 } },
+          { id: "q1", state: "IDLE", brane: { hp: 50 } },
+          { id: "q2", state: "IDLE", brane: { hp: 49 } },
         ],
       })
 
@@ -95,18 +95,18 @@ describe("QuantumFieldSystem — Тесты логики (реальное ус�
 
     test("должен перейти из состояния IDLE в PATROL при здоровье < 50", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           IDLE: {
             PATROL: { hp: { lt: 50 } },
           },
           PATROL: null,
         },
-        contextSchema: {
+        branes: {
           hp: "number",
         },
         quanta: [
-          { id: "q1", state: "IDLE", context: { hp: 49 } },
-          { id: "q2", state: "IDLE", context: { hp: 50 } },
+          { id: "q1", state: "IDLE", brane: { hp: 49 } },
+          { id: "q2", state: "IDLE", brane: { hp: 50 } },
         ],
       })
 
@@ -123,18 +123,18 @@ describe("QuantumFieldSystem — Тесты логики (реальное ус�
   describe("Булевы условия", () => {
     test("должен перейти при значении булевого поля = true", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           IDLE: {
             ACTIVE: { isAlive: true },
           },
           ACTIVE: null,
         },
-        contextSchema: {
+        branes: {
           isAlive: { type: "boolean" },
         },
         quanta: [
-          { id: "q1", state: "IDLE", context: { isAlive: true } },
-          { id: "q2", state: "IDLE", context: { isAlive: false } },
+          { id: "q1", state: "IDLE", brane: { isAlive: true } },
+          { id: "q2", state: "IDLE", brane: { isAlive: false } },
         ],
       })
 
@@ -149,18 +149,18 @@ describe("QuantumFieldSystem — Тесты логики (реальное ус�
 
     test("должен перейти при значении булевого поля = false", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           ACTIVE: {
             DEAD: { isAlive: false },
           },
           DEAD: null,
         },
-        contextSchema: {
+        branes: {
           isAlive: "boolean",
         },
         quanta: [
-          { id: "q1", state: "ACTIVE", context: { isAlive: false } },
-          { id: "q2", state: "ACTIVE", context: { isAlive: true } },
+          { id: "q1", state: "ACTIVE", brane: { isAlive: false } },
+          { id: "q2", state: "ACTIVE", brane: { isAlive: true } },
         ],
       })
 
@@ -177,7 +177,7 @@ describe("QuantumFieldSystem — Тесты логики (реальное ус�
   describe("Множественные условия", () => {
     test("должен перейти когда выполнены оба условия", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           IDLE: {
             COMBAT: {
               hp: { gt: 50 },
@@ -186,14 +186,14 @@ describe("QuantumFieldSystem — Тесты логики (реальное ус�
           },
           COMBAT: null,
         },
-        contextSchema: {
+        branes: {
           hp: "number",
           mana: "number",
         },
         quanta: [
-          { id: "q1", state: "IDLE", context: { hp: 100, mana: 50 } },
-          { id: "q2", state: "IDLE", context: { hp: 100, mana: 10 } },
-          { id: "q3", state: "IDLE", context: { hp: 30, mana: 50 } },
+          { id: "q1", state: "IDLE", brane: { hp: 100, mana: 50 } },
+          { id: "q2", state: "IDLE", brane: { hp: 100, mana: 10 } },
+          { id: "q3", state: "IDLE", brane: { hp: 30, mana: 50 } },
         ],
       })
 
@@ -209,48 +209,48 @@ describe("QuantumFieldSystem — Тесты логики (реальное ус�
     })
   })
 
-  describe("Обновление контекста", () => {
-    test("должен перейти после обновления контекста", async () => {
+  describe("Обновление браны", () => {
+    test("должен перейти после обновления браны", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           IDLE: {
             DEAD: { hp: { lte: 0 } },
           },
           DEAD: null,
         },
-        contextSchema: {
+        branes: {
           hp: "number",
         },
-        quanta: [{ id: "q1", state: "IDLE", context: { hp: 100 } }],
+        quanta: [{ id: "q1", state: "IDLE", brane: { hp: 100 } }],
         updates: [{ agentIndex: 0, fieldName: "hp", value: 0 }],
       })
 
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
 
-      // Агент должен перейти в состояние DEAD после обновления контекста (hp = 0)
+      // Агент должен перейти в состояние DEAD после обновления браны (hp = 0)
       expect(result.states![0]).toBe("DEAD")
     })
 
-    test("не должен перейти после обновления контекста если условие не выполнено", async () => {
+    test("не должен перейти после обновления браны если условие не выполнено", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           IDLE: {
             PATROL: { hp: { gt: 50 } },
           },
           PATROL: null,
         },
-        contextSchema: {
+        branes: {
           hp: "number",
         },
-        quanta: [{ id: "q1", state: "IDLE", context: { hp: 100 } }],
+        quanta: [{ id: "q1", state: "IDLE", brane: { hp: 100 } }],
         updates: [{ agentIndex: 0, fieldName: "hp", value: 50 }],
       })
 
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
 
-      // Агент должен остаться в состоянии IDLE после обновления контекста (hp = 50 не > 50)
+      // Агент должен остаться в состоянии IDLE после обновления браны (hp = 50 не > 50)
       expect(result.states![0]).toBe("IDLE")
     })
   })
@@ -258,7 +258,7 @@ describe("QuantumFieldSystem — Тесты логики (реальное ус�
   describe("Многошаговая симуляция", () => {
     test("должен пройти через несколько состояний", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           IDLE: {
             PATROL: { hp: { gt: 50 } },
           },
@@ -267,11 +267,11 @@ describe("QuantumFieldSystem — Тесты логики (реальное ус�
           },
           COMBAT: null,
         },
-        contextSchema: {
+        branes: {
           hp: "number",
           mana: "number",
         },
-        quanta: [{ id: "q1", state: "IDLE", context: { hp: 100, mana: 5 } }],
+        quanta: [{ id: "q1", state: "IDLE", brane: { hp: 100, mana: 5 } }],
         steps: 2,
       })
 
@@ -286,19 +286,19 @@ describe("QuantumFieldSystem — Тесты логики (реальное ус�
   describe("Пограничные случаи", () => {
     test("должен обработать несколько агентов с одинаковым начальным состоянием", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           IDLE: {
             ACTIVE: { hp: { gt: 0 } },
           },
           ACTIVE: null,
         },
-        contextSchema: {
+        branes: {
           hp: "number",
         },
         quanta: [
-          { id: "q1", state: "IDLE", context: { hp: 100 } },
-          { id: "q2", state: "IDLE", context: { hp: 200 } },
-          { id: "q3", state: "IDLE", context: { hp: 0 } },
+          { id: "q1", state: "IDLE", brane: { hp: 100 } },
+          { id: "q2", state: "IDLE", brane: { hp: 200 } },
+          { id: "q3", state: "IDLE", brane: { hp: 0 } },
         ],
       })
 
@@ -314,7 +314,7 @@ describe("QuantumFieldSystem — Тесты логики (реальное ус�
 
     test("должен обработать агентов с разными начальными состояниями", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           IDLE: {
             ACTIVE: { hp: { gt: 50 } },
           },
@@ -322,12 +322,12 @@ describe("QuantumFieldSystem — Тесты логики (реальное ус�
             IDLE: { hp: { lte: 50 } },
           },
         },
-        contextSchema: {
+        branes: {
           hp: "number",
         },
         quanta: [
-          { id: "q1", state: "IDLE", context: { hp: 100 } },
-          { id: "q2", state: "ACTIVE", context: { hp: 30 } },
+          { id: "q1", state: "IDLE", brane: { hp: 100 } },
+          { id: "q2", state: "ACTIVE", brane: { hp: 30 } },
         ],
       })
 

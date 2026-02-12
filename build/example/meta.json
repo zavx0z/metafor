@@ -41,5 +41,33 @@
         "src": "() => {}"
       }
     }
+  },
+  "brane": {
+    "src": {
+      "type": "string",
+      "required": true,
+      "default": "./tmp/edit.json",
+      "label": "JSON-patch путь"
+    },
+    "patches": {
+      "type": "array<string>",
+      "required": true,
+      "default": [],
+      "label": "разделенные патчи"
+    }
+  },
+  "braneSchema": {
+    "src": {
+      "type": "string",
+      "required": true,
+      "default": "./tmp/edit.json",
+      "label": "JSON-patch путь"
+    },
+    "patches": {
+      "type": "array<string>",
+      "required": true,
+      "default": [],
+      "label": "разделенные патчи"
+    }
   }
 }

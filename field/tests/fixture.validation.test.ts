@@ -19,7 +19,7 @@ describe("Тесты валидации фикстуры", () => {
   describe("Данные из примера Client.ts", () => {
     test('должен вернуть ["IDLE", "DEAD"] после обновления и шага', async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           IDLE: {
             PATROL: { hp: { gt: 50 } },
             DEAD: { hp: { lte: 0 } },
@@ -33,14 +33,14 @@ describe("Тесты валидации фикстуры", () => {
           },
           DEAD: null,
         },
-        contextSchema: {
+        branes: {
           hp: { type: "number" },
           mana: { type: "number" },
           isAlive: { type: "boolean" },
         },
         quanta: [
-          { id: "q1", state: "IDLE", context: { hp: 100, mana: 100, isAlive: true } },
-          { id: "q2", state: "IDLE", context: { hp: 0, mana: 50, isAlive: false } },
+          { id: "q1", state: "IDLE", brane: { hp: 100, mana: 100, isAlive: true } },
+          { id: "q2", state: "IDLE", brane: { hp: 0, mana: 50, isAlive: false } },
         ],
         updates: [{ agentIndex: 0, fieldName: "hp", value: 50 }],
         steps: 1,
@@ -67,7 +67,7 @@ describe("Тесты валидации фикстуры", () => {
 
     test('должен начинаться с ["IDLE", "IDLE"] до обновления', async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           IDLE: {
             PATROL: { hp: { gt: 50 } },
             DEAD: { hp: { lte: 0 } },
@@ -81,14 +81,14 @@ describe("Тесты валидации фикстуры", () => {
           },
           DEAD: null,
         },
-        contextSchema: {
+        branes: {
           hp: { type: "number" },
           mana: { type: "number" },
           isAlive: { type: "boolean" },
         },
         quanta: [
-          { id: "q1", state: "IDLE", context: { hp: 100, mana: 100, isAlive: true } },
-          { id: "q2", state: "IDLE", context: { hp: 0, mana: 50, isAlive: false } },
+          { id: "q1", state: "IDLE", brane: { hp: 100, mana: 100, isAlive: true } },
+          { id: "q2", state: "IDLE", brane: { hp: 0, mana: 50, isAlive: false } },
         ],
         steps: 0,
       })
@@ -101,22 +101,22 @@ describe("Тесты валидации фикстуры", () => {
 
     test("должен немедленно перевести квант q2 в состояние DEAD (hp=0)", async () => {
       const testData = {
-        statesConfig: {
+        superposition: {
           IDLE: {
             DEAD: { hp: { lte: 0 } },
           },
           DEAD: null,
         },
-        contextSchema: {
+        branes: {
           hp: { type: "number" },
         },
-        quanta: [{ id: "q2", state: "IDLE", context: { hp: 0 } }],
+        quanta: [{ id: "q2", state: "IDLE", brane: { hp: 0 } }],
         steps: 1,
         debug: true,
       }
 
       // console.log('[DEBUG] Конфигурация теста:', JSON.stringify(testData, null, 2))
-      // console.log('[DEBUG] Значение hp:', testData.quanta[0]!.context?.hp)
+      // console.log('[DEBUG] Значение hp:', testData.quanta[0]!.brane?.hp)
       // console.log('[DEBUG] Ожидаемый переход: IDLE -> DEAD потому что hp <= 0')
 
       const result = await fixture.runSimulation(testData)
@@ -131,16 +131,16 @@ describe("Тесты валидации фикстуры", () => {
 
     test("должен перейти в состояние DEAD когда здоровье отрицательное", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           IDLE: {
             DEAD: { hp: { lte: 0 } },
           },
           DEAD: null,
         },
-        contextSchema: {
+        branes: {
           hp: "number",
         },
-        quanta: [{ id: "q1", state: "IDLE", context: { hp: -10 } }],
+        quanta: [{ id: "q1", state: "IDLE", brane: { hp: -10 } }],
         steps: 1,
       })
 
@@ -151,16 +151,16 @@ describe("Тесты валидации фикстуры", () => {
 
     test("НЕ должен перейти в состояние DEAD когда здоровье положительное", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           IDLE: {
             DEAD: { hp: { lte: 0 } },
           },
           DEAD: null,
         },
-        contextSchema: {
+        branes: {
           hp: "number",
         },
-        quanta: [{ id: "q1", state: "IDLE", context: { hp: 10 } }],
+        quanta: [{ id: "q1", state: "IDLE", brane: { hp: 10 } }],
         steps: 1,
       })
 
@@ -171,7 +171,7 @@ describe("Тесты валидации фикстуры", () => {
 
     test("должен оставить квант q1 в состоянии IDLE когда здоровье = 50 (не >50 и не <=0)", async () => {
       const result = await fixture.runSimulation({
-        statesConfig: {
+        superposition: {
           IDLE: {
             PATROL: { hp: { gt: 50 } },
             DEAD: { hp: { lte: 0 } },
@@ -179,10 +179,10 @@ describe("Тесты валидации фикстуры", () => {
           PATROL: null,
           DEAD: null,
         },
-        contextSchema: {
+        branes: {
           hp: "number",
         },
-        quanta: [{ id: "q1", state: "IDLE", context: { hp: 50 } }],
+        quanta: [{ id: "q1", state: "IDLE", brane: { hp: 50 } }],
         steps: 1,
       })
 

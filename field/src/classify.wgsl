@@ -6,7 +6,7 @@ struct Uniforms {
 }
 
 @group(0) @binding(0)
-var<storage, read> agent_descriptors: array<u32>;
+var<storage, read> quantum_descriptors: array<u32>;
 @group(0) @binding(1)
 var<storage, read> heap: array<u32>;
 @group(0) @binding(2)
@@ -18,11 +18,11 @@ var<storage, read> bytecode: array<u32>;
 @group(0) @binding(5)
 var<uniform> u: Uniforms;
 // ============================================================================
-// Вспомогательные функции для работы с кучей (из контекста)
+// Вспомогательные функции для работы с кучей (из браны)
 // ============================================================================
 
-fn get_agent_block_ptr(agent_id: u32) -> u32 {
-  return agent_descriptors[agent_id];
+fn get_quantum_block_ptr(quantum_id: u32) -> u32 {
+  return quantum_descriptors[quantum_id];
 }
 
 fn get_local_field_count(block_ptr: u32) -> u32 {
@@ -58,9 +58,9 @@ fn find_field(block_ptr: u32, target_field_id: u32) -> vec4<u32> {
   return vec4<u32>(0u, 0u, 0u, 0u);
 }
 
-fn get_field_value_recursive(agent_id: u32, field_id: u32) -> f32 {
-  // Ищем в локальном блоке агента
-  let block_ptr = get_agent_block_ptr(agent_id);
+fn get_field_value_recursive(quantum_id: u32, field_id: u32) -> f32 {
+  // Ищем в локальном блоке кванта
+  let block_ptr = get_quantum_block_ptr(quantum_id);
   let result = find_field(block_ptr, field_id);
 
   if (result.x == 1u) {

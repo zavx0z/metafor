@@ -18,13 +18,13 @@ describe("Компилятор правил — функциональные т�
 
       // Конфигурация: состояние IDLE может перейти в DEAD, если здоровье <= 0
       // ВАЖНО: все состояния (включая цели переходов) должны быть объявлены в корне!
-      const statesConfig = {
+      const superposition = {
         IDLE: { DEAD: { hp: { lte: 0 } } },
         DEAD: null, // ← обязательно объявляем состояние-цель!
       }
       const schema = { hp: { type: "number" } }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
       const bytecodeArray = Array.from(result.bytecode)
 
       // Ищем в байткоде оператор OP.LTE (значение 5)
@@ -39,13 +39,13 @@ describe("Компилятор правил — функциональные т�
     test("оператор 'gt' (>) должен компилироваться в OP.GT (2)", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null, // ← объявляем цель перехода
       }
       const schema = { hp: { type: "number" } }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
       const bytecodeArray = Array.from(result.bytecode)
 
       const hasGT = bytecodeArray.includes(OP.GT)
@@ -57,13 +57,13 @@ describe("Компилятор правил — функциональные т�
     test("оператор 'gte' (>=) должен компилироваться в OP.GTE (4)", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         IDLE: { PATROL: { hp: { gte: 50 } } },
         PATROL: null,
       }
       const schema = { hp: "number" }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
       const bytecodeArray = Array.from(result.bytecode)
 
       const hasGTE = bytecodeArray.includes(OP.GTE)
@@ -75,13 +75,13 @@ describe("Компилятор правил — функциональные т�
     test("оператор 'lt' (<) должен компилироваться в OP.LT (3)", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         PATROL: { IDLE: { mana: { lt: 10 } } },
         IDLE: null,
       }
       const schema = { mana: { type: "number" } }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
       const bytecodeArray = Array.from(result.bytecode)
 
       const hasLT = bytecodeArray.includes(OP.LT)
@@ -93,13 +93,13 @@ describe("Компилятор правил — функциональные т�
     test("оператор 'eq' (==) должен компилироваться в OP.EQ (0)", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         PATROL: { COMBAT: { isAlive: { eq: true } } },
         COMBAT: null,
       }
       const schema = { isAlive: { type: "boolean" } }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
       const bytecodeArray = Array.from(result.bytecode)
 
       const hasEQ = bytecodeArray.includes(OP.EQ)
@@ -111,13 +111,13 @@ describe("Компилятор правил — функциональные т�
     test("оператор 'neq' (!=) должен компилироваться в OP.NEQ (1)", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         ACTIVE: { IDLE: { isAlive: { neq: false } } },
         IDLE: null,
       }
       const schema = { isAlive: { type: "boolean" } }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
       const bytecodeArray = Array.from(result.bytecode)
 
       const hasNEQ = bytecodeArray.includes(OP.NEQ)
@@ -131,13 +131,13 @@ describe("Компилятор правил — функциональные т�
     test("число с плавающей точкой должно кодироваться через bitcast в u32", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         IDLE: { DEAD: { hp: { lte: 0.0 } } },
         DEAD: null,
       }
       const schema = { hp: "number" }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
       const bytecodeArray = Array.from(result.bytecode)
 
       // Находим в байткоде закодированное значение 0.0 для типа FLOAT
@@ -158,12 +158,12 @@ describe("Компилятор правил — функциональные т�
 
     test("булево значение 'true' должно кодироваться как 1", () => {
       const compiler = new RulesCompiler()
-      const statesConfig = {
+      const superposition = {
         IDLE: { ACTIVE: { isAlive: { eq: true } } },
         ACTIVE: null,
       }
       const schema = { isAlive: "boolean" }
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
       const bytecodeArray = Array.from(result.bytecode)
       // Для булевых значений используется тип BOOL (2)
       // Ищем последовательность: type=2 (BOOL), fieldIdx, op=0 (EQ), value=1
@@ -180,12 +180,12 @@ describe("Компилятор правил — функциональные т�
 
     test("булево значение 'false' должно кодироваться как 0", () => {
       const compiler = new RulesCompiler()
-      const statesConfig = {
+      const superposition = {
         ACTIVE: { DEAD: { isAlive: { eq: false } } },
         DEAD: null,
       }
       const schema = { isAlive: "boolean" }
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
       const bytecodeArray = Array.from(result.bytecode)
       let encodedValue = 0
       for (let i = 0; i < bytecodeArray.length - 3; i++) {
@@ -203,18 +203,18 @@ describe("Компилятор правил — функциональные т�
     test("таблица состояний должна содержать указатели на блоки каждого состояния", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: { IDLE: { mana: { lt: 10 } } },
         DEAD: null,
       }
       const schema = { hp: { type: "number" }, mana: { type: "number" } }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
 
       // Таблица состояний начинается с индекса 0 и имеет длину = количеству состояний (3)
       // Каждый элемент таблицы — это смещение (указатель) на блок условий для этого состояния
-      const tableSize = Object.keys(statesConfig).length
+      const tableSize = Object.keys(superposition).length
       const tableEntries = Array.from(result.bytecode).slice(0, tableSize)
 
       console.log(`📊 Таблица состояний (${tableSize} состояний):`, tableEntries)
@@ -232,14 +232,14 @@ describe("Компилятор правил — функциональные т�
     test("stateMap должен корректно маппить имена состояний на числовые ID", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: { IDLE: { mana: { lt: 10 } } },
         DEAD: null,
       }
       const schema = { hp: "number", mana: "number" }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
 
       // stateMap: { "IDLE": 0, "PATROL": 1, "DEAD": 2 }
       expect(result.stateMap["IDLE"]).toBe(0)
@@ -254,7 +254,7 @@ describe("Компилятор правил — функциональные т�
     test("блок состояния должен содержать количество переходов", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         IDLE: {
           PATROL: { hp: { gt: 50 } },
           DEAD: { hp: { lte: 0 } },
@@ -264,7 +264,7 @@ describe("Компилятор правил — функциональные т�
       }
       const schema = { hp: "number" }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
 
       // Для состояния IDLE (индекс 0) в таблице состояний должен быть указатель на его блок
       const idleBlockPtr = result.bytecode[0]!
@@ -278,7 +278,7 @@ describe("Компилятор правил — функциональные т�
     test("блок состояния должен содержать пары [targetState, conditionPtr] для каждого перехода", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         IDLE: {
           PATROL: { hp: { gt: 50 } },
           DEAD: { hp: { lte: 0 } },
@@ -288,7 +288,7 @@ describe("Компилятор правил — функциональные т�
       }
       const schema = { hp: "number" }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
 
       const idleBlockPtr = result.bytecode[0]!
       const transitionCount = result.bytecode[idleBlockPtr]!
@@ -312,7 +312,7 @@ describe("Компилятор правил — функциональные т�
     test("блок условий должен содержать количество условий", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         IDLE: {
           PATROL: { hp: { gt: 50 } },
         },
@@ -320,7 +320,7 @@ describe("Компилятор правил — функциональные т�
       }
       const schema = { hp: "number" }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
 
       // Находим блок условий для перехода IDLE -> PATROL
       const idleBlockPtr = result.bytecode[0]!
@@ -336,7 +336,7 @@ describe("Компилятор правил — функциональные т�
     test("каждое условие должно быть упаковано как [type, fieldIdx, op, value]", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         IDLE: {
           PATROL: { hp: { gt: 50 } },
         },
@@ -344,7 +344,7 @@ describe("Компилятор правил — функциональные т�
       }
       const schema = { hp: "number" }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
 
       // Находим блок условий для перехода IDLE -> PATROL
       const idleBlockPtr = result.bytecode[0]!
@@ -371,7 +371,7 @@ describe("Компилятор правил — функциональные т�
     test("условие с несколькими операторами должно генерировать несколько инструкций", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         IDLE: {
           COMBAT: {
             hp: { gt: 50 },
@@ -382,7 +382,7 @@ describe("Компилятор правил — функциональные т�
       }
       const schema = { hp: "number", mana: "number" }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
 
       // Находим блок условий для перехода IDLE -> COMBAT
       const idleBlockPtr = result.bytecode[0]!
@@ -430,12 +430,12 @@ describe("Компилятор правил — функциональные т�
       }
 
       // Минимальная конфигурация для компиляции (нужны хотя бы 2 состояния)
-      const statesConfig = {
+      const superposition = {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
       }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
 
       // Проверяем, что байткод сгенерирован корректно
       expect(result.bytecode).toBeInstanceOf(Uint32Array)
@@ -448,12 +448,12 @@ describe("Компилятор правил — функциональные т�
       const compiler = new RulesCompiler()
 
       const schema = { hp: "number", mana: "number" }
-      const statesConfig = {
+      const superposition = {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
       }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
 
       // Проверяем наличие оператора GT в байткоде
       const bytecodeArray = Array.from(result.bytecode)
@@ -466,11 +466,11 @@ describe("Компилятор правил — функциональные т�
     test("поля типа 'boolean' должны компилироваться корректно", () => {
       const compiler = new RulesCompiler()
       const schema = { isAlive: "boolean" }
-      const statesConfig = {
+      const superposition = {
         IDLE: { ACTIVE: { isAlive: { eq: true } } },
         ACTIVE: null,
       }
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
       
       // Проверяем наличие оператора EQ в байткоде
       const bytecodeArray = Array.from(result.bytecode)
@@ -485,13 +485,13 @@ describe("Компилятор правил — функциональные т�
     test("условие 'notGt: 10' должно компилироваться как 'lte: 10'", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         START: { END: { val: { notGt: 10 } } },
         END: null,
       }
       const schema = { val: "number" }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
 
       // notGt: 10 → !> 10 → <= 10 → OP.LTE
       const bytecodeArray = Array.from(result.bytecode)
@@ -504,13 +504,13 @@ describe("Компилятор правил — функциональные т�
     test("условие 'notLt: 5' должно компилироваться как 'gte: 5'", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         START: { END: { val: { notLt: 5 } } },
         END: null,
       }
       const schema = { val: "number" }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
 
       // notLt: 5 → !< 5 → >= 5 → OP.GTE
       const bytecodeArray = Array.from(result.bytecode)
@@ -523,13 +523,13 @@ describe("Компилятор правил — функциональные т�
     test("условие 'notGte: 20' должно компилироваться как 'lt: 20'", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         START: { END: { val: { notGte: 20 } } },
         END: null,
       }
       const schema = { val: "number" }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
 
       // notGte: 20 → !>= 20 → < 20 → OP.LT
       const bytecodeArray = Array.from(result.bytecode)
@@ -542,13 +542,13 @@ describe("Компилятор правил — функциональные т�
     test("условие 'notLte: 0' должно компилироваться как 'gt: 0'", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         START: { END: { val: { notLte: 0 } } },
         END: null,
       }
       const schema = { val: "number" }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
 
       // notLte: 0 → !<= 0 → > 0 → OP.GT
       const bytecodeArray = Array.from(result.bytecode)
@@ -561,13 +561,13 @@ describe("Компилятор правил — функциональные т�
     test("условие 'between: [6, 9]' должно компилироваться как 'gte: 6, lte: 9'", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         START: { END: { val: { between: [6, 9] } } },
         END: null,
       }
       const schema = { val: "number" }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
 
       const bytecodeArray = Array.from(result.bytecode)
 
@@ -586,7 +586,7 @@ describe("Компилятор правил — функциональные т�
     test("байткод должен быть валидным Uint32Array", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         IDLE: {
           PATROL: { hp: { gt: 50 } },
           DEAD: { hp: { lte: 0 } },
@@ -606,7 +606,7 @@ describe("Компилятор правил — функциональные т�
         isAlive: "boolean",
       }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
 
       // Проверяем тип результата
       expect(result.bytecode).toBeInstanceOf(Uint32Array)
@@ -627,7 +627,7 @@ describe("Компилятор правил — функциональные т�
     test("байткод должен содержать все необходимые операторы для полного примера", () => {
       const compiler = new RulesCompiler()
 
-      const statesConfig = {
+      const superposition = {
         IDLE: {
           PATROL: { hp: { gt: 50 } },
           DEAD: { hp: { lte: 0 } },
@@ -647,7 +647,7 @@ describe("Компилятор правил — функциональные т�
         isAlive: "boolean",
       }
 
-      const result = compiler.compile(statesConfig, schema)
+      const result = compiler.compile(superposition, schema)
       const bytecodeArray = Array.from(result.bytecode)
 
       // Проверяем наличие всех операторов из конфигурации

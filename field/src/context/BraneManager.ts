@@ -1,21 +1,21 @@
 /**
- * @file Менеджер контекстов агентов.
+ * @file Менеджер бран.
  *
- * Высокоуровневый API для управления жизненным циклом агентов и их контекстов.
- * Координирует работу GlobalFieldRegistry, HeapAllocator и ContextBuilder.
+ * Высокоуровневый API для управления жизненным циклом квантов и их бран.
+ * Координирует работу GlobalFieldRegistry, HeapAllocator и BraneBuilder.
  *
  * @packageDocumentation
  */
 
 import { GlobalFieldRegistry, FieldType, type FieldTypeValue } from "./GlobalFieldRegistry"
 import { HeapAllocator } from "./HeapAllocator"
-import { ContextBuilder, encodeString, BlockUtils } from "./ContextBuilder"
+import { BraneBuilder, BlockUtils } from "./BraneBuilder"
 
 /**
- * Информация об агенте.
+ * Информация о кванте (агенте).
  */
-export interface AgentInfo {
-  /** Уникальный идентификатор агента */
+export interface QuantumInfo {
+  /** Уникальный идентификатор кванта */
   id: number
   /** Указатель на блок в куче */
   blockPtr: number
@@ -28,9 +28,9 @@ export interface AgentInfo {
 }
 
 /**
- * Информация о разделяемом контексте.
+ * Информация о разделяемой бране.
  */
-export interface SharedContextInfo {
+export interface SharedBraneInfo {
   /** Уникальный идентификатор */
   id: number
   /** Указатель на блок в куче */
@@ -42,9 +42,9 @@ export interface SharedContextInfo {
 }
 
 /**
- * Конфигурация менеджера.
+ * Конфигурация менеджера бран.
  */
-export interface ContextManagerConfig {
+export interface BraneManagerConfig {
   /** Размер кучи в словах (по умолчанию 16384 = 64 КБ) */
   heapSize?: number
   /** Количество слов для резервирования в начале (по умолчанию 1, слово 0 = null) */
@@ -52,38 +52,38 @@ export interface ContextManagerConfig {
 }
 
 /**
- * Менеджер контекстов агентов.
+ * Менеджер бран.
+ *
+ * Управляет квантами (суперпозицией) и бранами.
  *
  * @example
  * ```ts
- * const manager = new ContextManager(device)
+ * const manager = new BraneManager(device)
  * manager.registerField('hp', FieldType.F32)
- * manager.registerField('name', FieldType.STRING_PTR)
  *
- * // Автоматическая группировка общих полей
- * manager.createAgents([
- *   { hp: 100, rage: 50, temperature: 25 },
- *   { mana: 80, temperature: 25, teamId: 7 },
- *   { armor: 90, temperature: 25, teamId: 7 }
+ * // Создание суперпозиции квантов
+ * manager.createSuperposition([
+ *   { hp: 100 },
+ *   { hp: 80 }
  * ])
  *
  * // Получение буферов для передачи на GPU
  * const { agentDescriptors, heap } = manager.getGPUBuffers()
  * ```
  */
-export class ContextManager {
+export class BraneManager {
   private readonly registry: GlobalFieldRegistry
   private readonly allocator: HeapAllocator
-  private readonly builder: ContextBuilder
+  private readonly builder: BraneBuilder
 
-  /** Хранилище информации об агентах */
-  private agents: Map<number, AgentInfo> = new Map()
-  /** Хранилище информации о shared контекстах */
-  private sharedContexts: Map<number, SharedContextInfo> = new Map()
+  /** Хранилище информации о квантах */
+  private quanta: Map<number, QuantumInfo> = new Map()
+  /** Хранилище информации о shared бранах */
+  private sharedBranes: Map<number, SharedBraneInfo> = new Map()
 
-  /** Счётчик ID агентов */
-  private nextAgentId: number = 0
-  /** Счётчик ID shared контекстов */
+  /** Счётчик ID квантов */
+  private nextQuantumId: number = 0
+  /** Счётчик ID shared бран */
   private nextSharedId: number = 0
 
   /** Локальная копия кучи для записи данных */
@@ -93,14 +93,14 @@ export class ContextManager {
 
   constructor(
     public readonly device: GPUDevice,
-    config: ContextManagerConfig = {},
+    config: BraneManagerConfig = {},
   ) {
     const heapSize = config.heapSize ?? 16384 // 64KB по умолчанию
     const reserveFirst = config.reserveFirst ?? 1 // Резервируем слово 0 как null-указатель
 
     this.registry = GlobalFieldRegistry.getInstance()
     this.allocator = new HeapAllocator(heapSize, reserveFirst)
-    this.builder = new ContextBuilder(this.registry, this.allocator)
+    this.builder = new BraneBuilder(this.registry, this.allocator)
 
     this.heapData = new Uint32Array(heapSize)
     // Слово 0 = 0 (null pointer)
@@ -119,13 +119,13 @@ export class ContextManager {
   }
 
   /**
-   * Создать разделяемый контекст.
+   * Создать разделяемую брану.
    *
-   * @param context - Объект с полями {имя: значение}
-   * @returns ID разделяемого контекста
+   * @param brane - Объект с полями {имя: значение}
+   * @returns ID разделяемой браны
    */
-  createSharedContext(context: Record<string, unknown>): number {
-    const result = this.builder.build(context, { sharedPtrs: [] })
+  createSharedBrane(brane: Record<string, unknown>): number {
+    const result = this.builder.build(brane, { sharedPtrs: [] })
     const sharedId = this.nextSharedId++
 
     // Записываем основной блок в кучу.
@@ -138,36 +138,36 @@ export class ContextManager {
       }
     }
 
-    const sharedInfo: SharedContextInfo = {
+    const sharedInfo: SharedBraneInfo = {
       id: sharedId,
       blockPtr: result.blockPtr,
       blockSize: result.blockSize,
       extraAllocs: result.extraAllocs.map(({ offset, size }) => ({ offset, size })),
     }
 
-    this.sharedContexts.set(sharedId, sharedInfo)
+    this.sharedBranes.set(sharedId, sharedInfo)
     this.heapDirty = true
     return sharedId
   }
 
   /**
-   * Создать агента с указателями на разделяемые контексты.
+   * Создать квант с указателями на разделяемые браны.
    *
-   * @param context - Объект с полями {имя: значение}
-   * @param sharedContextIds - Массив ID разделяемых контекстов
-   * @returns ID агента
+   * @param brane - Объект с полями {имя: значение}
+   * @param sharedBraneIds - Массив ID разделяемых бран
+   * @returns ID кванта
    */
-  createAgent(context: Record<string, unknown>, sharedContextIds: number[] = []): number {
+  createQuantum(brane: Record<string, unknown>, sharedBraneIds: number[] = []): number {
     // Преобразуем ID в указатели.
-    const sharedPtrs = sharedContextIds.map((id) => {
-      const shared = this.sharedContexts.get(id)
+    const sharedPtrs = sharedBraneIds.map((id) => {
+      const shared = this.sharedBranes.get(id)
       if (!shared) {
-        throw new Error(`Shared контекст с ID ${id} не найден`)
+        throw new Error(`Shared брана с ID ${id} не найдена`)
       }
       return shared.blockPtr
     })
 
-    const result = this.builder.build(context, { sharedPtrs })
+    const result = this.builder.build(brane, { sharedPtrs })
 
     // Записываем основной блок в кучу.
     this.heapData.set(result.blockView, result.blockPtr)
@@ -179,31 +179,31 @@ export class ContextManager {
       }
     }
 
-    const agentId = this.nextAgentId++
-    const agentInfo: AgentInfo = {
-      id: agentId,
+    const quantumId = this.nextQuantumId++
+    const quantumInfo: QuantumInfo = {
+      id: quantumId,
       blockPtr: result.blockPtr,
       blockSize: result.blockSize,
       extraAllocs: result.extraAllocs.map(({ offset, size }) => ({ offset, size })),
       sharedPtrs,
     }
 
-    this.agents.set(agentId, agentInfo)
+    this.quanta.set(quantumId, quantumInfo)
     this.heapDirty = true
-    return agentId
+    return quantumId
   }
 
   /**
-   * Создать агентов с автоматической группировкой общих полей.
+   * Создать суперпозицию (множество квантов) с автоматической группировкой общих полей.
    *
-   * @param agents - Массив объектов {имя: значение}
-   * @returns Массив ID агентов в том же порядке
+   * @param branes - Массив объектов {имя: значение}
+   * @returns Массив ID квантов в том же порядке
    */
-  createAgents(agents: Array<Record<string, unknown>>): number[] {
-    // 1. Анализ: строим карту "поле -> набор агентов-владельцев"
+  createSuperposition(branes: Array<Record<string, unknown>>): number[] {
+    // 1. Анализ: строим карту "поле -> набор квантов-владельцев"
     const fieldUsage = new Map<string, Set<number>>()
-    agents.forEach((agent, idx) => {
-      Object.keys(agent).forEach((field) => {
+    branes.forEach((brane, idx) => {
+      Object.keys(brane).forEach((field) => {
         if (!fieldUsage.has(field)) fieldUsage.set(field, new Set())
         fieldUsage.get(field)!.add(idx)
       })
@@ -219,13 +219,13 @@ export class ContextManager {
 
     // 2. Группировка: поля с одинаковым набором владельцев -> один shared блок.
     const sharedGroups = new Map<string, Set<string>>() // key -> fields
-    fieldUsage.forEach((agentIds, field) => {
-      if (agentIds.size < 2) return
+    fieldUsage.forEach((quantumIds, field) => {
+      if (quantumIds.size < 2) return
 
-      const key = Array.from(agentIds).sort().join(",")
-      const ids = Array.from(agentIds)
-      const firstValue = agents[ids[0]!]?.[field]
-      const allSame = ids.every((idx) => valueEquals(agents[idx]![field], firstValue))
+      const key = Array.from(quantumIds).sort().join(",")
+      const ids = Array.from(quantumIds)
+      const firstValue = branes[ids[0]!]?.[field]
+      const allSame = ids.every((idx) => valueEquals(branes[idx]![field], firstValue))
       if (!allSame) return
 
       if (!sharedGroups.has(key)) {
@@ -234,58 +234,58 @@ export class ContextManager {
       sharedGroups.get(key)!.add(field)
     })
 
-    const sharedContextIds = new Map<string, number>() // key -> sharedContextId
+    const sharedBraneIds = new Map<string, number>() // key -> sharedBraneId
     sharedGroups.forEach((fields, key) => {
-      const agentIds = key.split(",").map((value) => Number(value))
-      const firstAgentIdx = agentIds[0]!
-      const agentData = agents[firstAgentIdx] as Record<string, unknown>
-      const context = Object.fromEntries(Array.from(fields).map((field) => [field, agentData[field]]))
-      const sharedId = this.createSharedContext(context)
-      sharedContextIds.set(key, sharedId)
+      const quantumIds = key.split(",").map((value) => Number(value))
+      const firstQuantumIdx = quantumIds[0]!
+      const quantumData = branes[firstQuantumIdx] as Record<string, unknown>
+      const brane = Object.fromEntries(Array.from(fields).map((field) => [field, quantumData[field]]))
+      const sharedId = this.createSharedBrane(brane)
+      sharedBraneIds.set(key, sharedId)
     })
 
-    // 3. Создание агентов с указателями на разделяемые блоки.
-    const agentIds: number[] = []
+    // 3. Создание квантов с указателями на разделяемые блоки.
+    const quantumIds: number[] = []
 
-    agents.forEach((agent, idx) => {
+    branes.forEach((brane, idx) => {
       const sharedIds: number[] = []
       const usedGroupKeys = new Set<string>()
-      const localContext: Record<string, unknown> = { ...agent }
+      const localBrane: Record<string, unknown> = { ...brane }
 
-      Object.keys(agent).forEach((field) => {
-        const agentIds = fieldUsage.get(field)!
-        if (agentIds.size < 2) return
+      Object.keys(brane).forEach((field) => {
+        const ids = fieldUsage.get(field)!
+        if (ids.size < 2) return
 
-        const key = Array.from(agentIds).sort().join(",")
-        if (!sharedContextIds.has(key)) return
+        const key = Array.from(ids).sort().join(",")
+        if (!sharedBraneIds.has(key)) return
 
-        delete localContext[field]
+        delete localBrane[field]
         if (!usedGroupKeys.has(key)) {
-          sharedIds.push(sharedContextIds.get(key)!)
+          sharedIds.push(sharedBraneIds.get(key)!)
           usedGroupKeys.add(key)
         }
       })
 
-      const agentId = this.createAgent(localContext, sharedIds)
-      agentIds.push(agentId)
+      const quantumId = this.createQuantum(localBrane, sharedIds)
+      quantumIds.push(quantumId)
     })
 
-    return agentIds
+    return quantumIds
   }
 
   /**
-   * Обновить поле агента.
+   * Обновить брану кванта.
    *
    * Для полей переменного размера (строки, массивы) выполняет free + re-allocate.
    *
-   * @param agentId - ID агента
+   * @param quantumId - ID кванта
    * @param fieldName - Имя поля
    * @param newValue - Новое значение
    */
-  updateAgentField(agentId: number, fieldName: string, newValue: unknown): void {
-    const agent = this.agents.get(agentId)
-    if (!agent) {
-      throw new Error(`Агент с ID ${agentId} не найден`)
+  updateBraneField(quantumId: number, fieldName: string, newValue: unknown): void {
+    const quantum = this.quanta.get(quantumId)
+    if (!quantum) {
+      throw new Error(`Квант с ID ${quantumId} не найден`)
     }
 
     const fieldMeta = this.registry.getMeta(fieldName)
@@ -293,16 +293,16 @@ export class ContextManager {
       throw new Error(`Поле '${fieldName}' не зарегистрировано`)
     }
 
-    // Читаем блок агента из кучи.
-    const block = this.heapData.slice(agent.blockPtr, agent.blockPtr + agent.blockSize)
+    // Читаем блок кванта из кучи.
+    const block = this.heapData.slice(quantum.blockPtr, quantum.blockPtr + quantum.blockSize)
 
     // Находим поле в блоке.
     const fieldInfo = BlockUtils.findField(block, fieldMeta.fieldId)
     if (!fieldInfo) {
-      throw new Error(`Поле '${fieldName}' не найдено в блоке агента`)
+      throw new Error(`Поле '${fieldName}' не найдено в блоке кванта`)
     }
 
-    const absoluteOffset = agent.blockPtr + fieldInfo.meta.offset
+    const absoluteOffset = quantum.blockPtr + fieldInfo.meta.offset
 
     // Обновляем значение в зависимости от типа.
     switch (fieldMeta.type) {
@@ -324,9 +324,9 @@ export class ContextManager {
           this.allocator.free(oldOffset, oldWordCount)
 
           // Удаляем из extraAllocs.
-          const idx = agent.extraAllocs.findIndex((a) => a.offset === oldOffset)
+          const idx = quantum.extraAllocs.findIndex((a) => a.offset === oldOffset)
           if (idx >= 0) {
-            agent.extraAllocs.splice(idx, 1)
+            quantum.extraAllocs.splice(idx, 1)
           }
         }
 
@@ -345,10 +345,10 @@ export class ContextManager {
         stringView.set(encoded, 4)
 
         const heapWords = new Uint32Array(stringView.buffer)
-        agent.extraAllocs.push({ offset: newBlock.offset, size: newBlock.size })
+        quantum.extraAllocs.push({ offset: newBlock.offset, size: newBlock.size })
         this.heapData.set(heapWords, newBlock.offset)
 
-        // Обновляем указатель в блоке агента.
+        // Обновляем указатель в блоке кванта.
         this.heapData[absoluteOffset] = newBlock.offset
         this.heapData[absoluteOffset + 1] = encoded.length
         break
@@ -360,9 +360,9 @@ export class ContextManager {
           const oldWordCount = oldLength + 1
           this.allocator.free(oldOffset, oldWordCount)
 
-          const idx = agent.extraAllocs.findIndex((a) => a.offset === oldOffset)
+          const idx = quantum.extraAllocs.findIndex((a) => a.offset === oldOffset)
           if (idx >= 0) {
-            agent.extraAllocs.splice(idx, 1)
+            quantum.extraAllocs.splice(idx, 1)
           }
         }
 
@@ -396,7 +396,7 @@ export class ContextManager {
         }
 
         this.heapData.set(arrayView, newBlock.offset)
-        agent.extraAllocs.push({ offset: newBlock.offset, size: newBlock.size })
+        quantum.extraAllocs.push({ offset: newBlock.offset, size: newBlock.size })
 
         this.heapData[absoluteOffset] = newBlock.offset
         this.heapData[absoluteOffset + 1] = values.length
@@ -410,39 +410,39 @@ export class ContextManager {
   }
 
   /**
-   * Удалить агента.
+   * Удалить квант.
    *
-   * Освобождает память блока агента и всех его дополнительных аллокаций.
+   * Освобождает память блока кванта и всех его дополнительных аллокаций.
    *
-   * @param agentId - ID агента
+   * @param quantumId - ID кванта
    */
-  deleteAgent(agentId: number): void {
-    const agent = this.agents.get(agentId)
-    if (!agent) {
-      throw new Error(`Агент с ID ${agentId} не найден`)
+  deleteQuantum(quantumId: number): void {
+    const quantum = this.quanta.get(quantumId)
+    if (!quantum) {
+      throw new Error(`Квант с ID ${quantumId} не найден`)
     }
 
     // Освобождаем дополнительные аллокации (строки, массивы).
-    for (const alloc of agent.extraAllocs) {
+    for (const alloc of quantum.extraAllocs) {
       this.allocator.free(alloc.offset, alloc.size)
     }
 
-    // Освобождаем блок агента.
-    this.allocator.free(agent.blockPtr, agent.blockSize)
+    // Освобождаем блок кванта.
+    this.allocator.free(quantum.blockPtr, quantum.blockSize)
 
-    this.agents.delete(agentId)
+    this.quanta.delete(quantumId)
     this.heapDirty = true
   }
 
   /**
-   * Удалить разделяемый контекст.
+   * Удалить разделяемую брану.
    *
-   * @param sharedId - ID разделяемого контекста
+   * @param sharedId - ID разделяемой браны
    */
-  deleteSharedContext(sharedId: number): void {
-    const shared = this.sharedContexts.get(sharedId)
+  deleteSharedBrane(sharedId: number): void {
+    const shared = this.sharedBranes.get(sharedId)
     if (!shared) {
-      throw new Error(`Shared контекст с ID ${sharedId} не найден`)
+      throw new Error(`Shared брана с ID ${sharedId} не найдена`)
     }
 
     // Освобождаем дополнительные аллокации.
@@ -453,28 +453,28 @@ export class ContextManager {
     // Освобождаем блок.
     this.allocator.free(shared.blockPtr, shared.blockSize)
 
-    this.sharedContexts.delete(sharedId)
+    this.sharedBranes.delete(sharedId)
     this.heapDirty = true
   }
 
   /**
-   * Получить указатель на блок агента.
+   * Получить указатель на блок кванта.
    */
-  getAgentBlockPtr(agentId: number): number {
-    const agent = this.agents.get(agentId)
-    if (!agent) {
-      throw new Error(`Агент с ID ${agentId} не найден`)
+  getQuantumBlockPtr(quantumId: number): number {
+    const quantum = this.quanta.get(quantumId)
+    if (!quantum) {
+      throw new Error(`Квант с ID ${quantumId} не найден`)
     }
-    return agent.blockPtr
+    return quantum.blockPtr
   }
 
   /**
-   * Получить указатель на блок shared контекста.
+   * Получить указатель на блок shared браны.
    */
   getSharedBlockPtr(sharedId: number): number {
-    const shared = this.sharedContexts.get(sharedId)
+    const shared = this.sharedBranes.get(sharedId)
     if (!shared) {
-      throw new Error(`Shared контекст с ID ${sharedId} не найден`)
+      throw new Error(`Shared брана с ID ${sharedId} не найдена`)
     }
     return shared.blockPtr
   }
@@ -484,17 +484,17 @@ export class ContextManager {
    *
    * @returns Объект с буферами { agentDescriptors, heap }
    */
-  getGPUBuffers(): { agentDescriptors: Uint32Array; heap: Uint32Array } {
-    // Создаём буфер дескрипторов агентов: массив указателей на блоки.
-    const agentCount = this.agents.size
-    const agentDescriptors = new Uint32Array(agentCount)
+  getGPUBuffers(): { quantumDescriptors: Uint32Array; heap: Uint32Array } {
+    // Создаём буфер дескрипторов квантов: массив указателей на блоки.
+    const quantumCount = this.quanta.size
+    const quantumDescriptors = new Uint32Array(quantumCount)
     let idx = 0
-    for (const [, agent] of this.agents) {
-      agentDescriptors[idx++] = agent.blockPtr
+    for (const [, quantum] of this.quanta) {
+      quantumDescriptors[idx++] = quantum.blockPtr
     }
 
     return {
-      agentDescriptors,
+      quantumDescriptors,
       heap: this.heapData,
     }
   }
@@ -514,16 +514,16 @@ export class ContextManager {
   }
 
   /**
-   * Получить информацию об агенте.
+   * Получить информацию о кванте.
    */
-  getAgentInfo(agentId: number): AgentInfo | undefined {
-    return this.agents.get(agentId)
+  getQuantumInfo(quantumId: number): QuantumInfo | undefined {
+    return this.quanta.get(quantumId)
   }
 
   /**
-   * Получить информацию о всех агентах.
+   * Получить суперпозицию (список всех квантов).
    */
-  getAllAgents(): AgentInfo[] {
-    return Array.from(this.agents.values())
+  getSuperposition(): QuantumInfo[] {
+    return Array.from(this.quanta.values())
   }
 }

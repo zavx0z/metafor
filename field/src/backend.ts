@@ -29,13 +29,12 @@ export class GPUBackend {
    * @param params - Данные для начальной загрузки в буферы.
    * * `states`: Исходные состояния квантов.
    * * `bytecode`: Скомпилированные правила.
-   * * `contextMap`: Таблица адресации глобальных переменных.
    */
   async init(params: {
-    quantaCount: number
+    quantumCount: number
     bytecode: Uint32Array
     states: Uint32Array
-    agentDescriptors: Uint32Array
+    quantumDescriptors: Uint32Array
     heap: Uint32Array
     tableOffset: number
   }) {
@@ -46,14 +45,14 @@ export class GPUBackend {
     })
 
     // Создание буферов для новой архитектуры кучи
-    this.buffers.agentDescriptors = this.createStorageBuffer(params.agentDescriptors)
+    this.buffers.quantumDescriptors = this.createStorageBuffer(params.quantumDescriptors)
     this.buffers.heap = this.createStorageBuffer(params.heap)
     this.buffers.states = this.createStorageBuffer(params.states, true) // источник/назначение
 
-    this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.quantaCount), true)
+    this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.quantumCount), true)
     this.buffers.bytecode = this.createStorageBuffer(params.bytecode)
 
-    const uniforms = new Uint32Array([params.quantaCount, params.tableOffset, 0, 0])
+    const uniforms = new Uint32Array([params.quantumCount, params.tableOffset, 0, 0])
     this.buffers.uniforms = this.createBuffer(uniforms, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST)
 
     this.stagingBuffer = this.device.createBuffer({
@@ -64,7 +63,7 @@ export class GPUBackend {
     this.bindGroup = this.device.createBindGroup({
       layout: this.pipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: { buffer: this.buffers.agentDescriptors } },
+        { binding: 0, resource: { buffer: this.buffers.quantumDescriptors } },
         { binding: 1, resource: { buffer: this.buffers.heap } },
         { binding: 2, resource: { buffer: this.buffers.states } },
         { binding: 3, resource: { buffer: this.buffers.newStates } },

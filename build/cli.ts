@@ -1,7 +1,7 @@
 import { watch } from "fs"
 import { dirname, basename, join, isAbsolute } from "path"
 import { pathToFileURL } from "url"
-import { convertMetaToFieldIntermediate } from "./contextToField"
+import { convertMetaToFieldIntermediate } from "./braneToField"
 
 
 // Обработка аргументов командной строки

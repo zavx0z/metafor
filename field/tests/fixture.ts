@@ -4,6 +4,7 @@ import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { serve } from "bun"
 import { afterAll, beforeAll } from "bun:test"
+import { homedir } from "node:os"
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
@@ -16,6 +17,13 @@ const WEBGPU_WAIT_MS = 444 // Время ожидания завершения �
 const BROWSER_PATHS_MACOS = [
   "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
   "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
+  "/Applications/Chromium.app/Contents/MacOS/Chromium",
+]
+
+// Пути к браузерам, установленным через Puppeteer
+const PUPPETEER_CACHE_PATHS = [
+  join(homedir(), ".cache", "puppeteer"),
+  join(homedir(), "Library", "Caches", "puppeteer"),
 ]
 
 // Директории
@@ -41,15 +49,59 @@ const SERVER_OPTIONS = {
 // ==================== КОНЕЦ КОНФИГУРАЦИИ ====================
 
 /**
+ * Ищет исполняемый файл браузера в кэше Puppeteer.
+ */
+function findPuppeteerBrowser(): string | undefined {
+  const { readdirSync, statSync } = require("node:fs")
+
+  for (const cachePath of PUPPETEER_CACHE_PATHS) {
+    if (!existsSync(cachePath)) continue
+
+    try {
+      // Ищем в директории chrome
+      const chromeDir = join(cachePath, "chrome")
+      if (existsSync(chromeDir)) {
+        const versions = readdirSync(chromeDir)
+        for (const version of versions) {
+          const versionDir = join(chromeDir, version)
+          if (!statSync(versionDir).isDirectory()) continue
+
+          // Структура Puppeteer 24.x:
+          // <cache>/chrome/mac-<version>/chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing
+          // или mac_arm для Apple Silicon
+          const possiblePaths = [
+            // Puppeteer 24.x структура
+            join(versionDir, "chrome-mac-x64", "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing"),
+            join(versionDir, "chrome-mac-arm64", "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing"),
+            // Альтернативная структура
+            join(versionDir, "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing"),
+            join(versionDir, "Chromium.app", "Contents", "MacOS", "Chromium"),
+          ]
+          for (const p of possiblePaths) {
+            if (existsSync(p)) return p
+          }
+        }
+      }
+    } catch {
+      // Игнорируем ошибки чтения директорий
+    }
+  }
+  return undefined
+}
+
+/**
  * Вспомогательная функция для получения пути к исполняемому файлу браузера.
  */
 function getExecutablePath(): string | undefined {
+  // Сначала проверяем системные браузеры
   if (process.platform === "darwin") {
     for (const p of BROWSER_PATHS_MACOS) {
       if (existsSync(p)) return p
     }
   }
-  return undefined
+
+  // Затем ищем в кэше Puppeteer
+  return findPuppeteerBrowser()
 }
 
 /**
@@ -90,9 +142,30 @@ export class QuantumFieldTestFixture {
     const launchOptions: any = { ...LAUNCH_OPTIONS }
 
     const execPath = getExecutablePath()
-    if (execPath) launchOptions.executablePath = execPath
+    if (execPath) {
+      launchOptions.executablePath = execPath
+    } else {
+      // Если браузер не найден, Puppeteer попытается найти его автоматически
+      // Но в Puppeteer 24.x bundled browser отсутствует, поэтому добавляем информативную ошибку
+      console.warn(
+        "[FIXTURE] Browser not found in system paths or Puppeteer cache.\n" +
+          "Please run: bun run setup:browsers\n" +
+          "Or install Chrome manually.",
+      )
+    }
 
-    this.browser = await puppeteer.launch(launchOptions)
+    try {
+      this.browser = await puppeteer.launch(launchOptions)
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : String(error)
+      throw new Error(
+        `Failed to launch browser: ${errorMessage}\n\n` +
+          "To fix this issue, run one of the following commands:\n" +
+          "  cd field && bun run setup:browsers\n" +
+          "  npx puppeteer browsers install chrome\n\n" +
+          "Or install Google Chrome manually on your system.",
+      )
+    }
 
     // Создаем сервер для тестов
     this.server = serve({
@@ -135,10 +208,10 @@ export class QuantumFieldTestFixture {
                           console.log("[TEST] Creating QuantumFieldSystem...")
                           const system = new QuantumFieldSystem(device)
 
-                          console.log("[TEST] Initializing with config:", ${JSON.stringify(testData.statesConfig)})
+                          console.log("[TEST] Initializing with config:", ${JSON.stringify(testData.superposition)})
                           await system.init({
-                            statesConfig: ${JSON.stringify(testData.statesConfig)},
-                            contextSchema: ${JSON.stringify(testData.contextSchema)},
+                            superposition: ${JSON.stringify(testData.superposition)},
+                            branes: ${JSON.stringify(testData.branes)},
                             quanta: ${JSON.stringify(testData.quanta)},
                           })
 
@@ -146,8 +219,8 @@ export class QuantumFieldTestFixture {
                             ? testData.updates
                                 .map(
                                   (u: any) =>
-                                    `console.log('[TEST] Updating context: agent=${u.agentIndex}, field=${u.fieldName}, value=${JSON.stringify(u.value)}');
-        system.updateContext(${u.agentIndex}, "${u.fieldName}", ${JSON.stringify(u.value)});`,
+                                    `console.log('[TEST] Updating brane: agent=${u.agentIndex}, field=${u.fieldName}, value=${JSON.stringify(u.value)}');
+        system.updateBraneField(${u.agentIndex}, "${u.fieldName}", ${JSON.stringify(u.value)});`,
                                 )
                                 .join("\n      ")
                             : ""}
@@ -243,9 +316,9 @@ export class QuantumFieldTestFixture {
    * Запускает симуляцию с заданными параметрами в новой вкладке.
    */
   async runSimulation(params: {
-    statesConfig: any
-    contextSchema: Record<string, any>
-    quanta: Array<{ id: string; state: string; context: any }>
+    superposition: any
+    branes: Record<string, any>
+    quanta: Array<{ id: string; state: string; brane: any }>
     updates?: Array<{ agentIndex: number; fieldName: string; value: number | boolean }>
     steps?: number
   }): Promise<{ success: boolean; states?: string[]; error?: string; stack?: string }> {
@@ -259,8 +332,8 @@ export class QuantumFieldTestFixture {
 
     try {
       const testData = {
-        statesConfig: params.statesConfig,
-        contextSchema: params.contextSchema,
+        superposition: params.superposition,
+        branes: params.branes,
         quanta: params.quanta,
         updates: params.updates || [],
         steps: params.steps !== undefined ? params.steps : 1,

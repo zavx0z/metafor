@@ -24,7 +24,7 @@ const TYPE_SHARED_PTR: u32 = 5u;
 
 // Буферы
 @group(0) @binding(0)
-var<storage, read> agent_descriptors: array<u32>;
+var<storage, read> quantum_descriptors: array<u32>;
 
 @group(0) @binding(1)
 var<storage, read> heap: array<u32>;
@@ -44,12 +44,12 @@ var<uniform> uniforms: Uniforms;
 /**
  * Получить указатель на блок агента.
  *
- * @param agent_id - Индекс агента
+ * @param quantum_id - Индекс агента
  * @return Указатель (смещение) на блок агента в куче
  */
 
-fn get_agent_block_ptr(agent_id: u32) -> u32 {
-  return agent_descriptors[agent_id];
+fn get_quantum_block_ptr(quantum_id: u32) -> u32 {
+  return quantum_descriptors[quantum_id];
 }
 
 /**
@@ -111,13 +111,13 @@ fn find_field(block_ptr: u32, target_field_id: u32) -> vec4<u32> {
 /**
  * Получить значение u32 поля.
  *
- * @param agent_id - Индекс агента
+ * @param quantum_id - Индекс агента
  * @param field_id - ID поля
  * @return Значение поля (0 если не найдено)
  */
 
-fn get_field_u32(agent_id: u32, field_id: u32) -> u32 {
-  let block_ptr = get_agent_block_ptr(agent_id);
+fn get_field_u32(quantum_id: u32, field_id: u32) -> u32 {
+  let block_ptr = get_quantum_block_ptr(quantum_id);
   let result = find_field(block_ptr, field_id);
 
   if (result.x == 0u) {
@@ -131,13 +131,13 @@ fn get_field_u32(agent_id: u32, field_id: u32) -> u32 {
 /**
  * Получить значение f32 поля.
  *
- * @param agent_id - Индекс агента
+ * @param quantum_id - Индекс агента
  * @param field_id - ID поля
  * @return Значение поля (0.0 если не найдено)
  */
 
-fn get_field_f32(agent_id: u32, field_id: u32) -> f32 {
-  let block_ptr = get_agent_block_ptr(agent_id);
+fn get_field_f32(quantum_id: u32, field_id: u32) -> f32 {
+  let block_ptr = get_quantum_block_ptr(quantum_id);
   let result = find_field(block_ptr, field_id);
 
   if (result.x == 0u) {
@@ -159,25 +159,25 @@ fn get_field_f32(agent_id: u32, field_id: u32) -> f32 {
 /**
  * Получить значение bool поля.
  *
- * @param agent_id - Индекс агента
+ * @param quantum_id - Индекс агента
  * @param field_id - ID поля
  * @return Значение поля (false если не найдено)
  */
 
-fn get_field_bool(agent_id: u32, field_id: u32) -> bool {
-  return get_field_u32(agent_id, field_id) != 0u;
+fn get_field_bool(quantum_id: u32, field_id: u32) -> bool {
+  return get_field_u32(quantum_id, field_id) != 0u;
 }
 
 /**
- * Получить указатель на shared контекст.
+ * Получить указатель на shared брану.
  *
- * @param agent_id - Индекс агента
- * @param shared_idx - Индекс shared контекста (0, 1, ...)
- * @return Указатель на блок shared контекста в куче (0 если не найден)
+ * @param quantum_id - Индекс агента
+ * @param shared_idx - Индекс shared браны (0, 1, ...)
+ * @return Указатель на блок shared браны в куче (0 если не найден)
  */
 
-fn get_shared_context_ptr(agent_id: u32, shared_idx: u32) -> u32 {
-  let block_ptr = get_agent_block_ptr(agent_id);
+fn get_shared_brane_ptr(quantum_id: u32, shared_idx: u32) -> u32 {
+  let block_ptr = get_quantum_block_ptr(quantum_id);
   let local_count = heap[block_ptr];
   let shared_count = heap[block_ptr + 1u];
 
@@ -192,24 +192,24 @@ fn get_shared_context_ptr(agent_id: u32, shared_idx: u32) -> u32 {
 }
 
 /**
- * Получить значение поля из shared контекста.
+ * Получить значение поля из shared браны.
  *
  * Рекурсивно ищет поле в блоке агента, затем во всех его разделяемых блоках.
  *
- * @param agent_id - Индекс агента
+ * @param quantum_id - Индекс агента
  * @param field_id - ID поля
  * @return Значение поля (0.0 если не найдено)
  */
 
-fn get_field_value_recursive(agent_id: u32, field_id: u32) -> f32 {
+fn get_field_value_recursive(quantum_id: u32, field_id: u32) -> f32 {
   // Сначала ищем в локальном блоке агента.
-  let local_value = get_field_f32(agent_id, field_id);
-  if (local_value != 0.0 || find_field(get_agent_block_ptr(agent_id), field_id).x == 1u) {
+  let local_value = get_field_f32(quantum_id, field_id);
+  if (local_value != 0.0 || find_field(get_quantum_block_ptr(quantum_id), field_id).x == 1u) {
     return local_value;
   }
 
   // Если не нашли, ищем в разделяемых блоках.
-  let block_ptr = get_agent_block_ptr(agent_id);
+  let block_ptr = get_quantum_block_ptr(quantum_id);
   let shared_count = heap[block_ptr + 1u];
 
   var i: u32 = 0u;
@@ -218,7 +218,7 @@ fn get_field_value_recursive(agent_id: u32, field_id: u32) -> f32 {
       break;
     }
 
-    let shared_ptr = get_shared_context_ptr(agent_id, i);
+    let shared_ptr = get_shared_brane_ptr(quantum_id, i);
     if (shared_ptr == 0u) {
       i = i + 1u;
       continue;

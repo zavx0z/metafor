@@ -1,4 +1,8 @@
-type MetaLike = Record<string, any> & { context?: Record<string, any> }
+type MetaLike = Record<string, any> & {
+  context?: Record<string, any>
+  brane?: Record<string, any>
+  braneSchema?: Record<string, any>
+}
 
 type ArrayElementType = "string" | "number"
 
@@ -13,7 +17,7 @@ function inferArrayElementTypeFromDefault(value: unknown): ArrayElementType | un
 /**
  * Извлекает из исходного кода типы элементов для массивов, объявленных через t.array.required<Type>(...).
  * Используется для преобразования типа 'array' в 'array<string>' или 'array<number>' в промежуточном представлении.
- * @param sourceText - Исходный текст файла, в котором определен контекст.
+ * @param sourceText - Исходный текст файла, в котором определена брана.
  * @returns Объект, где ключ — имя поля массива, значение — тип элемента ('string' | 'number').
  */
 export function extractArrayElementTypesFromSource(sourceText: string): Record<string, ArrayElementType> {
@@ -46,15 +50,15 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
  * @throws Ошибка, если не удаётся вывести тип элементов массива или enum.
  */
 export function convertMetaToFieldIntermediate(meta: MetaLike, sourceText?: string): MetaLike {
-  const context = meta?.context
-  if (!context || typeof context !== "object") return meta
+  const inputBrane = meta?.brane ?? meta?.context
+  if (!inputBrane || typeof inputBrane !== "object") return meta
 
   const arrayElementTypesFromSource = sourceText ? extractArrayElementTypesFromSource(sourceText) : {}
-  const nextContext: Record<string, any> = {}
+  const nextBrane: Record<string, any> = {}
 
-  for (const [fieldName, rawDef] of Object.entries(context)) {
+  for (const [fieldName, rawDef] of Object.entries(inputBrane)) {
     if (!rawDef || typeof rawDef !== "object") {
-      nextContext[fieldName] = rawDef
+      nextBrane[fieldName] = rawDef
       continue
     }
 
@@ -73,7 +77,7 @@ export function convertMetaToFieldIntermediate(meta: MetaLike, sourceText?: stri
         )
       }
 
-      nextContext[fieldName] = { ...def, type: `array<${elementType}>` }
+      nextBrane[fieldName] = { ...def, type: `array<${elementType}>` }
       continue
     }
 
@@ -87,12 +91,13 @@ export function convertMetaToFieldIntermediate(meta: MetaLike, sourceText?: stri
 
       const nextDef: Record<string, any> = { ...def, type: `enum<${valueType}>`, values }
       if ("enum" in nextDef) delete nextDef.enum
-      nextContext[fieldName] = nextDef
+      nextBrane[fieldName] = nextDef
       continue
     }
 
-    nextContext[fieldName] = def
+    nextBrane[fieldName] = def
   }
 
-  return { ...meta, context: nextContext }
+  const withCompat = meta.context ? { context: nextBrane } : {}
+  return { ...meta, ...withCompat, branes: nextBrane, braneSchema: nextBrane }
 }

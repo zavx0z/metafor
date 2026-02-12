@@ -77,7 +77,7 @@ export class RulesCompiler {
    *   "PATROL": null // Обязательно объявить все состояния
    * }
    * ```
-   * @param contextSchema - Схема типов данных. Если не передана, предполагается,
+   * @param branes - Схема типов данных. Если не передана, предполагается,
    * что поля уже зарегистрированы в GlobalFieldRegistry.
    * @param options - Дополнительные опции компиляции.
    * @param options.preserveRegistry - Если true, не очищает GlobalFieldRegistry перед регистрацией.
@@ -100,7 +100,7 @@ export class RulesCompiler {
    */
   compile(
     superposition: Superposition,
-    contextSchema?: Record<string, any>,
+    branes: Record<string, any> = {},
     options: { preserveRegistry?: boolean } = {},
   ): CompiledRules {
     this.bytecode = []
@@ -108,13 +108,13 @@ export class RulesCompiler {
     this.fields = {}
 
     // Вместо SoA fieldMap используем GlobalFieldRegistry для получения field_id
-    // Поля должны быть уже зарегистрированы через contextSchema в QuantumFieldSystem.init()
+    // Поля должны быть уже зарегистрированы через branes в QuantumFieldSystem.init()
     // Если схема передана, регистрируем поля, но не строим SoA маппинг
-    if (contextSchema) {
+    if (Object.keys(branes).length > 0) {
       if (!options.preserveRegistry) {
         GlobalFieldRegistry.clear()
       }
-      this.registerFieldsFromSchema(contextSchema)
+      this.registerFieldsFromSchema(branes)
     } else {
       // Поля должны быть уже зарегистрированы
       this.validateFieldsFromSuperposition(superposition)
