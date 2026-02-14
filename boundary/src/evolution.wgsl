@@ -297,10 +297,10 @@ fn get_field_value_raw(field_index: u32, target_field_id: u32) -> u32 {
  * @param field_type - Тип поля (TYPE.FLOAT=0, TYPE.UINT=1, TYPE.BOOL=2, TYPE.STRING=3, TYPE.ARRAY=4)
  * @param val_a_raw - Сырое значение поля из кучи (для строк = string_id)
  * @param val_b_raw - Значение из байткода или указатель на список
- * @param bytecode_base - Базовое смещение байткода поля
+ * @param cond_values_base - База секции значений в cond-блоке (первое слово первой инструкции)
  * @returns true если условие выполнено
  */
-fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, bytecode_base: u32) -> bool {
+fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, cond_values_base: u32) -> bool {
   // Строковые операции (TYPE.STRING = 3)
   if (field_type == 3u) {
     // EQ / NEQ для строк
@@ -315,8 +315,8 @@ fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, bytecode
     
     // IN / NOT_IN для строк
     if (op == 6u || op == 7u) {
-      // val_b_raw - это относительный индекс от bytecode_base (как и для скаляров)
-      let abs_list_ptr = bytecode_base + val_b_raw;
+      // val_b_raw - это смещение от базы инструкций cond-блока.
+      let abs_list_ptr = cond_values_base + val_b_raw;
       let found = string_in_list(val_a_raw, abs_list_ptr);
       if (op == 6u) {
         return found;
@@ -364,7 +364,7 @@ fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, bytecode
   // Списки (IN / NOT_IN) для скаляров
   // val_b_raw — указатель на список в байткоде: [count, item1, item2...]
   if (op == 6u || op == 7u) {
-    let abs_list_ptr = bytecode_base + val_b_raw;
+    let abs_list_ptr = cond_values_base + val_b_raw;
     let count = bytecode[abs_list_ptr];
     var found = false;
     for (var i = 0u; i < count; i = i + 1u) {
@@ -476,7 +476,8 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
       let val_encoded = bytecode[c_base + 3u];
       let real_val_raw = get_field_value_raw(idx, target_field_id);
       
-      if (!check_cond(op, field_type, real_val_raw, val_encoded, bytecode_base)) {
+      let cond_values_base = bytecode_base + cond_ptr + 1u;
+      if (!check_cond(op, field_type, real_val_raw, val_encoded, cond_values_base)) {
         passed = false;
         break;
       }

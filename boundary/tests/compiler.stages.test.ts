@@ -69,9 +69,10 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
       expect(instructionIdx).not.toBe(-1)
       
       const heapPtr = bc[instructionIdx + 3]!
-      const listLength = bc[heapPtr]!
-      const item1 = bc[heapPtr + 1]!
-      const item2 = bc[heapPtr + 2]!
+      const absHeapPtr = instructionIdx + heapPtr
+      const listLength = bc[absHeapPtr]!
+      const item1 = bc[absHeapPtr + 1]!
+      const item2 = bc[absHeapPtr + 2]!
 
       expect(listLength).toBe(2)
       expect(item1).toBe(1) // "WALK" index
@@ -96,15 +97,19 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
 
       // Ищем IN
       let heapPtr: number | undefined
+      let instructionIdx = -1
       for (let i = 0; i < bc.length - 3; i++) {
         if (bc[i+2] === OP.IN) {
           heapPtr = bc[i+3]
+          instructionIdx = i
           break
         }
       }
       expect(heapPtr).toBeDefined()
-      
-      const val1Raw = bc[heapPtr! + 1]!
+      expect(instructionIdx).toBeGreaterThanOrEqual(0)
+
+      const absHeapPtr = instructionIdx + heapPtr!
+      const val1Raw = bc[absHeapPtr + 1]!
       const floatView = new Float32Array(new Uint32Array([val1Raw]).buffer)
       expect(floatView[0]).toBeCloseTo(36.6)
       console.log(`✅ Float закодирован: ${floatView[0]}`)
