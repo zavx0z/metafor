@@ -3,7 +3,6 @@ import type * as puppeteerTypes from "puppeteer"
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { serve } from "bun"
-import { afterAll, beforeAll } from "bun:test"
 import { homedir } from "node:os"
 
 // ==================== КОНФИГУРАЦИЯ ====================
@@ -332,6 +331,16 @@ export class BoundaryTestFixture {
     const page = await BoundaryTestFixture.browser.newPage()
     page.setDefaultNavigationTimeout(PUPPETEER_TIMEOUT_MS)
     page.setDefaultTimeout(PUPPETEER_TIMEOUT_MS)
+
+    // Собираем логи консоли браузера (должно быть ДО навигации)
+    const browserLogs: string[] = []
+    page.on('console', msg => {
+      const text = msg.text()
+      browserLogs.push(text)
+      if (this.debug) {
+        console.log("[BROWSER]", text)
+      }
+    })
 
     try {
       const testData = {

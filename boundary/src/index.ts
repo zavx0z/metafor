@@ -30,6 +30,7 @@
 import { GPUBackend } from "./backend"
 import { RulesCompiler } from "./compiler"
 import { BraneManager, FieldType, GlobalFieldRegistry, type FieldTypeValue } from "./context"
+import { resetStringAtlas, getStringAtlas } from "./typeBridge"
 
 // ========== Типы для описания схемы браны ==========
 /**
@@ -207,6 +208,9 @@ export class Boundary {
    * ```
    */
   async init(config: BoundaryConfig) {
+    // Сбрасываем StringAtlas для гарантии консистентности между тестами
+    resetStringAtlas()
+    
     // 1. Регистрируем компоненты браны из схемы в глобальном реестре.
     const registry = GlobalFieldRegistry.getInstance()
 
@@ -270,6 +274,12 @@ export class Boundary {
 
     // 5. Получаем буферы бран и создаём fieldDescriptors в новом формате.
     const { fieldDescriptors: braneDescriptors, heap } = this.braneManager.getGPUBuffers()
+    
+    // Отладка: выводим heap
+    console.log("[Boundary] Heap:")
+    console.log("  Length:", heap.length)
+    console.log("  Words:", JSON.stringify(Array.from(heap)))
+    console.log("  Field descriptors:", JSON.stringify(Array.from(braneDescriptors)))
 
     // Формируем fieldDescriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
     const fieldDescriptors = new Uint32Array(config.fields.length * 2)
@@ -277,8 +287,33 @@ export class Boundary {
       fieldDescriptors[i * 2] = braneDescriptors[i]! // block_ptr
       fieldDescriptors[i * 2 + 1] = compiled.bytecodeOffsets[i]! // bytecode_offset
     }
+    
+    // Отладка: выводим итоговые fieldDescriptors
+    console.log("[Boundary] Final fieldDescriptors for GPU:")
+    console.log("  Words:", JSON.stringify(Array.from(fieldDescriptors)))
 
     // 6. Инициализируем бэкенд.
+    // Отладка: выводим состояние StringAtlas
+    const atlas = getStringAtlas()
+    console.log("[Boundary] StringAtlas state at init:")
+    console.log("  Count:", atlas.count)
+    for (let i = 0; i < atlas.count; i++) {
+      const meta = atlas.getMeta(i)
+      console.log(`  ${i}: "${atlas.getString(i)}" (hash: ${meta?.hash})`)
+    }
+    
+    // Отладка: выводим экспорт StringAtlas для GPU
+    const atlasExport = atlas.export()
+    console.log("[Boundary] StringAtlas export for GPU:")
+    console.log("  Registry:", JSON.stringify(Array.from(atlasExport.registry)))
+    console.log("  Heap:", JSON.stringify(Array.from(atlasExport.heap)))
+    
+    // Отладка: выводим скомпилированный bytecode
+    console.log("[Boundary] Compiled bytecode:")
+    console.log("  Length:", compiled.bytecode.length)
+    console.log("  Words:", JSON.stringify(Array.from(compiled.bytecode)))
+    console.log("  Bytecode offsets:", JSON.stringify(Array.from(compiled.bytecodeOffsets)))
+    
     await this.backend.init({
       fieldCount: config.fields.length,
       bytecode: compiled.bytecode,

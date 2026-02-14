@@ -48,9 +48,109 @@ var<storage, read> bytecode: array<u32>;
 var<uniform> u: Uniforms;
 @group(0) @binding(6)
 var<storage, read> bytecode_offsets: array<u32>;
+@group(0) @binding(7)
+var<storage, read> string_registry: array<u32>;
+@group(0) @binding(8)
+var<storage, read> string_heap: array<u32>;
+
 // ============================================================================
 // Вспомогательные функции для работы с кучей (из браны)
 // ============================================================================
+
+// ============================================================================
+// Функции для работы со строками (StringAtlas)
+// ============================================================================
+
+/**
+ * Получить хэш строки по её ID.
+ * Формат string_registry: [ptr0, len0, hash0, ptr1, len1, hash1, ...]
+ */
+fn get_string_hash(string_id: u32) -> u32 {
+  let registry_index = string_id * 3u + 2u;
+  return string_registry[registry_index];
+}
+
+/**
+ * Получить длину строки по её ID.
+ */
+fn get_string_length(string_id: u32) -> u32 {
+  let registry_index = string_id * 3u + 1u;
+  return string_registry[registry_index];
+}
+
+/**
+ * Получить указатель на строку в string_heap по её ID.
+ */
+fn get_string_pointer(string_id: u32) -> u32 {
+  let registry_index = string_id * 3u;
+  return string_registry[registry_index];
+}
+
+/**
+ * Двухступенчатое сравнение строк.
+ * 
+ * 1. Быстрое сравнение хэшей (большинство случаев)
+ * 2. При совпадении хэшей - посимвольное сравнение для гарантии корректности
+ * 
+ * @param id_a - ID первой строки
+ * @param id_b - ID второй строки
+ * @returns true если строки равны
+ */
+fn string_equals(id_a: u32, id_b: u32) -> bool {
+  // Быстрый путь: одинаковые ID = одинаковые строки
+  if (id_a == id_b) {
+    return true;
+  }
+  
+  // Быстрое сравнение хэшей
+  let hash_a = get_string_hash(id_a);
+  let hash_b = get_string_hash(id_b);
+  
+  if (hash_a != hash_b) {
+    return false;
+  }
+  
+  // Хэши совпали - нужна полная проверка
+  // Это редкий случай (коллизия хэшей), но критичный для корректности
+  let len_a = get_string_length(id_a);
+  let len_b = get_string_length(id_b);
+  
+  if (len_a != len_b) {
+    return false;
+  }
+  
+  // Посимвольное сравнение
+  let ptr_a = get_string_pointer(id_a);
+  let ptr_b = get_string_pointer(id_b);
+  
+  for (var i = 0u; i < len_a; i = i + 1u) {
+    if (string_heap[ptr_a + i] != string_heap[ptr_b + i]) {
+      return false;
+    }
+  }
+  
+  return true;
+}
+
+/**
+ * Проверить, входит ли строка в список строк.
+ * 
+ * @param string_id - ID строки для проверки
+ * @param abs_list_ptr - Абсолютный указатель на список в bytecode: [count, id1, id2, ...]
+ * @returns true если строка найдена в списке
+ */
+fn string_in_list(string_id: u32, abs_list_ptr: u32) -> bool {
+  let count = bytecode[abs_list_ptr];
+  
+  for (var i = 0u; i < count; i = i + 1u) {
+    let list_string_id = bytecode[abs_list_ptr + 1u + i];
+    if (string_equals(string_id, list_string_id)) {
+      return true;
+    }
+  }
+  
+  return false;
+}
 
 fn get_field_block_ptr(field_index: u32) -> u32 {
   // field_descriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
@@ -144,16 +244,101 @@ fn get_field_value_recursive(field_index: u32, target_field_id: u32) -> f32 {
   return 0.0;
 }
 
+/**
+ * Получить сырое значение поля как u32.
+ * Для строк возвращает string_id, для скаляров - битовое представление.
+ */
+fn get_field_value_raw(field_index: u32, target_field_id: u32) -> u32 {
+  // Ищем в локальном блоке поля
+  let block_ptr = get_field_block_ptr(field_index);
+  let result = find_field(block_ptr, target_field_id);
+
+  if (result.x == 1u) {
+    return heap[result.w];
+  }
+
+  // Если не нашли, ищем в entangled блоках
+  let entangled_count = heap[block_ptr + 1u];
+
+  var i: u32 = 0u;
+  loop {
+    if (i >= entangled_count) {
+      break;
+    }
+
+    // Получаем указатель на entangled блок (после заголовка)
+    let entangled_ptrs_offset = block_ptr + 2u + get_local_field_count(block_ptr) * 2u;
+    let entangled_ptr = heap[entangled_ptrs_offset + i];
+
+    if (entangled_ptr == 0u) {
+      i = i + 1u;
+      continue;
+    }
+
+    let entangled_result = find_field(entangled_ptr, target_field_id);
+    if (entangled_result.x == 1u) {
+      return heap[entangled_result.w];
+    }
+
+    i = i + 1u;
+  }
+
+  return 0u;
+}
+
 // ============================================================================
 // Основные функции для работы с правилами FSM
 // ============================================================================
 
-fn check_cond(op: u32, field_type: u32, val_a: f32, val_b_raw: u32) -> bool {
-  // Базовые скалярные сравнения
+/**
+ * Проверка условия для поля.
+ * 
+ * @param op - Код операции (OP.EQ, OP.NEQ, OP.IN, ...)
+ * @param field_type - Тип поля (TYPE.FLOAT=0, TYPE.UINT=1, TYPE.BOOL=2, TYPE.STRING=3, TYPE.ARRAY=4)
+ * @param val_a_raw - Сырое значение поля из кучи (для строк = string_id)
+ * @param val_b_raw - Значение из байткода или указатель на список
+ * @param bytecode_base - Базовое смещение байткода поля
+ * @returns true если условие выполнено
+ */
+fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, bytecode_base: u32) -> bool {
+  // Строковые операции (TYPE.STRING = 3)
+  if (field_type == 3u) {
+    // EQ / NEQ для строк
+    if (op == 0u) {
+      // EQ
+      return string_equals(val_a_raw, val_b_raw);
+    }
+    if (op == 1u) {
+      // NEQ
+      return !string_equals(val_a_raw, val_b_raw);
+    }
+    
+    // IN / NOT_IN для строк
+    if (op == 6u || op == 7u) {
+      // val_b_raw - это относительный индекс от bytecode_base (как и для скаляров)
+      let abs_list_ptr = bytecode_base + val_b_raw;
+      let found = string_in_list(val_a_raw, abs_list_ptr);
+      if (op == 6u) {
+        return found;
+        // IN
+      }
+      if (op == 7u) {
+        return !found;
+        // NOT_IN
+      }
+    }
+    
+    // Строки не поддерживают >, <, >=, <=
+    return false;
+  }
+  
+  // Базовые скалярные сравнения (FLOAT, UINT, BOOL)
   if (op <= 5u) {
+    var val_a = f32(val_a_raw);
     var val_b = f32(val_b_raw);
     if (field_type == 0u) {
       // Для операторов с плавающей точкой используем bitcast.
+      val_a = bitcast<f32>(val_a_raw);
       val_b = bitcast<f32>(val_b_raw);
     }
     if (op == 0u) {
@@ -176,17 +361,19 @@ fn check_cond(op: u32, field_type: u32, val_a: f32, val_b_raw: u32) -> bool {
     }
   }
 
-  // Списки (IN / NOT_IN)
+  // Списки (IN / NOT_IN) для скаляров
   // val_b_raw — указатель на список в байткоде: [count, item1, item2...]
   if (op == 6u || op == 7u) {
-    let list_ptr = val_b_raw;
-    let count = bytecode[list_ptr];
+    let abs_list_ptr = bytecode_base + val_b_raw;
+    let count = bytecode[abs_list_ptr];
     var found = false;
     for (var i = 0u; i < count; i = i + 1u) {
-      let item_raw = bytecode[list_ptr + 1u + i];
+      let item_raw = bytecode[abs_list_ptr + 1u + i];
       var item_val = f32(item_raw);
+      var val_a = f32(val_a_raw);
       if (field_type == 0u) {
         item_val = bitcast<f32>(item_raw);
+        val_a = bitcast<f32>(val_a_raw);
       }
       if (val_a == item_val) {
         found = true;
@@ -204,10 +391,10 @@ fn check_cond(op: u32, field_type: u32, val_a: f32, val_b_raw: u32) -> bool {
   }
 
   // Операторы массивов (INCLUDE / LENGTH / IS_EMPTY)
-  // val_a = указатель на массив в куче (heap). Формат: [длина, элемент1, элемент2...]
-  // val_b = значение для поиска или сравнения (закодировано как u32).
+  // val_a_raw = указатель на массив в куче (heap). Формат: [длина, элемент1, элемент2...]
+  // val_b_raw = значение для поиска или сравнения (закодировано как u32).
   if (op >= 8u && op <= 11u) {
-    let heap_ptr = u32(val_a);
+    let heap_ptr = val_a_raw;
     if (heap_ptr == 0u) {
       // Null указатель = пустой массив.
       if (op == 11u) {
@@ -287,8 +474,9 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
       let target_field_id = bytecode[c_base + 1u];
       let op = bytecode[c_base + 2u];
       let val_encoded = bytecode[c_base + 3u];
-      let real_val = get_field_value_recursive(idx, target_field_id);
-      if (!check_cond(op, field_type, real_val, val_encoded)) {
+      let real_val_raw = get_field_value_raw(idx, target_field_id);
+      
+      if (!check_cond(op, field_type, real_val_raw, val_encoded, bytecode_base)) {
         passed = false;
         break;
       }

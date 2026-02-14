@@ -1,4 +1,5 @@
 import shaderSource from "./evolution.wgsl" with { type: "text" }
+import { getStringAtlas } from "./typeBridge"
 
 /**
  * Параметры инициализации GPU-бэкенда.
@@ -74,6 +75,15 @@ export class GPUBackend {
     const uniforms = new Uint32Array([params.fieldCount, 0, 0, 0])
     this.buffers.uniforms = this.createBuffer(uniforms, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST)
 
+    // StringAtlas buffers for string interning
+    const atlas = getStringAtlas()
+    const atlasExport = atlas.export()
+    // Минимальный размер буфера - 1 элемент (WebGPU не позволяет пустые буферы)
+    const registryData = atlasExport.registry.length > 0 ? atlasExport.registry : new Uint32Array(1)
+    const heapData = atlasExport.heap.length > 0 ? atlasExport.heap : new Uint32Array(1)
+    this.buffers.stringRegistry = this.createStorageBuffer(registryData)
+    this.buffers.stringHeap = this.createStorageBuffer(heapData)
+
     this.stagingBuffer = this.device.createBuffer({
       size: params.states.byteLength,
       usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
@@ -89,6 +99,8 @@ export class GPUBackend {
         { binding: 4, resource: { buffer: this.buffers.bytecode } },
         { binding: 5, resource: { buffer: this.buffers.uniforms } },
         { binding: 6, resource: { buffer: this.buffers.bytecodeOffsets } },
+        { binding: 7, resource: { buffer: this.buffers.stringRegistry } },
+        { binding: 8, resource: { buffer: this.buffers.stringHeap } },
       ],
     })
   }

@@ -22,6 +22,7 @@
 
 import { GlobalFieldRegistry, FieldType, type FieldTypeValue, type FieldMeta } from "./GlobalFieldRegistry"
 import { HeapAllocator, type AllocResult } from "./HeapAllocator"
+import { getStringAtlas, type StringId } from "../typeBridge"
 
 /**
  * Результат построения блока.
@@ -174,6 +175,7 @@ export class BraneBuilder {
       const sizeInWords = getFieldSize(entry.meta.type, entry.value)
       const offsetInWords = currentOffset
       currentOffset += sizeInWords
+      console.log(`[BraneBuilder] Field "${entry.name}": type=${entry.meta.type}, size=${sizeInWords}, offset=${offsetInWords}`)
       return { ...entry, sizeInWords, offsetInWords }
     })
 
@@ -196,7 +198,9 @@ export class BraneBuilder {
     let headerIndex = 2
     for (const layout of fieldLayouts) {
       blockView[headerIndex++] = layout.meta.componentId
-      blockView[headerIndex++] = packMeta(layout.meta.type, layout.sizeInWords, layout.offsetInWords)
+      const packedMeta = packMeta(layout.meta.type, layout.sizeInWords, layout.offsetInWords)
+      console.log(`[BraneBuilder] packMeta(${layout.meta.type}, ${layout.sizeInWords}, ${layout.offsetInWords}) = ${packedMeta} (0x${packedMeta.toString(16)})`)
+      blockView[headerIndex++] = packedMeta
     }
 
     // Заполняем указатели на разделяемые блоки.
@@ -222,32 +226,23 @@ export class BraneBuilder {
           dataView.setUint32(offsetBytes, layout.value ? 1 : 0, true)
           break
         case FieldType.STRING_PTR: {
+          // Интернируем строку через StringAtlas
           const str = String(layout.value)
-          const encoded = this.encoder.encode(str)
-          const stringWords = Math.ceil(encoded.length / 4) + 1 // +1 для длины.
-          const stringBlock = this.allocator.alloc(stringWords)
-          if (!stringBlock) {
-            throw new Error(`Недостаточно памяти для строки длиной ${encoded.length}`)
+          const atlas = getStringAtlas()
+          const stringId = atlas.intern(str)
+          const meta = atlas.getMeta(stringId)
+
+          console.log(`[BraneBuilder] Interned string "${str}" -> ID ${stringId}, hash ${meta?.hash}`)
+
+          if (!meta) {
+            throw new Error(`Не удалось получить метаданные для строки: ${str}`)
           }
 
-          // Записываем длину строки.
-          const stringView = new Uint8Array(stringBlock.size * 4)
-          new DataView(stringView.buffer).setUint32(0, encoded.length, true)
-
-          // Записываем байты строки.
-          stringView.set(encoded, 4)
-
-          // Копируем в кучу.
-          const heapWords = new Uint32Array(stringView.buffer)
-          extraAllocs.push({ 
-            offset: stringBlock.offset, 
-            size: stringBlock.size,
-            data: heapWords
-          })
-
-          // Записываем указатель на строку в блок.
-          dataView.setUint32(offsetBytes, stringBlock.offset, true)
-          dataView.setUint32(offsetBytes + 4, encoded.length, true)
+          // Записываем [stringId, hash] в блок браны
+          // Это позволяет GPU быстро сравнивать хэши и при необходимости
+          // выполнять посимвольное сравнение через stringAtlas
+          dataView.setUint32(offsetBytes, stringId, true)
+          dataView.setUint32(offsetBytes + 4, meta.hash, true)
           break
         }
         case FieldType.ARRAY_PTR: {

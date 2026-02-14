@@ -6,13 +6,11 @@ describe("Boundary — Тип STRING (string)", () => {
   afterAll(async () => await BoundaryTestFixture.teardown(), 20000)
   const fixture = new BoundaryTestFixture()
 
-  // ПРИМЕЧАНИЕ: Тип STRING в текущей реализации хранится как ссылка на атлас символов.
-  // Полная поддержка строк требует реализации интернирования строк или HashMap.
-  // Данные тесты проверяют базовую функциональность, если она реализована.
+  // Тип STRING использует интернирование через StringAtlas.
+  // Строки хранятся как [stringId, hash] для быстрого сравнения на GPU.
 
   describe("Оператор EQ (равно)", () => {
-    test.skip("должен перейти при значении равном указанному", async () => {
-      // SKIP: Требует реализации интернирования строк
+    test("должен перейти при значении равном указанному", async () => {
       const superposition = {
         IDLE: { ACTIVE: { name: { eq: "hero" } } },
         ACTIVE: null,
@@ -33,8 +31,7 @@ describe("Boundary — Тип STRING (string)", () => {
   })
 
   describe("Оператор NEQ (не равно)", () => {
-    test.skip("должен перейти при значении не равном указанному", async () => {
-      // SKIP: Требует реализации интернирования строк
+    test("должен перейти при значении не равном указанному", async () => {
       const superposition = {
         IDLE: { ACTIVE: { name: { neq: "enemy" } } },
         ACTIVE: null,
@@ -55,8 +52,7 @@ describe("Boundary — Тип STRING (string)", () => {
   })
 
   describe("Оператор IN (входит в список)", () => {
-    test.skip("должен перейти если значение входит в список", async () => {
-      // SKIP: Требует реализации интернирования строк
+    test("должен перейти если значение входит в список", async () => {
       const superposition = {
         IDLE: { ACTIVE: { role: { in: ["warrior", "mage", "rogue"] } } },
         ACTIVE: null,
@@ -79,8 +75,7 @@ describe("Boundary — Тип STRING (string)", () => {
   })
 
   describe("Оператор NOT_IN (не входит в список)", () => {
-    test.skip("должен перейти если значение не входит в список", async () => {
-      // SKIP: Требует реализации интернирования строк
+    test("должен перейти если значение не входит в список", async () => {
       const superposition = {
         IDLE: { ACTIVE: { role: { notIn: ["enemy", "boss"] } } },
         ACTIVE: null,
@@ -103,8 +98,7 @@ describe("Boundary — Тип STRING (string)", () => {
   })
 
   describe("Пустые строки", () => {
-    test.skip("должен корректно обрабатывать пустую строку", async () => {
-      // SKIP: Требует реализации интернирования строк
+    test("должен корректно обрабатывать пустую строку", async () => {
       const superposition = {
         IDLE: { ACTIVE: { name: { eq: "" } } },
         ACTIVE: null,
@@ -125,8 +119,7 @@ describe("Boundary — Тип STRING (string)", () => {
   })
 
   describe("Специальные символы", () => {
-    test.skip("должен корректно обрабатывать строки со специальными символами", async () => {
-      // SKIP: Требует реализации интернирования строк
+    test("должен корректно обрабатывать строки со специальными символами", async () => {
       const superposition = {
         IDLE: { ACTIVE: { code: { eq: "test-123_@#" } } },
         ACTIVE: null,
@@ -147,8 +140,7 @@ describe("Boundary — Тип STRING (string)", () => {
   })
 
   describe("Регистрозависимость", () => {
-    test.skip("должен учитывать регистр при сравнении", async () => {
-      // SKIP: Требует реализации интернирования строк
+    test("должен учитывать регистр при сравнении", async () => {
       const superposition = {
         IDLE: { ACTIVE: { name: { eq: "Hero" } } },
         ACTIVE: null,

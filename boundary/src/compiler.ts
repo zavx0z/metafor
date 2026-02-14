@@ -1,6 +1,6 @@
 import { OP, TYPE, type CompiledRules, type CompiledFieldRules, type CompiledEnsemble } from "./common"
 import { GlobalFieldRegistry, FieldType } from "./context"
-import { fieldTypeToBytecodeType } from "./typeBridge"
+import { fieldTypeToBytecodeType, getStringAtlas } from "./typeBridge"
 
 // Типы для представления конфигурации правил суперпозиции.
 type ConditionValue = number | boolean | string | { [key: string]: any }
@@ -320,16 +320,19 @@ export class RulesCompiler {
         this.bytecode.push(check.op)
         // 4. значение (или указатель на кучу для массивов).
         if (Array.isArray(check.val) && (check.op === OP.IN || check.op === OP.NOT_IN)) {
+          // ptr - относительный индекс от начала bytecode поля
           const ptr = startOfHeap + blockHeap.length
+          console.log(`[Compiler] IN/NOT_IN for field ${key}: ptr=${ptr}, startOfHeap=${startOfHeap}, blockHeap.length=${blockHeap.length}`)
+          console.log(`[Compiler]   baseOffset=${baseOffset}, totalInstructionsSize=${totalInstructionsSize}`)
           blockHeap.push(check.val.length)
           for (const v of check.val) {
-            blockHeap.push(
-              this.encodeValue(
-                field.type,
-                v,
-                field as { subType?: number | undefined; enumValues?: any[] | undefined } | undefined,
-              ),
+            const encoded = this.encodeValue(
+              field.type,
+              v,
+              field as { subType?: number | undefined; enumValues?: any[] | undefined } | undefined,
             )
+            console.log(`[Compiler]   List item: "${v}" -> encoded=${encoded}`)
+            blockHeap.push(encoded)
           }
           this.bytecode.push(ptr)
         } else {
@@ -448,8 +451,11 @@ export class RulesCompiler {
     }
     // UINT / Строки
     if (typeof val === "string") {
-      // TODO: Реализовать интернирование строк или HashMap
-      return 0 // Заглушка
+      // Интернируем строку через StringAtlas
+      const atlas = getStringAtlas()
+      const stringId = atlas.intern(val)
+      console.log(`[Compiler] Interned string "${val}" -> ID ${stringId}`)
+      return stringId
     }
     return Number(val)
   }
