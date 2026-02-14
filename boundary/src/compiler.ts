@@ -302,10 +302,11 @@ export class RulesCompiler {
     // Генерируем инструкции: [type, field_id, op, value] (4 слова на условие)
     // Для массивов (IN/NOT_IN) value = указатель на кучу со списком значений.
     const blockHeap: number[] = []
-    const baseOffset = this.bytecode.length
     // Считаем полный размер инструкций (4 слова на каждую проверку)
     const totalInstructionsSize = totalConditions * 4
-    const startOfHeap = baseOffset + totalInstructionsSize
+    // Условия в шейдере читаются от базы инструкций конкретного cond-блока
+    // (bytecode_base + cond_ptr + 1), поэтому для списков кодируем
+    // смещение относительно этой базы.
     // Генерируем инструкции с правильными указателями на кучу.
     for (const [key, cond] of entries) {
       const field = this.fields[key]
@@ -320,10 +321,10 @@ export class RulesCompiler {
         this.bytecode.push(check.op)
         // 4. значение (или указатель на кучу для массивов).
         if (Array.isArray(check.val) && (check.op === OP.IN || check.op === OP.NOT_IN)) {
-          // ptr - относительный индекс от начала bytecode поля
-          const ptr = startOfHeap + blockHeap.length
-          console.log(`[Compiler] IN/NOT_IN for field ${key}: ptr=${ptr}, startOfHeap=${startOfHeap}, blockHeap.length=${blockHeap.length}`)
-          console.log(`[Compiler]   baseOffset=${baseOffset}, totalInstructionsSize=${totalInstructionsSize}`)
+          // ptr - смещение от базы инструкций cond-блока.
+          // [count, item1, item2, ...] лежит после всех инструкций блока.
+          const ptr = totalInstructionsSize + blockHeap.length
+          console.log(`[Compiler] IN/NOT_IN for field ${key}: ptr=${ptr}, totalInstructionsSize=${totalInstructionsSize}, blockHeap.length=${blockHeap.length}`)
           blockHeap.push(check.val.length)
           for (const v of check.val) {
             const encoded = this.encodeValue(
