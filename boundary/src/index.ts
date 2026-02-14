@@ -208,6 +208,11 @@ export class Boundary {
    * ```
    */
   async init(config: BoundaryConfig) {
+    // Очищаем глобальный реестр компонент между инициализациями.
+    // Без этого типы одинаковых имён полей могут «протекать» между разными
+    // сценариями/тестами (например, role как number в одном кейсе и string в другом).
+    GlobalFieldRegistry.clear()
+
     // Сбрасываем StringAtlas для гарантии консистентности между тестами
     resetStringAtlas()
     
