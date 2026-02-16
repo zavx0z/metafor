@@ -314,6 +314,18 @@ export class BraneManager {
         break
       }
       case FieldType.U32:
+        if (Array.isArray(fieldMeta.enumValues)) {
+          const enumIndex = fieldMeta.enumValues.indexOf(newValue)
+          if (enumIndex === -1) {
+            throw new Error(
+              `Значение '${String(newValue)}' не найдено в enum '${componentName}': [${fieldMeta.enumValues.join(", ")}]`,
+            )
+          }
+          this.heapData[absoluteOffset] = enumIndex
+        } else {
+          this.heapData[absoluteOffset] = Number(newValue)
+        }
+        break
       case FieldType.BOOL:
         this.heapData[absoluteOffset] = Number(newValue)
         break
@@ -370,7 +382,9 @@ export class BraneManager {
           } else if (elementType === "integer" || elementType === "boolean") {
             arrayView[i + 1] = Number(item)
           } else if (elementType === "string") {
-            throw new Error(`Массивы строк пока не поддерживаются для компоненты '${componentName}'`)
+            const atlas = getStringAtlas()
+            const stringId = atlas.intern(String(item))
+            arrayView[i + 1] = stringId
           } else {
             arrayView[i + 1] = Number(item)
           }

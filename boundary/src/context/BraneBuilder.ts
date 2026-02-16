@@ -220,7 +220,17 @@ export class BraneBuilder {
           dataView.setFloat32(offsetBytes, Number(layout.value), true)
           break
         case FieldType.U32:
-          dataView.setUint32(offsetBytes, Number(layout.value), true)
+          if (Array.isArray(layout.meta.enumValues)) {
+            const enumIndex = layout.meta.enumValues.indexOf(layout.value)
+            if (enumIndex === -1) {
+              throw new Error(
+                `Значение '${String(layout.value)}' не найдено в enum '${layout.name}': [${layout.meta.enumValues.join(", ")}]`,
+              )
+            }
+            dataView.setUint32(offsetBytes, enumIndex, true)
+          } else {
+            dataView.setUint32(offsetBytes, Number(layout.value), true)
+          }
           break
         case FieldType.BOOL:
           dataView.setUint32(offsetBytes, layout.value ? 1 : 0, true)
@@ -269,7 +279,9 @@ export class BraneBuilder {
             } else if (elementType === "integer" || elementType === "boolean") {
               arrayView[i + 1] = Number(item)
             } else if (elementType === "string") {
-              throw new Error(`Массивы строк пока не поддерживаются для поля '${layout.name}'`)
+              const atlas = getStringAtlas()
+              const stringId = atlas.intern(String(item))
+              arrayView[i + 1] = stringId
             } else {
               arrayView[i + 1] = Number(item)
             }

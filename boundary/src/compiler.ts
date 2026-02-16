@@ -330,7 +330,7 @@ export class RulesCompiler {
             const encoded = this.encodeValue(
               field.type,
               v,
-              field as { subType?: number | undefined; enumValues?: any[] | undefined } | undefined,
+              this.getEncodingContextForOp(field, check.op),
             )
             console.log(`[Compiler]   List item: "${v}" -> encoded=${encoded}`)
             blockHeap.push(encoded)
@@ -341,7 +341,7 @@ export class RulesCompiler {
             this.encodeValue(
               field.type,
               check.val,
-              field as { subType?: number | undefined; enumValues?: any[] | undefined } | undefined,
+              this.getEncodingContextForOp(field, check.op),
             ),
           )
         }
@@ -397,7 +397,32 @@ export class RulesCompiler {
           checks.push({ op: OP.NOT_INCLUDE, val: v })
           break
         case "length":
-          checks.push({ op: OP.LENGTH, val: v })
+          if (typeof v === "number") {
+            checks.push({ op: OP.LENGTH, val: v })
+            break
+          }
+
+          if (typeof v === "object" && v !== null) {
+            for (const [lengthOp, lengthVal] of Object.entries(v)) {
+              switch (lengthOp) {
+                case "eq":
+                  checks.push({ op: OP.LENGTH, val: lengthVal })
+                  break
+                case "gt":
+                  checks.push({ op: OP.GT, val: lengthVal })
+                  break
+                case "lt":
+                  checks.push({ op: OP.LT, val: lengthVal })
+                  break
+                case "gte":
+                  checks.push({ op: OP.GTE, val: lengthVal })
+                  break
+                case "lte":
+                  checks.push({ op: OP.LTE, val: lengthVal })
+                  break
+              }
+            }
+          }
           break
         case "isEmpty":
           checks.push({ op: OP.IS_EMPTY, val: v })
@@ -425,6 +450,22 @@ export class RulesCompiler {
       }
     }
     return checks
+  }
+
+  private getEncodingContextForOp(
+    field: { type: number; subType?: number | undefined; enumValues?: any[] | undefined },
+    op: number,
+  ): { subType?: number | undefined; enumValues?: any[] | undefined } | undefined {
+    // Для массивов include/notInclude значение нужно кодировать в тип элемента.
+    if (field.type === TYPE.ARRAY) {
+      if (op === OP.INCLUDE || op === OP.NOT_INCLUDE) {
+        return field
+      }
+      // Для length/isEmpty и скалярных сравнений по длине используем чисто UINT/BOOL.
+      return undefined
+    }
+
+    return field
   }
 
   private encodeValue(
