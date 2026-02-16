@@ -110,6 +110,9 @@ export class BoundaryTestFixture {
   private static browser: puppeteerTypes.Browser | null = null
   private static server: any = null
   private static baseUrl = ""
+  private static setupPromise: Promise<void> | null = null
+  private static teardownPromise: Promise<void> | null = null
+  private static activeConsumers = 0
   private debug: boolean = false
 
   /**
@@ -126,48 +129,60 @@ export class BoundaryTestFixture {
    * Вызывается один раз перед запуском всех тестов.
    */
   static async setup() {
-    if (this.browser) return
-
-    const packageRoot = join(import.meta.dir, "..")
-    const outDir = join(packageRoot, OUT_DIR_NAME)
-
-    // Собираем библиотеку для тестирования
-    await Bun.build({
-      entrypoints: [join(packageRoot, "src", "index.ts")],
-      outdir: outDir,
-      target: "browser",
-    })
-
-    const launchOptions: any = { ...LAUNCH_OPTIONS }
-
-    const execPath = getExecutablePath()
-    if (execPath) {
-      launchOptions.executablePath = execPath
-    } else {
-      // Если браузер не найден, Puppeteer попытается найти его автоматически
-      // Но в Puppeteer 24.x bundled browser отсутствует, поэтому добавляем информативную ошибку
-      console.warn(
-        "[FIXTURE] Browser not found in system paths or Puppeteer cache.\n" +
-          "Please run: bun run setup:browsers\n" +
-          "Or install Chrome manually.",
-      )
+    if (this.teardownPromise) {
+      await this.teardownPromise
     }
 
-    try {
-      this.browser = await puppeteer.launch(launchOptions)
-    } catch (error) {
-      const errorMessage = error instanceof Error ? error.message : String(error)
-      throw new Error(
-        `Failed to launch browser: ${errorMessage}\n\n` +
-          "To fix this issue, run one of the following commands:\n" +
-          "  cd field && bun run setup:browsers\n" +
-          "  npx puppeteer browsers install chrome\n\n" +
-          "Or install Google Chrome manually on your system.",
-      )
+    this.activeConsumers += 1
+
+    if (this.browser && this.server && this.baseUrl) return
+
+    if (this.setupPromise) {
+      await this.setupPromise
+      return
     }
 
-    // Создаем сервер для тестов
-    this.server = serve({
+    this.setupPromise = (async () => {
+      const packageRoot = join(import.meta.dir, "..")
+      const outDir = join(packageRoot, OUT_DIR_NAME)
+
+      // Собираем библиотеку для тестирования
+      await Bun.build({
+        entrypoints: [join(packageRoot, "src", "index.ts")],
+        outdir: outDir,
+        target: "browser",
+      })
+
+      const launchOptions: any = { ...LAUNCH_OPTIONS }
+
+      const execPath = getExecutablePath()
+      if (execPath) {
+        launchOptions.executablePath = execPath
+      } else {
+        // Если браузер не найден, Puppeteer попытается найти его автоматически
+        // Но в Puppeteer 24.x bundled browser отсутствует, поэтому добавляем информативную ошибку
+        console.warn(
+          "[FIXTURE] Browser not found in system paths or Puppeteer cache.\n" +
+            "Please run: bun run setup:browsers\n" +
+            "Or install Chrome manually.",
+        )
+      }
+
+      try {
+        this.browser = await puppeteer.launch(launchOptions)
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        throw new Error(
+          `Failed to launch browser: ${errorMessage}\n\n` +
+            "To fix this issue, run one of the following commands:\n" +
+            "  cd field && bun run setup:browsers\n" +
+            "  npx puppeteer browsers install chrome\n\n" +
+            "Or install Google Chrome manually on your system.",
+        )
+      }
+
+      // Создаем сервер для тестов
+      this.server = serve({
       ...SERVER_OPTIONS,
       routes: {
         "/test": async (req) => {
@@ -264,7 +279,14 @@ export class BoundaryTestFixture {
         return new Response("Not Found", { status: 404 })
       },
     })
-    this.baseUrl = `http://localhost:${this.server.port}`
+      this.baseUrl = `http://localhost:${this.server.port}`
+    })()
+
+    try {
+      await this.setupPromise
+    } finally {
+      this.setupPromise = null
+    }
   }
 
   /**
@@ -272,41 +294,65 @@ export class BoundaryTestFixture {
    * Вызывается один раз после завершения всех тестов.
    */
   static async teardown() {
+    this.activeConsumers = Math.max(0, this.activeConsumers - 1)
+
+    if (this.activeConsumers > 0) {
+      return
+    }
+
+    if (this.setupPromise) {
+      await this.setupPromise
+    }
+
+    if (this.teardownPromise) {
+      await this.teardownPromise
+      return
+    }
+
+    this.teardownPromise = (async () => {
     // Закрываем браузер с обработкой ошибок
-    if (this.browser) {
-      try {
-        const pages = await this.browser.pages()
-        // Закрываем все открытые страницы
-        await Promise.all(pages.map((page) => page.close().catch(() => {})))
-        await this.browser.close()
-      } catch (error) {
-        console.warn("[FIXTURE] Error closing browser:", error)
-      } finally {
-        this.browser = null
+      if (this.browser) {
+        try {
+          const pages = await this.browser.pages()
+          // Закрываем все открытые страницы
+          await Promise.all(pages.map((page) => page.close().catch(() => {})))
+          await this.browser.close()
+        } catch (error) {
+          console.warn("[FIXTURE] Error closing browser:", error)
+        } finally {
+          this.browser = null
+        }
       }
-    }
 
-    // Останавливаем сервер
-    if (this.server) {
-      try {
-        this.server.stop()
-      } catch (error) {
-        console.warn("[FIXTURE] Error stopping server:", error)
-      } finally {
-        this.server = null
+      // Останавливаем сервер
+      if (this.server) {
+        try {
+          this.server.stop()
+        } catch (error) {
+          console.warn("[FIXTURE] Error stopping server:", error)
+        } finally {
+          this.server = null
+          this.baseUrl = ""
+        }
       }
-    }
 
-    // Асинхронно удаляем тестовую директорию
+      // Асинхронно удаляем тестовую директорию
+      try {
+        const packageRoot = join(import.meta.dir, "..")
+        const outDir = join(packageRoot, OUT_DIR_NAME)
+        if (existsSync(outDir)) {
+          // Используем асинхронное удаление с помощью Bun
+          await Bun.$`rm -rf ${outDir}`.quiet()
+        }
+      } catch (error) {
+        console.warn("[FIXTURE] Error cleaning up dist-test:", error)
+      }
+    })()
+
     try {
-      const packageRoot = join(import.meta.dir, "..")
-      const outDir = join(packageRoot, OUT_DIR_NAME)
-      if (existsSync(outDir)) {
-        // Используем асинхронное удаление с помощью Bun
-        await Bun.$`rm -rf ${outDir}`.quiet()
-      }
-    } catch (error) {
-      console.warn("[FIXTURE] Error cleaning up dist-test:", error)
+      await this.teardownPromise
+    } finally {
+      this.teardownPromise = null
     }
   }
 
@@ -321,7 +367,7 @@ export class BoundaryTestFixture {
   async runSimulation(params: {
     branes: Record<string, any>
     fields: Array<{ id: string; state: string; brane: any; superposition: any }>
-    updates?: Array<{ fieldIndex: number; componentName: string; value: number | boolean }>
+    updates?: Array<{ fieldIndex: number; componentName: string; value: number | boolean | string }>
     steps?: number
   }): Promise<{ success: boolean; states?: string[]; error?: string; stack?: string }> {
     if (!BoundaryTestFixture.browser || !BoundaryTestFixture.baseUrl) {

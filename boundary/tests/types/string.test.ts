@@ -74,6 +74,29 @@ describe("Boundary — Тип STRING (string)", () => {
     })
   })
 
+  describe("Обновление строковых значений", () => {
+    test("должен корректно применять update для строк и обрабатывать IN", async () => {
+      const superposition = {
+        IDLE: { ACTIVE: { role: { in: ["warrior", "mage"] } } },
+        ACTIVE: null,
+      }
+      const result = await fixture.runSimulation({
+        branes: { role: "string" },
+        fields: [
+          { id: "q1", state: "IDLE", brane: { role: "healer" }, superposition },
+        ],
+        updates: [
+          // runtime поддерживает строки, тип в фикстуре будет расширен отдельно
+          { fieldIndex: 0, componentName: "role", value: "warrior" as any },
+        ],
+      })
+
+      expect(result.success).toBe(true)
+      expect(result.states).toBeDefined()
+      expect(result.states![0]).toBe("ACTIVE")
+    })
+  })
+
   describe("Оператор NOT_IN (не входит в список)", () => {
     test("должен перейти если значение не входит в список", async () => {
       const superposition = {
