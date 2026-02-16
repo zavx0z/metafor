@@ -12,7 +12,6 @@ describe("Boundary — Тип UINT (enum)", () => {
 
   describe("Оператор EQ (равно)", () => {
     test("должен перейти при значении равном указанному (string enum)", async () => {
-      // SKIP: Требует проверки реализации enum<string>
       const superposition = {
         IDLE: { ACTIVE: { status: { eq: "ACTIVE" } } },
         ACTIVE: null,
@@ -36,7 +35,6 @@ describe("Boundary — Тип UINT (enum)", () => {
     })
 
     test("должен перейти при значении равном указанному (number enum)", async () => {
-      // SKIP: Требует проверки реализации enum<number>
       const superposition = {
         IDLE: { ACTIVE: { level: { eq: 2 } } },
         ACTIVE: null,
@@ -62,7 +60,6 @@ describe("Boundary — Тип UINT (enum)", () => {
 
   describe("Оператор NEQ (не равно)", () => {
     test("должен перейти при значении не равном указанному", async () => {
-      // SKIP: Требует проверки реализации NEQ для enum
       const superposition = {
         IDLE: { ACTIVE: { status: { neq: "IDLE" } } },
         ACTIVE: null,
@@ -88,7 +85,6 @@ describe("Boundary — Тип UINT (enum)", () => {
 
   describe("Оператор GT (больше)", () => {
     test("должен перейти при значении больше указанного", async () => {
-      // SKIP: Требует проверки реализации GT для enum
       const superposition = {
         IDLE: { ACTIVE: { level: { gt: 1 } } },
         ACTIVE: null,
@@ -114,7 +110,6 @@ describe("Boundary — Тип UINT (enum)", () => {
 
   describe("Оператор LT (меньше)", () => {
     test("должен перейти при значении меньше указанного", async () => {
-      // SKIP: Требует проверки реализации LT для enum
       const superposition = {
         IDLE: { ACTIVE: { level: { lt: 3 } } },
         ACTIVE: null,
@@ -140,7 +135,6 @@ describe("Boundary — Тип UINT (enum)", () => {
 
   describe("Оператор GTE (больше или равно)", () => {
     test("должен перейти при значении больше или равном указанному", async () => {
-      // SKIP: Требует проверки реализации GTE для enum
       const superposition = {
         IDLE: { ACTIVE: { level: { gte: 3 } } },
         ACTIVE: null,
@@ -166,7 +160,6 @@ describe("Boundary — Тип UINT (enum)", () => {
 
   describe("Оператор LTE (меньше или равно)", () => {
     test("должен перейти при значении меньше или равном указанному", async () => {
-      // SKIP: Требует проверки реализации LTE для enum
       const superposition = {
         IDLE: { ACTIVE: { level: { lte: 2 } } },
         ACTIVE: null,
@@ -192,7 +185,6 @@ describe("Boundary — Тип UINT (enum)", () => {
 
   describe("Оператор IN (входит в список)", () => {
     test("должен перейти если значение входит в список", async () => {
-      // SKIP: Требует проверки реализации IN для enum
       const superposition = {
         IDLE: { ACTIVE: { status: { in: ["ACTIVE", "RUNNING"] } } },
         ACTIVE: null,
@@ -220,7 +212,6 @@ describe("Boundary — Тип UINT (enum)", () => {
 
   describe("Оператор NOT_IN (не входит в список)", () => {
     test("должен перейти если значение не входит в список", async () => {
-      // SKIP: Требует проверки реализации NOT_IN для enum
       const superposition = {
         IDLE: { ACTIVE: { status: { notIn: ["IDLE", "DEAD"] } } },
         ACTIVE: null,
@@ -248,7 +239,6 @@ describe("Boundary — Тип UINT (enum)", () => {
 
   describe("Множественные условия", () => {
     test("должен перейти при выполнении условий", async () => {
-      // SKIP: Требует проверки реализации множественных условий для enum
       const superposition = {
         IDLE: { ACTIVE: { level: { gte: 2, lte: 4 } } },
         ACTIVE: null,

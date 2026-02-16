@@ -11,7 +11,6 @@ describe("Boundary — Тип ARRAY (array)", () => {
 
   describe("Оператор INCLUDE (содержит элемент)", () => {
     test("должен перейти если массив содержит указанный элемент (number)", async () => {
-      // SKIP: Требует полной реализации оператора INCLUDE в WGSL
       const superposition = {
         IDLE: { ACTIVE: { tags: { include: 5 } } },
         ACTIVE: null,
@@ -33,7 +32,6 @@ describe("Boundary — Тип ARRAY (array)", () => {
     })
 
     test("должен перейти если массив содержит указанный элемент (string)", async () => {
-      // SKIP: Требует полной реализации оператора INCLUDE в WGSL + интернирование строк
       const superposition = {
         IDLE: { ACTIVE: { tags: { include: "fire" } } },
         ACTIVE: null,
@@ -55,7 +53,6 @@ describe("Boundary — Тип ARRAY (array)", () => {
 
   describe("Оператор NOT_INCLUDE (не содержит элемент)", () => {
     test("должен перейти если массив не содержит указанный элемент", async () => {
-      // SKIP: Требует полной реализации оператора NOT_INCLUDE в WGSL
       const superposition = {
         IDLE: { ACTIVE: { tags: { notInclude: 99 } } },
         ACTIVE: null,
@@ -79,7 +76,6 @@ describe("Boundary — Тип ARRAY (array)", () => {
 
   describe("Оператор LENGTH (длина массива)", () => {
     test("должен перейти при равенстве длины указанному значению", async () => {
-      // SKIP: Требует полной реализации оператора LENGTH в WGSL
       const superposition = {
         IDLE: { ACTIVE: { items: { length: 3 } } },
         ACTIVE: null,
@@ -103,7 +99,6 @@ describe("Boundary — Тип ARRAY (array)", () => {
     })
 
     test("должен поддерживать сравнение длины с операторами", async () => {
-      // SKIP: Требует реализации расширенного синтаксиса для length
       const superposition = {
         IDLE: { ACTIVE: { items: { length: { gte: 2 } } } },
         ACTIVE: null,
@@ -127,7 +122,6 @@ describe("Boundary — Тип ARRAY (array)", () => {
 
   describe("Оператор IS_EMPTY (пустой массив)", () => {
     test("должен перейти если массив пуст", async () => {
-      // SKIP: Требует полной реализации оператора IS_EMPTY в WGSL
       const superposition = {
         IDLE: { EMPTY: { items: { isEmpty: true } } },
         EMPTY: null,
@@ -149,7 +143,6 @@ describe("Boundary — Тип ARRAY (array)", () => {
     })
 
     test("должен перейти если массив не пуст (isEmpty: false)", async () => {
-      // SKIP: Требует полной реализации оператора IS_EMPTY в WGSL
       const superposition = {
         IDLE: { ACTIVE: { items: { isEmpty: false } } },
         ACTIVE: null,
@@ -173,7 +166,6 @@ describe("Boundary — Тип ARRAY (array)", () => {
 
   describe("Комбинированные условия с массивами", () => {
     test("должен перейти при выполнении нескольких условий", async () => {
-      // SKIP: Требует полной реализации операторов массива
       const superposition = {
         IDLE: {
           ACTIVE: {
@@ -217,7 +209,6 @@ describe("Boundary — Тип ARRAY (array)", () => {
 
   describe("Граничные случаи", () => {
     test("должен корректно обрабатывать пустой массив", async () => {
-      // SKIP: Требует полной реализации операторов массива
       const superposition = {
         IDLE: { ACTIVE: { items: { isEmpty: true } } },
         ACTIVE: null,
@@ -233,7 +224,6 @@ describe("Boundary — Тип ARRAY (array)", () => {
     })
 
     test("должен корректно обрабатывать массив с одним элементом", async () => {
-      // SKIP: Требует полной реализации операторов массива
       const superposition = {
         IDLE: { ACTIVE: { items: { length: 1 } } },
         ACTIVE: null,
@@ -249,7 +239,6 @@ describe("Boundary — Тип ARRAY (array)", () => {
     })
 
     test("должен корректно обрабатывать большой массив", async () => {
-      // SKIP: Требует полной реализации операторов массива
       const superposition = {
         IDLE: { ACTIVE: { items: { length: 100 } } },
         ACTIVE: null,
