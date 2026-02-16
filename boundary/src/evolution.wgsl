@@ -315,17 +315,13 @@ fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, cond_val
     
     // IN / NOT_IN для строк
     if (op == 6u || op == 7u) {
-      // val_b_raw - это смещение от базы инструкций cond-блока.
       let abs_list_ptr = cond_values_base + val_b_raw;
       let found = string_in_list(val_a_raw, abs_list_ptr);
+      // IN = 6, NOT_IN = 7
       if (op == 6u) {
         return found;
-        // IN
       }
-      if (op == 7u) {
-        return !found;
-        // NOT_IN
-      }
+      return !found;
     }
     
     // Строки не поддерживают >, <, >=, <=
