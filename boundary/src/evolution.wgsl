@@ -301,6 +301,30 @@ fn get_field_value_raw(field_index: u32, target_field_id: u32) -> u32 {
  * @returns true если условие выполнено
  */
 fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, cond_values_base: u32) -> bool {
+  // Для ARRAY поддерживаем скалярные сравнения по длине.
+  // op: EQ/NEQ/GT/LT/GTE/LTE, val_b_raw: ожидаемая длина.
+  if (field_type == 4u && op <= 5u) {
+    let heap_ptr = val_a_raw;
+    let len = select(0u, heap[heap_ptr], heap_ptr != 0u);
+
+    if (op == 0u) {
+      return len == val_b_raw;
+    }
+    if (op == 1u) {
+      return len != val_b_raw;
+    }
+    if (op == 2u) {
+      return len > val_b_raw;
+    }
+    if (op == 3u) {
+      return len < val_b_raw;
+    }
+    if (op == 4u) {
+      return len >= val_b_raw;
+    }
+    return len <= val_b_raw;
+  }
+
   // Строковые операции (TYPE.STRING = 3)
   if (field_type == 3u) {
     // EQ / NEQ для строк
