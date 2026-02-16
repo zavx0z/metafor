@@ -10,6 +10,7 @@
 import { GlobalFieldRegistry, FieldType, type FieldTypeValue } from "./GlobalFieldRegistry"
 import { HeapAllocator } from "./HeapAllocator"
 import { BraneBuilder, BlockUtils } from "./BraneBuilder"
+import { getStringAtlas } from "../typeBridge"
 
 /**
  * Информация о поле (Field) в границе.
@@ -317,41 +318,20 @@ export class BraneManager {
         this.heapData[absoluteOffset] = Number(newValue)
         break
       case FieldType.STRING_PTR: {
-        // Освобождаем старую строку.
-        const oldOffset = this.heapData[absoluteOffset]!
-        const oldLength = this.heapData[absoluteOffset + 1]!
-        if (oldOffset > 0) {
-          const oldWordCount = Math.ceil(oldLength / 4) + 1
-          this.allocator.free(oldOffset, oldWordCount)
-
-          // Удаляем из extraAllocs.
-          const idx = field.extraAllocs.findIndex((a) => a.offset === oldOffset)
-          if (idx >= 0) {
-            field.extraAllocs.splice(idx, 1)
-          }
-        }
-
-        // Аллоцируем новую строку.
+        // Строки хранятся в формате [stringId, hash] через StringAtlas.
+        // Важно: здесь нельзя аллоцировать raw-строку в heap, иначе GPU-операторы
+        // EQ/NEQ/IN/NOT_IN получат не stringId и сравнения станут некорректными.
+        const atlas = getStringAtlas()
         const str = String(newValue)
-        const encoded = new TextEncoder().encode(str)
-        const newWordCount = Math.ceil(encoded.length / 4) + 1
-        const newBlock = this.allocator.alloc(newWordCount)
-        if (!newBlock) {
-          throw new Error(`Недостаточно памяти для строки`)
+        const stringId = atlas.intern(str)
+        const meta = atlas.getMeta(stringId)
+
+        if (!meta) {
+          throw new Error(`Не удалось получить метаданные для строки: ${str}`)
         }
 
-        // Записываем длину и байты строки.
-        const stringView = new Uint8Array(newBlock.size * 4)
-        new DataView(stringView.buffer).setUint32(0, encoded.length, true)
-        stringView.set(encoded, 4)
-
-        const heapWords = new Uint32Array(stringView.buffer)
-        field.extraAllocs.push({ offset: newBlock.offset, size: newBlock.size })
-        this.heapData.set(heapWords, newBlock.offset)
-
-        // Обновляем указатель в блоке поля.
-        this.heapData[absoluteOffset] = newBlock.offset
-        this.heapData[absoluteOffset + 1] = encoded.length
+        this.heapData[absoluteOffset] = stringId
+        this.heapData[absoluteOffset + 1] = meta.hash
         break
       }
       case FieldType.ARRAY_PTR: {
