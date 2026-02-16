@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeAll, afterAll, beforeEach } from "bun:test"
+import { test, expect, describe, beforeAll, afterAll } from "bun:test"
 import { BoundaryTestFixture } from "./fixture"
 
 describe("Boundary — Логика новых этапов (GPU)", () => {
