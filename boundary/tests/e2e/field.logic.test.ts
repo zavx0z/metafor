@@ -1,10 +1,10 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
-import { BoundaryTestFixture } from "./fixture"
+import { BrowserWebGPU } from "../fixture/browserWebGPU"
 
 describe("Boundary — Тесты логики (реальное устройство GPU)", () => {
-  beforeAll(async () => await BoundaryTestFixture.setup())
-  afterAll(async () => await BoundaryTestFixture.teardown(), 20000)
-  const fixture = new BoundaryTestFixture()
+  beforeAll(async () => await BrowserWebGPU.setup())
+  afterAll(async () => await BrowserWebGPU.teardown(), 20000)
+  const fixture = new BrowserWebGPU()
 
   /** Общая суперпозиция для тестов с hp/mana/isAlive */
   const defaultSuperposition = {

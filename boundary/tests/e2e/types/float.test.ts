@@ -1,10 +1,10 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
-import { BoundaryTestFixture } from "../fixture"
+import { BrowserWebGPU } from "../../fixture/browserWebGPU"
 
 describe("Boundary - FLOAT type (number)", () => {
-  beforeAll(async () => await BoundaryTestFixture.setup())
-  afterAll(async () => await BoundaryTestFixture.teardown(), 20000)
-  const fixture = new BoundaryTestFixture()
+  beforeAll(async () => await BrowserWebGPU.setup())
+  afterAll(async () => await BrowserWebGPU.teardown(), 20000)
+  const fixture = new BrowserWebGPU()
 
   describe("EQ operator (equals)", () => {
     test("should transition when value equals specified", async () => {

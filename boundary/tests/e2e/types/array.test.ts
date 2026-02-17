@@ -1,10 +1,10 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
-import { BoundaryTestFixture } from "../fixture"
+import { BrowserWebGPU } from "../../fixture/browserWebGPU"
 
 describe("Boundary — Тип ARRAY (array)", () => {
-  beforeAll(async () => await BoundaryTestFixture.setup())
-  afterAll(async () => await BoundaryTestFixture.teardown(), 20000)
-  const fixture = new BoundaryTestFixture()
+  beforeAll(async () => await BrowserWebGPU.setup())
+  afterAll(async () => await BrowserWebGPU.teardown(), 20000)
+  const fixture = new BrowserWebGPU()
 
   // ПРИМЕЧАНИЕ: Тип ARRAY хранится как длина + указатели на элементы.
   // Поддерживаемые типы элементов: array<string>, array<number>

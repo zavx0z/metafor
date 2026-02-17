@@ -1,5 +1,5 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
-import { BoundaryTestFixture } from "./fixture"
+import { BrowserWebGPU } from "../fixture/browserWebGPU"
 
 /**
  * E2E tests for individual superpositions on real GPU.
@@ -15,9 +15,9 @@ import { BoundaryTestFixture } from "./fixture"
  * 5. Multi-step simulations with individual transitions
  */
 describe("Boundary - E2E tests for individual superpositions", () => {
-  beforeAll(async () => await BoundaryTestFixture.setup())
-  afterAll(async () => await BoundaryTestFixture.teardown(), 20000)
-  const fixture = new BoundaryTestFixture()
+  beforeAll(async () => await BrowserWebGPU.setup())
+  afterAll(async () => await BrowserWebGPU.teardown(), 20000)
+  const fixture = new BrowserWebGPU()
 
   describe("Fields with different states", () => {
     test("each field transitions to its target state", async () => {

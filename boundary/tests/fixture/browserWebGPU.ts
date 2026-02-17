@@ -5,6 +5,7 @@ import { join } from "node:path"
 import { serve } from "bun"
 
 // ==================== КОНФИГУРАЦИЯ ====================
+const packageRoot = join(import.meta.dir, "../..")
 
 // Таймауты
 const PUPPETEER_TIMEOUT_MS = 45000 // Таймаут для операций Puppeteer (навигация, ожидание элементов)
@@ -46,7 +47,7 @@ const SERVER_OPTIONS = {
 /**
  * Фикстура для запуска эволюции полей на границе (Boundary) в браузере с реальным GPU-устройством.
  */
-export class BoundaryTestFixture {
+export class BrowserWebGPU {
   private static browser: puppeteerTypes.Browser | null = null
   private static server: any = null
   private static baseUrl = ""
@@ -83,7 +84,6 @@ export class BoundaryTestFixture {
     }
 
     this.setupPromise = (async () => {
-      const packageRoot = join(import.meta.dir, "..")
       const outDir = join(packageRoot, OUT_DIR_NAME)
 
       // Собираем библиотеку для тестирования
@@ -297,11 +297,11 @@ export class BoundaryTestFixture {
     updates?: Array<{ braneIndex: number; componentName: string; value: number | boolean | string }>
     steps?: number
   }): Promise<{ success: boolean; states?: string[]; error?: string; stack?: string }> {
-    if (!BoundaryTestFixture.browser || !BoundaryTestFixture.baseUrl) {
+    if (!BrowserWebGPU.browser || !BrowserWebGPU.baseUrl) {
       throw new Error("Fixture not initialized. Call BoundaryTestFixture.setup() first")
     }
 
-    const page = await BoundaryTestFixture.browser.newPage()
+    const page = await BrowserWebGPU.browser.newPage()
     page.setDefaultNavigationTimeout(PUPPETEER_TIMEOUT_MS)
     page.setDefaultTimeout(PUPPETEER_TIMEOUT_MS)
 
@@ -323,7 +323,7 @@ export class BoundaryTestFixture {
         steps: params.steps !== undefined ? params.steps : 1,
       }
 
-      const testUrl = `${BoundaryTestFixture.baseUrl}/test?data=${encodeURIComponent(JSON.stringify(testData))}`
+      const testUrl = `${BrowserWebGPU.baseUrl}/test?data=${encodeURIComponent(JSON.stringify(testData))}`
       await page.goto(testUrl, { waitUntil: "networkidle2", timeout: PUPPETEER_TIMEOUT_MS })
 
       // Ждем появления результата с отладочным логированием

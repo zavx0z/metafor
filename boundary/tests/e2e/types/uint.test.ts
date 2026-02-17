@@ -1,10 +1,10 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
-import { BoundaryTestFixture } from "../fixture"
+import { BrowserWebGPU } from "../../fixture/browserWebGPU"
 
 describe("Boundary - UINT type (enum)", () => {
-  beforeAll(async () => await BoundaryTestFixture.setup())
-  afterAll(async () => await BoundaryTestFixture.teardown(), 20000)
-  const fixture = new BoundaryTestFixture()
+  beforeAll(async () => await BrowserWebGPU.setup())
+  afterAll(async () => await BrowserWebGPU.teardown(), 20000)
+  const fixture = new BrowserWebGPU()
 
   // NOTE: Enum values are stored as indices in the values array.
   // GT/LT/GTE/LTE comparisons work with indices, not values.
