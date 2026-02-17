@@ -15,7 +15,7 @@ import { getStringAtlas } from "../typeBridge"
 /**
  * Информация о поле (Field) в границе.
  */
-export interface FieldInfo {
+export interface BraneInfo {
   /** Уникальный идентификатор поля */
   id: number
   /** Указатель на блок в куче */
@@ -79,12 +79,12 @@ export class BraneManager {
   private readonly builder: BraneBuilder
 
   /** Хранилище информации о полях */
-  private fields: Map<number, FieldInfo> = new Map()
+  private fields: Map<number, BraneInfo> = new Map()
   /** Хранилище информации о запутанных (entangled) бранах */
   private entangledBranes: Map<number, EntangledBraneInfo> = new Map()
 
   /** Счётчик ID полей */
-  private nextFieldId: number = 0
+  private nextBraneId: number = 0
   /** Счётчик ID запутанных бран */
   private nextEntangledId: number = 0
 
@@ -159,7 +159,7 @@ export class BraneManager {
    * @param entangledBraneIds - Массив ID запутанных бран
    * @returns ID поля
    */
-  createField(brane: Record<string, unknown>, entangledBraneIds: number[] = []): number {
+  createBrane(brane: Record<string, unknown>, entangledBraneIds: number[] = []): number {
     // Преобразуем ID в указатели.
     const sharedPtrs = entangledBraneIds.map((id) => {
       const entangled = this.entangledBranes.get(id)
@@ -181,18 +181,18 @@ export class BraneManager {
       }
     }
 
-    const fieldId = this.nextFieldId++
-    const fieldInfo: FieldInfo = {
-      id: fieldId,
+    const braneId = this.nextBraneId++
+    const fieldInfo: BraneInfo = {
+      id: braneId,
       blockPtr: result.blockPtr,
       blockSize: result.blockSize,
       extraAllocs: result.extraAllocs.map(({ offset, size }) => ({ offset, size })),
       sharedPtrs,
     }
 
-    this.fields.set(fieldId, fieldInfo)
+    this.fields.set(braneId, fieldInfo)
     this.heapDirty = true
-    return fieldId
+    return braneId
   }
 
   /**
@@ -221,11 +221,11 @@ export class BraneManager {
 
     // 2. Группировка: компоненты с одинаковым набором владельцев -> одна запутанная брана.
     const entangledGroups = new Map<string, Set<string>>() // key -> components
-    componentUsage.forEach((fieldIds, component) => {
-      if (fieldIds.size < 2) return
+    componentUsage.forEach((braneIds, component) => {
+      if (braneIds.size < 2) return
 
-      const key = Array.from(fieldIds).sort().join(",")
-      const ids = Array.from(fieldIds)
+      const key = Array.from(braneIds).sort().join(",")
+      const ids = Array.from(braneIds)
       const firstValue = branes[ids[0]!]?.[component]
       const allSame = ids.every((idx) => valueEquals(branes[idx]![component], firstValue))
       if (!allSame) return
@@ -238,8 +238,8 @@ export class BraneManager {
 
     const entangledBraneIds = new Map<string, number>() // key -> entangledBraneId
     entangledGroups.forEach((components, key) => {
-      const fieldIdxs = key.split(",").map((value) => Number(value))
-      const firstFieldIdx = fieldIdxs[0]!
+      const braneIdxs = key.split(",").map((value) => Number(value))
+      const firstFieldIdx = braneIdxs[0]!
       const fieldData = branes[firstFieldIdx] as Record<string, unknown>
       const brane = Object.fromEntries(Array.from(components).map((comp) => [comp, fieldData[comp]]))
       const entangledId = this.createEntangledBrane(brane)
@@ -247,7 +247,7 @@ export class BraneManager {
     })
 
     // 3. Создание полей с указателями на запутанные браны.
-    const fieldIds: number[] = []
+    const braneIds: number[] = []
 
     branes.forEach((brane, idx) => {
       const entangledIds: number[] = []
@@ -268,11 +268,11 @@ export class BraneManager {
         }
       })
 
-      const fieldId = this.createField(localBrane, entangledIds)
-      fieldIds.push(fieldId)
+      const braneId = this.createBrane(localBrane, entangledIds)
+      braneIds.push(braneId)
     })
 
-    return fieldIds
+    return braneIds
   }
 
   /**
@@ -280,14 +280,14 @@ export class BraneManager {
    *
    * Для компонент переменного размера (строки, массивы) выполняет free + re-allocate.
    *
-   * @param fieldId - ID поля
+   * @param braneId - ID поля
    * @param componentName - Имя компоненты браны
    * @param newValue - Новое значение
    */
-  updateBraneField(fieldId: number, componentName: string, newValue: unknown): void {
-    const field = this.fields.get(fieldId)
+  updateBraneField(braneId: number, componentName: string, newValue: unknown): void {
+    const field = this.fields.get(braneId)
     if (!field) {
-      throw new Error(`Поле с ID ${fieldId} не найдено`)
+      throw new Error(`Поле с ID ${braneId} не найдено`)
     }
 
     const fieldMeta = this.registry.getMeta(componentName)
@@ -299,7 +299,7 @@ export class BraneManager {
     const block = this.heapData.slice(field.blockPtr, field.blockPtr + field.blockSize)
 
     // Находим компоненту в блоке.
-    const componentInfo = BlockUtils.findField(block, fieldMeta.componentId)
+    const componentInfo = BlockUtils.findField(block, fieldMeta.fieldId)
     if (!componentInfo) {
       throw new Error(`Компонента '${componentName}' не найдена в блоке поля`)
     }
@@ -409,12 +409,12 @@ export class BraneManager {
    *
    * Освобождает память блока поля и всех его дополнительных аллокаций.
    *
-   * @param fieldId - ID поля
+   * @param braneId - ID поля
    */
-  deleteField(fieldId: number): void {
-    const field = this.fields.get(fieldId)
+  deleteField(braneId: number): void {
+    const field = this.fields.get(braneId)
     if (!field) {
-      throw new Error(`Поле с ID ${fieldId} не найдено`)
+      throw new Error(`Поле с ID ${braneId} не найдено`)
     }
 
     // Освобождаем дополнительные аллокации (строки, массивы).
@@ -425,7 +425,7 @@ export class BraneManager {
     // Освобождаем блок поля.
     this.allocator.free(field.blockPtr, field.blockSize)
 
-    this.fields.delete(fieldId)
+    this.fields.delete(braneId)
     this.heapDirty = true
   }
 
@@ -455,10 +455,10 @@ export class BraneManager {
   /**
    * Получить указатель на блок поля.
    */
-  getFieldBlockPtr(fieldId: number): number {
-    const field = this.fields.get(fieldId)
+  getFieldBlockPtr(braneId: number): number {
+    const field = this.fields.get(braneId)
     if (!field) {
-      throw new Error(`Поле с ID ${fieldId} не найдено`)
+      throw new Error(`Поле с ID ${braneId} не найдено`)
     }
     return field.blockPtr
   }
@@ -481,8 +481,8 @@ export class BraneManager {
    */
   getGPUBuffers(): { fieldDescriptors: Uint32Array; heap: Uint32Array } {
     // Создаём буфер дескрипторов полей: массив указателей на блоки.
-    const fieldCount = this.fields.size
-    const fieldDescriptors = new Uint32Array(fieldCount)
+    const braneCount = this.fields.size
+    const fieldDescriptors = new Uint32Array(braneCount)
     let idx = 0
     for (const [, field] of this.fields) {
       fieldDescriptors[idx++] = field.blockPtr
@@ -511,14 +511,14 @@ export class BraneManager {
   /**
    * Получить информацию о поле.
    */
-  getFieldInfo(fieldId: number): FieldInfo | undefined {
-    return this.fields.get(fieldId)
+  getBraneInfo(braneId: number): BraneInfo | undefined {
+    return this.fields.get(braneId)
   }
 
   /**
    * Получить ансамбль (список всех полей).
    */
-  getEnsemble(): FieldInfo[] {
+  getEnsemble(): BraneInfo[] {
     return Array.from(this.fields.values())
   }
 }

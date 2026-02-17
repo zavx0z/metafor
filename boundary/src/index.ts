@@ -37,7 +37,7 @@ import { resetStringAtlas, getStringAtlas } from "./typeBridge"
  * Определение типа компоненты в бране.
  * Может быть объектом с полем type и дополнительными параметрами.
  */
-export type BraneFieldDefinition =
+export type FieldDefinition =
   | { type: "number" }
   | { type: "boolean" }
   | { type: "string" }
@@ -50,7 +50,7 @@ export type BraneFieldDefinition =
  * Схема браны — описание типов данных для всех полей границы.
  * Ключ — имя компоненты, значение — определение типа.
  */
-export type BraneSchema = Record<string, BraneFieldDefinition>
+export type BraneSchema = Record<string, FieldDefinition>
 
 /**
  * Суперпозиция — граф возможных состояний и условий переходов между ними.
@@ -72,7 +72,7 @@ export type Superposition = Record<string, Record<string, any> | null>
  * Каждое поле имеет уникальный идентификатор, брану (данные), начальное состояние
  * и индивидуальную суперпозицию (граф переходов).
  */
-export interface FieldDefinition {
+export interface BraneDefinition {
   /** Уникальный идентификатор поля */
   id: string
   /** Начальные данные браны поля */
@@ -107,12 +107,12 @@ export interface BoundaryConfig {
    * }
    * ```
    */
-  branes: BraneSchema
+  fields: BraneSchema
 
   /**
-   * Массив полей с их бранами, начальными состояниями и индивидуальными суперпозициями.
+   * Массив бран (сущностей) с их полями, начальными состояниями и индивидуальными суперпозициями.
    */
-  fields: FieldDefinition[]
+  branes: BraneDefinition[]
 }
 
 /**
@@ -141,7 +141,7 @@ export class Boundary {
   /** Массив обратных маппингов для декодирования результатов */
   private reverseStateMaps: string[][] = []
   /** ID полей в BraneManager */
-  private fieldIds: number[] = []
+  private braneIds: number[] = []
 
   /**
    * @param device - Инициализированный `GPUDevice`.
@@ -172,8 +172,8 @@ export class Boundary {
    * * Начальные состояния полей должны существовать в соответствующем stateMap.
    *
    * @param config - Конфигурация границы.
-   * @param config.branes - Схема типов данных браны.
-   * @param config.fields - Массив полей с бранами, состояниями и суперпозициями.
+   * @param config.fields - Схема типов данных полей.
+   * @param config.branes - Массив бран с полями, состояниями и суперпозициями.
    *
    * @throws {Error} Если:
    * * WebGPU не поддерживается или устройство недоступно.
@@ -183,8 +183,8 @@ export class Boundary {
    * @example
    * ```ts
    * await boundary.init({
-   *   branes: { hp: { type: "number" } },
-   *   fields: [
+   *   fields: { hp: { type: "number" } },
+   *   branes: [
    *     {
    *       id: "warrior",
    *       brane: { hp: 100 },
@@ -219,7 +219,7 @@ export class Boundary {
     // 1. Регистрируем компоненты браны из схемы в глобальном реестре.
     const registry = GlobalFieldRegistry.getInstance()
 
-    for (const [name, def] of Object.entries(config.branes)) {
+    for (const [name, def] of Object.entries(config.fields)) {
       const defTyped = def as { type?: string; values?: any[] } | string
       const typeStr = typeof defTyped === "string" ? defTyped : defTyped.type
       let fieldType: FieldTypeValue
@@ -262,19 +262,19 @@ export class Boundary {
     }
 
     // 2. Создаём поля — менеджер сам группирует общие данные бран!
-    this.fieldIds = this.braneManager.createEnsemble(config.fields.map((f) => f.brane))
+    this.braneIds = this.braneManager.createEnsemble(config.branes.map((b) => b.brane))
 
     // 3. Компилируем каждую индивидуальную суперпозицию отдельно.
     const compiled = this.compiler.compileEnsemble(
-      config.fields.map((f) => f.superposition),
-      config.branes,
+      config.branes.map((b) => b.superposition),
+      config.fields,
     )
     this.stateMaps = compiled.stateMaps
     this.reverseStateMaps = compiled.reverseStateMaps
 
     // 4. Формируем начальные состояния (каждое поле использует свой stateMap).
     const states = new Uint32Array(
-      config.fields.map((f, i) => this.stateMaps[i]![f.state] ?? 0),
+      config.branes.map((b, i) => this.stateMaps[i]![b.state] ?? 0),
     )
 
     // 5. Получаем буферы бран и создаём fieldDescriptors в новом формате.
@@ -287,8 +287,8 @@ export class Boundary {
     console.log("  Field descriptors:", JSON.stringify(Array.from(braneDescriptors)))
 
     // Формируем fieldDescriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
-    const fieldDescriptors = new Uint32Array(config.fields.length * 2)
-    for (let i = 0; i < config.fields.length; i++) {
+    const fieldDescriptors = new Uint32Array(config.branes.length * 2)
+    for (let i = 0; i < config.branes.length; i++) {
       fieldDescriptors[i * 2] = braneDescriptors[i]! // block_ptr
       fieldDescriptors[i * 2 + 1] = compiled.bytecodeOffsets[i]! // bytecode_offset
     }
@@ -320,7 +320,7 @@ export class Boundary {
     console.log("  Bytecode offsets:", JSON.stringify(Array.from(compiled.bytecodeOffsets)))
     
     await this.backend.init({
-      fieldCount: config.fields.length,
+      braneCount: config.branes.length,
       bytecode: compiled.bytecode,
       bytecodeOffsets: compiled.bytecodeOffsets,
       states,
@@ -354,7 +354,7 @@ export class Boundary {
    * ### Внутренняя работа:
    * 1. Копирование данных из GPU-буфера `states` в staging buffer.
    * 2. Асинхронное отображение (map) памяти для чтения CPU.
-   * 3. Преобразование числовых StateID в строковые имена через reverseStateMap.
+   * 3. Преобразование числовых StateId в строковые имена через reverseStateMap.
    *
    * ### Важно:
    * * Это **дорогая операция** (синхронизация CPU-GPU).
@@ -410,12 +410,12 @@ export class Boundary {
    * ```
    */
   updateBraneField(fieldIndex: number, componentName: string, value: unknown): void {
-    const fieldId = this.fieldIds[fieldIndex]
-    if (fieldId === undefined) {
+    const braneId = this.braneIds[fieldIndex]
+    if (braneId === undefined) {
       throw new Error(`Неизвестный индекс поля: ${fieldIndex}`)
     }
 
-    this.braneManager.updateBraneField(fieldId, componentName, value)
+    this.braneManager.updateBraneField(braneId, componentName, value)
     if (this.braneManager.isHeapDirty()) {
       const { heap } = this.braneManager.getGPUBuffers()
       this.backend.updateHeap(heap)

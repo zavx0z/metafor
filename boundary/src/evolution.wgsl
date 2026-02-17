@@ -23,9 +23,9 @@ struct Uniforms {
    * 
    * Используется в `main()` для защиты от out-of-bounds доступа:
    * compute-шейдер запускается с фиксированным числом workgroups,
-   * и потоки с `id.x >= fieldCount` досрочно завершаются.
+   * и потоки с `id.x >= braneCount` досрочно завершаются.
    */
-  fieldCount: u32,
+  braneCount: u32,
   /** Padding для выравнивания до 16 байт. Значение игнорируется GPU. */
   _pad0: u32,
   /** Padding для выравнивания до 16 байт. Значение игнорируется GPU. */
@@ -35,7 +35,7 @@ struct Uniforms {
 }
 
 @group(0) @binding(0)
-var<storage, read> field_descriptors: array<u32>;
+var<storage, read> brane_descriptors: array<u32>;
 @group(0) @binding(1)
 var<storage, read> heap: array<u32>;
 @group(0) @binding(2)
@@ -152,9 +152,9 @@ fn string_in_list(string_id: u32, abs_list_ptr: u32) -> bool {
   return false;
 }
 
-fn get_field_block_ptr(field_index: u32) -> u32 {
-  // field_descriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
-  return field_descriptors[field_index * 2u];
+fn get_field_block_ptr(brane_index: u32) -> u32 {
+  // brane_descriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
+  return brane_descriptors[brane_index * 2u];
 }
 
 fn get_local_field_count(block_ptr: u32) -> u32 {
@@ -190,9 +190,9 @@ fn find_field(block_ptr: u32, target_field_id: u32) -> vec4<u32> {
   return vec4<u32>(0u, 0u, 0u, 0u);
 }
 
-fn get_field_value_recursive(field_index: u32, target_field_id: u32) -> f32 {
+fn get_field_value_recursive(brane_index: u32, target_field_id: u32) -> f32 {
   // Ищем в локальном блоке поля
-  let block_ptr = get_field_block_ptr(field_index);
+  let block_ptr = get_field_block_ptr(brane_index);
   let result = find_field(block_ptr, target_field_id);
 
   if (result.x == 1u) {
@@ -248,9 +248,9 @@ fn get_field_value_recursive(field_index: u32, target_field_id: u32) -> f32 {
  * Получить сырое значение поля как u32.
  * Для строк возвращает string_id, для скаляров - битовое представление.
  */
-fn get_field_value_raw(field_index: u32, target_field_id: u32) -> u32 {
+fn get_field_value_raw(brane_index: u32, target_field_id: u32) -> u32 {
   // Ищем в локальном блоке поля
-  let block_ptr = get_field_block_ptr(field_index);
+  let block_ptr = get_field_block_ptr(brane_index);
   let result = find_field(block_ptr, target_field_id);
 
   if (result.x == 1u) {
@@ -465,7 +465,7 @@ fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, cond_val
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
   let idx = id.x;
-  if (idx >= u.fieldCount) {
+  if (idx >= u.braneCount) {
     return;
   }
 
@@ -473,8 +473,8 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
   var next_state = current_state;
 
   // Получаем указатель на блок браны и смещение bytecode для этого поля
-  // field_descriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
-  let block_ptr = field_descriptors[idx * 2u];
+  // brane_descriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
+  let block_ptr = brane_descriptors[idx * 2u];
   let bytecode_base = bytecode_offsets[idx];
 
   // Таблица состояний всегда в начале bytecode (offset 0)

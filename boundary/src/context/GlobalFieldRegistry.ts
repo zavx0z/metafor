@@ -1,8 +1,8 @@
 /**
- * @file Глобальный реестр компонент браны.
+ * @file Глобальный реестр полей браны.
  *
  * Синглтон, управляющий маппингом строковых имен компонент на их метаданные:
- * - componentId: уникальный числовой идентификатор компоненты
+ * - fieldId: уникальный числовой идентификатор поля
  * - type: тип данных (U32, F32, StringPtr и т.д.)
  *
  * @packageDocumentation
@@ -32,11 +32,11 @@ export type FieldTypeValue = typeof FieldType[keyof typeof FieldType]
 /**
  * Метаданные компоненты браны.
  */
-export interface ComponentMeta {
-  /** Строковое имя компоненты */
+export interface FieldMeta {
+  /** Строковое имя поля */
   name: string
-  /** Уникальный числовой идентификатор компоненты */
-  componentId: number
+  /** Уникальный числовой идентификатор поля */
+  fieldId: number
   /** Тип данных */
   type: FieldTypeValue
   /** Тип элементов для массивов */
@@ -63,10 +63,10 @@ export interface ComponentMeta {
 export class GlobalFieldRegistry {
   private static instance: GlobalFieldRegistry | null = null
 
-  /** Маппинг имя компоненты -> метаданные */
-  private nameToMeta: Map<string, ComponentMeta> = new Map()
-  /** Маппинг componentId -> метаданные */
-  private idToMeta: Map<number, ComponentMeta> = new Map()
+  /** Маппинг имя поля -> метаданные */
+  private nameToMeta: Map<string, FieldMeta> = new Map()
+  /** Маппинг fieldId -> метаданные */
+  private idToMeta: Map<number, FieldMeta> = new Map()
   /** Счётчик для генерации уникальных ID */
   private nextId: number = 0
 
@@ -119,24 +119,24 @@ export class GlobalFieldRegistry {
       throw new Error(`Компонента '${name}' уже зарегистрирована`)
     }
 
-    const componentId = this.nextId++
-    const meta: ComponentMeta = {
-      componentId,
+    const fieldId = this.nextId++
+    const meta: FieldMeta = {
+      fieldId,
       type,
       name,
       ...(options.elementType !== undefined ? { elementType: options.elementType } : {}),
       ...(options.enumValues !== undefined ? { enumValues: options.enumValues } : {}),
     }
     this.nameToMeta.set(name, meta)
-    this.idToMeta.set(componentId, meta)
-    return componentId
+    this.idToMeta.set(fieldId, meta)
+    return fieldId
   }
 
   /**
    * Пакетная регистрация компонент.
    *
    * @param components - Объект {имя: тип}
-   * @returns Объект {имя: componentId}
+   * @returns Объект {имя: fieldId}
    */
   registerBatch(components: Record<string, FieldTypeValue>): Record<string, number> {
     const result: Record<string, number> = {}
@@ -152,18 +152,18 @@ export class GlobalFieldRegistry {
    * @param name - Имя компоненты
    * @returns Метаданные компоненты или undefined
    */
-  getMeta(name: string): ComponentMeta | undefined {
+  getMeta(name: string): FieldMeta | undefined {
     return this.nameToMeta.get(name)
   }
 
   /**
    * Получить метаданные компоненты по ID.
    *
-   * @param componentId - ID компоненты
+   * @param fieldId - ID поля
    * @returns Метаданные компоненты или undefined
    */
-  getMetaById(componentId: number): ComponentMeta | undefined {
-    return this.idToMeta.get(componentId)
+  getMetaById(fieldId: number): FieldMeta | undefined {
+    return this.idToMeta.get(fieldId)
   }
 
   /**
@@ -173,7 +173,7 @@ export class GlobalFieldRegistry {
    * @returns ID компоненты или -1 если не найдено
    */
   getId(name: string): number {
-    return this.nameToMeta.get(name)?.componentId ?? -1
+    return this.nameToMeta.get(name)?.fieldId ?? -1
   }
 
   /**
@@ -189,11 +189,11 @@ export class GlobalFieldRegistry {
   /**
    * Получить тип компоненты по ID.
    *
-   * @param componentId - ID компоненты
+   * @param fieldId - ID поля
    * @returns Тип компоненты или -1 если не найдено
    */
-  getType(componentId: number): FieldTypeValue | -1 {
-    return this.idToMeta.get(componentId)?.type ?? -1
+  getType(fieldId: number): FieldTypeValue | -1 {
+    return this.idToMeta.get(fieldId)?.type ?? -1
   }
 
   /**
@@ -210,7 +210,7 @@ export class GlobalFieldRegistry {
    *
    * @returns Массив метаданных всех компонент
    */
-  getAll(): ComponentMeta[] {
+  getAll(): FieldMeta[] {
     return Array.from(this.idToMeta.values())
   }
 
@@ -221,6 +221,3 @@ export class GlobalFieldRegistry {
     return this.nameToMeta.size
   }
 }
-
-// Обратная совместимость
-export type FieldMeta = ComponentMeta

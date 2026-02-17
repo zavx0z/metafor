@@ -8,7 +8,7 @@
  * [HEADER]
  * ├── local_field_count: u32
  * ├── shared_brane_count: u32
- * └── field_descriptors[local_field_count]:
+ * └── brane_descriptors[local_field_count]:
  *     ├── field_id: u32
  *     └── packed_meta: u32  // (type << 24) | (size << 16) | offset
  *
@@ -160,7 +160,7 @@ export class BraneBuilder {
         }
         return { name, meta, value }
       })
-      .sort((a, b) => a.meta.componentId - b.meta.componentId)
+      .sort((a, b) => a.meta.fieldId - b.meta.fieldId)
 
     const localFieldCount = localEntries.length
 
@@ -197,7 +197,7 @@ export class BraneBuilder {
     // Заполняем дескрипторы полей.
     let headerIndex = 2
     for (const layout of fieldLayouts) {
-      blockView[headerIndex++] = layout.meta.componentId
+      blockView[headerIndex++] = layout.meta.fieldId
       const packedMeta = packMeta(layout.meta.type, layout.sizeInWords, layout.offsetInWords)
       console.log(`[BraneBuilder] packMeta(${layout.meta.type}, ${layout.sizeInWords}, ${layout.offsetInWords}) = ${packedMeta} (0x${packedMeta.toString(16)})`)
       blockView[headerIndex++] = packedMeta
@@ -314,16 +314,16 @@ export class BraneBuilder {
    * Вычислить размер блока без аллокации (для предварительной оценки).
    */
   calculateSize(brane: Record<string, unknown>, sharedPtrsCount: number = 0): number {
-    let fieldCount = 0
+    let braneCount = 0
     let fieldsSize = 0
     for (const [name] of Object.entries(brane)) {
       const meta = this.registry.getMeta(name)
       if (!meta) continue
-      fieldCount++
+      braneCount++
       fieldsSize += getFieldSize(meta.type, brane[name])
     }
     // header + shared_ptrs + fields
-    return 2 + fieldCount * 2 + sharedPtrsCount + fieldsSize
+    return 2 + braneCount * 2 + sharedPtrsCount + fieldsSize
   }
 }
 
@@ -352,8 +352,8 @@ export const BlockUtils = {
     const localCount = block[0]!
     for (let i = 0; i < localCount; i++) {
       const descOffset = 2 + i * 2
-      const fieldId = block[descOffset]!
-      if (fieldId === targetFieldId) {
+      const braneId = block[descOffset]!
+      if (braneId === targetFieldId) {
         return {
           offset: descOffset,
           meta: unpackMeta(block[descOffset + 1]!),

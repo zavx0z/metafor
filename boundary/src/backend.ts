@@ -6,7 +6,7 @@ import { getStringAtlas } from "./typeBridge"
  */
 interface BackendInitParams {
   /** Количество полей в границе */
-  fieldCount: number
+  braneCount: number
   /** Конкатенированный bytecode всех полей */
   bytecode: Uint32Array
   /** Таблица смещений bytecode для каждого поля */
@@ -67,12 +67,12 @@ export class GPUBackend {
     this.buffers.heap = this.createStorageBuffer(params.heap)
     this.buffers.states = this.createStorageBuffer(params.states, true) // источник/назначение
 
-    this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.fieldCount), true)
+    this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.braneCount), true)
     this.buffers.bytecode = this.createStorageBuffer(params.bytecode)
     this.buffers.bytecodeOffsets = this.createStorageBuffer(params.bytecodeOffsets)
 
-    // uniforms: [fieldCount, reserved, reserved, reserved]
-    const uniforms = new Uint32Array([params.fieldCount, 0, 0, 0])
+    // uniforms: [braneCount, reserved, reserved, reserved]
+    const uniforms = new Uint32Array([params.braneCount, 0, 0, 0])
     this.buffers.uniforms = this.createBuffer(uniforms, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST)
 
     // StringAtlas buffers for string interning
