@@ -3,27 +3,12 @@ import type * as puppeteerTypes from "puppeteer"
 import { existsSync } from "node:fs"
 import { join } from "node:path"
 import { serve } from "bun"
-import { homedir } from "node:os"
 
 // ==================== КОНФИГУРАЦИЯ ====================
 
 // Таймауты
-const TEARDOWN_TIMEOUT_MS = 20000 // Таймаут для завершения работы фикстуры после всех тестов
 const PUPPETEER_TIMEOUT_MS = 45000 // Таймаут для операций Puppeteer (навигация, ожидание элементов)
 const WEBGPU_WAIT_MS = 444 // Время ожидания завершения асинхронных операций WebGPU
-
-// Пути к браузерам (macOS)
-const BROWSER_PATHS_MACOS = [
-  "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
-  "/Applications/Google Chrome Canary.app/Contents/MacOS/Google Chrome Canary",
-  "/Applications/Chromium.app/Contents/MacOS/Chromium",
-]
-
-// Пути к браузерам, установленным через Puppeteer
-const PUPPETEER_CACHE_PATHS = [
-  join(homedir(), ".cache", "puppeteer"),
-  join(homedir(), "Library", "Caches", "puppeteer"),
-]
 
 // Директории
 const OUT_DIR_NAME = "dist-test" // Директория для сборки библиотеки для тестирования
@@ -57,76 +42,6 @@ const SERVER_OPTIONS = {
 }
 
 // ==================== КОНЕЦ КОНФИГУРАЦИИ ====================
-
-/**
- * Ищет исполняемый файл браузера в кэше Puppeteer.
- */
-function findPuppeteerBrowser(): string | undefined {
-  const { readdirSync, statSync } = require("node:fs")
-
-  for (const cachePath of PUPPETEER_CACHE_PATHS) {
-    if (!existsSync(cachePath)) continue
-
-    try {
-      // Ищем в директории chrome
-      const chromeDir = join(cachePath, "chrome")
-      if (existsSync(chromeDir)) {
-        const versions = readdirSync(chromeDir)
-        for (const version of versions) {
-          const versionDir = join(chromeDir, version)
-          if (!statSync(versionDir).isDirectory()) continue
-
-          // Структура Puppeteer 24.x:
-          // <cache>/chrome/mac-<version>/chrome-mac-x64/Google Chrome for Testing.app/Contents/MacOS/Google Chrome for Testing
-          // или mac_arm для Apple Silicon
-          const possiblePaths = [
-            // Puppeteer 24.x структура
-            join(
-              versionDir,
-              "chrome-mac-x64",
-              "Google Chrome for Testing.app",
-              "Contents",
-              "MacOS",
-              "Google Chrome for Testing",
-            ),
-            join(
-              versionDir,
-              "chrome-mac-arm64",
-              "Google Chrome for Testing.app",
-              "Contents",
-              "MacOS",
-              "Google Chrome for Testing",
-            ),
-            // Альтернативная структура
-            join(versionDir, "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing"),
-            join(versionDir, "Chromium.app", "Contents", "MacOS", "Chromium"),
-          ]
-          for (const p of possiblePaths) {
-            if (existsSync(p)) return p
-          }
-        }
-      }
-    } catch {
-      // Игнорируем ошибки чтения директорий
-    }
-  }
-  return undefined
-}
-
-/**
- * Вспомогательная функция для получения пути к исполняемому файлу браузера.
- */
-function getExecutablePath(): string | undefined {
-  // Сначала проверяем системные браузеры
-  if (process.platform === "darwin") {
-    for (const p of BROWSER_PATHS_MACOS) {
-      if (existsSync(p)) return p
-    }
-  }
-
-  // Затем ищем в кэше Puppeteer
-  return findPuppeteerBrowser()
-}
 
 /**
  * Фикстура для запуска эволюции полей на границе (Boundary) в браузере с реальным GPU-устройством.
@@ -179,7 +94,6 @@ export class BoundaryTestFixture {
       })
 
       const launchOptions: any = { ...LAUNCH_OPTIONS }
-
 
       try {
         this.browser = await puppeteer.launch(launchOptions)
@@ -486,18 +400,7 @@ export class BoundaryTestFixture {
 }
 
 // Обратная совместимость
-export { BoundaryTestFixture as QuantumFieldTestFixture }
-
-/**
- * Создает фикстуру для использования в тестах.
- * @param options Опции фикстуры
- * @param options.debug Включить отладочные логи
- */
-export function createBoundaryFixture(options?: { debug?: boolean }) {
-  return new BoundaryTestFixture(options)
-}
 
 // Обратная совместимость
-export { createBoundaryFixture as createQuantumFieldFixture }
 
 const html = String.raw

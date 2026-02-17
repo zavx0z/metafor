@@ -417,8 +417,6 @@ describe("Компилятор правил — функциональные т�
     })
   })
 
-  // ПРИМЕЧАНИЕ: fieldMap был удалён из интерфейса CompiledRules в новой архитектуре
-  // Вместо него используется GlobalFieldRegistry для получения field_id
   describe("Маппинг полей контекста", () => {
     test("поля должны быть зарегистрированы в GlobalFieldRegistry", () => {
       const compiler = new RulesCompiler()

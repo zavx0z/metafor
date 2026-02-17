@@ -3,8 +3,6 @@ import { RulesCompiler } from "../src/compiler"
 import { OP } from "../src/common"
 
 describe("Компилятор (Этапы 2 и 3) — Строгая типизация", () => {
-  // ПРИМЕЧАНИЕ: fieldMap был удалён из интерфейса CompiledRules в новой архитектуре
-  // Информация о типах теперь хранится в GlobalFieldRegistry
   describe("Парсинг типов", () => {
     test("array<number> должен компилироваться корректно", () => {
       const compiler = new RulesCompiler()
@@ -16,7 +14,6 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
       // Проверяем, что байткод сгенерирован
       expect(result.bytecode).toBeInstanceOf(Uint32Array)
       expect(result.bytecode.length).toBeGreaterThan(0)
-      console.log("✅ array<number> компилируется корректно")
     })
 
     test("array<string> должен компилироваться корректно", () => {
@@ -28,7 +25,6 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
 
       expect(result.bytecode).toBeInstanceOf(Uint32Array)
       expect(result.bytecode.length).toBeGreaterThan(0)
-      console.log("✅ array<string> компилируется корректно")
     })
 
     test("enum<string> должен компилироваться корректно", () => {
@@ -39,7 +35,6 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
       const result = compiler.compile(config, schema)
       expect(result.bytecode).toBeInstanceOf(Uint32Array)
       expect(result.bytecode.length).toBeGreaterThan(0)
-      console.log("✅ enum<string> компилируется корректно")
     })
   })
 
@@ -77,7 +72,6 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
       expect(item1).toBe(1) // "WALK" index
       expect(item2).toBe(2) // "RUN" index
 
-      console.log(`✅ Enum значения в списке закодированы как индексы: ${item1}, ${item2}`)
     })
 
     test("number список должен кодироваться через bitcast", () => {
@@ -111,7 +105,6 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
       const val1Raw = bc[absHeapPtr + 1]!
       const floatView = new Float32Array(new Uint32Array([val1Raw]).buffer)
       expect(floatView[0]).toBeCloseTo(36.6)
-      console.log(`✅ Float закодирован: ${floatView[0]}`)
     })
 
     test("оператор 'include' должен генерировать OP.INCLUDE", () => {
@@ -140,7 +133,6 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
         }
       }
       expect(found).toBe(true)
-      console.log("✅ OP.INCLUDE сгенерирован корректно")
     })
 
     test("оператор 'isEmpty' должен принимать boolean", () => {
@@ -163,7 +155,6 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
         }
       }
       expect(found).toBe(true)
-      console.log("✅ OP.IS_EMPTY с аргументом true сгенерирован")
     })
   })
 })
