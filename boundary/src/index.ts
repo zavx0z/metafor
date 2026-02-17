@@ -1,19 +1,43 @@
 /**
-* Boundary — главный класс библиотеки.
-*
-* Онтология (квантовая теория поля):
-* - Boundary (Граница) — область пространства, содержащая браны
-* - Brane (Брана) — агент/сущность с полями данных, суперпозицией и состоянием
-* - Field (Поле) — данные внутри браны (hp, mana, name)
-* - Superposition (Суперпозиция) — граф возможных переходов между состояниями
-* - State (Состояние) — текущее наблюдаемое состояние
-*/
+ * Boundary — движок квантовых полей на WebGPU.
+ *
+ * ## Архитектура
+ *
+ * Модуль реализует парадигму "квантовой машины состояний", где переходы между
+ * состояниями происходят на GPU в параллельном режиме. Основные компоненты:
+ *
+ * - **{@link Boundary}** — фасад модуля, координирует инициализацию и эволюцию.
+ * - **{@link GPUBackend}** — драйвер WebGPU, управляет буферами и compute-шейдерами.
+ * - **{@link RulesCompiler}** — транслирует JSON-правила в байт-код для VM на GPU.
+ * - **{@link BraneManager}** — менеджер памяти бран (аллокация, обновление полей).
+ * - **{@link StringAtlas}** — система интернирования строк для GPU.
+ *
+ * ## Поток данных
+ *
+ * ```
+ * JSON Config → RulesCompiler → bytecode → GPUBackend
+ *                          ↓
+ * BraneManager → heap → GPUBuffer → compute pass → new states
+ * ```
+ *
+ * ## Ключевые ограничения
+ *
+ * - Все состояния должны быть объявлены в корне superposition (даже `null`).
+ * - Размер heap фиксирован (по умолчанию 16384 u32).
+ * - Readback из GPU — асинхронная операция (медленно).
+ *
+ * @packageDocumentation
+ */
 
 import { GPUBackend } from "./backend"
 import { RulesCompiler } from "./compiler"
 import { BraneManager, FieldType, FieldRegistry, type FieldTypeValue } from "./context"
 import { resetStringAtlas, getStringAtlas } from "./typeBridge"
 
+/**
+ * Определение типа поля браны.
+ * Используется для автоматического маппинга в FieldType и выделения памяти.
+ */
 export type FieldDefinition =
   | { type: "number" }
   | { type: "boolean" }
@@ -25,20 +49,61 @@ export type FieldDefinition =
 
 export type FieldsDefinition = Record<string, FieldDefinition>
 
+/**
+ * Граф переходов между состояниями.
+ * Ключ верхнего уровня — имя состояния, значение — карта переходов.
+ * `null` означает состояние без исходящих переходов (терминальное).
+ */
 export type Superposition = Record<string, Record<string, any> | null>
 
+/**
+ * Определение отдельной браны.
+ */
 export interface BraneDefinition {
+  /** Уникальный идентификатор браны (для отладки). */
   id: string
+  /** Начальные значения полей. */
   fields: Record<string, unknown>
+  /** Имя начального состояния (должно быть в superposition). */
   state: string
+  /** Граф переходов для этой браны. */
   superposition: Superposition
 }
 
+/**
+ * Конфигурация границы для инициализации.
+ */
 export interface BoundaryConfig {
+  /** Схема типов полей (общая для всех бран). */
   fields: FieldsDefinition
+  /** Массив определений бран. */
   branes: BraneDefinition[]
 }
 
+/**
+ * Фасад модуля Boundary. Координирует инициализацию GPU-ресурсов,
+ * компиляцию правил и эволюцию бран.
+ *
+ * @example
+ * ```ts
+ * const adapter = await navigator.gpu.requestAdapter()
+ * const device = await adapter.requestDevice()
+ * const boundary = new Boundary(device)
+ *
+ * await boundary.init({
+ *   fields: { hp: { type: "number" }, name: { type: "string" } },
+ *   branes: [{
+ *     id: "hero",
+ *     fields: { hp: 100, name: "Arthur" },
+ *     state: "IDLE",
+ *     superposition: { IDLE: { FIGHT: { hp: { gt: 50 } } }, FIGHT: null }
+ *   }]
+ * })
+ *
+ * boundary.step()
+ * const states = await boundary.getStates()
+ * ```
+ */
 export class Boundary {
   private backend: GPUBackend
   private compiler = new RulesCompiler()
@@ -52,6 +117,17 @@ export class Boundary {
     this.braneManager = new BraneManager(device)
   }
 
+  /**
+   * Инициализирует GPU-ресурсы и загружает конфигурацию.
+   *
+   * **Side Effects:**
+   * - Очищает FieldRegistry и StringAtlas.
+   * - Аллоцирует GPU-буферы (не освобождаются автоматически).
+   *
+   * @param config - Конфигурация границы.
+   *
+   * @throws {Error} Если тип поля не распознан.
+   */
   async init(config: BoundaryConfig) {
     FieldRegistry.clear()
     resetStringAtlas()
@@ -134,15 +210,37 @@ export class Boundary {
     })
   }
 
+  /**
+   * Выполняет один шаг эволюции (compute pass).
+   * После вызова новые состояния доступны через {@link getStates}.
+   */
   step() {
     this.backend.run()
   }
 
+  /**
+   * Читает текущие состояния бран из GPU.
+   *
+   * **Внимание:** Асинхронная операция с синхронизацией CPU/GPU (медленно).
+   *
+   * @returns Массив имён состояний (по индексу браны).
+   */
   async getStates(): Promise<string[]> {
     const raw = await this.backend.read()
     return Array.from(raw).map((id, i) => this.reverseStateMaps[i]![id]!)
   }
 
+  /**
+   * Обновляет значение поля браны в heap.
+   *
+   * **Side Effect:** Если изменился размер heap, отправляет новые данные на GPU.
+   *
+   * @param braneIndex - Индекс браны в массиве конфигурации `[0..branes.length-1]`.
+   * @param fieldName - Имя поля (должно быть зарегистрировано).
+   * @param value - Новое значение (тип должен соответствовать схеме).
+   *
+   * @throws {Error} Если braneIndex вне диапазона.
+   */
   updateBraneField(braneIndex: number, fieldName: string, value: unknown): void {
     const braneId = this.braneIds[braneIndex]
     if (braneId === undefined) {

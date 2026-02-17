@@ -3,19 +3,15 @@ import { getStringAtlas } from "./typeBridge"
 
 /**
  * Параметры инициализации GPU-бэкенда.
+ * @internal
  */
 interface BackendInitParams {
-  /** Количество бран в границе */
   braneCount: number
-  /** Конкатенированный bytecode всех бран */
   bytecode: Uint32Array
-  /** Таблица смещений bytecode для каждого поля */
   bytecodeOffsets: Uint32Array
-  /** Начальные состояния бран (числовые ID) */
   states: Uint32Array
-  /** Дескрипторы бран: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...] */
+  /** Формат: `[block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]` */
   braneDescriptors: Uint32Array
-  /** Куча с данными бран */
   heap: Uint32Array
 }
 
@@ -135,7 +131,10 @@ export class GPUBackend {
 
   /**
    * Асинхронно читает массив состояний из GPU.
+   *
    * **Внимание:** Требует синхронизации с CPU (медленно).
+   *
+   * @returns Массив числовых ID состояний (по индексу браны).
    */
   async read(): Promise<Uint32Array> {
     if (!this.buffers.states || !this.stagingBuffer) {
@@ -151,6 +150,11 @@ export class GPUBackend {
     return copy
   }
 
+  /**
+   * Обновляет heap-буфер на GPU.
+   *
+   * @param heap - Новые данные кучи (должны соответствовать размеру буфера).
+   */
   updateHeap(heap: Uint32Array) {
     if (!this.buffers.heap) {
       throw new Error("Buffers are not initialized")

@@ -1,5 +1,16 @@
 /**
- * @file Глобальный реестр полей браны.
+ * Глобальный реестр полей браны (Singleton).
+ *
+ * Присваивает уникальные числовые ID каждому полю для использования в байт-коде.
+ * Должен быть очищен перед каждой инициализацией {@link Boundary}.
+ *
+ * @example
+ * ```ts
+ * const registry = FieldRegistry.getInstance()
+ * registry.register('hp', FieldType.F32)
+ * registry.register('name', FieldType.STRING_PTR)
+ * const fieldId = registry.getId('hp') // 0
+ * ```
  */
 
 export const FieldType = {
@@ -17,7 +28,9 @@ export interface FieldMeta {
   name: string
   fieldId: number
   type: FieldTypeValue
+  /** Для ARRAY_PTR: тип элементов ('string' | 'number'). */
   elementType?: string
+  /** Для enum: массив допустимых значений. */
   enumValues?: any[]
 }
 
@@ -36,6 +49,11 @@ export class FieldRegistry {
     return FieldRegistry.instance
   }
 
+  /**
+   * Сбрасывает реестр (только если пуст).
+   *
+   * @throws {Error} Если уже есть зарегистрированные поля.
+   */
   static reset(): void {
     if (FieldRegistry.instance && FieldRegistry.instance.nextId > 0) {
       throw new Error('Cannot reset registry after fields have been registered')
@@ -43,6 +61,7 @@ export class FieldRegistry {
     FieldRegistry.instance = null
   }
 
+  /** Очищает реестр полностью (для тестов). */
   static clear(): void {
     if (!FieldRegistry.instance) {
       return
@@ -52,6 +71,18 @@ export class FieldRegistry {
     FieldRegistry.instance.nextId = 0
   }
 
+  /**
+   * Регистрирует новое поле.
+   *
+   * @param name - Уникальное имя поля.
+   * @param type - Тип данных.
+   * @param options.elementType - Для массивов: тип элементов.
+   * @param options.enumValues - Для enum: допустимые значения.
+   *
+   * @returns Присвоенный числовой ID.
+   *
+   * @throws {Error} Если поле уже зарегистрировано.
+   */
   register(name: string, type: FieldTypeValue, options: { elementType?: string; enumValues?: any[] } = {}): number {
     if (this.nameToMeta.has(name)) {
       throw new Error(`Field '${name}' already registered`)

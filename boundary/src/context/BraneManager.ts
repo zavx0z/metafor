@@ -1,5 +1,22 @@
 /**
- * @file Менеджер бран.
+ * Менеджер бран: аллокация памяти, обновление полей, управление жизненным циклом.
+ *
+ * Использует архитектуру самоописываемых блоков: каждый блок содержит заголовок
+ * с метаданными полей, что позволяет шейдеру динамически определять структуру данных.
+ *
+ * ## Поддержка запутанных бран (Entangled Branes)
+ *
+ * Если несколько бран имеют одинаковые значения полей, эти поля выносятся
+ * в разделяемый блок (entangled brane), на который ссылаются все браны.
+ * Это оптимизирует использование памяти для идентичных данных.
+ *
+ * @example
+ * ```ts
+ * const manager = new BraneManager(device)
+ * manager.registerField('hp', FieldType.F32)
+ * const id = manager.createBrane({ hp: 100 })
+ * manager.updateBraneField(id, 'hp', 50)
+ * ```
  */
 
 import { FieldRegistry, FieldType, type FieldTypeValue } from "./FieldRegistry"
@@ -23,7 +40,9 @@ export interface EntangledBraneInfo {
 }
 
 export interface BraneManagerConfig {
+  /** Размер кучи в u32 словах. По умолчанию 16384. */
   heapSize?: number
+  /** Количество зарезервированных слов в начале кучи. По умолчанию 1. */
   reserveFirst?: number
 }
 
