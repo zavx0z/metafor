@@ -264,7 +264,7 @@ export class RulesCompiler {
           subType = undefined
       }
 
-      this.fields[meta.name] = { fieldId: meta.componentId, type: typeCode, subType, enumValues: meta.enumValues }
+      this.fields[meta.name] = { fieldId: meta.fieldId, type: typeCode, subType, enumValues: meta.enumValues }
     }
   }
 

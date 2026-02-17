@@ -1,17 +1,17 @@
 /**
- * Модуль эволюции полей на границе (Boundary) с использованием GPU.
+ * Модуль эволюции бран на границе (Boundary) с использованием GPU.
  *
  * **Ядро (Core Pattern):** Библиотека реализует паттерн **Data-Oriented Design** с акцентом на параллелизм GPU.
  *
  * ### Терминология (квантовая теория поля):
- * - **Boundary (Граница)** — область пространства, содержащая поля. Главный объект системы.
- * - **Field (Поле)** — квантовое поле с браной (данными), суперпозицией (графом переходов) и текущим состоянием.
- * - **Brane (Брана)** — многомерная "подложка" данных поля (из теории струн/М-теории).
+ * - **Boundary (Граница)** — область пространства, содержащая браны. Главный объект системы.
+ * - **Brane (Брана)** — агент/сущность с набором полей данных, суперпозицией и текущим состоянием.
+ * - **Field (Поле)** — данные внутри браны (hp, mana, name и т.д.).
  * - **Superposition (Суперпозиция)** — множество возможных состояний поля и условия переходов между ними.
  * - **State (Состояние)** — текущее наблюдаемое состояние поля (результат "коллапса" суперпозиции).
  *
  * ### Ключевые компоненты:
- * 1. **BraneManager** — управление памятью бран в формате "самоописываемых блоков" с автоматической группировкой общих полей.
+ * 1. **BraneManager** — управление памятью бран в формате "самоописываемых блоков" с автоматической группировкой общих полей данных.
  * 2. **RulesCompiler** — транслятор JSON-правил в байт-код для кастомной VM, исполняемой в compute shader.
  * 3. **GPUBackend** — драйвер WebGPU, управляющий VRAM и диспетчеризацией вычислительных работ.
  *
@@ -68,11 +68,11 @@ export type BraneSchema = Record<string, BraneFieldDefinition>
 export type Superposition = Record<string, Record<string, any> | null>
 
 /**
- * Определение поля (Field) в границе.
- * Каждое поле имеет уникальный идентификатор, брану (данные), начальное состояние
+ * Определение браны (Brane) в границе.
+ * Каждая брана имеет уникальный идентификатор, поля данных, начальное состояние
  * и индивидуальную суперпозицию (граф переходов).
  */
-export interface FieldDefinition {
+export interface BraneDefinition {
   /** Уникальный идентификатор поля */
   id: string
   /** Начальные данные браны поля */
@@ -107,20 +107,20 @@ export interface BoundaryConfig {
    * }
    * ```
    */
-  branes: BraneSchema
+  fields: BraneSchema
 
   /**
-   * Массив полей с их бранами, начальными состояниями и индивидуальными суперпозициями.
+   * Массив бран с их полями, начальными состояниями и индивидуальными суперпозициями.
    */
-  fields: FieldDefinition[]
+  branes: BraneDefinition[]
 }
 
 /**
  * `Boundary` — главный класс библиотеки. Представляет границу — область пространства,
  * содержащую квантовые поля.
  *
- * Каждое поле (Field) внутри границы имеет:
- * - **Брану (Brane)** — данные поля (hp, mana, isAlive и т.д.)
+ * Каждая брана (Brane) внутри границы имеет:
+ * - **Поля (Field)** — данные браны (hp, mana, isAlive и т.д.)
  * - **Суперпозицию (Superposition)** — индивидуальный граф возможных переходов
  * - **Состояние (State)** — текущее наблюдаемое состояние
  *
@@ -136,12 +136,12 @@ export class Boundary {
   private compiler = new RulesCompiler()
   private braneManager: BraneManager
 
-  /** Массив stateMap для каждого поля (индивидуальные суперпозиции) */
+  /** Массив stateMap для каждой браны (индивидуальные суперпозиции) */
   private stateMaps: Record<string, number>[] = []
   /** Массив обратных маппингов для декодирования результатов */
   private reverseStateMaps: string[][] = []
-  /** ID полей в BraneManager */
-  private fieldIds: number[] = []
+  /** ID бран в BraneManager */
+  private braneIds: number[] = []
 
   /**
    * @param device - Инициализированный `GPUDevice`.
@@ -155,36 +155,36 @@ export class Boundary {
    * Инициализирует границу: компилирует правила, выделяет память и загружает данные.
    *
    * ### Алгоритм инициализации:
-   * 1. Регистрация компонент браны в GlobalFieldRegistry (создание field_id).
-   * 2. Создание полей через BraneManager с автоматической группировкой общих данных.
+   * 1. Регистрация полей данных браны в GlobalFieldRegistry (создание field_id).
+   * 2. Создание бран через BraneManager с автоматической группировкой общих данных.
    * 3. Компиляция каждой индивидуальной суперпозиции в отдельный bytecode.
    * 4. Инициализация GPU-буферов и создание compute pipeline.
    *
    * ### Индивидуальные суперпозиции:
-   * Каждое поле имеет свой независимый граф переходов. Это позволяет:
-   * - Разные условия переходов для разных полей
+   * Каждая брана имеет свой независимый граф переходов. Это позволяет:
+   * - Разные условия переходов для разных бран
    * - Разные наборы состояний для разных типов юнитов
    * - Конфликты условий без перезаписи
    *
    * ### Валидация входных данных:
    * * Каждое состояние, упомянутое как цель перехода, должно быть объявлено в суперпозиции.
-   * * Все компоненты, используемые в условиях, должны быть описаны в branes.
-   * * Начальные состояния полей должны существовать в соответствующем stateMap.
+   * * Все компоненты, используемые в условиях, должны быть описаны в fields.
+   * * Начальные состояния бран должны существовать в соответствующем stateMap.
    *
    * @param config - Конфигурация границы.
-   * @param config.branes - Схема типов данных браны.
-   * @param config.fields - Массив полей с бранами, состояниями и суперпозициями.
+   * @param config.fields - Схема типов полей данных.
+   * @param config.branes - Массив бран с полями, состояниями и суперпозициями.
    *
    * @throws {Error} Если:
    * * WebGPU не поддерживается или устройство недоступно.
-   * * Обнаружено неизвестное состояние или компонента браны.
+   * * Обнаружено неизвестное состояние или поле браны.
    * * Не удалось аллоцировать память в GPU-куче.
    *
    * @example
    * ```ts
    * await boundary.init({
-   *   branes: { hp: { type: "number" } },
-   *   fields: [
+   *   fields: { hp: { type: "number" } },
+   *   branes: [
    *     {
    *       id: "warrior",
    *       brane: { hp: 100 },
@@ -208,7 +208,7 @@ export class Boundary {
    * ```
    */
   async init(config: BoundaryConfig) {
-    // Очищаем глобальный реестр компонент между инициализациями.
+    // Очищаем глобальный реестр полей между инициализациями.
     // Без этого типы одинаковых имён полей могут «протекать» между разными
     // сценариями/тестами (например, role как number в одном кейсе и string в другом).
     GlobalFieldRegistry.clear()
@@ -216,10 +216,10 @@ export class Boundary {
     // Сбрасываем StringAtlas для гарантии консистентности между тестами
     resetStringAtlas()
     
-    // 1. Регистрируем компоненты браны из схемы в глобальном реестре.
+    // 1. Регистрируем поля браны из схемы в глобальном реестре.
     const registry = GlobalFieldRegistry.getInstance()
 
-    for (const [name, def] of Object.entries(config.branes)) {
+    for (const [name, def] of Object.entries(config.fields)) {
       const defTyped = def as { type?: string; values?: any[] } | string
       const typeStr = typeof defTyped === "string" ? defTyped : defTyped.type
       let fieldType: FieldTypeValue
@@ -261,41 +261,41 @@ export class Boundary {
       }
     }
 
-    // 2. Создаём поля — менеджер сам группирует общие данные бран!
-    this.fieldIds = this.braneManager.createEnsemble(config.fields.map((f) => f.brane))
+    // 2. Создаём браны — менеджер сам группирует общие данные бран!
+    this.braneIds = this.braneManager.createEnsemble(config.branes.map((f) => f.brane))
 
     // 3. Компилируем каждую индивидуальную суперпозицию отдельно.
     const compiled = this.compiler.compileEnsemble(
-      config.fields.map((f) => f.superposition),
+      config.branes.map((f) => f.superposition),
       config.branes,
     )
     this.stateMaps = compiled.stateMaps
     this.reverseStateMaps = compiled.reverseStateMaps
 
-    // 4. Формируем начальные состояния (каждое поле использует свой stateMap).
+    // 4. Формируем начальные состояния (каждая брана использует свой stateMap).
     const states = new Uint32Array(
-      config.fields.map((f, i) => this.stateMaps[i]![f.state] ?? 0),
+      config.branes.map((f, i) => this.stateMaps[i]![f.state] ?? 0),
     )
 
-    // 5. Получаем буферы бран и создаём fieldDescriptors в новом формате.
-    const { fieldDescriptors: braneDescriptors, heap } = this.braneManager.getGPUBuffers()
+    // 5. Получаем буферы бран и создаём braneDescriptors в новом формате.
+    const { braneDescriptors: braneBlockPointers, heap } = this.braneManager.getGPUBuffers()
     
     // Отладка: выводим heap
     console.log("[Boundary] Heap:")
     console.log("  Length:", heap.length)
     console.log("  Words:", JSON.stringify(Array.from(heap)))
-    console.log("  Field descriptors:", JSON.stringify(Array.from(braneDescriptors)))
+    console.log("  Brane block pointers:", JSON.stringify(Array.from(braneBlockPointers)))
 
-    // Формируем fieldDescriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
-    const fieldDescriptors = new Uint32Array(config.fields.length * 2)
-    for (let i = 0; i < config.fields.length; i++) {
-      fieldDescriptors[i * 2] = braneDescriptors[i]! // block_ptr
-      fieldDescriptors[i * 2 + 1] = compiled.bytecodeOffsets[i]! // bytecode_offset
+    // Формируем braneDescriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
+    const braneDescriptors = new Uint32Array(config.branes.length * 2)
+    for (let i = 0; i < config.branes.length; i++) {
+      braneDescriptors[i * 2] = braneBlockPointers[i]! // block_ptr
+      braneDescriptors[i * 2 + 1] = compiled.bytecodeOffsets[i]! // bytecode_offset
     }
     
-    // Отладка: выводим итоговые fieldDescriptors
-    console.log("[Boundary] Final fieldDescriptors for GPU:")
-    console.log("  Words:", JSON.stringify(Array.from(fieldDescriptors)))
+    // Отладка: выводим итоговые braneDescriptors
+    console.log("[Boundary] Final braneDescriptors for GPU:")
+    console.log("  Words:", JSON.stringify(Array.from(braneDescriptors)))
 
     // 6. Инициализируем бэкенд.
     // Отладка: выводим состояние StringAtlas
@@ -320,11 +320,11 @@ export class Boundary {
     console.log("  Bytecode offsets:", JSON.stringify(Array.from(compiled.bytecodeOffsets)))
     
     await this.backend.init({
-      fieldCount: config.fields.length,
+      braneCount: config.branes.length,
       bytecode: compiled.bytecode,
       bytecodeOffsets: compiled.bytecodeOffsets,
       states,
-      fieldDescriptors,
+      braneDescriptors,
       heap,
     })
   }
@@ -333,14 +333,14 @@ export class Boundary {
    * Выполняет один такт симуляции, запуская compute shader на GPU.
    *
    * ### Алгоритм работы:
-   * 1. Запуск compute pass с байт-кодом правил и данными полей.
-   * 2. Каждый GPU-инвариант обрабатывает одно поле (workgroup size = 64).
+   * 1. Запуск compute pass с байт-кодом правил и данными бран.
+   * 2. Каждый GPU-инвариант обрабатывает одну брану (workgroup size = 64).
    * 3. После выполнения копирование результатов из `newStates` в `states` (ping-pong swap).
    *
    * ### Производительность:
    * * Compute shader выполняется асинхронно относительно CPU.
    * * Для синхронизации используйте `await boundary.getStates()`.
-   * * Время выполнения зависит от сложности правил и количества полей.
+   * * Время выполнения зависит от сложности правил и количества бран.
    *
    * @see {@link getStates} для чтения результатов.
    */
@@ -349,19 +349,19 @@ export class Boundary {
   }
 
   /**
-   * Асинхронно читает текущие состояния полей из GPU.
+   * Асинхронно читает текущие состояния бран из GPU.
    *
    * ### Внутренняя работа:
    * 1. Копирование данных из GPU-буфера `states` в staging buffer.
    * 2. Асинхронное отображение (map) памяти для чтения CPU.
-   * 3. Преобразование числовых StateID в строковые имена через reverseStateMap.
+   * 3. Преобразование числовых StateId в строковые имена через reverseStateMap.
    *
    * ### Важно:
    * * Это **дорогая операция** (синхронизация CPU-GPU).
    * * Не вызывайте чаще необходимого (например, только для визуализации).
    * * Для проверки логики используйте {@link step} без промежуточного чтения.
    *
-   * @returns Promise, разрешающийся в массив строковых имен состояний в порядке полей.
+   * @returns Promise, разрешающийся в массив строковых имен состояний в порядке бран.
    *
    * @example
    * ```ts
@@ -372,7 +372,7 @@ export class Boundary {
    */
   async getStates(): Promise<string[]> {
     const raw = await this.backend.read()
-    // Каждое поле использует свой reverseStateMap для декодирования ID
+    // Каждая брана использует свой reverseStateMap для декодирования ID
     return Array.from(raw).map((id, i) => this.reverseStateMaps[i]![id]!)
   }
 
@@ -380,7 +380,7 @@ export class Boundary {
    * Обновляет компоненту браны конкретного поля и синхронизирует изменения с GPU.
    *
    * ### Алгоритм обновления:
-   * 1. Поиск блока поля в куче через fieldDescriptors.
+   * 1. Поиск блока браны в куче через braneDescriptors.
    * 2. Для скалярных типов (числа, булевы) — прямая запись в кучу.
    * 3. Для типов переменного размера (строки, массивы):
    *    * Освобождение старого блока в аллокаторе.
@@ -393,12 +393,12 @@ export class Boundary {
    * * **Нет проверки на переполнение кучи** — может выбросить ошибку аллокатора.
    * * **Не атомарно на GPU** — изменения видны в следующем шаге симуляции.
    *
-   * @param fieldIndex - Порядковый индекс поля в массиве fields (0-based).
+   * @param braneIndex - Порядковый индекс поля в массиве branes (0-based).
    * @param componentName - Имя компоненты браны, зарегистрированное в branes.
    * @param value - Новое значение (тип должен соответствовать схеме).
    *
    * @throws {Error} Если:
-   * * fieldIndex выходит за границы массива полей.
+   * * braneIndex выходит за границы массива бран.
    * * componentName не зарегистрировано в GlobalFieldRegistry.
    * * Компонента не найдена в блоке поля (отсутствует в бране).
    * * Не удалось аллоцировать память для значения переменного размера.
@@ -409,13 +409,13 @@ export class Boundary {
    * boundary.updateBraneField(0, "hp", 70);
    * ```
    */
-  updateBraneField(fieldIndex: number, componentName: string, value: unknown): void {
-    const fieldId = this.fieldIds[fieldIndex]
-    if (fieldId === undefined) {
-      throw new Error(`Неизвестный индекс поля: ${fieldIndex}`)
+  updateBraneField(braneIndex: number, componentName: string, value: unknown): void {
+    const braneId = this.braneIds[braneIndex]
+    if (braneId === undefined) {
+      throw new Error(`Неизвестный индекс поля: ${braneIndex}`)
     }
 
-    this.braneManager.updateBraneField(fieldId, componentName, value)
+    this.braneManager.updateBraneField(braneId, componentName, value)
     if (this.braneManager.isHeapDirty()) {
       const { heap } = this.braneManager.getGPUBuffers()
       this.backend.updateHeap(heap)
@@ -424,5 +424,3 @@ export class Boundary {
   }
 }
 
-// Обратная совместимость: экспортируем Boundary также как QuantumFieldSystem
-export { Boundary as QuantumFieldSystem }

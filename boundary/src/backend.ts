@@ -6,7 +6,7 @@ import { getStringAtlas } from "./typeBridge"
  */
 interface BackendInitParams {
   /** Количество полей в границе */
-  fieldCount: number
+  braneCount: number
   /** Конкатенированный bytecode всех полей */
   bytecode: Uint32Array
   /** Таблица смещений bytecode для каждого поля */
@@ -14,7 +14,7 @@ interface BackendInitParams {
   /** Начальные состояния полей (числовые ID) */
   states: Uint32Array
   /** Дескрипторы полей: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...] */
-  fieldDescriptors: Uint32Array
+  braneDescriptors: Uint32Array
   /** Куча с данными бран */
   heap: Uint32Array
 }
@@ -28,9 +28,9 @@ interface BackendInitParams {
  * * Диспетчеризация команд `dispatchWorkgroups`.
  * * Синхронизация данных VRAM <-> RAM (Readback).
  *
- * ### Формат fieldDescriptors (v2.x):
+ * ### Формат braneDescriptors (v2.x):
  * ```
- * fieldDescriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
+ * braneDescriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
  * ```
  * Каждое поле имеет два значения:
  * - `block_ptr` — указатель на блок браны в куче
@@ -63,16 +63,16 @@ export class GPUBackend {
     })
 
     // Создание буферов для архитектуры кучи
-    this.buffers.fieldDescriptors = this.createStorageBuffer(params.fieldDescriptors)
+    this.buffers.braneDescriptors = this.createStorageBuffer(params.braneDescriptors)
     this.buffers.heap = this.createStorageBuffer(params.heap)
     this.buffers.states = this.createStorageBuffer(params.states, true) // источник/назначение
 
-    this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.fieldCount), true)
+    this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.braneCount), true)
     this.buffers.bytecode = this.createStorageBuffer(params.bytecode)
     this.buffers.bytecodeOffsets = this.createStorageBuffer(params.bytecodeOffsets)
 
-    // uniforms: [fieldCount, reserved, reserved, reserved]
-    const uniforms = new Uint32Array([params.fieldCount, 0, 0, 0])
+    // uniforms: [braneCount, reserved, reserved, reserved]
+    const uniforms = new Uint32Array([params.braneCount, 0, 0, 0])
     this.buffers.uniforms = this.createBuffer(uniforms, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST)
 
     // StringAtlas buffers for string interning
@@ -92,7 +92,7 @@ export class GPUBackend {
     this.bindGroup = this.device.createBindGroup({
       layout: this.pipeline.getBindGroupLayout(0),
       entries: [
-        { binding: 0, resource: { buffer: this.buffers.fieldDescriptors } },
+        { binding: 0, resource: { buffer: this.buffers.braneDescriptors } },
         { binding: 1, resource: { buffer: this.buffers.heap } },
         { binding: 2, resource: { buffer: this.buffers.states } },
         { binding: 3, resource: { buffer: this.buffers.newStates } },
