@@ -18,9 +18,9 @@ describe("Boundary — Тип ARRAY (array)", () => {
       const result = await fixture.runSimulation({
         fields: { tags: "array<number>" },
         branes: [
-          { id: "q1", state: "IDLE", brane: { tags: [1, 5, 10] }, superposition },
-          { id: "q2", state: "IDLE", brane: { tags: [1, 2, 3] }, superposition },
-          { id: "q3", state: "IDLE", brane: { tags: [] }, superposition },
+          { id: "q1", state: "IDLE", fields: { tags: [1, 5, 10] }, superposition },
+          { id: "q2", state: "IDLE", fields: { tags: [1, 2, 3] }, superposition },
+          { id: "q3", state: "IDLE", fields: { tags: [] }, superposition },
         ],
       })
 
@@ -39,8 +39,8 @@ describe("Boundary — Тип ARRAY (array)", () => {
       const result = await fixture.runSimulation({
         fields: { tags: "array<string>" },
         branes: [
-          { id: "q1", state: "IDLE", brane: { tags: ["fire", "ice", "lightning"] }, superposition },
-          { id: "q2", state: "IDLE", brane: { tags: ["ice", "lightning"] }, superposition },
+          { id: "q1", state: "IDLE", fields: { tags: ["fire", "ice", "lightning"] }, superposition },
+          { id: "q2", state: "IDLE", fields: { tags: ["ice", "lightning"] }, superposition },
         ],
       })
 
@@ -60,9 +60,9 @@ describe("Boundary — Тип ARRAY (array)", () => {
       const result = await fixture.runSimulation({
         fields: { tags: "array<number>" },
         branes: [
-          { id: "q1", state: "IDLE", brane: { tags: [1, 2, 3] }, superposition },
-          { id: "q2", state: "IDLE", brane: { tags: [99, 100] }, superposition },
-          { id: "q3", state: "IDLE", brane: { tags: [] }, superposition },
+          { id: "q1", state: "IDLE", fields: { tags: [1, 2, 3] }, superposition },
+          { id: "q2", state: "IDLE", fields: { tags: [99, 100] }, superposition },
+          { id: "q3", state: "IDLE", fields: { tags: [] }, superposition },
         ],
       })
 
@@ -83,10 +83,10 @@ describe("Boundary — Тип ARRAY (array)", () => {
       const result = await fixture.runSimulation({
         fields: { items: "array<number>" },
         branes: [
-          { id: "q1", state: "IDLE", brane: { items: [1, 2, 3] }, superposition },
-          { id: "q2", state: "IDLE", brane: { items: [1, 2] }, superposition },
-          { id: "q3", state: "IDLE", brane: { items: [1, 2, 3, 4] }, superposition },
-          { id: "q4", state: "IDLE", brane: { items: [] }, superposition },
+          { id: "q1", state: "IDLE", fields: { items: [1, 2, 3] }, superposition },
+          { id: "q2", state: "IDLE", fields: { items: [1, 2] }, superposition },
+          { id: "q3", state: "IDLE", fields: { items: [1, 2, 3, 4] }, superposition },
+          { id: "q4", state: "IDLE", fields: { items: [] }, superposition },
         ],
       })
 
@@ -106,9 +106,9 @@ describe("Boundary — Тип ARRAY (array)", () => {
       const result = await fixture.runSimulation({
         fields: { items: "array<number>" },
         branes: [
-          { id: "q1", state: "IDLE", brane: { items: [1] }, superposition },
-          { id: "q2", state: "IDLE", brane: { items: [1, 2] }, superposition },
-          { id: "q3", state: "IDLE", brane: { items: [1, 2, 3] }, superposition },
+          { id: "q1", state: "IDLE", fields: { items: [1] }, superposition },
+          { id: "q2", state: "IDLE", fields: { items: [1, 2] }, superposition },
+          { id: "q3", state: "IDLE", fields: { items: [1, 2, 3] }, superposition },
         ],
       })
 
@@ -129,9 +129,9 @@ describe("Boundary — Тип ARRAY (array)", () => {
       const result = await fixture.runSimulation({
         fields: { items: "array<number>" },
         branes: [
-          { id: "q1", state: "IDLE", brane: { items: [] }, superposition },
-          { id: "q2", state: "IDLE", brane: { items: [1] }, superposition },
-          { id: "q3", state: "IDLE", brane: { items: [1, 2, 3] }, superposition },
+          { id: "q1", state: "IDLE", fields: { items: [] }, superposition },
+          { id: "q2", state: "IDLE", fields: { items: [1] }, superposition },
+          { id: "q3", state: "IDLE", fields: { items: [1, 2, 3] }, superposition },
         ],
       })
 
@@ -150,9 +150,9 @@ describe("Boundary — Тип ARRAY (array)", () => {
       const result = await fixture.runSimulation({
         fields: { items: "array<number>" },
         branes: [
-          { id: "q1", state: "IDLE", brane: { items: [] }, superposition },
-          { id: "q2", state: "IDLE", brane: { items: [1] }, superposition },
-          { id: "q3", state: "IDLE", brane: { items: [1, 2, 3] }, superposition },
+          { id: "q1", state: "IDLE", fields: { items: [] }, superposition },
+          { id: "q2", state: "IDLE", fields: { items: [1] }, superposition },
+          { id: "q3", state: "IDLE", fields: { items: [1, 2, 3] }, superposition },
         ],
       })
 
@@ -181,19 +181,19 @@ describe("Boundary — Тип ARRAY (array)", () => {
           {
             id: "q1",
             state: "IDLE",
-            brane: { items: [1, 2, 3], tags: [1, 5] },
+            fields: { items: [1, 2, 3], tags: [1, 5] },
             superposition,
           },
           {
             id: "q2",
             state: "IDLE",
-            brane: { items: [1], tags: [1, 5] },
+            fields: { items: [1], tags: [1, 5] },
             superposition,
           },
           {
             id: "q3",
             state: "IDLE",
-            brane: { items: [1, 2, 3], tags: [2, 3] },
+            fields: { items: [1, 2, 3], tags: [2, 3] },
             superposition,
           },
         ],
@@ -215,7 +215,7 @@ describe("Boundary — Тип ARRAY (array)", () => {
       }
       const result = await fixture.runSimulation({
         fields: { items: "array<number>" },
-        branes: [{ id: "q1", state: "IDLE", brane: { items: [] }, superposition }],
+        branes: [{ id: "q1", state: "IDLE", fields: { items: [] }, superposition }],
       })
 
       expect(result.success).toBe(true)
@@ -230,7 +230,7 @@ describe("Boundary — Тип ARRAY (array)", () => {
       }
       const result = await fixture.runSimulation({
         fields: { items: "array<number>" },
-        branes: [{ id: "q1", state: "IDLE", brane: { items: [42] }, superposition }],
+        branes: [{ id: "q1", state: "IDLE", fields: { items: [42] }, superposition }],
       })
 
       expect(result.success).toBe(true)
@@ -249,7 +249,7 @@ describe("Boundary — Тип ARRAY (array)", () => {
           {
             id: "q1",
             state: "IDLE",
-            brane: { items: Array.from({ length: 100 }, (_, i) => i) },
+            fields: { items: Array.from({ length: 100 }, (_, i) => i) },
             superposition,
           },
         ],

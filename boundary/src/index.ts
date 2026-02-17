@@ -14,7 +14,7 @@ import { RulesCompiler } from "./compiler"
 import { BraneManager, FieldType, FieldRegistry, type FieldTypeValue } from "./context"
 import { resetStringAtlas, getStringAtlas } from "./typeBridge"
 
-export type BraneFieldDefinition =
+export type FieldDefinition =
   | { type: "number" }
   | { type: "boolean" }
   | { type: "string" }
@@ -23,19 +23,19 @@ export type BraneFieldDefinition =
   | { type: "enum<string>"; values: string[] }
   | { type: "enum<number>"; values: number[] }
 
-export type BraneSchema = Record<string, BraneFieldDefinition>
+export type FieldsDefinition = Record<string, FieldDefinition>
 
 export type Superposition = Record<string, Record<string, any> | null>
 
 export interface BraneDefinition {
   id: string
-  brane: Record<string, unknown>
+  fields: Record<string, unknown>
   state: string
   superposition: Superposition
 }
 
 export interface BoundaryConfig {
-  fields: BraneSchema
+  fields: FieldsDefinition
   branes: BraneDefinition[]
 }
 
@@ -98,7 +98,7 @@ export class Boundary {
       }
     }
 
-    this.braneIds = this.braneManager.createEnsemble(config.branes.map((f) => f.brane))
+    this.braneIds = this.braneManager.createEnsemble(config.branes.map((f) => f.fields))
 
     const compiled = this.compiler.compileEnsemble(
       config.branes.map((f) => f.superposition),

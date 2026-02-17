@@ -293,7 +293,7 @@ export class BrowserWebGPU {
    */
   async runSimulation(params: {
     fields: Record<string, any>
-    branes: Array<{ id: string; state: string; brane: any; superposition: any }>
+    branes: Array<{ id: string; state: string; fields: any; superposition: any }>
     updates?: Array<{ braneIndex: number; componentName: string; value: number | boolean | string }>
     steps?: number
   }): Promise<{ success: boolean; states?: string[]; error?: string; stack?: string }> {

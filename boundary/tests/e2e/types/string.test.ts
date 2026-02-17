@@ -18,8 +18,8 @@ describe("Boundary - STRING type (string)", () => {
       const result = await fixture.runSimulation({
         fields: { name: { type: "string" } },
         branes: [
-          { id: "q1", state: "IDLE", brane: { name: "hero" }, superposition },
-          { id: "q2", state: "IDLE", brane: { name: "monster" }, superposition },
+          { id: "q1", state: "IDLE", fields: { name: "hero" }, superposition },
+          { id: "q2", state: "IDLE", fields: { name: "monster" }, superposition },
         ],
       })
 
@@ -39,8 +39,8 @@ describe("Boundary - STRING type (string)", () => {
       const result = await fixture.runSimulation({
         fields: { name: { type: "string" } },
         branes: [
-          { id: "q1", state: "IDLE", brane: { name: "enemy" }, superposition },
-          { id: "q2", state: "IDLE", brane: { name: "ally" }, superposition },
+          { id: "q1", state: "IDLE", fields: { name: "enemy" }, superposition },
+          { id: "q2", state: "IDLE", fields: { name: "ally" }, superposition },
         ],
       })
 
@@ -60,9 +60,9 @@ describe("Boundary - STRING type (string)", () => {
       const result = await fixture.runSimulation({
         fields: { role: { type: "string" } },
         branes: [
-          { id: "q1", state: "IDLE", brane: { role: "warrior" }, superposition },
-          { id: "q2", state: "IDLE", brane: { role: "mage" }, superposition },
-          { id: "q3", state: "IDLE", brane: { role: "healer" }, superposition },
+          { id: "q1", state: "IDLE", fields: { role: "warrior" }, superposition },
+          { id: "q2", state: "IDLE", fields: { role: "mage" }, superposition },
+          { id: "q3", state: "IDLE", fields: { role: "healer" }, superposition },
         ],
       })
 
@@ -82,7 +82,7 @@ describe("Boundary - STRING type (string)", () => {
       }
       const result = await fixture.runSimulation({
         fields: { role: { type: "string" } },
-        branes: [{ id: "q1", state: "IDLE", brane: { role: "healer" }, superposition }],
+        branes: [{ id: "q1", state: "IDLE", fields: { role: "healer" }, superposition }],
         updates: [{ braneIndex: 0, componentName: "role", value: "warrior" }],
       })
 
@@ -101,9 +101,9 @@ describe("Boundary - STRING type (string)", () => {
       const result = await fixture.runSimulation({
         fields: { role: { type: "string" } },
         branes: [
-          { id: "q1", state: "IDLE", brane: { role: "enemy" }, superposition },
-          { id: "q2", state: "IDLE", brane: { role: "boss" }, superposition },
-          { id: "q3", state: "IDLE", brane: { role: "ally" }, superposition },
+          { id: "q1", state: "IDLE", fields: { role: "enemy" }, superposition },
+          { id: "q2", state: "IDLE", fields: { role: "boss" }, superposition },
+          { id: "q3", state: "IDLE", fields: { role: "ally" }, superposition },
         ],
       })
 
@@ -124,8 +124,8 @@ describe("Boundary - STRING type (string)", () => {
       const result = await fixture.runSimulation({
         fields: { name: { type: "string" } },
         branes: [
-          { id: "q1", state: "IDLE", brane: { name: "" }, superposition },
-          { id: "q2", state: "IDLE", brane: { name: "hero" }, superposition },
+          { id: "q1", state: "IDLE", fields: { name: "" }, superposition },
+          { id: "q2", state: "IDLE", fields: { name: "hero" }, superposition },
         ],
       })
 
@@ -145,8 +145,8 @@ describe("Boundary - STRING type (string)", () => {
       const result = await fixture.runSimulation({
         fields: { code: { type: "string" } },
         branes: [
-          { id: "q1", state: "IDLE", brane: { code: "test-123_@#" }, superposition },
-          { id: "q2", state: "IDLE", brane: { code: "test-123" }, superposition },
+          { id: "q1", state: "IDLE", fields: { code: "test-123_@#" }, superposition },
+          { id: "q2", state: "IDLE", fields: { code: "test-123" }, superposition },
         ],
       })
 
@@ -166,9 +166,9 @@ describe("Boundary - STRING type (string)", () => {
       const result = await fixture.runSimulation({
         fields: { name: { type: "string" } },
         branes: [
-          { id: "q1", state: "IDLE", brane: { name: "Hero" }, superposition },
-          { id: "q2", state: "IDLE", brane: { name: "hero" }, superposition },
-          { id: "q3", state: "IDLE", brane: { name: "HERO" }, superposition },
+          { id: "q1", state: "IDLE", fields: { name: "Hero" }, superposition },
+          { id: "q2", state: "IDLE", fields: { name: "hero" }, superposition },
+          { id: "q3", state: "IDLE", fields: { name: "HERO" }, superposition },
         ],
       })
 

@@ -33,7 +33,7 @@ try {
     branes: [
       {
         id: "q1",
-        brane: { hp: 100, mana: 100, isAlive: true },
+        fields: { hp: 100, mana: 100, isAlive: true },
         state: "IDLE",
         superposition: {
           IDLE: {
@@ -52,7 +52,7 @@ try {
       },
       {
         id: "q2",
-        brane: { hp: 0, mana: 50, isAlive: false },
+        fields: { hp: 0, mana: 50, isAlive: false },
         state: "IDLE",
         superposition: {
           IDLE: {
