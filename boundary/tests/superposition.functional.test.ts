@@ -1,7 +1,7 @@
 import { test, expect, describe, beforeEach } from "bun:test"
 import { RulesCompiler } from "../src/compiler"
-import { OP, TYPE } from "../src/common"
-import { GlobalFieldRegistry, FieldType } from "../src/context"
+import { OP } from "../src/common"
+import { FieldRegistry } from "../src/context"
 
 /**
  * Функциональные тесты компиляции индивидуальных суперпозиций.
@@ -18,7 +18,7 @@ import { GlobalFieldRegistry, FieldType } from "../src/context"
  */
 describe("Компиляция индивидуальных суперпозиций — функциональные тесты", () => {
   beforeEach(() => {
-    GlobalFieldRegistry.clear()
+    FieldRegistry.clear()
   })
 
   describe("compileSingle — компиляция одной superposition", () => {

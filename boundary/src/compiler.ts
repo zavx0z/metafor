@@ -1,5 +1,5 @@
 import { OP, TYPE, type CompiledRules, type CompiledFieldRules, type CompiledEnsemble } from "./common"
-import { GlobalFieldRegistry, FieldType } from "./context"
+import { FieldRegistry, FieldType } from "./context"
 import { fieldTypeToBytecodeType, getStringAtlas } from "./typeBridge"
 
 // Типы для представления конфигурации правил суперпозиции.
@@ -24,7 +24,7 @@ type Superposition = Record<string, Transitions | null | undefined>
  * ### Формат инструкции условия (4 слова):
  * ```
  * [0] type:      TYPE.FLOAT, TYPE.UINT, TYPE.BOOL, TYPE.ARRAY
- * [1] field_id:  числовой идентификатор поля из GlobalFieldRegistry
+ * [1] field_id:  числовой идентификатор поля из FieldRegistry
  * [2] op:        OP.EQ, OP.GT, OP.IN, OP.INCLUDE, ...
  * [3] value:     закодированное значение или указатель на кучу
  * ```
@@ -37,7 +37,7 @@ type Superposition = Record<string, Transitions | null | undefined>
  *
  * ### Важные ограничения:
  * * **Все состояния-цели** должны быть объявлены в корне superposition (даже если null).
- * * **Поля должны быть зарегистрированы** в GlobalFieldRegistry до компиляции.
+ * * **Поля должны быть зарегистрированы** в FieldRegistry до компиляции.
  * * **Нет проверки циклов** в графе состояний (бесконечные переходы возможны).
  * * **Размер байт-кода не ограничен** (может превысить лимиты GPU-буфера).
  */
@@ -58,7 +58,7 @@ export class RulesCompiler {
    * Транслирует конфигурацию состояний в байт-код для GPU.
    *
    * ### Алгоритм компиляции:
-   * 1. Регистрация полей из схемы в GlobalFieldRegistry (получение field_id).
+   * 1. Регистрация полей из схемы в FieldRegistry (получение field_id).
    * 2. Построение таблицы состояний с резервированием места для указателей.
    * 3. Для каждого состояния:
    *    * Запись количества переходов.
@@ -79,15 +79,15 @@ export class RulesCompiler {
    * }
    * ```
    * @param branes - Схема типов данных. Если не передана, предполагается,
-   * что поля уже зарегистрированы в GlobalFieldRegistry.
+   * что поля уже зарегистрированы в FieldRegistry.
    * @param options - Дополнительные опции компиляции.
-   * @param options.preserveRegistry - Если true, не очищает GlobalFieldRegistry перед регистрацией.
+   * @param options.preserveRegistry - Если true, не очищает FieldRegistry перед регистрацией.
    *
    * @returns {CompiledRules} Скомпилированные правила, готовые для загрузки в GPUBackend.
    *
    * @throws {Error} Если:
    * * Обнаружено состояние-цель, не объявленное в superposition.
-   * * Поле из условий не зарегистрировано в GlobalFieldRegistry.
+   * * Поле из условий не зарегистрировано в FieldRegistry.
    * * Значение enum не найдено в списке допустимых значений.
    *
    * @example
@@ -108,12 +108,12 @@ export class RulesCompiler {
     this.states = Object.keys(superposition)
     this.fields = {}
 
-    // Вместо SoA fieldMap используем GlobalFieldRegistry для получения field_id
+    // Вместо SoA fieldMap используем FieldRegistry для получения field_id
     // Поля должны быть уже зарегистрированы через branes в QuantumFieldSystem.init()
     // Если схема передана, регистрируем поля, но не строим SoA маппинг
     if (Object.keys(branes).length > 0) {
       if (!options.preserveRegistry) {
-        GlobalFieldRegistry.clear()
+        FieldRegistry.clear()
       }
       this.registerFieldsFromSchema(branes)
     } else {
@@ -188,7 +188,7 @@ export class RulesCompiler {
 
   private registerFieldsFromSchema(schema: Record<string, any>) {
     // Используем глобальный реестр для регистрации полей
-    const registry = GlobalFieldRegistry.getInstance()
+    const registry = FieldRegistry.getInstance()
 
     for (const [name, def] of Object.entries(schema)) {
       const defTyped = def as { type?: string; values?: any[] } | string
@@ -248,7 +248,7 @@ export class RulesCompiler {
   }
 
   private loadFieldsFromRegistry() {
-    const registry = GlobalFieldRegistry.getInstance()
+    const registry = FieldRegistry.getInstance()
     for (const meta of registry.getAll()) {
       const typeCode = fieldTypeToBytecodeType(meta.type)
 
@@ -270,7 +270,7 @@ export class RulesCompiler {
 
   private validateFieldsFromSuperposition(superposition: Superposition) {
     // Проверяем, что все поля из правил зарегистрированы в глобальном реестре
-    const registry = GlobalFieldRegistry.getInstance()
+    const registry = FieldRegistry.getInstance()
 
     for (const state in superposition) {
       const transitions = superposition[state]
@@ -282,7 +282,7 @@ export class RulesCompiler {
 
         for (const field in conditions) {
           if (!registry.has(field)) {
-            throw new Error(`Field '${field}' is not registered in GlobalFieldRegistry`)
+            throw new Error(`Field '${field}' is not registered in FieldRegistry`)
           }
         }
       }
@@ -563,7 +563,7 @@ export class RulesCompiler {
     branes: Record<string, any> = {},
   ): CompiledEnsemble {
     // Очищаем реестр перед первой компиляцией
-    GlobalFieldRegistry.clear()
+    FieldRegistry.clear()
 
     // Компилируем каждую superposition отдельно
     const compiled: CompiledFieldRules[] = []

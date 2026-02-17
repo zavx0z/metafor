@@ -25,12 +25,12 @@ try {
 
   log("--- Инициализация границы ---")
   await boundary.init({
-    branes: {
+    fields: {
       hp: { type: "number" },
       mana: { type: "number" },
       isAlive: { type: "boolean" },
     },
-    fields: [
+    branes: [
       {
         id: "q1",
         brane: { hp: 100, mana: 100, isAlive: true },

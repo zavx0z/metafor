@@ -1,20 +1,20 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
 import { BoundaryTestFixture } from "../fixture"
 
-describe("Boundary — Тип BOOL (boolean)", () => {
+describe("Boundary - BOOL type (boolean)", () => {
   beforeAll(async () => await BoundaryTestFixture.setup())
   afterAll(async () => await BoundaryTestFixture.teardown(), 20000)
   const fixture = new BoundaryTestFixture()
 
-  describe("Прямое значение true", () => {
-    test("должен перейти при значении true", async () => {
+  describe("Direct value true", () => {
+    test("should transition when value is true", async () => {
       const superposition = {
         IDLE: { ACTIVE: { isAlive: true } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { isAlive: "boolean" },
-        fields: [
+        fields: { isAlive: { type: "boolean" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { isAlive: true }, superposition },
           { id: "q2", state: "IDLE", brane: { isAlive: false }, superposition },
         ],
@@ -27,15 +27,15 @@ describe("Boundary — Тип BOOL (boolean)", () => {
     })
   })
 
-  describe("Прямое значение false", () => {
-    test("должен перейти при значении false", async () => {
+  describe("Direct value false", () => {
+    test("should transition when value is false", async () => {
       const superposition = {
         IDLE: { DEAD: { isAlive: false } },
         DEAD: null,
       }
       const result = await fixture.runSimulation({
-        branes: { isAlive: "boolean" },
-        fields: [
+        fields: { isAlive: { type: "boolean" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { isAlive: false }, superposition },
           { id: "q2", state: "IDLE", brane: { isAlive: true }, superposition },
         ],
@@ -48,15 +48,15 @@ describe("Boundary — Тип BOOL (boolean)", () => {
     })
   })
 
-  describe("Оператор EQ (равно)", () => {
-    test("должен перейти при значении равном true", async () => {
+  describe("EQ operator (equals)", () => {
+    test("should transition when value equals true", async () => {
       const superposition = {
         IDLE: { ACTIVE: { isAlive: { eq: true } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { isAlive: "boolean" },
-        fields: [
+        fields: { isAlive: { type: "boolean" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { isAlive: true }, superposition },
           { id: "q2", state: "IDLE", brane: { isAlive: false }, superposition },
         ],
@@ -68,14 +68,14 @@ describe("Boundary — Тип BOOL (boolean)", () => {
       expect(result.states![1]).toBe("IDLE") // false != true
     })
 
-    test("должен перейти при значении равном false", async () => {
+    test("should transition when value equals false", async () => {
       const superposition = {
         IDLE: { DEAD: { isAlive: { eq: false } } },
         DEAD: null,
       }
       const result = await fixture.runSimulation({
-        branes: { isAlive: "boolean" },
-        fields: [
+        fields: { isAlive: { type: "boolean" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { isAlive: false }, superposition },
           { id: "q2", state: "IDLE", brane: { isAlive: true }, superposition },
         ],
@@ -88,15 +88,15 @@ describe("Boundary — Тип BOOL (boolean)", () => {
     })
   })
 
-  describe("Оператор NEQ (не равно)", () => {
-    test("должен перейти при значении не равном true", async () => {
+  describe("NEQ operator (not equals)", () => {
+    test("should transition when value not equals true", async () => {
       const superposition = {
         IDLE: { DEAD: { isAlive: { neq: true } } },
         DEAD: null,
       }
       const result = await fixture.runSimulation({
-        branes: { isAlive: "boolean" },
-        fields: [
+        fields: { isAlive: { type: "boolean" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { isAlive: true }, superposition },
           { id: "q2", state: "IDLE", brane: { isAlive: false }, superposition },
         ],
@@ -108,14 +108,14 @@ describe("Boundary — Тип BOOL (boolean)", () => {
       expect(result.states![1]).toBe("DEAD") // false != true
     })
 
-    test("должен перейти при значении не равном false", async () => {
+    test("should transition when value not equals false", async () => {
       const superposition = {
         IDLE: { ACTIVE: { isAlive: { neq: false } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { isAlive: "boolean" },
-        fields: [
+        fields: { isAlive: { type: "boolean" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { isAlive: false }, superposition },
           { id: "q2", state: "IDLE", brane: { isAlive: true }, superposition },
         ],
@@ -128,15 +128,15 @@ describe("Boundary — Тип BOOL (boolean)", () => {
     })
   })
 
-  describe("Множественные булевы условия", () => {
-    test("должен перейти при выполнении всех условий (AND)", async () => {
+  describe("Multiple boolean conditions", () => {
+    test("should transition when all conditions are met (AND)", async () => {
       const superposition = {
         IDLE: { ACTIVE: { isAlive: true, hasMana: true } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { isAlive: "boolean", hasMana: "boolean" },
-        fields: [
+        fields: { isAlive: { type: "boolean" }, hasMana: { type: "boolean" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { isAlive: true, hasMana: true }, superposition },
           { id: "q2", state: "IDLE", brane: { isAlive: true, hasMana: false }, superposition },
           { id: "q3", state: "IDLE", brane: { isAlive: false, hasMana: true }, superposition },
@@ -152,14 +152,14 @@ describe("Boundary — Тип BOOL (boolean)", () => {
       expect(result.states![3]).toBe("IDLE") // false && false
     })
 
-    test("должен перейти при разных комбинациях булевых значений", async () => {
+    test("should transition with different boolean value combinations", async () => {
       const superposition = {
         IDLE: { ACTIVE: { isAlive: true, isStunned: false } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { isAlive: "boolean", isStunned: "boolean" },
-        fields: [
+        fields: { isAlive: { type: "boolean" }, isStunned: { type: "boolean" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { isAlive: true, isStunned: false }, superposition },
           { id: "q2", state: "IDLE", brane: { isAlive: true, isStunned: true }, superposition },
           { id: "q3", state: "IDLE", brane: { isAlive: false, isStunned: false }, superposition },
@@ -174,49 +174,49 @@ describe("Boundary — Тип BOOL (boolean)", () => {
     })
   })
 
-  describe("Обновление булевых значений", () => {
-    test("должен перейти после обновления значения на true", async () => {
+  describe("Boolean value updates", () => {
+    test("should transition after updating value to true", async () => {
       const superposition = {
         IDLE: { ACTIVE: { isReady: true } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { isReady: "boolean" },
-        fields: [{ id: "q1", state: "IDLE", brane: { isReady: false }, superposition }],
-        updates: [{ fieldIndex: 0, componentName: "isReady", value: true }],
+        fields: { isReady: { type: "boolean" } },
+        branes: [{ id: "q1", state: "IDLE", brane: { isReady: false }, superposition }],
+        updates: [{ braneIndex: 0, componentName: "isReady", value: true }],
       })
 
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
-      expect(result.states![0]).toBe("ACTIVE") // После обновления isReady = true
+      expect(result.states![0]).toBe("ACTIVE") // After update isReady = true
     })
 
-    test("должен перейти после обновления значения на false", async () => {
+    test("should transition after updating value to false", async () => {
       const superposition = {
         IDLE: { DEAD: { isAlive: false } },
         DEAD: null,
       }
       const result = await fixture.runSimulation({
-        branes: { isAlive: "boolean" },
-        fields: [{ id: "q1", state: "IDLE", brane: { isAlive: true }, superposition }],
-        updates: [{ fieldIndex: 0, componentName: "isAlive", value: false }],
+        fields: { isAlive: { type: "boolean" } },
+        branes: [{ id: "q1", state: "IDLE", brane: { isAlive: true }, superposition }],
+        updates: [{ braneIndex: 0, componentName: "isAlive", value: false }],
       })
 
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
-      expect(result.states![0]).toBe("DEAD") // После обновления isAlive = false
+      expect(result.states![0]).toBe("DEAD") // After update isAlive = false
     })
   })
 
-  describe("Смешанные условия (boolean + number)", () => {
-    test("должен перейти при выполнении обоих условий разных типов", async () => {
+  describe("Mixed conditions (boolean + number)", () => {
+    test("should transition when both conditions of different types are met", async () => {
       const superposition = {
         IDLE: { COMBAT: { isAlive: true, hp: { gt: 50 } } },
         COMBAT: null,
       }
       const result = await fixture.runSimulation({
-        branes: { isAlive: "boolean", hp: "number" },
-        fields: [
+        fields: { isAlive: { type: "boolean" }, hp: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { isAlive: true, hp: 100 }, superposition },
           { id: "q2", state: "IDLE", brane: { isAlive: true, hp: 30 }, superposition },
           { id: "q3", state: "IDLE", brane: { isAlive: false, hp: 100 }, superposition },
@@ -227,9 +227,9 @@ describe("Boundary — Тип BOOL (boolean)", () => {
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
       expect(result.states![0]).toBe("COMBAT") // true && 100 > 50
-      expect(result.states![1]).toBe("IDLE") // true && 30 не > 50
+      expect(result.states![1]).toBe("IDLE") // true && 30 not > 50
       expect(result.states![2]).toBe("IDLE") // false && 100 > 50
-      expect(result.states![3]).toBe("IDLE") // false && 30 не > 50
+      expect(result.states![3]).toBe("IDLE") // false && 30 not > 50
     })
   })
 })

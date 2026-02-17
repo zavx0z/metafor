@@ -149,18 +149,18 @@ export class BoundaryTestFixture {
                             console.log("[TEST] Creating Boundary...")
                             const boundary = new Boundary(device)
 
-                            console.log("[TEST] Initializing with config:", ${JSON.stringify(testData.branes)})
+                            console.log("[TEST] Initializing with config:", ${JSON.stringify(testData.fields)})
                             await boundary.init({
-                              branes: ${JSON.stringify(testData.branes)},
                               fields: ${JSON.stringify(testData.fields)},
+                              branes: ${JSON.stringify(testData.branes)},
                             })
 
                             ${testData.updates
                               ? testData.updates
                                   .map(
                                     (u: any) =>
-                                      `console.log('[TEST] Updating brane: field=${u.fieldIndex}, component=${u.componentName}, value=${JSON.stringify(u.value)}');
-        boundary.updateBraneField(${u.fieldIndex}, "${u.componentName}", ${JSON.stringify(u.value)});`,
+                                      `console.log('[TEST] Updating brane: braneIndex=${u.braneIndex}, component=${u.componentName}, value=${JSON.stringify(u.value)}');
+        boundary.updateBraneField(${u.braneIndex}, "${u.componentName}", ${JSON.stringify(u.value)});`,
                                   )
                                   .join("\n      ")
                               : ""}
@@ -286,15 +286,15 @@ export class BoundaryTestFixture {
   /**
    * Запускает симуляцию с заданными параметрами в новой вкладке.
    *
-   * @param params.branes - Схема типов данных браны
-   * @param params.fields - Массив полей с бранами, состояниями и суперпозициями
+   * @param params.fields - Схема типов данных браны
+   * @param params.branes - Массив бран с состояниями и суперпозициями
    * @param params.updates - Обновления компонент бран перед шагом
    * @param params.steps - Количество шагов симуляции
    */
   async runSimulation(params: {
-    branes: Record<string, any>
-    fields: Array<{ id: string; state: string; brane: any; superposition: any }>
-    updates?: Array<{ fieldIndex: number; componentName: string; value: number | boolean | string }>
+    fields: Record<string, any>
+    branes: Array<{ id: string; state: string; brane: any; superposition: any }>
+    updates?: Array<{ braneIndex: number; componentName: string; value: number | boolean | string }>
     steps?: number
   }): Promise<{ success: boolean; states?: string[]; error?: string; stack?: string }> {
     if (!BoundaryTestFixture.browser || !BoundaryTestFixture.baseUrl) {
@@ -317,8 +317,8 @@ export class BoundaryTestFixture {
 
     try {
       const testData = {
-        branes: params.branes,
         fields: params.fields,
+        branes: params.branes,
         updates: params.updates || [],
         steps: params.steps !== undefined ? params.steps : 1,
       }

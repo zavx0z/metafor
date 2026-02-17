@@ -1,13 +1,13 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
 import { BoundaryTestFixture } from "./fixture"
 
-describe("Boundary — Логика новых этапов (GPU)", () => {
+describe("Boundary - New stages logic (GPU)", () => {
   beforeAll(async () => await BoundaryTestFixture.setup())
   afterAll(async () => await BoundaryTestFixture.teardown(), 20000)
   const fixture = new BoundaryTestFixture()
 
-  describe("Оператор IN (Списки)", () => {
-    test("должен переходить, если значение есть в списке (Integer/Enum)", async () => {
+  describe("IN operator (Lists)", () => {
+    test("should transition if value is in list (Integer/Enum)", async () => {
       const superposition = {
         GROUND: {
           AIR: { mode: { in: [3] } }, // FLY
@@ -16,13 +16,13 @@ describe("Boundary — Логика новых этапов (GPU)", () => {
         AIR: null,
         MOVING: null,
       }
-      // Эмуляция Enum: 0=IDLE, 1=WALK, 2=RUN, 3=FLY
+      // Enum emulation: 0=IDLE, 1=WALK, 2=RUN, 3=FLY
       const result = await fixture.runSimulation({
-        branes: { mode: { type: "number" } },
-        fields: [
+        fields: { mode: { type: "number" } },
+        branes: [
           { id: "q1", state: "GROUND", brane: { mode: 1 }, superposition }, // WALK -> MOVING
           { id: "q2", state: "GROUND", brane: { mode: 3 }, superposition }, // FLY -> AIR
-          { id: "q3", state: "GROUND", brane: { mode: 0 }, superposition }, // IDLE -> остаться
+          { id: "q3", state: "GROUND", brane: { mode: 0 }, superposition }, // IDLE -> stay
         ],
       })
 
@@ -32,7 +32,7 @@ describe("Boundary — Логика новых этапов (GPU)", () => {
       expect(result.states![2]).toBe("GROUND")
     })
 
-    test("должен переходить, если float значение есть в списке", async () => {
+    test("should transition if float value is in list", async () => {
       const superposition = {
         NORMAL: {
           CRITICAL: { temperature: { in: [36.6, 40.0] } },
@@ -40,8 +40,8 @@ describe("Boundary — Логика новых этапов (GPU)", () => {
         CRITICAL: null,
       }
       const result = await fixture.runSimulation({
-        branes: { temperature: { type: "number" } },
-        fields: [
+        fields: { temperature: { type: "number" } },
+        branes: [
           { id: "q1", state: "NORMAL", brane: { temperature: 36.6 }, superposition },
           { id: "q2", state: "NORMAL", brane: { temperature: 37.0 }, superposition },
           { id: "q3", state: "NORMAL", brane: { temperature: 40.0 }, superposition },
@@ -55,17 +55,17 @@ describe("Boundary — Логика новых этапов (GPU)", () => {
     })
   })
 
-  describe("Оператор NOT_IN (Исключение)", () => {
-    test("должен переходить, если значения НЕТ в списке", async () => {
+  describe("NOT_IN operator (Exclusion)", () => {
+    test("should transition if value is NOT in list", async () => {
       const superposition = {
         LOBBY: {
-          GAME: { role: { notIn: [0] } }, // 0 = Spectator (не играет)
+          GAME: { role: { notIn: [0] } }, // 0 = Spectator (not playing)
         },
         GAME: null,
       }
       const result = await fixture.runSimulation({
-        branes: { role: { type: "number" } },
-        fields: [
+        fields: { role: { type: "number" } },
+        branes: [
           { id: "q1", state: "LOBBY", brane: { role: 1 }, superposition }, // Player -> GAME
           { id: "q2", state: "LOBBY", brane: { role: 0 }, superposition }, // Spectator -> LOBBY
         ],
@@ -77,8 +77,8 @@ describe("Boundary — Логика новых этапов (GPU)", () => {
     })
   })
 
-  describe("Комбинированные условия", () => {
-    test("должен работать mix из диапазонов и списков", async () => {
+  describe("Combined conditions", () => {
+    test("should work with mix of ranges and lists", async () => {
       const superposition = {
         START: {
           WIN: {
@@ -89,8 +89,8 @@ describe("Boundary — Логика новых этапов (GPU)", () => {
         WIN: null,
       }
       const result = await fixture.runSimulation({
-        branes: { score: { type: "number" }, badge: { type: "number" } },
-        fields: [
+        fields: { score: { type: "number" }, badge: { type: "number" } },
+        branes: [
           { id: "q1", state: "START", brane: { score: 150, badge: 5 }, superposition }, // OK
           { id: "q2", state: "START", brane: { score: 150, badge: 1 }, superposition }, // Badge fail
           { id: "q3", state: "START", brane: { score: 50, badge: 7 }, superposition }, // Score fail

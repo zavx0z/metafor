@@ -25,12 +25,12 @@ describe("Boundary — Тесты логики (реальное устройс�
   describe("Базовые переходы состояний", () => {
     test("должен перейти из состояния IDLE в DEAD при здоровье <= 0", async () => {
       const result = await fixture.runSimulation({
-        branes: {
+        fields: {
           hp: { type: "number" },
           mana: { type: "number" },
           isAlive: { type: "boolean" },
         },
-        fields: [
+        branes: [
           { id: "q1", state: "IDLE", brane: { hp: 100, mana: 100, isAlive: true }, superposition: defaultSuperposition },
           { id: "q2", state: "IDLE", brane: { hp: 0, mana: 50, isAlive: false }, superposition: defaultSuperposition },
         ],
@@ -49,10 +49,10 @@ describe("Boundary — Тесты логики (реальное устройс�
         PATROL: null,
       }
       const result = await fixture.runSimulation({
-        branes: {
+        fields: {
           hp: { type: "number" },
         },
-        fields: [
+        branes: [
           { id: "q1", state: "IDLE", brane: { hp: 100 }, superposition },
           { id: "q2", state: "IDLE", brane: { hp: 50 }, superposition },
         ],
@@ -73,10 +73,10 @@ describe("Boundary — Тесты логики (реальное устройс�
         PATROL: null,
       }
       const result = await fixture.runSimulation({
-        branes: {
-          hp: "number",
+        fields: {
+          hp: { type: "number" },
         },
-        fields: [
+        branes: [
           { id: "q1", state: "IDLE", brane: { hp: 50 }, superposition },
           { id: "q2", state: "IDLE", brane: { hp: 49 }, superposition },
         ],
@@ -97,10 +97,10 @@ describe("Boundary — Тесты логики (реальное устройс�
         PATROL: null,
       }
       const result = await fixture.runSimulation({
-        branes: {
-          hp: "number",
+        fields: {
+          hp: { type: "number" },
         },
-        fields: [
+        branes: [
           { id: "q1", state: "IDLE", brane: { hp: 49 }, superposition },
           { id: "q2", state: "IDLE", brane: { hp: 50 }, superposition },
         ],
@@ -123,10 +123,10 @@ describe("Boundary — Тесты логики (реальное устройс�
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: {
+        fields: {
           isAlive: { type: "boolean" },
         },
-        fields: [
+        branes: [
           { id: "q1", state: "IDLE", brane: { isAlive: true }, superposition },
           { id: "q2", state: "IDLE", brane: { isAlive: false }, superposition },
         ],
@@ -147,10 +147,10 @@ describe("Boundary — Тесты логики (реальное устройс�
         DEAD: null,
       }
       const result = await fixture.runSimulation({
-        branes: {
-          isAlive: "boolean",
+        fields: {
+          isAlive: { type: "boolean" },
         },
-        fields: [
+        branes: [
           { id: "q1", state: "ACTIVE", brane: { isAlive: false }, superposition },
           { id: "q2", state: "ACTIVE", brane: { isAlive: true }, superposition },
         ],
@@ -178,11 +178,11 @@ describe("Boundary — Тесты логики (реальное устройс�
         COMBAT: null,
       }
       const result = await fixture.runSimulation({
-        branes: {
-          hp: "number",
-          mana: "number",
+        fields: {
+          hp: { type: "number" },
+          mana: { type: "number" },
         },
-        fields: [
+        branes: [
           { id: "q1", state: "IDLE", brane: { hp: 100, mana: 50 }, superposition },
           { id: "q2", state: "IDLE", brane: { hp: 100, mana: 10 }, superposition },
           { id: "q3", state: "IDLE", brane: { hp: 30, mana: 50 }, superposition },
@@ -208,11 +208,11 @@ describe("Boundary — Тесты логики (реальное устройс�
         DEAD: null,
       }
       const result = await fixture.runSimulation({
-        branes: {
-          hp: "number",
+        fields: {
+          hp: { type: "number" },
         },
-        fields: [{ id: "q1", state: "IDLE", brane: { hp: 100 }, superposition }],
-        updates: [{ fieldIndex: 0, componentName: "hp", value: 0 }],
+        branes: [{ id: "q1", state: "IDLE", brane: { hp: 100 }, superposition }],
+        updates: [{ braneIndex: 0, componentName: "hp", value: 0 }],
       })
 
       expect(result.success).toBe(true)
@@ -228,11 +228,11 @@ describe("Boundary — Тесты логики (реальное устройс�
         PATROL: null,
       }
       const result = await fixture.runSimulation({
-        branes: {
-          hp: "number",
+        fields: {
+          hp: { type: "number" },
         },
-        fields: [{ id: "q1", state: "IDLE", brane: { hp: 100 }, superposition }],
-        updates: [{ fieldIndex: 0, componentName: "hp", value: 50 }],
+        branes: [{ id: "q1", state: "IDLE", brane: { hp: 100 }, superposition }],
+        updates: [{ braneIndex: 0, componentName: "hp", value: 50 }],
       })
 
       expect(result.success).toBe(true)
@@ -251,11 +251,11 @@ describe("Boundary — Тесты логики (реальное устройс�
         COMBAT: null,
       }
       const result = await fixture.runSimulation({
-        branes: {
-          hp: "number",
-          mana: "number",
+        fields: {
+          hp: { type: "number" },
+          mana: { type: "number" },
         },
-        fields: [{ id: "q1", state: "IDLE", brane: { hp: 100, mana: 5 }, superposition }],
+        branes: [{ id: "q1", state: "IDLE", brane: { hp: 100, mana: 5 }, superposition }],
         steps: 2,
       })
 
@@ -274,10 +274,10 @@ describe("Boundary — Тесты логики (реальное устройс�
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: {
-          hp: "number",
+        fields: {
+          hp: { type: "number" },
         },
-        fields: [
+        branes: [
           { id: "q1", state: "IDLE", brane: { hp: 100 }, superposition },
           { id: "q2", state: "IDLE", brane: { hp: 200 }, superposition },
           { id: "q3", state: "IDLE", brane: { hp: 0 }, superposition },
@@ -300,10 +300,10 @@ describe("Boundary — Тесты логики (реальное устройс�
         ACTIVE: { IDLE: { hp: { lte: 50 } } },
       }
       const result = await fixture.runSimulation({
-        branes: {
-          hp: "number",
+        fields: {
+          hp: { type: "number" },
         },
-        fields: [
+        branes: [
           { id: "q1", state: "IDLE", brane: { hp: 100 }, superposition },
           { id: "q2", state: "ACTIVE", brane: { hp: 30 }, superposition },
         ],
@@ -340,11 +340,11 @@ describe("Boundary — Тесты логики (реальное устройс�
       }
 
       const result = await fixture.runSimulation({
-        branes: {
-          hp: "number",
-          mana: "number",
+        fields: {
+          hp: { type: "number" },
+          mana: { type: "number" },
         },
-        fields: [
+        branes: [
           { id: "warrior", state: "IDLE", brane: { hp: 90, mana: 50 }, superposition: warriorSuperposition },
           { id: "mage", state: "IDLE", brane: { hp: 50, mana: 10 }, superposition: mageSuperposition },
           { id: "scout", state: "IDLE", brane: { hp: 60, mana: 30 }, superposition: scoutSuperposition },
@@ -377,10 +377,10 @@ describe("Boundary — Тесты логики (реальное устройс�
       }
 
       const result = await fixture.runSimulation({
-        branes: {
-          hp: "number",
+        fields: {
+          hp: { type: "number" },
         },
-        fields: [
+        branes: [
           { id: "q1", state: "IDLE", brane: { hp: 50 }, superposition: lowThresholdSuperposition },
           { id: "q2", state: "IDLE", brane: { hp: 50 }, superposition: highThresholdSuperposition },
         ],
@@ -411,10 +411,10 @@ describe("Boundary — Тесты логики (реальное устройс�
       }
 
       const result = await fixture.runSimulation({
-        branes: {
-          hp: "number",
+        fields: {
+          hp: { type: "number" },
         },
-        fields: [
+        branes: [
           { id: "aggressive", state: "IDLE", brane: { hp: 95 }, superposition: aggressiveSuperposition },
           { id: "defensive", state: "IDLE", brane: { hp: 15 }, superposition: defensiveSuperposition },
         ],
@@ -455,12 +455,12 @@ describe("Boundary — Тесты логики (реальное устройс�
       }
 
       const result = await fixture.runSimulation({
-        branes: {
-          hp: "number",
-          mana: "number",
-          isAlive: "boolean",
+        fields: {
+          hp: { type: "number" },
+          mana: { type: "number" },
+          isAlive: { type: "boolean" },
         },
-        fields: [
+        branes: [
           { id: "q1", state: "IDLE", brane: { hp: 60, mana: 0, isAlive: false }, superposition: numericSuperposition },
           { id: "q2", state: "IDLE", brane: { hp: 0, mana: 0, isAlive: true }, superposition: booleanSuperposition },
           { id: "q3", state: "IDLE", brane: { hp: 40, mana: 30, isAlive: false }, superposition: multiConditionSuperposition },

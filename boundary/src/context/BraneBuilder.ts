@@ -20,7 +20,7 @@
  * @packageDocumentation
  */
 
-import { GlobalFieldRegistry, FieldType, type FieldTypeValue, type FieldMeta } from "./GlobalFieldRegistry"
+import { FieldRegistry, FieldType, type FieldMeta, type FieldTypeValue } from "./FieldRegistry"
 import { HeapAllocator, type AllocResult } from "./HeapAllocator"
 import { getStringAtlas, type StringId } from "../typeBridge"
 
@@ -35,7 +35,7 @@ export interface BuildResult {
   /** Данные блока для записи в кучу */
   blockView: Uint32Array
   /** Дополнительные аллокации (строки, массивы) */
-  extraAllocs: Array<{ offset: number, size: number, data?: Uint32Array }>
+  extraAllocs: Array<{ offset: number; size: number; data?: Uint32Array }>
 }
 
 /**
@@ -60,7 +60,7 @@ export function packMeta(field_type: number, field_size: number, field_offset: n
   if (field_type >= 256) throw new Error(`field_type out of range: ${field_type}`)
   if (field_size >= 256) throw new Error(`field_size out of range: ${field_size}`)
   if (field_offset >= 65536) throw new Error(`offset out of range: ${field_offset}`)
-  return ((field_type & 0xFF) << 24) | ((field_size & 0xFF) << 16) | (field_offset & 0xFFFF)
+  return ((field_type & 0xff) << 24) | ((field_size & 0xff) << 16) | (field_offset & 0xffff)
 }
 
 /**
@@ -68,9 +68,9 @@ export function packMeta(field_type: number, field_size: number, field_offset: n
  */
 export function unpackMeta(packed: number): { type: number; size: number; offset: number } {
   return {
-    type: (packed >>> 24) & 0xFF,
-    size: (packed >>> 16) & 0xFF,
-    offset: packed & 0xFFFF,
+    type: (packed >>> 24) & 0xff,
+    size: (packed >>> 16) & 0xff,
+    offset: packed & 0xffff,
   }
 }
 
@@ -136,8 +136,8 @@ export class BraneBuilder {
   private encoder = new TextEncoder()
 
   constructor(
-    private registry: GlobalFieldRegistry,
-    private allocator: HeapAllocator
+    private registry: FieldRegistry,
+    private allocator: HeapAllocator,
   ) {}
 
   /**
@@ -175,7 +175,9 @@ export class BraneBuilder {
       const sizeInWords = getFieldSize(entry.meta.type, entry.value)
       const offsetInWords = currentOffset
       currentOffset += sizeInWords
-      console.log(`[BraneBuilder] Field "${entry.name}": type=${entry.meta.type}, size=${sizeInWords}, offset=${offsetInWords}`)
+      console.log(
+        `[BraneBuilder] Field "${entry.name}": type=${entry.meta.type}, size=${sizeInWords}, offset=${offsetInWords}`,
+      )
       return { ...entry, sizeInWords, offsetInWords }
     })
 
@@ -199,7 +201,9 @@ export class BraneBuilder {
     for (const layout of fieldLayouts) {
       blockView[headerIndex++] = layout.meta.fieldId
       const packedMeta = packMeta(layout.meta.type, layout.sizeInWords, layout.offsetInWords)
-      console.log(`[BraneBuilder] packMeta(${layout.meta.type}, ${layout.sizeInWords}, ${layout.offsetInWords}) = ${packedMeta} (0x${packedMeta.toString(16)})`)
+      console.log(
+        `[BraneBuilder] packMeta(${layout.meta.type}, ${layout.sizeInWords}, ${layout.offsetInWords}) = ${packedMeta} (0x${packedMeta.toString(16)})`,
+      )
       blockView[headerIndex++] = packedMeta
     }
 
@@ -209,7 +213,7 @@ export class BraneBuilder {
     }
 
     // Заполняем значения полей и аллоцируем данные переменного размера.
-    const extraAllocs: Array<{ offset: number, size: number, data?: Uint32Array }> = []
+    const extraAllocs: Array<{ offset: number; size: number; data?: Uint32Array }> = []
     const dataView = new DataView(blockView.buffer)
 
     for (const layout of fieldLayouts) {

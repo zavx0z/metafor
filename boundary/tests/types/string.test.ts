@@ -1,23 +1,23 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
 import { BoundaryTestFixture } from "../fixture"
 
-describe("Boundary — Тип STRING (string)", () => {
+describe("Boundary - STRING type (string)", () => {
   beforeAll(async () => await BoundaryTestFixture.setup())
   afterAll(async () => await BoundaryTestFixture.teardown(), 20000)
   const fixture = new BoundaryTestFixture()
 
-  // Тип STRING использует интернирование через StringAtlas.
-  // Строки хранятся как [stringId, hash] для быстрого сравнения на GPU.
+  // STRING type uses interning via StringAtlas.
+  // Strings are stored as [stringId, hash] for fast comparison on GPU.
 
-  describe("Оператор EQ (равно)", () => {
-    test("должен перейти при значении равном указанному", async () => {
+  describe("EQ operator (equals)", () => {
+    test("should transition when value equals specified", async () => {
       const superposition = {
         IDLE: { ACTIVE: { name: { eq: "hero" } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { name: "string" },
-        fields: [
+        fields: { name: { type: "string" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { name: "hero" }, superposition },
           { id: "q2", state: "IDLE", brane: { name: "monster" }, superposition },
         ],
@@ -30,15 +30,15 @@ describe("Boundary — Тип STRING (string)", () => {
     })
   })
 
-  describe("Оператор NEQ (не равно)", () => {
-    test("должен перейти при значении не равном указанному", async () => {
+  describe("NEQ operator (not equals)", () => {
+    test("should transition when value not equals specified", async () => {
       const superposition = {
         IDLE: { ACTIVE: { name: { neq: "enemy" } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { name: "string" },
-        fields: [
+        fields: { name: { type: "string" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { name: "enemy" }, superposition },
           { id: "q2", state: "IDLE", brane: { name: "ally" }, superposition },
         ],
@@ -51,15 +51,15 @@ describe("Boundary — Тип STRING (string)", () => {
     })
   })
 
-  describe("Оператор IN (входит в список)", () => {
-    test("должен перейти если значение входит в список", async () => {
+  describe("IN operator (in list)", () => {
+    test("should transition if value is in list", async () => {
       const superposition = {
         IDLE: { ACTIVE: { role: { in: ["warrior", "mage", "rogue"] } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { role: "string" },
-        fields: [
+        fields: { role: { type: "string" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { role: "warrior" }, superposition },
           { id: "q2", state: "IDLE", brane: { role: "mage" }, superposition },
           { id: "q3", state: "IDLE", brane: { role: "healer" }, superposition },
@@ -74,21 +74,16 @@ describe("Boundary — Тип STRING (string)", () => {
     })
   })
 
-  describe("Обновление строковых значений", () => {
-    test("должен корректно применять update для строк и обрабатывать IN", async () => {
+  describe("String value updates", () => {
+    test("should correctly apply update for strings and handle IN", async () => {
       const superposition = {
         IDLE: { ACTIVE: { role: { in: ["warrior", "mage"] } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { role: "string" },
-        fields: [
-          { id: "q1", state: "IDLE", brane: { role: "healer" }, superposition },
-        ],
-        updates: [
-          // runtime поддерживает строки, тип в фикстуре будет расширен отдельно
-          { fieldIndex: 0, componentName: "role", value: "warrior" as any },
-        ],
+        fields: { role: { type: "string" } },
+        branes: [{ id: "q1", state: "IDLE", brane: { role: "healer" }, superposition }],
+        updates: [{ braneIndex: 0, componentName: "role", value: "warrior" }],
       })
 
       expect(result.success).toBe(true)
@@ -97,15 +92,15 @@ describe("Boundary — Тип STRING (string)", () => {
     })
   })
 
-  describe("Оператор NOT_IN (не входит в список)", () => {
-    test("должен перейти если значение не входит в список", async () => {
+  describe("NOT_IN operator (not in list)", () => {
+    test("should transition if value is not in list", async () => {
       const superposition = {
         IDLE: { ACTIVE: { role: { notIn: ["enemy", "boss"] } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { role: "string" },
-        fields: [
+        fields: { role: { type: "string" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { role: "enemy" }, superposition },
           { id: "q2", state: "IDLE", brane: { role: "boss" }, superposition },
           { id: "q3", state: "IDLE", brane: { role: "ally" }, superposition },
@@ -120,15 +115,15 @@ describe("Boundary — Тип STRING (string)", () => {
     })
   })
 
-  describe("Пустые строки", () => {
-    test("должен корректно обрабатывать пустую строку", async () => {
+  describe("Empty strings", () => {
+    test("should correctly handle empty string", async () => {
       const superposition = {
         IDLE: { ACTIVE: { name: { eq: "" } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { name: "string" },
-        fields: [
+        fields: { name: { type: "string" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { name: "" }, superposition },
           { id: "q2", state: "IDLE", brane: { name: "hero" }, superposition },
         ],
@@ -141,15 +136,15 @@ describe("Boundary — Тип STRING (string)", () => {
     })
   })
 
-  describe("Специальные символы", () => {
-    test("должен корректно обрабатывать строки со специальными символами", async () => {
+  describe("Special characters", () => {
+    test("should correctly handle strings with special characters", async () => {
       const superposition = {
         IDLE: { ACTIVE: { code: { eq: "test-123_@#" } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { code: "string" },
-        fields: [
+        fields: { code: { type: "string" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { code: "test-123_@#" }, superposition },
           { id: "q2", state: "IDLE", brane: { code: "test-123" }, superposition },
         ],
@@ -162,15 +157,15 @@ describe("Boundary — Тип STRING (string)", () => {
     })
   })
 
-  describe("Регистрозависимость", () => {
-    test("должен учитывать регистр при сравнении", async () => {
+  describe("Case sensitivity", () => {
+    test("should consider case when comparing", async () => {
       const superposition = {
         IDLE: { ACTIVE: { name: { eq: "Hero" } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { name: "string" },
-        fields: [
+        fields: { name: { type: "string" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { name: "Hero" }, superposition },
           { id: "q2", state: "IDLE", brane: { name: "hero" }, superposition },
           { id: "q3", state: "IDLE", brane: { name: "HERO" }, superposition },

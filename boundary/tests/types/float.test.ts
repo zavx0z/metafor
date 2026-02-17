@@ -1,20 +1,20 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
 import { BoundaryTestFixture } from "../fixture"
 
-describe("Boundary — Тип FLOAT (number)", () => {
+describe("Boundary - FLOAT type (number)", () => {
   beforeAll(async () => await BoundaryTestFixture.setup())
   afterAll(async () => await BoundaryTestFixture.teardown(), 20000)
   const fixture = new BoundaryTestFixture()
 
-  describe("Оператор EQ (равно)", () => {
-    test("должен перейти при значении равном указанному", async () => {
+  describe("EQ operator (equals)", () => {
+    test("should transition when value equals specified", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { eq: 42 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 42 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 41 }, superposition },
           { id: "q3", state: "IDLE", brane: { value: 43 }, superposition },
@@ -28,14 +28,14 @@ describe("Boundary — Тип FLOAT (number)", () => {
       expect(result.states![2]).toBe("IDLE") // 43 != 42
     })
 
-    test("должен работать с отрицательными числами", async () => {
+    test("should work with negative numbers", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { eq: -10 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: -10 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 10 }, superposition },
         ],
@@ -47,14 +47,14 @@ describe("Boundary — Тип FLOAT (number)", () => {
       expect(result.states![1]).toBe("IDLE")
     })
 
-    test("должен работать с дробными числами", async () => {
+    test("should work with fractional numbers", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { eq: 3.14 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 3.14 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 3.15 }, superposition },
         ],
@@ -66,14 +66,14 @@ describe("Boundary — Тип FLOAT (number)", () => {
       expect(result.states![1]).toBe("IDLE")
     })
 
-    test("должен работать с нулём", async () => {
+    test("should work with zero", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { eq: 0 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 0 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 0.001 }, superposition },
         ],
@@ -86,15 +86,15 @@ describe("Boundary — Тип FLOAT (number)", () => {
     })
   })
 
-  describe("Оператор NEQ (не равно)", () => {
-    test("должен перейти при значении не равном указанному", async () => {
+  describe("NEQ operator (not equals)", () => {
+    test("should transition when value not equals specified", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { neq: 42 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 42 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 41 }, superposition },
           { id: "q3", state: "IDLE", brane: { value: 43 }, superposition },
@@ -108,14 +108,14 @@ describe("Boundary — Тип FLOAT (number)", () => {
       expect(result.states![2]).toBe("ACTIVE") // 43 != 42
     })
 
-    test("должен работать с алиасом 'ne'", async () => {
+    test("should work with alias 'ne'", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { ne: 0 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 0 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 1 }, superposition },
         ],
@@ -127,14 +127,14 @@ describe("Boundary — Тип FLOAT (number)", () => {
       expect(result.states![1]).toBe("ACTIVE")
     })
 
-    test("должен работать с алиасом 'notEq'", async () => {
+    test("should work with alias 'notEq'", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { notEq: 100 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 100 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 99 }, superposition },
         ],
@@ -147,15 +147,15 @@ describe("Boundary — Тип FLOAT (number)", () => {
     })
   })
 
-  describe("Оператор GT (больше)", () => {
-    test("должен перейти при значении больше указанного", async () => {
+  describe("GT operator (greater than)", () => {
+    test("should transition when value greater than specified", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { gt: 50 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 100 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 50 }, superposition },
           { id: "q3", state: "IDLE", brane: { value: 49 }, superposition },
@@ -165,18 +165,18 @@ describe("Boundary — Тип FLOAT (number)", () => {
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
       expect(result.states![0]).toBe("ACTIVE") // 100 > 50
-      expect(result.states![1]).toBe("IDLE") // 50 не > 50
-      expect(result.states![2]).toBe("IDLE") // 49 не > 50
+      expect(result.states![1]).toBe("IDLE") // 50 not > 50
+      expect(result.states![2]).toBe("IDLE") // 49 not > 50
     })
 
-    test("должен работать с отрицательными числами", async () => {
+    test("should work with negative numbers", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { gt: -10 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: -5 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: -10 }, superposition },
           { id: "q3", state: "IDLE", brane: { value: -15 }, superposition },
@@ -186,20 +186,20 @@ describe("Boundary — Тип FLOAT (number)", () => {
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
       expect(result.states![0]).toBe("ACTIVE") // -5 > -10
-      expect(result.states![1]).toBe("IDLE") // -10 не > -10
-      expect(result.states![2]).toBe("IDLE") // -15 не > -10
+      expect(result.states![1]).toBe("IDLE") // -10 not > -10
+      expect(result.states![2]).toBe("IDLE") // -15 not > -10
     })
   })
 
-  describe("Оператор LT (меньше)", () => {
-    test("должен перейти при значении меньше указанного", async () => {
+  describe("LT operator (less than)", () => {
+    test("should transition when value less than specified", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { lt: 50 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 49 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 50 }, superposition },
           { id: "q3", state: "IDLE", brane: { value: 51 }, superposition },
@@ -209,18 +209,18 @@ describe("Boundary — Тип FLOAT (number)", () => {
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
       expect(result.states![0]).toBe("ACTIVE") // 49 < 50
-      expect(result.states![1]).toBe("IDLE") // 50 не < 50
-      expect(result.states![2]).toBe("IDLE") // 51 не < 50
+      expect(result.states![1]).toBe("IDLE") // 50 not < 50
+      expect(result.states![2]).toBe("IDLE") // 51 not < 50
     })
 
-    test("должен работать с отрицательными числами", async () => {
+    test("should work with negative numbers", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { lt: -5 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: -10 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: -5 }, superposition },
           { id: "q3", state: "IDLE", brane: { value: 0 }, superposition },
@@ -230,20 +230,20 @@ describe("Boundary — Тип FLOAT (number)", () => {
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
       expect(result.states![0]).toBe("ACTIVE") // -10 < -5
-      expect(result.states![1]).toBe("IDLE") // -5 не < -5
-      expect(result.states![2]).toBe("IDLE") // 0 не < -5
+      expect(result.states![1]).toBe("IDLE") // -5 not < -5
+      expect(result.states![2]).toBe("IDLE") // 0 not < -5
     })
   })
 
-  describe("Оператор GTE (больше или равно)", () => {
-    test("должен перейти при значении больше или равном указанному", async () => {
+  describe("GTE operator (greater than or equal)", () => {
+    test("should transition when value greater than or equal to specified", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { gte: 50 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 100 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 50 }, superposition },
           { id: "q3", state: "IDLE", brane: { value: 49 }, superposition },
@@ -254,19 +254,19 @@ describe("Boundary — Тип FLOAT (number)", () => {
       expect(result.states).toBeDefined()
       expect(result.states![0]).toBe("ACTIVE") // 100 >= 50
       expect(result.states![1]).toBe("ACTIVE") // 50 >= 50
-      expect(result.states![2]).toBe("IDLE") // 49 не >= 50
+      expect(result.states![2]).toBe("IDLE") // 49 not >= 50
     })
   })
 
-  describe("Оператор LTE (меньше или равно)", () => {
-    test("должен перейти при значении меньше или равном указанному", async () => {
+  describe("LTE operator (less than or equal)", () => {
+    test("should transition when value less than or equal to specified", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { lte: 50 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 49 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 50 }, superposition },
           { id: "q3", state: "IDLE", brane: { value: 51 }, superposition },
@@ -277,19 +277,19 @@ describe("Boundary — Тип FLOAT (number)", () => {
       expect(result.states).toBeDefined()
       expect(result.states![0]).toBe("ACTIVE") // 49 <= 50
       expect(result.states![1]).toBe("ACTIVE") // 50 <= 50
-      expect(result.states![2]).toBe("IDLE") // 51 не <= 50
+      expect(result.states![2]).toBe("IDLE") // 51 not <= 50
     })
   })
 
-  describe("Оператор IN (входит в список)", () => {
-    test("должен перейти если значение входит в список", async () => {
+  describe("IN operator (in list)", () => {
+    test("should transition if value is in list", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { in: [10, 20, 30] } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 10 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 20 }, superposition },
           { id: "q3", state: "IDLE", brane: { value: 30 }, superposition },
@@ -305,31 +305,31 @@ describe("Boundary — Тип FLOAT (number)", () => {
       expect(result.states![3]).toBe("IDLE") // 15 not in [10, 20, 30]
     })
 
-    test("должен работать с пустым списком", async () => {
+    test("should work with empty list", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { in: [] } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [{ id: "q1", state: "IDLE", brane: { value: 10 }, superposition }],
+        fields: { value: { type: "number" } },
+        branes: [{ id: "q1", state: "IDLE", brane: { value: 10 }, superposition }],
       })
 
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
-      expect(result.states![0]).toBe("IDLE") // Ничего не входит в пустой список
+      expect(result.states![0]).toBe("IDLE") // Nothing is in empty list
     })
   })
 
-  describe("Оператор NOT_IN (не входит в список)", () => {
-    test("должен перейти если значение не входит в список", async () => {
+  describe("NOT_IN operator (not in list)", () => {
+    test("should transition if value is not in list", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { notIn: [10, 20, 30] } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 10 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 15 }, superposition },
           { id: "q3", state: "IDLE", brane: { value: 25 }, superposition },
@@ -344,15 +344,15 @@ describe("Boundary — Тип FLOAT (number)", () => {
     })
   })
 
-  describe("Составные условия (between)", () => {
-    test("должен перейти если значение в диапазоне", async () => {
+  describe("Compound conditions (between)", () => {
+    test("should transition if value is in range", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { between: [10, 20] } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 9 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 10 }, superposition },
           { id: "q3", state: "IDLE", brane: { value: 15 }, superposition },
@@ -363,7 +363,7 @@ describe("Boundary — Тип FLOAT (number)", () => {
 
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
-      // between компилируется в gte(10) AND lte(20)
+      // between compiles to gte(10) AND lte(20)
       expect(result.states![0]).toBe("IDLE") // 9 < 10
       expect(result.states![1]).toBe("ACTIVE") // 10 >= 10 && 10 <= 20
       expect(result.states![2]).toBe("ACTIVE") // 15 >= 10 && 15 <= 20
@@ -372,15 +372,15 @@ describe("Boundary — Тип FLOAT (number)", () => {
     })
   })
 
-  describe("Отрицательные условия (notGt, notGte, notLt, notLte)", () => {
-    test("notGt должен быть эквивалентен lte", async () => {
+  describe("Negative conditions (notGt, notGte, notLt, notLte)", () => {
+    test("notGt should be equivalent to lte", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { notGt: 50 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 49 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 50 }, superposition },
           { id: "q3", state: "IDLE", brane: { value: 51 }, superposition },
@@ -394,14 +394,14 @@ describe("Boundary — Тип FLOAT (number)", () => {
       expect(result.states![2]).toBe("IDLE") // !(51 > 50) == false
     })
 
-    test("notGte должен быть эквивалентен lt", async () => {
+    test("notGte should be equivalent to lt", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { notGte: 50 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 49 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 50 }, superposition },
           { id: "q3", state: "IDLE", brane: { value: 51 }, superposition },
@@ -415,14 +415,14 @@ describe("Boundary — Тип FLOAT (number)", () => {
       expect(result.states![2]).toBe("IDLE") // !(51 >= 50) == false
     })
 
-    test("notLt должен быть эквивалентен gte", async () => {
+    test("notLt should be equivalent to gte", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { notLt: 50 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 49 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 50 }, superposition },
           { id: "q3", state: "IDLE", brane: { value: 51 }, superposition },
@@ -436,14 +436,14 @@ describe("Boundary — Тип FLOAT (number)", () => {
       expect(result.states![2]).toBe("ACTIVE") // !(51 < 50) == true
     })
 
-    test("notLte должен быть эквивалентен gt", async () => {
+    test("notLte should be equivalent to gt", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { notLte: 50 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 49 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 50 }, superposition },
           { id: "q3", state: "IDLE", brane: { value: 51 }, superposition },
@@ -458,15 +458,15 @@ describe("Boundary — Тип FLOAT (number)", () => {
     })
   })
 
-  describe("Множественные условия", () => {
-    test("должен перейти при выполнении всех условий для одного поля (AND логика)", async () => {
+  describe("Multiple conditions", () => {
+    test("should transition when all conditions for one field are met (AND logic)", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { gte: 10, lte: 20 } } },
         ACTIVE: null,
       }
       const result = await fixture.runSimulation({
-        branes: { value: "number" },
-        fields: [
+        fields: { value: { type: "number" } },
+        branes: [
           { id: "q1", state: "IDLE", brane: { value: 9 }, superposition },
           { id: "q2", state: "IDLE", brane: { value: 15 }, superposition },
           { id: "q3", state: "IDLE", brane: { value: 21 }, superposition },
@@ -475,10 +475,10 @@ describe("Boundary — Тип FLOAT (number)", () => {
 
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
-      // Все условия для одного поля проверяются с AND логикой
-      expect(result.states![0]).toBe("IDLE") // 9 < 10 (не проходит gte)
-      expect(result.states![1]).toBe("ACTIVE") // 15 >= 10 && 15 <= 20 (оба условия)
-      expect(result.states![2]).toBe("IDLE") // 21 > 20 (не проходит lte)
+      // All conditions for one field are checked with AND logic
+      expect(result.states![0]).toBe("IDLE") // 9 < 10 (fails gte)
+      expect(result.states![1]).toBe("ACTIVE") // 15 >= 10 && 15 <= 20 (both conditions)
+      expect(result.states![2]).toBe("IDLE") // 21 > 20 (fails lte)
     })
   })
 })

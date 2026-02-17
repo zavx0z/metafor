@@ -5,15 +5,15 @@ import { getStringAtlas } from "./typeBridge"
  * Параметры инициализации GPU-бэкенда.
  */
 interface BackendInitParams {
-  /** Количество полей в границе */
+  /** Количество бран в границе */
   braneCount: number
-  /** Конкатенированный bytecode всех полей */
+  /** Конкатенированный bytecode всех бран */
   bytecode: Uint32Array
   /** Таблица смещений bytecode для каждого поля */
   bytecodeOffsets: Uint32Array
-  /** Начальные состояния полей (числовые ID) */
+  /** Начальные состояния бран (числовые ID) */
   states: Uint32Array
-  /** Дескрипторы полей: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...] */
+  /** Дескрипторы бран: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...] */
   braneDescriptors: Uint32Array
   /** Куча с данными бран */
   heap: Uint32Array
