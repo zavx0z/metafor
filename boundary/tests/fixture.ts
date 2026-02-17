@@ -32,10 +32,21 @@ const OUT_DIR_NAME = "dist-test" // Директория для сборки б�
 const LAUNCH_OPTIONS: any = {
   headless: true, // Запуск в headless-режиме (без графического интерфейса)
   args: [
+    "--headless=new",
     "--no-sandbox", // Отключение песочницы для Docker/CI
     "--enable-unsafe-webgpu", // Включение WebGPU (экспериментальная функция)
     "--disable-vulkan-fallback-to-gl", // Отключение Vulkan fallback на GL
     "--disable-vulkan-surface", // Отключение Vulkan поверхности
+    "--disable-gpu-sandbox", // Отключение GPU песочницы
+    "--disable-software-rasterizer", // Отключение программной растеризации
+    "--disable-extensions", // Отключение расширений
+    "--disable-background-networking", // Отключение фоновой сети
+    "--disable-background-timer-throttling", // Отключение throttling таймеров
+    "--disable-backgrounding-occluded-windows", // Отключение фонового режима окон
+    "--disable-renderer-backgrounding", // Отключение фонового режима рендерера
+    "--disable-features=TranslateUI", // Отключение UI перевода
+    "--no-first-run", // Пропуск первого запуска
+    "--no-default-browser-check", // Пропуск проверки браузера по умолчанию
   ],
 }
 
@@ -70,8 +81,22 @@ function findPuppeteerBrowser(): string | undefined {
           // или mac_arm для Apple Silicon
           const possiblePaths = [
             // Puppeteer 24.x структура
-            join(versionDir, "chrome-mac-x64", "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing"),
-            join(versionDir, "chrome-mac-arm64", "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing"),
+            join(
+              versionDir,
+              "chrome-mac-x64",
+              "Google Chrome for Testing.app",
+              "Contents",
+              "MacOS",
+              "Google Chrome for Testing",
+            ),
+            join(
+              versionDir,
+              "chrome-mac-arm64",
+              "Google Chrome for Testing.app",
+              "Contents",
+              "MacOS",
+              "Google Chrome for Testing",
+            ),
             // Альтернативная структура
             join(versionDir, "Google Chrome for Testing.app", "Contents", "MacOS", "Google Chrome for Testing"),
             join(versionDir, "Chromium.app", "Contents", "MacOS", "Chromium"),
@@ -155,18 +180,6 @@ export class BoundaryTestFixture {
 
       const launchOptions: any = { ...LAUNCH_OPTIONS }
 
-      const execPath = getExecutablePath()
-      if (execPath) {
-        launchOptions.executablePath = execPath
-      } else {
-        // Если браузер не найден, Puppeteer попытается найти его автоматически
-        // Но в Puppeteer 24.x bundled browser отсутствует, поэтому добавляем информативную ошибку
-        console.warn(
-          "[FIXTURE] Browser not found in system paths or Puppeteer cache.\n" +
-            "Please run: bun run setup:browsers\n" +
-            "Or install Chrome manually.",
-        )
-      }
 
       try {
         this.browser = await puppeteer.launch(launchOptions)
@@ -183,102 +196,102 @@ export class BoundaryTestFixture {
 
       // Создаем сервер для тестов
       this.server = serve({
-      ...SERVER_OPTIONS,
-      routes: {
-        "/test": async (req) => {
-          const url = new URL(req.url)
-          const params = url.searchParams.get("data")
-          if (!params) return new Response("Missing test parameters", { status: 400 })
-          try {
-            const testData = JSON.parse(params)
-            return new Response(
-              html`
-                <!DOCTYPE html>
-                <html>
-                  <head>
-                    <meta charset="UTF-8" />
-                    <title>Boundary Test</title>
-                  </head>
-                  <body>
-                    <div id="result"></div>
-                    <script type="module">
-                      import { Boundary } from "/dist-test/index.js"
+        ...SERVER_OPTIONS,
+        routes: {
+          "/test": async (req) => {
+            const url = new URL(req.url)
+            const params = url.searchParams.get("data")
+            if (!params) return new Response("Missing test parameters", { status: 400 })
+            try {
+              const testData = JSON.parse(params)
+              return new Response(
+                html`
+                  <!DOCTYPE html>
+                  <html>
+                    <head>
+                      <meta charset="UTF-8" />
+                      <title>Boundary Test</title>
+                    </head>
+                    <body>
+                      <div id="result"></div>
+                      <script type="module">
+                        import { Boundary } from "/dist-test/index.js"
 
-                      async function run() {
-                        try {
-                          console.log("[TEST] Starting boundary simulation...")
+                        async function run() {
+                          try {
+                            console.log("[TEST] Starting boundary simulation...")
 
-                          if (!navigator.gpu) {
-                            throw new Error("WebGPU not supported in this browser")
-                          }
+                            if (!navigator.gpu) {
+                              throw new Error("WebGPU not supported in this browser")
+                            }
 
-                          console.log("[TEST] Requesting GPU adapter...")
-                          const adapter = await navigator.gpu.requestAdapter()
-                          if (!adapter) throw new Error("Failed to request GPU adapter")
+                            console.log("[TEST] Requesting GPU adapter...")
+                            const adapter = await navigator.gpu.requestAdapter()
+                            if (!adapter) throw new Error("Failed to request GPU adapter")
 
-                          console.log("[TEST] Requesting GPU device...")
-                          const device = await adapter.requestDevice()
+                            console.log("[TEST] Requesting GPU device...")
+                            const device = await adapter.requestDevice()
 
-                          console.log("[TEST] Creating Boundary...")
-                          const boundary = new Boundary(device)
+                            console.log("[TEST] Creating Boundary...")
+                            const boundary = new Boundary(device)
 
-                          console.log("[TEST] Initializing with config:", ${JSON.stringify(testData.branes)})
-                          await boundary.init({
-                            branes: ${JSON.stringify(testData.branes)},
-                            fields: ${JSON.stringify(testData.fields)},
-                          })
+                            console.log("[TEST] Initializing with config:", ${JSON.stringify(testData.branes)})
+                            await boundary.init({
+                              branes: ${JSON.stringify(testData.branes)},
+                              fields: ${JSON.stringify(testData.fields)},
+                            })
 
-                          ${testData.updates
-                            ? testData.updates
-                                .map(
-                                  (u: any) =>
-                                    `console.log('[TEST] Updating brane: field=${u.fieldIndex}, component=${u.componentName}, value=${JSON.stringify(u.value)}');
+                            ${testData.updates
+                              ? testData.updates
+                                  .map(
+                                    (u: any) =>
+                                      `console.log('[TEST] Updating brane: field=${u.fieldIndex}, component=${u.componentName}, value=${JSON.stringify(u.value)}');
         boundary.updateBraneField(${u.fieldIndex}, "${u.componentName}", ${JSON.stringify(u.value)});`,
-                                )
-                                .join("\n      ")
-                            : ""}
+                                  )
+                                  .join("\n      ")
+                              : ""}
 
-                          const stepCount = ${testData.steps !== undefined ? testData.steps : 1}
-                          console.log("[TEST] Running " + stepCount + " step(s)...")
-                          for (let i = 0; i < stepCount; i++) {
-                            boundary.step()
+                            const stepCount = ${testData.steps !== undefined ? testData.steps : 1}
+                            console.log("[TEST] Running " + stepCount + " step(s)...")
+                            for (let i = 0; i < stepCount; i++) {
+                              boundary.step()
+                            }
+
+                            console.log("[TEST] Getting final states...")
+                            const states = await boundary.getStates()
+
+                            console.log("[TEST] Success! States:", states)
+                            document.getElementById("result").textContent = JSON.stringify({ success: true, states })
+                          } catch (e) {
+                            console.error("[TEST] Error:", e)
+                            document.getElementById("result").textContent = JSON.stringify({
+                              success: false,
+                              error: e.message,
+                              stack: e.stack,
+                            })
                           }
-
-                          console.log("[TEST] Getting final states...")
-                          const states = await boundary.getStates()
-
-                          console.log("[TEST] Success! States:", states)
-                          document.getElementById("result").textContent = JSON.stringify({ success: true, states })
-                        } catch (e) {
-                          console.error("[TEST] Error:", e)
-                          document.getElementById("result").textContent = JSON.stringify({
-                            success: false,
-                            error: e.message,
-                            stack: e.stack,
-                          })
                         }
-                      }
-                      // Запускаем после полной загрузки DOM
-                      document.addEventListener("DOMContentLoaded", run)
-                    </script>
-                  </body>
-                </html>
-              `,
-              { headers: { "Content-Type": "text/html" } },
-            )
-          } catch (e) {
-            return new Response(`Error: ${e}`, { status: 500 })
-          }
+                        // Запускаем после полной загрузки DOM
+                        document.addEventListener("DOMContentLoaded", run)
+                      </script>
+                    </body>
+                  </html>
+                `,
+                { headers: { "Content-Type": "text/html" } },
+              )
+            } catch (e) {
+              return new Response(`Error: ${e}`, { status: 500 })
+            }
+          },
         },
-      },
-      async fetch(req) {
-        const url = new URL(req.url)
-        if (url.pathname.startsWith("/dist-test/")) {
-          return new Response(Bun.file(join(packageRoot, url.pathname)))
-        }
-        return new Response("Not Found", { status: 404 })
-      },
-    })
+        async fetch(req) {
+          const url = new URL(req.url)
+          if (url.pathname.startsWith("/dist-test/")) {
+            return new Response(Bun.file(join(packageRoot, url.pathname)))
+          }
+          return new Response("Not Found", { status: 404 })
+        },
+      })
       this.baseUrl = `http://localhost:${this.server.port}`
     })()
 
@@ -310,7 +323,7 @@ export class BoundaryTestFixture {
     }
 
     this.teardownPromise = (async () => {
-    // Закрываем браузер с обработкой ошибок
+      // Закрываем браузер с обработкой ошибок
       if (this.browser) {
         try {
           const pages = await this.browser.pages()
@@ -380,7 +393,7 @@ export class BoundaryTestFixture {
 
     // Собираем логи консоли браузера (должно быть ДО навигации)
     const browserLogs: string[] = []
-    page.on('console', msg => {
+    page.on("console", (msg) => {
       const text = msg.text()
       browserLogs.push(text)
       if (this.debug) {
