@@ -1,13 +1,13 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
 import { BrowserWebGPU } from "../../fixture/browserWebGPU"
 
-describe("Boundary - FLOAT type (number)", () => {
+describe("Boundary — Тип FLOAT (число)", () => {
   beforeAll(async () => await BrowserWebGPU.setup())
   afterAll(async () => await BrowserWebGPU.teardown(), 20000)
   const fixture = new BrowserWebGPU()
 
-  describe("EQ operator (equals)", () => {
-    test("should transition when value equals specified", async () => {
+  describe("Оператор EQ (равно)", () => {
+    test("должен перейти при равенстве значения указанному", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { eq: 42 } } },
         ACTIVE: null,
@@ -28,7 +28,7 @@ describe("Boundary - FLOAT type (number)", () => {
       expect(result.states![2]).toBe("IDLE") // 43 != 42
     })
 
-    test("should work with negative numbers", async () => {
+    test("должен работать с отрицательными числами", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { eq: -10 } } },
         ACTIVE: null,
@@ -47,7 +47,7 @@ describe("Boundary - FLOAT type (number)", () => {
       expect(result.states![1]).toBe("IDLE")
     })
 
-    test("should work with fractional numbers", async () => {
+    test("должен работать с дробными числами", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { eq: 3.14 } } },
         ACTIVE: null,
@@ -66,7 +66,7 @@ describe("Boundary - FLOAT type (number)", () => {
       expect(result.states![1]).toBe("IDLE")
     })
 
-    test("should work with zero", async () => {
+    test("должен работать с нулём", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { eq: 0 } } },
         ACTIVE: null,
@@ -86,8 +86,8 @@ describe("Boundary - FLOAT type (number)", () => {
     })
   })
 
-  describe("NEQ operator (not equals)", () => {
-    test("should transition when value not equals specified", async () => {
+  describe("Оператор NEQ (не равно)", () => {
+    test("должен перейти при неравенстве значения указанному", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { neq: 42 } } },
         ACTIVE: null,
@@ -108,7 +108,7 @@ describe("Boundary - FLOAT type (number)", () => {
       expect(result.states![2]).toBe("ACTIVE") // 43 != 42
     })
 
-    test("should work with alias 'ne'", async () => {
+    test("должен работать с алиасом 'ne'", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { ne: 0 } } },
         ACTIVE: null,
@@ -127,7 +127,7 @@ describe("Boundary - FLOAT type (number)", () => {
       expect(result.states![1]).toBe("ACTIVE")
     })
 
-    test("should work with alias 'notEq'", async () => {
+    test("должен работать с алиасом 'notEq'", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { notEq: 100 } } },
         ACTIVE: null,
@@ -147,8 +147,8 @@ describe("Boundary - FLOAT type (number)", () => {
     })
   })
 
-  describe("GT operator (greater than)", () => {
-    test("should transition when value greater than specified", async () => {
+  describe("Оператор GT (больше)", () => {
+    test("должен перейти при значении больше указанного", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { gt: 50 } } },
         ACTIVE: null,
@@ -169,7 +169,7 @@ describe("Boundary - FLOAT type (number)", () => {
       expect(result.states![2]).toBe("IDLE") // 49 not > 50
     })
 
-    test("should work with negative numbers", async () => {
+    test("должен работать с отрицательными числами", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { gt: -10 } } },
         ACTIVE: null,
@@ -191,8 +191,8 @@ describe("Boundary - FLOAT type (number)", () => {
     })
   })
 
-  describe("LT operator (less than)", () => {
-    test("should transition when value less than specified", async () => {
+  describe("Оператор LT (меньше)", () => {
+    test("должен перейти при значении меньше указанного", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { lt: 50 } } },
         ACTIVE: null,
@@ -213,7 +213,7 @@ describe("Boundary - FLOAT type (number)", () => {
       expect(result.states![2]).toBe("IDLE") // 51 not < 50
     })
 
-    test("should work with negative numbers", async () => {
+    test("должен работать с отрицательными числами", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { lt: -5 } } },
         ACTIVE: null,
@@ -235,8 +235,8 @@ describe("Boundary - FLOAT type (number)", () => {
     })
   })
 
-  describe("GTE operator (greater than or equal)", () => {
-    test("should transition when value greater than or equal to specified", async () => {
+  describe("Оператор GTE (больше или равно)", () => {
+    test("должен перейти при значении больше или равном указанному", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { gte: 50 } } },
         ACTIVE: null,
@@ -258,8 +258,8 @@ describe("Boundary - FLOAT type (number)", () => {
     })
   })
 
-  describe("LTE operator (less than or equal)", () => {
-    test("should transition when value less than or equal to specified", async () => {
+  describe("Оператор LTE (меньше или равно)", () => {
+    test("должен перейти при значении меньше или равном указанному", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { lte: 50 } } },
         ACTIVE: null,
@@ -281,8 +281,8 @@ describe("Boundary - FLOAT type (number)", () => {
     })
   })
 
-  describe("IN operator (in list)", () => {
-    test("should transition if value is in list", async () => {
+  describe("Оператор IN (в списке)", () => {
+    test("должен перейти, если значение в списке", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { in: [10, 20, 30] } } },
         ACTIVE: null,
@@ -305,7 +305,7 @@ describe("Boundary - FLOAT type (number)", () => {
       expect(result.states![3]).toBe("IDLE") // 15 not in [10, 20, 30]
     })
 
-    test("should work with empty list", async () => {
+    test("должен работать с пустым списком", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { in: [] } } },
         ACTIVE: null,
@@ -321,8 +321,8 @@ describe("Boundary - FLOAT type (number)", () => {
     })
   })
 
-  describe("NOT_IN operator (not in list)", () => {
-    test("should transition if value is not in list", async () => {
+  describe("Оператор NOT_IN (не в списке)", () => {
+    test("должен перейти, если значения нет в списке", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { notIn: [10, 20, 30] } } },
         ACTIVE: null,
@@ -344,8 +344,8 @@ describe("Boundary - FLOAT type (number)", () => {
     })
   })
 
-  describe("Compound conditions (between)", () => {
-    test("should transition if value is in range", async () => {
+  describe("Составные условия (between)", () => {
+    test("должен перейти, если значение в диапазоне", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { between: [10, 20] } } },
         ACTIVE: null,
@@ -372,8 +372,8 @@ describe("Boundary - FLOAT type (number)", () => {
     })
   })
 
-  describe("Negative conditions (notGt, notGte, notLt, notLte)", () => {
-    test("notGt should be equivalent to lte", async () => {
+  describe("Отрицательные условия (notGt, notGte, notLt, notLte)", () => {
+    test("notGt должен быть эквивалентен lte", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { notGt: 50 } } },
         ACTIVE: null,
@@ -394,7 +394,7 @@ describe("Boundary - FLOAT type (number)", () => {
       expect(result.states![2]).toBe("IDLE") // !(51 > 50) == false
     })
 
-    test("notGte should be equivalent to lt", async () => {
+    test("notGte должен быть эквивалентен lt", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { notGte: 50 } } },
         ACTIVE: null,
@@ -415,7 +415,7 @@ describe("Boundary - FLOAT type (number)", () => {
       expect(result.states![2]).toBe("IDLE") // !(51 >= 50) == false
     })
 
-    test("notLt should be equivalent to gte", async () => {
+    test("notLt должен быть эквивалентен gte", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { notLt: 50 } } },
         ACTIVE: null,
@@ -436,7 +436,7 @@ describe("Boundary - FLOAT type (number)", () => {
       expect(result.states![2]).toBe("ACTIVE") // !(51 < 50) == true
     })
 
-    test("notLte should be equivalent to gt", async () => {
+    test("notLte должен быть эквивалентен gt", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { notLte: 50 } } },
         ACTIVE: null,
@@ -458,8 +458,8 @@ describe("Boundary - FLOAT type (number)", () => {
     })
   })
 
-  describe("Multiple conditions", () => {
-    test("should transition when all conditions for one field are met (AND logic)", async () => {
+  describe("Множественные условия", () => {
+    test("должен перейти при выполнении всех условий для одного поля (логика AND)", async () => {
       const superposition = {
         IDLE: { ACTIVE: { value: { gte: 10, lte: 20 } } },
         ACTIVE: null,

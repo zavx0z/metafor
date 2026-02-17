@@ -1,13 +1,13 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
 import { BrowserWebGPU } from "../../fixture/browserWebGPU"
 
-describe("Boundary - BOOL type (boolean)", () => {
+describe("Boundary — Тип BOOL (булево)", () => {
   beforeAll(async () => await BrowserWebGPU.setup())
   afterAll(async () => await BrowserWebGPU.teardown(), 20000)
   const fixture = new BrowserWebGPU()
 
-  describe("Direct value true", () => {
-    test("should transition when value is true", async () => {
+  describe("Прямое значение true", () => {
+    test("должен перейти при значении true", async () => {
       const superposition = {
         IDLE: { ACTIVE: { isAlive: true } },
         ACTIVE: null,
@@ -27,8 +27,8 @@ describe("Boundary - BOOL type (boolean)", () => {
     })
   })
 
-  describe("Direct value false", () => {
-    test("should transition when value is false", async () => {
+  describe("Прямое значение false", () => {
+    test("должен перейти при значении false", async () => {
       const superposition = {
         IDLE: { DEAD: { isAlive: false } },
         DEAD: null,
@@ -48,8 +48,8 @@ describe("Boundary - BOOL type (boolean)", () => {
     })
   })
 
-  describe("EQ operator (equals)", () => {
-    test("should transition when value equals true", async () => {
+  describe("Оператор EQ (равно)", () => {
+    test("должен перейти при равенстве значения true", async () => {
       const superposition = {
         IDLE: { ACTIVE: { isAlive: { eq: true } } },
         ACTIVE: null,
@@ -68,7 +68,7 @@ describe("Boundary - BOOL type (boolean)", () => {
       expect(result.states![1]).toBe("IDLE") // false != true
     })
 
-    test("should transition when value equals false", async () => {
+    test("должен перейти при равенстве значения false", async () => {
       const superposition = {
         IDLE: { DEAD: { isAlive: { eq: false } } },
         DEAD: null,
@@ -88,8 +88,8 @@ describe("Boundary - BOOL type (boolean)", () => {
     })
   })
 
-  describe("NEQ operator (not equals)", () => {
-    test("should transition when value not equals true", async () => {
+  describe("Оператор NEQ (не равно)", () => {
+    test("должен перейти при неравенстве значения true", async () => {
       const superposition = {
         IDLE: { DEAD: { isAlive: { neq: true } } },
         DEAD: null,
@@ -108,7 +108,7 @@ describe("Boundary - BOOL type (boolean)", () => {
       expect(result.states![1]).toBe("DEAD") // false != true
     })
 
-    test("should transition when value not equals false", async () => {
+    test("должен перейти при неравенстве значения false", async () => {
       const superposition = {
         IDLE: { ACTIVE: { isAlive: { neq: false } } },
         ACTIVE: null,
@@ -128,8 +128,8 @@ describe("Boundary - BOOL type (boolean)", () => {
     })
   })
 
-  describe("Multiple boolean conditions", () => {
-    test("should transition when all conditions are met (AND)", async () => {
+  describe("Множественные булевы условия", () => {
+    test("должен перейти при выполнении всех условий (И)", async () => {
       const superposition = {
         IDLE: { ACTIVE: { isAlive: true, hasMana: true } },
         ACTIVE: null,
@@ -152,7 +152,7 @@ describe("Boundary - BOOL type (boolean)", () => {
       expect(result.states![3]).toBe("IDLE") // false && false
     })
 
-    test("should transition with different boolean value combinations", async () => {
+    test("должен перейти с разными комбинациями булевых значений", async () => {
       const superposition = {
         IDLE: { ACTIVE: { isAlive: true, isStunned: false } },
         ACTIVE: null,
@@ -174,8 +174,8 @@ describe("Boundary - BOOL type (boolean)", () => {
     })
   })
 
-  describe("Boolean value updates", () => {
-    test("should transition after updating value to true", async () => {
+  describe("Обновление булевых значений", () => {
+    test("должен перейти после обновления значения на true", async () => {
       const superposition = {
         IDLE: { ACTIVE: { isReady: true } },
         ACTIVE: null,
@@ -188,10 +188,10 @@ describe("Boundary - BOOL type (boolean)", () => {
 
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
-      expect(result.states![0]).toBe("ACTIVE") // After update isReady = true
+      expect(result.states![0]).toBe("ACTIVE") // После обновления isReady = true
     })
 
-    test("should transition after updating value to false", async () => {
+    test("должен перейти после обновления значения на false", async () => {
       const superposition = {
         IDLE: { DEAD: { isAlive: false } },
         DEAD: null,
@@ -204,12 +204,12 @@ describe("Boundary - BOOL type (boolean)", () => {
 
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
-      expect(result.states![0]).toBe("DEAD") // After update isAlive = false
+      expect(result.states![0]).toBe("DEAD") // После обновления isAlive = false
     })
   })
 
-  describe("Mixed conditions (boolean + number)", () => {
-    test("should transition when both conditions of different types are met", async () => {
+  describe("Смешанные условия (булево + число)", () => {
+    test("должен перейти при выполнении обоих условий разных типов", async () => {
       const superposition = {
         IDLE: { COMBAT: { isAlive: true, hp: { gt: 50 } } },
         COMBAT: null,
@@ -227,9 +227,9 @@ describe("Boundary - BOOL type (boolean)", () => {
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
       expect(result.states![0]).toBe("COMBAT") // true && 100 > 50
-      expect(result.states![1]).toBe("IDLE") // true && 30 not > 50
+      expect(result.states![1]).toBe("IDLE") // true && 30 не > 50
       expect(result.states![2]).toBe("IDLE") // false && 100 > 50
-      expect(result.states![3]).toBe("IDLE") // false && 30 not > 50
+      expect(result.states![3]).toBe("IDLE") // false && 30 не > 50
     })
   })
 })

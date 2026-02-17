@@ -1,13 +1,13 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
 import { BrowserWebGPU } from "../fixture/browserWebGPU"
 
-describe("Boundary - New stages logic (GPU)", () => {
+describe("Boundary — логика переходов (GPU)", () => {
   beforeAll(async () => await BrowserWebGPU.setup())
   afterAll(async () => await BrowserWebGPU.teardown(), 20000)
   const fixture = new BrowserWebGPU()
 
-  describe("IN operator (Lists)", () => {
-    test("should transition if value is in list (Integer/Enum)", async () => {
+  describe("Оператор IN (Списки)", () => {
+    test("должен перейти если значение в списке (целое/enum)", async () => {
       const superposition = {
         GROUND: {
           AIR: { mode: { in: [3] } }, // FLY
@@ -16,13 +16,13 @@ describe("Boundary - New stages logic (GPU)", () => {
         AIR: null,
         MOVING: null,
       }
-      // Enum emulation: 0=IDLE, 1=WALK, 2=RUN, 3=FLY
+      // Эмуляция enum: 0=IDLE, 1=WALK, 2=RUN, 3=FLY
       const result = await fixture.runSimulation({
         fields: { mode: { type: "number" } },
         branes: [
           { id: "q1", state: "GROUND", fields: { mode: 1 }, superposition }, // WALK -> MOVING
           { id: "q2", state: "GROUND", fields: { mode: 3 }, superposition }, // FLY -> AIR
-          { id: "q3", state: "GROUND", fields: { mode: 0 }, superposition }, // IDLE -> stay
+          { id: "q3", state: "GROUND", fields: { mode: 0 }, superposition }, // IDLE -> остаётся
         ],
       })
 
@@ -32,7 +32,7 @@ describe("Boundary - New stages logic (GPU)", () => {
       expect(result.states![2]).toBe("GROUND")
     })
 
-    test("should transition if float value is in list", async () => {
+    test("должен перейти если float-значение в списке", async () => {
       const superposition = {
         NORMAL: {
           CRITICAL: { temperature: { in: [36.6, 40.0] } },
@@ -49,25 +49,25 @@ describe("Boundary - New stages logic (GPU)", () => {
       })
 
       expect(result.success).toBe(true)
-      expect(result.states![0]).toBe("CRITICAL") // 36.6 found
-      expect(result.states![1]).toBe("NORMAL") // 37.0 not found
-      expect(result.states![2]).toBe("CRITICAL") // 40.0 found
+      expect(result.states![0]).toBe("CRITICAL") // 36.6 найдено
+      expect(result.states![1]).toBe("NORMAL") // 37.0 не найдено
+      expect(result.states![2]).toBe("CRITICAL") // 40.0 найдено
     })
   })
 
-  describe("NOT_IN operator (Exclusion)", () => {
-    test("should transition if value is NOT in list", async () => {
+  describe("Оператор NOT_IN (Исключение)", () => {
+    test("должен перейти если значение НЕ в списке", async () => {
       const superposition = {
         LOBBY: {
-          GAME: { role: { notIn: [0] } }, // 0 = Spectator (not playing)
+          GAME: { role: { notIn: [0] } }, // 0 = Зритель (не играет)
         },
         GAME: null,
       }
       const result = await fixture.runSimulation({
         fields: { role: { type: "number" } },
         branes: [
-          { id: "q1", state: "LOBBY", fields: { role: 1 }, superposition }, // Player -> GAME
-          { id: "q2", state: "LOBBY", fields: { role: 0 }, superposition }, // Spectator -> LOBBY
+          { id: "q1", state: "LOBBY", fields: { role: 1 }, superposition }, // Игрок -> GAME
+          { id: "q2", state: "LOBBY", fields: { role: 0 }, superposition }, // Зритель -> LOBBY
         ],
       })
 
@@ -77,13 +77,13 @@ describe("Boundary - New stages logic (GPU)", () => {
     })
   })
 
-  describe("Combined conditions", () => {
-    test("should work with mix of ranges and lists", async () => {
+  describe("Комбинированные условия", () => {
+    test("должен работать с комбинацией диапазонов и списков", async () => {
       const superposition = {
         START: {
           WIN: {
             score: { gt: 100 },
-            badge: { in: [5, 7] }, // 5=Gold, 7=Platinum
+            badge: { in: [5, 7] }, // 5=Золото, 7=Платина
           },
         },
         WIN: null,
@@ -92,8 +92,8 @@ describe("Boundary - New stages logic (GPU)", () => {
         fields: { score: { type: "number" }, badge: { type: "number" } },
         branes: [
           { id: "q1", state: "START", fields: { score: 150, badge: 5 }, superposition }, // OK
-          { id: "q2", state: "START", fields: { score: 150, badge: 1 }, superposition }, // Badge fail
-          { id: "q3", state: "START", fields: { score: 50, badge: 7 }, superposition }, // Score fail
+          { id: "q2", state: "START", fields: { score: 150, badge: 1 }, superposition }, // Значок не подходит
+          { id: "q3", state: "START", fields: { score: 50, badge: 7 }, superposition }, // Счёт не подходит
         ],
       })
 

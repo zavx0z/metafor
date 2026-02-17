@@ -1,16 +1,16 @@
 import { test, expect, describe, beforeAll, afterAll } from "bun:test"
 import { BrowserWebGPU } from "../../fixture/browserWebGPU"
 
-describe("Boundary - STRING type (string)", () => {
+describe("Boundary — Тип STRING (строка)", () => {
   beforeAll(async () => await BrowserWebGPU.setup())
   afterAll(async () => await BrowserWebGPU.teardown(), 20000)
   const fixture = new BrowserWebGPU()
 
-  // STRING type uses interning via StringAtlas.
-  // Strings are stored as [stringId, hash] for fast comparison on GPU.
+  // Тип STRING использует интернирование через StringAtlas.
+  // Строки хранятся как [stringId, hash] для быстрого сравнения на GPU.
 
-  describe("EQ operator (equals)", () => {
-    test("should transition when value equals specified", async () => {
+  describe("Оператор EQ (равно)", () => {
+    test("должен перейти при равенстве значения указанному", async () => {
       const superposition = {
         IDLE: { ACTIVE: { name: { eq: "hero" } } },
         ACTIVE: null,
@@ -30,8 +30,8 @@ describe("Boundary - STRING type (string)", () => {
     })
   })
 
-  describe("NEQ operator (not equals)", () => {
-    test("should transition when value not equals specified", async () => {
+  describe("Оператор NEQ (не равно)", () => {
+    test("должен перейти при неравенстве значения указанному", async () => {
       const superposition = {
         IDLE: { ACTIVE: { name: { neq: "enemy" } } },
         ACTIVE: null,
@@ -51,8 +51,8 @@ describe("Boundary - STRING type (string)", () => {
     })
   })
 
-  describe("IN operator (in list)", () => {
-    test("should transition if value is in list", async () => {
+  describe("Оператор IN (в списке)", () => {
+    test("должен перейти если значение в списке", async () => {
       const superposition = {
         IDLE: { ACTIVE: { role: { in: ["warrior", "mage", "rogue"] } } },
         ACTIVE: null,
@@ -68,14 +68,14 @@ describe("Boundary - STRING type (string)", () => {
 
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
-      expect(result.states![0]).toBe("ACTIVE") // "warrior" in [...]
-      expect(result.states![1]).toBe("ACTIVE") // "mage" in [...]
-      expect(result.states![2]).toBe("IDLE") // "healer" not in [...]
+      expect(result.states![0]).toBe("ACTIVE") // "warrior" в [...]
+      expect(result.states![1]).toBe("ACTIVE") // "mage" в [...]
+      expect(result.states![2]).toBe("IDLE") // "healer" не в [...]
     })
   })
 
-  describe("String value updates", () => {
-    test("should correctly apply update for strings and handle IN", async () => {
+  describe("Обновление строковых значений", () => {
+    test("должен корректно применять обновление строк и обрабатывать IN", async () => {
       const superposition = {
         IDLE: { ACTIVE: { role: { in: ["warrior", "mage"] } } },
         ACTIVE: null,
@@ -92,8 +92,8 @@ describe("Boundary - STRING type (string)", () => {
     })
   })
 
-  describe("NOT_IN operator (not in list)", () => {
-    test("should transition if value is not in list", async () => {
+  describe("Оператор NOT_IN (не в списке)", () => {
+    test("должен перейти если значение не в списке", async () => {
       const superposition = {
         IDLE: { ACTIVE: { role: { notIn: ["enemy", "boss"] } } },
         ACTIVE: null,
@@ -109,14 +109,14 @@ describe("Boundary - STRING type (string)", () => {
 
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
-      expect(result.states![0]).toBe("IDLE") // "enemy" in [enemy, boss]
-      expect(result.states![1]).toBe("IDLE") // "boss" in [enemy, boss]
-      expect(result.states![2]).toBe("ACTIVE") // "ally" not in [enemy, boss]
+      expect(result.states![0]).toBe("IDLE") // "enemy" в [enemy, boss]
+      expect(result.states![1]).toBe("IDLE") // "boss" в [enemy, boss]
+      expect(result.states![2]).toBe("ACTIVE") // "ally" не в [enemy, boss]
     })
   })
 
-  describe("Empty strings", () => {
-    test("should correctly handle empty string", async () => {
+  describe("Пустые строки", () => {
+    test("должен корректно обрабатывать пустую строку", async () => {
       const superposition = {
         IDLE: { ACTIVE: { name: { eq: "" } } },
         ACTIVE: null,
@@ -136,8 +136,8 @@ describe("Boundary - STRING type (string)", () => {
     })
   })
 
-  describe("Special characters", () => {
-    test("should correctly handle strings with special characters", async () => {
+  describe("Специальные символы", () => {
+    test("должен корректно обрабатывать строки со специальными символами", async () => {
       const superposition = {
         IDLE: { ACTIVE: { code: { eq: "test-123_@#" } } },
         ACTIVE: null,
@@ -157,8 +157,8 @@ describe("Boundary - STRING type (string)", () => {
     })
   })
 
-  describe("Case sensitivity", () => {
-    test("should consider case when comparing", async () => {
+  describe("Учёт регистра", () => {
+    test("должен учитывать регистр при сравнении", async () => {
       const superposition = {
         IDLE: { ACTIVE: { name: { eq: "Hero" } } },
         ACTIVE: null,

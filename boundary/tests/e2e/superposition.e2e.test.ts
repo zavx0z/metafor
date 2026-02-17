@@ -2,38 +2,38 @@ import { test, expect, describe, beforeAll, afterAll } from "bun:test"
 import { BrowserWebGPU } from "../fixture/browserWebGPU"
 
 /**
- * E2E tests for individual superpositions on real GPU.
+ * E2E тесты для индивидуальных суперпозиций на реальном GPU.
  *
- * These tests verify full integration of compilation and execution
- * on GPU with different superposition for each field.
+ * Эти тесты проверяют полную интеграцию компиляции и выполнения
+ * на GPU с разными суперпозициями для каждого поля.
  *
- * ### Covered scenarios:
- * 1. Fields with different states in superposition
- * 2. Fields with different transition conditions
- * 3. Fields with different thresholds for the same transition
- * 4. Fields with completely different state machines
- * 5. Multi-step simulations with individual transitions
+ * ### Покрываемые сценарии:
+ * 1. Поля с разными состояниями в суперпозиции
+ * 2. Поля с разными условиями перехода
+ * 3. Поля с разными порогами для одного перехода
+ * 4. Поля с полностью разными машинами состояний
+ * 5. Многошаговые симуляции с индивидуальными переходами
  */
-describe("Boundary - E2E tests for individual superpositions", () => {
+describe("Boundary — E2E тесты индивидуальных суперпозиций", () => {
   beforeAll(async () => await BrowserWebGPU.setup())
   afterAll(async () => await BrowserWebGPU.teardown(), 20000)
   const fixture = new BrowserWebGPU()
 
-  describe("Fields with different states", () => {
-    test("each field transitions to its target state", async () => {
-      // Warrior: IDLE -> COMBAT when hp > 80
+  describe("Поля с разными состояниями", () => {
+    test("каждое поле переходит в своё целевое состояние", async () => {
+      // Воин: IDLE -> COMBAT при hp > 80
       const warriorSuperposition = {
         IDLE: { COMBAT: { hp: { gt: 80 } } },
         COMBAT: null,
       }
 
-      // Mage: IDLE -> MEDITATE when mana < 20
+      // Маг: IDLE -> MEDITATE при mana < 20
       const mageSuperposition = {
         IDLE: { MEDITATE: { mana: { lt: 20 } } },
         MEDITATE: null,
       }
 
-      // Scout: IDLE -> SCOUT when hp > 30
+      // Разведчик: IDLE -> SCOUT при hp > 30
       const scoutSuperposition = {
         IDLE: { SCOUT: { hp: { gt: 30 } } },
         SCOUT: null,
@@ -54,24 +54,24 @@ describe("Boundary - E2E tests for individual superpositions", () => {
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
 
-      // Warrior: hp=90 > 80 -> COMBAT
+      // Воин: hp=90 > 80 -> COMBAT
       expect(result.states![0]).toBe("COMBAT")
-      // Mage: mana=10 < 20 -> MEDITATE
+      // Маг: mana=10 < 20 -> MEDITATE
       expect(result.states![1]).toBe("MEDITATE")
-      // Scout: hp=60 > 30 -> SCOUT
+      // Разведчик: hp=60 > 30 -> SCOUT
       expect(result.states![2]).toBe("SCOUT")
     })
   })
 
-  describe("Fields with different transition conditions", () => {
-    test("different thresholds for the same transition", async () => {
-      // Field 0: IDLE -> ACTIVE when hp > 30 (low threshold)
+  describe("Поля с разными условиями перехода", () => {
+    test("разные пороги для одного перехода", async () => {
+      // Поле 0: IDLE -> ACTIVE при hp > 30 (низкий порог)
       const lowThresholdSuperposition = {
         IDLE: { ACTIVE: { hp: { gt: 30 } } },
         ACTIVE: null,
       }
 
-      // Field 1: IDLE -> ACTIVE when hp > 70 (high threshold)
+      // Поле 1: IDLE -> ACTIVE при hp > 70 (высокий порог)
       const highThresholdSuperposition = {
         IDLE: { ACTIVE: { hp: { gt: 70 } } },
         ACTIVE: null,
@@ -90,26 +90,26 @@ describe("Boundary - E2E tests for individual superpositions", () => {
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
 
-      // Field 0: hp=50 > 30 -> ACTIVE
+      // Поле 0: hp=50 > 30 -> ACTIVE
       expect(result.states![0]).toBe("ACTIVE")
-      // Field 1: hp=50 not > 70 -> IDLE
+      // Поле 1: hp=50 не > 70 -> IDLE
       expect(result.states![1]).toBe("IDLE")
     })
 
-    test("different comparison operators", async () => {
-      // Field 0: transition when hp > 50
+    test("разные операторы сравнения", async () => {
+      // Поле 0: переход при hp > 50
       const gtSuperposition = {
         IDLE: { ACTIVE: { hp: { gt: 50 } } },
         ACTIVE: null,
       }
 
-      // Field 1: transition when hp >= 50
+      // Поле 1: переход при hp >= 50
       const gteSuperposition = {
         IDLE: { ACTIVE: { hp: { gte: 50 } } },
         ACTIVE: null,
       }
 
-      // Field 2: transition when hp < 50
+      // Поле 2: переход при hp < 50
       const ltSuperposition = {
         IDLE: { ACTIVE: { hp: { lt: 50 } } },
         ACTIVE: null,
@@ -129,25 +129,25 @@ describe("Boundary - E2E tests for individual superpositions", () => {
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
 
-      // Field 0: hp=50 not > 50 -> IDLE
+      // Поле 0: hp=50 не > 50 -> IDLE
       expect(result.states![0]).toBe("IDLE")
-      // Field 1: hp=50 >= 50 -> ACTIVE
+      // Поле 1: hp=50 >= 50 -> ACTIVE
       expect(result.states![1]).toBe("ACTIVE")
-      // Field 2: hp=50 not < 50 -> IDLE
+      // Поле 2: hp=50 не < 50 -> IDLE
       expect(result.states![2]).toBe("IDLE")
     })
   })
 
-  describe("Fields with completely different state machines", () => {
-    test("aggressive vs defensive unit", async () => {
-      // Aggressive: IDLE -> ATTACK -> VICTORY
+  describe("Поля с полностью разными машинами состояний", () => {
+    test("агрессивный против оборонительного юнита", async () => {
+      // Агрессивный: IDLE -> ATTACK -> VICTORY
       const aggressiveSuperposition = {
         IDLE: { ATTACK: { hp: { gt: 50 } } },
         ATTACK: { VICTORY: { hp: { gt: 90 } } },
         VICTORY: null,
       }
 
-      // Defensive: IDLE -> DEFEND -> FORTIFY
+      // Оборонительный: IDLE -> DEFEND -> FORTIFY
       const defensiveSuperposition = {
         IDLE: { DEFEND: { hp: { lte: 50 } } },
         DEFEND: { FORTIFY: { hp: { lte: 20 } } },
@@ -168,28 +168,28 @@ describe("Boundary - E2E tests for individual superpositions", () => {
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
 
-      // Aggressive: IDLE -> ATTACK (hp=95>50) -> VICTORY (hp=95>90)
+      // Агрессивный: IDLE -> ATTACK (hp=95>50) -> VICTORY (hp=95>90)
       expect(result.states![0]).toBe("VICTORY")
-      // Defensive: IDLE -> DEFEND (hp=15<=50) -> FORTIFY (hp=15<=20)
+      // Оборонительный: IDLE -> DEFEND (hp=15<=50) -> FORTIFY (hp=15<=20)
       expect(result.states![1]).toBe("FORTIFY")
     })
   })
 
-  describe("Different types of conditions", () => {
-    test("numeric, boolean, and multiple conditions", async () => {
-      // Field 0: numeric condition
+  describe("Разные типы условий", () => {
+    test("числовые, булевы и множественные условия", async () => {
+      // Поле 0: числовое условие
       const numericSuperposition = {
         IDLE: { ACTIVE: { hp: { gt: 50 } } },
         ACTIVE: null,
       }
 
-      // Field 1: boolean condition
+      // Поле 1: булево условие
       const booleanSuperposition = {
         IDLE: { ACTIVE: { isAlive: true } },
         ACTIVE: null,
       }
 
-      // Field 2: multiple condition
+      // Поле 2: множественное условие
       const multiConditionSuperposition = {
         IDLE: {
           ACTIVE: {
@@ -216,30 +216,30 @@ describe("Boundary - E2E tests for individual superpositions", () => {
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
 
-      // Field 0: hp=60 > 50 -> ACTIVE
+      // Поле 0: hp=60 > 50 -> ACTIVE
       expect(result.states![0]).toBe("ACTIVE")
-      // Field 1: isAlive=true -> ACTIVE
+      // Поле 1: isAlive=true -> ACTIVE
       expect(result.states![1]).toBe("ACTIVE")
-      // Field 2: hp=40>30 AND mana=30>20 -> ACTIVE
+      // Поле 2: hp=40>30 И mana=30>20 -> ACTIVE
       expect(result.states![2]).toBe("ACTIVE")
     })
   })
 
-  describe("Brane update with individual superposition", () => {
-    test("different initial values with different thresholds", async () => {
-      // Field 0: IDLE -> ACTIVE when hp > 50
+  describe("Обновление браны с индивидуальной суперпозицией", () => {
+    test("разные начальные значения с разными порогами", async () => {
+      // Поле 0: IDLE -> ACTIVE при hp > 50
       const superposition1 = {
         IDLE: { ACTIVE: { hp: { gt: 50 } } },
         ACTIVE: null,
       }
 
-      // Field 1: IDLE -> ACTIVE when hp > 70
+      // Поле 1: IDLE -> ACTIVE при hp > 70
       const superposition2 = {
         IDLE: { ACTIVE: { hp: { gt: 70 } } },
         ACTIVE: null,
       }
 
-      // Use different initial values to avoid entangled brane
+      // Используем разные начальные значения для избежания запутанной браны
       const result = await fixture.runSimulation({
         fields: {
           hp: { type: "number" },
@@ -253,16 +253,16 @@ describe("Boundary - E2E tests for individual superpositions", () => {
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
 
-      // Field 0: hp=60 > 50 -> ACTIVE
+      // Поле 0: hp=60 > 50 -> ACTIVE
       expect(result.states![0]).toBe("ACTIVE")
-      // Field 1: hp=60 not > 70 -> IDLE
+      // Поле 1: hp=60 не > 70 -> IDLE
       expect(result.states![1]).toBe("IDLE")
     })
   })
 
-  describe("Multi-step simulation", () => {
-    test("each field follows its own state path", async () => {
-      // Unit 1: IDLE -> PHASE1 -> PHASE2 -> FINAL
+  describe("Многошаговая симуляция", () => {
+    test("каждое поле следует своему пути состояний", async () => {
+      // Юнит 1: IDLE -> PHASE1 -> PHASE2 -> FINAL
       const unit1Superposition = {
         IDLE: { PHASE1: { hp: { gt: 80 } } },
         PHASE1: { PHASE2: { hp: { gt: 60 } } },
@@ -270,7 +270,7 @@ describe("Boundary - E2E tests for individual superpositions", () => {
         FINAL: null,
       }
 
-      // Unit 2: IDLE -> STAGE_A -> STAGE_B
+      // Юнит 2: IDLE -> STAGE_A -> STAGE_B
       const unit2Superposition = {
         IDLE: { STAGE_A: { mana: { lt: 50 } } },
         STAGE_A: { STAGE_B: { mana: { lt: 20 } } },
@@ -292,9 +292,9 @@ describe("Boundary - E2E tests for individual superpositions", () => {
       expect(result.success).toBe(true)
       expect(result.states).toBeDefined()
 
-      // Unit 1: IDLE -> PHASE1 -> PHASE2 -> FINAL
+      // Юнит 1: IDLE -> PHASE1 -> PHASE2 -> FINAL
       expect(result.states![0]).toBe("FINAL")
-      // Unit 2: IDLE -> STAGE_A -> STAGE_B (stops at STAGE_B)
+      // Юнит 2: IDLE -> STAGE_A -> STAGE_B (останавливается на STAGE_B)
       expect(result.states![1]).toBe("STAGE_B")
     })
   })
