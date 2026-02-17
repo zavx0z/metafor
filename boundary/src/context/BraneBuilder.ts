@@ -160,7 +160,7 @@ export class BraneBuilder {
         }
         return { name, meta, value }
       })
-      .sort((a, b) => a.meta.componentId - b.meta.componentId)
+      .sort((a, b) => a.meta.fieldId - b.meta.fieldId)
 
     const localFieldCount = localEntries.length
 
@@ -197,7 +197,7 @@ export class BraneBuilder {
     // Заполняем дескрипторы полей.
     let headerIndex = 2
     for (const layout of fieldLayouts) {
-      blockView[headerIndex++] = layout.meta.componentId
+      blockView[headerIndex++] = layout.meta.fieldId
       const packedMeta = packMeta(layout.meta.type, layout.sizeInWords, layout.offsetInWords)
       console.log(`[BraneBuilder] packMeta(${layout.meta.type}, ${layout.sizeInWords}, ${layout.offsetInWords}) = ${packedMeta} (0x${packedMeta.toString(16)})`)
       blockView[headerIndex++] = packedMeta

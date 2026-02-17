@@ -1,7 +1,7 @@
 /**
  * @file Менеджер бран.
  *
- * Высокоуровневый API для управления жизненным циклом полей и их бран.
+ * Высокоуровневый API для управления жизненным циклом бран и их полей.
  * Координирует работу GlobalFieldRegistry, HeapAllocator и BraneBuilder.
  *
  * @packageDocumentation
@@ -13,10 +13,10 @@ import { BraneBuilder, BlockUtils } from "./BraneBuilder"
 import { getStringAtlas } from "../typeBridge"
 
 /**
- * Информация о поле (Field) в границе.
+ * Информация о бране (Brane) в границе.
  */
-export interface FieldInfo {
-  /** Уникальный идентификатор поля */
+export interface BraneInfo {
+  /** Уникальный идентификатор браны */
   id: number
   /** Указатель на блок в куче */
   blockPtr: number
@@ -30,7 +30,7 @@ export interface FieldInfo {
 
 /**
  * Информация о разделяемой (entangled) бране.
- * Запутанность (entanglement) — общие данные, разделяемые между несколькими полями.
+ * Запутанность (entanglement) — общие данные, разделяемые между несколькими бранами.
  */
 export interface EntangledBraneInfo {
   /** Уникальный идентификатор */
@@ -56,21 +56,21 @@ export interface BraneManagerConfig {
 /**
  * Менеджер бран.
  *
- * Управляет полями (ансамблем) и их бранами внутри границы.
+ * Управляет ансамблем бран внутри границы.
  *
  * @example
  * ```ts
  * const manager = new BraneManager(device)
  * manager.registerField('hp', FieldType.F32)
  *
- * // Создание ансамбля полей
+ * // Создание ансамбля бран
  * manager.createEnsemble([
  *   { hp: 100 },
  *   { hp: 80 }
  * ])
  *
  * // Получение буферов для передачи на GPU
- * const { fieldDescriptors, heap } = manager.getGPUBuffers()
+ * const { braneDescriptors, heap } = manager.getGPUBuffers()
  * ```
  */
 export class BraneManager {
@@ -78,13 +78,13 @@ export class BraneManager {
   private readonly allocator: HeapAllocator
   private readonly builder: BraneBuilder
 
-  /** Хранилище информации о полях */
-  private fields: Map<number, FieldInfo> = new Map()
+  /** Хранилище информации о бранах */
+  private branes: Map<number, BraneInfo> = new Map()
   /** Хранилище информации о запутанных (entangled) бранах */
   private entangledBranes: Map<number, EntangledBraneInfo> = new Map()
 
-  /** Счётчик ID полей */
-  private nextFieldId: number = 0
+  /** Счётчик ID бран */
+  private nextBraneId: number = 0
   /** Счётчик ID запутанных бран */
   private nextEntangledId: number = 0
 
@@ -153,13 +153,13 @@ export class BraneManager {
   }
 
   /**
-   * Создать поле (Field) с указателями на запутанные браны.
+   * Создать брану (Brane) с указателями на запутанные браны.
    *
    * @param brane - Объект с компонентами {имя: значение}
    * @param entangledBraneIds - Массив ID запутанных бран
-   * @returns ID поля
+   * @returns ID браны
    */
-  createField(brane: Record<string, unknown>, entangledBraneIds: number[] = []): number {
+  createBrane(brane: Record<string, unknown>, entangledBraneIds: number[] = []): number {
     // Преобразуем ID в указатели.
     const sharedPtrs = entangledBraneIds.map((id) => {
       const entangled = this.entangledBranes.get(id)
@@ -181,25 +181,25 @@ export class BraneManager {
       }
     }
 
-    const fieldId = this.nextFieldId++
-    const fieldInfo: FieldInfo = {
-      id: fieldId,
+    const braneId = this.nextBraneId++
+    const braneInfo: BraneInfo = {
+      id: braneId,
       blockPtr: result.blockPtr,
       blockSize: result.blockSize,
       extraAllocs: result.extraAllocs.map(({ offset, size }) => ({ offset, size })),
       sharedPtrs,
     }
 
-    this.fields.set(fieldId, fieldInfo)
+    this.branes.set(braneId, braneInfo)
     this.heapDirty = true
-    return fieldId
+    return braneId
   }
 
   /**
-   * Создать ансамбль полей с автоматической группировкой общих данных бран.
+   * Создать ансамбль бран с автоматической группировкой общих данных бран.
    *
    * @param branes - Массив объектов {имя: значение}
-   * @returns Массив ID полей в том же порядке
+   * @returns Массив ID бран в том же порядке
    */
   createEnsemble(branes: Array<Record<string, unknown>>): number[] {
     // 1. Анализ: строим карту "компонента -> набор полей-владельцев"
@@ -247,7 +247,7 @@ export class BraneManager {
     })
 
     // 3. Создание полей с указателями на запутанные браны.
-    const fieldIds: number[] = []
+    const braneIds: number[] = []
 
     branes.forEach((brane, idx) => {
       const entangledIds: number[] = []
@@ -268,26 +268,26 @@ export class BraneManager {
         }
       })
 
-      const fieldId = this.createField(localBrane, entangledIds)
-      fieldIds.push(fieldId)
+      const braneId = this.createBrane(localBrane, entangledIds)
+      braneIds.push(braneId)
     })
 
-    return fieldIds
+    return braneIds
   }
 
   /**
-   * Обновить компоненту браны поля.
+   * Обновить поле данных в бране.
    *
    * Для компонент переменного размера (строки, массивы) выполняет free + re-allocate.
    *
-   * @param fieldId - ID поля
+   * @param braneId - ID браны
    * @param componentName - Имя компоненты браны
    * @param newValue - Новое значение
    */
-  updateBraneField(fieldId: number, componentName: string, newValue: unknown): void {
-    const field = this.fields.get(fieldId)
-    if (!field) {
-      throw new Error(`Поле с ID ${fieldId} не найдено`)
+  updateBraneField(braneId: number, componentName: string, newValue: unknown): void {
+    const brane = this.branes.get(braneId)
+    if (!brane) {
+      throw new Error(`Брана с ID ${braneId} не найдена`)
     }
 
     const fieldMeta = this.registry.getMeta(componentName)
@@ -295,16 +295,16 @@ export class BraneManager {
       throw new Error(`Компонента браны '${componentName}' не зарегистрирована`)
     }
 
-    // Читаем блок поля из кучи.
-    const block = this.heapData.slice(field.blockPtr, field.blockPtr + field.blockSize)
+    // Читаем блок браны из кучи.
+    const block = this.heapData.slice(brane.blockPtr, brane.blockPtr + brane.blockSize)
 
     // Находим компоненту в блоке.
-    const componentInfo = BlockUtils.findField(block, fieldMeta.componentId)
+    const componentInfo = BlockUtils.findField(block, fieldMeta.fieldId)
     if (!componentInfo) {
-      throw new Error(`Компонента '${componentName}' не найдена в блоке поля`)
+      throw new Error(`Поле '${componentName}' не найдено в блоке браны`)
     }
 
-    const absoluteOffset = field.blockPtr + componentInfo.meta.offset
+    const absoluteOffset = brane.blockPtr + componentInfo.meta.offset
 
     // Обновляем значение в зависимости от типа.
     switch (fieldMeta.type) {
@@ -318,7 +318,7 @@ export class BraneManager {
           const enumIndex = fieldMeta.enumValues.indexOf(newValue)
           if (enumIndex === -1) {
             throw new Error(
-              `Значение '${String(newValue)}' не найдено в enum '${componentName}': [${fieldMeta.enumValues.join(", ")}]`,
+              `Значение '${String(newValue)}' не найдена в enum '${componentName}': [${fieldMeta.enumValues.join(", ")}]`,
             )
           }
           this.heapData[absoluteOffset] = enumIndex
@@ -353,9 +353,9 @@ export class BraneManager {
           const oldWordCount = oldLength + 1
           this.allocator.free(oldOffset, oldWordCount)
 
-          const idx = field.extraAllocs.findIndex((a) => a.offset === oldOffset)
+          const idx = brane.extraAllocs.findIndex((a) => a.offset === oldOffset)
           if (idx >= 0) {
-            field.extraAllocs.splice(idx, 1)
+            brane.extraAllocs.splice(idx, 1)
           }
         }
 
@@ -391,7 +391,7 @@ export class BraneManager {
         }
 
         this.heapData.set(arrayView, newBlock.offset)
-        field.extraAllocs.push({ offset: newBlock.offset, size: newBlock.size })
+        brane.extraAllocs.push({ offset: newBlock.offset, size: newBlock.size })
 
         this.heapData[absoluteOffset] = newBlock.offset
         this.heapData[absoluteOffset + 1] = values.length
@@ -405,27 +405,27 @@ export class BraneManager {
   }
 
   /**
-   * Удалить поле.
+   * Удалить брану.
    *
-   * Освобождает память блока поля и всех его дополнительных аллокаций.
+   * Освобождает память блока браны и всех его дополнительных аллокаций.
    *
-   * @param fieldId - ID поля
+   * @param braneId - ID браны
    */
-  deleteField(fieldId: number): void {
-    const field = this.fields.get(fieldId)
-    if (!field) {
-      throw new Error(`Поле с ID ${fieldId} не найдено`)
+  deleteBrane(braneId: number): void {
+    const brane = this.branes.get(braneId)
+    if (!brane) {
+      throw new Error(`Брана с ID ${braneId} не найдена`)
     }
 
     // Освобождаем дополнительные аллокации (строки, массивы).
-    for (const alloc of field.extraAllocs) {
+    for (const alloc of brane.extraAllocs) {
       this.allocator.free(alloc.offset, alloc.size)
     }
 
-    // Освобождаем блок поля.
-    this.allocator.free(field.blockPtr, field.blockSize)
+    // Освобождаем блок браны.
+    this.allocator.free(brane.blockPtr, brane.blockSize)
 
-    this.fields.delete(fieldId)
+    this.branes.delete(braneId)
     this.heapDirty = true
   }
 
@@ -453,14 +453,14 @@ export class BraneManager {
   }
 
   /**
-   * Получить указатель на блок поля.
+   * Получить указатель на блок браны.
    */
-  getFieldBlockPtr(fieldId: number): number {
-    const field = this.fields.get(fieldId)
-    if (!field) {
-      throw new Error(`Поле с ID ${fieldId} не найдено`)
+  getBraneBlockPtr(braneId: number): number {
+    const brane = this.branes.get(braneId)
+    if (!brane) {
+      throw new Error(`Брана с ID ${braneId} не найдена`)
     }
-    return field.blockPtr
+    return brane.blockPtr
   }
 
   /**
@@ -477,19 +477,19 @@ export class BraneManager {
   /**
    * Получить буферы для передачи на GPU.
    *
-   * @returns Объект с буферами { fieldDescriptors, heap }
+   * @returns Объект с буферами { braneDescriptors, heap }
    */
-  getGPUBuffers(): { fieldDescriptors: Uint32Array; heap: Uint32Array } {
-    // Создаём буфер дескрипторов полей: массив указателей на блоки.
-    const fieldCount = this.fields.size
-    const fieldDescriptors = new Uint32Array(fieldCount)
+  getGPUBuffers(): { braneDescriptors: Uint32Array; heap: Uint32Array } {
+    // Создаём буфер дескрипторов бран: массив указателей на блоки.
+    const braneCount = this.branes.size
+    const braneDescriptors = new Uint32Array(braneCount)
     let idx = 0
-    for (const [, field] of this.fields) {
-      fieldDescriptors[idx++] = field.blockPtr
+    for (const [, brane] of this.branes) {
+      braneDescriptors[idx++] = brane.blockPtr
     }
 
     return {
-      fieldDescriptors,
+      braneDescriptors,
       heap: this.heapData,
     }
   }
@@ -509,16 +509,16 @@ export class BraneManager {
   }
 
   /**
-   * Получить информацию о поле.
+   * Получить информацию о бране.
    */
-  getFieldInfo(fieldId: number): FieldInfo | undefined {
-    return this.fields.get(fieldId)
+  getBraneInfo(braneId: number): BraneInfo | undefined {
+    return this.branes.get(braneId)
   }
 
   /**
-   * Получить ансамбль (список всех полей).
+   * Получить ансамбль (список всех бран).
    */
-  getEnsemble(): FieldInfo[] {
-    return Array.from(this.fields.values())
+  getEnsemble(): BraneInfo[] {
+    return Array.from(this.branes.values())
   }
 }
