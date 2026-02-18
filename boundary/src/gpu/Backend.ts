@@ -1,5 +1,5 @@
 import shaderSource from "./evolution.wgsl" with { type: "text" }
-import { getStringAtlas } from "./typeBridge"
+import { getStringAtlas } from "../strings/StringAtlas"
 
 /**
  * Параметры инициализации GPU-бэкенда.

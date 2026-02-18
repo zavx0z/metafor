@@ -29,10 +29,11 @@
  * @packageDocumentation
  */
 
-import { GPUBackend } from "./backend"
-import { RulesCompiler } from "./compiler"
-import { BraneManager, FieldType, FieldRegistry, type FieldTypeValue } from "./context"
-import { resetStringAtlas, getStringAtlas } from "./typeBridge"
+import { GPUBackend } from "./gpu/Backend"
+import { RulesCompiler } from "./compiler/RulesCompiler"
+import { BraneManager, FieldType, FieldRegistry, type FieldTypeValue } from "./core"
+import { resetStringAtlas, getStringAtlas } from "./strings"
+import type { CompiledEnsemble } from "./types"
 
 /**
  * Определение типа поля браны.
@@ -326,3 +327,19 @@ export class Boundary {
     }
   }
 }
+
+// Экспорты для совместимости
+export { FieldType, FieldRegistry } from "./core"
+export { BraneManager, type BraneInfo, type EntangledBraneInfo } from "./core/BraneManager"
+export { HeapAllocator, type AllocResult } from "./memory"
+export { BraneBuilder, BlockUtils, packMeta, unpackMeta, encodeString, decodeString } from "./memory"
+export { StringAtlas, getStringAtlas, resetStringAtlas, type StringId, type StringMeta } from "./strings"
+export { GPUBackend } from "./gpu"
+export { RulesCompiler } from "./compiler"
+export type {
+  CompiledRules,
+  CompiledFieldRules,
+  CompiledEnsemble,
+  StateId,
+} from "./types"
+export { OP, TYPE } from "./opcodes"

@@ -1,6 +1,6 @@
 import { test, expect, describe } from "bun:test"
-import { RulesCompiler } from "../src/compiler"
-import { OP, TYPE } from "../src/common"
+import { RulesCompiler } from "../src/compiler/RulesCompiler"
+import { OP, TYPE } from "../src/opcodes"
 
 /**
  * Функциональные тесты компилятора правил.

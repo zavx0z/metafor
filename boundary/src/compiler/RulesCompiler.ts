@@ -1,6 +1,8 @@
-import { OP, TYPE, type CompiledRules, type CompiledFieldRules, type CompiledEnsemble } from "./common"
-import { FieldRegistry, FieldType } from "./context"
-import { fieldTypeToBytecodeType, getStringAtlas } from "./typeBridge"
+import { OP, TYPE } from "../opcodes"
+import type { CompiledRules, CompiledFieldRules, CompiledEnsemble } from "../types"
+import { FieldRegistry, FieldType, type FieldTypeValue } from "../core/FieldRegistry"
+import { fieldTypeToBytecodeType } from "../utils/typeBridge"
+import { getStringAtlas } from "../strings/StringAtlas"
 
 // Типы для представления конфигурации правил суперпозиции.
 type ConditionValue = number | boolean | string | { [key: string]: any }
@@ -193,7 +195,7 @@ export class RulesCompiler {
     for (const [name, def] of Object.entries(schema)) {
       const defTyped = def as { type?: string; values?: any[] } | string
       const typeStr = typeof defTyped === "string" ? defTyped : defTyped.type
-      let fieldType: import("./context").FieldTypeValue
+      let fieldType: FieldTypeValue
       let elementType: string | undefined
       let enumValues: any[] | undefined = undefined
 
@@ -563,7 +565,7 @@ export class RulesCompiler {
     options: { preserveRegistry?: boolean; debug?: boolean } = {},
   ): CompiledEnsemble {
     const { debug = false } = options
-    
+
     // Очищаем реестр перед первой компиляцией
     FieldRegistry.clear()
 

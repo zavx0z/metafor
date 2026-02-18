@@ -20,9 +20,9 @@
  * @packageDocumentation
  */
 
-import { FieldRegistry, FieldType, type FieldMeta, type FieldTypeValue } from "./FieldRegistry"
+import { FieldRegistry, FieldType, type FieldMeta, type FieldTypeValue } from "../core/FieldRegistry"
 import { HeapAllocator, type AllocResult } from "./HeapAllocator"
-import { getStringAtlas, type StringId } from "../typeBridge"
+import { getStringAtlas, type StringId } from "../strings/StringAtlas"
 
 /**
  * Результат построения блока.

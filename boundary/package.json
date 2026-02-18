@@ -21,8 +21,6 @@
     "example": "bun run ./examples/server.ts",
     "setup:browsers": "npx puppeteer browsers install chrome",
     "build": "bun build ./src/index.ts --outdir ./dist --target browser",
-    "test": "bun test",
-    "test:logic": "bun test tests/field.logic.test.ts",
     "docs": "typedoc"
   },
   "type": "module"

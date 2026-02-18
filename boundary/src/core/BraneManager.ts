@@ -19,10 +19,10 @@
  * ```
  */
 
-import { FieldRegistry, FieldType, type FieldTypeValue } from "./FieldRegistry"
-import { HeapAllocator } from "./HeapAllocator"
-import { BraneBuilder, BlockUtils } from "./BraneBuilder"
-import { getStringAtlas } from "../typeBridge"
+import { FieldRegistry, FieldType, type FieldTypeValue } from "../core/FieldRegistry"
+import { HeapAllocator } from "../memory/HeapAllocator"
+import { BraneBuilder, BlockUtils } from "../memory/BraneBuilder"
+import { getStringAtlas } from "../strings/StringAtlas"
 
 export interface BraneInfo {
   braneId: number

@@ -17,6 +17,10 @@
     "declaration": true
   },
   "extends": "../tsconfig.json",
+  "include": [
+    "src/**/*",
+    "tests/**/*"
+  ],
   "exclude": [
     "docs",
     "dist",

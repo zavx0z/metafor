@@ -1,7 +1,7 @@
 import { test, expect, describe, beforeEach } from "bun:test"
-import { RulesCompiler } from "../src/compiler"
-import { OP } from "../src/common"
-import { FieldRegistry } from "../src/context"
+import { RulesCompiler } from "../src/compiler/RulesCompiler"
+import { OP } from "../src/opcodes"
+import { FieldRegistry } from "../src/core/FieldRegistry"
 
 /**
  * Функциональные тесты компиляции индивидуальных суперпозиций.

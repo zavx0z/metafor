@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { StringAtlas } from "../src/typeBridge"
+import { StringAtlas } from "../src/strings/StringAtlas"
 
 describe("StringAtlas — Unicode и корректность интернирования", () => {
   test("интернирует эквивалентные NFC/NFD строки в один StringId", () => {

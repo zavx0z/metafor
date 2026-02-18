@@ -1,6 +1,6 @@
 import { test, expect, describe } from "bun:test"
-import { RulesCompiler } from "../src/compiler"
-import { OP } from "../src/common"
+import { RulesCompiler } from "../src/compiler/RulesCompiler"
+import { OP } from "../src/opcodes"
 
 describe("Компилятор (Этапы 2 и 3) — Строгая типизация", () => {
   describe("Парсинг типов", () => {

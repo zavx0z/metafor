@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
-import { TYPE } from "../src/common"
-import { FieldType } from "../src/context"
-import { fieldTypeToBytecodeType } from "../src/typeBridge"
+import { TYPE } from "../src/opcodes"
+import { FieldType } from "../src/core/FieldRegistry"
+import { fieldTypeToBytecodeType } from "../src/utils/typeBridge"
 
 describe("fieldTypeToBytecodeType", () => {
   test("маппит прямые соответствия FieldType -> TYPE", () => {
