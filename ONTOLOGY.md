@@ -13,7 +13,7 @@
                               ↕  (воплощение / измерение)
 ┌─────────────────────────────────────────────────────────────────┐
 │                    MONAD                                        │
-│  Душа, божественный замысел                                     │
+│  Сущность, божественный замысел                                     │
 │  "То, что определяет КЕМ быть и КУДА стремиться"                │
 └─────────────────────────────────────────────────────────────────┘
                               ↕  (познание / коллапс)
@@ -23,18 +23,6 @@
 │  "То, из чего соткана ткань бытия"                              │
 └─────────────────────────────────────────────────────────────────┘
 ```
-
----
-
-## 📦 Пакеты и их назначение
-
-| Пакет | Уровень | Назначение | Философия |
-|-------|---------|------------|-----------|
-| `@metafor/boundary` | Поле | Вычисление состояний | Ткань реальности |
-| `@metafor/monad` | Душа | Исполнительный механизм | Божественный замысел |
-| `@metafor/bulk` | Формы | Отрисовка и взаимодействие | Воплощение |
-| `@metafor/meta` | DSL | Язык описания душ | Декларация намерений |
-| `@metafor/build` | Компилятор | Трансляция в полевой формат | Материализация |
 
 ---
 
@@ -60,7 +48,7 @@
 
 ---
 
-### **2. MONAD — Душа (божественный замысел)**
+### **2. MONAD — Сущность (божественный замысел)**
 
 **Философия:** Уровень намерений и целей. Monad определяет:
 
@@ -106,35 +94,31 @@
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    @metafor/meta                                │
-│  Язык описания душ (DSL)                                        │
+│                    META (DSL)                                   │
+│  Язык описания сущностей                                        │
 │  MetaFor("git").context(...).states(...).processes(...)        │
 └─────────────────────────────────────────────────────────────────┘
                               ↓ компиляция
 ┌─────────────────────────────────────────────────────────────────┐
-│                    @metafor/build                               │
-│  Компилятор душ                                                 │
+│                    BUILD (компилятор)                           │
 │  Трансляция деклараций в промежуточный формат                  │
 └─────────────────────────────────────────────────────────────────┘
                               ↓ загрузка
 ┌─────────────────────────────────────────────────────────────────┐
-│                    @metafor/monad                               │
-│  Душа (исполнительный механизм)                                 │
+│                    MONAD (сущность)                             │
 │  • Processes: выполняет action/success/error                    │
 │  • Reactions: реагирует на события                              │
 │  • States: управляет переходами (decoherence)                   │
 └─────────────────────────────────────────────────────────────────┘
                               ↓ вычисление
 ┌─────────────────────────────────────────────────────────────────┐
-│                    @metafor/boundary                            │
-│  Полевой уровень (GPU)                                          │
+│                    BOUNDARY (поле)                              │
 │  • Boundary.step(): эволюция суперпозиций                       │
 │  • Boundary.getStates(): измерение состояний                    │
 └─────────────────────────────────────────────────────────────────┘
                               ↓ воплощение
 ┌─────────────────────────────────────────────────────────────────┐
-│                    @metafor/bulk                                │
-│  Царство форм (проявление)                                      │
+│                    BULK (формы)                                 │
 │  • Atom: воплощённая сущность                                   │
 │  • Agents: GravityAgent, ElectromagneticAgent...                │
 │  • Render: отрисовка (virtual, inspect)                         │
@@ -144,46 +128,22 @@
 
 ---
 
-## 📊 Распределение кода
+## 📊 Архитектура
 
-### @metafor/monad (душа)
+```
+MONAD (сущность)
+  ├── Processes — намерения (action/success/error)
+  ├── Reactions — отклики на события
+  └── States — граф переходов (decoherence)
 
-| Модуль | Исходное расположение | Назначение |
-|--------|----------------------|------------|
-| `metafor.ts`, `metafor.t.ts` | meta | DSL фабрика |
-| `process.ts`, `process.t.ts` | meta | Процессы (намерения) |
-| `reactions.ts`, `reactions.t.ts` | meta | Реакции (отклики) |
-| `states.ts`, `states.t.ts` | meta + atom/src | Состояния (пути) |
-| `parser/func.ts` | meta/parser | Парсинг функций |
-| `style.ts` | meta | Сериализация стилей |
-| `cli.ts`, `braneToField.ts` | build | Компилятор DSL → JSON |
-| `Weak`, `Strong` | atom | Основа души |
-| `processes.ts`, `reactions.ts`, `states.ts` | atom/src | Runtime |
-| `decoherence` | atom/src/states | Проверка переходов |
+BOUNDARY (поле)
+  ├── GPU — вычисление эволюции суперпозиций
+  └── Branes — носители данных (params, state, superposition)
 
-### @metafor/boundary (поле)
-
-| Модуль | Исходное расположение | Назначение |
-| ------ | --------------------- | ---------- |
-| `Boundary`, `Backend.ts` | boundary | GPU фасад |
-| `BraneManager.ts` | boundary/core | Управление бранами |
-| `FieldRegistry.ts` | boundary/core | Реестр полей |
-| `RulesCompiler.ts` | boundary/compiler | Байт-код для FSM |
-| `evolution.wgsl` | boundary/gpu | Compute шейдер |
-| `BraneBuilder.ts`, `HeapAllocator.ts` | boundary/memory | Память |
-| `StringAtlas.ts` | boundary/strings | Строки для GPU |
-
-### @metafor/bulk (формы)
-
-| Модуль | Исходное расположение | Назначение |
-|--------|----------------------|------------|
-| `Atom.ts` | atom | Воплощённая сущность |
-| `Gravity.ts` | atom | Агент иерархии |
-| `EM.ts` | atom | Агент взаимодействия |
-| `Field.ts` | atom | Полевая навигация |
-| `virtual/` | infra | Визуализация |
-| `inspect/` | infra | Отладка |
-| `mesh/` | infra | Пространство |
+BULK (формы)
+  ├── Agents — персонификации сил (Gravity, Electromagnetic...)
+  └── Render — визуализация и взаимодействие
+```
 
 ---
 
@@ -218,16 +178,24 @@ export default meta
 
 ### Компиляция (build → JSON)
 
+**build** преобразует `MetaFor()` декларацию в формат JSON для monad:
+
 ```json
 {
   "name": "git",
   "fields": {
-    "src": { "type": "string" },
-    "patches": { "type": "array<string>" }
-  },
-  "params": {
-    "src": "./tmp/edit.json",
-    "patches": []
+    "src": {
+      "type": "string",
+      "required": true,
+      "default": "./tmp/edit.json",
+      "label": "JSON-patch путь"
+    },
+    "patches": {
+      "type": "array<string>",
+      "required": true,
+      "default": [],
+      "label": "разделенные патчи"
+    }
   },
   "superposition": {
     "коммит": { "завершено": {} },
@@ -243,20 +211,28 @@ export default meta
 }
 ```
 
+**Формат MonadJson:**
+
+- `fields` — схема полей (type, required, label, default) — семантика для ИИ
+- `params` — значения по умолчанию (извлекаются из `fields[].default`)
+- `superposition` — граф переходов (бывший `states`)
+- `processes` — процессы (action/success/error)
+- `reactions` — реакции на события
+
 ### Выполнение (monad + boundary)
 
 ```typescript
-// Monad загружает JSON
+// Monad загружает JSON (формат MonadJson)
 const monad = new Monad(jsonSchema)
 
-// Monad инициализирует Boundary, преобразуя JSON в BoundaryConfig
+// Monad извлекает params из fields для создания браны
 const boundary = new Boundary(device)
 await boundary.init({
-  fields: json.fields,       // схема полей для GPU
+  fields: extractFieldsForGPU(json.fields),  // технические типы для GPU
   branes: [{
     id: "git-1",
-    params: json.params,     // значения по умолчанию
-    state: "коммит",         // начальное состояние
+    params: extractParams(json.fields),      // значения из default
+    state: "коммит",
     superposition: json.superposition
   }]
 })
@@ -271,6 +247,12 @@ boundary.step()
 const states = await boundary.getStates()
 // => ["завершено"]
 ```
+
+**Monad преобразует JSON в BoundaryConfig:**
+
+- `json.fields` → `BoundaryConfig.fields` (технические типы для GPU)
+- `json.fields[].default` → `BoundaryConfig.branes[].params` (значения)
+- `json.superposition` → `BoundaryConfig.branes[].superposition`
 
 ### Воплощение (bulk)
 
@@ -326,7 +308,7 @@ gitAtom.on("commit", () => monad.execute("коммит"))
 ### Было (atom)
 
 ```
-@metafor/atom (смешанная ответственность)
+atom (смешанная ответственность)
 ├── Field, Fields — поле
 ├── Gravity — иерархия
 ├── EM — взаимодействие
@@ -337,20 +319,20 @@ gitAtom.on("commit", () => monad.execute("коммит"))
 ### Стало (разделение)
 
 ```
-@metafor/monad (душа)
+monad (сущность)
 ├── MetaFor — DSL
 ├── processes — намерения
 ├── reactions — отклики
 ├── states — пути
 └── Weak, Strong — основа
 
-@metafor/boundary (поле)
+boundary (поле)
 ├── Boundary — GPU
 ├── BraneManager — память
 ├── RulesCompiler — байт-код
 └── StringAtlas — строки
 
-@metafor/bulk (формы)
+bulk (формы)
 ├── Atom — сущность
 ├── GravityAgent — сила иерархии
 ├── ElectromagneticAgent — сила взаимодействия
@@ -367,16 +349,18 @@ gitAtom.on("commit", () => monad.execute("коммит"))
 | **Атом** | Единица действия и контекста, воплощённая сущность |
 | **Boundary** | Полевая граница — GPU-фасад для вычисления состояний |
 | **Брана** | Возмущение квантовых полей. Содержит: superposition, state, params |
-| **Fields (boundary)** | Технические типы для GPU: `{ type: "string" \| "number" \| "boolean" \| "array<string>" }` |
+| **build** | Компилятор: преобразует MetaFor DSL → MonadJson |
+| **Fields (boundary)** | Технические типы для GPU: `{ type: "string" \| "number" \| ... }` |
 | **Fields (monad)** | Семантика для ИИ: `{ type, required, label, default }` |
-| **params** | Значения полей браны (данные) |
+| **MonadJson** | Формат JSON для monad: `{ fields, superposition, processes, reactions }` |
+| **params** | Значения полей (извлекаются из `fields[].default`) |
 | **state** | Текущее состояние браны (одно из суперпозиции) |
 | **superposition** | Все возможные состояния браны + граф переходов между ними |
 | **Голографический принцип** | Каждое событие содержит информацию о всей системе |
 | **Декогеренция** | Проверка условий перехода между состояниями |
 | **Импульс** | Событие изменения (JSON Patch) |
 | **Коллапс** | Переход из суперпозиции в определённое состояние |
-| **Монада** | Исполнительный механизм души (процессы, реакции) |
+| **Монада** | Исполнительный механизм сущности (процессы, реакции) |
 | **Поле** | Квантовое пространство всех возможных состояний |
 | **Чекпоинт** | Снапшот системы для отката во времени |
 
