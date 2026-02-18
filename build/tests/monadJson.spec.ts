@@ -59,8 +59,8 @@ describe("convertMetaToMonadJson", () => {
 
     const result = convertMetaToMonadJson(meta as any, sourceText)
 
-    expect(result.fields.tags.type).toBe("array<string>")
-    expect(result.fields.numbers.type).toBe("array<number>")
+    expect(result.fields.tags!.type).toBe("array<string>")
+    expect(result.fields.numbers!.type).toBe("array<number>")
   })
 
   test("должен преобразовать array с generic типом из default значения", () => {
@@ -77,8 +77,8 @@ describe("convertMetaToMonadJson", () => {
 
     const result = convertMetaToMonadJson(meta as any)
 
-    expect(result.fields.tags.type).toBe("array<string>")
-    expect(result.fields.numbers.type).toBe("array<number>")
+    expect(result.fields.tags!.type).toBe("array<string>")
+    expect(result.fields.numbers!.type).toBe("array<number>")
   })
 
   test("должен выбросить ошибку если не удалось вывести тип массива", () => {
@@ -199,7 +199,7 @@ describe("convertMetaToMonadJson", () => {
 
     expect(result.processes).toBeDefined()
     expect(result.processes!.idle).toBeDefined()
-    expect(result.processes!.idle.type).toBe("action")
+    expect(result.processes!.idle!.type).toBe("action")
   })
 
   test("должен включить reactions если есть", () => {
@@ -258,6 +258,215 @@ describe("convertMetaToMonadJson", () => {
       age: { type: "number", default: 0 },
       active: { type: "boolean", required: true, default: true },
     })
+  })
+
+  test("должен преобразовать processes с action/success/error", () => {
+    const meta = MetaFor("test")
+      .context((t) => ({
+        value: t.number.required(0),
+      }))
+      .states({ idle: { done: {} }, done: null })
+      .core()
+      .processes((process) => ({
+        idle: process({ label: "Test Process", desc: "Описание процесса" })
+          .action(({ context }) => {
+            console.log("Value:", context.value)
+            return { result: context.value * 2 }
+          })
+          .success(({ update, data }) => {
+            update({ value: data.result })
+          })
+          .error(({ update, error }) => {
+            update({ value: 0 })
+            console.error("Error:", error.message)
+          }),
+      }))
+      .reactions()
+      .view()
+
+    const result = convertMetaToMonadJson(meta as any)
+
+    expect(result.processes).toBeDefined()
+    expect(result.processes!.idle).toEqual({
+      type: "action",
+      label: "Test Process",
+      desc: "Описание процесса",
+      action: {
+        src: expect.stringContaining("({ context }) =>"),
+        read: ["value"],
+      },
+      success: {
+        src: expect.stringContaining("({ update, data }) =>"),
+        write: ["value"],
+      },
+      error: {
+        src: expect.stringContaining("({ update, error }) =>"),
+        write: ["value"],
+      },
+    })
+  })
+
+  test("должен преобразовать destroy процесс", () => {
+    const meta = MetaFor("test")
+      .context((t) => ({
+        value: t.number.required(0),
+      }))
+      .states({ idle: { done: {} }, done: null })
+      .core()
+      .processes((process, destroy) => ({
+        done: destroy({ label: "Cleanup", desc: "Очистка" }),
+      }))
+      .reactions()
+      .view()
+
+    const result = convertMetaToMonadJson(meta as any)
+
+    expect(result.processes!.done).toEqual({
+      type: "finally",
+      label: "Cleanup",
+      desc: "Очистка",
+      before: {
+        src: expect.stringContaining("() =>"),
+      },
+    })
+  })
+
+  test("должен преобразовать reactions с filter и equal", () => {
+    const meta = MetaFor("test")
+      .context((t) => ({
+        value: t.number.required(0),
+        isActive: t.boolean.required(false),
+      }))
+      .states({ idle: { active: {} }, active: null })
+      .core()
+      .processes()
+      .reactions((reaction) => [
+        [
+          ["idle"],
+          reaction({ label: "Value Update", desc: "Обновление значения" })
+            .filter(({ self, context }) => ({
+              meta: "source",
+              value: { gt: 0 },
+            }))
+            .equal(({ update, patch }) => {
+              update({ value: patch.value })
+            }),
+        ],
+      ])
+      .view()
+
+    const result = convertMetaToMonadJson(meta as any)
+
+    expect(result.reactions).toBeDefined()
+    const reaction = result.reactions!.reactions["0"]
+    expect(reaction!.label).toBe("Value Update")
+    expect(reaction!.desc).toBe("Обновление значения")
+    expect(reaction!.cond).toContain("({ self, context }) =>")
+    expect(reaction!.src).toContain("({ update, patch }) =>")
+    expect(reaction!.write).toEqual(["value"])
+    expect(result.reactions!.states.idle).toEqual(["0"])
+  })
+
+  test("должен преобразовать view с render и style", () => {
+    const meta = MetaFor("test")
+      .context((t) => ({
+        label: t.string.required("Test"),
+      }))
+      .states({ idle: null })
+      .core()
+      .processes()
+      .reactions()
+      .view({
+        render: ({ context, state, html, update }) =>
+          html`<div>
+            <h1>${context.label}</h1>
+            <p>State: ${state}</p>
+            <button @click=${() => update({ label: "Clicked" })}>Click</button>
+          </div>`,
+        style: ({ css }) => css`
+          div {
+            padding: 16px;
+          }
+          h1 {
+            color: blue;
+          }
+        `,
+      })
+
+    const result = convertMetaToMonadJson(meta as any)
+
+    expect(result.view).toBeDefined()
+    expect(result.view!.render).toBeDefined()
+    expect(Array.isArray(result.view!.render)).toBe(true)
+    const firstNode = result.view!.render![0] as { tag: string }
+    expect(firstNode.tag).toBe("div")
+    expect(result.view!.style).toContain("div{padding:16px;")
+    expect(result.view!.style).toContain("h1{color:blue;")
+  })
+
+  test("должен преобразовать core с данными", () => {
+    const meta = MetaFor("test")
+      .context((t) => ({
+        value: t.number.required(0),
+      }))
+      .states({ idle: null })
+      .core({
+        history: [] as number[],
+        metadata: {
+          created: Date.now(),
+          version: "1.0.0",
+        },
+        cache: new Map<string, number>(),
+      })
+      .processes()
+      .reactions()
+      .view()
+
+    const result = convertMetaToMonadJson(meta as any)
+
+    expect(result.core).toBeDefined()
+    expect(result.core!.history).toEqual([])
+    expect(result.core!.metadata).toEqual({
+      created: expect.any(Number),
+      version: "1.0.0",
+    })
+  })
+
+  test("должен преобразовать полный атом со всеми компонентами", () => {
+    const meta = MetaFor("complete")
+      .context((t) => ({
+        name: t.string.required("Test", { label: "Название" }),
+        count: t.number.required(0),
+      }))
+      .states({ idle: { done: {} }, done: null })
+      .core({ data: [] as string[] })
+      .processes((process) => ({
+        idle: process({ label: "Process" })
+          .action(({ context }) => context.count)
+          .success(({ update, data }) => update({ count: data as number })),
+      }))
+      .reactions((reaction) => [
+        [
+          ["idle"],
+          reaction()
+            .filter(() => ({ meta: "test" }))
+            .equal(({ update }) => update({ count: 1 })),
+        ],
+      ])
+      .view({
+        render: ({ context, html }) => html`<div>${context.name}</div>`,
+        style: ({ css }) => css`div { color: red; }`,
+      })
+
+    const result = convertMetaToMonadJson(meta as any)
+
+    expect(result.name).toBe("complete")
+    expect(result.fields).toBeDefined()
+    expect(result.superposition).toBeDefined()
+    expect(result.processes).toBeDefined()
+    expect(result.reactions).toBeDefined()
+    expect(result.view).toBeDefined()
+    expect(result.core).toBeDefined()
   })
 })
 
