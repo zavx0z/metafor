@@ -45,9 +45,9 @@ describe("Boundary — E2E тесты индивидуальных суперп�
           mana: { type: "number" },
         },
         branes: [
-          { id: "warrior", state: "IDLE", fields: { hp: 90, mana: 50 }, superposition: warriorSuperposition },
-          { id: "mage", state: "IDLE", fields: { hp: 50, mana: 10 }, superposition: mageSuperposition },
-          { id: "scout", state: "IDLE", fields: { hp: 60, mana: 30 }, superposition: scoutSuperposition },
+          { id: "warrior", state: "IDLE", params: { hp: 90, mana: 50 }, superposition: warriorSuperposition },
+          { id: "mage", state: "IDLE", params: { hp: 50, mana: 10 }, superposition: mageSuperposition },
+          { id: "scout", state: "IDLE", params: { hp: 60, mana: 30 }, superposition: scoutSuperposition },
         ],
       })
 
@@ -82,8 +82,8 @@ describe("Boundary — E2E тесты индивидуальных суперп�
           hp: { type: "number" },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { hp: 50 }, superposition: lowThresholdSuperposition },
-          { id: "q2", state: "IDLE", fields: { hp: 50 }, superposition: highThresholdSuperposition },
+          { id: "q1", state: "IDLE", params: { hp: 50 }, superposition: lowThresholdSuperposition },
+          { id: "q2", state: "IDLE", params: { hp: 50 }, superposition: highThresholdSuperposition },
         ],
       })
 
@@ -120,9 +120,9 @@ describe("Boundary — E2E тесты индивидуальных суперп�
           hp: { type: "number" },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { hp: 50 }, superposition: gtSuperposition },
-          { id: "q2", state: "IDLE", fields: { hp: 50 }, superposition: gteSuperposition },
-          { id: "q3", state: "IDLE", fields: { hp: 50 }, superposition: ltSuperposition },
+          { id: "q1", state: "IDLE", params: { hp: 50 }, superposition: gtSuperposition },
+          { id: "q2", state: "IDLE", params: { hp: 50 }, superposition: gteSuperposition },
+          { id: "q3", state: "IDLE", params: { hp: 50 }, superposition: ltSuperposition },
         ],
       })
 
@@ -159,8 +159,8 @@ describe("Boundary — E2E тесты индивидуальных суперп�
           hp: { type: "number" },
         },
         branes: [
-          { id: "aggressive", state: "IDLE", fields: { hp: 95 }, superposition: aggressiveSuperposition },
-          { id: "defensive", state: "IDLE", fields: { hp: 15 }, superposition: defensiveSuperposition },
+          { id: "aggressive", state: "IDLE", params: { hp: 95 }, superposition: aggressiveSuperposition },
+          { id: "defensive", state: "IDLE", params: { hp: 15 }, superposition: defensiveSuperposition },
         ],
         steps: 2,
       })
@@ -207,9 +207,9 @@ describe("Boundary — E2E тесты индивидуальных суперп�
           isAlive: { type: "boolean" },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { hp: 60, mana: 0, isAlive: false }, superposition: numericSuperposition },
-          { id: "q2", state: "IDLE", fields: { hp: 0, mana: 0, isAlive: true }, superposition: booleanSuperposition },
-          { id: "q3", state: "IDLE", fields: { hp: 40, mana: 30, isAlive: false }, superposition: multiConditionSuperposition },
+          { id: "q1", state: "IDLE", params: { hp: 60, mana: 0, isAlive: false }, superposition: numericSuperposition },
+          { id: "q2", state: "IDLE", params: { hp: 0, mana: 0, isAlive: true }, superposition: booleanSuperposition },
+          { id: "q3", state: "IDLE", params: { hp: 40, mana: 30, isAlive: false }, superposition: multiConditionSuperposition },
         ],
       })
 
@@ -245,8 +245,8 @@ describe("Boundary — E2E тесты индивидуальных суперп�
           hp: { type: "number" },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { hp: 60 }, superposition: superposition1 },
-          { id: "q2", state: "IDLE", fields: { hp: 60 }, superposition: superposition2 },
+          { id: "q1", state: "IDLE", params: { hp: 60 }, superposition: superposition1 },
+          { id: "q2", state: "IDLE", params: { hp: 60 }, superposition: superposition2 },
         ],
       })
 
@@ -283,8 +283,8 @@ describe("Boundary — E2E тесты индивидуальных суперп�
           mana: { type: "number" },
         },
         branes: [
-          { id: "unit1", state: "IDLE", fields: { hp: 90, mana: 100 }, superposition: unit1Superposition },
-          { id: "unit2", state: "IDLE", fields: { hp: 100, mana: 10 }, superposition: unit2Superposition },
+          { id: "unit1", state: "IDLE", params: { hp: 90, mana: 100 }, superposition: unit1Superposition },
+          { id: "unit2", state: "IDLE", params: { hp: 100, mana: 10 }, superposition: unit2Superposition },
         ],
         steps: 3,
       })

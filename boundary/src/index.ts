@@ -1,23 +1,26 @@
 /**
- * Boundary — движок квантовых полей на WebGPU.
+ * Boundary — полевая граница (GPU-фасад).
  *
  * ## Архитектура
  *
- * Модуль реализует парадигму "квантовой машины состояний", где переходы между
- * состояниями происходят на GPU в параллельном режиме. Основные компоненты:
+ * Boundary управляет полями (fields) и бранами (branes):
+ * - **Fields** — статика: схема типов полей для GPU
+ * - **Branes** — динамика: возмущения в полях с params, state, superposition
+ *
+ * Основные компоненты:
  *
  * - **{@link Boundary}** — фасад модуля, координирует инициализацию и эволюцию.
  * - **{@link GPUBackend}** — драйвер WebGPU, управляет буферами и compute-шейдерами.
- * - **{@link RulesCompiler}** — транслирует JSON-правила в байт-код для VM на GPU.
- * - **{@link BraneManager}** — менеджер памяти бран (аллокация, обновление полей).
+ * - **{@link RulesCompiler}** — транслирует суперпозиции в байт-код для VM на GPU.
+ * - **{@link BraneManager}** — менеджер памяти бран (аллокация, обновление params).
  * - **{@link StringAtlas}** — система интернирования строк для GPU.
  *
  * ## Поток данных
  *
  * ```
- * JSON Config → RulesCompiler → bytecode → GPUBackend
- *                          ↓
- * BraneManager → heap → GPUBuffer → compute pass → new states
+ * BoundaryConfig (fields + branes) → RulesCompiler → bytecode → GPUBackend
+ *                                 ↓
+ *          BraneManager → heap → GPUBuffer → compute pass → new states
  * ```
  *
  * ## Ключевые ограничения
@@ -36,8 +39,12 @@ import { resetStringAtlas, getStringAtlas } from "./strings"
 import type { CompiledEnsemble } from "./types"
 
 /**
- * Определение типа поля браны.
- * Используется для автоматического маппинга в FieldType и выделения памяти.
+ * Определение типа поля для GPU.
+ * Используется для маппинга в FieldType и выделения памяти.
+ * 
+ * @remarks
+ * Это технические типы для GPU, без семантики (required, label).
+ * Семантика определяется в monad на уровне Fields.
  */
 export type FieldDefinition =
   | { type: "number" }
@@ -51,23 +58,31 @@ export type FieldDefinition =
 export type FieldsDefinition = Record<string, FieldDefinition>
 
 /**
- * Граф переходов между состояниями.
+ * Суперпозиция — граф переходов между состояниями.
+ * 
+ * @remarks
  * Ключ верхнего уровня — имя состояния, значение — карта переходов.
  * `null` означает состояние без исходящих переходов (терминальное).
  */
 export type Superposition = Record<string, Record<string, any> | null>
 
 /**
- * Определение отдельной браны.
+ * Брана — возмущение квантовых полей.
+ * 
+ * @remarks
+ * Брана содержит:
+ * - params — значения полей (данные)
+ * - state — текущее состояние (одно из superposition)
+ * - superposition — все возможные состояния + граф переходов
  */
 export interface BraneDefinition {
-  /** Уникальный идентификатор браны (для отладки). */
+  /** Уникальный идентификатор браны. */
   id: string
-  /** Начальные значения полей. */
-  fields: Record<string, unknown>
-  /** Имя начального состояния (должно быть в superposition). */
+  /** Значения полей браны (params — данные). */
+  params: Record<string, unknown>
+  /** Текущее состояние (должно быть в superposition). */
   state: string
-  /** Граф переходов для этой браны. */
+  /** Суперпозиция — все состояния + граф переходов. */
   superposition: Superposition
 }
 
@@ -90,18 +105,24 @@ export interface DebugOptions {
 }
 
 /**
- * Конфигурация границы для инициализации.
+ * Конфигурация полевой границы.
+ * 
+ * @remarks
+ * Boundary управляет двумя компонентами:
+ * - fields — статика: схема типов полей для GPU
+ * - branes — динамика: массив бран с params, state, superposition
  */
 export interface BoundaryConfig {
-  /** Схема типов полей (общая для всех бран). */
+  /** Схема типов полей (общая для всех бран). Технические типы для GPU. */
   fields: FieldsDefinition
-  /** Массив определений бран. */
+  /** Массив бран — возмущений в поле. */
   branes: BraneDefinition[]
 }
 
 /**
- * Фасад модуля Boundary. Координирует инициализацию GPU-ресурсов,
- * компиляцию правил и эволюцию бран.
+ * Boundary — полевая граница (GPU-фасад).
+ * 
+ * Координирует инициализацию GPU-ресурсов, компиляцию суперпозиций и эволюцию бран.
  *
  * @example
  * ```ts
@@ -113,7 +134,7 @@ export interface BoundaryConfig {
  *   fields: { hp: { type: "number" }, name: { type: "string" } },
  *   branes: [{
  *     id: "hero",
- *     fields: { hp: 100, name: "Arthur" },
+ *     params: { hp: 100, name: "Arthur" },
  *     state: "IDLE",
  *     superposition: { IDLE: { FIGHT: { hp: { gt: 50 } } }, FIGHT: null }
  *   }]
@@ -147,11 +168,12 @@ export class Boundary {
   /**
    * Инициализирует GPU-ресурсы и загружает конфигурацию.
    *
+   * @remarks
    * **Side Effects:**
    * - Очищает FieldRegistry и StringAtlas.
    * - Аллоцирует GPU-буферы (не освобождаются автоматически).
    *
-   * @param config - Конфигурация границы.
+   * @param config - Конфигурация полевой границы (fields + branes).
    *
    * @throws {Error} Если тип поля не распознан.
    */
@@ -213,11 +235,11 @@ export class Boundary {
     if (debug('branes')) {
       console.log('[Boundary] Creating ensemble with', config.branes.length, 'branes')
       config.branes.forEach((b, i) => {
-        console.log(`  [Brane ${i}] id="${b.id}", state="${b.state}", fields=`, b.fields)
+        console.log(`  [Brane ${i}] id="${b.id}", state="${b.state}", params=`, b.params)
       })
     }
 
-    this.braneIds = this.braneManager.createEnsemble(config.branes.map((f) => f.fields))
+    this.braneIds = this.braneManager.createEnsemble(config.branes.map((f) => f.params))
 
     if (debug('compiler')) {
       console.log('[Boundary] Compiling ensemble rules...')
@@ -306,11 +328,12 @@ export class Boundary {
   /**
    * Обновляет значение поля браны в heap.
    *
+   * @remarks
    * **Side Effect:** Если изменился размер heap, отправляет новые данные на GPU.
    *
    * @param braneIndex - Индекс браны в массиве конфигурации `[0..branes.length-1]`.
-   * @param fieldName - Имя поля (должно быть зарегистрировано).
-   * @param value - Новое значение (тип должен соответствовать схеме).
+   * @param fieldName - Имя поля (должно быть зарегистрировано в FieldRegistry).
+   * @param value - Новое значение (тип должен соответствовать схеме fields).
    *
    * @throws {Error} Если braneIndex вне диапазона.
    */

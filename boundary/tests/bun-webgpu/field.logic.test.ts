@@ -35,8 +35,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
           isAlive: { type: "boolean" },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { hp: 100, mana: 100, isAlive: true }, superposition: defaultSuperposition },
-          { id: "q2", state: "IDLE", fields: { hp: 0, mana: 50, isAlive: false }, superposition: defaultSuperposition },
+          { id: "q1", state: "IDLE", params: { hp: 100, mana: 100, isAlive: true }, superposition: defaultSuperposition },
+          { id: "q2", state: "IDLE", params: { hp: 0, mana: 50, isAlive: false }, superposition: defaultSuperposition },
         ],
       })
 
@@ -59,8 +59,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.init({
         fields: { hp: { type: "number" } },
         branes: [
-          { id: "q1", state: "IDLE", fields: { hp: 100 }, superposition },
-          { id: "q2", state: "IDLE", fields: { hp: 50 }, superposition },
+          { id: "q1", state: "IDLE", params: { hp: 100 }, superposition },
+          { id: "q2", state: "IDLE", params: { hp: 50 }, superposition },
         ],
       })
 
@@ -83,8 +83,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.init({
         fields: { hp: { type: "number" } },
         branes: [
-          { id: "q1", state: "IDLE", fields: { hp: 50 }, superposition },
-          { id: "q2", state: "IDLE", fields: { hp: 49 }, superposition },
+          { id: "q1", state: "IDLE", params: { hp: 50 }, superposition },
+          { id: "q2", state: "IDLE", params: { hp: 49 }, superposition },
         ],
       })
 
@@ -107,8 +107,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.init({
         fields: { hp: { type: "number" } },
         branes: [
-          { id: "q1", state: "IDLE", fields: { hp: 49 }, superposition },
-          { id: "q2", state: "IDLE", fields: { hp: 50 }, superposition },
+          { id: "q1", state: "IDLE", params: { hp: 49 }, superposition },
+          { id: "q2", state: "IDLE", params: { hp: 50 }, superposition },
         ],
       })
 
@@ -133,8 +133,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.init({
         fields: { isAlive: { type: "boolean" } },
         branes: [
-          { id: "q1", state: "IDLE", fields: { isAlive: true }, superposition },
-          { id: "q2", state: "IDLE", fields: { isAlive: false }, superposition },
+          { id: "q1", state: "IDLE", params: { isAlive: true }, superposition },
+          { id: "q2", state: "IDLE", params: { isAlive: false }, superposition },
         ],
       })
 
@@ -157,8 +157,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.init({
         fields: { isAlive: { type: "boolean" } },
         branes: [
-          { id: "q1", state: "ACTIVE", fields: { isAlive: false }, superposition },
-          { id: "q2", state: "ACTIVE", fields: { isAlive: true }, superposition },
+          { id: "q1", state: "ACTIVE", params: { isAlive: false }, superposition },
+          { id: "q2", state: "ACTIVE", params: { isAlive: true }, superposition },
         ],
       })
 
@@ -191,9 +191,9 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
           mana: { type: "number" },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { hp: 100, mana: 50 }, superposition },
-          { id: "q2", state: "IDLE", fields: { hp: 100, mana: 10 }, superposition },
-          { id: "q3", state: "IDLE", fields: { hp: 30, mana: 50 }, superposition },
+          { id: "q1", state: "IDLE", params: { hp: 100, mana: 50 }, superposition },
+          { id: "q2", state: "IDLE", params: { hp: 100, mana: 10 }, superposition },
+          { id: "q3", state: "IDLE", params: { hp: 30, mana: 50 }, superposition },
         ],
       })
 
@@ -218,7 +218,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
       await boundary.init({
         fields: { hp: { type: "number" } },
-        branes: [{ id: "q1", state: "IDLE", fields: { hp: 100 }, superposition }],
+        branes: [{ id: "q1", state: "IDLE", params: { hp: 100 }, superposition }],
       })
 
       boundary.updateBraneField(0, "hp", 0)
@@ -239,7 +239,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
       await boundary.init({
         fields: { hp: { type: "number" } },
-        branes: [{ id: "q1", state: "IDLE", fields: { hp: 100 }, superposition }],
+        branes: [{ id: "q1", state: "IDLE", params: { hp: 100 }, superposition }],
       })
 
       boundary.updateBraneField(0, "hp", 50)
@@ -266,7 +266,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
           hp: { type: "number" },
           mana: { type: "number" },
         },
-        branes: [{ id: "q1", state: "IDLE", fields: { hp: 100, mana: 5 }, superposition }],
+        branes: [{ id: "q1", state: "IDLE", params: { hp: 100, mana: 5 }, superposition }],
       })
 
       boundary.step()
@@ -290,9 +290,9 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.init({
         fields: { hp: { type: "number" } },
         branes: [
-          { id: "q1", state: "IDLE", fields: { hp: 100 }, superposition },
-          { id: "q2", state: "IDLE", fields: { hp: 200 }, superposition },
-          { id: "q3", state: "IDLE", fields: { hp: 0 }, superposition },
+          { id: "q1", state: "IDLE", params: { hp: 100 }, superposition },
+          { id: "q2", state: "IDLE", params: { hp: 200 }, superposition },
+          { id: "q3", state: "IDLE", params: { hp: 0 }, superposition },
         ],
       })
 
@@ -316,8 +316,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.init({
         fields: { hp: { type: "number" } },
         branes: [
-          { id: "q1", state: "IDLE", fields: { hp: 100 }, superposition },
-          { id: "q2", state: "ACTIVE", fields: { hp: 30 }, superposition },
+          { id: "q1", state: "IDLE", params: { hp: 100 }, superposition },
+          { id: "q2", state: "ACTIVE", params: { hp: 30 }, superposition },
         ],
       })
 
@@ -355,9 +355,9 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
           mana: { type: "number" },
         },
         branes: [
-          { id: "warrior", state: "IDLE", fields: { hp: 90, mana: 50 }, superposition: warriorSuperposition },
-          { id: "mage", state: "IDLE", fields: { hp: 50, mana: 10 }, superposition: mageSuperposition },
-          { id: "scout", state: "IDLE", fields: { hp: 60, mana: 30 }, superposition: scoutSuperposition },
+          { id: "warrior", state: "IDLE", params: { hp: 90, mana: 50 }, superposition: warriorSuperposition },
+          { id: "mage", state: "IDLE", params: { hp: 50, mana: 10 }, superposition: mageSuperposition },
+          { id: "scout", state: "IDLE", params: { hp: 60, mana: 30 }, superposition: scoutSuperposition },
         ],
       })
 
@@ -386,8 +386,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.init({
         fields: { hp: { type: "number" } },
         branes: [
-          { id: "q1", state: "IDLE", fields: { hp: 50 }, superposition: lowThresholdSuperposition },
-          { id: "q2", state: "IDLE", fields: { hp: 50 }, superposition: highThresholdSuperposition },
+          { id: "q1", state: "IDLE", params: { hp: 50 }, superposition: lowThresholdSuperposition },
+          { id: "q2", state: "IDLE", params: { hp: 50 }, superposition: highThresholdSuperposition },
         ],
       })
 
@@ -417,8 +417,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.init({
         fields: { hp: { type: "number" } },
         branes: [
-          { id: "aggressive", state: "IDLE", fields: { hp: 95 }, superposition: aggressiveSuperposition },
-          { id: "defensive", state: "IDLE", fields: { hp: 15 }, superposition: defensiveSuperposition },
+          { id: "aggressive", state: "IDLE", params: { hp: 95 }, superposition: aggressiveSuperposition },
+          { id: "defensive", state: "IDLE", params: { hp: 15 }, superposition: defensiveSuperposition },
         ],
       })
 
@@ -461,9 +461,9 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
           isAlive: { type: "boolean" },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { hp: 60, mana: 0, isAlive: false }, superposition: numericSuperposition },
-          { id: "q2", state: "IDLE", fields: { hp: 0, mana: 0, isAlive: true }, superposition: booleanSuperposition },
-          { id: "q3", state: "IDLE", fields: { hp: 40, mana: 30, isAlive: false }, superposition: multiConditionSuperposition },
+          { id: "q1", state: "IDLE", params: { hp: 60, mana: 0, isAlive: false }, superposition: numericSuperposition },
+          { id: "q2", state: "IDLE", params: { hp: 0, mana: 0, isAlive: true }, superposition: booleanSuperposition },
+          { id: "q3", state: "IDLE", params: { hp: 40, mana: 30, isAlive: false }, superposition: multiConditionSuperposition },
         ],
       })
 

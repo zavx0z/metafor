@@ -20,8 +20,8 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       await boundary.init({
         fields: { isAlive: { type: "boolean" } },
         branes: [
-          { id: "q1", state: "IDLE", fields: { isAlive: true }, superposition },
-          { id: "q2", state: "IDLE", fields: { isAlive: false }, superposition },
+          { id: "q1", state: "IDLE", params: { isAlive: true }, superposition },
+          { id: "q2", state: "IDLE", params: { isAlive: false }, superposition },
         ],
       })
 
@@ -46,8 +46,8 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       await boundary.init({
         fields: { isAlive: { type: "boolean" } },
         branes: [
-          { id: "q1", state: "IDLE", fields: { isAlive: false }, superposition },
-          { id: "q2", state: "IDLE", fields: { isAlive: true }, superposition },
+          { id: "q1", state: "IDLE", params: { isAlive: false }, superposition },
+          { id: "q2", state: "IDLE", params: { isAlive: true }, superposition },
         ],
       })
 
@@ -72,8 +72,8 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       await boundary.init({
         fields: { isAlive: { type: "boolean" } },
         branes: [
-          { id: "q1", state: "IDLE", fields: { isAlive: true }, superposition },
-          { id: "q2", state: "IDLE", fields: { isAlive: false }, superposition },
+          { id: "q1", state: "IDLE", params: { isAlive: true }, superposition },
+          { id: "q2", state: "IDLE", params: { isAlive: false }, superposition },
         ],
       })
 
@@ -96,8 +96,8 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       await boundary.init({
         fields: { isAlive: { type: "boolean" } },
         branes: [
-          { id: "q1", state: "IDLE", fields: { isAlive: false }, superposition },
-          { id: "q2", state: "IDLE", fields: { isAlive: true }, superposition },
+          { id: "q1", state: "IDLE", params: { isAlive: false }, superposition },
+          { id: "q2", state: "IDLE", params: { isAlive: true }, superposition },
         ],
       })
 
@@ -122,8 +122,8 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       await boundary.init({
         fields: { isAlive: { type: "boolean" } },
         branes: [
-          { id: "q1", state: "IDLE", fields: { isAlive: true }, superposition },
-          { id: "q2", state: "IDLE", fields: { isAlive: false }, superposition },
+          { id: "q1", state: "IDLE", params: { isAlive: true }, superposition },
+          { id: "q2", state: "IDLE", params: { isAlive: false }, superposition },
         ],
       })
 
@@ -146,8 +146,8 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       await boundary.init({
         fields: { isAlive: { type: "boolean" } },
         branes: [
-          { id: "q1", state: "IDLE", fields: { isAlive: false }, superposition },
-          { id: "q2", state: "IDLE", fields: { isAlive: true }, superposition },
+          { id: "q1", state: "IDLE", params: { isAlive: false }, superposition },
+          { id: "q2", state: "IDLE", params: { isAlive: true }, superposition },
         ],
       })
 
@@ -172,10 +172,10 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       await boundary.init({
         fields: { isAlive: { type: "boolean" }, hasMana: { type: "boolean" } },
         branes: [
-          { id: "q1", state: "IDLE", fields: { isAlive: true, hasMana: true }, superposition },
-          { id: "q2", state: "IDLE", fields: { isAlive: true, hasMana: false }, superposition },
-          { id: "q3", state: "IDLE", fields: { isAlive: false, hasMana: true }, superposition },
-          { id: "q4", state: "IDLE", fields: { isAlive: false, hasMana: false }, superposition },
+          { id: "q1", state: "IDLE", params: { isAlive: true, hasMana: true }, superposition },
+          { id: "q2", state: "IDLE", params: { isAlive: true, hasMana: false }, superposition },
+          { id: "q3", state: "IDLE", params: { isAlive: false, hasMana: true }, superposition },
+          { id: "q4", state: "IDLE", params: { isAlive: false, hasMana: false }, superposition },
         ],
       })
 
@@ -200,9 +200,9 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       await boundary.init({
         fields: { isAlive: { type: "boolean" }, isStunned: { type: "boolean" } },
         branes: [
-          { id: "q1", state: "IDLE", fields: { isAlive: true, isStunned: false }, superposition },
-          { id: "q2", state: "IDLE", fields: { isAlive: true, isStunned: true }, superposition },
-          { id: "q3", state: "IDLE", fields: { isAlive: false, isStunned: false }, superposition },
+          { id: "q1", state: "IDLE", params: { isAlive: true, isStunned: false }, superposition },
+          { id: "q2", state: "IDLE", params: { isAlive: true, isStunned: true }, superposition },
+          { id: "q3", state: "IDLE", params: { isAlive: false, isStunned: false }, superposition },
         ],
       })
 
@@ -227,7 +227,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
       await boundary.init({
         fields: { isReady: { type: "boolean" } },
-        branes: [{ id: "q1", state: "IDLE", fields: { isReady: false }, superposition }],
+        branes: [{ id: "q1", state: "IDLE", params: { isReady: false }, superposition }],
       })
 
       boundary.updateBraneField(0, "isReady", true)
@@ -248,7 +248,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
       await boundary.init({
         fields: { isAlive: { type: "boolean" } },
-        branes: [{ id: "q1", state: "IDLE", fields: { isAlive: true }, superposition }],
+        branes: [{ id: "q1", state: "IDLE", params: { isAlive: true }, superposition }],
       })
 
       boundary.updateBraneField(0, "isAlive", false)
@@ -272,10 +272,10 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       await boundary.init({
         fields: { isAlive: { type: "boolean" }, hp: { type: "number" } },
         branes: [
-          { id: "q1", state: "IDLE", fields: { isAlive: true, hp: 100 }, superposition },
-          { id: "q2", state: "IDLE", fields: { isAlive: true, hp: 30 }, superposition },
-          { id: "q3", state: "IDLE", fields: { isAlive: false, hp: 100 }, superposition },
-          { id: "q4", state: "IDLE", fields: { isAlive: false, hp: 30 }, superposition },
+          { id: "q1", state: "IDLE", params: { isAlive: true, hp: 100 }, superposition },
+          { id: "q2", state: "IDLE", params: { isAlive: true, hp: 30 }, superposition },
+          { id: "q3", state: "IDLE", params: { isAlive: false, hp: 100 }, superposition },
+          { id: "q4", state: "IDLE", params: { isAlive: false, hp: 30 }, superposition },
         ],
       })
 

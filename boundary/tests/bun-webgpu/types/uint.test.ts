@@ -25,9 +25,9 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
           status: { type: "enum<string>", values: ["IDLE", "ACTIVE", "DEAD"] },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { status: "ACTIVE" }, superposition },
-          { id: "q2", state: "IDLE", fields: { status: "IDLE" }, superposition },
-          { id: "q3", state: "IDLE", fields: { status: "DEAD" }, superposition },
+          { id: "q1", state: "IDLE", params: { status: "ACTIVE" }, superposition },
+          { id: "q2", state: "IDLE", params: { status: "IDLE" }, superposition },
+          { id: "q3", state: "IDLE", params: { status: "DEAD" }, superposition },
         ],
       })
 
@@ -53,9 +53,9 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
           level: { type: "enum<number>", values: [1, 2, 3] },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { level: 2 }, superposition },
-          { id: "q2", state: "IDLE", fields: { level: 1 }, superposition },
-          { id: "q3", state: "IDLE", fields: { level: 3 }, superposition },
+          { id: "q1", state: "IDLE", params: { level: 2 }, superposition },
+          { id: "q2", state: "IDLE", params: { level: 1 }, superposition },
+          { id: "q3", state: "IDLE", params: { level: 3 }, superposition },
         ],
       })
 
@@ -83,9 +83,9 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
           status: { type: "enum<string>", values: ["IDLE", "ACTIVE", "DEAD"] },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { status: "IDLE" }, superposition },
-          { id: "q2", state: "IDLE", fields: { status: "ACTIVE" }, superposition },
-          { id: "q3", state: "IDLE", fields: { status: "DEAD" }, superposition },
+          { id: "q1", state: "IDLE", params: { status: "IDLE" }, superposition },
+          { id: "q2", state: "IDLE", params: { status: "ACTIVE" }, superposition },
+          { id: "q3", state: "IDLE", params: { status: "DEAD" }, superposition },
         ],
       })
 
@@ -113,9 +113,9 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
           level: { type: "enum<number>", values: [1, 2, 3, 4, 5] },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { level: 1 }, superposition },
-          { id: "q2", state: "IDLE", fields: { level: 2 }, superposition },
-          { id: "q3", state: "IDLE", fields: { level: 3 }, superposition },
+          { id: "q1", state: "IDLE", params: { level: 1 }, superposition },
+          { id: "q2", state: "IDLE", params: { level: 2 }, superposition },
+          { id: "q3", state: "IDLE", params: { level: 3 }, superposition },
         ],
       })
 
@@ -143,9 +143,9 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
           level: { type: "enum<number>", values: [1, 2, 3, 4, 5] },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { level: 1 }, superposition },
-          { id: "q2", state: "IDLE", fields: { level: 2 }, superposition },
-          { id: "q3", state: "IDLE", fields: { level: 3 }, superposition },
+          { id: "q1", state: "IDLE", params: { level: 1 }, superposition },
+          { id: "q2", state: "IDLE", params: { level: 2 }, superposition },
+          { id: "q3", state: "IDLE", params: { level: 3 }, superposition },
         ],
       })
 
@@ -173,9 +173,9 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
           level: { type: "enum<number>", values: [1, 2, 3, 4, 5] },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { level: 2 }, superposition },
-          { id: "q2", state: "IDLE", fields: { level: 3 }, superposition },
-          { id: "q3", state: "IDLE", fields: { level: 4 }, superposition },
+          { id: "q1", state: "IDLE", params: { level: 2 }, superposition },
+          { id: "q2", state: "IDLE", params: { level: 3 }, superposition },
+          { id: "q3", state: "IDLE", params: { level: 4 }, superposition },
         ],
       })
 
@@ -203,9 +203,9 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
           level: { type: "enum<number>", values: [1, 2, 3, 4, 5] },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { level: 1 }, superposition },
-          { id: "q2", state: "IDLE", fields: { level: 2 }, superposition },
-          { id: "q3", state: "IDLE", fields: { level: 3 }, superposition },
+          { id: "q1", state: "IDLE", params: { level: 1 }, superposition },
+          { id: "q2", state: "IDLE", params: { level: 2 }, superposition },
+          { id: "q3", state: "IDLE", params: { level: 3 }, superposition },
         ],
       })
 
@@ -233,10 +233,10 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
           status: { type: "enum<string>", values: ["IDLE", "ACTIVE", "RUNNING", "DEAD"] },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { status: "ACTIVE" }, superposition },
-          { id: "q2", state: "IDLE", fields: { status: "RUNNING" }, superposition },
-          { id: "q3", state: "IDLE", fields: { status: "IDLE" }, superposition },
-          { id: "q4", state: "IDLE", fields: { status: "DEAD" }, superposition },
+          { id: "q1", state: "IDLE", params: { status: "ACTIVE" }, superposition },
+          { id: "q2", state: "IDLE", params: { status: "RUNNING" }, superposition },
+          { id: "q3", state: "IDLE", params: { status: "IDLE" }, superposition },
+          { id: "q4", state: "IDLE", params: { status: "DEAD" }, superposition },
         ],
       })
 
@@ -265,10 +265,10 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
           status: { type: "enum<string>", values: ["IDLE", "ACTIVE", "RUNNING", "DEAD"] },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { status: "IDLE" }, superposition },
-          { id: "q2", state: "IDLE", fields: { status: "DEAD" }, superposition },
-          { id: "q3", state: "IDLE", fields: { status: "ACTIVE" }, superposition },
-          { id: "q4", state: "IDLE", fields: { status: "RUNNING" }, superposition },
+          { id: "q1", state: "IDLE", params: { status: "IDLE" }, superposition },
+          { id: "q2", state: "IDLE", params: { status: "DEAD" }, superposition },
+          { id: "q3", state: "IDLE", params: { status: "ACTIVE" }, superposition },
+          { id: "q4", state: "IDLE", params: { status: "RUNNING" }, superposition },
         ],
       })
 
@@ -297,11 +297,11 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
           level: { type: "enum<number>", values: [1, 2, 3, 4, 5] },
         },
         branes: [
-          { id: "q1", state: "IDLE", fields: { level: 1 }, superposition },
-          { id: "q2", state: "IDLE", fields: { level: 2 }, superposition },
-          { id: "q3", state: "IDLE", fields: { level: 3 }, superposition },
-          { id: "q4", state: "IDLE", fields: { level: 4 }, superposition },
-          { id: "q5", state: "IDLE", fields: { level: 5 }, superposition },
+          { id: "q1", state: "IDLE", params: { level: 1 }, superposition },
+          { id: "q2", state: "IDLE", params: { level: 2 }, superposition },
+          { id: "q3", state: "IDLE", params: { level: 3 }, superposition },
+          { id: "q4", state: "IDLE", params: { level: 4 }, superposition },
+          { id: "q5", state: "IDLE", params: { level: 5 }, superposition },
         ],
       })
 

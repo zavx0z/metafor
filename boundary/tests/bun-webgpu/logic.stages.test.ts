@@ -24,9 +24,9 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
       await boundary.init({
         fields: { mode: { type: "number" } },
         branes: [
-          { id: "q1", state: "GROUND", fields: { mode: 1 }, superposition }, // WALK -> MOVING
-          { id: "q2", state: "GROUND", fields: { mode: 3 }, superposition }, // FLY -> AIR
-          { id: "q3", state: "GROUND", fields: { mode: 0 }, superposition }, // IDLE -> остаётся
+          { id: "q1", state: "GROUND", params: { mode: 1 }, superposition }, // WALK -> MOVING
+          { id: "q2", state: "GROUND", params: { mode: 3 }, superposition }, // FLY -> AIR
+          { id: "q3", state: "GROUND", params: { mode: 0 }, superposition }, // IDLE -> остаётся
         ],
       })
 
@@ -52,9 +52,9 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
       await boundary.init({
         fields: { temperature: { type: "number" } },
         branes: [
-          { id: "q1", state: "NORMAL", fields: { temperature: 36.6 }, superposition },
-          { id: "q2", state: "NORMAL", fields: { temperature: 37.0 }, superposition },
-          { id: "q3", state: "NORMAL", fields: { temperature: 40.0 }, superposition },
+          { id: "q1", state: "NORMAL", params: { temperature: 36.6 }, superposition },
+          { id: "q2", state: "NORMAL", params: { temperature: 37.0 }, superposition },
+          { id: "q3", state: "NORMAL", params: { temperature: 40.0 }, superposition },
         ],
       })
 
@@ -82,8 +82,8 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
       await boundary.init({
         fields: { role: { type: "number" } },
         branes: [
-          { id: "q1", state: "LOBBY", fields: { role: 1 }, superposition }, // Player -> GAME
-          { id: "q2", state: "LOBBY", fields: { role: 0 }, superposition }, // Spectator -> LOBBY
+          { id: "q1", state: "LOBBY", params: { role: 1 }, superposition }, // Player -> GAME
+          { id: "q2", state: "LOBBY", params: { role: 0 }, superposition }, // Spectator -> LOBBY
         ],
       })
 
@@ -113,9 +113,9 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
       await boundary.init({
         fields: { score: { type: "number" }, badge: { type: "number" } },
         branes: [
-          { id: "q1", state: "START", fields: { score: 150, badge: 5 }, superposition }, // OK
-          { id: "q2", state: "START", fields: { score: 150, badge: 1 }, superposition }, // Значок не подходит
-          { id: "q3", state: "START", fields: { score: 50, badge: 7 }, superposition }, // Очки не подходят
+          { id: "q1", state: "START", params: { score: 150, badge: 5 }, superposition }, // OK
+          { id: "q2", state: "START", params: { score: 150, badge: 1 }, superposition }, // Значок не подходит
+          { id: "q3", state: "START", params: { score: 50, badge: 7 }, superposition }, // Очки не подходят
         ],
       })
 
