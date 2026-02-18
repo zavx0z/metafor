@@ -1,7 +1,20 @@
 type MetaLike = Record<string, any> & {
   context?: Record<string, any>
-  brane?: Record<string, any>
-  braneSchema?: Record<string, any>
+  states?: Record<string, any>
+  processes?: Record<string, any>
+  reactions?: Record<string, any>
+}
+
+/**
+ * Формат JSON для monad.
+ * Содержит все необходимые данные для инициализации monad и boundary.
+ */
+export interface MonadJson {
+  name: string
+  fields: Record<string, any>
+  superposition: Record<string, any>
+  processes?: Record<string, any>
+  reactions?: Record<string, any>
 }
 
 type ArrayElementType = "string" | "number"
@@ -16,9 +29,6 @@ function inferArrayElementTypeFromDefault(value: unknown): ArrayElementType | un
 
 /**
  * Извлекает из исходного кода типы элементов для массивов, объявленных через t.array.required<Type>(...).
- * Используется для преобразования типа 'array' в 'array<string>' или 'array<number>' в промежуточном представлении.
- * @param sourceText - Исходный текст файла, в котором определена брана.
- * @returns Объект, где ключ — имя компоненты массива, значение — тип элемента ('string' | 'number').
  */
 export function extractArrayElementTypesFromSource(sourceText: string): Record<string, ArrayElementType> {
   const result: Record<string, ArrayElementType> = {}
@@ -41,26 +51,25 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
 }
 
 /**
- * Преобразует объект мета-описания в промежуточный формат для границы (Boundary),
- * обогащая типы массивов и enum.
- * Для компонент типа 'array' добавляет параметр типа (например, array<string>),
- * выводя его из дефолтного значения или из generic в исходном коде.
- * Для компонент типа 'enum' добавляет параметр типа (enum<string> или enum<number>).
- * @param meta - Исходный объект мета, полученный из default export.
- * @param sourceText - Исходный код файла, используется для извлечения generic-типов массивов.
- * @returns Новый объект с тем же набором компонент, но с уточнёнными типами.
- * @throws Ошибка, если не удаётся вывести тип элементов массива или enum.
+ * Преобразует meta в формат JSON для monad.
+ * 
+ * @param meta - Исходный объект мета
+ * @param sourceText - Исходный код для извлечения generic-типов
+ * @returns Объект в формате для monad
  */
-export function convertMetaToFieldIntermediate(meta: MetaLike, sourceText?: string): MetaLike {
-  const inputBrane = meta?.brane ?? meta?.context
-  if (!inputBrane || typeof inputBrane !== "object") return meta
+export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): MonadJson {
+  const inputContext = meta?.context
+  if (!inputContext || typeof inputContext !== "object") {
+    throw new Error("context не найден или не является объектом")
+  }
 
   const arrayElementTypesFromSource = sourceText ? extractArrayElementTypesFromSource(sourceText) : {}
-  const nextBrane: Record<string, any> = {}
+  const fields: Record<string, any> = {}
 
-  for (const [fieldName, rawDef] of Object.entries(inputBrane)) {
+  // Преобразуем context → fields, обогащая типы массивов и enum
+  for (const [fieldName, rawDef] of Object.entries(inputContext)) {
     if (!rawDef || typeof rawDef !== "object") {
-      nextBrane[fieldName] = rawDef
+      fields[fieldName] = rawDef
       continue
     }
 
@@ -79,7 +88,7 @@ export function convertMetaToFieldIntermediate(meta: MetaLike, sourceText?: stri
         )
       }
 
-      nextBrane[fieldName] = { ...def, type: `array<${elementType}>` }
+      fields[fieldName] = { ...def, type: `array<${elementType}>` }
       continue
     }
 
@@ -91,15 +100,23 @@ export function convertMetaToFieldIntermediate(meta: MetaLike, sourceText?: stri
         throw new Error(`Не удалось вывести тип значений enum для компоненты '${fieldName}'. values должен быть string[] или number[].`)
       }
 
-      const nextDef: Record<string, any> = { ...def, type: `enum<${valueType}>`, values }
-      if ("enum" in nextDef) delete nextDef.enum
-      nextBrane[fieldName] = nextDef
+      fields[fieldName] = { ...def, type: `enum<${valueType}>` }
       continue
     }
 
-    nextBrane[fieldName] = def
+    // Простые типы
+    fields[fieldName] = def
   }
 
-  const withCompat = meta.context ? { context: nextBrane } : {}
-  return { ...meta, ...withCompat, branes: nextBrane, braneSchema: nextBrane }
+  // Строим superposition из states
+  const superposition = meta.states || {}
+
+  // Возвращаем формат для monad
+  return {
+    name: meta.name,
+    fields,
+    superposition,
+    ...(meta.processes ? { processes: meta.processes } : {}),
+    ...(meta.reactions ? { reactions: meta.reactions } : {}),
+  }
 }

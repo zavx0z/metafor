@@ -1,7 +1,7 @@
 import { watch } from "fs"
 import { dirname, basename, join, isAbsolute } from "path"
 import { pathToFileURL } from "url"
-import { convertMetaToFieldIntermediate } from "./braneToField"
+import { convertMetaToMonadJson } from "./monadJson"
 
 
 // Обработка аргументов командной строки
@@ -61,7 +61,7 @@ async function build() {
     }
 
     const sourceText = await inputFileHandle.text()
-    const normalized = convertMetaToFieldIntermediate(data, sourceText)
+    const normalized = convertMetaToMonadJson(data, sourceText)
     const json = JSON.stringify(normalized, null, 2)
     await Bun.write(outputPath, json)
 

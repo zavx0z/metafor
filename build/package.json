@@ -11,6 +11,7 @@
   },
   "scripts": {
     "build": "bun cli ./example/meta.ts",
-    "build:watch": "bun cli ./example/meta.ts --watch"
+    "build:watch": "bun cli ./example/meta.ts --watch",
+    "test": "bun test"
   }
 }

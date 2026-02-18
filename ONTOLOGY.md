@@ -221,48 +221,43 @@ export default meta
 ```json
 {
   "name": "git",
-  "states": { "коммит": { "завершено": {} }, "завершено": null },
-  "context": {
-    "src": { "type": "string", "required": true, "default": "./tmp/edit.json" },
-    "patches": { "type": "array<string>", "required": true, "default": [] }
+  "fields": {
+    "src": { "type": "string" },
+    "patches": { "type": "array<string>" }
+  },
+  "params": {
+    "src": "./tmp/edit.json",
+    "patches": []
+  },
+  "superposition": {
+    "коммит": { "завершено": {} },
+    "завершено": null
   },
   "processes": {
     "коммит": {
       "type": "action",
-      "action": { "src": "({ context }) => { return {} }" },
-      "success": { "src": "({ update }) => { update({ src: \"\", patches: [] }) }", "write": ["src", "patches"] }
-    },
-    "завершено": { "type": "finally", "before": { "src": "() => {}" } }
-  },
-  "brane": { ... },
-  "braneSchema": { ... }
+      "action": { "src": "..." },
+      "success": { "src": "...", "write": ["src", "patches"] }
+    }
+  }
 }
 ```
 
 ### Выполнение (monad + boundary)
 
 ```typescript
-// Monad загружает JSON и управляет состояниями
+// Monad загружает JSON
 const monad = new Monad(jsonSchema)
 
-// Boundary принимает напрямую fields и branes
+// Monad инициализирует Boundary, преобразуя JSON в BoundaryConfig
 const boundary = new Boundary(device)
 await boundary.init({
-  fields: {                    // схема полей (типы для GPU)
-    src: { type: "string" },
-    patches: { type: "array<string>" }
-  },
+  fields: json.fields,       // схема полей для GPU
   branes: [{
     id: "git-1",
-    params: {                  // значения полей (данные)
-      src: "./tmp/edit.json",
-      patches: []
-    },
-    state: "коммит",           // начальное состояние
-    superposition: {           // граф переходов
-      коммит: { завершено: {} },
-      завершено: null
-    }
+    params: json.params,     // значения по умолчанию
+    state: "коммит",         // начальное состояние
+    superposition: json.superposition
   }]
 })
 
