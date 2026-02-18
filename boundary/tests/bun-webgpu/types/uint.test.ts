@@ -2,16 +2,16 @@ import { test, expect, describe, beforeAll } from "bun:test"
 import { setupDevice, getDevice } from "../../fixture/bunWebGPU"
 import { Boundary } from "../../../src/index"
 
-describe("Boundary - UINT type (enum) with bun-webgpu", () => {
+describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
   beforeAll(async () => {
     await setupDevice()
   })
 
-  // NOTE: Enum values are stored as indices in the values array.
-  // GT/LT/GTE/LTE comparisons work with indices, not values.
+  // ПРИМЕЧАНИЕ: Значения enum хранятся как индексы в массиве значений.
+  // Сравнения GT/LT/GTE/LTE работают с индексами, а не со значениями.
 
-  describe("EQ operator (equals)", () => {
-    test("should transition when value equals specified (string enum)", async () => {
+  describe("Оператор EQ (равно)", () => {
+    test("должен выполнить переход, когда значение равно указанному (строковый enum)", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -39,7 +39,7 @@ describe("Boundary - UINT type (enum) with bun-webgpu", () => {
       expect(states[2]).toBe("IDLE")
     })
 
-    test("should transition when value equals specified (number enum)", async () => {
+    test("должен выполнить переход, когда значение равно указанному (числовой enum)", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -68,8 +68,8 @@ describe("Boundary - UINT type (enum) with bun-webgpu", () => {
     })
   })
 
-  describe("NEQ operator (not equals)", () => {
-    test("should transition when value does not equal specified", async () => {
+  describe("Оператор NEQ (не равно)", () => {
+    test("должен выполнить переход, когда значение не равно указанному", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -98,8 +98,8 @@ describe("Boundary - UINT type (enum) with bun-webgpu", () => {
     })
   })
 
-  describe("GT operator (greater than)", () => {
-    test("should transition when value is greater than specified", async () => {
+  describe("Оператор GT (больше)", () => {
+    test("должен выполнить переход, когда значение больше указанного", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -128,8 +128,8 @@ describe("Boundary - UINT type (enum) with bun-webgpu", () => {
     })
   })
 
-  describe("LT operator (less than)", () => {
-    test("should transition when value is less than specified", async () => {
+  describe("Оператор LT (меньше)", () => {
+    test("должен выполнить переход, когда значение меньше указанного", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -158,8 +158,8 @@ describe("Boundary - UINT type (enum) with bun-webgpu", () => {
     })
   })
 
-  describe("GTE operator (greater than or equal)", () => {
-    test("should transition when value is greater than or equal to specified", async () => {
+  describe("Оператор GTE (больше или равно)", () => {
+    test("должен выполнить переход, когда значение больше или равно указанному", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -188,8 +188,8 @@ describe("Boundary - UINT type (enum) with bun-webgpu", () => {
     })
   })
 
-  describe("LTE operator (less than or equal)", () => {
-    test("should transition when value is less than or equal to specified", async () => {
+  describe("Оператор LTE (меньше или равно)", () => {
+    test("должен выполнить переход, когда значение меньше или равно указанному", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -218,8 +218,8 @@ describe("Boundary - UINT type (enum) with bun-webgpu", () => {
     })
   })
 
-  describe("IN operator (in list)", () => {
-    test("should transition if value is in list", async () => {
+  describe("Оператор IN (в списке)", () => {
+    test("должен выполнить переход, если значение в списке", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -250,8 +250,8 @@ describe("Boundary - UINT type (enum) with bun-webgpu", () => {
     })
   })
 
-  describe("NOT_IN operator (not in list)", () => {
-    test("should transition if value is not in list", async () => {
+  describe("Оператор NOT_IN (не в списке)", () => {
+    test("должен выполнить переход, если значение не в списке", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -282,8 +282,8 @@ describe("Boundary - UINT type (enum) with bun-webgpu", () => {
     })
   })
 
-  describe("Multiple conditions", () => {
-    test("should transition when conditions are met", async () => {
+  describe("Множественные условия", () => {
+    test("должен выполнить переход, когда условия выполнены", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 

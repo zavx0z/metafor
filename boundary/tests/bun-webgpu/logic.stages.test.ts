@@ -2,13 +2,13 @@ import { test, expect, describe, beforeAll } from "bun:test"
 import { setupDevice, getDevice } from "../fixture/bunWebGPU"
 import { Boundary } from "../../src/index"
 
-describe("Boundary - Logic stages (bun-webgpu)", () => {
+describe("Boundary — Логические стадии (bun-webgpu)", () => {
   beforeAll(async () => {
     await setupDevice()
   })
 
-  describe("IN operator (Lists)", () => {
-    test("should transition if value is in list (int/enum)", async () => {
+  describe("Оператор IN (Списки)", () => {
+    test("должен перейти, если значение в списке (int/enum)", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -26,7 +26,7 @@ describe("Boundary - Logic stages (bun-webgpu)", () => {
         branes: [
           { id: "q1", state: "GROUND", fields: { mode: 1 }, superposition }, // WALK -> MOVING
           { id: "q2", state: "GROUND", fields: { mode: 3 }, superposition }, // FLY -> AIR
-          { id: "q3", state: "GROUND", fields: { mode: 0 }, superposition }, // IDLE -> stays
+          { id: "q3", state: "GROUND", fields: { mode: 0 }, superposition }, // IDLE -> остаётся
         ],
       })
 
@@ -38,7 +38,7 @@ describe("Boundary - Logic stages (bun-webgpu)", () => {
       expect(states[2]).toBe("GROUND")
     })
 
-    test("should transition if float value is in list", async () => {
+    test("должен перейти, если float-значение в списке", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -61,14 +61,14 @@ describe("Boundary - Logic stages (bun-webgpu)", () => {
       boundary.step()
       const states = await boundary.getStates()
 
-      expect(states[0]).toBe("CRITICAL") // 36.6 found
-      expect(states[1]).toBe("NORMAL") // 37.0 not found
-      expect(states[2]).toBe("CRITICAL") // 40.0 found
+      expect(states[0]).toBe("CRITICAL") // 36.6 найдено
+      expect(states[1]).toBe("NORMAL") // 37.0 не найдено
+      expect(states[2]).toBe("CRITICAL") // 40.0 найдено
     })
   })
 
-  describe("NOT_IN operator (Exclusion)", () => {
-    test("should transition if value is NOT in list", async () => {
+  describe("Оператор NOT_IN (Исключение)", () => {
+    test("должен перейти, если значение НЕ в списке", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -95,8 +95,8 @@ describe("Boundary - Logic stages (bun-webgpu)", () => {
     })
   })
 
-  describe("Combined conditions", () => {
-    test("should work with combination of ranges and lists", async () => {
+  describe("Комбинированные условия", () => {
+    test("должен работать с комбинацией диапазонов и списков", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -114,8 +114,8 @@ describe("Boundary - Logic stages (bun-webgpu)", () => {
         fields: { score: { type: "number" }, badge: { type: "number" } },
         branes: [
           { id: "q1", state: "START", fields: { score: 150, badge: 5 }, superposition }, // OK
-          { id: "q2", state: "START", fields: { score: 150, badge: 1 }, superposition }, // Badge doesn't match
-          { id: "q3", state: "START", fields: { score: 50, badge: 7 }, superposition }, // Score doesn't match
+          { id: "q2", state: "START", fields: { score: 150, badge: 1 }, superposition }, // Значок не подходит
+          { id: "q3", state: "START", fields: { score: 50, badge: 7 }, superposition }, // Очки не подходят
         ],
       })
 

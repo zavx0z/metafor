@@ -2,13 +2,13 @@ import { test, expect, describe, beforeAll } from "bun:test"
 import { setupDevice, getDevice } from "../../fixture/bunWebGPU"
 import { Boundary } from "../../../src/index"
 
-describe("Boundary - BOOL type (boolean) with bun-webgpu", () => {
+describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () => {
   beforeAll(async () => {
     await setupDevice()
   })
 
-  describe("Direct value true", () => {
-    test("should transition when value is true", async () => {
+  describe("Прямое значение true", () => {
+    test("должен выполнить переход, когда значение равно true", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -33,8 +33,8 @@ describe("Boundary - BOOL type (boolean) with bun-webgpu", () => {
     })
   })
 
-  describe("Direct value false", () => {
-    test("should transition when value is false", async () => {
+  describe("Прямое значение false", () => {
+    test("должен выполнить переход, когда значение равно false", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -59,8 +59,8 @@ describe("Boundary - BOOL type (boolean) with bun-webgpu", () => {
     })
   })
 
-  describe("EQ operator (equals)", () => {
-    test("should transition when value equals true", async () => {
+  describe("Оператор EQ (равно)", () => {
+    test("должен выполнить переход, когда значение равно true", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -84,7 +84,7 @@ describe("Boundary - BOOL type (boolean) with bun-webgpu", () => {
       expect(states[1]).toBe("IDLE")
     })
 
-    test("should transition when value equals false", async () => {
+    test("должен выполнить переход, когда значение равно false", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -109,8 +109,8 @@ describe("Boundary - BOOL type (boolean) with bun-webgpu", () => {
     })
   })
 
-  describe("NEQ operator (not equals)", () => {
-    test("should transition when value does not equal true", async () => {
+  describe("Оператор NEQ (не равно)", () => {
+    test("должен выполнить переход, когда значение не равно true", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -134,7 +134,7 @@ describe("Boundary - BOOL type (boolean) with bun-webgpu", () => {
       expect(states[1]).toBe("DEAD")
     })
 
-    test("should transition when value does not equal false", async () => {
+    test("должен выполнить переход, когда значение не равно false", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -159,8 +159,8 @@ describe("Boundary - BOOL type (boolean) with bun-webgpu", () => {
     })
   })
 
-  describe("Multiple boolean conditions", () => {
-    test("should transition when all conditions are met (AND)", async () => {
+  describe("Множественные логические условия", () => {
+    test("должен выполнить переход, когда все условия выполнены (И)", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -188,7 +188,7 @@ describe("Boundary - BOOL type (boolean) with bun-webgpu", () => {
       expect(states[3]).toBe("IDLE")
     })
 
-    test("should transition with different combinations of boolean values", async () => {
+    test("должен выполнить переход с разными комбинациями логических значений", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -215,8 +215,8 @@ describe("Boundary - BOOL type (boolean) with bun-webgpu", () => {
     })
   })
 
-  describe("Boolean value updates", () => {
-    test("should transition after updating value to true", async () => {
+  describe("Обновление логических значений", () => {
+    test("должен выполнить переход после обновления значения на true", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -237,7 +237,7 @@ describe("Boundary - BOOL type (boolean) with bun-webgpu", () => {
       expect(states[0]).toBe("ACTIVE")
     })
 
-    test("should transition after updating value to false", async () => {
+    test("должен выполнить переход после обновления значения на false", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -259,8 +259,8 @@ describe("Boundary - BOOL type (boolean) with bun-webgpu", () => {
     })
   })
 
-  describe("Mixed conditions (boolean + number)", () => {
-    test("should transition when both conditions of different types are met", async () => {
+  describe("Смешанные условия (логическое + число)", () => {
+    test("должен выполнить переход, когда оба условия разных типов выполнены", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 

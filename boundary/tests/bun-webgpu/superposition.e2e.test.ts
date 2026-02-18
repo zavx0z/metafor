@@ -3,18 +3,18 @@ import { setupDevice, getDevice } from "../fixture/bunWebGPU"
 import { Boundary } from "../../src/index"
 
 /**
- * E2E tests for individual superpositions on real GPU with bun-webgpu.
+ * E2E тесты для индивидуальных суперпозиций на реальном GPU с bun-webgpu.
  *
- * These tests verify full integration of compilation and execution
- * on GPU with different superpositions for each field.
+ * Эти тесты проверяют полную интеграцию компиляции и выполнения
+ * на GPU с разными суперпозициями для каждого поля.
  */
-describe("Boundary - E2E tests for individual superpositions (bun-webgpu)", () => {
+describe("Boundary — E2E тесты для индивидуальных суперпозиций (bun-webgpu)", () => {
   beforeAll(async () => {
     await setupDevice()
   })
 
-  describe("Fields with different states", () => {
-    test("each field transitions to its target state", async () => {
+  describe("Поля с разными состояниями", () => {
+    test("каждое поле переходит в целевое состояние", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -54,8 +54,8 @@ describe("Boundary - E2E tests for individual superpositions (bun-webgpu)", () =
     })
   })
 
-  describe("Fields with different transition conditions", () => {
-    test("different thresholds for same transition", async () => {
+  describe("Поля с разными условиями перехода", () => {
+    test("разные пороги для одного перехода", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -84,7 +84,7 @@ describe("Boundary - E2E tests for individual superpositions (bun-webgpu)", () =
       expect(states[1]).toBe("IDLE")
     })
 
-    test("different comparison operators", async () => {
+    test("разные операторы сравнения", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -121,8 +121,8 @@ describe("Boundary - E2E tests for individual superpositions (bun-webgpu)", () =
     })
   })
 
-  describe("Fields with completely different state machines", () => {
-    test("aggressive vs defensive unit", async () => {
+  describe("Поля с полностью разными конечными автоматами", () => {
+    test("агрессивный против защитного юнита", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -155,8 +155,8 @@ describe("Boundary - E2E tests for individual superpositions (bun-webgpu)", () =
     })
   })
 
-  describe("Different condition types", () => {
-    test("numeric, boolean and multiple conditions", async () => {
+  describe("Разные типы условий", () => {
+    test("числовые, логические и множественные условия", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -202,8 +202,8 @@ describe("Boundary - E2E tests for individual superpositions (bun-webgpu)", () =
     })
   })
 
-  describe("Brane update with individual superposition", () => {
-    test("different initial values with different thresholds", async () => {
+  describe("Обновление браны с индивидуальной суперпозицией", () => {
+    test("разные начальные значения с разными порогами", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -233,8 +233,8 @@ describe("Boundary - E2E tests for individual superpositions (bun-webgpu)", () =
     })
   })
 
-  describe("Multi-step simulation", () => {
-    test("each field follows its own state path", async () => {
+  describe("Многошаговая симуляция", () => {
+    test("каждое поле следует своему пути состояний", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 

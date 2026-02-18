@@ -71,6 +71,24 @@ export interface BraneDefinition {
 }
 
 /**
+ * Опции debug-режима.
+ */
+export interface DebugOptions {
+  /** Включить логирование инициализации полей. */
+  fields?: boolean
+  /** Включить логирование создания бран. */
+  branes?: boolean
+  /** Включить логирование компиляции правил. */
+  compiler?: boolean
+  /** Включить логирование GPU-ресурсов. */
+  gpu?: boolean
+  /** Включить логирование строкового атласа. */
+  strings?: boolean
+  /** Включить полное логирование (все категории). */
+  all?: boolean
+}
+
+/**
  * Конфигурация границы для инициализации.
  */
 export interface BoundaryConfig {
@@ -78,6 +96,8 @@ export interface BoundaryConfig {
   fields: FieldsDefinition
   /** Массив определений бран. */
   branes: BraneDefinition[]
+  /** Опции debug-режима. Если не указаны, debug отключен. */
+  debug?: DebugOptions
 }
 
 /**
@@ -111,10 +131,17 @@ export class Boundary {
   private stateMaps: Record<string, number>[] = []
   private reverseStateMaps: string[][] = []
   private braneIds: number[] = []
+  private debugOptions: DebugOptions | null = null
 
   constructor(device: GPUDevice) {
     this.backend = new GPUBackend(device)
     this.braneManager = new BraneManager(device)
+  }
+
+  private isDebugEnabled(category: keyof DebugOptions): boolean {
+    if (!this.debugOptions) return false
+    if (this.debugOptions.all) return true
+    return !!this.debugOptions[category]
   }
 
   /**
@@ -129,6 +156,13 @@ export class Boundary {
    * @throws {Error} Если тип поля не распознан.
    */
   async init(config: BoundaryConfig) {
+    this.debugOptions = config.debug ?? null
+    const debug = this.isDebugEnabled.bind(this)
+
+    if (debug('fields')) {
+      console.log('[Boundary] Initializing fields:', config.fields)
+    }
+
     FieldRegistry.clear()
     resetStringAtlas()
 
@@ -171,11 +205,24 @@ export class Boundary {
           ...(enumValues !== undefined ? { enumValues } : {}),
         }
         registry.register(name, fieldType, registerOptions)
+        if (debug('fields')) {
+          console.log(`[Boundary] Registered field: ${name} = ${fieldType}`, registerOptions)
+        }
       }
+    }
+
+    if (debug('branes')) {
+      console.log('[Boundary] Creating ensemble with', config.branes.length, 'branes')
+      config.branes.forEach((b, i) => {
+        console.log(`  [Brane ${i}] id="${b.id}", state="${b.state}", fields=`, b.fields)
+      })
     }
 
     this.braneIds = this.braneManager.createEnsemble(config.branes.map((f) => f.fields))
 
+    if (debug('compiler')) {
+      console.log('[Boundary] Compiling ensemble rules...')
+    }
     const compiled = this.compiler.compileEnsemble(
       config.branes.map((f) => f.superposition),
       config.fields,
@@ -183,9 +230,19 @@ export class Boundary {
     this.stateMaps = compiled.stateMaps
     this.reverseStateMaps = compiled.reverseStateMaps
 
+    if (debug('compiler')) {
+      console.log('[Boundary] Compiled bytecode:', compiled.bytecode.length, 'words')
+      console.log('[Boundary] State maps:', this.stateMaps)
+    }
+
     const states = new Uint32Array(
       config.branes.map((f, i) => this.stateMaps[i]![f.state] ?? 0),
     )
+
+    if (debug('branes')) {
+      console.log('[Boundary] Initial states (encoded):', Array.from(states))
+      console.log('[Boundary] Brane IDs:', this.braneIds)
+    }
 
     const { braneDescriptors: braneBlockPointers, heap } = this.braneManager.getGPUBuffers()
 
@@ -200,6 +257,22 @@ export class Boundary {
     const registryData = atlasExport.registry.length > 0 ? atlasExport.registry : new Uint32Array(1)
     const heapData = atlasExport.heap.length > 0 ? atlasExport.heap : new Uint32Array(1)
 
+    if (debug('strings')) {
+      console.log('[Boundary] String Atlas:', {
+        registry: atlasExport.registry.length,
+        heap: atlasExport.heap.length,
+      })
+    }
+
+    if (debug('gpu')) {
+      console.log('[Boundary] Initializing GPU backend:', {
+        braneCount: config.branes.length,
+        bytecodeSize: compiled.bytecode.length,
+        heapSize: heap.length,
+        statesSize: states.length,
+      })
+    }
+
     await this.backend.init({
       braneCount: config.branes.length,
       bytecode: compiled.bytecode,
@@ -207,7 +280,7 @@ export class Boundary {
       states,
       braneDescriptors,
       heap,
-    })
+    }, debug('gpu'))
   }
 
   /**

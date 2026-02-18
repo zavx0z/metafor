@@ -50,14 +50,21 @@ export class GPUBackend {
    * **Side Effect:** Аллоцирует буферы, компилирует шейдер, создает BindGroup.
    *
    * @param params - Данные для начальной загрузки в буферы.
+   * @param enableDebug - Включить debug-логирование.
    */
-  async init(params: BackendInitParams) {
+  async init(params: BackendInitParams, enableDebug = false) {
+    if (enableDebug) {
+      console.log('[GPUBackend] Creating shader module and compute pipeline')
+    }
     const module = this.device.createShaderModule({ code: shaderSource })
     this.pipeline = this.device.createComputePipeline({
       layout: "auto",
       compute: { module, entryPoint: "main" },
     })
 
+    if (enableDebug) {
+      console.log('[GPUBackend] Creating storage buffers...')
+    }
     // Создание буферов для архитектуры кучи
     this.buffers.braneDescriptors = this.createStorageBuffer(params.braneDescriptors)
     this.buffers.heap = this.createStorageBuffer(params.heap)
@@ -80,11 +87,17 @@ export class GPUBackend {
     this.buffers.stringRegistry = this.createStorageBuffer(registryData)
     this.buffers.stringHeap = this.createStorageBuffer(heapData)
 
+    if (enableDebug) {
+      console.log('[GPUBackend] Creating staging buffer for readback:', params.states.byteLength, 'bytes')
+    }
     this.stagingBuffer = this.device.createBuffer({
       size: params.states.byteLength,
       usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
     })
 
+    if (enableDebug) {
+      console.log('[GPUBackend] Creating BindGroup with', 9, 'entries')
+    }
     this.bindGroup = this.device.createBindGroup({
       layout: this.pipeline.getBindGroupLayout(0),
       entries: [
@@ -99,6 +112,17 @@ export class GPUBackend {
         { binding: 8, resource: { buffer: this.buffers.stringHeap } },
       ],
     })
+
+    if (enableDebug) {
+      console.log('[GPUBackend] Initialization complete')
+      console.log('[GPUBackend] Buffer summary:', {
+        braneDescriptors: params.braneDescriptors.length,
+        heap: params.heap.length,
+        states: params.states.length,
+        bytecode: params.bytecode.length,
+        bytecodeOffsets: params.bytecodeOffsets.length,
+      })
+    }
   }
 
   /**

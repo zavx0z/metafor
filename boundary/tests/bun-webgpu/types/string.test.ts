@@ -2,16 +2,16 @@ import { test, expect, describe, beforeAll } from "bun:test"
 import { setupDevice, getDevice } from "../../fixture/bunWebGPU"
 import { Boundary } from "../../../src/index"
 
-describe("Boundary - STRING type with bun-webgpu", () => {
+describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
   beforeAll(async () => {
     await setupDevice()
   })
 
-  // STRING type uses interning via StringAtlas.
-  // Strings are stored as [stringId, hash] for fast GPU comparison.
+  // Тип STRING использует интернирование через StringAtlas.
+  // Строки хранятся как [stringId, hash] для быстрого сравнения на GPU.
 
-  describe("EQ operator (equals)", () => {
-    test("should transition when value equals specified", async () => {
+  describe("Оператор EQ (равно)", () => {
+    test("должен выполнить переход, когда значение равно указанному", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -36,8 +36,8 @@ describe("Boundary - STRING type with bun-webgpu", () => {
     })
   })
 
-  describe("NEQ operator (not equals)", () => {
-    test("should transition when value does not equal specified", async () => {
+  describe("Оператор NEQ (не равно)", () => {
+    test("должен выполнить переход, когда значение не равно указанному", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -62,8 +62,8 @@ describe("Boundary - STRING type with bun-webgpu", () => {
     })
   })
 
-  describe("IN operator (in list)", () => {
-    test("should transition if value is in list", async () => {
+  describe("Оператор IN (в списке)", () => {
+    test("должен выполнить переход, если значение в списке", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -90,8 +90,8 @@ describe("Boundary - STRING type with bun-webgpu", () => {
     })
   })
 
-  describe("String value updates", () => {
-    test("should correctly apply string update and handle IN", async () => {
+  describe("Обновление строковых значений", () => {
+    test("должен корректно применить обновление строки и обработать IN", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -113,8 +113,8 @@ describe("Boundary - STRING type with bun-webgpu", () => {
     })
   })
 
-  describe("NOT_IN operator (not in list)", () => {
-    test("should transition if value is not in list", async () => {
+  describe("Оператор NOT_IN (не в списке)", () => {
+    test("должен выполнить переход, если значение не в списке", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -141,8 +141,8 @@ describe("Boundary - STRING type with bun-webgpu", () => {
     })
   })
 
-  describe("Empty strings", () => {
-    test("should correctly handle empty string", async () => {
+  describe("Пустые строки", () => {
+    test("должен корректно обрабатывать пустую строку", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -167,8 +167,8 @@ describe("Boundary - STRING type with bun-webgpu", () => {
     })
   })
 
-  describe("Special characters", () => {
-    test("should correctly handle strings with special characters", async () => {
+  describe("Специальные символы", () => {
+    test("должен корректно обрабатывать строки со специальными символами", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -193,8 +193,8 @@ describe("Boundary - STRING type with bun-webgpu", () => {
     })
   })
 
-  describe("Case sensitivity", () => {
-    test("should be case sensitive when comparing", async () => {
+  describe("Чувствительность к регистру", () => {
+    test("должен быть чувствительным к регистру при сравнении", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 

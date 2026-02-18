@@ -2,16 +2,16 @@ import { test, expect, describe, beforeAll } from "bun:test"
 import { setupDevice, getDevice } from "../../fixture/bunWebGPU"
 import { Boundary } from "../../../src/index"
 
-describe("Boundary - ARRAY type with bun-webgpu", () => {
+describe("Boundary - тип ARRAY с bun-webgpu", () => {
   beforeAll(async () => {
     await setupDevice()
   })
 
-  // NOTE: ARRAY type is stored as length + pointers to elements.
-  // Supported element types: array<string>, array<number>
+  // ПРИМЕЧАНИЕ: Тип ARRAY хранится как длина + указатели на элементы.
+  // Поддерживаемые типы элементов: array<string>, array<number>
 
-  describe("INCLUDE operator (contains element)", () => {
-    test("should transition if array contains specified element (number)", async () => {
+  describe("Оператор INCLUDE (содержит элемент)", () => {
+    test("должен выполнить переход, если массив содержит указанный элемент (число)", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -37,7 +37,7 @@ describe("Boundary - ARRAY type with bun-webgpu", () => {
       expect(states[2]).toBe("IDLE")
     })
 
-    test("should transition if array contains specified element (string)", async () => {
+    test("должен выполнить переход, если массив содержит указанный элемент (строка)", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -62,8 +62,8 @@ describe("Boundary - ARRAY type with bun-webgpu", () => {
     })
   })
 
-  describe("NOT_INCLUDE operator (does not contain element)", () => {
-    test("should transition if array does not contain specified element", async () => {
+  describe("Оператор NOT_INCLUDE (не содержит элемент)", () => {
+    test("должен выполнить переход, если массив не содержит указанный элемент", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -90,8 +90,8 @@ describe("Boundary - ARRAY type with bun-webgpu", () => {
     })
   })
 
-  describe("LENGTH operator (array length)", () => {
-    test("should transition when length equals specified value", async () => {
+  describe("Оператор LENGTH (длина массива)", () => {
+    test("должен выполнить переход, когда длина равна указанному значению", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -119,7 +119,7 @@ describe("Boundary - ARRAY type with bun-webgpu", () => {
       expect(states[3]).toBe("IDLE")
     })
 
-    test("should support length comparison with operators", async () => {
+    test("должен поддерживать сравнение длины с операторами", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -146,8 +146,8 @@ describe("Boundary - ARRAY type with bun-webgpu", () => {
     })
   })
 
-  describe("IS_EMPTY operator (empty array)", () => {
-    test("should transition if array is empty", async () => {
+  describe("Оператор IS_EMPTY (пустой массив)", () => {
+    test("должен выполнить переход, если массив пустой", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -173,7 +173,7 @@ describe("Boundary - ARRAY type with bun-webgpu", () => {
       expect(states[2]).toBe("IDLE")
     })
 
-    test("should transition if array is not empty (isEmpty: false)", async () => {
+    test("должен выполнить переход, если массив не пустой (isEmpty: false)", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -200,8 +200,8 @@ describe("Boundary - ARRAY type with bun-webgpu", () => {
     })
   })
 
-  describe("Combined conditions with arrays", () => {
-    test("should transition when multiple conditions are met", async () => {
+  describe("Комбинированные условия с массивами", () => {
+    test("должен выполнить переход, когда несколько условий выполнены", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -248,8 +248,8 @@ describe("Boundary - ARRAY type with bun-webgpu", () => {
     })
   })
 
-  describe("Edge cases", () => {
-    test("should correctly handle empty array", async () => {
+  describe("Пограничные случаи", () => {
+    test("должен корректно обрабатывать пустой массив", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -269,7 +269,7 @@ describe("Boundary - ARRAY type with bun-webgpu", () => {
       expect(states[0]).toBe("ACTIVE")
     })
 
-    test("should correctly handle array with one element", async () => {
+    test("должен корректно обрабатывать массив с одним элементом", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -289,7 +289,7 @@ describe("Boundary - ARRAY type with bun-webgpu", () => {
       expect(states[0]).toBe("ACTIVE")
     })
 
-    test("should correctly handle large array", async () => {
+    test("должен корректно обрабатывать большой массив", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 

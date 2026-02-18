@@ -2,13 +2,13 @@ import { test, expect, describe, beforeAll } from "bun:test"
 import { setupDevice, getDevice } from "../../fixture/bunWebGPU"
 import { Boundary } from "../../../src/index"
 
-describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
+describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
   beforeAll(async () => {
     await setupDevice()
   })
 
-  describe("EQ operator (equals)", () => {
-    test("should transition when value equals specified", async () => {
+  describe("Оператор EQ (равно)", () => {
+    test("должен выполнить переход, когда значение равно указанному", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -34,7 +34,7 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
       expect(states[2]).toBe("IDLE")
     })
 
-    test("should work with negative numbers", async () => {
+    test("должен работать с отрицательными числами", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -58,7 +58,7 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
       expect(states[1]).toBe("IDLE")
     })
 
-    test("should work with fractional numbers", async () => {
+    test("должен работать с дробными числами", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -82,7 +82,7 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
       expect(states[1]).toBe("IDLE")
     })
 
-    test("should work with zero", async () => {
+    test("должен работать с нулём", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -107,8 +107,8 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
     })
   })
 
-  describe("NEQ operator (not equals)", () => {
-    test("should transition when value does not equal specified", async () => {
+  describe("Оператор NEQ (не равно)", () => {
+    test("должен выполнить переход, когда значение не равно указанному", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -134,7 +134,7 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
       expect(states[2]).toBe("ACTIVE")
     })
 
-    test("should work with alias 'ne'", async () => {
+    test("должен работать с алиасом 'ne'", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -158,7 +158,7 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
       expect(states[1]).toBe("ACTIVE")
     })
 
-    test("should work with alias 'notEq'", async () => {
+    test("должен работать с алиасом 'notEq'", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -183,8 +183,8 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
     })
   })
 
-  describe("GT operator (greater than)", () => {
-    test("should transition when value is greater than specified", async () => {
+  describe("Оператор GT (больше)", () => {
+    test("должен выполнить переход, когда значение больше указанного", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -210,7 +210,7 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
       expect(states[2]).toBe("IDLE")
     })
 
-    test("should work with negative numbers", async () => {
+    test("должен работать с отрицательными числами", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -237,8 +237,8 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
     })
   })
 
-  describe("LT operator (less than)", () => {
-    test("should transition when value is less than specified", async () => {
+  describe("Оператор LT (меньше)", () => {
+    test("должен выполнить переход, когда значение меньше указанного", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -264,7 +264,7 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
       expect(states[2]).toBe("IDLE")
     })
 
-    test("should work with negative numbers", async () => {
+    test("должен работать с отрицательными числами", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -291,8 +291,8 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
     })
   })
 
-  describe("GTE operator (greater than or equal)", () => {
-    test("should transition when value is greater than or equal to specified", async () => {
+  describe("Оператор GTE (больше или равно)", () => {
+    test("должен выполнить переход, когда значение больше или равно указанному", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -319,8 +319,8 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
     })
   })
 
-  describe("LTE operator (less than or equal)", () => {
-    test("should transition when value is less than or equal to specified", async () => {
+  describe("Оператор LTE (меньше или равно)", () => {
+    test("должен выполнить переход, когда значение меньше или равно указанному", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -347,8 +347,8 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
     })
   })
 
-  describe("IN operator (in list)", () => {
-    test("should transition if value is in list", async () => {
+  describe("Оператор IN (в списке)", () => {
+    test("должен выполнить переход, если значение в списке", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -376,7 +376,7 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
       expect(states[3]).toBe("IDLE")
     })
 
-    test("should work with empty list", async () => {
+    test("должен работать с пустым списком", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -397,8 +397,8 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
     })
   })
 
-  describe("NOT_IN operator (not in list)", () => {
-    test("should transition if value is not in list", async () => {
+  describe("Оператор NOT_IN (не в списке)", () => {
+    test("должен выполнить переход, если значение не в списке", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -425,8 +425,8 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
     })
   })
 
-  describe("Compound conditions (between)", () => {
-    test("should transition if value is in range", async () => {
+  describe("Составные условия (between)", () => {
+    test("должен выполнить переход, если значение в диапазоне", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -457,8 +457,8 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
     })
   })
 
-  describe("Negative conditions (notGt, notGte, notLt, notLte)", () => {
-    test("notGt should be equivalent to lte", async () => {
+  describe("Отрицательные условия (notGt, notGte, notLt, notLte)", () => {
+    test("notGt должен быть эквивалентен lte", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -484,7 +484,7 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
       expect(states[2]).toBe("IDLE")
     })
 
-    test("notGte should be equivalent to lt", async () => {
+    test("notGte должен быть эквивалентен lt", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -510,7 +510,7 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
       expect(states[2]).toBe("IDLE")
     })
 
-    test("notLt should be equivalent to gte", async () => {
+    test("notLt должен быть эквивалентен gte", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -536,7 +536,7 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
       expect(states[2]).toBe("ACTIVE")
     })
 
-    test("notLte should be equivalent to gt", async () => {
+    test("notLte должен быть эквивалентен gt", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -563,8 +563,8 @@ describe("Boundary - FLOAT type (number) with bun-webgpu", () => {
     })
   })
 
-  describe("Multiple conditions", () => {
-    test("should transition when all conditions for one field are met (AND logic)", async () => {
+  describe("Множественные условия", () => {
+    test("должен выполнить переход, когда все условия для одного поля выполнены (логика И)", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 

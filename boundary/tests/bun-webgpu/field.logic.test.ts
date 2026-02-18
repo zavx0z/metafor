@@ -2,12 +2,12 @@ import { test, expect, describe, beforeAll } from "bun:test"
 import { setupDevice, getDevice } from "../fixture/bunWebGPU"
 import { Boundary } from "../../src/index"
 
-describe("Boundary - Tests with bun-webgpu (native API)", () => {
+describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
   beforeAll(async () => {
     await setupDevice()
   })
 
-  /** Common superposition for hp/mana/isAlive tests */
+  /** Общая суперпозиция для тестов hp/mana/isAlive */
   const defaultSuperposition = {
     IDLE: {
       PATROL: { hp: { gt: 50 } },
@@ -23,8 +23,8 @@ describe("Boundary - Tests with bun-webgpu (native API)", () => {
     DEAD: null,
   }
 
-  describe("Basic state transitions", () => {
-    test("should transition from IDLE to DEAD when hp <= 0", async () => {
+  describe("Базовые переходы состояний", () => {
+    test("должен перейти из IDLE в DEAD при hp <= 0", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -47,7 +47,7 @@ describe("Boundary - Tests with bun-webgpu (native API)", () => {
       expect(states[1]).toBe("DEAD")
     })
 
-    test("should transition from IDLE to PATROL when hp > 50", async () => {
+    test("должен перейти из IDLE в PATROL при hp > 50", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -71,7 +71,7 @@ describe("Boundary - Tests with bun-webgpu (native API)", () => {
       expect(states[1]).toBe("IDLE")
     })
 
-    test("should transition from IDLE to PATROL when hp >= 50", async () => {
+    test("должен перейти из IDLE в PATROL при hp >= 50", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -95,7 +95,7 @@ describe("Boundary - Tests with bun-webgpu (native API)", () => {
       expect(states[1]).toBe("IDLE")
     })
 
-    test("should transition from IDLE to PATROL when hp < 50", async () => {
+    test("должен перейти из IDLE в PATROL при hp < 50", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -120,8 +120,8 @@ describe("Boundary - Tests with bun-webgpu (native API)", () => {
     })
   })
 
-  describe("Boolean conditions", () => {
-    test("should transition when boolean component = true", async () => {
+  describe("Логические условия", () => {
+    test("должен перейти при логическом компоненте = true", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -145,7 +145,7 @@ describe("Boundary - Tests with bun-webgpu (native API)", () => {
       expect(states[1]).toBe("IDLE")
     })
 
-    test("should transition when boolean component = false", async () => {
+    test("должен перейти при логическом компоненте = false", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -170,8 +170,8 @@ describe("Boundary - Tests with bun-webgpu (native API)", () => {
     })
   })
 
-  describe("Multiple conditions", () => {
-    test("should transition when both conditions are met", async () => {
+  describe("Множественные условия", () => {
+    test("должен перейти при выполнении обоих условий", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -206,8 +206,8 @@ describe("Boundary - Tests with bun-webgpu (native API)", () => {
     })
   })
 
-  describe("Brane updates", () => {
-    test("should transition after brane update", async () => {
+  describe("Обновление браны", () => {
+    test("должен перейти после обновления браны", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -228,7 +228,7 @@ describe("Boundary - Tests with bun-webgpu (native API)", () => {
       expect(states[0]).toBe("DEAD")
     })
 
-    test("should not transition after brane update if condition not met", async () => {
+    test("не должен переходить после обновления браны при невыполнении условия", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -250,8 +250,8 @@ describe("Boundary - Tests with bun-webgpu (native API)", () => {
     })
   })
 
-  describe("Multi-step simulation", () => {
-    test("should pass through multiple states", async () => {
+  describe("Многошаговая симуляция", () => {
+    test("должен пройти через несколько состояний", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -277,8 +277,8 @@ describe("Boundary - Tests with bun-webgpu (native API)", () => {
     })
   })
 
-  describe("Edge cases", () => {
-    test("should handle multiple fields with same initial state", async () => {
+  describe("Граничные случаи", () => {
+    test("должен обрабатывать несколько полей с одинаковым начальным состоянием", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -304,7 +304,7 @@ describe("Boundary - Tests with bun-webgpu (native API)", () => {
       expect(states[2]).toBe("IDLE")
     })
 
-    test("should handle fields with different initial states", async () => {
+    test("должен обрабатывать поля с разными начальными состояниями", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -329,8 +329,8 @@ describe("Boundary - Tests with bun-webgpu (native API)", () => {
     })
   })
 
-  describe("Fields with different superposition", () => {
-    test("each field has its own superposition with different states", async () => {
+  describe("Поля с разными суперпозициями", () => {
+    test("каждое поле имеет свою суперпозицию с разными состояниями", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -369,7 +369,7 @@ describe("Boundary - Tests with bun-webgpu (native API)", () => {
       expect(states[2]).toBe("SCOUT")
     })
 
-    test("fields with same states but different transition conditions", async () => {
+    test("поля с одинаковыми состояниями, но разными условиями перехода", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -398,7 +398,7 @@ describe("Boundary - Tests with bun-webgpu (native API)", () => {
       expect(states[1]).toBe("IDLE")
     })
 
-    test("fields with completely different state machines", async () => {
+    test("поля с полностью разными конечными автоматами", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 
@@ -430,7 +430,7 @@ describe("Boundary - Tests with bun-webgpu (native API)", () => {
       expect(states[1]).toBe("FORTIFY")
     })
 
-    test("fields with different condition types in superposition", async () => {
+    test("поля с разными типами условий в суперпозиции", async () => {
       const device = getDevice()
       const boundary = new Boundary(device)
 

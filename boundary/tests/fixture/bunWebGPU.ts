@@ -3,25 +3,25 @@ import { setupGlobals } from "bun-webgpu"
 setupGlobals()
 
 /**
- * GPU device for bun-webgpu tests.
- * Initialized once and reused across all tests.
+ * GPU-устройство для тестов bun-webgpu.
+ * Инициализируется один раз и переиспользуется во всех тестах.
  */
 let _device: GPUDevice | null = null
 
 /**
- * Initializes GPU device for testing.
- * Must be called before any test that uses WebGPU.
+ * Инициализирует GPU-устройство для тестирования.
+ * Должен быть вызван перед любым тестом, использующим WebGPU.
  */
 export async function setupDevice(): Promise<GPUDevice> {
   if (_device) return _device
 
   if (!navigator.gpu) {
-    throw new Error("WebGPU is not supported!")
+    throw new Error("WebGPU не поддерживается!")
   }
 
   const adapter = await navigator.gpu.requestAdapter()
   if (!adapter) {
-    throw new Error("Failed to get GPU adapter!")
+    throw new Error("Не удалось получить GPU-адаптер!")
   }
 
   _device = await adapter.requestDevice()
@@ -29,12 +29,12 @@ export async function setupDevice(): Promise<GPUDevice> {
 }
 
 /**
- * Gets the initialized GPU device.
- * Throws if device is not initialized.
+ * Возвращает инициализированное GPU-устройство.
+ * Выбрасывает ошибку, если устройство не инициализировано.
  */
 export function getDevice(): GPUDevice {
   if (!_device) {
-    throw new Error("Device not initialized. Call setupDevice() first.")
+    throw new Error("Устройство не инициализировано. Сначала вызовите setupDevice().")
   }
   return _device
 }
