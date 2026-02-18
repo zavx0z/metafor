@@ -21,7 +21,11 @@ try {
   status.innerText = "✅ WebGPU Active"
   status.style.color = "#4af626"
 
-  const boundary = new Boundary(device)
+  const boundary = new Boundary(device, {
+    debug: {
+      all: true, // Включить все debug-логи
+    },
+  })
 
   log("--- Инициализация границы ---")
   await boundary.init({

@@ -35,7 +35,7 @@ interface BackendInitParams {
  * @internal Используется только внутри `Boundary`.
  */
 export class GPUBackend {
-  private device: GPUDevice
+  protected readonly device: GPUDevice
   private pipeline: GPUComputePipeline | null = null
   private bindGroup: GPUBindGroup | null = null
   private buffers: Record<string, GPUBuffer> = {}
@@ -43,6 +43,14 @@ export class GPUBackend {
 
   constructor(device: GPUDevice) {
     this.device = device
+  }
+
+  /**
+   * Возвращает GPUDevice для использования в других компонентах.
+   * @internal
+   */
+  getDevice(): GPUDevice {
+    return this.device
   }
 
   /**

@@ -44,6 +44,8 @@ export interface BraneManagerConfig {
   heapSize?: number
   /** Количество зарезервированных слов в начале кучи. По умолчанию 1. */
   reserveFirst?: number
+  /** Включить debug-логирование. */
+  debug?: boolean
 }
 
 export class BraneManager {
@@ -56,6 +58,7 @@ export class BraneManager {
   private nextEntangledId: number = 0
   private heapData: Uint32Array
   private heapDirty: boolean = false
+  private debug: boolean = false
 
   constructor(
     public readonly device: GPUDevice,
@@ -63,6 +66,7 @@ export class BraneManager {
   ) {
     const heapSize = config.heapSize ?? 16384
     const reserveFirst = config.reserveFirst ?? 1
+    this.debug = config.debug ?? false
     this.registry = FieldRegistry.getInstance()
     this.allocator = new HeapAllocator(heapSize, reserveFirst)
     this.builder = new BraneBuilder(this.registry, this.allocator)
@@ -79,6 +83,9 @@ export class BraneManager {
   }
 
   createEntangledBrane(brane: Record<string, unknown>): number {
+    if (this.debug) {
+      console.log('[BraneManager] Creating entangled brane with fields:', Object.keys(brane))
+    }
     const result = this.builder.build(brane, { sharedPtrs: [] })
     const entangledId = this.nextEntangledId++
     this.heapData.set(result.blockView, result.blockPtr)
@@ -95,10 +102,16 @@ export class BraneManager {
     }
     this.entangledBranes.set(entangledId, entangledInfo)
     this.heapDirty = true
+    if (this.debug) {
+      console.log(`[BraneManager] Entangled brane created: id=${entangledId}, blockPtr=${result.blockPtr}`)
+    }
     return entangledId
   }
 
   createBrane(brane: Record<string, unknown>, entangledBraneIds: number[] = []): number {
+    if (this.debug) {
+      console.log('[BraneManager] Creating brane with fields:', Object.keys(brane), 'entangledIds:', entangledBraneIds)
+    }
     const sharedPtrs = entangledBraneIds.map((id) => {
       const entangled = this.entangledBranes.get(id)
       if (!entangled) {
@@ -123,10 +136,16 @@ export class BraneManager {
     }
     this.branes.set(braneId, braneInfo)
     this.heapDirty = true
+    if (this.debug) {
+      console.log(`[BraneManager] Brane created: id=${braneId}, blockPtr=${result.blockPtr}`)
+    }
     return braneId
   }
 
   createEnsemble(branes: Array<Record<string, unknown>>): number[] {
+    if (this.debug) {
+      console.log('[BraneManager] Creating ensemble with', branes.length, 'branes')
+    }
     const componentUsage = new Map<string, Set<number>>()
     branes.forEach((brane, idx) => {
       Object.keys(brane).forEach((component) => {
@@ -154,6 +173,9 @@ export class BraneManager {
       }
       entangledGroups.get(key)!.add(component)
     })
+    if (this.debug) {
+      console.log('[BraneManager] Found', entangledGroups.size, 'entangled groups')
+    }
     const entangledBraneIds = new Map<string, number>()
     entangledGroups.forEach((components, key) => {
       const braneIndices = key.split(",").map((value) => Number(value))
@@ -182,6 +204,9 @@ export class BraneManager {
       const braneId = this.createBrane(localBrane, entangledIds)
       braneIds.push(braneId)
     })
+    if (this.debug) {
+      console.log('[BraneManager] Ensemble created with brane IDs:', braneIds)
+    }
     return braneIds
   }
 

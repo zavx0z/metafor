@@ -324,7 +324,6 @@ export class RulesCompiler {
           // ptr - смещение от базы инструкций cond-блока.
           // [count, item1, item2, ...] лежит после всех инструкций блока.
           const ptr = totalInstructionsSize + blockHeap.length
-          console.log(`[Compiler] IN/NOT_IN for field ${key}: ptr=${ptr}, totalInstructionsSize=${totalInstructionsSize}, blockHeap.length=${blockHeap.length}`)
           blockHeap.push(check.val.length)
           for (const v of check.val) {
             const encoded = this.encodeValue(
@@ -332,7 +331,6 @@ export class RulesCompiler {
               v,
               this.getEncodingContextForOp(field, check.op),
             )
-            console.log(`[Compiler]   List item: "${v}" -> encoded=${encoded}`)
             blockHeap.push(encoded)
           }
           this.bytecode.push(ptr)
@@ -496,7 +494,6 @@ export class RulesCompiler {
       // Интернируем строку через StringAtlas
       const atlas = getStringAtlas()
       const stringId = atlas.intern(val)
-      console.log(`[Compiler] Interned string "${val}" -> ID ${stringId}`)
       return stringId
     }
     return Number(val)
@@ -544,6 +541,8 @@ export class RulesCompiler {
    *
    * @param superpositions - Массив графов переходов (по одному на поле)
    * @param branes - Схема типов данных браны (общая для всех полей)
+   * @param options - Опции компиляции
+   * @param options.debug - Включить debug-логирование
    * @returns Скомпилированный ансамбль с таблицей смещений
    *
    * @example
@@ -561,9 +560,16 @@ export class RulesCompiler {
   compileEnsemble(
     superpositions: Superposition[],
     branes: Record<string, any> = {},
+    options: { preserveRegistry?: boolean; debug?: boolean } = {},
   ): CompiledEnsemble {
+    const { debug = false } = options
+    
     // Очищаем реестр перед первой компиляцией
     FieldRegistry.clear()
+
+    if (debug) {
+      console.log('[RulesCompiler] Compiling ensemble with', superpositions.length, 'superpositions')
+    }
 
     // Компилируем каждую superposition отдельно
     const compiled: CompiledFieldRules[] = []
@@ -572,6 +578,9 @@ export class RulesCompiler {
       compiled.push(
         this.compileSingle(superpositions[i]!, branes, { preserveRegistry: i > 0 }),
       )
+      if (debug) {
+        console.log(`[RulesCompiler] Superposition ${i}: ${compiled[i]!.bytecode.length} words, states=`, compiled[i]!.reverseStateMap)
+      }
     }
 
     // Вычисляем общий размер bytecode
@@ -586,6 +595,11 @@ export class RulesCompiler {
       bytecodeOffsets[i] = offset
       bytecode.set(compiled[i]!.bytecode, offset)
       offset += compiled[i]!.bytecode.length
+    }
+
+    if (debug) {
+      console.log('[RulesCompiler] Total bytecode:', bytecode.length, 'words')
+      console.log('[RulesCompiler] Bytecode offsets:', Array.from(bytecodeOffsets))
     }
 
     return {

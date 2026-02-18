@@ -96,8 +96,6 @@ export interface BoundaryConfig {
   fields: FieldsDefinition
   /** Массив определений бран. */
   branes: BraneDefinition[]
-  /** Опции debug-режима. Если не указаны, debug отключен. */
-  debug?: DebugOptions
 }
 
 /**
@@ -108,7 +106,7 @@ export interface BoundaryConfig {
  * ```ts
  * const adapter = await navigator.gpu.requestAdapter()
  * const device = await adapter.requestDevice()
- * const boundary = new Boundary(device)
+ * const boundary = new Boundary(device, { debug: { all: true } })
  *
  * await boundary.init({
  *   fields: { hp: { type: "number" }, name: { type: "string" } },
@@ -133,9 +131,10 @@ export class Boundary {
   private braneIds: number[] = []
   private debugOptions: DebugOptions | null = null
 
-  constructor(device: GPUDevice) {
+  constructor(device: GPUDevice, options?: { debug?: DebugOptions }) {
+    this.debugOptions = options?.debug ?? null
     this.backend = new GPUBackend(device)
-    this.braneManager = new BraneManager(device)
+    this.braneManager = new BraneManager(device, { debug: this.isDebugEnabled('branes') })
   }
 
   private isDebugEnabled(category: keyof DebugOptions): boolean {
@@ -156,7 +155,6 @@ export class Boundary {
    * @throws {Error} Если тип поля не распознан.
    */
   async init(config: BoundaryConfig) {
-    this.debugOptions = config.debug ?? null
     const debug = this.isDebugEnabled.bind(this)
 
     if (debug('fields')) {
@@ -226,6 +224,7 @@ export class Boundary {
     const compiled = this.compiler.compileEnsemble(
       config.branes.map((f) => f.superposition),
       config.fields,
+      { debug: debug('compiler') },
     )
     this.stateMaps = compiled.stateMaps
     this.reverseStateMaps = compiled.reverseStateMaps
