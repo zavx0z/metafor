@@ -73,7 +73,7 @@
  *     render: ({ context, html, update }) => html`
  *       <div>
  *         <h1>${context.userName}</h1>
- *         <button @click=${() => update({ isLoading: true })}>
+ *         <button onclick=${() => update({ isLoading: true })}>
  *           Загрузить
  *         </button>
  *       </div>

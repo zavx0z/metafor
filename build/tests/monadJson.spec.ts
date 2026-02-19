@@ -381,7 +381,7 @@ describe("convertMetaToMonadJson", () => {
           html`<div>
             <h1>${context.label}</h1>
             <p>State: ${state}</p>
-            <button @click=${() => update({ label: "Clicked" })}>Click</button>
+            <button onclick=${() => update({ label: "Clicked" })}>Click</button>
           </div>`,
         style: ({ css }) => css`
           div {

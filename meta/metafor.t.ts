@@ -253,64 +253,83 @@ export type MetaForConfig = {
 /**
  * Параметры функции рендеринга представления атома.
  *
- * В функцию render компонента MetaFor передаётся объект с полезными утилитами и данными для построения UI.
+ * Предназначены для декларирования иерархии акторов через `<meta-for>`.
+ *
+ * ## API
+ * - `state` — текущее состояние для условий рендеринга
+ * - `html` — шаблонизация для `<meta-for>` элементов
+ * - `context` — данные атома для передачи дочерним акторам
+ * - `update` — функция обновления контекста
+ * - `core` — ядро для сложных данных
  *
  * @example
  * ```ts
- * render({ context, update, state, html, ref, repeat, when, map, style }) {
- *   const inputRef = ref();
- *   return html`
- *     <div ${style({ color: state === 'error' ? 'red' : 'black' })}>
- *       <h2>${context.label}</h2>
- *       <input ${ref(inputRef)} value=${context.value} @input=${e => update({ value: e.target.value })} />
- *       <ul>
- *         ${repeat(context.items, (item, i) => html`<li>${i}: ${item}</li>`)}
- *       </ul>
- *       ${when(context.items.length > 0, () => html`<span>Есть элементы</span>`, () => html`<span>Пусто</span>`)}
- *       <ol>
- *         ${map(context.items, (item, i) => html`<li>${item}</li>`)}
- *       </ol>
- *     </div>
- *   `;
- * }
+ * // Иерархия акторов на основе состояния
+ * render: ({ state, html }) => html`
+ *   ${state === "коммит" && html`<meta-for src="meta/status.js" context=${{ message: "В процессе..." }}></meta-for>`}
+ *   ${state === "завершено" && html`<meta-for src="meta/success.js" context=${{ message: "Готово!" }}></meta-for>`}
+ *   ${state === "ошибка" && html`<meta-for src="meta/error.js" context=${{ error: "Ошибка" }}></meta-for>`}
+ * `
+ *
+ * // Передача контекста дочернему актору
+ * render: ({ context, html }) => html`
+ *   <meta-for src="meta/child.js" context=${{ data: context.value }}></meta-for>
+ * `
+ *
+ * // Несколько акторов в иерархии
+ * render: ({ html }) => html`
+ *   <meta-for src="meta/header.js"></meta-for>
+ *   <meta-for src="meta/content.js"></meta-for>
+ *   <meta-for src="meta/footer.js"></meta-for>
+ * `
  * ```
  */
 export type ViewDefinitionParams<C extends Schema = Schema, I extends Core = Core, S extends string = string> = {
   /**
-   * Функция для обновления контекста.
-   * Вызывается с частичным объектом контекста для изменения состояния.
+   * Функция для обновления контекста атома.
+   * Используется в обработчиках событий для изменения состояния.
    * @example
    * ```ts
-   * update({ value: 42 })
-   * ```
+   * render: ({ html, update }) => html`
+   *   <button onclick=${() => update({ isLoading: true })}>Начать</button>
+   * `
    */
   update: Update<C>
   /**
-   * Текущее состояние контекста.
-   * Содержит все поля, определённые в .context(...)
+   * Текущий контекст атома.
+   * Содержит все поля, определённые в `.context(...)`.
+   * Используется для передачи данных дочерним акторам.
    * @example
    * ```ts
-   * html`<div>${context.value}</div>`
-   * ```
+   * render: ({ context, html }) => html`
+   *   <meta-for src="meta/child.js" context=${{ value: context.data }}></meta-for>
+   * `
    */
   context: Values<C>
+  /**
+   * Ядро атома для сложных данных.
+   * Содержит объекты, массивы и структуры, которые не помещаются в контекст.
+   */
   core: I
   /**
-   * Текущее состояние автомата/атома.
-   * Обычно строка, определённая в .states(...)
+   * Текущее состояние автомата.
+   * Строка из `.states(...)`, используется для условного рендеринга акторов.
    * @example
    * ```ts
-   * html`<span>${state === 'error' ? 'Ошибка' : 'Ок'}</span>`
-   * ```
+   * render: ({ state, html }) => html`
+   *   ${state === "loading" && html`<meta-for src="meta/spinner.js"></meta-for>`}
+   * `
    */
   state: S
   /**
-   * Функция шаблонизации (аналог lit-html).
-   * Используется для создания HTML-шаблонов с интерполяцией.
+   * Функция шаблонизации для создания HTML.
+   * Используется для декларирования иерархии акторов через `<meta-for>`.
    * @example
    * ```ts
-   * html`<div>${context.value}</div>`
-   * ```
+   * render: ({ html }) => html`
+   *   <meta-for src="meta/header.js"></meta-for>
+   *   <meta-for src="meta/content.js"></meta-for>
+   * `
    */
   html: (strings: TemplateStringsArray, ...values: any[]) => void
 }
@@ -318,33 +337,47 @@ export type ViewDefinitionParams<C extends Schema = Schema, I extends Core = Cor
 /**
  * Конфигурация для представления компонента.
  *
- * Поддерживает передачу контекста между компонентами через атрибут `context`.
- * При первой отрисовке контекст устанавливается без дополнительных сообщений,
- * при обновлении контекста родителя автоматически обновляется контекст ребенка.
+ * Определяет иерархию акторов через `<meta-for>` и стили компонента.
+ * Поддерживает передачу контекста дочерним акторам через атрибут `context`.
  */
 export interface ViewDeclaration<C extends Schema, I extends Core, S extends string> {
   /**
-   * Функция рендеринга компонента.
-   * Получает параметры с контекстом, состоянием и утилитами для построения UI.
+   * Функция рендеринга иерархии акторов.
+   * Декларирует вложенные акторы через `<meta-for src="..." context={...}>`.
    *
-   * Поддерживает передачу контекста дочерним компонентам через атрибут `context`:
+   * @example
    * ```ts
-   * render: ({ context, html }) => html`
-   *   <div>
-   *     <h1>Родитель: ${context.parentMessage}</h1>
-   *     <meta-child
-   *       context=${{
-   *         message: context.parentMessage,
-   *         count: context.parentCount,
-   *       }}></meta-child>
-   *   </div>
+   * // Условный рендеринг по состоянию
+   * render: ({ state, html }) => html`
+   *   ${state === "loading" && html`<meta-for src="meta/spinner.js"></meta-for>`}
+   *   ${state === "ready" && html`<meta-for src="meta/content.js"></meta-for>`}
    * `
-   * ```
+   *
+   * // Передача контекста
+   * render: ({ context, html }) => html`
+   *   <meta-for src="meta/child.js" context=${{ data: context.value }}></meta-for>
+   * `
+   *
+   * // Статическая иерархия
+   * render: ({ html }) => html`
+   *   <meta-for src="meta/header.js"></meta-for>
+   *   <meta-for src="meta/main.js"></meta-for>
+   *   <meta-for src="meta/footer.js"></meta-for>
+   * `
    */
   render?: (params: ViewDefinitionParams<C, I, S>) => void
   /**
    * Функция для определения CSS-стилей компонента.
-   * Получает функцию css для создания инкапсулированных стилей.
+   * Возвращает CSS строку через функцию css.
+   *
+   * @example
+   * ```ts
+   * style: ({ css }) => css`
+   *   .container {
+   *     padding: 16px;
+   *     border: 1px solid #ccc;
+   *   }
+   * `
    */
   style?: ({ css }: { css: (strings: TemplateStringsArray, ...values: any[]) => void }) => void
 }
