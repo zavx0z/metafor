@@ -23,7 +23,7 @@ export default MetaFor("git-config")
         <meta-for
           src="zavx0z/git-config-${context.operation}"
           context=${{
-            command: context.operation,
+            
             args: context.args,
           }} />
       `}

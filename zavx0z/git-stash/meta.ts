@@ -23,7 +23,7 @@ export default MetaFor("git-stash")
         <meta-for
           src="zavx0z/git-stash-${context.operation}"
           context=${{
-            command: context.operation,
+            
             args: context.args,
           }} />
       `}

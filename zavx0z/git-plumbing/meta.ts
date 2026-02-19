@@ -30,7 +30,7 @@ export default MetaFor("git-plumbing")
         <meta-for
           src="zavx0z/git-plumbing-${context.operation}"
           context=${{
-            command: context.operation,
+            
             args: context.args,
           }} />
       `}

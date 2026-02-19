@@ -23,7 +23,7 @@ export default MetaFor("git-worktree")
         <meta-for
           src="zavx0z/git-worktree-${context.operation}"
           context=${{
-            command: context.operation,
+            
             args: context.args,
           }} />
       `}

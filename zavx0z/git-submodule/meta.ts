@@ -23,7 +23,7 @@ export default MetaFor("git-submodule")
         <meta-for
           src="zavx0z/git-submodule-${context.operation}"
           context=${{
-            command: context.operation,
+            
             args: context.args,
           }} />
       `}

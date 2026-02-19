@@ -23,7 +23,7 @@ export default MetaFor("git-collaborate")
         <meta-for
           src="zavx0z/git-collaborate-${context.operation}"
           context=${{
-            command: context.operation,
+            
             args: context.args,
           }} />
       `}

@@ -23,7 +23,7 @@ export default MetaFor("git-work")
         <meta-for
           src="zavx0z/git-work-${context.operation}"
           context=${{
-            command: context.operation,
+            
             args: context.args,
           }} />
       `}

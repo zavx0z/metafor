@@ -23,7 +23,7 @@ export default MetaFor("git-history")
         <meta-for
           src="zavx0z/git-history-${context.operation}"
           context=${{
-            command: context.operation,
+            
             args: context.args,
           }} />
       `}
