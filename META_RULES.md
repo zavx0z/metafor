@@ -41,13 +41,37 @@ export default MetaFor("<name>")
 
 ```typescript
 .states({
-  idle: { loading: { userId: { gt: 0 } } },
-  loading: { success: {}, error: {} },
-  success: { idle: {} },
+  ожидание: { загрузка: { userId: { gt: 0 } } },
+  загрузка: { успех: {}, ошибка: {} },
+  успех: { ожидание: { ready: null } },
 })
 ```
 
-**Условия:** `eq`, `gt`, `lt`, `startsWith`, `include`, `pattern`, `length`, `includes`
+**Условия:** `eq`, `gt`, `gte`, `lt`, `lte`, `between`, `startsWith`, `include`, `pattern`, `length`, `includes`, `isEmpty`
+
+**Переход по значению:**
+
+```typescript
+// Для проверки на null
+состояние: { ожидание: { cmd: null } }
+```
+
+**Правила имён состояний:**
+
+- Имена на русском языке
+- Описательные имена: `ожидание`, `загрузка`, `успех`, `ошибка`
+- Для имён с пробелами использовать кавычки: `"рабочие деревья"`, `"режим редактирования"`
+
+```typescript
+.states({
+  ожидание: {
+    "рабочие деревья": { cmd: { startsWith: "worktree" } },
+    "режим просмотра": { cmd: { startsWith: "show" } },
+  },
+  "рабочие деревья": { ожидание: {} },
+  "режим просмотра": { ожидание: {} },
+})
+```
 
 ---
 
