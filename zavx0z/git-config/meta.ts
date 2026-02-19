@@ -4,56 +4,33 @@ export default MetaFor("git-config")
   .context((t) => ({
     operation: t.enum("config", "help").optional({ label: "Тип операции" }),
     error: t.string.optional({ label: "Ошибка" }),
-    command: t.string.optional({ label: "Команда" }),
     args: t.string.optional({ label: "Аргументы" }),
   }))
   .states({
-    "получение команды": {
-      "определение операции": { command: { null: false } },
+    "ожидание команды": {
+      выполнение: {},
     },
-    "определение операции": {
-      "выполнение": { operation: { null: false } },
-      "ошибка": { error: { null: false } },
-    },
-    "выполнение": {
-      "получение команды": { operation: null },
-    },
-    "ошибка": {
-      "получение команды": { error: null },
+    выполнение: {
+      "ожидание команды": { operation: null },
     },
   })
-  .core({
-    patterns: {
-      config: /^config$/,
-      help: /^help$/,
-    } as Record<string, RegExp>,
-  })
-  .processes((process) => ({
-    "определение операции": process()
-      .action(({ core, context }) => {
-        const command = context.command
-        if (!command) throw new Error("Команда не указана")
-        let operation: string | null = null
-        for (const [key, regex] of Object.entries(core.patterns)) {
-          if (regex.test(command)) {
-            operation = key
-            break
-          }
-        }
-        if (!operation) throw new Error(`Неизвестная команда: ${command}`)
-        return { operation: operation as NonNullable<typeof context.operation>, command, args: context.args }
-      })
-      .success(({ update, data }) => update(data))
-      .error(({ update, error }) => update({ error: error.message })),
-    "выполнение": process()
-      .action(() => null)
-      .success(({ update }) => update({ operation: null })),
-  }))
+  .core(() => ({}))
+  .processes(() => ({}))
   .reactions(() => [])
   .view({
     render: ({ context, html }) => html`
-      ${context.operation === "config" && html`<meta-for src="zavx0z/git-config-config" context=${{ command: context.command, args: context.args }} />`}
-      ${context.operation === "help" && html`<meta-for src="zavx0z/git-config-help" context=${{ command: context.command, args: context.args }} />`}
-      ${context.error && html`<meta-for src="zavx0z/git-error" context=${{ message: context.error }} />`}
+      ${context.operation && html`
+        <meta-for
+          src="zavx0z/git-config-${context.operation}"
+          context=${{
+            command: context.operation,
+            args: context.args,
+          }} />
+      `}
+      ${context.error && html`
+        <meta-for
+          src="zavx0z/git-error"
+          context=${{ message: context.error }} />
+      `}
     `,
   })

@@ -83,7 +83,6 @@ export default MetaFor("git")
           src="zavx0z/git-${context.operation}"
           context=${{
             operation: context.operation,
-            command: context.command,
             args: context.args,
           }} />
       `}
