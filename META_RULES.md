@@ -86,11 +86,11 @@ export default MetaFor("<name>")
     "определение операции": { command: { null: false } },  // ✅ Только если команда есть
   },
   "определение операции": {
-    "выполнение": { group: { null: false } },  // ✅ Успех (group установлен)
+    "выполнение": { operation: { null: false } },  // ✅ Успех (operation установлен)
     "ошибка": { error: { null: false } },  // ✅ Ошибка (error установлен)
   },
   "выполнение": {
-    "получение команды": { group: null },  // ✅ Завершение выполнения
+    "получение команды": { operation: null },  // ✅ Завершение выполнения
   },
   "ошибка": {
     "получение команды": { error: null },  // ✅ Сброс ошибки (краткая форма)
@@ -103,12 +103,12 @@ export default MetaFor("<name>")
 ```typescript
 .processes(() => ({
   "определение операции": process()
-    .action(({ core, context }) => ({ group: group as NonNullable<typeof context.group>, command, args }))
-    .success(({ update, data }) => update({ group: data.group, command: data.command, args: data.args }))
+    .action(({ core, context }) => ({ operation: operation as NonNullable<typeof context.operation>, command, args }))
+    .success(({ update, data }) => update(data))
     .error(({ update, error }) => update({ error: error.message })),
   "выполнение": process()
     .action(() => null)
-    .success(({ update }) => update({ group: null })),
+    .success(({ update }) => update({ operation: null })),
 }))
 ```
 
@@ -235,15 +235,28 @@ return { group: group as "start" | "work" | "examine" }
 
 ```typescript
 .view({
-  render: ({ state, context, core, html }) => html`
-    ${state === "loading" && html`<meta-for src="zavx0z/spinner"></meta-for>`}
-    ${state === "ready" && html`
-      <meta-for src="zavx0z/content" context=${{ data: context.value }} core=${{ api: core.api }}></meta-for>
+  render: ({ context, html }) => html`
+    ${context.operation && html`
+      <meta-for
+        src="zavx0z/${context.operation}"
+        context=${{ command: context.command, args: context.args }} />
+    `}
+    ${context.error && html`
+      <meta-for
+        src="zavx0z/error"
+        context=${{ message: context.error }} />
     `}
   `,
   style: ({ css }) => css`.container { padding: 1rem; }`,
 })
 ```
+
+**Правила:**
+
+- Теги `<meta-for>` самозакрывающиеся: `<meta-for src="..." />`
+- Контекст передаётся через атрибут `context={{ ... }}`
+- Если context === null, ничего не рендерится
+- Ошибки отображаются через отдельный актор
 
 ---
 
@@ -254,16 +267,61 @@ import "@metafor/meta"
 
 export default MetaFor("git")
   .context((t) => ({
-    group: t.enum("start", "work", "examine").optional({ label: "Группа команд" }),
+    operation: t.enum("start", "work", "examine").optional({ label: "Тип операции" }),
+    error: t.string.optional({ label: "Ошибка" }),
+    command: t.string.optional({ label: "Команда" }),
+    args: t.string.optional({ label: "Аргументы" }),
   }))
-  .states({ idle: { selected: {} }, selected: { idle: {} } })
-  .core(() => ({}))
-  .processes(() => ({}))
-  .reactions(() => [])
+  .states({
+    "получение команды": {
+      "определение операции": { command: { null: false } },
+    },
+    "определение операции": {
+      "выполнение": { operation: { null: false } },
+      "ошибка": { error: { null: false } },
+    },
+    "выполнение": {
+      "получение команды": { operation: null },
+    },
+    "ошибка": {
+      "получение команды": { error: null },
+    },
+  })
+  .core({
+    patterns: {
+      start: /^(clone|init)$/,
+      work: /^(add|mv|restore)$/,
+      examine: /^(show|status|diff)$/,
+    },
+  })
+  .processes((process) => ({
+    "определение операции": process()
+      .action(({ core, context }) => {
+        const command = context.command?.split(" ")[0]
+        let operation = null
+        for (const [key, regex] of Object.entries(core.patterns)) {
+          if (regex.test(command)) {
+            operation = key
+            break
+          }
+        }
+        if (!operation) throw new Error(`Неизвестная команда: ${command}`)
+        return { operation: operation as NonNullable<typeof context.operation> }
+      })
+      .success(({ update, data }) => update(data))
+      .error(({ update, error }) => update({ error: error.message })),
+    "выполнение": process()
+      .action(() => null)
+      .success(({ update }) => update({ operation: null })),
+  }))
   .view({
     render: ({ context, html }) => html`
-      ${context.group === "start" && html`<meta-for src="zavx0z/start"></meta-for>`}
-      ${context.group === "work" && html`<meta-for src="zavx0z/work"></meta-for>`}
+      ${context.operation && html`
+        <meta-for src="zavx0z/${context.operation}" context=${{ command: context.command }} />
+      `}
+      ${context.error && html`
+        <meta-for src="zavx0z/error" context=${{ message: context.error }} />
+      `}
     `,
   })
 ```
@@ -306,13 +364,20 @@ export default MetaFor("git")
     },
   })
   .processes((process) => ({
-    ожидание: process()
-      .action(({ core }) => {
-        // Используем core.patterns внутри
+    "определение операции": process()
+      .action(({ core, context }) => {
+        const command = context.command?.split(" ")[0]
+        let operation = null
         for (const [key, regex] of Object.entries(core.patterns)) {
-          if (regex.test(core.command)) return { group: key }
+          if (regex.test(command)) {
+            operation = key
+            break
+          }
         }
+        if (!operation) throw new Error(`Неизвестная команда: ${command}`)
+        return { operation: operation as NonNullable<typeof context.operation> }
       })
+      .success(({ update, data }) => update({ operation: data.operation }))
   }))
 ```
 

@@ -2,7 +2,7 @@ import "@metafor/meta"
 
 export default MetaFor("git")
   .context((t) => ({
-    group: t
+    operation: t
       .enum(
         "start",
         "work",
@@ -25,13 +25,13 @@ export default MetaFor("git")
       "определение операции": { command: { null: false } },
     },
     "определение операции": {
-      "выполнение": { group: { null: false } },
-      "ошибка": { error: { null: false } },
+      выполнение: { operation: { null: false } },
+      ошибка: { error: { null: false } },
     },
-    "выполнение": {
-      "получение команды": { group: null },
+    выполнение: {
+      "получение команды": { operation: null },
     },
-    "ошибка": {
+    ошибка: {
       "получение команды": { error: null },
     },
   })
@@ -61,37 +61,43 @@ export default MetaFor("git")
         }
         const args = parts.length > 1 ? parts.slice(1).join(" ") : null
         const patterns = core.patterns
-        let group: string | null = null
+        let operation: string | null = null
         for (const [key, regex] of Object.entries(patterns)) {
           if (regex.test(command)) {
-            group = key
+            operation = key
             break
           }
         }
-        if (!group) {
+        if (!operation) {
           throw new Error(`Неизвестная команда: ${context.command}`)
         }
-        return { group: group as NonNullable<typeof context.group>, command, args }
+        return { operation: operation as NonNullable<typeof context.operation>, command, args }
       })
-      .success(({ update, data }) => update({ group: data.group, command: data.command, args: data.args }))
+      .success(({ update, data }) => update(data))
       .error(({ update, error }) => update({ error: error.message })),
-    "выполнение": process()
+    выполнение: process()
       .action(() => null)
-      .success(({ update }) => update({ group: null })),
+      .success(({ update }) => update({ operation: null })),
   }))
   .reactions(() => [])
   .view({
     render: ({ context, html }) => html`
-      ${context.group === "start" && html`<meta-for src="zavx0z/start"></meta-for>`}
-      ${context.group === "work" && html`<meta-for src="zavx0z/work"></meta-for>`}
-      ${context.group === "examine" && html`<meta-for src="zavx0z/examine"></meta-for>`}
-      ${context.group === "history" && html`<meta-for src="zavx0z/history"></meta-for>`}
-      ${context.group === "collaborate" && html`<meta-for src="zavx0z/collaborate"></meta-for>`}
-      ${context.group === "worktree" && html`<meta-for src="zavx0z/worktree"></meta-for>`}
-      ${context.group === "stash" && html`<meta-for src="zavx0z/stash"></meta-for>`}
-      ${context.group === "submodule" && html`<meta-for src="zavx0z/submodule"></meta-for>`}
-      ${context.group === "config" && html`<meta-for src="zavx0z/config"></meta-for>`}
-      ${context.group === "plumbing" && html`<meta-for src="zavx0z/plumbing"></meta-for>`}
-      ${context.error && html`<div class="error">${context.error}</div>`}
+      ${context.operation &&
+      html`
+        <meta-for
+          src="zavx0z/${context.operation}"
+          context=${{
+            command: context.command,
+            args: context.args,
+          }} />
+      `}
+      ${context.error &&
+      html`
+        <meta-for
+          src="zavx0z/error"
+          context=${{
+            message: context.error,
+          }} />
+      `}
     `,
   })

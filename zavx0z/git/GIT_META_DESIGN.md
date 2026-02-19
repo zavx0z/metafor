@@ -346,15 +346,18 @@ return { group: group as NonNullable<typeof context.group> }
 
 ```typescript
 .states({
-  "ожидание команды": {
-    "обработка команды": { command: { notEq: null } },  // ✅ Только если команда есть
+  "получение команды": {
+    "определение операции": { command: { null: false } },  // ✅ Только если команда есть
   },
-  "обработка команды": {
-    "ожидание команды": { group: { notEq: null }, error: null },  // ✅ Успех
-    ошибка: { group: null },  // ✅ Явное условие ошибки
+  "определение операции": {
+    "выполнение": { operation: { null: false } },  // ✅ Успех
+    "ошибка": { error: { null: false } },  // ✅ Ошибка
   },
-  ошибка: {
-    "ожидание команды": { error: null },  // ✅ Сброс ошибки
+  "выполнение": {
+    "получение команды": { operation: null },  // ✅ Завершение
+  },
+  "ошибка": {
+    "получение команды": { error: null },  // ✅ Сброс ошибки
   },
 })
 ```
@@ -368,12 +371,91 @@ return { group: group as NonNullable<typeof context.group> }
 
 **Принципы:**
 
-1. **Входящий переход**: проверяй наличие данных (`field: { notEq: null }`)
-2. **Исходящий успех**: проверяй результат (`group: { notEq: null }`)
-3. **Исходящая ошибка**: проверяй отсутствие результата (`group: null`)
-4. **Сброс**: проверяй сброс флага (`error: null`)
+1. **Входящий переход**: проверяй наличие данных (`field: { null: false }`)
+2. **Исходящий успех**: проверяй результат (`operation: { null: false }`)
+3. **Исходящая ошибка**: проверяй наличие ошибки (`error: { null: false }`)
+4. **Сброс**: проверяй сброс флага (`operation: null` или `error: null`)
 
----
+### 7. Жизненный цикл process
+
+**Порядок выполнения:**
+
+```text
+1. Вход в состояние
+   ↓
+2. action() → return data ИЛИ throw error
+   ↓
+3. success() ИЛИ error() → update() → контекст обновлён
+   ↓
+4. measurement() → проверка триггеров по контексту
+   ↓
+5. Переход в следующее состояние (если триггер сработал)
+```
+
+**Важно:**
+
+- ✅ **Триггеры проверяются ПОСЛЕ завершения process** (после success/error)
+- ✅ **Контекст может обновляться多次 в process**, но переход произойдёт только после завершения
+- ❌ **Во время выполнения action** триггеры НЕ проверяются
+
+**Пример:**
+
+```typescript
+.processes(() => ({
+  "определение операции": process()
+    .action(({ core, context }) => {
+      // ❌ Триггеры НЕ проверятся до завершения process
+      const command = context.command?.split(" ")[0]
+      const operation = findOperation(command)
+      return { operation, command, args: context.command?.split(" ").slice(1).join(" ") }
+    })
+    .success(({ update, data }) => {
+      update(data)
+      // ✅ Теперь проверятся триггеры (operation: { null: false })
+    })
+    .error(({ update, error }) => {
+      update({ error: error.message })
+      // ✅ Теперь проверятся триггеры (error: { null: false })
+    }),
+}))
+```
+
+**Принцип:** Process — атомарная операция. Все обновления контекста внутри process накапливаются, и только после завершения (success/error) проверяются триггеры переходов.
+
+### 8. Update с data
+
+**Правило:** Передавать `data` напрямую в `update`.
+
+```typescript
+// ❌ Не оптимально
+.action(({ core, context }) => {
+  const operation = findOperation(command)
+  return { operation }
+})
+.success(({ update, data }) => {
+  update({ operation: data.operation })
+  // ❌ command и args потеряны
+})
+
+// ✅ Правильно
+.action(({ core, context }) => {
+  const command = context.command?.split(" ")[0]
+  const args = context.command?.split(" ").slice(1).join(" ")
+  const operation = findOperation(command)
+  return { operation, command, args }
+})
+.success(({ update, data }) => {
+  update(data)
+  // ✅ Все данные сохранены
+})
+```
+
+**Преимущества:**
+
+- ✅ Все данные из action доступны в success
+- ✅ Не нужно дублировать логику парсинга
+- ✅ Вложенные акторы получат полные данные через context
+- ✅ Код короче и проще
 
 ---
 
@@ -382,32 +464,42 @@ return { group: group as NonNullable<typeof context.group> }
 ```text
 ┌─────────────────────────────────────────────────────────┐
 │  Context                                                │
-│  group: enum("start", "work", "examine", ...)          │
+│  operation: enum("start", "work", "examine", ...)      │
+│  command: string                                        │
+│  args: string                                           │
+│  error: string                                          │
 └─────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────┐
-│  States (2 состояния)                                   │
-│  idle ↔ active                                          │
+│  States (4 состояния)                                   │
+│  "получение команды" → "определение операции"          │
+│  "определение операции" → "выполнение" / "ошибка"      │
+│  "выполнение" → "получение команды"                     │
+│  "ошибка" → "получение команды"                         │
 └─────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────┐
 │  Core                                                   │
-│  command: string                                        │
-│  args: string[]                                         │
 │  patterns: { start: /^.../, work: /^.../, ... }        │
 └─────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────┐
-│  Process (idle → active)                                │
-│  1. core.command + core.patterns → group               │
-│  2. update({ group })                                   │
+│  Process                                                │
+│  "определение операции":                                │
+│    1. action: parse command → { operation, command, args }
+│    2. success: update(data)                            │
+│    3. error: update({ error })                         │
+│  "выполнение":                                          │
+│    1. action: null                                     │
+│    2. success: update({ operation: null })             │
 └─────────────────────────────────────────────────────────┘
                           ↓
 ┌─────────────────────────────────────────────────────────┐
 │  View (декларативный)                                   │
-│  context.group === "start" → <meta-for src="...">      │
-│  context.group === "work" → <meta-for src="...">       │
-│  ...                                                    │
+│  context.operation → <meta-for src="zavx0z/${operation}"
+│                      context={{ command, args }} />    │
+│  context.error → <meta-for src="zavx0z/error"
+│                      context={{ message }} />          │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -422,3 +514,8 @@ return { group: group as NonNullable<typeof context.group> }
 3. **Всё внутри MetaFor** — никаких внешних функций/констант
 4. **Типизация через context** — `NonNullable<typeof context.field>`
 5. **Паттерны в core** — для сложной логики проверки
+6. **Передавайте data в update** — `update(data)`
+7. **Явные триггеры** — `{ field: { null: false } }` для перехода
+8. **Ошибки через актор** — `<meta-for src="zavx0z/error" />`
+
+---
