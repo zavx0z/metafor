@@ -59,7 +59,7 @@ export default MetaFor("git-history")
     render: ({ context, html }) => html`
       ${context.operation === "switch" && html`<meta-for src="zavx0z/git-history-switch" context=${{ command: context.command, args: context.args }} />`}
       ${context.operation === "checkout" && html`<meta-for src="zavx0z/git-history-checkout" context=${{ command: context.command, args: context.args }} />`}
-      ${context.operation === "commit" && html`<meta-for src="zavx0z/git-commit" context=${{ command: context.command, args: context.args }} />`}
+      ${context.operation === "commit" && html`<meta-for src="zavx0z/git-history-commit" context=${{ command: context.command, args: context.args }} />`}
       ${context.operation === "reset" && html`<meta-for src="zavx0z/git-history-reset" context=${{ command: context.command, args: context.args }} />`}
       ${context.operation === "revert" && html`<meta-for src="zavx0z/git-history-revert" context=${{ command: context.command, args: context.args }} />`}
       ${context.operation === "bisect" && html`<meta-for src="zavx0z/git-history-bisect" context=${{ command: context.command, args: context.args }} />`}
