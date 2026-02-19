@@ -35,6 +35,22 @@ export default MetaFor("<name>")
 - Объекты — в `core`
 - `.optional({ label: "..." })` — метаданные для enum
 - **Для array всегда указывай дженерик:** `t.array.required<string>([])`
+- **Label всегда на русском:** `label: "Сообщение (-m)"`, `label: "Все файлы (-a)"`
+
+**Примеры label:**
+
+```typescript
+.context((t) => ({
+  // ✅ Правильно: русский + опция
+  message: t.string.optional({ label: "Сообщение (-m)" }),
+  all: t.boolean.optional({ label: "Все файлы (-a)" }),
+  amend: t.boolean.optional({ label: "Исправить (--amend)" }),
+  
+  // ❌ Неправильно: английский
+  message: t.string.optional({ label: "Commit message (-m)" }),
+  all: t.boolean.optional({ label: "Commit all (-a)" }),
+}))
+```
 
 ---
 

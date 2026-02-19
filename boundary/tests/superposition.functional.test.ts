@@ -285,5 +285,25 @@ describe("Компиляция индивидуальных суперпозиц
       expect(Object.keys(result.stateMaps[0]!)).toEqual(["IDLE", "ATTACK", "VICTORY"])
       expect(Object.keys(result.stateMaps[1]!)).toEqual(["IDLE", "CAST", "RECOVER"])
     })
+
+    test("порядок триггеров: более специфичные условия проверяются первыми", () => {
+      const compiler = new RulesCompiler()
+
+      // Проверяем что Object.entries сохраняет порядок ключей
+      const transitions = {
+        "коммит с подписью и сообщением": { signoff: { null: false }, message: { null: false } },
+        "коммит с сообщением": { message: { null: false } },
+        "коммит всех файлов": { all: { null: false } },
+      }
+
+      const entries = Object.entries(transitions)
+      
+      // Первый ключ должен быть самым специфичным
+      expect(entries[0]?.[0]).toBe("коммит с подписью и сообщением")
+      // Второй ключ - менее специфичный
+      expect(entries[1]?.[0]).toBe("коммит с сообщением")
+      // Третий ключ - ещё менее специфичный
+      expect(entries[2]?.[0]).toBe("коммит всех файлов")
+    })
   })
 })

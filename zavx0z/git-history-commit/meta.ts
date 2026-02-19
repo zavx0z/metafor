@@ -3,15 +3,16 @@ import "@metafor/meta"
 export default MetaFor("git-history-commit")
   .context((t) => ({
     args: t.string.optional({ label: "Аргументы" }),
-    all: t.boolean.optional({ label: "Commit all (-a)" }),
-    message: t.string.optional({ label: "Commit message (-m)" }),
-    amend: t.boolean.optional({ label: "Amend (--amend)" }),
-    signoff: t.boolean.optional({ label: "Signoff (-s)" }),
-    noVerify: t.boolean.optional({ label: "No verify (-n)" }),
-    dryRun: t.boolean.optional({ label: "Dry run (--dry-run)" }),
-    verbose: t.boolean.optional({ label: "Verbose (-v)" }),
-    edit: t.boolean.optional({ label: "Edit (-e)" }),
+    all: t.boolean.optional({ label: "Все файлы (-a)" }),
+    message: t.string.optional({ label: "Сообщение (-m)" }),
+    amend: t.boolean.optional({ label: "Исправить (--amend)" }),
+    signoff: t.boolean.optional({ label: "Подпись (-s)" }),
+    noVerify: t.boolean.optional({ label: "Без проверки (-n)" }),
+    dryRun: t.boolean.optional({ label: "Пробный запуск (--dry-run)" }),
+    verbose: t.boolean.optional({ label: "Подробно (-v)" }),
+    edit: t.boolean.optional({ label: "Редактировать (-e)" }),
     error: t.string.optional({ label: "Ошибка" }),
+    dryRunOutput: t.string.optional({ label: "Результат пробного запуска" }),
   }))
   .states({
     "парсинг опций": {
@@ -29,67 +30,75 @@ export default MetaFor("git-history-commit")
       "коммит без верификации": { noVerify: { null: false } },
       "пробный коммит": { dryRun: { null: false } },
       "коммит с редактором": { edit: { null: false } },
-      ошибка: { args: null },
+      ошибка: { error: { null: false } },
     },
-    // git commit -m "msg"
     "коммит с сообщением": {
+      ошибка: { error: { null: false } },
       выполнено: {},
     },
-    // git commit -a
     "коммит всех файлов": {
+      ошибка: { error: { null: false } },
       выполнено: {},
     },
-    // git commit --amend
     "амед прошлого коммита": {
+      ошибка: { error: { null: false } },
       выполнено: {},
     },
-    // git commit -s
     "коммит с подписью": {
+      ошибка: { error: { null: false } },
       выполнено: {},
     },
-    // git commit -n
     "коммит без верификации": {
+      ошибка: { error: { null: false } },
       выполнено: {},
     },
-    // git commit --dry-run
     "пробный коммит": {
+      ошибка: { error: { null: false } },
       выполнено: {},
     },
-    // git commit -e
     "коммит с редактором": {
+      ошибка: { error: { null: false } },
       выполнено: {},
     },
-    // git commit -a -m "msg"
     "коммит всех файлов с сообщением": {
+      ошибка: { error: { null: false } },
       выполнено: {},
     },
-    // git commit --amend -m "msg"
     "амед с сообщением": {
+      ошибка: { error: { null: false } },
       выполнено: {},
     },
-    // git commit -s -m "msg"
     "коммит с подписью и сообщением": {
+      ошибка: { error: { null: false } },
       выполнено: {},
     },
-    // git commit --amend -s
     "амед с подписью": {
+      ошибка: { error: { null: false } },
       выполнено: {},
     },
-    // git commit --amend -s -m "msg"
     "амед с подписью и сообщением": {
+      ошибка: { error: { null: false } },
       выполнено: {},
     },
-    // git commit (без аргументов)
     ошибка: {
       "парсинг опций": { error: null },
     },
     выполнено: {},
   })
   .core(() => ({}))
-  .processes((process) => ({
-    "парсинг опций": process()
+  .processes((process, destroy) => ({
+    "парсинг опций": process({
+      label: "Парсинг опций",
+      desc: "Извлекает флаги и сообщение из аргументов командной строки",
+    })
       .action(({ context }) => {
         const args = context.args || ""
+
+        // Проверка: args не должен быть пустым
+        if (!args.trim()) {
+          throw new Error("Команда не указана")
+        }
+
         const result: Record<string, any> = {}
 
         // Флаги
@@ -103,12 +112,170 @@ export default MetaFor("git-history-commit")
 
         // Сообщение коммита
         const msgMatch = args.match(/-m\s+"([^"]+)"/) || args.match(/-m\s+'([^']+)'/) || args.match(/-m\s+(\S+)/)
-        if (msgMatch && msgMatch[1]) result.message = msgMatch[1]
+        if (msgMatch && msgMatch[1]) {
+          result.message = msgMatch[1]
+        }
 
         return result
       })
-      .success(({ update, data }) => update(data))
       .error(({ update, error }) => update({ error: error.message })),
+
+    "коммит с сообщением": process({
+      label: 'git commit -m "msg"',
+      desc: "Создаёт коммит с указанным сообщением",
+    })
+      .action(async ({ context }) => {
+        const cmd = `git commit -m ${JSON.stringify(context.message)}`
+        const result = await Bun.$`${cmd}`.quiet().text()
+        if (!result.includes("created") && !result.includes("mode")) {
+          throw new Error(result || "Не удалось создать коммит")
+        }
+      })
+      .error(({ update, error }) => update({ error: error.message })),
+
+    "коммит всех файлов": process({
+      label: "git commit -a",
+      desc: "Создаёт коммит всех изменённых отслеживаемых файлов",
+    })
+      .action(async () => {
+        const result = await Bun.$`git commit -a`.quiet().text()
+        if (!result.includes("created") && !result.includes("mode")) {
+          throw new Error(result || "Не удалось создать коммит")
+        }
+      })
+      .error(({ update, error }) => update({ error: error.message })),
+
+    "амед прошлого коммита": process({
+      label: "git commit --amend",
+      desc: "Заменяет последний коммит без изменения сообщения",
+    })
+      .action(async () => {
+        const result = await Bun.$`git commit --amend --no-edit`.quiet().text()
+        if (!result.includes("amend") && !result.includes("mode")) {
+          throw new Error(result || "Не удалось заменить коммит")
+        }
+      })
+      .error(({ update, error }) => update({ error: error.message })),
+
+    "коммит с подписью": process({
+      label: "git commit -s",
+      desc: "Создаёт коммит с добавлением Signed-off-by трейлера",
+    })
+      .action(async ({ context }) => {
+        const cmd = context.message
+          ? `git commit -s -m ${JSON.stringify(context.message)}`
+          : `git commit -s`
+        const result = await Bun.$`${cmd}`.quiet().text()
+        if (!result.includes("created") && !result.includes("mode")) {
+          throw new Error(result || "Не удалось создать коммит")
+        }
+      })
+      .error(({ update, error }) => update({ error: error.message })),
+
+    "коммит без верификации": process({
+      label: "git commit -n",
+      desc: "Пропускает pre-commit и commit-msg хуки",
+    })
+      .action(async ({ context }) => {
+        const cmd = context.message
+          ? `git commit -n -m ${JSON.stringify(context.message)}`
+          : `git commit -n`
+        const result = await Bun.$`${cmd}`.quiet().text()
+        if (!result.includes("created") && !result.includes("mode")) {
+          throw new Error(result || "Не удалось создать коммит")
+        }
+      })
+      .error(({ update, error }) => update({ error: error.message })),
+
+    "пробный коммит": process({
+      label: "git commit --dry-run",
+      desc: "Показывает что будет закоммичено без фактического создания коммита",
+    })
+      .action(async ({ context }) => {
+        const cmd = context.message
+          ? `git commit --dry-run -m ${JSON.stringify(context.message)}`
+          : `git commit --dry-run`
+        await Bun.$`${cmd}`.quiet().text()
+      })
+      .error(({ update, error }) => update({ error: error.message })),
+
+    "коммит с редактором": process({
+      label: "git commit -e",
+      desc: "Открывает редактор для написания сообщения коммита",
+    })
+      .action(async () => {
+        const result = await Bun.$`git commit -e`.quiet().text()
+        if (!result.includes("created") && !result.includes("mode")) {
+          throw new Error(result || "Не удалось создать коммит")
+        }
+      })
+      .error(({ update, error }) => update({ error: error.message })),
+
+    "коммит всех файлов с сообщением": process({
+      label: 'git commit -a -m "msg"',
+      desc: "Создаёт коммит всех изменённых файлов с сообщением",
+    })
+      .action(async ({ context }) => {
+        const cmd = `git commit -a -m ${JSON.stringify(context.message)}`
+        const result = await Bun.$`${cmd}`.quiet().text()
+        if (!result.includes("created") && !result.includes("mode")) {
+          throw new Error(result || "Не удалось создать коммит")
+        }
+      })
+      .error(({ update, error }) => update({ error: error.message })),
+
+    "амед с сообщением": process({
+      label: 'git commit --amend -m "msg"',
+      desc: "Заменяет последний коммит с новым сообщением",
+    })
+      .action(async ({ context }) => {
+        const cmd = `git commit --amend -m ${JSON.stringify(context.message)}`
+        const result = await Bun.$`${cmd}`.quiet().text()
+        if (!result.includes("amend") && !result.includes("mode")) {
+          throw new Error(result || "Не удалось заменить коммит")
+        }
+      })
+      .error(({ update, error }) => update({ error: error.message })),
+
+    "коммит с подписью и сообщением": process({
+      label: 'git commit -s -m "msg"',
+      desc: "Создаёт коммит с подписью и сообщением",
+    })
+      .action(async ({ context }) => {
+        const cmd = `git commit -s -m ${JSON.stringify(context.message)}`
+        const result = await Bun.$`${cmd}`.quiet().text()
+        if (!result.includes("created") && !result.includes("mode")) {
+          throw new Error(result || "Не удалось создать коммит")
+        }
+      })
+      .error(({ update, error }) => update({ error: error.message })),
+
+    "амед с подписью": process({
+      label: "git commit --amend -s",
+      desc: "Заменяет последний коммит с добавлением подписи",
+    })
+      .action(async () => {
+        const result = await Bun.$`git commit --amend -s --no-edit`.quiet().text()
+        if (!result.includes("amend") && !result.includes("mode")) {
+          throw new Error(result || "Не удалось заменить коммит")
+        }
+      })
+      .error(({ update, error }) => update({ error: error.message })),
+
+    "амед с подписью и сообщением": process({
+      label: 'git commit --amend -s -m "msg"',
+      desc: "Заменяет последний коммит с подписью и новым сообщением",
+    })
+      .action(async ({ context }) => {
+        const cmd = `git commit --amend -s -m ${JSON.stringify(context.message)}`
+        const result = await Bun.$`${cmd}`.quiet().text()
+        if (!result.includes("amend") && !result.includes("mode")) {
+          throw new Error(result || "Не удалось заменить коммит")
+        }
+      })
+      .error(({ update, error }) => update({ error: error.message })),
+
+    "выполнено": destroy(),
   }))
   .reactions(() => [])
   .view({ render: ({ context }) => null })
