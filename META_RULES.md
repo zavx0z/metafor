@@ -82,18 +82,92 @@ export default MetaFor("<name>")
 
 ```typescript
 .states({
-  "ожидание команды": {
-    "обработка команды": { command: { null: false } },  // ✅ Только если команда есть
+  "получение команды": {
+    "определение операции": { command: { null: false } },  // ✅ Только если команда есть
   },
-  "обработка команды": {
-    "ожидание команды": { group: { null: false }, error: { null: true } },  // ✅ Успех
-    ошибка: { group: { null: true } },  // ✅ Ошибка
+  "определение операции": {
+    "выполнение": { group: { null: false } },  // ✅ Успех (group установлен)
+    "ошибка": { error: { null: false } },  // ✅ Ошибка (error установлен)
   },
-  ошибка: {
-    "ожидание команды": { error: { null: true } },  // ✅ Сброс ошибки
+  "выполнение": {
+    "получение команды": { group: null },  // ✅ Завершение выполнения
+  },
+  "ошибка": {
+    "получение команды": { error: null },  // ✅ Сброс ошибки (краткая форма)
   },
 })
 ```
+
+**Process:**
+
+```typescript
+.processes(() => ({
+  "определение операции": process()
+    .action(({ core, context }) => {
+      // Парсинг и валидация
+      return { group, command, args }
+    })
+    .success(({ update, data }) => {
+      update({ group: data.group, command: data.command, args: data.args })
+      // ✅ group установлен → сработает триггер group: { null: false }
+    })
+    .error(({ update, error }) => {
+      update({ error: error.message })
+      // ✅ error установлен → сработает триггер error: { null: false }
+    }),
+  "выполнение": process()
+    .action(() => null)
+    .success(({ update }) => {
+      update({ group: null })
+      // ✅ group сброшен → сработает триггер group: null
+    }),
+}))
+```
+
+---
+
+## Жизненный цикл process
+
+**Порядок выполнения:**
+
+```text
+1. Вход в состояние
+   ↓
+2. action() → return data ИЛИ throw error
+   ↓
+3. success() ИЛИ error() → update() → контекст обновлён
+   ↓
+4. measurement() → проверка триггеров по контексту
+   ↓
+5. Переход в следующее состояние (если триггер сработал)
+```
+
+**Важно:**
+
+- ✅ **Триггеры проверяются ПОСЛЕ завершения process** (после success/error)
+- ✅ **Контекст может обновляться в process**, но переход произойдёт только после завершения
+- ❌ **Во время выполнения action** триггеры НЕ проверяются
+
+**Пример:**
+
+```typescript
+.processes(() => ({
+  "загрузка": process()
+    .action(async ({ context, update }) => {
+      // ❌ Триггеры НЕ проверятся до завершения process
+      update({ status: "loading" })  // Промежуточное обновление
+      const data = await fetch(...)
+      update({ status: "success" })  // Ещё одно обновление
+      return { data }
+    })
+    .success(({ update, data }) => {
+      update({ data })  // Финальное обновление
+      // ✅ Теперь проверятся триггеры
+    }),
+}))
+```
+
+**Принцип:** Process — атомарная операция. Все обновления контекста внутри process накапливаются, и только после завершения (success/error) проверяются триггеры переходов.
 
 ---
 

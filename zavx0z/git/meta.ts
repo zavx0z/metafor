@@ -21,15 +21,18 @@ export default MetaFor("git")
     args: t.string.optional({ label: "Аргументы" }),
   }))
   .states({
-    "ожидание команды": {
-      "обработка команды": { command: { null: false } },
+    "получение команды": {
+      "определение операции": { command: { null: false } },
     },
-    "обработка команды": {
-      "ожидание команды": { group: { null: false }, error: { null: true } },
-      ошибка: { group: { null: true } },
+    "определение операции": {
+      "выполнение": { group: { null: false } },
+      "ошибка": { error: { null: false } },
     },
-    ошибка: {
-      "ожидание команды": { error: { null: true } },
+    "выполнение": {
+      "получение команды": { group: null },
+    },
+    "ошибка": {
+      "получение команды": { error: null },
     },
   })
   .core({
@@ -46,7 +49,7 @@ export default MetaFor("git")
     } as Record<string, RegExp>,
   })
   .processes((process) => ({
-    "обработка команды": process()
+    "определение операции": process()
       .action(({ core, context }) => {
         if (!context.command) {
           throw new Error("Команда не указана")
@@ -77,19 +80,22 @@ export default MetaFor("git")
       .success(({ update, data }) => {
         update({
           group: data.group,
-          error: null,
           command: data.command,
           args: data.args,
         })
       })
       .error(({ update, error }) => {
-        update({ group: null, error: error.message })
+        update({ error: error.message })
+      }),
+    "выполнение": process()
+      .action(() => null)
+      .success(({ update }) => {
+        update({ group: null })
       }),
   }))
   .reactions(() => [])
   .view({
     render: ({ context, html }) => html`
-      ${context.error && html`<div class="error">${context.error}</div>`}
       ${context.group === "start" && html`<meta-for src="zavx0z/start"></meta-for>`}
       ${context.group === "work" && html`<meta-for src="zavx0z/work"></meta-for>`}
       ${context.group === "examine" && html`<meta-for src="zavx0z/examine"></meta-for>`}
@@ -100,5 +106,6 @@ export default MetaFor("git")
       ${context.group === "submodule" && html`<meta-for src="zavx0z/submodule"></meta-for>`}
       ${context.group === "config" && html`<meta-for src="zavx0z/config"></meta-for>`}
       ${context.group === "plumbing" && html`<meta-for src="zavx0z/plumbing"></meta-for>`}
+      ${context.error && html`<div class="error">${context.error}</div>`}
     `,
   })
