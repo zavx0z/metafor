@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git-examine",
+  "version": "0.1.0",
+  "description": "Git examine — команды просмотра (show, status, diff, log)",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git-config",
+  "version": "0.1.0",
+  "description": "Git config — конфигурация и справка",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}

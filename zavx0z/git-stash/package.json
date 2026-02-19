@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git-stash",
+  "version": "0.1.0",
+  "description": "Git stash — отложенные изменения",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}

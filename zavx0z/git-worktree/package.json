@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git-worktree",
+  "version": "0.1.0",
+  "description": "Git worktree — управление рабочими деревьями",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}

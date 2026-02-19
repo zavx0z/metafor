@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git-start",
+  "version": "0.1.0",
+  "description": "Git start — команды начала работы (clone, init)",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}

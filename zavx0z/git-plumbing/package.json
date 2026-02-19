@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git-plumbing",
+  "version": "0.1.0",
+  "description": "Git plumbing — низкоуровневые команды",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}

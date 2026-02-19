@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git-work-rm",
+  "version": "0.1.0",
+  "description": "Git rm — удаление файлов",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}

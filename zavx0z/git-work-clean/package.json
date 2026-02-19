@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git-work-clean",
+  "version": "0.1.0",
+  "description": "Git clean — очистка неотслеживаемых файлов",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}

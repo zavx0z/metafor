@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git-submodule",
+  "version": "0.1.0",
+  "description": "Git submodule — управление субмодулями",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}

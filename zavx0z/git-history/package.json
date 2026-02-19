@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git-history",
+  "version": "0.1.0",
+  "description": "Git history — команды управления историей (switch, checkout, commit, reset, revert)",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}

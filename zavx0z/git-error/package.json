@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git-error",
+  "version": "0.1.0",
+  "description": "Git error — обработка ошибок",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}

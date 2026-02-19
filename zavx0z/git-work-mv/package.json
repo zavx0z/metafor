@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git-work-mv",
+  "version": "0.1.0",
+  "description": "Git mv — перемещение файлов",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git-work-add",
+  "version": "0.1.0",
+  "description": "Git add — добавление файлов в индекс",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}

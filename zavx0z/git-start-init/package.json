@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git-start-init",
+  "version": "0.1.0",
+  "description": "Git init — инициализация репозитория",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}

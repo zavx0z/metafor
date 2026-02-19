@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git-work",
+  "version": "0.1.0",
+  "description": "Git work — команды работы с файлами (add, mv, restore, rm, clean)",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}

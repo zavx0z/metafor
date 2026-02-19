@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git",
+  "version": "0.1.0",
+  "description": "Git — распределённая система управления версиями",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "name": "@zavx0z/git-collaborate",
+  "version": "0.1.0",
+  "description": "Git collaborate — команды совместной работы (fetch, pull, push, remote)",
+  "type": "module",
+  "private": true,
+  "exports": {
+    ".": "./src/meta.ts"
+  }
+}
