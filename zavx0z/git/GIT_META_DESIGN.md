@@ -214,6 +214,59 @@ return { group: group as NonNullable<typeof context.group> }
 - Паттерны объявлены декларативно
 - Легко добавлять новые группы
 
+### 4. Валидация данных на каждом этапе
+
+**Правило:** Проверять каждое значение перед использованием.
+
+```typescript
+.action(({ core, context }) => {
+  // 1. Проверка входных данных
+  if (!context.command) {
+    throw new Error("Команда не указана")
+  }
+  
+  // 2. Парсинг команды
+  const parts = context.command.split(" ")
+  const command = parts[0]
+  
+  // 3. Проверка что команда извлечена
+  if (!command) {
+    throw new Error("Не удалось извлечь команду")
+  }
+  
+  // 4. Извлечение аргументов
+  const args = parts.length > 1 ? parts.slice(1).join(" ") : null
+  
+  // 5. Поиск группы по паттернам
+  let group: string | null = null
+  for (const [key, regex] of Object.entries(core.patterns)) {
+    if (regex.test(command)) {
+      group = key
+      break
+    }
+  }
+  
+  // 6. Проверка что группа найдена
+  if (!group) {
+    throw new Error(`Неизвестная команда: ${context.command}`)
+  }
+  
+  return { group, command, args }
+})
+```
+
+**Почему это важно:**
+
+- ❌ **Неправильно:** `const command = parts[0] || ""` — скрывает ошибки, `regex.test("")` может вернуть неожиданное значение
+- ✅ **Правильно:** Явная проверка `if (!command) throw new Error(...)` — сразу видно проблему
+
+**Преимущества:**
+
+- Раннее обнаружение ошибок
+- Понятные сообщения об ошибках
+- Типобезопасность на каждом этапе
+- Легче отлажить
+
 ---
 
 ## Итоговая архитектура

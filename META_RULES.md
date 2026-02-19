@@ -25,7 +25,7 @@ export default MetaFor("<name>")
   name: t.string.required("Гость"),
   age: t.number.required(18)({ label: "Возраст" }),
   status: t.enum("draft", "published").optional({ label: "Статус" }),
-  tags: t.array.required(["default"]),
+  tags: t.array.required<string>([], { label: "Теги" }),
 }))
 ```
 
@@ -34,6 +34,7 @@ export default MetaFor("<name>")
 - Только примитивы: `string`, `number`, `boolean`, `enum`, `array`
 - Объекты — в `core`
 - `.optional({ label: "..." })` — метаданные для enum
+- **Для array всегда указывай дженерик:** `t.array.required<string>([])`
 
 ---
 
