@@ -103,24 +103,12 @@ export default MetaFor("<name>")
 ```typescript
 .processes(() => ({
   "определение операции": process()
-    .action(({ core, context }) => {
-      // Парсинг и валидация
-      return { group, command, args }
-    })
-    .success(({ update, data }) => {
-      update({ group: data.group, command: data.command, args: data.args })
-      // ✅ group установлен → сработает триггер group: { null: false }
-    })
-    .error(({ update, error }) => {
-      update({ error: error.message })
-      // ✅ error установлен → сработает триггер error: { null: false }
-    }),
+    .action(({ core, context }) => ({ group: group as NonNullable<typeof context.group>, command, args }))
+    .success(({ update, data }) => update({ group: data.group, command: data.command, args: data.args }))
+    .error(({ update, error }) => update({ error: error.message })),
   "выполнение": process()
     .action(() => null)
-    .success(({ update }) => {
-      update({ group: null })
-      // ✅ group сброшен → сработает триггер group: null
-    }),
+    .success(({ update }) => update({ group: null })),
 }))
 ```
 

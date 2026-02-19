@@ -71,27 +71,13 @@ export default MetaFor("git")
         if (!group) {
           throw new Error(`Неизвестная команда: ${context.command}`)
         }
-        return {
-          group: group as NonNullable<typeof context.group>,
-          command,
-          args,
-        }
+        return { group: group as NonNullable<typeof context.group>, command, args }
       })
-      .success(({ update, data }) => {
-        update({
-          group: data.group,
-          command: data.command,
-          args: data.args,
-        })
-      })
-      .error(({ update, error }) => {
-        update({ error: error.message })
-      }),
+      .success(({ update, data }) => update({ group: data.group, command: data.command, args: data.args }))
+      .error(({ update, error }) => update({ error: error.message })),
     "выполнение": process()
       .action(() => null)
-      .success(({ update }) => {
-        update({ group: null })
-      }),
+      .success(({ update }) => update({ group: null })),
   }))
   .reactions(() => [])
   .view({
