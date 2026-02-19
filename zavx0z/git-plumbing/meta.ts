@@ -10,34 +10,15 @@ export default MetaFor("git-plumbing")
       "rev-list", "rev-parse", "show-ref", "symbolic-ref", "unpack-objects",
       "update-index", "update-ref", "verify-commit", "verify-pack", "verify-tag"
     ).optional({ label: "Тип операции" }),
-    error: t.string.optional({ label: "Ошибка" }),
     args: t.string.optional({ label: "Аргументы" }),
   }))
-  .states({
-    "ожидание команды": {
-      выполнение: {},
-    },
-    выполнение: {
-      "ожидание команды": { operation: null },
-    },
-  })
+  .states({})
   .core(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({
     render: ({ context, html }) => html`
-      ${context.operation && html`
-        <meta-for
-          src="zavx0z/git-plumbing-${context.operation}"
-          context=${{
-            
-            args: context.args,
-          }} />
-      `}
-      ${context.error && html`
-        <meta-for
-          src="zavx0z/git-error"
-          context=${{ message: context.error }} />
-      `}
+      ${context.operation &&
+      html` <meta-for src="zavx0z/git-plumbing-${context.operation}" context=${{ args: context.args }} /> `}
     `,
   })
