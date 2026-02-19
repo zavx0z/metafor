@@ -21,15 +21,15 @@ export default MetaFor("git")
     args: t.string.optional({ label: "Аргументы" }),
   }))
   .states({
-    idle: {
-      processing: { error: null },
+    "ожидание команды": {
+      "обработка команды": {},
     },
-    processing: {
-      idle: { group: null, error: null },
-      error: {},
+    "обработка команды": {
+      "ожидание команды": { group: null, error: null },
+      ошибка: {},
     },
-    error: {
-      idle: { error: null },
+    ошибка: {
+      "ожидание команды": { error: null },
     },
   })
   .core({
@@ -46,7 +46,7 @@ export default MetaFor("git")
     } as Record<string, RegExp>,
   })
   .processes((process) => ({
-    processing: process()
+    "обработка команды": process()
       .action(({ core, context }) => {
         if (!context.command) {
           throw new Error("Команда не указана")
