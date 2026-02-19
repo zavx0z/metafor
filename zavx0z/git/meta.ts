@@ -22,14 +22,14 @@ export default MetaFor("git")
   }))
   .states({
     "ожидание команды": {
-      "обработка команды": {},
+      "обработка команды": { command: { null: false } },
     },
     "обработка команды": {
-      "ожидание команды": { group: null, error: null },
-      ошибка: {},
+      "ожидание команды": { group: { null: false }, error: { null: true } },
+      ошибка: { group: { null: true } },
     },
     ошибка: {
-      "ожидание команды": { error: null },
+      "ожидание команды": { error: { null: true } },
     },
   })
   .core({

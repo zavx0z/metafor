@@ -44,17 +44,21 @@ export default MetaFor("<name>")
 .states({
   ожидание: { загрузка: { userId: { gt: 0 } } },
   загрузка: { успех: {}, ошибка: {} },
-  успех: { ожидание: { ready: null } },
+  успех: { ожидание: { ready: { null: true } } },
 })
 ```
 
-**Условия:** `eq`, `gt`, `gte`, `lt`, `lte`, `between`, `startsWith`, `include`, `pattern`, `length`, `includes`, `isEmpty`
+**Условия:** `eq`, `gt`, `gte`, `lt`, `lte`, `between`, `startsWith`, `include`, `pattern`, `length`, `includes`, `isEmpty`, `in`, `notIn`, `startsWithIn`, `null`
 
 **Переход по значению:**
 
 ```typescript
-// Для проверки на null
-состояние: { ожидание: { cmd: null } }
+// Краткая запись для optional полей
+состояние: { ожидание: { cmd: null } }  // cmd === null
+
+// Развёрнутая запись для optional полей
+состояние: { ожидание: { cmd: { null: false } } }  // cmd !== null
+состояние: { ожидание: { cmd: { null: true } } }   // cmd === null
 ```
 
 **Правила имён состояний:**
@@ -71,6 +75,23 @@ export default MetaFor("<name>")
   },
   "рабочие деревья": { ожидание: {} },
   "режим просмотра": { ожидание: {} },
+})
+```
+
+**Триггеры переходов:**
+
+```typescript
+.states({
+  "ожидание команды": {
+    "обработка команды": { command: { null: false } },  // ✅ Только если команда есть
+  },
+  "обработка команды": {
+    "ожидание команды": { group: { null: false }, error: { null: true } },  // ✅ Успех
+    ошибка: { group: { null: true } },  // ✅ Ошибка
+  },
+  ошибка: {
+    "ожидание команды": { error: { null: true } },  // ✅ Сброс ошибки
+  },
 })
 ```
 
