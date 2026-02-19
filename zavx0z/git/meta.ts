@@ -15,7 +15,7 @@ export default MetaFor("git")
         "config",
         "plumbing",
       )
-      .optional({ label: "Группа команд git" }),
+      .optional({ label: "Тип операции" }),
     error: t.string.optional({ label: "Ошибка" }),
     command: t.string.optional({ label: "Команда" }),
     args: t.string.optional({ label: "Аргументы" }),
