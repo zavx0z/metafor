@@ -6,42 +6,42 @@ export default MetaFor("git")
   }))
   .states({
     ожидание: {
-      начало: { cmd: { startsWith: "clone" } },
-      работа: { cmd: { startsWith: "add" } },
-      просмотр: { cmd: { startsWith: "show" } },
-      история: { cmd: { startsWith: "switch" } },
-      совместная: { cmd: { startsWith: "fetch" } },
+      "инициализация репозитория": { cmd: { startsWith: "clone" } },
+      "работа с файлами": { cmd: { startsWith: "add" } },
+      "просмотр изменений": { cmd: { startsWith: "show" } },
+      "управление историей": { cmd: { startsWith: "switch" } },
+      "удалённая работа": { cmd: { startsWith: "fetch" } },
       "рабочие деревья": { cmd: { startsWith: "worktree" } },
-      запас: { cmd: { startsWith: "stash" } },
-      субмодуль: { cmd: { startsWith: "submodule" } },
-      конфигурация: { cmd: { startsWith: "config" } },
-      водопровод: { cmd: { startsWith: "cat-file" } },
+      "отложенные изменения": { cmd: { startsWith: "stash" } },
+      "управление субмодулями": { cmd: { startsWith: "submodule" } },
+      "конфигурация git": { cmd: { startsWith: "config" } },
+      "низкоуровневые команды": { cmd: { startsWith: "cat-file" } },
     },
-    начало: { ожидание: { cmd: null } },
-    работа: { ожидание: { cmd: null } },
-    просмотр: { ожидание: { cmd: null } },
-    история: { ожидание: { cmd: null } },
-    совместная: { ожидание: { cmd: null } },
+    "инициализация репозитория": { ожидание: { cmd: null } },
+    "работа с файлами": { ожидание: { cmd: null } },
+    "просмотр изменений": { ожидание: { cmd: null } },
+    "управление историей": { ожидание: { cmd: null } },
+    "удалённая работа": { ожидание: { cmd: null } },
     "рабочие деревья": { ожидание: { cmd: null } },
-    запас: { ожидание: { cmd: null } },
-    субмодуль: { ожидание: { cmd: null } },
-    конфигурация: { ожидание: { cmd: null } },
-    водопровод: { ожидание: { cmd: null } },
+    "отложенные изменения": { ожидание: { cmd: null } },
+    "управление субмодулями": { ожидание: { cmd: null } },
+    "конфигурация git": { ожидание: { cmd: null } },
+    "низкоуровневые команды": { ожидание: { cmd: null } },
   })
   .core(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({
     render: ({ state, html }) => html`
-      ${state === "начало" && html`<meta-for src="zavx0z/start"></meta-for>`}
-      ${state === "работа" && html`<meta-for src="zavx0z/work"></meta-for>`}
-      ${state === "просмотр" && html`<meta-for src="zavx0z/examine"></meta-for>`}
-      ${state === "история" && html`<meta-for src="zavx0z/history"></meta-for>`}
-      ${state === "совместная" && html`<meta-for src="zavx0z/collaborate"></meta-for>`}
+      ${state === "инициализация репозитория" && html`<meta-for src="zavx0z/start"></meta-for>`}
+      ${state === "работа с файлами" && html`<meta-for src="zavx0z/work"></meta-for>`}
+      ${state === "просмотр изменений" && html`<meta-for src="zavx0z/examine"></meta-for>`}
+      ${state === "управление историей" && html`<meta-for src="zavx0z/history"></meta-for>`}
+      ${state === "удалённая работа" && html`<meta-for src="zavx0z/collaborate"></meta-for>`}
       ${state === "рабочие деревья" && html`<meta-for src="zavx0z/worktree"></meta-for>`}
-      ${state === "запас" && html`<meta-for src="zavx0z/stash"></meta-for>`}
-      ${state === "субмодуль" && html`<meta-for src="zavx0z/submodule"></meta-for>`}
-      ${state === "конфигурация" && html`<meta-for src="zavx0z/config"></meta-for>`}
-      ${state === "водопровод" && html`<meta-for src="zavx0z/plumbing"></meta-for>`}
+      ${state === "отложенные изменения" && html`<meta-for src="zavx0z/stash"></meta-for>`}
+      ${state === "управление субмодулями" && html`<meta-for src="zavx0z/submodule"></meta-for>`}
+      ${state === "конфигурация git" && html`<meta-for src="zavx0z/config"></meta-for>`}
+      ${state === "низкоуровневые команды" && html`<meta-for src="zavx0z/plumbing"></meta-for>`}
     `,
   })
