@@ -106,6 +106,19 @@ export default MetaFor("<name>")
 }))
 ```
 
+**Типизация возвращаемого значения:**
+
+```typescript
+// ✅ Через NonNullable<typeof context.field>
+.action(({ context }) => {
+  const group = getGroup(core.command)
+  return { group: group as NonNullable<typeof context.group> }
+})
+
+// ❌ Не хардкодить строковый литерал
+return { group: group as "start" | "work" | "examine" }
+```
+
 Если процессов нет:
 
 ```typescript
@@ -181,6 +194,45 @@ export default MetaFor("git")
 4. Импорт: `import "@metafor/meta"`
 5. View: только `<meta-for>` для иерархии акторов
 6. Цепочка: все методы обязательны (даже пустые)
+7. **Весь код внутри MetaFor** — никаких внешних функций/констант
+
+---
+
+## Весь код внутри MetaFor
+
+**Нельзя:**
+
+```typescript
+// ❌ Вне MetaFor
+const PATTERNS = { start: /^(clone|init)$/ }
+function getGroup(cmd) { ... }
+
+export default MetaFor("git")...
+```
+
+**Можно:**
+
+```typescript
+// ✅ Всё внутри .core()
+export default MetaFor("git")
+  .core({
+    patterns: {
+      start: /^(clone|init)$/,
+      work: /^(add|mv|restore)$/,
+    },
+  })
+  .processes((process) => ({
+    ожидание: process()
+      .action(({ core }) => {
+        // Используем core.patterns внутри
+        for (const [key, regex] of Object.entries(core.patterns)) {
+          if (regex.test(core.command)) return { group: key }
+        }
+      })
+  }))
+```
+
+**Правило:** Все данные, функции, паттерны — только внутри `.core()`, `.processes()`, `.context()`.
 
 ---
 

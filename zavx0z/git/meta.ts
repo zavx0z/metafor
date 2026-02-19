@@ -2,46 +2,75 @@ import "@metafor/meta"
 
 export default MetaFor("git")
   .context((t) => ({
-    cmd: t.string.optional({ label: "Текущая команда git" }),
+    group: t.enum(
+      "start",
+      "work",
+      "examine",
+      "history",
+      "collaborate",
+      "worktree",
+      "stash",
+      "submodule",
+      "config",
+      "plumbing",
+    ).optional({ label: "Группа команд git" }),
   }))
   .states({
-    ожидание: {
-      "инициализация репозитория": { cmd: { startsWith: "clone" } },
-      "работа с файлами": { cmd: { startsWith: "add" } },
-      "просмотр изменений": { cmd: { startsWith: "show" } },
-      "управление историей": { cmd: { startsWith: "switch" } },
-      "удалённая работа": { cmd: { startsWith: "fetch" } },
-      "рабочие деревья": { cmd: { startsWith: "worktree" } },
-      "отложенные изменения": { cmd: { startsWith: "stash" } },
-      "управление субмодулями": { cmd: { startsWith: "submodule" } },
-      "конфигурация git": { cmd: { startsWith: "config" } },
-      "низкоуровневые команды": { cmd: { startsWith: "cat-file" } },
-    },
-    "инициализация репозитория": { ожидание: { cmd: null } },
-    "работа с файлами": { ожидание: { cmd: null } },
-    "просмотр изменений": { ожидание: { cmd: null } },
-    "управление историей": { ожидание: { cmd: null } },
-    "удалённая работа": { ожидание: { cmd: null } },
-    "рабочие деревья": { ожидание: { cmd: null } },
-    "отложенные изменения": { ожидание: { cmd: null } },
-    "управление субмодулями": { ожидание: { cmd: null } },
-    "конфигурация git": { ожидание: { cmd: null } },
-    "низкоуровневые команды": { ожидание: { cmd: null } },
+    idle: { active: {} },
+    active: { idle: { group: null } },
   })
-  .core(() => ({}))
-  .processes(() => ({}))
+  .core({
+    command: "" as string,
+    args: [] as string[],
+    patterns: {
+      start: /^(clone|init)$/,
+      work: /^(add|mv|restore|rm|clean|sparse-checkout)$/,
+      examine: /^(show|status|diff|log|range-diff|shortlog|describe)$/,
+      history: /^(switch|checkout|commit|reset|revert|bisect|repair)$/,
+      collaborate: /^(fetch|pull|push|remote)$/,
+      worktree: /^worktree$/,
+      stash: /^stash$/,
+      submodule: /^submodule$/,
+      config: /^(config|help)$/,
+    } as Record<string, RegExp>,
+  })
+  .processes((process) => ({
+    idle: process()
+      .action(({ core, context }) => {
+        const cmd = core.command
+        const patterns = core.patterns
+        let group: string | null = null
+        for (const [key, regex] of Object.entries(patterns)) {
+          if (regex.test(cmd)) {
+            group = key
+            break
+          }
+        }
+        if (!group) {
+          group = "plumbing"
+        }
+        return { group: group as NonNullable<typeof context.group> }
+      })
+      .success(({ update, data }) => {
+        update({ group: data.group })
+      })
+      .error(({ update, error }) => {
+        update({ group: null })
+        console.error(error)
+      }),
+  }))
   .reactions(() => [])
   .view({
-    render: ({ state, html }) => html`
-      ${state === "инициализация репозитория" && html`<meta-for src="zavx0z/start"></meta-for>`}
-      ${state === "работа с файлами" && html`<meta-for src="zavx0z/work"></meta-for>`}
-      ${state === "просмотр изменений" && html`<meta-for src="zavx0z/examine"></meta-for>`}
-      ${state === "управление историей" && html`<meta-for src="zavx0z/history"></meta-for>`}
-      ${state === "удалённая работа" && html`<meta-for src="zavx0z/collaborate"></meta-for>`}
-      ${state === "рабочие деревья" && html`<meta-for src="zavx0z/worktree"></meta-for>`}
-      ${state === "отложенные изменения" && html`<meta-for src="zavx0z/stash"></meta-for>`}
-      ${state === "управление субмодулями" && html`<meta-for src="zavx0z/submodule"></meta-for>`}
-      ${state === "конфигурация git" && html`<meta-for src="zavx0z/config"></meta-for>`}
-      ${state === "низкоуровневые команды" && html`<meta-for src="zavx0z/plumbing"></meta-for>`}
+    render: ({ context, html }) => html`
+      ${context.group === "start" && html`<meta-for src="zavx0z/start"></meta-for>`}
+      ${context.group === "work" && html`<meta-for src="zavx0z/work"></meta-for>`}
+      ${context.group === "examine" && html`<meta-for src="zavx0z/examine"></meta-for>`}
+      ${context.group === "history" && html`<meta-for src="zavx0z/history"></meta-for>`}
+      ${context.group === "collaborate" && html`<meta-for src="zavx0z/collaborate"></meta-for>`}
+      ${context.group === "worktree" && html`<meta-for src="zavx0z/worktree"></meta-for>`}
+      ${context.group === "stash" && html`<meta-for src="zavx0z/stash"></meta-for>`}
+      ${context.group === "submodule" && html`<meta-for src="zavx0z/submodule"></meta-for>`}
+      ${context.group === "config" && html`<meta-for src="zavx0z/config"></meta-for>`}
+      ${context.group === "plumbing" && html`<meta-for src="zavx0z/plumbing"></meta-for>`}
     `,
   })
