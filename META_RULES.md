@@ -238,12 +238,12 @@ return { group: group as "start" | "work" | "examine" }
   render: ({ context, html }) => html`
     ${context.operation && html`
       <meta-for
-        src="zavx0z/${context.operation}"
+        src="zavx0z/git-${context.operation}"
         context=${{ command: context.command, args: context.args }} />
     `}
     ${context.error && html`
       <meta-for
-        src="zavx0z/error"
+        src="zavx0z/git-error"
         context=${{ message: context.error }} />
     `}
   `,
@@ -257,6 +257,7 @@ return { group: group as "start" | "work" | "examine" }
 - Контекст передаётся через атрибут `context={{ ... }}`
 - Если context === null, ничего не рендерится
 - Ошибки отображаются через отдельный актор
+- Пути динамические: `src="zavx0z/git-${context.operation}"`
 
 ---
 
@@ -317,10 +318,10 @@ export default MetaFor("git")
   .view({
     render: ({ context, html }) => html`
       ${context.operation && html`
-        <meta-for src="zavx0z/${context.operation}" context=${{ command: context.command }} />
+        <meta-for src="zavx0z/git-${context.operation}" context=${{ command: context.command }} />
       `}
       ${context.error && html`
-        <meta-for src="zavx0z/error" context=${{ message: context.error }} />
+        <meta-for src="zavx0z/git-error" context=${{ message: context.error }} />
       `}
     `,
   })
@@ -387,20 +388,31 @@ export default MetaFor("git")
 
 ## Репозитории и субмодули
 
-Каждая мета — отдельное репозиторий. Главное репо содержит субмодули (вложенные мета).
+Каждая мета — отдельное репозиторий на верхнем уровне `zavx0z/`. Главное репо содержит ссылки на другие репо через префиксы.
 
 **Структура:**
 
 ```text
-zavx0z/git/          # главное репо
+zavx0z/git/              # главное репо
   meta.ts
-zavx0z/start/        # субмодуль
+zavx0z/git-start/        # группа start
   meta.ts
-zavx0z/work/         # субмодуль
+zavx0z/git-start-clone/  # команда clone
   meta.ts
-zavx0z/examine/      # субмодуль
+zavx0z/git-start-init/   # команда init
+  meta.ts
+zavx0z/git-work/         # группа work
+  meta.ts
+zavx0z/git-work-add/     # команда add
   meta.ts
 ```
+
+**Преимущества плоской структуры:**
+
+- ✅ Все репо на верхнем уровне — легко найти
+- ✅ Полные имена с префиксами — ясно назначение
+- ✅ Нет вложенности — можно менять состав без изменения иерархии
+- ✅ Префиксы сохраняют группировку — `git-start-*`, `git-work-*`
 
 **Пути в src:**
 
@@ -409,27 +421,67 @@ zavx0z/examine/      # субмодуль
 ```typescript
 .view({
   render: ({ context, html }) => html`
-    ${context.group === "start" && html`<meta-for src="zavx0z/start"></meta-for>`}
-    ${context.group === "work" && html`<meta-for src="zavx0z/work"></meta-for>`}
+    ${context.operation === "start" && html`<meta-for src="zavx0z/git-start" context=${{ command: context.command, args: context.args }} />`}
+    ${context.operation === "work" && html`<meta-for src="zavx0z/git-work" context=${{ command: context.command, args: context.args }} />`}
   `,
 })
 ```
 
-**Главное репо загружает субмодули:**
+**Главное репо загружает группы:**
 
 ```typescript
 // zavx0z/git/meta.ts
 export default MetaFor("git")
   .context((t) => ({
-    group: t.enum("start", "work").optional({ label: "Группа" }),
+    operation: t.enum("start", "work").optional({ label: "Тип операции" }),
+    command: t.string.optional({ label: "Команда" }),
+    args: t.string.optional({ label: "Аргументы" }),
   }))
-  .states({ idle: { selected: {} }, selected: { idle: {} } })
-  .core(() => ({}))
-  .processes(() => ({}))
-  .reactions(() => [])
+  .states({
+    "получение команды": {
+      "определение операции": { command: { null: false } },
+    },
+    "определение операции": {
+      "выполнение": { operation: { null: false } },
+      "ошибка": { error: { null: false } },
+    },
+    "выполнение": {
+      "получение команды": { operation: null },
+    },
+    "ошибка": {
+      "получение команды": { error: null },
+    },
+  })
+  .core({
+    patterns: {
+      start: /^(clone|init)$/,
+      work: /^(add|mv|restore)$/,
+    },
+  })
+  .processes((process) => ({
+    "определение операции": process()
+      .action(({ core, context }) => {
+        const command = context.command?.split(" ")[0]
+        let operation = null
+        for (const [key, regex] of Object.entries(core.patterns)) {
+          if (regex.test(command)) {
+            operation = key
+            break
+          }
+        }
+        if (!operation) throw new Error(`Неизвестная команда: ${command}`)
+        return { operation: operation as NonNullable<typeof context.operation> }
+      })
+      .success(({ update, data }) => update(data))
+      .error(({ update, error }) => update({ error: error.message })),
+    "выполнение": process()
+      .action(() => null)
+      .success(({ update }) => update({ operation: null })),
+  }))
   .view({
     render: ({ context, html }) => html`
-      ${context.group === "start" && html`<meta-for src="zavx0z/start"></meta-for>`}
+      ${context.operation === "start" && html`<meta-for src="zavx0z/git-start" context=${{ command: context.command, args: context.args }} />`}
+      ${context.operation === "work" && html`<meta-for src="zavx0z/git-work" context=${{ command: context.command, args: context.args }} />`}
     `,
   })
 ```

@@ -2,20 +2,18 @@ import "@metafor/meta"
 
 export default MetaFor("git")
   .context((t) => ({
-    operation: t
-      .enum(
-        "start",
-        "work",
-        "examine",
-        "history",
-        "collaborate",
-        "worktree",
-        "stash",
-        "submodule",
-        "config",
-        "plumbing",
-      )
-      .optional({ label: "Тип операции" }),
+    operation: t.enum(
+      "start",
+      "work",
+      "examine",
+      "history",
+      "collaborate",
+      "worktree",
+      "stash",
+      "submodule",
+      "config",
+      "plumbing",
+    ).optional({ label: "Тип операции" }),
     error: t.string.optional({ label: "Ошибка" }),
     command: t.string.optional({ label: "Команда" }),
     args: t.string.optional({ label: "Аргументы" }),
@@ -25,13 +23,13 @@ export default MetaFor("git")
       "определение операции": { command: { null: false } },
     },
     "определение операции": {
-      выполнение: { operation: { null: false } },
-      ошибка: { error: { null: false } },
+      "выполнение": { operation: { null: false } },
+      "ошибка": { error: { null: false } },
     },
-    выполнение: {
+    "выполнение": {
       "получение команды": { operation: null },
     },
-    ошибка: {
+    "ошибка": {
       "получение команды": { error: null },
     },
   })
@@ -51,10 +49,8 @@ export default MetaFor("git")
   .processes((process) => ({
     "определение операции": process()
       .action(({ core, context }) => {
-        if (!context.command) {
-          throw new Error("Команда не указана")
-        }
-        const parts = context.command.split(" ")
+        const cmd = context.command || ""
+        const parts = cmd.split(" ")
         const command = parts[0]
         if (!command) {
           throw new Error("Не удалось извлечь команду")
@@ -75,29 +71,25 @@ export default MetaFor("git")
       })
       .success(({ update, data }) => update(data))
       .error(({ update, error }) => update({ error: error.message })),
-    выполнение: process()
+    "выполнение": process()
       .action(() => null)
       .success(({ update }) => update({ operation: null })),
   }))
   .reactions(() => [])
   .view({
     render: ({ context, html }) => html`
-      ${context.operation &&
-      html`
+      ${context.operation && html`
         <meta-for
-          src="zavx0z/${context.operation}"
+          src="zavx0z/git-${context.operation}"
           context=${{
             command: context.command,
             args: context.args,
           }} />
       `}
-      ${context.error &&
-      html`
+      ${context.error && html`
         <meta-for
-          src="zavx0z/error"
-          context=${{
-            message: context.error,
-          }} />
+          src="zavx0z/git-error"
+          context=${{ message: context.error }} />
       `}
     `,
   })
