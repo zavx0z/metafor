@@ -30,6 +30,9 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
+  "include": [
+    "./zavx0z/**/*"
+  ],
   "exclude": [
     "**/dist-test/*",
     "**/script/**/*",
