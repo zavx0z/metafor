@@ -36,7 +36,7 @@ export default MetaFor("git-examine")
   .processes((process) => ({
     "определение операции": process()
       .action(({ core, context }) => {
-        const command = context.command?.split(" ")[0]
+        const command = context.command
         if (!command) throw new Error("Команда не указана")
         let operation: string | null = null
         for (const [key, regex] of Object.entries(core.patterns)) {

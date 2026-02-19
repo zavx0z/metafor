@@ -2,7 +2,9 @@ import "@metafor/meta"
 
 export default MetaFor("git-history")
   .context((t) => ({
-    operation: t.enum("switch", "checkout", "commit", "reset", "revert", "bisect", "repair").optional({ label: "Тип операции" }),
+    operation: t
+      .enum("switch", "checkout", "commit", "reset", "revert", "bisect", "repair")
+      .optional({ label: "Тип операции" }),
     error: t.string.optional({ label: "Ошибка" }),
     command: t.string.optional({ label: "Команда" }),
     args: t.string.optional({ label: "Аргументы" }),
@@ -12,13 +14,13 @@ export default MetaFor("git-history")
       "определение операции": { command: { null: false } },
     },
     "определение операции": {
-      "выполнение": { operation: { null: false } },
-      "ошибка": { error: { null: false } },
+      выполнение: { operation: { null: false } },
+      ошибка: { error: { null: false } },
     },
-    "выполнение": {
+    выполнение: {
       "получение команды": { operation: null },
     },
-    "ошибка": {
+    ошибка: {
       "получение команды": { error: null },
     },
   })
@@ -36,7 +38,7 @@ export default MetaFor("git-history")
   .processes((process) => ({
     "определение операции": process()
       .action(({ core, context }) => {
-        const command = context.command?.split(" ")[0]
+        const command = context.command
         if (!command) throw new Error("Команда не указана")
         let operation: string | null = null
         for (const [key, regex] of Object.entries(core.patterns)) {
@@ -50,20 +52,27 @@ export default MetaFor("git-history")
       })
       .success(({ update, data }) => update(data))
       .error(({ update, error }) => update({ error: error.message })),
-    "выполнение": process()
+    выполнение: process()
       .action(() => null)
       .success(({ update }) => update({ operation: null })),
   }))
   .reactions(() => [])
   .view({
     render: ({ context, html }) => html`
-      ${context.operation === "switch" && html`<meta-for src="zavx0z/git-history-switch" context=${{ command: context.command, args: context.args }} />`}
-      ${context.operation === "checkout" && html`<meta-for src="zavx0z/git-history-checkout" context=${{ command: context.command, args: context.args }} />`}
-      ${context.operation === "commit" && html`<meta-for src="zavx0z/git-history-commit" context=${{ command: context.command, args: context.args }} />`}
-      ${context.operation === "reset" && html`<meta-for src="zavx0z/git-history-reset" context=${{ command: context.command, args: context.args }} />`}
-      ${context.operation === "revert" && html`<meta-for src="zavx0z/git-history-revert" context=${{ command: context.command, args: context.args }} />`}
-      ${context.operation === "bisect" && html`<meta-for src="zavx0z/git-history-bisect" context=${{ command: context.command, args: context.args }} />`}
-      ${context.operation === "repair" && html`<meta-for src="zavx0z/git-history-repair" context=${{ command: context.command, args: context.args }} />`}
+      ${context.operation === "switch" &&
+      html`<meta-for src="zavx0z/git-history-switch" context=${{ command: context.command, args: context.args }} />`}
+      ${context.operation === "checkout" &&
+      html`<meta-for src="zavx0z/git-history-checkout" context=${{ command: context.command, args: context.args }} />`}
+      ${context.operation === "commit" &&
+      html`<meta-for src="zavx0z/git-history-commit" context=${{ command: context.command, args: context.args }} />`}
+      ${context.operation === "reset" &&
+      html`<meta-for src="zavx0z/git-history-reset" context=${{ command: context.command, args: context.args }} />`}
+      ${context.operation === "revert" &&
+      html`<meta-for src="zavx0z/git-history-revert" context=${{ command: context.command, args: context.args }} />`}
+      ${context.operation === "bisect" &&
+      html`<meta-for src="zavx0z/git-history-bisect" context=${{ command: context.command, args: context.args }} />`}
+      ${context.operation === "repair" &&
+      html`<meta-for src="zavx0z/git-history-repair" context=${{ command: context.command, args: context.args }} />`}
       ${context.error && html`<meta-for src="zavx0z/git-error" context=${{ message: context.error }} />`}
     `,
   })
