@@ -1,6 +1,6 @@
 import "@metafor/meta"
 
-export default MetaFor("git-history-commit")
+export default MetaFor("git-commit")
   .context((t) => ({
     command: t.string.optional({ label: "Команда" }),
     args: t.string.optional({ label: "Аргументы" }),
