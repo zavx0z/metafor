@@ -45,6 +45,9 @@ ${t.helpExamples}
   bun create metafor my-feature
   bun create metafor my-component -d "${t.exampleWithDesc}"
   bun create metafor my-component --dir packages
+
+<name> — имя пакета (обязательно)
+[options] — необязательные опции
 `)
   process.exit(0)
 }
@@ -72,6 +75,9 @@ ${t.helpExamples}
   bun create metafor my-feature
   bun create metafor my-component -d "${t.exampleWithDesc}"
   bun create metafor my-component --dir packages
+
+<name> — имя пакета (обязательно)
+[options] — необязательные опции
 `)
   process.exit(0)
 }
