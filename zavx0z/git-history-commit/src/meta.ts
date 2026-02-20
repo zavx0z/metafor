@@ -278,4 +278,8 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
     "выполнено": destroy(),
   }))
   .reactions(() => [])
-  .view({ render: ({ context }) => null })
+  .view({
+    render: ({ context, html }) => html`
+      ${context.error && html`<div class="error">${context.error}</div>`}
+    `,
+  })

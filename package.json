@@ -10,7 +10,8 @@
     "./atom",
     "./infra/*",
     "./build",
-    "./monad"
+    "./monad",
+    "./zavx0z/*"
   ],
   "devDependencies": {
     "@types/bun": "^1.3.3",

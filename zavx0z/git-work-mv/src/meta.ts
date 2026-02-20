@@ -1,12 +1,15 @@
 import "@metafor/meta"
 
-export default MetaFor("git-work-mv", { desc: "Git mv — перемещение файлов" })
+export default MetaFor("git-work-mv", { desc: "Git work-mv — команда git" })
   .context((t) => ({
-    command: t.string.optional({ label: "Команда" }),
-    args: t.string.optional({ label: "Аргументы" }),
+    error: t.string.optional({ label: "Ошибка" }),
   }))
-  .states({ idle: {} })
+  .states({})
   .core(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
-  .view({ render: ({ context }) => null })
+  .view({
+    render: ({ context, html }) => html`
+      ${context.error && html`<div class="error">${context.error}</div>`}
+    `,
+  })

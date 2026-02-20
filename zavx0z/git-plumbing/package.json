@@ -5,6 +5,13 @@
   "type": "module",
   "private": true,
   "exports": {
-    ".": "./src/meta.ts"
+    ".": "./src/meta.ts",
+    "./monad": "./git-plumbing.json"
+  },
+  "devDependencies": {
+    "@metafor/build": "workspace:*"
+  },
+  "scripts": {
+    "build": "bun ../../build/cli.ts src/meta.ts --out git-plumbing.json"
   }
 }

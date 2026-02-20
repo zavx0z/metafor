@@ -10,6 +10,8 @@ const isWatchMode = args.includes("--watch")
 
 // Извлекаем аргумент --file или используем позиционный аргумент
 let inputFile = "meta.ts"
+let outputFile: string | undefined
+
 const fileArgIndex = args.indexOf("--file")
 if (fileArgIndex !== -1 && args[fileArgIndex + 1]) {
   inputFile = args[fileArgIndex + 1]!
@@ -19,6 +21,12 @@ if (fileArgIndex !== -1 && args[fileArgIndex + 1]) {
   if (positionalArg) {
     inputFile = positionalArg
   }
+}
+
+// Извлекаем аргумент --out для указания выходного файла
+const outArgIndex = args.indexOf("--out")
+if (outArgIndex !== -1 && args[outArgIndex + 1]) {
+  outputFile = args[outArgIndex + 1]!
 }
 
 /**
@@ -42,10 +50,17 @@ async function build() {
       return
     }
 
-    // Формируем путь к выходному файлу (рядом с исходным, с тем же именем, но .json)
-    const inputDir = dirname(inputFilePath)
-    const inputBaseName = basename(inputFilePath, ".ts")
-    const outputPath = join(inputDir, `${inputBaseName}.json`)
+    // Формируем путь к выходному файлу
+    let outputPath: string
+    if (outputFile) {
+      // Если указан --out, используем его относительно cwd
+      outputPath = isAbsolute(outputFile) ? outputFile : join(cwd, outputFile)
+    } else {
+      // Иначе по умолчанию рядом с исходным файлом
+      const inputDir = dirname(inputFilePath)
+      const inputBaseName = basename(inputFilePath, ".ts")
+      outputPath = join(inputDir, `${inputBaseName}.json`)
+    }
 
 
     // Импорт модуля с добавлением временной метки для обхода кэша
