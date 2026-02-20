@@ -29,9 +29,20 @@ async function main() {
   // Если нет аргументов и есть интерактивный терминал — запускаем TUI
   if (args.length === 0 && process.stdin.isTTY) {
     const { spawn } = await import("child_process")
+    const { fileURLToPath } = await import("url")
+    const { dirname } = await import("path")
+    
+    // Путь к директории установленного пакета
+    const __filename = fileURLToPath(import.meta.url)
+    const __dirname = dirname(__filename)
+    
     // Запускаем через тот же рантайм (bun или node)
-    const runtime = process.execArgv.includes("--bun") || typeof Bun !== "undefined" ? "bun" : "node"
-    const tuiPath = runtime === "bun" ? "src/tui/tui.tsx" : "dist/tui.js"
+    const runtime = typeof Bun !== "undefined" ? "bun" : "node"
+    // Путь к TUI относительно установленного пакета
+    const tuiPath = runtime === "bun" 
+      ? `${__dirname}/tui/tui.tsx` 
+      : `${__dirname}/tui.js`
+    
     const child = spawn(runtime, [tuiPath], { stdio: "inherit" })
     child.on("exit", (code) => process.exit(code || 0))
     child.on("error", () => {
