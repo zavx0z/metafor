@@ -3,7 +3,6 @@
 import { mkdirSync, writeFileSync } from "fs"
 import { join } from "path"
 import {
-  getGroupEnum,
   generateMetaTemplate,
   generatePackageJson,
   generateGitignore,
@@ -19,18 +18,17 @@ if (args.includes("--help") || args.includes("-h")) {
 🎨 Create MetaFor Package
 
 Usage:
-  npx create-metafor <name> [options]
-  bunx create-metafor <name> [options]
+  npm create metafor <name> [options]
+  bun create metafor <name> [options]
 
 Options:
-  -n, --name <name>    Имя пакета (например: git-work-add)
+  -n, --name <name>    Имя пакета
   -d, --desc <desc>    Описание пакета
-  --dir <dir>          Директория для создания (по умолчанию: zavx0z)
+  --dir <dir>          Директория для создания (по умолчанию: .)
 
 Examples:
-  npx create-metafor git-work-add
-  npx create-metafor git-work -d "Команды работы с файлами"
-  npx create-metafor my-feature -d "Моя фича"
+  bun create metafor my-feature
+  bun create metafor my-component -d "Мой компонент"
 `)
   process.exit(0)
 }
@@ -45,18 +43,17 @@ if (!nameArg) {
 🎨 Create MetaFor Package
 
 Usage:
-  npx create-metafor <name> [options]
-  bunx create-metafor <name> [options]
+  npm create metafor <name> [options]
+  bun create metafor <name> [options]
 
 Options:
-  -n, --name <name>    Имя пакета (например: git-work-add)
+  -n, --name <name>    Имя пакета
   -d, --desc <desc>    Описание пакета
-  --dir <dir>          Директория для создания (по умолчанию: zavx0z)
+  --dir <dir>          Директория для создания (по умолчанию: .)
 
 Examples:
-  npx create-metafor git-work-add
-  npx create-metafor git-work -d "Команды работы с файлами"
-  npx create-metafor my-feature -d "Моя фича"
+  bun create metafor my-feature
+  bun create metafor my-component -d "Мой компонент"
 `)
   process.exit(0)
 }
@@ -67,9 +64,9 @@ const desc = descIndex !== -1 && args[descIndex + 1]
   : `MetaFor ${nameArg!.replace(/-/g, " ")}`
 
 const dirIndex = args.findIndex((arg) => arg === "--dir")
-const baseDir = dirIndex !== -1 && args[dirIndex + 1] ? args[dirIndex + 1]! : "zavx0z"
+const baseDir = dirIndex !== -1 && args[dirIndex + 1] ? args[dirIndex + 1]! : "."
 
-const packageName = nameArg!.startsWith("git-") ? nameArg! : `git-${nameArg!}`
+const packageName = nameArg!
 const packagePath = join(process.cwd(), baseDir, packageName)
 
 console.log(`\n🎨 Creating MetaFor package: ${packageName}`)
@@ -79,11 +76,8 @@ console.log(`   Path: ${packagePath}\n`)
 // Создание директории
 mkdirSync(`${packagePath}/src`, { recursive: true })
 
-// Генерация enum значений для группы
-const enumValues = getGroupEnum(packageName)
-
-// Генерация meta.ts
-const metaContent = generateMetaTemplate(packageName, desc!, enumValues)
+// Генерация meta.ts (базовый шаблон)
+const metaContent = generateMetaTemplate(packageName, desc!)
 writeFileSync(`${packagePath}/src/meta.ts`, metaContent)
 
 // Генерация package.json

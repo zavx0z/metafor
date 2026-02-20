@@ -1,7 +1,7 @@
 {
   "name": "create-metafor",
   "version": "0.1.0",
-  "description": "Create MetaFor packages — scaffolding tool for MetaFor framework",
+  "description": "Create MetaFor packages — универсальный генератор пакетов для MetaFor framework",
   "type": "module",
   "main": "dist/cli.js",
   "bin": {

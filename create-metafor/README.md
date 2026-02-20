@@ -1,6 +1,6 @@
 # create-metafor
 
-🎨 Scaffolding tool for creating MetaFor packages
+🎨 Универсальный генератор пакетов для MetaFor framework
 
 ## Quick Start
 
@@ -8,69 +8,55 @@
 # Using npm
 npm create metafor my-package
 
-# Using Bun (faster)
-bunx create-metafor my-package
+# Using Bun
+bun create metafor my-package
 ```
 
 ## Usage
 
-### Create a command package
+### Создать пакет
 
 ```bash
-npm create metafor git-work-add
+bun create metafor my-feature
 ```
 
-Creates a simple MetaFor package with error handling template.
-
-### Create a group package
-
-```bash
-npm create metafor git-work -d "Команды работы с файлами"
-```
-
-For known git groups, automatically generates enum with commands:
-
-- `git-start` → clone, init
-- `git-work` → add, mv, restore, rm, clean, sparse-checkout
-- `git-examine` → show, status, diff, log, range-diff, shortlog, describe
-- `git-history` → switch, checkout, commit, reset, revert, bisect, repair
-- `git-collaborate` → fetch, pull, push, remote
-- `git-config` → config, help
+Создаётся пакет с базовым шаблоном для обработки ошибок.
 
 ## Options
 
 | Option | Description | Default |
 |--------|-------------|---------|
-| `-n, --name <name>` | Package name | positional argument |
-| `-d, --desc <desc>` | Package description | "MetaFor {name}" |
-| `--dir <dir>` | Output directory | `zavx0z` |
+| `-n, --name <name>` | Имя пакета | positional argument |
+| `-d, --desc <desc>` | Описание пакета | "MetaFor {name}" |
+| `--dir <dir>` | Директория для создания | `.` |
 
 ## Examples
 
 ```bash
-# Create with custom description
-npm create metafor git-work -d "Work with files"
+# Создать с описанием
+bun create metafor my-feature -d "Моя фича"
 
-# Create in custom directory
-npm create metafor my-feature --dir packages
+# Создать в другой директории
+bun create metafor my-component --dir packages
 
-# Create with full name
-npm create metafor git-work-add -d "Add files to staging"
+# Создать с полным именем
+bun create metafor auth-login -d "Авторизация"
 ```
 
 ## Generated Structure
 
 ```
-zavx0z/git-work-add/
+my-package/
 ├── src/
-│   └── meta.ts          # MetaFor component
-├── package.json         # Package configuration
-└── index.html          # HTML template
+│   └── meta.ts          # MetaFor компонент
+├── package.json         # Конфигурация пакета
+├── .gitignore          # Git ignore
+└── index.html          # HTML шаблон
 ```
 
 ## Requirements
 
-- Node.js >= 18 or Bun >= 1.0.0
+- Node.js >= 18 или Bun >= 1.0.0
 
 ## License
 
