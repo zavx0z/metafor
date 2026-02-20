@@ -100,40 +100,32 @@ export default function Form({ onSubmit }: Props) {
         if (selectedButton === "update") {
           setIsUpdating(true)
           setShowUpdateModal(false)
-          // Запускаем обновление с очисткой кэша npm
-          const npxCache = `${os.homedir()}/.npm/_npx`
-          
-          // Очищаем кэш npm полностью
-          const cleanCache = spawn("npm", ["cache", "clean", "--force"], {
-            stdio: "ignore",
+          // Запускаем обновление
+          setIsUpdating(true)
+          setShowUpdateModal(false)
+
+          const child = spawn("npm", ["install", "-g", "create-metafor@latest"], {
+            stdio: "pipe",
           })
-          
-          cleanCache.on("close", () => {
-            // Потом устанавливаем новую версию
-            const child = spawn("npm", [
-              "install",
-              "-g",
-              "--force",
-              "create-metafor@latest",
-            ], {
-              stdio: "pipe",
-            })
-            
-            child.on("close", (code: number) => {
-              if (code === 0) {
-                // Перезапускаем TUI с флагом что только что обновились
-                const restart = spawn(process.argv[0], [process.argv[1]], {
-                  stdio: "inherit",
-                  env: { ...process.env, CREATE_METAFOR_JUST_UPDATED: "true" },
-                })
-                restart.on("close", () => exitApp())
-              } else {
-                // Ошибка обновления
-                setIsUpdating(false)
-                setUpdateError("Не удалось обновить. Попробуйте позже.")
-                setShowUpdateModal(true)
-              }
-            })
+
+          child.on("error", (err: any) => {
+            setIsUpdating(false)
+            setUpdateError(`Не удалось запустить npm: ${err.message}. Установите npm или обновите вручную: npm install -g create-metafor@latest`)
+            setShowUpdateModal(true)
+          })
+
+          child.on("close", (code: number) => {
+            setIsUpdating(false)
+            if (code === 0) {
+              // Успешно обновлено
+              setUpdateError(null) // очистим, если было
+              // Выводим сообщение и выходим
+              console.log("\n✅ Обновление выполнено! Пожалуйста, запустите команду снова.\n")
+              process.exit(0)
+            } else {
+              setUpdateError(`Не удалось обновить (код ${code}). Попробуйте вручную: npm install -g create-metafor@latest`)
+              setShowUpdateModal(true)
+            }
           })
         } else {
           setShowUpdateModal(false)
