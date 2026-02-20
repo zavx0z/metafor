@@ -7,28 +7,41 @@ import {
   generatePackageJson,
   generateGitignore,
   generateIndexHtml,
+  getI18n,
+  detectLanguage,
+  type Lang,
 } from "../templates/index.ts"
 
 // Парсинг аргументов
 const args = process.argv.slice(2)
 
+// Обработка --lang
+const langIndex = args.findIndex((arg) => arg === "--lang" || arg === "-l")
+const userLang: Lang | undefined = langIndex !== -1 && args[langIndex + 1]
+  ? (args[langIndex + 1] as Lang)
+  : undefined
+const lang: Lang = userLang || detectLanguage()
+const t = getI18n(lang)
+
 // Обработка --help
 if (args.includes("--help") || args.includes("-h")) {
   console.log(`
-🎨 Create MetaFor Package
+${t.helpTitle}
 
-Usage:
+${t.helpUsage}
   npm create metafor <name> [options]
   bun create metafor <name> [options]
 
-Options:
-  -n, --name <name>    Имя пакета
-  -d, --desc <desc>    Описание пакета
-  --dir <dir>          Директория для создания (по умолчанию: .)
+${t.helpOptions}
+  -n, --name <name>    ${t.optionName}
+  -d, --desc <desc>    ${t.optionDesc}
+  --dir <dir>          ${t.optionDir} (${t.defaultDesc}: .)
+  -l, --lang <lang>    ${t.optionLang}
 
-Examples:
+${t.helpExamples}
   bun create metafor my-feature
-  bun create metafor my-component -d "Мой компонент"
+  bun create metafor my-component -d "${t.exampleWithDesc}"
+  bun create metafor my-component --dir packages
 `)
   process.exit(0)
 }
@@ -40,20 +53,22 @@ const nameArg = nameIndex !== -1 && args[nameIndex + 1]
 
 if (!nameArg) {
   console.log(`
-🎨 Create MetaFor Package
+${t.helpTitle}
 
-Usage:
+${t.helpUsage}
   npm create metafor <name> [options]
   bun create metafor <name> [options]
 
-Options:
-  -n, --name <name>    Имя пакета
-  -d, --desc <desc>    Описание пакета
-  --dir <dir>          Директория для создания (по умолчанию: .)
+${t.helpOptions}
+  -n, --name <name>    ${t.optionName}
+  -d, --desc <desc>    ${t.optionDesc}
+  --dir <dir>          ${t.optionDir} (${t.defaultDesc}: .)
+  -l, --lang <lang>    ${t.optionLang}
 
-Examples:
+${t.helpExamples}
   bun create metafor my-feature
-  bun create metafor my-component -d "Мой компонент"
+  bun create metafor my-component -d "${t.exampleWithDesc}"
+  bun create metafor my-component --dir packages
 `)
   process.exit(0)
 }
@@ -61,7 +76,7 @@ Examples:
 const descIndex = args.findIndex((arg) => arg === "--desc" || arg === "-d")
 const desc = descIndex !== -1 && args[descIndex + 1]
   ? args[descIndex + 1]
-  : `MetaFor ${nameArg!.replace(/-/g, " ")}`
+  : `${t.defaultDesc} ${nameArg!.replace(/-/g, " ")}`
 
 const dirIndex = args.findIndex((arg) => arg === "--dir")
 const baseDir = dirIndex !== -1 && args[dirIndex + 1] ? args[dirIndex + 1]! : "."
@@ -69,15 +84,15 @@ const baseDir = dirIndex !== -1 && args[dirIndex + 1] ? args[dirIndex + 1]! : ".
 const packageName = nameArg!
 const packagePath = join(process.cwd(), baseDir, packageName)
 
-console.log(`\n🎨 Creating MetaFor package: ${packageName}`)
-console.log(`   Description: ${desc}`)
-console.log(`   Path: ${packagePath}\n`)
+console.log(`\n${t.creating} ${packageName}`)
+console.log(`   ${t.description} ${desc}`)
+console.log(`   ${t.path} ${packagePath}\n`)
 
 // Создание директории
 mkdirSync(`${packagePath}/src`, { recursive: true })
 
-// Генерация meta.ts (базовый шаблон)
-const metaContent = generateMetaTemplate(packageName, desc!)
+// Генерация meta.ts
+const metaContent = generateMetaTemplate(packageName, desc!, t.errorLabel)
 writeFileSync(`${packagePath}/src/meta.ts`, metaContent)
 
 // Генерация package.json
@@ -92,8 +107,8 @@ writeFileSync(`${packagePath}/.gitignore`, gitignore)
 const indexHtml = generateIndexHtml(packageName, desc!)
 writeFileSync(`${packagePath}/index.html`, indexHtml)
 
-console.log(`✅ Created ${packageName}`)
+console.log(`${t.created} ${packageName}`)
 console.log(`   📄 ${packagePath}/src/meta.ts`)
 console.log(`   📄 ${packagePath}/package.json`)
 console.log(`   📄 ${packagePath}/index.html`)
-console.log(`\n📦 To build: cd ${packagePath} && bun run build\n`)
+console.log(`\n${t.toBuild} cd ${packagePath} && bun run build\n`)

@@ -29,6 +29,7 @@ bun create metafor my-feature
 | `-n, --name <name>` | Имя пакета | positional argument |
 | `-d, --desc <desc>` | Описание пакета | "MetaFor {name}" |
 | `--dir <dir>` | Директория для создания | `.` |
+| `-l, --lang <lang>` | Язык вывода (ru\|en) | автодетект |
 
 ## Examples
 
@@ -41,6 +42,9 @@ bun create metafor my-component --dir packages
 
 # Создать с полным именем
 bun create metafor auth-login -d "Авторизация"
+
+# Принудительно английский язык
+bun create metafor auth-login -l en
 ```
 
 ## Generated Structure
