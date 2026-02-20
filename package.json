@@ -11,6 +11,7 @@
     "./infra/*",
     "./build",
     "./monad",
+    "./create-metafor",
     "./zavx0z/*"
   ],
   "devDependencies": {

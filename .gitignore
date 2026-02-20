@@ -12,3 +12,4 @@ docs
 *.db*
 .meta-modcache
 .quoder
+.npmrc

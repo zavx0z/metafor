@@ -15,7 +15,6 @@
         ".venv": true,
         ".idea": true,
         ".firebase": true,
-        ".github": true,
         ".windsurf": true,
         ".vscode": true,
         ".qoder": true
@@ -23,7 +22,6 @@
     "hide-files.files": [
         ".idea",
         ".firebase",
-        ".github",
         ".windsurf",
         ".vscode",
         ".qoder"

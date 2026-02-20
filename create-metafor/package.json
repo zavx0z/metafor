@@ -1,0 +1,36 @@
+{
+  "name": "create-metafor",
+  "version": "0.1.0",
+  "description": "Create MetaFor packages — scaffolding tool for MetaFor framework",
+  "type": "module",
+  "main": "dist/cli.js",
+  "bin": {
+    "create-metafor": "dist/cli.js"
+  },
+  "files": [
+    "dist"
+  ],
+  "engines": {
+    "node": ">=18",
+    "bun": ">=1.0.0"
+  },
+  "keywords": [
+    "metafor",
+    "scaffold",
+    "template",
+    "generator",
+    "create"
+  ],
+  "author": "zavx0z",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/zavx0z/metafor.git",
+    "directory": "create-metafor"
+  },
+  "scripts": {
+    "build": "bun build src/cli.ts --outdir dist --target node --minify",
+    "prepublishOnly": "bun run build",
+    "start": "bun src/cli.ts"
+  }
+}
