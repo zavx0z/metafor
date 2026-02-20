@@ -2,6 +2,7 @@
 
 import { mkdirSync, writeFileSync } from "fs"
 import { join } from "path"
+import { execSync } from "child_process"
 import {
   getI18n,
   detectLanguage,
@@ -118,10 +119,21 @@ writeFileSync(`${packagePath}/.gitignore`, gitignore)
 const indexHtml = generateIndexHtmlFile(packageName, desc!, t.htmlLang)
 writeFileSync(`${packagePath}/index.html`, indexHtml)
 
+// Инициализация git репозитория
+try {
+  execSync("git init", { cwd: packagePath, stdio: "ignore" })
+  execSync("git add .", { cwd: packagePath, stdio: "ignore" })
+  execSync('git commit -m "Initial commit"', { cwd: packagePath, stdio: "ignore" })
+} catch {
+  // Игнорируем ошибки git
+}
+
 console.log(`${t.created} ${packageName}`)
 console.log(`   📄 ${packagePath}/src/meta.ts`)
 console.log(`   📄 ${packagePath}/package.json`)
 console.log(`   📄 ${packagePath}/index.html`)
+console.log(`   📄 ${packagePath}/.gitignore`)
+console.log(`   📂 ${packagePath}/.git/`)
 console.log(`\n${t.toBuild} cd ${packagePath} && bun run build\n`)
 }
 
