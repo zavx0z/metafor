@@ -12,7 +12,7 @@ import {
 import { useCursor, useScreenSize, useCleanup, useVersionCheck } from "../hooks"
 import type { Field, View, MenuItem } from "../types"
 import packageJson from "../../../package.json"
-import { runSelfUpdate } from "../../update"
+import { runSelfUpdate, restartCurrentProcess } from "../../update"
 
 interface Props {
   onSubmit: (name: string, description: string, dir: string) => void
@@ -104,7 +104,10 @@ export default function Form({ onSubmit }: Props) {
             setIsUpdating(false)
             if (result.ok) {
               setUpdateError(null)
-              console.log("\n✅ Обновление выполнено. Кеш npx очищен, перезапустите команду.\n")
+              const restarted = restartCurrentProcess()
+              if (!restarted) {
+                console.log("\n✅ Обновление выполнено. Кеш npx очищен, перезапустите команду вручную.\n")
+              }
               process.exit(0)
             } else {
               setUpdateError(`Не удалось обновить (${result.error}). Попробуйте вручную: ${result.command.label}`)

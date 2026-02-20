@@ -11,6 +11,11 @@ export interface UpdateCommand {
   label: string
 }
 
+export interface RestartCommand {
+  command: string
+  args: string[]
+}
+
 export function getSelfUpdateCommand(userAgent = process.env.npm_config_user_agent || ""): UpdateCommand {
   const ua = userAgent.toLowerCase()
 
@@ -81,4 +86,38 @@ export async function runSelfUpdate(): Promise<{ ok: boolean, error?: string, co
       })
     })
   })
+}
+
+export function getRestartCommand(argv = process.argv): RestartCommand {
+  if (argv.length <= 1) {
+    return {
+      command: process.execPath,
+      args: [],
+    }
+  }
+
+  return {
+    command: process.execPath,
+    args: argv.slice(1),
+  }
+}
+
+export function restartCurrentProcess(argv = process.argv): boolean {
+  const restartCommand = getRestartCommand(argv)
+
+  try {
+    const child = spawn(restartCommand.command, restartCommand.args, {
+      stdio: "inherit",
+      detached: true,
+      env: {
+        ...process.env,
+        CREATE_METAFOR_JUST_UPDATED: "true",
+      },
+    })
+
+    child.unref()
+    return true
+  } catch {
+    return false
+  }
 }

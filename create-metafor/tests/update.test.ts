@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { getSelfUpdateCommand } from "../src/update"
+import { getRestartCommand, getSelfUpdateCommand } from "../src/update"
 
 describe("getSelfUpdateCommand", () => {
   test("uses bun for bun user agent", () => {
@@ -17,5 +17,19 @@ describe("getSelfUpdateCommand", () => {
     const result = getSelfUpdateCommand("npm/10.0.0")
     expect(result.command).toBe("npm")
     expect(result.args).toContain("--force")
+  })
+})
+
+describe("getRestartCommand", () => {
+  test("restarts current script with passed args", () => {
+    const result = getRestartCommand(["node", "/tmp/dist/tui.js", "--foo"])
+    expect(result.command).toBe(process.execPath)
+    expect(result.args).toEqual(["/tmp/dist/tui.js", "--foo"])
+  })
+
+  test("returns only executable when argv has no script", () => {
+    const result = getRestartCommand(["node"])
+    expect(result.command).toBe(process.execPath)
+    expect(result.args).toEqual([])
   })
 })
