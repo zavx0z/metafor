@@ -36,9 +36,13 @@ export function generateMetaFile(name: string, description: string, errorLabel: 
 /**
  * Сгенерировать package.json
  */
-export function generatePackageJsonFile(name: string, description: string): string {
+export function generatePackageJsonFile(
+  name: string,
+  description: string,
+  author: string
+): string {
   const template = loadTemplate("package.json")
-  return render(template, { name, description })
+  return render(template, { name, description, author })
 }
 
 /**
@@ -46,6 +50,18 @@ export function generatePackageJsonFile(name: string, description: string): stri
  */
 export function generateGitignoreFile(): string {
   return loadTemplate("gitignore")
+}
+
+/**
+ * Экранирование HTML для безопасности
+ */
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;")
 }
 
 /**
@@ -57,5 +73,5 @@ export function generateIndexHtmlFile(
   htmlLang: string
 ): string {
   const template = loadTemplate("index.html")
-  return render(template, { name, description, lang: htmlLang })
+  return render(template, { name, description: escapeHtml(description), lang: htmlLang })
 }

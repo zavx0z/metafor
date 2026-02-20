@@ -2,7 +2,6 @@
 
 import { mkdirSync, writeFileSync } from "fs"
 import { join } from "path"
-import { execSync } from "child_process"
 import {
   getI18n,
   detectLanguage,
@@ -14,6 +13,14 @@ import {
   generateGitignoreFile,
   generateIndexHtmlFile,
 } from "./generators.ts"
+import {
+  isGitInstalled,
+  getGitUserName,
+  getGitUserEmail,
+  initGitRepo,
+  gitAddAll,
+  gitCommit,
+} from "./git.ts"
 
 async function main() {
   // Парсинг аргументов
@@ -108,7 +115,8 @@ const metaContent = generateMetaFile(packageName, desc!, t.errorLabel)
 writeFileSync(`${packagePath}/src/meta.ts`, metaContent)
 
 // Генерация package.json
-const packageJson = generatePackageJsonFile(packageName, desc!)
+const author = getGitUserName() || "unknown"
+const packageJson = generatePackageJsonFile(packageName, desc!, author)
 writeFileSync(`${packagePath}/package.json`, packageJson)
 
 // Генерация .gitignore
@@ -120,12 +128,10 @@ const indexHtml = generateIndexHtmlFile(packageName, desc!, t.htmlLang)
 writeFileSync(`${packagePath}/index.html`, indexHtml)
 
 // Инициализация git репозитория
-try {
-  execSync("git init", { cwd: packagePath, stdio: "ignore" })
-  execSync("git add .", { cwd: packagePath, stdio: "ignore" })
-  execSync('git commit -m "Initial commit"', { cwd: packagePath, stdio: "ignore" })
-} catch {
-  // Игнорируем ошибки git
+if (isGitInstalled()) {
+  initGitRepo(packagePath)
+  gitAddAll(packagePath)
+  gitCommit(packagePath, "Initial commit")
 }
 
 console.log(`${t.created} ${packageName}`)
@@ -133,7 +139,9 @@ console.log(`   📄 ${packagePath}/src/meta.ts`)
 console.log(`   📄 ${packagePath}/package.json`)
 console.log(`   📄 ${packagePath}/index.html`)
 console.log(`   📄 ${packagePath}/.gitignore`)
-console.log(`   📂 ${packagePath}/.git/`)
+if (isGitInstalled()) {
+  console.log(`   📂 ${packagePath}/.git/`)
+}
 console.log(`\n${t.toBuild} cd ${packagePath} && bun run build\n`)
 }
 

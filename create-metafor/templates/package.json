@@ -2,6 +2,7 @@
   "name": "@zavx0z/{{name}}",
   "version": "0.1.0",
   "description": "{{description}}",
+  "author": "{{author}}",
   "type": "module",
   "private": true,
   "exports": {
