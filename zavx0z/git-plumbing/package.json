@@ -9,9 +9,13 @@
     "./monad": "./git-plumbing.json"
   },
   "devDependencies": {
+    "@metafor/meta": "workspace:*",
     "@metafor/build": "workspace:*"
   },
   "scripts": {
-    "build": "bun ../../build/cli.ts src/meta.ts --out git-plumbing.json"
+    "build": "metafor-build src/meta.ts --out git-plumbing.json"
+  },
+  "dependencies": {
+    "@metafor/build": "link:@metafor/build"
   }
 }

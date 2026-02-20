@@ -14,9 +14,10 @@
     "./zavx0z/*"
   ],
   "devDependencies": {
-    "@types/bun": "^1.3.3",
+    "@types/bun": "^1.3.9",
+    "@types/node": "^25.3.0",
     "dts-bundle-generator": "^9.5.1",
-    "typedoc": "^0.28.14",
+    "typedoc": "^0.28.17",
     "typedoc-plugin-merge-modules": "^7.0.0"
   },
   "peerDependencies": {
@@ -24,9 +25,12 @@
   },
   "scripts": {
     "upd": "bun update --latest && bun i",
-    "clear": "bun --filter @metafor/meta clear && bun --filter @metafor/atom clear && bun --filter @metafor/inspect clear && bun --filter @metafor/virtual clear",
-    "typegen": "bun --filter @metafor/meta typegen && bun --filter @metafor/atom typegen && bun --filter @metafor/virtual typegen && bun i && bun --filter @metafor/inspect typegen",
-    "build": "bun --filter @metafor/meta build && bun --filter @metafor/atom build && bun --filter @metafor/virtual build && bun --filter @metafor/inspect build",
-    "space:build": "bun build metafor.ts --outdir ./dist --sourcemap=linked"
+    "clear": "bun run --parallel --filter '*' clear",
+    "typegen": "bun --filter @metafor/meta typegen",
+    "build": "bun --filter @metafor/meta build",
+    "space:build": "bun build metafor.ts --outdir ./dist --sourcemap=linked",
+    "zavx0z:build": "bun run --parallel --filter '@zavx0z/*' build",
+    "zavx0z:watch": "bun run --parallel --filter '@zavx0z/*' build --watch",
+    "zavx0z:clean": "for dir in zavx0z/*/; do rm -f \"$dir\"/git*.json; done"
   }
 }

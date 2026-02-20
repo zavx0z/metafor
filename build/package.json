@@ -1,10 +1,10 @@
 {
   "name": "@metafor/build",
-  "module": "index.ts",
+  "module": "cli.ts",
   "type": "module",
-  "private": true,
-  "devDependencies": {
-    "@types/bun": "latest"
+  "private": false,
+  "bin": {
+    "metafor-build": "./cli.ts"
   },
   "peerDependencies": {
     "typescript": "^5"

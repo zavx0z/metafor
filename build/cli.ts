@@ -1,3 +1,4 @@
+#!/usr/bin/env bun
 import { watch } from "fs"
 import { dirname, basename, join, isAbsolute } from "path"
 import { pathToFileURL } from "url"

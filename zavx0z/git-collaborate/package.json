@@ -9,9 +9,13 @@
     "./monad": "./git-collaborate.json"
   },
   "devDependencies": {
+    "@metafor/meta": "workspace:*",
     "@metafor/build": "workspace:*"
   },
   "scripts": {
-    "build": "bun ../../build/cli.ts src/meta.ts --out git-collaborate.json"
+    "build": "metafor-build src/meta.ts --out git-collaborate.json"
+  },
+  "dependencies": {
+    "@metafor/build": "link:@metafor/build"
   }
 }

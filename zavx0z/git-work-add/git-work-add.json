@@ -1,0 +1,34 @@
+{
+  "name": "git-work-add",
+  "fields": {
+    "error": {
+      "type": "string",
+      "label": "Ошибка"
+    }
+  },
+  "superposition": {},
+  "processes": {},
+  "view": {
+    "render": [
+      {
+        "type": "log",
+        "data": "/context/error",
+        "child": [
+          {
+            "tag": "div",
+            "type": "el",
+            "child": [
+              {
+                "type": "text",
+                "data": "/context/error"
+              }
+            ],
+            "string": {
+              "class": "error"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

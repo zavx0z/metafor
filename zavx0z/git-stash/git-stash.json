@@ -1,0 +1,42 @@
+{
+  "name": "git-stash",
+  "fields": {
+    "operation": {
+      "type": "enum<string>",
+      "label": "Тип операции",
+      "values": [
+        "stash"
+      ]
+    },
+    "args": {
+      "type": "string",
+      "label": "Аргументы"
+    }
+  },
+  "superposition": {},
+  "processes": {},
+  "view": {
+    "render": [
+      {
+        "type": "log",
+        "data": "/context/operation",
+        "child": [
+          {
+            "tag": "meta-for",
+            "type": "meta",
+            "string": {
+              "src": {
+                "data": "/context/operation",
+                "expr": "zavx0z/git-stash-${_[0]}"
+              }
+            },
+            "context": {
+              "data": "/context/args",
+              "expr": "{ args: _[0] }"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

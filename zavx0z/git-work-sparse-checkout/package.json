@@ -9,9 +9,12 @@
     "./monad": "./git-work-sparse-checkout.json"
   },
   "devDependencies": {
-    "@metafor/build": "workspace:*"
+    "@metafor/meta": "workspace:*"
   },
   "scripts": {
-    "build": "bun ../../build/cli.ts src/meta.ts --out git-work-sparse-checkout.json"
+    "build": "metafor-build src/meta.ts --out git-work-sparse-checkout.json"
+  },
+  "dependencies": {
+    "@metafor/build": "link:@metafor/build"
   }
 }

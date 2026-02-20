@@ -1,0 +1,42 @@
+{
+  "name": "git-submodule",
+  "fields": {
+    "operation": {
+      "type": "enum<string>",
+      "label": "Тип операции",
+      "values": [
+        "submodule"
+      ]
+    },
+    "args": {
+      "type": "string",
+      "label": "Аргументы"
+    }
+  },
+  "superposition": {},
+  "processes": {},
+  "view": {
+    "render": [
+      {
+        "type": "log",
+        "data": "/context/operation",
+        "child": [
+          {
+            "tag": "meta-for",
+            "type": "meta",
+            "string": {
+              "src": {
+                "data": "/context/operation",
+                "expr": "zavx0z/git-submodule-${_[0]}"
+              }
+            },
+            "context": {
+              "data": "/context/args",
+              "expr": "{ args: _[0] }"
+            }
+          }
+        ]
+      }
+    ]
+  }
+}
