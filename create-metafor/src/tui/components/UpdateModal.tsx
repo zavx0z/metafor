@@ -14,10 +14,10 @@ export function UpdateModal({ currentVersion, latestVersion, selectedButton }: U
       borderStyle="round"
       borderColor="yellow"
       padding={1}
-      width={50}
+      width={52}
     >
       <Box justifyContent="center" marginBottom={1}>
-        <Text bold color="yellow">⚠️ Доступно обновление</Text>
+        <Text bold color="yellow">Доступно обновление</Text>
       </Box>
 
       <Box marginBottom={1}>

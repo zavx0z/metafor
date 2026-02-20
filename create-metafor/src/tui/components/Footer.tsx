@@ -12,10 +12,10 @@ export function Footer() {
         <Text dimColor>v{packageJson.version}</Text>
         {isLoading && <Text dimColor> ⠋</Text>}
         {!isLoading && latestVersion && latestVersion === packageJson.version && (
-          <Text dimColor> ✓ latest</Text>
+          <Text color="green"> ✓</Text>
         )}
         {!isLoading && hasUpdate && (
-          <Text color="yellow"> ⚠ update: v{latestVersion}</Text>
+          <Text color="yellow"> ↻</Text>
         )}
       </Box>
       <Text dimColor>Esc — выход | ? — помощь | / — меню</Text>

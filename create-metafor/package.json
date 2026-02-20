@@ -1,6 +1,6 @@
 {
   "name": "create-metafor",
-  "version": "0.2.10",
+  "version": "0.2.21",
   "author": "zavx0z",
   "repository": {
     "type": "git",
@@ -30,7 +30,7 @@
   "license": "MIT",
   "scripts": {
     "build": "bun scripts/build",
-    "prepublishOnly": "bun run build",
+    "prepublishOnly": "bun run clean && bun run build",
     "pub": "bun publish --access public",
     "pub:patch": "bun pm version patch && bun run pub",
     "pub:minor": "bun pm version minor && bun run pub",
@@ -43,8 +43,7 @@
   "type": "module",
   "dependencies": {
     "ink": "^6.8.0",
-    "react": "^19.2.4",
-    "react-devtools-core": "^7.0.1"
+    "react": "^19.2.4"
   },
   "devDependencies": {
     "@types/react": "^19.2.14"

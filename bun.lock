@@ -49,14 +49,13 @@
     },
     "create-metafor": {
       "name": "create-metafor",
-      "version": "0.1.4",
+      "version": "0.2.20",
       "bin": {
         "create-metafor": "dist/cli.js",
       },
       "dependencies": {
         "ink": "^6.8.0",
         "react": "^19.2.4",
-        "react-devtools-core": "^7.0.1",
       },
       "devDependencies": {
         "@types/react": "^19.2.14",

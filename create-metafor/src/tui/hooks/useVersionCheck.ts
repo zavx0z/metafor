@@ -6,12 +6,17 @@ import { dirname, join } from "path"
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-export function useVersionCheck(currentVersion: string) {
+export function useVersionCheck(currentVersion: string, skipCheck = false) {
   const [latestVersion, setLatestVersion] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const [isLoading, setIsLoading] = useState(!skipCheck)
   const [hasUpdate, setHasUpdate] = useState(false)
 
   useEffect(() => {
+    if (skipCheck) {
+      setIsLoading(false)
+      return
+    }
+
     const workerPath = join(__dirname, "workers", "version-checker.js")
     const worker = new Worker(workerPath)
 
@@ -30,7 +35,7 @@ export function useVersionCheck(currentVersion: string) {
     return () => {
       worker.terminate()
     }
-  }, [currentVersion])
+  }, [currentVersion, skipCheck])
 
   return { latestVersion, isLoading, hasUpdate }
 }

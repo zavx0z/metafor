@@ -1,5 +1,7 @@
 import React, { useState, useEffect } from "react"
-import { Box, useInput, useApp } from "ink"
+import { Box, Text, useInput, useApp } from "ink"
+import { spawn } from "child_process"
+import os from "os"
 import {
   Header,
   InputField,
@@ -7,17 +9,21 @@ import {
   HelpList,
   MenuList,
   Footer,
+  UpdateModal,
 } from "./index"
-import { useCursor, useScreenSize, useCleanup } from "../hooks"
+import { useCursor, useScreenSize, useCleanup, useVersionCheck } from "../hooks"
 import type { Field, View, MenuItem } from "../types"
+import packageJson from "../../../package.json"
 
 interface Props {
   onSubmit: (name: string, description: string, dir: string) => void
 }
 
+type UpdateButton = "update" | "later"
+
 export default function Form({ onSubmit }: Props) {
   const { exit: exitApp } = useApp()
-  const { leftWidth, height } = useScreenSize()
+  const { leftWidth, height, width } = useScreenSize()
   useCleanup()
 
   const [field, setField] = useState<Field>("name")
@@ -28,6 +34,29 @@ export default function Form({ onSubmit }: Props) {
   const [view, setView] = useState<View>("input")
   const [selectedItem, setSelectedItem] = useState(0)
   const cursorVisible = useCursor(view)
+
+  // Обновление
+  const justUpdated = process.env.CREATE_METAFOR_JUST_UPDATED === "true"
+  const { latestVersion, isLoading, hasUpdate } = useVersionCheck(packageJson.version, justUpdated)
+  const [showUpdateModal, setShowUpdateModal] = useState(false)
+  const [selectedButton, setSelectedButton] = useState<UpdateButton>("update")
+  const [isUpdating, setIsUpdating] = useState(false)
+  const [updateError, setUpdateError] = useState<string | null>(null)
+
+  // Показываем модальное окно если есть обновление (но не сразу после обновления)
+  useEffect(() => {
+    if (hasUpdate && !showUpdateModal && !isUpdating && !justUpdated) {
+      setShowUpdateModal(true)
+    }
+  }, [hasUpdate])
+
+  // Скрываем ошибку через 5 секунд
+  useEffect(() => {
+    if (updateError) {
+      const timer = setTimeout(() => setUpdateError(null), 5000)
+      return () => clearTimeout(timer)
+    }
+  }, [updateError])
 
   const getHelpItems = (): MenuItem[] => [
     { key: "Enter", label: "далее / пропустить" },
@@ -46,6 +75,82 @@ export default function Form({ onSubmit }: Props) {
   ]
 
   useInput((inputChar, key) => {
+    // Если есть ошибка — любая клавиша закрывает сообщение
+    if (updateError) {
+      setUpdateError(null)
+      return
+    }
+
+    // Обработка модального окна обновления
+    if (showUpdateModal) {
+      // Навигация между кнопками
+      if (key.leftArrow || key.rightArrow || inputChar === "h" || inputChar === "л" || inputChar === "j" || inputChar === "о") {
+        setSelectedButton((prev) => prev === "update" ? "later" : "update")
+        return
+      }
+
+      // Tab для переключения
+      if (key.tab) {
+        setSelectedButton((prev) => prev === "update" ? "later" : "update")
+        return
+      }
+
+      // Enter для выбора
+      if (key.return) {
+        if (selectedButton === "update") {
+          setIsUpdating(true)
+          setShowUpdateModal(false)
+          // Запускаем обновление с очисткой кэша npm
+          const npxCache = `${os.homedir()}/.npm/_npx`
+          
+          // Очищаем кэш npm полностью
+          const cleanCache = spawn("npm", ["cache", "clean", "--force"], {
+            stdio: "ignore",
+          })
+          
+          cleanCache.on("close", () => {
+            // Потом устанавливаем новую версию
+            const child = spawn("npm", [
+              "install",
+              "-g",
+              "--force",
+              "create-metafor@latest",
+            ], {
+              stdio: "pipe",
+            })
+            
+            child.on("close", (code: number) => {
+              if (code === 0) {
+                // Перезапускаем TUI с флагом что только что обновились
+                const restart = spawn(process.argv[0], [process.argv[1]], {
+                  stdio: "inherit",
+                  env: { ...process.env, CREATE_METAFOR_JUST_UPDATED: "true" },
+                })
+                restart.on("close", () => exitApp())
+              } else {
+                // Ошибка обновления
+                setIsUpdating(false)
+                setUpdateError("Не удалось обновить. Попробуйте позже.")
+                setShowUpdateModal(true)
+              }
+            })
+          })
+        } else {
+          setShowUpdateModal(false)
+        }
+        return
+      }
+
+      // Esc — позже
+      if (key.escape) {
+        setShowUpdateModal(false)
+        return
+      }
+
+      return
+    }
+
+    // Основной режим
     if (key.escape) {
       exitApp()
       return
@@ -149,35 +254,68 @@ export default function Form({ onSubmit }: Props) {
   const isInteractive = view !== "input"
   const borderColor = isInteractive ? "white" : "gray"
 
+  // Если показано модальное окно — скрываем основной контент
+  const showOverlay = showUpdateModal || updateError
+
   return (
     <Box flexDirection="column" height={height}>
       <Header field={field} view={view} />
 
-      <Box flexGrow={1}>
-        <InputField
-          input={input}
-          cursor={renderCursor()}
-          isActive={view === "input"}
-          width={leftWidth}
-        />
+      {!showOverlay ? (
+        <Box flexGrow={1}>
+          <InputField
+            input={input}
+            cursor={renderCursor()}
+            isActive={view === "input"}
+            width={leftWidth}
+          />
 
-        <Box
-          flexGrow={1}
-          flexDirection="column"
-          borderStyle="single"
-          borderColor={borderColor}
-          marginLeft={1}
-          paddingLeft={1}
-        >
-          {view === "input" ? (
-            <Preview name={name} desc={desc} dir={dir} />
-          ) : view === "help" ? (
-            <HelpList items={getHelpItems()} selectedItem={selectedItem} />
+          <Box
+            flexGrow={1}
+            flexDirection="column"
+            borderStyle="single"
+            borderColor={borderColor}
+            marginLeft={1}
+            paddingLeft={1}
+          >
+            {view === "input" ? (
+              <Preview name={name} desc={desc} dir={dir} />
+            ) : view === "help" ? (
+              <HelpList items={getHelpItems()} selectedItem={selectedItem} />
+            ) : (
+              <MenuList items={getMenuItems()} selectedItem={selectedItem} />
+            )}
+          </Box>
+        </Box>
+      ) : (
+        <Box flexGrow={1} justifyContent="center" alignItems="center">
+          {showUpdateModal ? (
+            <UpdateModal
+              currentVersion={packageJson.version}
+              latestVersion={latestVersion || ""}
+              selectedButton={selectedButton}
+            />
           ) : (
-            <MenuList items={getMenuItems()} selectedItem={selectedItem} />
+            <Box
+              flexDirection="column"
+              borderStyle="round"
+              borderColor="red"
+              padding={1}
+              width={52}
+            >
+              <Box justifyContent="center" marginBottom={1}>
+                <Text bold color="red">Ошибка обновления</Text>
+              </Box>
+              <Box marginBottom={1}>
+                <Text>{updateError}</Text>
+              </Box>
+              <Box justifyContent="center">
+                <Text dimColor>Нажмите любую клавишу...</Text>
+              </Box>
+            </Box>
           )}
         </Box>
-      </Box>
+      )}
 
       <Footer />
     </Box>
