@@ -28,6 +28,7 @@ bun create metafor auth
 | `-d, --desc <desc>` | Описание Мета | `"MetaFor {name}"` |
 | `--dir <dir>` | Директория для создания | `.` |
 | `-l, --lang <lang>` | Язык вывода (ru\|en) | автодетект |
+| `--self-update` | Принудительное самообновление + очистка кеша npx | - |
 
 ## Примеры
 
@@ -43,6 +44,17 @@ bun create metafor git-commit -d "Коммит"
 
 # Принудительно английский язык
 bun create metafor auth -l en
+```
+
+
+## Обновление
+
+```bash
+# Рекомендуемый запуск без застревания на кеше npx
+npx --yes create-metafor@latest my-meta
+
+# Явно обновить установленную версию
+create-metafor --self-update
 ```
 
 ## Структура

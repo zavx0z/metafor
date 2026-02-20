@@ -21,10 +21,25 @@ import {
   gitAddAll,
   gitCommit,
 } from "./git.ts"
+import { runSelfUpdate } from "./update.ts"
 
 async function main() {
   // Парсинг аргументов
   const args = process.argv.slice(2)
+
+  if (args.includes("--self-update") || args.includes("--update")) {
+    console.log("\n🔄 Обновляю create-metafor до последней версии...\n")
+    const result = await runSelfUpdate()
+
+    if (result.ok) {
+      console.log("\n✅ create-metafor обновлен. Кеш npx очищен.\n")
+      process.exit(0)
+    }
+
+    console.error(`\n❌ Не удалось обновить: ${result.error}\n`)
+    console.error(`Попробуйте вручную: ${result.command.label}\n`)
+    process.exit(1)
+  }
 
   // Если нет аргументов и есть интерактивный терминал — запускаем TUI
   if (args.length === 0 && process.stdin.isTTY) {
@@ -78,6 +93,7 @@ ${t.helpOptions}
   -d, --desc <desc>    ${t.optionDesc}
   --dir <dir>          ${t.optionDir} (${t.defaultDesc}: .)
   -l, --lang <lang>    ${t.optionLang}
+  --self-update        self update create-metafor
 
 ${t.helpExamples}
   ${runner} create metafor my-feature
@@ -107,6 +123,7 @@ ${t.helpOptions}
   -d, --desc <desc>    ${t.optionDesc}
   --dir <dir>          ${t.optionDir} (${t.defaultDesc}: .)
   -l, --lang <lang>    ${t.optionLang}
+  --self-update        self update create-metafor
 
 ${t.helpExamples}
   ${runner} create metafor my-feature

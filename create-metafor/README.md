@@ -28,6 +28,7 @@ Creates a Meta with basic error handling template.
 | `-d, --desc <desc>` | Meta description | `"MetaFor {name}"` |
 | `--dir <dir>` | Output directory | `.` |
 | `-l, --lang <lang>` | Output language (ru\|en) | auto-detect |
+| `--self-update` | Force self-update + clear npx cache | - |
 
 ## Examples
 
@@ -43,6 +44,17 @@ bun create metafor git-commit -d "Commit"
 
 # Force English language
 bun create metafor auth -l en
+```
+
+
+## Updates
+
+```bash
+# Recommended run to avoid stale npx cache
+npx --yes create-metafor@latest my-meta
+
+# Explicitly update installed binary
+create-metafor --self-update
 ```
 
 ## Generated Structure

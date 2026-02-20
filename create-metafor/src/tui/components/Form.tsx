@@ -1,7 +1,5 @@
 import React, { useState, useEffect } from "react"
 import { Box, Text, useInput, useApp } from "ink"
-import { spawn } from "child_process"
-import os from "os"
 import {
   Header,
   InputField,
@@ -14,6 +12,7 @@ import {
 import { useCursor, useScreenSize, useCleanup, useVersionCheck } from "../hooks"
 import type { Field, View, MenuItem } from "../types"
 import packageJson from "../../../package.json"
+import { runSelfUpdate } from "../../update"
 
 interface Props {
   onSubmit: (name: string, description: string, dir: string) => void
@@ -100,30 +99,15 @@ export default function Form({ onSubmit }: Props) {
         if (selectedButton === "update") {
           setIsUpdating(true)
           setShowUpdateModal(false)
-          // Запускаем обновление
-          setIsUpdating(true)
-          setShowUpdateModal(false)
 
-          const child = spawn("npm", ["install", "-g", "create-metafor@latest"], {
-            stdio: "pipe",
-          })
-
-          child.on("error", (err: any) => {
+          runSelfUpdate().then((result) => {
             setIsUpdating(false)
-            setUpdateError(`Не удалось запустить npm: ${err.message}. Установите npm или обновите вручную: npm install -g create-metafor@latest`)
-            setShowUpdateModal(true)
-          })
-
-          child.on("close", (code: number) => {
-            setIsUpdating(false)
-            if (code === 0) {
-              // Успешно обновлено
-              setUpdateError(null) // очистим, если было
-              // Выводим сообщение и выходим
-              console.log("\n✅ Обновление выполнено! Пожалуйста, запустите команду снова.\n")
+            if (result.ok) {
+              setUpdateError(null)
+              console.log("\n✅ Обновление выполнено. Кеш npx очищен, перезапустите команду.\n")
               process.exit(0)
             } else {
-              setUpdateError(`Не удалось обновить (код ${code}). Попробуйте вручную: npm install -g create-metafor@latest`)
+              setUpdateError(`Не удалось обновить (${result.error}). Попробуйте вручную: ${result.command.label}`)
               setShowUpdateModal(true)
             }
           })
