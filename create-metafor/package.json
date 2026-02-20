@@ -30,7 +30,7 @@
     "directory": "create-metafor"
   },
   "scripts": {
-    "build": "bun build src/cli.ts --outdir dist --target node --minify",
+    "build": "bun build src/cli.ts --outdir dist --target node --minify && cp -r templates dist/",
     "prepublishOnly": "bun run build",
     "start": "bun src/cli.ts"
   }

@@ -3,14 +3,16 @@
 import { mkdirSync, writeFileSync } from "fs"
 import { join } from "path"
 import {
-  generateMetaTemplate,
-  generatePackageJson,
-  generateGitignore,
-  generateIndexHtml,
   getI18n,
   detectLanguage,
   type Lang,
-} from "../templates/index.ts"
+} from "./i18n.ts"
+import {
+  generateMetaFile,
+  generatePackageJsonFile,
+  generateGitignoreFile,
+  generateIndexHtmlFile,
+} from "./generators.ts"
 
 // Парсинг аргументов
 const args = process.argv.slice(2)
@@ -92,19 +94,19 @@ console.log(`   ${t.path} ${packagePath}\n`)
 mkdirSync(`${packagePath}/src`, { recursive: true })
 
 // Генерация meta.ts
-const metaContent = generateMetaTemplate(packageName, desc!, t.errorLabel)
+const metaContent = generateMetaFile(packageName, desc!, t.errorLabel)
 writeFileSync(`${packagePath}/src/meta.ts`, metaContent)
 
 // Генерация package.json
-const packageJson = generatePackageJson(packageName, desc!)
-writeFileSync(`${packagePath}/package.json`, JSON.stringify(packageJson, null, 2))
+const packageJson = generatePackageJsonFile(packageName, desc!)
+writeFileSync(`${packagePath}/package.json`, packageJson)
 
 // Генерация .gitignore
-const gitignore = generateGitignore()
+const gitignore = generateGitignoreFile()
 writeFileSync(`${packagePath}/.gitignore`, gitignore)
 
 // Генерация index.html
-const indexHtml = generateIndexHtml(packageName, desc!)
+const indexHtml = generateIndexHtmlFile(packageName, desc!, t.htmlLang)
 writeFileSync(`${packagePath}/index.html`, indexHtml)
 
 console.log(`${t.created} ${packageName}`)

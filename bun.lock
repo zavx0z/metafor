@@ -51,7 +51,7 @@
       "name": "create-metafor",
       "version": "0.1.0",
       "bin": {
-        "create-metafor": "./src/cli.ts",
+        "create-metafor": "dist/cli.js",
       },
     },
     "infra/inspect": {

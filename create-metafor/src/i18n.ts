@@ -19,6 +19,7 @@ export interface I18nStrings {
   toBuild: string
   defaultDesc: string
   errorLabel: string
+  htmlLang: string
 }
 
 const ru: I18nStrings = {
@@ -40,6 +41,7 @@ const ru: I18nStrings = {
   toBuild: "📦 To build:",
   defaultDesc: "MetaFor",
   errorLabel: "Ошибка",
+  htmlLang: "ru",
 }
 
 const en: I18nStrings = {
@@ -61,6 +63,7 @@ const en: I18nStrings = {
   toBuild: "📦 To build:",
   defaultDesc: "MetaFor",
   errorLabel: "Error",
+  htmlLang: "en",
 }
 
 export const translations: Record<Lang, I18nStrings> = {
