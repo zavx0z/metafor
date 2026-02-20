@@ -1,65 +1,69 @@
-# **⚛️ Мета для...**
+# **⚛️ Meta for...**
 
 ## Quick Start
 
 ```bash
 # Using npm
-npm create metafor my-component
+npm create metafor my-meta
 
 # Using Bun
-bun create metafor my-component
+bun create metafor my-meta
 ```
 
 ## Usage
 
-### Создать Meta-компонент
+### Create Meta
 
 ```bash
 bun create metafor auth
 ```
 
-Создаётся Meta-компонент с базовым шаблоном для обработки ошибок.
+Creates a Meta with basic error handling template.
 
 ## Options
 
 | Option | Description | Default |
 | ------ | ----------- | ------- |
-| `-n, --name <name>` | Имя компонента | positional argument |
-| `-d, --desc <desc>` | Описание компонента | `"MetaFor {name}"` |
-| `--dir <dir>` | Директория для создания | `.` |
-| `-l, --lang <lang>` | Язык вывода (ru\|en) | автодетект |
+| `-n, --name <name>` | Meta name | positional argument |
+| `-d, --desc <desc>` | Meta description | `"MetaFor {name}"` |
+| `--dir <dir>` | Output directory | `.` |
+| `-l, --lang <lang>` | Output language (ru\|en) | auto-detect |
 
 ## Examples
 
 ```bash
-# Создать с описанием
-bun create metafor auth -d "Авторизация"
+# Create with description
+bun create metafor auth -d "Authentication"
 
-# Создать в другой директории
+# Create in custom directory
 bun create metafor player --dir components
 
-# Создать с полным именем
-bun create metafor git-commit -d "Коммит"
+# Create with full name
+bun create metafor git-commit -d "Commit"
 
-# Принудительно английский язык
+# Force English language
 bun create metafor auth -l en
 ```
 
 ## Generated Structure
 
 ```text
-my-component/
+my-meta/
 ├── src/
-│   └── meta.ts          # Meta-компонент
-├── package.json         # Конфигурация
+│   └── meta.ts          # Meta
+├── package.json         # Configuration
 ├── .gitignore          # Git ignore
-└── index.html          # HTML шаблон
+└── index.html          # HTML template
 ```
 
 ## Requirements
 
-- Node.js >= 18 или Bun >= 1.0.0
+- Node.js >= 18 or Bun >= 1.0.0
 
 ## License
 
 MIT
+
+---
+
+**Other languages:** [Русский](README.ru.md)

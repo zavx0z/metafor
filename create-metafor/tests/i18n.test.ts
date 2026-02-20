@@ -61,19 +61,19 @@ describe("detectLanguage", () => {
 describe("getI18n", () => {
   test("должен возвращать русские строки", async () => {
     const t = await getI18n("ru")
-    expect(t.errorLabel).toBe("Ошибка")
+    expect(t.optionName).toBe("Имя Мета")
     expect(t.htmlLang).toBe("ru")
   })
 
   test("должен возвращать английские строки", async () => {
     const t = await getI18n("en")
-    expect(t.errorLabel).toBe("Error")
+    expect(t.optionName).toBe("Meta name")
     expect(t.htmlLang).toBe("en")
   })
 
   test("должен использовать автодетект без параметров", async () => {
     const t = await getI18n()
-    expect(t).toHaveProperty("errorLabel")
+    expect(t).toHaveProperty("optionName")
     expect(t).toHaveProperty("htmlLang")
   })
 })
