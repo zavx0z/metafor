@@ -88,7 +88,8 @@ function getMacOSLocale(): string | null {
       encoding: "utf-8",
       stdio: ["pipe", "pipe", "ignore"]
     })
-    return output.trim().split("_")[0] // ru_RU -> ru
+    const locale = output.trim().split("_")[0] // ru_RU -> ru
+    return locale || null
   } catch {
     return null
   }
@@ -98,14 +99,15 @@ function getMacOSLocale(): string | null {
  * Получить локаль Linux из переменных окружения
  */
 function getLinuxLocale(): string | null {
-  const locale = 
-    process.env.LANG || 
-    process.env.LC_ALL || 
-    process.env.LANGUAGE || 
-    ""
+  const env = process.env as Record<string, string | undefined>
+  const lang = env.LANG !== undefined ? env.LANG : ""
+  const lcAll = env.LC_ALL !== undefined ? env.LC_ALL : ""
+  const language = env.LANGUAGE !== undefined ? env.LANGUAGE : ""
   
+  const locale: string = lang || lcAll || language
+
   if (locale) {
-    return locale.split("_")[0].split(".")[0] // ru_RU.UTF-8 -> ru
+    return locale.split("_")[0].split(".")[0] || null // ru_RU.UTF-8 -> ru
   }
   return null
 }
@@ -122,7 +124,8 @@ function getWindowsLocale(): string | null {
         stdio: ["pipe", "pipe", "ignore"]
       }
     )
-    return output.trim().split("-")[0] // ru-RU -> ru
+    const locale = output.trim().split("-")[0] // ru-RU -> ru
+    return locale || null
   } catch {
     return null
   }

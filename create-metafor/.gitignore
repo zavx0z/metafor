@@ -1,0 +1,28 @@
+# Runtime
+node_modules/
+dist/
+
+# Build
+*.json
+!package.json
+!tsconfig.json
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Test
+coverage/
