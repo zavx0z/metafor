@@ -18,6 +18,10 @@ async function main() {
   // Парсинг аргументов
   const args = process.argv.slice(2)
 
+  // Определяем рантайм
+  const isBun = typeof Bun !== "undefined"
+  const runner = isBun ? "bun" : "npm"
+
   // Обработка --lang
   const langIndex = args.findIndex((arg) => arg === "--lang" || arg === "-l")
   const userLang: Lang | undefined = langIndex !== -1 && args[langIndex + 1]
@@ -32,8 +36,7 @@ if (args.includes("--help") || args.includes("-h")) {
 ${t.helpTitle}
 
 ${t.helpUsage}
-  npm create metafor <name> [options]
-  bun create metafor <name> [options]
+  ${runner} create metafor <name> [options]
 
 ${t.helpOptions}
   -n, --name <name>    ${t.optionName}
@@ -42,12 +45,12 @@ ${t.helpOptions}
   -l, --lang <lang>    ${t.optionLang}
 
 ${t.helpExamples}
-  bun create metafor my-feature
-  bun create metafor my-component -d "${t.exampleWithDesc}"
-  bun create metafor my-component --dir packages
+  ${runner} create metafor my-feature
+  ${runner} create metafor my-component -d "${t.exampleWithDesc}"
+  ${runner} create metafor my-component --dir packages
 
-<name> — имя пакета (обязательно)
-[options] — необязательные опции
+${t.helpNoteName}
+${t.helpNoteOptions}
 `)
   process.exit(0)
 }
@@ -62,8 +65,7 @@ if (!nameArg) {
 ${t.helpTitle}
 
 ${t.helpUsage}
-  npm create metafor <name> [options]
-  bun create metafor <name> [options]
+  ${runner} create metafor <name> [options]
 
 ${t.helpOptions}
   -n, --name <name>    ${t.optionName}
@@ -72,12 +74,12 @@ ${t.helpOptions}
   -l, --lang <lang>    ${t.optionLang}
 
 ${t.helpExamples}
-  bun create metafor my-feature
-  bun create metafor my-component -d "${t.exampleWithDesc}"
-  bun create metafor my-component --dir packages
+  ${runner} create metafor my-feature
+  ${runner} create metafor my-component -d "${t.exampleWithDesc}"
+  ${runner} create metafor my-component --dir packages
 
-<name> — имя пакета (обязательно)
-[options] — необязательные опции
+${t.helpNoteName}
+${t.helpNoteOptions}
 `)
   process.exit(0)
 }

@@ -22,21 +22,23 @@ export interface I18nStrings {
   defaultDesc: string
   errorLabel: string
   htmlLang: string
+  helpNoteName: string
+  helpNoteOptions: string
 }
 
 const ru: I18nStrings = {
-  helpTitle: "🎨 Create MetaFor Package",
+  helpTitle: "⚛️ Мета для...",
   helpUsage: "Использование:",
   helpOptions: "Опции:",
   helpExamples: "Примеры:",
-  optionName: "Имя пакета",
-  optionDesc: "Описание пакета",
+  optionName: "Имя компонента",
+  optionDesc: "Описание компонента",
   optionDir: "Директория для создания",
   optionLang: "Язык вывода (ru|en)",
-  exampleCreate: "Создать пакет",
+  exampleCreate: "Создать компонент",
   exampleWithDesc: "Создать с описанием",
   exampleWithDir: "Создать в другой директории",
-  creating: "Создание пакета MetaFor:",
+  creating: "Создание Meta-компонента:",
   description: "Описание:",
   path: "Путь:",
   created: "✅ Создан",
@@ -44,21 +46,23 @@ const ru: I18nStrings = {
   defaultDesc: "MetaFor",
   errorLabel: "Ошибка",
   htmlLang: "ru",
+  helpNoteName: "<name> — имя компонента (обязательно)",
+  helpNoteOptions: "[options] — необязательные опции",
 }
 
 const en: I18nStrings = {
-  helpTitle: "🎨 Create MetaFor Package",
+  helpTitle: "⚛️ Meta for...",
   helpUsage: "Usage:",
   helpOptions: "Options:",
   helpExamples: "Examples:",
-  optionName: "Package name",
-  optionDesc: "Package description",
+  optionName: "Component name",
+  optionDesc: "Component description",
   optionDir: "Output directory",
   optionLang: "Output language (ru|en)",
-  exampleCreate: "Create a package",
+  exampleCreate: "Create a component",
   exampleWithDesc: "Create with description",
   exampleWithDir: "Create in custom directory",
-  creating: "Creating MetaFor package:",
+  creating: "Creating Meta-Component:",
   description: "Description:",
   path: "Path:",
   created: "✅ Created",
@@ -66,6 +70,8 @@ const en: I18nStrings = {
   defaultDesc: "MetaFor",
   errorLabel: "Error",
   htmlLang: "en",
+  helpNoteName: "<name> — component name (required)",
+  helpNoteOptions: "[options] — optional options",
 }
 
 export const translations: Record<Lang, I18nStrings> = {

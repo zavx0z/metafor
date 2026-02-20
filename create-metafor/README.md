@@ -1,52 +1,31 @@
-# create-metafor
-
-🎨 Универсальный генератор пакетов для MetaFor framework
+# **⚛️ Мета для...**
 
 ## Quick Start
 
 ```bash
 # Using npm
-npm create metafor my-package
+npm create metafor my-component
 
 # Using Bun
-bun create metafor my-package
-```
-
-## Development
-
-```bash
-# Запуск в разработке
-bun run dev my-package -d "Описание"
-
-# Или напрямую
-bun src/cli.ts my-package -d "Описание"
-
-# Тесты
-bun test
-
-# Сборка для публикации
-bun run build
-
-# Очистка
-bun run clean
+bun create metafor my-component
 ```
 
 ## Usage
 
-### Создать пакет
+### Создать Meta-компонент
 
 ```bash
-bun create metafor my-feature
+bun create metafor auth
 ```
 
-Создаётся пакет с базовым шаблоном для обработки ошибок.
+Создаётся Meta-компонент с базовым шаблоном для обработки ошибок.
 
 ## Options
 
 | Option | Description | Default |
-|--------|-------------|---------|
-| `-n, --name <name>` | Имя пакета | positional argument |
-| `-d, --desc <desc>` | Описание пакета | "MetaFor {name}" |
+| ------ | ----------- | ------- |
+| `-n, --name <name>` | Имя компонента | positional argument |
+| `-d, --desc <desc>` | Описание компонента | `"MetaFor {name}"` |
 | `--dir <dir>` | Директория для создания | `.` |
 | `-l, --lang <lang>` | Язык вывода (ru\|en) | автодетект |
 
@@ -54,25 +33,25 @@ bun create metafor my-feature
 
 ```bash
 # Создать с описанием
-bun create metafor my-feature -d "Моя фича"
+bun create metafor auth -d "Авторизация"
 
 # Создать в другой директории
-bun create metafor my-component --dir packages
+bun create metafor player --dir components
 
 # Создать с полным именем
-bun create metafor auth-login -d "Авторизация"
+bun create metafor git-commit -d "Коммит"
 
 # Принудительно английский язык
-bun create metafor auth-login -l en
+bun create metafor auth -l en
 ```
 
 ## Generated Structure
 
-```
-my-package/
+```text
+my-component/
 ├── src/
-│   └── meta.ts          # MetaFor компонент
-├── package.json         # Конфигурация пакета
+│   └── meta.ts          # Meta-компонент
+├── package.json         # Конфигурация
 ├── .gitignore          # Git ignore
 └── index.html          # HTML шаблон
 ```

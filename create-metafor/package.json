@@ -11,7 +11,7 @@
   "bin": {
     "create-metafor": "dist/cli.js"
   },
-  "description": "Create MetaFor packages — универсальный генератор пакетов для MetaFor framework",
+  "description": "Meta for...",
   "engines": {
     "node": ">=18",
     "bun": ">=1.0.0"
@@ -32,7 +32,8 @@
     "build": "bun build src/cli.ts --outdir dist --target node --minify && cp -r templates dist/",
     "prepublishOnly": "bun run build",
     "start": "bun src/cli.ts",
-    "dev": "bun --no-cache src/cli.ts",
+    "dev:bun": "bun --no-cache src/cli.ts",
+    "dev:node": "node dist/cli.js",
     "test": "bun test",
     "clean": "rm -rf dist"
   },
