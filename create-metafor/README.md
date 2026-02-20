@@ -12,6 +12,25 @@ npm create metafor my-package
 bun create metafor my-package
 ```
 
+## Development
+
+```bash
+# Запуск в разработке
+bun run dev my-package -d "Описание"
+
+# Или напрямую
+bun src/cli.ts my-package -d "Описание"
+
+# Тесты
+bun test
+
+# Сборка для публикации
+bun run build
+
+# Очистка
+bun run clean
+```
+
 ## Usage
 
 ### Создать пакет

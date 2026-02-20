@@ -14,16 +14,17 @@ import {
   generateIndexHtmlFile,
 } from "./generators.ts"
 
-// Парсинг аргументов
-const args = process.argv.slice(2)
+async function main() {
+  // Парсинг аргументов
+  const args = process.argv.slice(2)
 
-// Обработка --lang
-const langIndex = args.findIndex((arg) => arg === "--lang" || arg === "-l")
-const userLang: Lang | undefined = langIndex !== -1 && args[langIndex + 1]
-  ? (args[langIndex + 1] as Lang)
-  : undefined
-const lang: Lang = userLang || detectLanguage()
-const t = getI18n(lang)
+  // Обработка --lang
+  const langIndex = args.findIndex((arg) => arg === "--lang" || arg === "-l")
+  const userLang: Lang | undefined = langIndex !== -1 && args[langIndex + 1]
+    ? (args[langIndex + 1] as Lang)
+    : undefined
+  const lang: Lang = userLang ?? await detectLanguage()
+  const t = await getI18n(lang)
 
 // Обработка --help
 if (args.includes("--help") || args.includes("-h")) {
@@ -114,3 +115,6 @@ console.log(`   📄 ${packagePath}/src/meta.ts`)
 console.log(`   📄 ${packagePath}/package.json`)
 console.log(`   📄 ${packagePath}/index.html`)
 console.log(`\n${t.toBuild} cd ${packagePath} && bun run build\n`)
+}
+
+main()

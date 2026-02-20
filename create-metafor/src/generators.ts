@@ -5,10 +5,10 @@ import { dirname, join } from "path"
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = dirname(__filename)
 
-// Путь к шаблонам относительно текущего файла
-// Для src: src/generators.ts -> templates/
-// Для dist: dist/generators.js -> dist/templates/
-const TEMPLATES_DIR = join(__dirname, "templates")
+// Путь к шаблонам:
+// - Для src: src/generators.ts -> ../templates/
+// - Для dist: dist/generators.js -> templates/
+const TEMPLATES_DIR = join(__dirname, "..", "templates")
 
 /**
  * Загрузить шаблон из файла

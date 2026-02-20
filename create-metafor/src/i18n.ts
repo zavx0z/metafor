@@ -1,3 +1,5 @@
+import { execSync } from "child_process"
+
 export type Lang = "ru" | "en"
 
 export interface I18nStrings {
@@ -72,17 +74,89 @@ export const translations: Record<Lang, I18nStrings> = {
 }
 
 /**
+ * Получить локаль macOS UI (AppleLocale)
+ */
+function getMacOSLocale(): string | null {
+  try {
+    const output = execSync("defaults read -g AppleLocale", {
+      encoding: "utf-8",
+      stdio: ["pipe", "pipe", "ignore"]
+    })
+    return output.trim().split("_")[0] // ru_RU -> ru
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Получить локаль Linux из переменных окружения
+ */
+function getLinuxLocale(): string | null {
+  const locale = 
+    process.env.LANG || 
+    process.env.LC_ALL || 
+    process.env.LANGUAGE || 
+    ""
+  
+  if (locale) {
+    return locale.split("_")[0].split(".")[0] // ru_RU.UTF-8 -> ru
+  }
+  return null
+}
+
+/**
+ * Получить локаль Windows через PowerShell
+ */
+function getWindowsLocale(): string | null {
+  try {
+    const output = execSync(
+      "powershell -NoProfile -Command \"(Get-Culture).Name\"",
+      {
+        encoding: "utf-8",
+        stdio: ["pipe", "pipe", "ignore"]
+      }
+    )
+    return output.trim().split("-")[0] // ru-RU -> ru
+  } catch {
+    return null
+  }
+}
+
+/**
  * Автодетект языка системы
  */
-export function detectLanguage(): Lang {
-  const locale = process.env.LANG || process.env.LC_ALL || process.env.LANGUAGE || ""
-  return locale.toLowerCase().startsWith("ru") ? "ru" : "en"
+export async function detectLanguage(): Promise<Lang> {
+  // macOS: читаем AppleLocale (UI язык системы)
+  if (process.platform === "darwin") {
+    const macLocale = getMacOSLocale()
+    if (macLocale) {
+      return macLocale.startsWith("ru") ? "ru" : "en"
+    }
+  }
+  
+  // Windows: читаем через PowerShell
+  if (process.platform === "win32") {
+    const winLocale = getWindowsLocale()
+    if (winLocale) {
+      return winLocale.startsWith("ru") ? "ru" : "en"
+    }
+  }
+  
+  // Linux: читаем переменные окружения
+  const linuxLocale = getLinuxLocale()
+  if (linuxLocale) {
+    return linuxLocale.startsWith("ru") ? "ru" : "en"
+  }
+  
+  // Фоллбэк на Intl API
+  const intlLocale = Intl.DateTimeFormat().resolvedOptions().locale
+  return intlLocale.startsWith("ru") ? "ru" : "en"
 }
 
 /**
  * Получить строки локализации
  */
-export function getI18n(lang?: Lang): I18nStrings {
-  const targetLang = lang || detectLanguage()
+export async function getI18n(lang?: Lang): Promise<I18nStrings> {
+  const targetLang = lang ?? await detectLanguage()
   return translations[targetLang]
 }
