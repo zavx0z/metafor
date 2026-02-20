@@ -1,6 +1,6 @@
 {
   "name": "create-metafor",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "author": "zavx0z",
   "repository": {
     "type": "git",
@@ -29,13 +29,22 @@
   ],
   "license": "MIT",
   "scripts": {
-    "build": "bun build src/cli.ts --outdir dist --target node --minify && cp -r templates dist/",
+    "build": "bun build src/cli.ts --outdir dist --target node --minify && bun build src/tui/tui.tsx --outdir dist --target node --minify && cp -r templates dist/",
     "prepublishOnly": "bun run build",
+    "pub": "bun publish --access public",
     "start": "bun src/cli.ts",
-    "dev:bun": "bun --no-cache src/cli.ts",
+    "dev": "bun --no-cache src/cli.ts",
     "dev:node": "node dist/cli.js",
     "test": "bun test",
     "clean": "rm -rf dist"
   },
-  "type": "module"
+  "type": "module",
+  "dependencies": {
+    "ink": "^6.8.0",
+    "react": "^19.2.4",
+    "react-devtools-core": "^7.0.1"
+  },
+  "devDependencies": {
+    "@types/react": "^19.2.14"
+  }
 }

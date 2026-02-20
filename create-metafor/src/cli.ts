@@ -26,6 +26,22 @@ async function main() {
   // Парсинг аргументов
   const args = process.argv.slice(2)
 
+  // Если нет аргументов и есть интерактивный терминал — запускаем TUI
+  if (args.length === 0 && process.stdin.isTTY) {
+    const { spawn } = await import("child_process")
+    // Запускаем через тот же рантайм (bun или node)
+    const runtime = process.execArgv.includes("--bun") || typeof Bun !== "undefined" ? "bun" : "node"
+    const tuiPath = runtime === "bun" ? "src/tui/tui.tsx" : "dist/tui.js"
+    const child = spawn(runtime, [tuiPath], { stdio: "inherit" })
+    child.on("exit", (code) => process.exit(code || 0))
+    child.on("error", () => {
+      // Если TUI не запустился — показываем help
+      console.log("\nИспользуйте аргументы:\n")
+      console.log("  bun create metafor <name> -d \"description\"\n")
+    })
+    return
+  }
+
   // Определяем рантайм
   const isBun = typeof Bun !== "undefined"
   const runner = isBun ? "bun" : "npm"

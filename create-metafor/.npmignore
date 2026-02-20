@@ -2,4 +2,6 @@ src/
 tests/
 node_modules/
 *.ts
+*.tsx
 .gitignore
+dist/tui.js.map
