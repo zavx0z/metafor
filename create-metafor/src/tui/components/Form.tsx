@@ -64,13 +64,13 @@ export default function Form({ onSubmit }: Props) {
     // Навигация в меню/помощи (vim-like + стрелки)
     if (view !== "input") {
       const items = view === "help" ? getHelpItems() : getMenuItems()
-      
+
       // vim-like навигация (j/k и русские о/л)
       if (key.upArrow || inputChar === "k" || inputChar === "л") {
         setSelectedItem((prev) => (prev > 0 ? prev - 1 : items.length - 1))
         return
       }
-      
+
       if (key.downArrow || inputChar === "j" || inputChar === "о") {
         setSelectedItem((prev) => (prev < items.length - 1 ? prev + 1 : 0))
         return
@@ -94,7 +94,7 @@ export default function Form({ onSubmit }: Props) {
           setView("input")
         }
       }
-      
+
       return
     }
 
