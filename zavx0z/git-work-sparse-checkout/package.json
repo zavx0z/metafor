@@ -12,7 +12,7 @@
     "@metafor/meta": "workspace:*"
   },
   "scripts": {
-    "build": "metafor-build src/meta.ts --out git-work-sparse-checkout.json"
+    "build": "metafor-build src/meta.ts --out meta.json"
   },
   "dependencies": {
     "@metafor/build": "link:@metafor/build"
