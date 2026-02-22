@@ -1,6 +1,6 @@
 {
   "name": "create-metafor",
-  "version": "0.1.0",
+  "version": "1.0.41",
   "author": "zavx0z",
   "repository": {
     "type": "git",
@@ -31,6 +31,10 @@
   "scripts": {
     "build": "bun build src/cli.ts --outdir dist --target node --minify && cp -r templates dist/",
     "prepublishOnly": "bun run build",
+    "pub": "bun publish --access public",
+    "pub:patch": "bun pm version patch && bun run pub",
+    "pub:minor": "bun pm version minor && bun run pub",
+    "pub:major": "bun pm version major && bun run pub",
     "start": "bun src/cli.ts",
     "dev:bun": "bun --no-cache src/cli.ts",
     "dev:node": "node dist/cli.js",
