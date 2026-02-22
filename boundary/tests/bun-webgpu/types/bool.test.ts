@@ -1,5 +1,5 @@
 import { test, expect, describe, beforeAll } from "bun:test"
-import { setupDevice, getDevice } from "../../fixture/bunWebGPU"
+import { setupDevice, getDevice } from "../../../../fixture/bunWebGPU"
 import { Boundary } from "../../../src/index"
 
 describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () => {

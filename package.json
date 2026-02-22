@@ -19,7 +19,8 @@
     "@types/node": "^25.3.0",
     "dts-bundle-generator": "^9.5.1",
     "typedoc": "^0.28.17",
-    "typedoc-plugin-merge-modules": "^7.0.0"
+    "typedoc-plugin-merge-modules": "^7.0.0",
+    "bun-webgpu": "^0.1.5"
   },
   "peerDependencies": {
     "typescript": "^5.9.3"

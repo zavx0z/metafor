@@ -10,7 +10,6 @@
     "@types/puppeteer": "^5.4.7",
     "@webgpu/types": "^0.1.32",
     "@zavx0z/context": "^2.3.1",
-    "bun-webgpu": "^0.1.5",
     "puppeteer": "^24.37.2"
   },
   "peerDependencies": {
