@@ -37,7 +37,7 @@ import { RulesCompiler } from "./compiler/RulesCompiler"
 import { BraneManager, FieldType, FieldRegistry, type FieldTypeValue } from "./core"
 import { resetStringAtlas, getStringAtlas } from "./strings"
 import { GPU } from "./gpu/device"
-import type { CompiledEnsemble } from "./types"
+import type { CompiledEnsemble } from "./index.t"
 import type {
   FieldDefinition,
   FieldsDefinition,

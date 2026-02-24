@@ -1,5 +1,5 @@
 import { OP, TYPE } from "../opcodes"
-import type { CompiledRules, CompiledFieldRules, CompiledEnsemble } from "../types"
+import type { CompiledRules, CompiledFieldRules, CompiledEnsemble } from "../index.t"
 import { FieldRegistry, FieldType, type FieldTypeValue } from "../core/FieldRegistry"
 import { fieldTypeToBytecodeType } from "../utils/typeBridge"
 import { getStringAtlas } from "../strings/StringAtlas"
