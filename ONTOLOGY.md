@@ -225,9 +225,11 @@ export default meta
 // Monad загружает JSON (формат MonadJson)
 const monad = new Monad(jsonSchema)
 
-// Monad извлекает params из fields для создания браны
+// Boundary создаётся один раз
 const boundary = new Boundary()
-await boundary.init({
+
+// Первый запуск: запись данных
+await boundary.write({
   fields: extractFieldsForGPU(json.fields),  // технические типы для GPU
   branes: [{
     id: "git-1",
@@ -236,6 +238,10 @@ await boundary.init({
     superposition: json.superposition
   }]
 })
+
+// При обновлении: очистка и новая запись
+boundary.clear()
+await boundary.write({ ... })
 
 // Monad выполняет процесс
 await monad.execute("коммит")

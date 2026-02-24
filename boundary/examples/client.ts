@@ -24,10 +24,10 @@ try {
     },
   })
 
-  console.log("--- Инициализация границы ---")
-  out.innerText += "--- Инициализация границы ---\n"
-  
-  await boundary.init({
+  console.log("--- Запись данных на границу ---")
+  out.innerText += "--- Запись данных на границу ---\n"
+
+  await boundary.write({
     fields: {
       hp: { type: "number" },
       mana: { type: "number" },

@@ -82,6 +82,7 @@ export async function updateBoundary(): Promise<void> {
   }))
 
   if (allBranes.length === 0) {
+    _boundary?.clear()
     _boundary = null
     _uuidToIndex.clear()
     _indexToUuid.clear()
@@ -94,9 +95,13 @@ export async function updateBoundary(): Promise<void> {
     throw new Error("No monads registered")
   }
 
-  // Создаём новый Boundary
-  _boundary = new Boundary()
-  await _boundary.init({ fields: firstMonad.fields, branes: allBranes })
+  // Создаём Boundary если его нет, иначе очищаем существующий
+  if (!_boundary) {
+    _boundary = new Boundary()
+  } else {
+    _boundary.clear()
+  }
+  await _boundary.write({ fields: firstMonad.fields, branes: allBranes })
 
   // Строим маппинги
   _uuidToIndex.clear()

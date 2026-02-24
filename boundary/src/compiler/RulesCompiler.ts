@@ -111,7 +111,7 @@ export class RulesCompiler {
     this.fields = {}
 
     // Вместо SoA fieldMap используем FieldRegistry для получения field_id
-    // Поля должны быть уже зарегистрированы через branes в QuantumFieldSystem.init()
+    // Поля должны быть уже зарегистрированы через Boundary.write()
     // Если схема передана, регистрируем поля, но не строим SoA маппинг
     if (Object.keys(branes).length > 0) {
       if (!options.preserveRegistry) {

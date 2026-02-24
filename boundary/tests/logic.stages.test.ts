@@ -20,7 +20,7 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
         MOVING: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { mode: { type: "number" } },
         branes: [
           { id: "q1", state: "GROUND", params: { mode: 1 }, superposition }, // WALK -> MOVING
@@ -47,7 +47,7 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
         CRITICAL: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { temperature: { type: "number" } },
         branes: [
           { id: "q1", state: "NORMAL", params: { temperature: 36.6 }, superposition },
@@ -76,7 +76,7 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
         GAME: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { role: { type: "number" } },
         branes: [
           { id: "q1", state: "LOBBY", params: { role: 1 }, superposition }, // Player -> GAME
@@ -106,7 +106,7 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
         WIN: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { score: { type: "number" }, badge: { type: "number" } },
         branes: [
           { id: "q1", state: "START", params: { score: 150, badge: 5 }, superposition }, // OK

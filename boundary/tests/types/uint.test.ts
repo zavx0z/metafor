@@ -19,7 +19,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           status: { type: "enum<string>", values: ["IDLE", "ACTIVE", "DEAD"] },
         },
@@ -46,7 +46,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           level: { type: "enum<number>", values: [1, 2, 3] },
         },
@@ -75,7 +75,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           status: { type: "enum<string>", values: ["IDLE", "ACTIVE", "DEAD"] },
         },
@@ -104,7 +104,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           level: { type: "enum<number>", values: [1, 2, 3, 4, 5] },
         },
@@ -133,7 +133,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           level: { type: "enum<number>", values: [1, 2, 3, 4, 5] },
         },
@@ -162,7 +162,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           level: { type: "enum<number>", values: [1, 2, 3, 4, 5] },
         },
@@ -191,7 +191,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           level: { type: "enum<number>", values: [1, 2, 3, 4, 5] },
         },
@@ -220,7 +220,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           status: { type: "enum<string>", values: ["IDLE", "ACTIVE", "RUNNING", "DEAD"] },
         },
@@ -251,7 +251,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           status: { type: "enum<string>", values: ["IDLE", "ACTIVE", "RUNNING", "DEAD"] },
         },
@@ -282,7 +282,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           level: { type: "enum<number>", values: [1, 2, 3, 4, 5] },
         },

@@ -154,4 +154,24 @@ export class HeapAllocator {
   getFreeList(): FreeBlock[] {
     return this.freeList.map((block) => ({ ...block }))
   }
+
+  /**
+   * Очищает состояние аллокатора и восстанавливает весь пул памяти.
+   *
+   * @remarks
+   * **Side Effects:**
+   * - Сбрасывает список свободных блоков к исходному состоянию.
+   * - Восстанавливает всю память как свободную (с учетом резерва).
+   */
+  clear(): void {
+    const reserveFirst = this.freeList.length > 0 && this.freeList[0]!.offset > 0
+      ? this.freeList[0]!.offset
+      : 0
+    this.freeList = []
+    if (reserveFirst > 0) {
+      this.freeList.push({ offset: reserveFirst, size: this.totalSize - reserveFirst })
+    } else {
+      this.freeList.push({ offset: 0, size: this.totalSize })
+    }
+  }
 }

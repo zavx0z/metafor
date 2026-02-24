@@ -373,6 +373,26 @@ export class BraneManager {
     this.heapDirty = false
   }
 
+  /**
+   * Очищает все данные бран и сбрасывает состояние менеджера.
+   *
+   * @remarks
+   * **Side Effects:**
+   * - Очищает карты бран и запутанных бран.
+   * - Сбрасывает счетчики ID.
+   * - Очищает heap (заполняет нулями).
+   * - Сбрасывает аллокатор.
+   */
+  clear(): void {
+    this.branes.clear()
+    this.entangledBranes.clear()
+    this.nextBraneId = 0
+    this.nextEntangledId = 0
+    this.heapData.fill(0)
+    this.allocator.clear()
+    this.heapDirty = false
+  }
+
   getBraneInfo(braneId: number): BraneInfo | undefined {
     return this.branes.get(braneId)
   }

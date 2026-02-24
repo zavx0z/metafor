@@ -52,14 +52,14 @@ export type {
 /**
  * Boundary — полевая граница (GPU-фасад).
  *
- * Координирует инициализацию GPU-ресурсов, компиляцию суперпозиций и эволюцию бран.
+ * Координирует GPU-ресурсы, компиляцию суперпозиций и эволюцию бран.
  *
  * @example
  * ```ts
  * // В тестах: _device = await setupDevice()
  * const boundary = new Boundary({ debug: { all: true } })
  *
- * await boundary.init({
+ * await boundary.write({
  *   fields: { hp: { type: "number" }, name: { type: "string" } },
  *   branes: [{
  *     id: "hero",
@@ -71,6 +71,9 @@ export type {
  *
  * boundary.step()
  * const states = await boundary.getStates()
+ *
+ * // Очистка данных (граница сохраняется)
+ * boundary.clear()
  * ```
  */
 export class Boundary {
@@ -95,26 +98,45 @@ export class Boundary {
   }
 
   /**
-   * Инициализирует GPU-ресурсы и загружает конфигурацию.
+   * Очищает данные границы (FieldRegistry, StringAtlas, GPU-буферы, BraneManager).
    *
    * @remarks
    * **Side Effects:**
    * - Очищает FieldRegistry и StringAtlas.
+   * - Уничтожает все GPU-буферы.
+   * - Сбрасывает состояние BraneManager.
+   * - После вызова требуется повторный `write()` для работы.
+   */
+  clear() {
+    FieldRegistry.clear()
+    resetStringAtlas()
+    this.braneManager.clear()
+    this.backend.clear()
+    this.stateMaps = []
+    this.reverseStateMaps = []
+    this.braneIds = []
+  }
+
+  /**
+   * Записывает конфигурацию на границу (GPU-ресурсы должны быть инициализированы).
+   *
+   * @remarks
+   * **Side Effects:**
+   * - Очищает FieldRegistry и StringAtlas перед записью.
    * - Аллоцирует GPU-буферы (не освобождаются автоматически).
    *
    * @param config - Конфигурация полевой границы (fields + branes).
    *
    * @throws {Error} Если тип поля не распознан.
    */
-  async init(config: BoundaryConfig) {
+  async write(config: BoundaryConfig) {
     const debug = this.isDebugEnabled.bind(this)
 
     if (debug("fields")) {
-      console.log("[Boundary] Initializing fields:", config.fields)
+      console.log("[Boundary] Writing fields:", config.fields)
     }
 
-    FieldRegistry.clear()
-    resetStringAtlas()
+    this.clear()
 
     const registry = FieldRegistry.getInstance()
     for (const [name, def] of Object.entries(config.fields)) {

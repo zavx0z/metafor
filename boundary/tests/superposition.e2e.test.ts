@@ -32,7 +32,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
         SCOUT: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           hp: { type: "number" },
           mana: { type: "number" },
@@ -67,7 +67,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { hp: { type: "number" } },
         branes: [
           { id: "q1", state: "IDLE", params: { hp: 50 }, superposition: lowThresholdSuperposition },
@@ -100,7 +100,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { hp: { type: "number" } },
         branes: [
           { id: "q1", state: "IDLE", params: { hp: 50 }, superposition: gtSuperposition },
@@ -134,7 +134,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
         FORTIFY: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { hp: { type: "number" } },
         branes: [
           { id: "aggressive", state: "IDLE", params: { hp: 95 }, superposition: aggressiveSuperposition },
@@ -175,7 +175,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           hp: { type: "number" },
           mana: { type: "number" },
@@ -211,7 +211,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { hp: { type: "number" } },
         branes: [
           { id: "q1", state: "IDLE", params: { hp: 60 }, superposition: superposition1 },
@@ -244,7 +244,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
         STAGE_B: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           hp: { type: "number" },
           mana: { type: "number" },

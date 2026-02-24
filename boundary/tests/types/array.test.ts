@@ -19,7 +19,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { tags: { type: "array<number>" } },
         branes: [
           { id: "q1", state: "IDLE", params: { tags: [1, 5, 10] }, superposition },
@@ -44,7 +44,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { tags: { type: "array<string>" } },
         branes: [
           { id: "q1", state: "IDLE", params: { tags: ["fire", "ice", "lightning"] }, superposition },
@@ -69,7 +69,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { tags: { type: "array<number>" } },
         branes: [
           { id: "q1", state: "IDLE", params: { tags: [1, 2, 3] }, superposition },
@@ -96,7 +96,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { items: { type: "array<number>" } },
         branes: [
           { id: "q1", state: "IDLE", params: { items: [1, 2, 3] }, superposition },
@@ -123,7 +123,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { items: { type: "array<number>" } },
         branes: [
           { id: "q1", state: "IDLE", params: { items: [1] }, superposition },
@@ -150,7 +150,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
         EMPTY: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { items: { type: "array<number>" } },
         branes: [
           { id: "q1", state: "IDLE", params: { items: [] }, superposition },
@@ -175,7 +175,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { items: { type: "array<number>" } },
         branes: [
           { id: "q1", state: "IDLE", params: { items: [] }, superposition },
@@ -207,7 +207,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { items: { type: "array<number>" }, tags: { type: "array<number>" } },
         branes: [
           {
@@ -249,7 +249,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { items: { type: "array<number>" } },
         branes: [{ id: "q1", state: "IDLE", params: { items: [] }, superposition }],
       })
@@ -268,7 +268,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { items: { type: "array<number>" } },
         branes: [{ id: "q1", state: "IDLE", params: { items: [42] }, superposition }],
       })
@@ -287,7 +287,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { items: { type: "array<number>" } },
         branes: [
           {

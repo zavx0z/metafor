@@ -27,7 +27,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     test("должен перейти из IDLE в DEAD при hp <= 0", async () => {
       const boundary = new Boundary()
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           hp: { type: "number" },
           mana: { type: "number" },
@@ -54,7 +54,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
         PATROL: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { hp: { type: "number" } },
         branes: [
           { id: "q1", state: "IDLE", params: { hp: 100 }, superposition },
@@ -77,7 +77,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
         PATROL: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { hp: { type: "number" } },
         branes: [
           { id: "q1", state: "IDLE", params: { hp: 50 }, superposition },
@@ -100,7 +100,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
         PATROL: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { hp: { type: "number" } },
         branes: [
           { id: "q1", state: "IDLE", params: { hp: 49 }, superposition },
@@ -125,7 +125,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { isAlive: { type: "boolean" } },
         branes: [
           { id: "q1", state: "IDLE", params: { isAlive: true }, superposition },
@@ -148,7 +148,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
         DEAD: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { isAlive: { type: "boolean" } },
         branes: [
           { id: "q1", state: "ACTIVE", params: { isAlive: false }, superposition },
@@ -178,7 +178,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
         COMBAT: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           hp: { type: "number" },
           mana: { type: "number" },
@@ -208,7 +208,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
         DEAD: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { hp: { type: "number" } },
         branes: [{ id: "q1", state: "IDLE", params: { hp: 100 }, superposition }],
       })
@@ -228,7 +228,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
         PATROL: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { hp: { type: "number" } },
         branes: [{ id: "q1", state: "IDLE", params: { hp: 100 }, superposition }],
       })
@@ -251,7 +251,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
         COMBAT: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           hp: { type: "number" },
           mana: { type: "number" },
@@ -276,7 +276,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { hp: { type: "number" } },
         branes: [
           { id: "q1", state: "IDLE", params: { hp: 100 }, superposition },
@@ -301,7 +301,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
         ACTIVE: { IDLE: { hp: { lte: 50 } } },
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { hp: { type: "number" } },
         branes: [
           { id: "q1", state: "IDLE", params: { hp: 100 }, superposition },
@@ -336,7 +336,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
         SCOUT: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           hp: { type: "number" },
           mana: { type: "number" },
@@ -369,7 +369,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { hp: { type: "number" } },
         branes: [
           { id: "q1", state: "IDLE", params: { hp: 50 }, superposition: lowThresholdSuperposition },
@@ -399,7 +399,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
         FORTIFY: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { hp: { type: "number" } },
         branes: [
           { id: "aggressive", state: "IDLE", params: { hp: 95 }, superposition: aggressiveSuperposition },
@@ -438,7 +438,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: {
           hp: { type: "number" },
           mana: { type: "number" },

@@ -16,7 +16,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { isAlive: { type: "boolean" } },
         branes: [
           { id: "q1", state: "IDLE", params: { isAlive: true }, superposition },
@@ -41,7 +41,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
         DEAD: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { isAlive: { type: "boolean" } },
         branes: [
           { id: "q1", state: "IDLE", params: { isAlive: false }, superposition },
@@ -66,7 +66,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { isAlive: { type: "boolean" } },
         branes: [
           { id: "q1", state: "IDLE", params: { isAlive: true }, superposition },
@@ -89,7 +89,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
         DEAD: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { isAlive: { type: "boolean" } },
         branes: [
           { id: "q1", state: "IDLE", params: { isAlive: false }, superposition },
@@ -114,7 +114,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
         DEAD: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { isAlive: { type: "boolean" } },
         branes: [
           { id: "q1", state: "IDLE", params: { isAlive: true }, superposition },
@@ -137,7 +137,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { isAlive: { type: "boolean" } },
         branes: [
           { id: "q1", state: "IDLE", params: { isAlive: false }, superposition },
@@ -162,7 +162,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { isAlive: { type: "boolean" }, hasMana: { type: "boolean" } },
         branes: [
           { id: "q1", state: "IDLE", params: { isAlive: true, hasMana: true }, superposition },
@@ -189,7 +189,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { isAlive: { type: "boolean" }, isStunned: { type: "boolean" } },
         branes: [
           { id: "q1", state: "IDLE", params: { isAlive: true, isStunned: false }, superposition },
@@ -216,7 +216,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
         ACTIVE: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { isReady: { type: "boolean" } },
         branes: [{ id: "q1", state: "IDLE", params: { isReady: false }, superposition }],
       })
@@ -236,7 +236,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
         DEAD: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { isAlive: { type: "boolean" } },
         branes: [{ id: "q1", state: "IDLE", params: { isAlive: true }, superposition }],
       })
@@ -258,7 +258,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
         COMBAT: null,
       }
 
-      await boundary.init({
+      await boundary.write({
         fields: { isAlive: { type: "boolean" }, hp: { type: "number" } },
         branes: [
           { id: "q1", state: "IDLE", params: { isAlive: true, hp: 100 }, superposition },

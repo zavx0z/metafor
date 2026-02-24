@@ -211,4 +211,31 @@ export class GPUBackend {
     if (extraCopy) usage |= GPUBufferUsage.COPY_SRC
     return this.createBuffer(data, usage)
   }
+
+  /**
+   * Очищает все GPU-ресурсы (буферы, pipeline, bindGroup).
+   *
+   * @remarks
+   * **Side Effects:**
+   * - Уничтожает все GPUBuffer через `.destroy()`.
+   * - Сбрасывает ссылки на pipeline и bindGroup.
+   * - После вызова требуется повторный `init()` для работы.
+   */
+  clear() {
+    // Destroy all buffers
+    for (const [name, buffer] of Object.entries(this.buffers)) {
+      buffer.destroy()
+    }
+    this.buffers = {}
+
+    // Destroy staging buffer
+    if (this.stagingBuffer) {
+      this.stagingBuffer.destroy()
+      this.stagingBuffer = null
+    }
+
+    // Reset pipeline and bindGroup
+    this.pipeline = null
+    this.bindGroup = null
+  }
 }
