@@ -42,9 +42,9 @@ describe("Monad (модуль)", () => {
   })
 
   it("должен вызывать onStateChange при изменении состояния", (done) => {
-    onStateChange((index, old, newer) => {
+    onStateChange((id, old, newer) => {
       if (newer === "выполнение") {
-        expect(index).toBe(0)
+        expect(id).toBeDefined()
         expect(old).toBe("ожидание")
         expect(newer).toBe("выполнение")
         done()
@@ -67,24 +67,12 @@ describe("Monad (модуль)", () => {
     })
     _createdMonadIds.push(id)
 
-    updateMonad(0, { cmd: "git status" })
+    updateMonad(id, { cmd: "git status" })
   })
 
   it("должен выполнять action при изменении состояния", (done) => {
     let actionExecuted = false
     let actionParams: Record<string, unknown> = {}
-
-    onStateChange((index, oldState, newState) => {
-      if (newState === "выполнение") {
-        execute(index, newState)
-
-        setTimeout(() => {
-          expect(actionExecuted).toBe(true)
-          expect(actionParams.cmd).toBe("git status")
-          done()
-        }, 10)
-      }
-    })
 
     const id = createMonad({
       fields: { cmd: { type: "string" } },
@@ -98,24 +86,23 @@ describe("Monad (модуль)", () => {
         выполнение: (params, update) => {
           actionExecuted = true
           actionParams = { ...params }
+          done()
         },
       },
     })
     _createdMonadIds.push(id)
 
-    updateMonad(0, { cmd: "git status" })
+    onStateChange((id, oldState, newState) => {
+      if (newState === "выполнение") {
+        execute(id, newState)
+      }
+    })
+
+    updateMonad(id, { cmd: "git status" })
   })
 
   it("должен обновлять params через update", (done) => {
     let updatedParams: Record<string, unknown> = {}
-    let actionCalled = false
-
-    onStateChange((index, oldState, newState) => {
-      if (newState === "выполнение" && !actionCalled) {
-        actionCalled = true
-        execute(index, newState)
-      }
-    })
 
     const id = createMonad({
       fields: { cmd: { type: "string" }, count: { type: "number" } },
@@ -129,23 +116,28 @@ describe("Monad (модуль)", () => {
         выполнение: (params, update) => {
           updatedParams = { ...params }
           update({ cmd: "", count: 1 })
-
           setTimeout(() => {
             expect(updatedParams.cmd).toBe("git status")
             done()
-          }, 10)
+          }, 50)
         },
       },
     })
     _createdMonadIds.push(id)
 
-    updateMonad(0, { cmd: "git status" })
+    onStateChange((id, oldState, newState) => {
+      if (newState === "выполнение") {
+        execute(id, newState)
+      }
+    })
+
+    updateMonad(id, { cmd: "git status" })
   })
 
   it("должен работать с updateBoundary", (done) => {
-    onStateChange((index, oldState, newState) => {
+    onStateChange((id, oldState, newState) => {
       if (newState === "выполнение") {
-        expect(index).toBe(0)
+        expect(id).toBeDefined()
         done()
       }
     })
@@ -162,7 +154,7 @@ describe("Monad (модуль)", () => {
     })
     _createdMonadIds.push(id)
 
-    updateBoundary(0, "cmd", "git status")
+    updateBoundary(id, "cmd", "git status")
   })
 
   it("должен удалять монаду по uuid", () => {

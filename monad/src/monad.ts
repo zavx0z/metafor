@@ -51,24 +51,31 @@ interface InternalBrane {
 
 let _boundary: Boundary | null = null
 let _monads: Map<string, MonadConfig> = new Map()
-let _branes: Map<number, { id: string; brane: InternalBrane }> = new Map()
-let _states: Map<number, string> = new Map()
-let _onStateChange: ((index: number, old: string, newer: string) => void) | null = null
+let _branes: Map<string, InternalBrane> = new Map()  // UUID → Brane
+let _states: Map<string, string> = new Map()         // UUID → State
+let _onStateChange: ((monadId: string, old: string, newer: string) => void) | null = null
 
 /**
  * Создаёт Boundary с текущими бранами.
+ * Возвращает Boundary и маппинг UUID → индекс.
  */
-async function _createBoundary(): Promise<Boundary> {
+async function _createBoundary(): Promise<{ boundary: Boundary; uuidToIndex: Map<string, number>; indexToUuid: Map<number, string> }> {
   // Собираем все браны с актуальными params
   const allBranes: Array<{ id: string; params: Record<string, unknown>; state: string; superposition: any }> = []
+  const uuidToIndex = new Map<string, number>()
+  const indexToUuid = new Map<number, string>()
   
-  for (const [index, { brane }] of _branes.entries()) {
+  let index = 0
+  for (const [id, brane] of _branes.entries()) {
     allBranes.push({
-      id: brane.id,
+      id,
       params: brane.params,
-      state: _states.get(index) || brane.state,
+      state: _states.get(id) || brane.state,
       superposition: brane.superposition,
     })
+    uuidToIndex.set(id, index)
+    indexToUuid.set(index, id)
+    index++
   }
 
   // Получаем fields из первой монады
@@ -79,7 +86,7 @@ async function _createBoundary(): Promise<Boundary> {
 
   const boundary = new Boundary()
   await boundary.init({ fields: firstMonad.fields, branes: allBranes })
-  return boundary
+  return { boundary, uuidToIndex, indexToUuid }
 }
 
 // ==================== Функции ====================
@@ -110,17 +117,13 @@ export function createMonad(config: MonadConfig): string {
   _monads.set(monadId, config)
 
   // Регистрируем брану (ID = UUID монады)
-  const index = _branes.size
-  _branes.set(index, {
+  _branes.set(monadId, {
     id: monadId,
-    brane: {
-      id: monadId,
-      params: { ...config.params },
-      state: config.state,
-      superposition: config.superposition,
-    },
+    params: { ...config.params },
+    state: config.state,
+    superposition: config.superposition,
   })
-  _states.set(index, config.state)
+  _states.set(monadId, config.state)
 
   return monadId
 }
@@ -128,23 +131,17 @@ export function createMonad(config: MonadConfig): string {
 /**
  * Удаляет монаду по id и очищает состояние.
  *
- * @param monadId - Идентификатор монады.
+ * @param monadId - Идентификатор монады (UUID).
  *
  * @example
  * ```typescript
- * deleteMonad("git-1")
+ * deleteMonad("550e8400-e29b-41d4-a716-446655440000")
  * ```
  */
 export function deleteMonad(monadId: string): void {
   _monads.delete(monadId)
-
-  // Удаляем все браны этой монады
-  for (const [index, { id }] of _branes.entries()) {
-    if (id === monadId) {
-      _branes.delete(index)
-      _states.delete(index)
-    }
-  }
+  _branes.delete(monadId)
+  _states.delete(monadId)
 
   // Если удалили последнюю монаду — сбрасываем всё
   if (_monads.size === 0) {
@@ -156,25 +153,31 @@ export function deleteMonad(monadId: string): void {
 /**
  * Обновляет поля браны и проверяет триггеры.
  *
- * @param index - Индекс браны.
+ * @param monadId - UUID монады.
  * @param fields - Объект с новыми значениями полей.
  *
  * @example
  * ```typescript
- * updateMonad(0, { cmd: "git status", count: 5 })
+ * updateMonad(monadId, { cmd: "git status", count: 5 })
  * ```
  */
-export async function updateMonad(index: number, fields: Record<string, unknown>): Promise<void> {
-  const entry = _branes.get(index)
-  if (!entry) {
-    throw new Error(`Brane with index ${index} not found`)
+export async function updateMonad(monadId: string, fields: Record<string, unknown>): Promise<void> {
+  const brane = _branes.get(monadId)
+  if (!brane) {
+    throw new Error(`Brane with id ${monadId} not found`)
   }
 
   // Пересоздаём Boundary с актуальными данными
-  _boundary = await _createBoundary()
+  const { boundary, uuidToIndex, indexToUuid } = await _createBoundary()
+  _boundary = boundary
+
+  const index = uuidToIndex.get(monadId)
+  if (index === undefined) {
+    throw new Error(`Brane ${monadId} not found in boundary`)
+  }
 
   // Обновляем params локально
-  entry.brane.params = { ...entry.brane.params, ...fields }
+  brane.params = { ...brane.params, ...fields }
 
   // Обновляем каждое поле в boundary
   for (const [field, value] of Object.entries(fields)) {
@@ -190,10 +193,12 @@ export async function updateMonad(index: number, fields: Record<string, unknown>
   // Проверяем изменения и вызываем onStateChange
   newStates.then((states) => {
     states.forEach((newState, i) => {
-      const oldState = _states.get(i)
+      const id = indexToUuid.get(i)
+      if (!id) return
+      const oldState = _states.get(id)
       if (oldState !== undefined && newState !== oldState) {
-        _states.set(i, newState)
-        _onStateChange?.(i, oldState, newState)
+        _states.set(id, newState)
+        _onStateChange?.(id, oldState, newState)  // Передаём UUID, а не индекс
       }
     })
   })
@@ -202,18 +207,24 @@ export async function updateMonad(index: number, fields: Record<string, unknown>
 /**
  * Обновляет поле в boundary (без обновления локальных params).
  *
- * @param index - Индекс браны.
+ * @param monadId - UUID монады.
  * @param field - Имя поля.
  * @param value - Новое значение.
  *
  * @example
  * ```typescript
- * updateBoundary(0, "cmd", "git status")
+ * updateBoundary(monadId, "cmd", "git status")
  * ```
  */
-export async function updateBoundary(index: number, field: string, value: unknown): Promise<void> {
+export async function updateBoundary(monadId: string, field: string, value: unknown): Promise<void> {
   // Пересоздаём Boundary с актуальными данными
-  _boundary = await _createBoundary()
+  const { boundary, uuidToIndex, indexToUuid } = await _createBoundary()
+  _boundary = boundary
+
+  const index = uuidToIndex.get(monadId)
+  if (index === undefined) {
+    throw new Error(`Brane ${monadId} not found in boundary`)
+  }
 
   _boundary.updateBraneField(index, field, value)
   _boundary.step()
@@ -221,10 +232,12 @@ export async function updateBoundary(index: number, field: string, value: unknow
   const newStates = _boundary.getStates()
   newStates.then((states) => {
     states.forEach((newState, i) => {
-      const oldState = _states.get(i)
+      const id = indexToUuid.get(i)
+      if (!id) return
+      const oldState = _states.get(id)
       if (oldState !== undefined && newState !== oldState) {
-        _states.set(i, newState)
-        _onStateChange?.(i, oldState, newState)
+        _states.set(id, newState)
+        _onStateChange?.(id, oldState, newState)
       }
     })
   })
@@ -237,26 +250,25 @@ export async function updateBoundary(index: number, field: string, value: unknow
  *
  * @example
  * ```typescript
- * onStateChange((index, oldState, newState) => {
+ * onStateChange((monadId, oldState, newState) => {
  *   console.log(`State changed: ${oldState} → ${newState}`)
  * })
  * ```
  */
-export function onStateChange(callback: (index: number, old: string, newer: string) => void): void {
+export function onStateChange(callback: (monadId: string, old: string, newer: string) => void): void {
   _onStateChange = callback
 }
 
 /**
  * Выполняет действие для состояния.
  *
- * @param index - Индекс браны.
+ * @param monadId - UUID монады.
  * @param state - Имя состояния.
  */
-export function execute(index: number, state: string): void {
-  const entry = _branes.get(index)
-  if (!entry) return
+export function execute(monadId: string, state: string): void {
+  const brane = _branes.get(monadId)
+  if (!brane) return
 
-  const monadId = entry.id
   const monad = _monads.get(monadId)
   if (!monad) return
 
@@ -265,11 +277,14 @@ export function execute(index: number, state: string): void {
 
   const update = (params: Record<string, unknown>) => {
     // Обновляем params в бране
-    entry.brane.params = { ...entry.brane.params, ...params }
+    brane.params = { ...brane.params, ...params }
 
     // Пересоздаём Boundary с актуальными данными
-    _createBoundary().then((boundary) => {
+    _createBoundary().then(({ boundary, uuidToIndex, indexToUuid }) => {
       _boundary = boundary
+
+      const index = uuidToIndex.get(monadId)
+      if (index === undefined) return
 
       // Обновляем поля в boundary
       for (const [field, value] of Object.entries(params)) {
@@ -283,10 +298,12 @@ export function execute(index: number, state: string): void {
       const newStates = boundary.getStates()
       newStates.then((states) => {
         states.forEach((newState, i) => {
-          const oldState = _states.get(i)
+          const id = indexToUuid.get(i)
+          if (!id) return
+          const oldState = _states.get(id)
           if (oldState !== undefined && newState !== oldState) {
-            _states.set(i, newState)
-            _onStateChange?.(i, oldState, newState)
+            _states.set(id, newState)
+            _onStateChange?.(id, oldState, newState)
           }
         })
       })
@@ -294,5 +311,5 @@ export function execute(index: number, state: string): void {
   }
 
   // Выполняем действие
-  action(entry.brane.params, update)
+  action(brane.params, update)
 }
