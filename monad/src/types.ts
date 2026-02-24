@@ -4,7 +4,18 @@
  * @packageDocumentation
  */
 
-import type { Superposition } from "@metafor/boundary"
+import type { FieldsDefinition, Superposition } from "@metafor/boundary"
+
+/**
+ * Конфигурация монады.
+ */
+export interface MonadConfig {
+  fields: FieldsDefinition
+  params: Record<string, unknown>
+  state: string
+  superposition: Superposition
+  actions: Actions
+}
 
 /**
  * Функция обновления параметров (не используется в execute).

@@ -5,7 +5,7 @@
  */
 
 import { Boundary, type FieldsDefinition, type Superposition } from "@metafor/boundary"
-import type { Action, Actions } from "./types"
+import type { Action, Actions, MonadConfig } from "./types"
 
 /**
  * Внутреннее представление браны.
@@ -14,17 +14,6 @@ interface InternalBrane {
   params: Record<string, unknown>
   state: string
   superposition: Superposition
-}
-
-/**
- * Конфигурация монады.
- */
-export interface MonadConfig {
-  fields: FieldsDefinition
-  params: Record<string, unknown>
-  state: string
-  superposition: Superposition
-  actions: Actions
 }
 
 // ==================== Внутреннее состояние ====================
@@ -46,24 +35,6 @@ export function _resetState(): void {
   _uuidToIndex.clear()
   _indexToUuid.clear()
   _onStateChange = null
-}
-
-// ==================== Вспомогательные функции ====================
-
-async function _syncStatesFromBoundary(): Promise<void> {
-  const boundary = _boundary
-  if (!boundary) return
-
-  const states = await boundary.getStates()
-  states.forEach((current, i) => {
-    const id = _indexToUuid.get(i)
-    if (!id) return
-    const old = _states.get(id)
-    if (old !== undefined && current !== old) {
-      _states.set(id, current)
-      _onStateChange?.(id, old, current)
-    }
-  })
 }
 
 // ==================== Функции ====================
@@ -141,6 +112,7 @@ export async function updateBoundary(): Promise<void> {
  *
  * @param id - UUID монады.
  * @param fields - Новые значения полей.
+ * @throws {Error} Если Boundary не инициализирован. Вызовите updateBoundary() перед updateMonad().
  */
 export async function updateMonad(id: string, fields: Record<string, unknown>): Promise<void> {
   const brane = _branes.get(id)
@@ -148,9 +120,9 @@ export async function updateMonad(id: string, fields: Record<string, unknown>): 
     throw new Error(`Brane with id ${id} not found`)
   }
 
-  // Создаём Boundary если не создан
+  // Boundary должен быть создан через updateBoundary()
   if (!_boundary) {
-    await updateBoundary()
+    throw new Error("Boundary not initialized. Call updateBoundary() first.")
   }
 
   const index = _uuidToIndex.get(id)
@@ -163,14 +135,36 @@ export async function updateMonad(id: string, fields: Record<string, unknown>): 
 
   // Обновляем в Boundary
   for (const [field, value] of Object.entries(fields)) {
-    _boundary!.updateBraneField(index, field, value)
+    _boundary.updateBraneField(index, field, value)
   }
 
   // Шаг эволюции
-  _boundary!.step()
+  _boundary.step()
 
-  // Синхронизация состояний
-  await _syncStatesFromBoundary()
+  // Получаем новые состояния и обрабатываем изменения
+  const states = await _boundary.getStates()
+  states.forEach((current, i) => {
+    const monadId = _indexToUuid.get(i)
+    if (!monadId) return
+    
+    const old = _states.get(monadId)
+    if (old !== undefined && current !== old) {
+      _states.set(monadId, current)
+      
+      // Автоматически выполняем действие для нового состояния
+      const monad = _monads.get(monadId)
+      const action = monad?.actions[current]
+      if (action) {
+        const brane = _branes.get(monadId)
+        if (brane) {
+          action(brane.params)
+        }
+      }
+      
+      // Вызываем callback
+      _onStateChange?.(monadId, old, current)
+    }
+  })
 }
 
 /**
@@ -187,24 +181,4 @@ export async function updateMonad(id: string, fields: Record<string, unknown>): 
  */
 export function onStateChange(callback: (monadId: string, old: string, current: string) => void): void {
   _onStateChange = callback
-}
-
-/**
- * Выполняет действие для состояния (чистая функция).
- *
- * @param id - UUID монады.
- * @param state - Имя состояния.
- */
-export function execute(id: string, state: string): void {
-  const monad = _monads.get(id)
-  if (!monad) return
-
-  const action = monad.actions[state]
-  if (!action) return
-
-  const brane = _branes.get(id)
-  if (!brane) return
-
-  // Чистая функция - никаких обновлений
-  action(brane.params)
 }

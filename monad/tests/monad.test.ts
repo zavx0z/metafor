@@ -5,7 +5,6 @@ import {
   updateMonad,
   updateBoundary,
   onStateChange,
-  execute,
   _resetState,
 } from "../src/monad"
 import { GPU } from "@metafor/boundary"
@@ -62,6 +61,7 @@ describe("Monad (модуль)", () => {
     })
     _createdMonadIds.push(id)
 
+    await updateBoundary()
     await updateMonad(id, { cmd: "git status" })
 
     expect(stateChanged).toBe(true)
@@ -91,11 +91,10 @@ describe("Monad (модуль)", () => {
     _createdMonadIds.push(id)
 
     onStateChange((id, old, current) => {
-      if (current === "выполнение") {
-        execute(id, current)
-      }
+      // action уже выполнен автоматически
     })
 
+    await updateBoundary()
     await updateMonad(id, { cmd: "git status" })
 
     expect(actionExecuted).toBe(true)

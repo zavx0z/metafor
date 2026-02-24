@@ -10,8 +10,7 @@ export {
   updateMonad,
   updateBoundary,
   onStateChange,
-  execute,
 } from "./monad"
 
-export type { MonadConfig } from "./monad"
+export type { MonadConfig } from "./types"
 export type { Brane, Action, Update, Actions } from "./types"
