@@ -173,4 +173,61 @@ describe("Monad (модуль)", () => {
     deleteMonad(id)
     expect(true).toBe(true)
   })
+
+  it("должен позволять добавить несколько монад до первой инициализации Boundary", async () => {
+    const id1 = createMonad({
+      fields: { cmd: { type: "string" } },
+      params: { cmd: "" },
+      state: "ожидание",
+      superposition: {
+        ожидание: { выполнение: { cmd: { null: false } } },
+        выполнение: null,
+      },
+      actions: {},
+    })
+    const id2 = createMonad({
+      fields: { cmd: { type: "string" } },
+      params: { cmd: "" },
+      state: "ожидание",
+      superposition: {
+        ожидание: { выполнение: { cmd: { null: false } } },
+        выполнение: null,
+      },
+      actions: {},
+    })
+    _createdMonadIds.push(id1, id2)
+
+    await expect(updateBoundary(id2, "cmd", "git status")).resolves.toBeUndefined()
+  })
+
+  it("должен позволять удалять монаду при активном Boundary", async () => {
+    const id1 = createMonad({
+      fields: { cmd: { type: "string" } },
+      params: { cmd: "" },
+      state: "ожидание",
+      superposition: {
+        ожидание: { выполнение: { cmd: { null: false } } },
+        выполнение: null,
+      },
+      actions: {},
+    })
+    const id2 = createMonad({
+      fields: { cmd: { type: "string" } },
+      params: { cmd: "" },
+      state: "ожидание",
+      superposition: {
+        ожидание: { выполнение: { cmd: { null: false } } },
+        выполнение: null,
+      },
+      actions: {},
+    })
+    _createdMonadIds.push(id1, id2)
+
+    await updateBoundary(id1, "cmd", "git status")
+
+    expect(() => deleteMonad(id2)).not.toThrow()
+    expect(() => deleteMonad(id2)).not.toThrow()
+
+    await expect(updateBoundary(id2, "cmd", "git status")).rejects.toThrow(`Brane ${id2} not found`)
+  })
 })
