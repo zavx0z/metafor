@@ -28,17 +28,12 @@ describe("Monad (модуль)", () => {
   it("должен создавать монаду с конфигурацией", () => {
     const id = createMonad({
       fields: { cmd: { type: "string" } },
-      branes: [
-        {
-          id: "test-1",
-          params: { cmd: "" },
-          state: "ожидание",
-          superposition: {
-            ожидание: { выполнение: { cmd: { null: false } } },
-            выполнение: null,
-          },
-        },
-      ],
+      params: { cmd: "" },
+      state: "ожидание",
+      superposition: {
+        ожидание: { выполнение: { cmd: { null: false } } },
+        выполнение: null,
+      },
       actions: {},
     })
     _createdMonadIds.push(id)
@@ -58,17 +53,12 @@ describe("Monad (модуль)", () => {
 
     const id = createMonad({
       fields: { cmd: { type: "string" } },
-      branes: [
-        {
-          id: "test-2",
-          params: { cmd: "" },
-          state: "ожидание",
-          superposition: {
-            ожидание: { выполнение: { cmd: { null: false } } },
-            выполнение: null,
-          },
-        },
-      ],
+      params: { cmd: "" },
+      state: "ожидание",
+      superposition: {
+        ожидание: { выполнение: { cmd: { null: false } } },
+        выполнение: null,
+      },
       actions: {
         выполнение: (params, update) => {
           // Действо выполнено
@@ -98,17 +88,12 @@ describe("Monad (модуль)", () => {
 
     const id = createMonad({
       fields: { cmd: { type: "string" } },
-      branes: [
-        {
-          id: "test-3",
-          params: { cmd: "" },
-          state: "ожидание",
-          superposition: {
-            ожидание: { выполнение: { cmd: { null: false } } },
-            выполнение: null,
-          },
-        },
-      ],
+      params: { cmd: "" },
+      state: "ожидание",
+      superposition: {
+        ожидание: { выполнение: { cmd: { null: false } } },
+        выполнение: null,
+      },
       actions: {
         выполнение: (params, update) => {
           actionExecuted = true
@@ -134,21 +119,16 @@ describe("Monad (модуль)", () => {
 
     const id = createMonad({
       fields: { cmd: { type: "string" }, count: { type: "number" } },
-      branes: [
-        {
-          id: "test-4",
-          params: { cmd: "", count: 0 },
-          state: "ожидание",
-          superposition: {
-            ожидание: { выполнение: { cmd: { null: false } } },
-            выполнение: null,
-          },
-        },
-      ],
+      params: { cmd: "", count: 0 },
+      state: "ожидание",
+      superposition: {
+        ожидание: { выполнение: { cmd: { null: false } } },
+        выполнение: null,
+      },
       actions: {
         выполнение: (params, update) => {
           updatedParams = { ...params }
-          update("test-4", { cmd: "", count: 1 })
+          update({ cmd: "", count: 1 })
 
           setTimeout(() => {
             expect(updatedParams.cmd).toBe("git status")
@@ -172,17 +152,12 @@ describe("Monad (модуль)", () => {
 
     const id = createMonad({
       fields: { cmd: { type: "string" } },
-      branes: [
-        {
-          id: "test-5",
-          params: { cmd: "" },
-          state: "ожидание",
-          superposition: {
-            ожидание: { выполнение: { cmd: { null: false } } },
-            выполнение: null,
-          },
-        },
-      ],
+      params: { cmd: "" },
+      state: "ожидание",
+      superposition: {
+        ожидание: { выполнение: { cmd: { null: false } } },
+        выполнение: null,
+      },
       actions: {},
     })
     _createdMonadIds.push(id)
@@ -193,17 +168,12 @@ describe("Monad (модуль)", () => {
   it("должен удалять монаду по uuid", () => {
     const id = createMonad({
       fields: { cmd: { type: "string" } },
-      branes: [
-        {
-          id: "test-delete",
-          params: { cmd: "" },
-          state: "ожидание",
-          superposition: {
-            ожидание: { выполнение: { cmd: { null: false } } },
-            выполнение: null,
-          },
-        },
-      ],
+      params: { cmd: "" },
+      state: "ожидание",
+      superposition: {
+        ожидание: { выполнение: { cmd: { null: false } } },
+        выполнение: null,
+      },
       actions: {},
     })
 

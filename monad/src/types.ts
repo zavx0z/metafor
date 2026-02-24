@@ -28,11 +28,8 @@ export interface Brane {
 
 /**
  * Функция обновления параметров браны.
- *
- * @param boundaryId - Идентификатор boundary (монады).
- * @param params - Новые значения полей.
  */
-export type Update = (boundaryId: string, params: Record<string, unknown>) => void
+export type Update = (params: Record<string, unknown>) => void
 
 /**
  * Действие — функция, выполняемая при изменении состояния.
@@ -48,13 +45,21 @@ export type Action = (params: Record<string, unknown>, update: Update) => void
 export type Actions = Record<string, Action | null>
 
 /**
- * Конфигурация монады.
+ * Конфигурация монады (одна брана).
+ *
+ * @remarks
+ * Монада имеет одну брану — проекцию на поверхность Boundary.
+ * ID браны генерируется автоматически (UUID монады).
  */
 export interface MonadConfig {
-  /** Схема типов полей (общая для всех бран). */
+  /** Схема типов полей. */
   fields: FieldsDefinition
-  /** Массив бран — возмущений в поле. */
-  branes: Brane[]
+  /** Значения полей браны. */
+  params: Record<string, unknown>
+  /** Текущее состояние. */
+  state: string
+  /** Суперпозиция — граф переходов. */
+  superposition: Superposition
   /** Карта действий по именам состояний. */
   actions: Actions
 }

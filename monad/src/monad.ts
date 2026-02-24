@@ -59,25 +59,16 @@ let _onStateChange: ((index: number, old: string, newer: string) => void) | null
  * Создаёт Boundary с текущими бранами.
  */
 async function _createBoundary(): Promise<Boundary> {
-  // Собираем все браны с актуальными params из _branes
+  // Собираем все браны с актуальными params
   const allBranes: Array<{ id: string; params: Record<string, unknown>; state: string; superposition: any }> = []
-  for (const monad of _monads.values()) {
-    for (const brane of monad.branes) {
-      // Находим актуальные params в _branes
-      let actualParams = brane.params
-      for (const [_, { id, brane: b }] of _branes.entries()) {
-        if (id === monad.branes[0]?.id && b.id === brane.id) {
-          actualParams = b.params
-          break
-        }
-      }
-      allBranes.push({
-        id: brane.id,
-        params: actualParams,
-        state: brane.state,
-        superposition: brane.superposition,
-      })
-    }
+  
+  for (const [index, { brane }] of _branes.entries()) {
+    allBranes.push({
+      id: brane.id,
+      params: brane.params,
+      state: _states.get(index) || brane.state,
+      superposition: brane.superposition,
+    })
   }
 
   // Получаем fields из первой монады
@@ -96,38 +87,40 @@ async function _createBoundary(): Promise<Boundary> {
 /**
  * Создаёт и инициализирует монаду.
  *
- * @param config - Конфигурация монады.
+ * @param config - Конфигурация монады (одна брана).
  * @returns UUID созданной монады.
  *
  * @example
  * ```typescript
  * const monadId = createMonad({
  *   fields: { cmd: { type: "string" } },
- *   branes: [{ id, params, state, superposition }],
+ *   params: { cmd: "" },
+ *   state: "ожидание",
+ *   superposition: {
+ *     "ожидание": { "выполнение": { cmd: { null: false } } },
+ *     "выполнение": null
+ *   },
  *   actions: { "состояние": (params, update) => { ... } }
  * })
  * ```
  */
 export function createMonad(config: MonadConfig): string {
-  // Генерируем UUID для монады
+  // Генерируем UUID для монады (он же ID браны)
   const monadId = crypto.randomUUID()
   _monads.set(monadId, config)
 
-  // Регистрируем браны с учётом существующих
-  const startIndex = _branes.size
-  config.branes.forEach((b, index) => {
-    const globalIndex = startIndex + index
-    _branes.set(globalIndex, {
+  // Регистрируем брану (ID = UUID монады)
+  const index = _branes.size
+  _branes.set(index, {
+    id: monadId,
+    brane: {
       id: monadId,
-      brane: {
-        id: b.id,
-        params: { ...b.params },
-        state: b.state,
-        superposition: b.superposition,
-      },
-    })
-    _states.set(globalIndex, b.state)
+      params: { ...config.params },
+      state: config.state,
+      superposition: config.superposition,
+    },
   })
+  _states.set(index, config.state)
 
   return monadId
 }
@@ -261,15 +254,16 @@ export function onStateChange(callback: (index: number, old: string, newer: stri
  */
 export function execute(index: number, state: string): void {
   const entry = _branes.get(index)
-  if (!entry || !_monads.has(entry.id)) return
+  if (!entry) return
 
-  const monad = _monads.get(entry.id)
+  const monadId = entry.id
+  const monad = _monads.get(monadId)
   if (!monad) return
 
   const action = monad.actions[state]
   if (!action) return
 
-  const update = (boundaryId: string, params: Record<string, unknown>) => {
+  const update = (params: Record<string, unknown>) => {
     // Обновляем params в бране
     entry.brane.params = { ...entry.brane.params, ...params }
 
