@@ -1,6 +1,6 @@
 import { describe, it, expect, beforeAll } from "bun:test"
-import { Monad } from "./Monad"
-import { setupDevice } from "../tests/fixture/bunWebGPU"
+import { Monad } from "../src/Monad"
+import { setupDevice } from "../../fixture/bunWebGPU"
 
 let device: GPUDevice
 

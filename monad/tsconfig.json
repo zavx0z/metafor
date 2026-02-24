@@ -1,13 +1,11 @@
 {
   "extends": "../tsconfig.json",
-  "compilerOptions": {
-    "outDir": "./dist",
-    "rootDir": ".",
-    "noEmit": false,
-    "declaration": true,
-    "declarationMap": true,
-    "types": ["bun-types", "@webgpu/types"]
-  },
-  "include": ["src/**/*", "tests/**/*"],
-  "exclude": ["node_modules", "dist"]
+  "include": [
+    "src/**/*",
+    "tests/**/*"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist"
+  ]
 }
