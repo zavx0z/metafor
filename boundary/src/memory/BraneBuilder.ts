@@ -134,11 +134,15 @@ function getFieldSize(type: FieldTypeValue, value: unknown): number {
  */
 export class BraneBuilder {
   private encoder = new TextEncoder()
+  private debug: boolean
 
   constructor(
     private registry: FieldRegistry,
     private allocator: HeapAllocator,
-  ) {}
+    debug: boolean = false,
+  ) {
+    this.debug = debug
+  }
 
   /**
    * Построить блок браны.
@@ -175,9 +179,11 @@ export class BraneBuilder {
       const sizeInWords = getFieldSize(entry.meta.type, entry.value)
       const offsetInWords = currentOffset
       currentOffset += sizeInWords
-      console.log(
-        `[BraneBuilder] Field "${entry.name}": type=${entry.meta.type}, size=${sizeInWords}, offset=${offsetInWords}`,
-      )
+      if (this.debug) {
+        console.log(
+          `[BraneBuilder] Field "${entry.name}": type=${entry.meta.type}, size=${sizeInWords}, offset=${offsetInWords}`,
+        )
+      }
       return { ...entry, sizeInWords, offsetInWords }
     })
 
@@ -201,9 +207,11 @@ export class BraneBuilder {
     for (const layout of fieldLayouts) {
       blockView[headerIndex++] = layout.meta.fieldId
       const packedMeta = packMeta(layout.meta.type, layout.sizeInWords, layout.offsetInWords)
-      console.log(
-        `[BraneBuilder] packMeta(${layout.meta.type}, ${layout.sizeInWords}, ${layout.offsetInWords}) = ${packedMeta} (0x${packedMeta.toString(16)})`,
-      )
+      if (this.debug) {
+        console.log(
+          `[BraneBuilder] packMeta(${layout.meta.type}, ${layout.sizeInWords}, ${layout.offsetInWords}) = ${packedMeta} (0x${packedMeta.toString(16)})`,
+        )
+      }
       blockView[headerIndex++] = packedMeta
     }
 
@@ -246,7 +254,9 @@ export class BraneBuilder {
           const stringId = atlas.intern(str)
           const meta = atlas.getMeta(stringId)
 
-          console.log(`[BraneBuilder] Interned string "${str}" -> ID ${stringId}, hash ${meta?.hash}`)
+          if (this.debug) {
+            console.log(`[BraneBuilder] Interned string "${str}" -> ID ${stringId}, hash ${meta?.hash}`)
+          }
 
           if (!meta) {
             throw new Error(`Не удалось получить метаданные для строки: ${str}`)

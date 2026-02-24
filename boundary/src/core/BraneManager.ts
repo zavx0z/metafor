@@ -69,7 +69,7 @@ export class BraneManager {
     this.debug = config.debug ?? false
     this.registry = FieldRegistry.getInstance()
     this.allocator = new HeapAllocator(heapSize, reserveFirst)
-    this.builder = new BraneBuilder(this.registry, this.allocator)
+    this.builder = new BraneBuilder(this.registry, this.allocator, this.debug)
     this.heapData = new Uint32Array(heapSize)
     this.heapData[0] = 0
   }

@@ -1,11 +1,7 @@
 import { Boundary, GPU } from "../src/index"
 
-const out = document.getElementById("output")!
 const status = document.getElementById("status")!
-const log = (msg: string) => {
-  out.innerText += msg + "\n"
-  console.log(msg)
-}
+const out = document.getElementById("output")!
 
 if (!navigator.gpu) {
   status.style.color = "red"
@@ -24,11 +20,13 @@ try {
 
   const boundary = new Boundary({
     debug: {
-      all: true, // Включить все debug-логи
+      all: true,
     },
   })
 
-  log("--- Инициализация границы ---")
+  console.log("--- Инициализация границы ---")
+  out.innerText += "--- Инициализация границы ---\n"
+  
   await boundary.init({
     fields: {
       hp: { type: "number" },
@@ -77,15 +75,20 @@ try {
     ],
   })
   const startStates = await boundary.getStates()
-  log(`Начальные состояния: ${JSON.stringify(startStates)}`)
+  const startMsg = `Начальные состояния: ${JSON.stringify(startStates)}`
+  console.log(startMsg)
+  out.innerText += startMsg + "\n"
 
-  log("\n--- Шаг симуляции ---")
+  console.log("\n--- Шаг симуляции ---")
+  out.innerText += "\n--- Шаг симуляции ---\n"
   boundary.step()
 
   const endStates = await boundary.getStates()
-  log(`Новые состояния:     ${JSON.stringify(endStates)}`)
+  const endMsg = `Новые состояния:     ${JSON.stringify(endStates)}`
+  console.log(endMsg)
+  out.innerText += endMsg + "\n"
 } catch (err: any) {
   status.innerText = "❌ Ошибка"
-  log(err.toString())
   console.error(err)
+  out.innerText += err.toString() + "\n"
 }
