@@ -97,19 +97,20 @@ async function _createBoundary(): Promise<Boundary> {
  * Создаёт и инициализирует монаду.
  *
  * @param config - Конфигурация монады.
+ * @returns UUID созданной монады.
  *
  * @example
  * ```typescript
- * createMonad({
+ * const monadId = createMonad({
  *   fields: { cmd: { type: "string" } },
  *   branes: [{ id, params, state, superposition }],
  *   actions: { "состояние": (params, update) => { ... } }
  * })
  * ```
  */
-export function createMonad(config: MonadConfig): void {
-  // Получаем id первой браны как id монады
-  const monadId = config.branes[0]?.id || String(_monads.size)
+export function createMonad(config: MonadConfig): string {
+  // Генерируем UUID для монады
+  const monadId = crypto.randomUUID()
   _monads.set(monadId, config)
 
   // Регистрируем браны с учётом существующих
@@ -127,6 +128,8 @@ export function createMonad(config: MonadConfig): void {
     })
     _states.set(globalIndex, b.state)
   })
+
+  return monadId
 }
 
 /**

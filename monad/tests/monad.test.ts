@@ -1,5 +1,12 @@
 import { describe, it, expect, beforeAll, afterEach } from "bun:test"
-import { createMonad, deleteMonad, updateMonad, updateBoundary, onStateChange, execute } from "../src/monad"
+import {
+  createMonad,
+  deleteMonad,
+  updateMonad,
+  updateBoundary,
+  onStateChange,
+  execute,
+} from "../src/monad"
 import { GPU } from "@metafor/boundary"
 import { setupDevice } from "../../fixture/bunWebGPU"
 
@@ -7,19 +14,19 @@ beforeAll(async () => {
   GPU._device = await setupDevice()
 })
 
+const _createdMonadIds: string[] = []
+
 afterEach(() => {
   // Очищаем после каждого теста
-  deleteMonad("test-1")
-  deleteMonad("test-2")
-  deleteMonad("test-3")
-  deleteMonad("test-4")
-  deleteMonad("test-5")
-  deleteMonad("test-delete")
+  for (const id of _createdMonadIds) {
+    deleteMonad(id)
+  }
+  _createdMonadIds.length = 0
 })
 
 describe("Monad (модуль)", () => {
   it("должен создавать монаду с конфигурацией", () => {
-    createMonad({
+    const id = createMonad({
       fields: { cmd: { type: "string" } },
       branes: [
         {
@@ -34,8 +41,9 @@ describe("Monad (модуль)", () => {
       ],
       actions: {},
     })
+    _createdMonadIds.push(id)
 
-    expect(true).toBe(true)
+    expect(id).toBeDefined()
   })
 
   it("должен вызывать onStateChange при изменении состояния", (done) => {
@@ -48,7 +56,7 @@ describe("Monad (модуль)", () => {
       }
     })
 
-    createMonad({
+    const id = createMonad({
       fields: { cmd: { type: "string" } },
       branes: [
         {
@@ -67,6 +75,7 @@ describe("Monad (модуль)", () => {
         },
       },
     })
+    _createdMonadIds.push(id)
 
     updateMonad(0, { cmd: "git status" })
   })
@@ -87,7 +96,7 @@ describe("Monad (модуль)", () => {
       }
     })
 
-    createMonad({
+    const id = createMonad({
       fields: { cmd: { type: "string" } },
       branes: [
         {
@@ -107,6 +116,7 @@ describe("Monad (модуль)", () => {
         },
       },
     })
+    _createdMonadIds.push(id)
 
     updateMonad(0, { cmd: "git status" })
   })
@@ -122,7 +132,7 @@ describe("Monad (модуль)", () => {
       }
     })
 
-    createMonad({
+    const id = createMonad({
       fields: { cmd: { type: "string" }, count: { type: "number" } },
       branes: [
         {
@@ -147,6 +157,7 @@ describe("Monad (модуль)", () => {
         },
       },
     })
+    _createdMonadIds.push(id)
 
     updateMonad(0, { cmd: "git status" })
   })
@@ -159,7 +170,7 @@ describe("Monad (модуль)", () => {
       }
     })
 
-    createMonad({
+    const id = createMonad({
       fields: { cmd: { type: "string" } },
       branes: [
         {
@@ -174,12 +185,13 @@ describe("Monad (модуль)", () => {
       ],
       actions: {},
     })
+    _createdMonadIds.push(id)
 
     updateBoundary(0, "cmd", "git status")
   })
 
-  it("должен удалять монаду по id", () => {
-    createMonad({
+  it("должен удалять монаду по uuid", () => {
+    const id = createMonad({
       fields: { cmd: { type: "string" } },
       branes: [
         {
@@ -195,7 +207,8 @@ describe("Monad (модуль)", () => {
       actions: {},
     })
 
-    deleteMonad("test-delete")
+    expect(id).toBeDefined()
+    deleteMonad(id)
     expect(true).toBe(true)
   })
 })
