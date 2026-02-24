@@ -50,6 +50,8 @@ interface InternalBrane {
 // ==================== Внутреннее состояние ====================
 
 let _boundary: Boundary | null = null
+let _uuidToIndex: Map<string, number> = new Map()
+let _indexToUuid: Map<number, string> = new Map()
 let _monads: Map<string, MonadConfig> = new Map()
 let _branes: Map<string, InternalBrane> = new Map()  // UUID → Brane
 let _states: Map<string, string> = new Map()         // UUID → State
@@ -89,7 +91,31 @@ async function _createBoundary(): Promise<{ boundary: Boundary; uuidToIndex: Map
   return { boundary, uuidToIndex, indexToUuid }
 }
 
+async function _ensureBoundary(): Promise<void> {
+  if (_boundary) return
+  const { boundary, uuidToIndex, indexToUuid } = await _createBoundary()
+  _boundary = boundary
+  _uuidToIndex = uuidToIndex
+  _indexToUuid = indexToUuid
+}
+
 // ==================== Функции ====================
+
+async function _syncStatesFromBoundary(): Promise<void> {
+  const boundary = _boundary
+  if (!boundary) return
+
+  const states = await boundary.getStates()
+  states.forEach((newState, i) => {
+    const id = _indexToUuid.get(i)
+    if (!id) return
+    const oldState = _states.get(id)
+    if (oldState !== undefined && newState !== oldState) {
+      _states.set(id, newState)
+      _onStateChange?.(id, oldState, newState)
+    }
+  })
+}
 
 /**
  * Создаёт и инициализирует монаду.
@@ -139,14 +165,25 @@ export function createMonad(config: MonadConfig): string {
  * ```
  */
 export function deleteMonad(monadId: string): void {
+  const index = _uuidToIndex.get(monadId)
+
   _monads.delete(monadId)
   _branes.delete(monadId)
   _states.delete(monadId)
+
+  // Boundary не умеет удалять брану из GPU-ансамбля,
+  // поэтому удаляем только runtime-маппинги, чтобы игнорировать её в последующих шагах.
+  if (index !== undefined) {
+    _uuidToIndex.delete(monadId)
+    _indexToUuid.delete(index)
+  }
 
   // Если удалили последнюю монаду — сбрасываем всё
   if (_monads.size === 0) {
     _onStateChange = null
     _boundary = null
+    _uuidToIndex = new Map()
+    _indexToUuid = new Map()
   }
 }
 
@@ -167,11 +204,9 @@ export async function updateMonad(monadId: string, fields: Record<string, unknow
     throw new Error(`Brane with id ${monadId} not found`)
   }
 
-  // Пересоздаём Boundary с актуальными данными
-  const { boundary, uuidToIndex, indexToUuid } = await _createBoundary()
-  _boundary = boundary
+  await _ensureBoundary()
 
-  const index = uuidToIndex.get(monadId)
+  const index = _uuidToIndex.get(monadId)
   if (index === undefined) {
     throw new Error(`Brane ${monadId} not found in boundary`)
   }
@@ -186,22 +221,7 @@ export async function updateMonad(monadId: string, fields: Record<string, unknow
 
   // Выполняем шаг эволюции (GPU проверяет триггеры)
   _boundary.step()
-
-  // Получаем новые состояния
-  const newStates = _boundary.getStates()
-
-  // Проверяем изменения и вызываем onStateChange
-  newStates.then((states) => {
-    states.forEach((newState, i) => {
-      const id = indexToUuid.get(i)
-      if (!id) return
-      const oldState = _states.get(id)
-      if (oldState !== undefined && newState !== oldState) {
-        _states.set(id, newState)
-        _onStateChange?.(id, oldState, newState)  // Передаём UUID, а не индекс
-      }
-    })
-  })
+  await _syncStatesFromBoundary()
 }
 
 /**
@@ -217,30 +237,16 @@ export async function updateMonad(monadId: string, fields: Record<string, unknow
  * ```
  */
 export async function updateBoundary(monadId: string, field: string, value: unknown): Promise<void> {
-  // Пересоздаём Boundary с актуальными данными
-  const { boundary, uuidToIndex, indexToUuid } = await _createBoundary()
-  _boundary = boundary
+  await _ensureBoundary()
 
-  const index = uuidToIndex.get(monadId)
+  const index = _uuidToIndex.get(monadId)
   if (index === undefined) {
     throw new Error(`Brane ${monadId} not found in boundary`)
   }
 
-  _boundary.updateBraneField(index, field, value)
-  _boundary.step()
-
-  const newStates = _boundary.getStates()
-  newStates.then((states) => {
-    states.forEach((newState, i) => {
-      const id = indexToUuid.get(i)
-      if (!id) return
-      const oldState = _states.get(id)
-      if (oldState !== undefined && newState !== oldState) {
-        _states.set(id, newState)
-        _onStateChange?.(id, oldState, newState)
-      }
-    })
-  })
+  _boundary!.updateBraneField(index, field, value)
+  _boundary!.step()
+  await _syncStatesFromBoundary()
 }
 
 /**
@@ -279,35 +285,21 @@ export function execute(monadId: string, state: string): void {
     // Обновляем params в бране
     brane.params = { ...brane.params, ...params }
 
-    // Пересоздаём Boundary с актуальными данными
-    _createBoundary().then(({ boundary, uuidToIndex, indexToUuid }) => {
-      _boundary = boundary
+    void (async () => {
+      await _ensureBoundary()
 
-      const index = uuidToIndex.get(monadId)
+      const index = _uuidToIndex.get(monadId)
       if (index === undefined) return
 
       // Обновляем поля в boundary
       for (const [field, value] of Object.entries(params)) {
-        boundary.updateBraneField(index, field, value)
+        _boundary!.updateBraneField(index, field, value)
       }
 
       // Выполняем шаг эволюции (GPU проверяет триггеры)
-      boundary.step()
-
-      // Получаем новые состояния и проверяем изменения
-      const newStates = boundary.getStates()
-      newStates.then((states) => {
-        states.forEach((newState, i) => {
-          const id = indexToUuid.get(i)
-          if (!id) return
-          const oldState = _states.get(id)
-          if (oldState !== undefined && newState !== oldState) {
-            _states.set(id, newState)
-            _onStateChange?.(id, oldState, newState)
-          }
-        })
-      })
-    })
+      _boundary!.step()
+      await _syncStatesFromBoundary()
+    })()
   }
 
   // Выполняем действие
