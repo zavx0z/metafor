@@ -328,22 +328,12 @@ export class RulesCompiler {
           const ptr = totalInstructionsSize + blockHeap.length
           blockHeap.push(check.val.length)
           for (const v of check.val) {
-            const encoded = this.encodeValue(
-              field.type,
-              v,
-              this.getEncodingContextForOp(field, check.op),
-            )
+            const encoded = this.encodeValue(field.type, v, this.getEncodingContextForOp(field, check.op))
             blockHeap.push(encoded)
           }
           this.bytecode.push(ptr)
         } else {
-          this.bytecode.push(
-            this.encodeValue(
-              field.type,
-              check.val,
-              this.getEncodingContextForOp(field, check.op),
-            ),
-          )
+          this.bytecode.push(this.encodeValue(field.type, check.val, this.getEncodingContextForOp(field, check.op)))
         }
       }
     }
@@ -570,18 +560,19 @@ export class RulesCompiler {
     FieldRegistry.clear()
 
     if (debug) {
-      console.log('[RulesCompiler] Compiling ensemble with', superpositions.length, 'superpositions')
+      console.log("[RulesCompiler] Compiling ensemble with", superpositions.length, "superpositions")
     }
 
     // Компилируем каждую superposition отдельно
     const compiled: CompiledFieldRules[] = []
     for (let i = 0; i < superpositions.length; i++) {
       // preserveRegistry=true для всех кроме первой, чтобы сохранить зарегистрированные поля
-      compiled.push(
-        this.compileSingle(superpositions[i]!, branes, { preserveRegistry: i > 0 }),
-      )
+      compiled.push(this.compileSingle(superpositions[i]!, branes, { preserveRegistry: i > 0 }))
       if (debug) {
-        console.log(`[RulesCompiler] Superposition ${i}: ${compiled[i]!.bytecode.length} words, states=`, compiled[i]!.reverseStateMap)
+        console.log(
+          `[RulesCompiler] Superposition ${i}: ${compiled[i]!.bytecode.length} words, states=`,
+          compiled[i]!.reverseStateMap,
+        )
       }
     }
 
@@ -600,8 +591,8 @@ export class RulesCompiler {
     }
 
     if (debug) {
-      console.log('[RulesCompiler] Total bytecode:', bytecode.length, 'words')
-      console.log('[RulesCompiler] Bytecode offsets:', Array.from(bytecodeOffsets))
+      console.log("[RulesCompiler] Total bytecode:", bytecode.length, "words")
+      console.log("[RulesCompiler] Bytecode offsets:", Array.from(bytecodeOffsets))
     }
 
     return {
