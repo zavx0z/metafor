@@ -1,4 +1,4 @@
-import { Boundary } from "../src/index"
+import { Boundary, GPU } from "../src/index"
 
 const out = document.getElementById("output")!
 const status = document.getElementById("status")!
@@ -17,11 +17,12 @@ try {
   const adapter = await navigator.gpu.requestAdapter()
   if (!adapter) throw new Error("No Adapter")
   const device = await adapter.requestDevice()
+  GPU._device = device
 
   status.innerText = "✅ WebGPU Active"
   status.style.color = "#4af626"
 
-  const boundary = new Boundary(device, {
+  const boundary = new Boundary({
     debug: {
       all: true, // Включить все debug-логи
     },
@@ -37,7 +38,7 @@ try {
     branes: [
       {
         id: "q1",
-        fields: { hp: 100, mana: 100, isAlive: true },
+        params: { hp: 100, mana: 100, isAlive: true },
         state: "IDLE",
         superposition: {
           IDLE: {
@@ -56,7 +57,7 @@ try {
       },
       {
         id: "q2",
-        fields: { hp: 0, mana: 50, isAlive: false },
+        params: { hp: 0, mana: 50, isAlive: false },
         state: "IDLE",
         superposition: {
           IDLE: {

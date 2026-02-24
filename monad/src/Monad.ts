@@ -5,7 +5,7 @@
  *
  * @example
  * ```typescript
- * const monad = new Monad(device)
+ * const monad = new Monad()
  * await monad.create({
  *   fields: { cmd: { type: "string" } },
  *   branes: [{
@@ -69,16 +69,15 @@ export class Monad {
   /**
    * Создаёт экземпляр монады.
    *
-   * @param device - GPU device.
    * @param options - Опции debug.
    *
    * @example
    * ```typescript
-   * const monad = new Monad(device)
+   * const monad = new Monad()
    * ```
    */
-  constructor(device: GPUDevice, options?: { debug?: DebugOptions }) {
-    this.boundary = new Boundary(device, options)
+  constructor(options?: { debug?: DebugOptions }) {
+    this.boundary = new Boundary(options)
   }
 
   /**
@@ -89,7 +88,7 @@ export class Monad {
    *
    * @example
    * ```typescript
-   * const monad = new Monad(device)
+   * const monad = new Monad()
    * await monad.create({
    *   fields: { cmd: { type: "string" } },
    *   branes: [{ id, params, state, superposition }],

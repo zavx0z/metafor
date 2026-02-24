@@ -1,10 +1,10 @@
 import { test, expect, describe, beforeAll } from "bun:test"
-import { setupDevice, getDevice } from "../../../../fixture/bunWebGPU"
-import { Boundary } from "../../../src/index"
+import { setupDevice } from "@fixture/bunWebGPU"
+import { Boundary, GPU } from "../../../src/index"
 
 describe("Boundary - тип ARRAY с bun-webgpu", () => {
   beforeAll(async () => {
-    await setupDevice()
+    GPU._device = await setupDevice()
   })
 
   // ПРИМЕЧАНИЕ: Тип ARRAY хранится как длина + указатели на элементы.
@@ -12,8 +12,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
 
   describe("Оператор INCLUDE (содержит элемент)", () => {
     test("должен выполнить переход, если массив содержит указанный элемент (число)", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { tags: { include: 5 } } },
@@ -38,8 +37,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
     })
 
     test("должен выполнить переход, если массив содержит указанный элемент (строка)", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { tags: { include: "fire" } } },
@@ -64,8 +62,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
 
   describe("Оператор NOT_INCLUDE (не содержит элемент)", () => {
     test("должен выполнить переход, если массив не содержит указанный элемент", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { tags: { notInclude: 99 } } },
@@ -92,8 +89,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
 
   describe("Оператор LENGTH (длина массива)", () => {
     test("должен выполнить переход, когда длина равна указанному значению", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { items: { length: 3 } } },
@@ -120,8 +116,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
     })
 
     test("должен поддерживать сравнение длины с операторами", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { items: { length: { gte: 2 } } } },
@@ -148,8 +143,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
 
   describe("Оператор IS_EMPTY (пустой массив)", () => {
     test("должен выполнить переход, если массив пустой", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { EMPTY: { items: { isEmpty: true } } },
@@ -174,8 +168,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
     })
 
     test("должен выполнить переход, если массив не пустой (isEmpty: false)", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { items: { isEmpty: false } } },
@@ -202,8 +195,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
 
   describe("Комбинированные условия с массивами", () => {
     test("должен выполнить переход, когда несколько условий выполнены", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: {
@@ -250,8 +242,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
 
   describe("Пограничные случаи", () => {
     test("должен корректно обрабатывать пустой массив", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { items: { isEmpty: true } } },
@@ -270,8 +261,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
     })
 
     test("должен корректно обрабатывать массив с одним элементом", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { items: { length: 1 } } },
@@ -290,8 +280,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
     })
 
     test("должен корректно обрабатывать большой массив", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { items: { length: 100 } } },

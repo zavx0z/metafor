@@ -36,7 +36,10 @@ import { GPUBackend } from "./gpu/Backend"
 import { RulesCompiler } from "./compiler/RulesCompiler"
 import { BraneManager, FieldType, FieldRegistry, type FieldTypeValue } from "./core"
 import { resetStringAtlas, getStringAtlas } from "./strings"
+import { GPU } from "./gpu/device"
 import type { CompiledEnsemble } from "./types"
+
+export { GPU }
 
 /**
  * Определение типа поля для GPU.
@@ -121,14 +124,13 @@ export interface BoundaryConfig {
 
 /**
  * Boundary — полевая граница (GPU-фасад).
- * 
+ *
  * Координирует инициализацию GPU-ресурсов, компиляцию суперпозиций и эволюцию бран.
  *
  * @example
  * ```ts
- * const adapter = await navigator.gpu.requestAdapter()
- * const device = await adapter.requestDevice()
- * const boundary = new Boundary(device, { debug: { all: true } })
+ * // В тестах: _device = await setupDevice()
+ * const boundary = new Boundary({ debug: { all: true } })
  *
  * await boundary.init({
  *   fields: { hp: { type: "number" }, name: { type: "string" } },
@@ -153,10 +155,10 @@ export class Boundary {
   private braneIds: number[] = []
   private debugOptions: DebugOptions | null = null
 
-  constructor(device: GPUDevice, options?: { debug?: DebugOptions }) {
+  constructor(options?: { debug?: DebugOptions }) {
     this.debugOptions = options?.debug ?? null
-    this.backend = new GPUBackend(device)
-    this.braneManager = new BraneManager(device, { debug: this.isDebugEnabled('branes') })
+    this.backend = new GPUBackend(GPU.device)
+    this.braneManager = new BraneManager(GPU.device, { debug: this.isDebugEnabled('branes') })
   }
 
   private isDebugEnabled(category: keyof DebugOptions): boolean {

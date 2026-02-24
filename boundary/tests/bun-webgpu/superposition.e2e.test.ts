@@ -1,6 +1,6 @@
 import { test, expect, describe, beforeAll } from "bun:test"
-import { setupDevice, getDevice } from "../../../fixture/bunWebGPU"
-import { Boundary } from "../../src/index"
+import { setupDevice } from "@fixture/bunWebGPU"
+import { Boundary, GPU } from "../../src/index"
 
 /**
  * E2E тесты для индивидуальных суперпозиций на реальном GPU с bun-webgpu.
@@ -10,13 +10,12 @@ import { Boundary } from "../../src/index"
  */
 describe("Boundary — E2E тесты для индивидуальных суперпозиций (bun-webgpu)", () => {
   beforeAll(async () => {
-    await setupDevice()
+    GPU._device = await setupDevice()
   })
 
   describe("Поля с разными состояниями", () => {
     test("каждое поле переходит в целевое состояние", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const warriorSuperposition = {
         IDLE: { COMBAT: { hp: { gt: 80 } } },
@@ -56,8 +55,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
 
   describe("Поля с разными условиями перехода", () => {
     test("разные пороги для одного перехода", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const lowThresholdSuperposition = {
         IDLE: { ACTIVE: { hp: { gt: 30 } } },
@@ -85,8 +83,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
     })
 
     test("разные операторы сравнения", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const gtSuperposition = {
         IDLE: { ACTIVE: { hp: { gt: 50 } } },
@@ -123,8 +120,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
 
   describe("Поля с полностью разными конечными автоматами", () => {
     test("агрессивный против защитного юнита", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const aggressiveSuperposition = {
         IDLE: { ATTACK: { hp: { gt: 50 } } },
@@ -157,8 +153,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
 
   describe("Разные типы условий", () => {
     test("числовые, логические и множественные условия", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const numericSuperposition = {
         IDLE: { ACTIVE: { hp: { gt: 50 } } },
@@ -204,8 +199,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
 
   describe("Обновление браны с индивидуальной суперпозицией", () => {
     test("разные начальные значения с разными порогами", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition1 = {
         IDLE: { ACTIVE: { hp: { gt: 50 } } },
@@ -235,8 +229,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
 
   describe("Многошаговая симуляция", () => {
     test("каждое поле следует своему пути состояний", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const unit1Superposition = {
         IDLE: { PHASE1: { hp: { gt: 80 } } },

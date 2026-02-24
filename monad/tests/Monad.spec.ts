@@ -1,16 +1,15 @@
 import { describe, it, expect, beforeAll } from "bun:test"
 import { Monad } from "../src/Monad"
-import { setupDevice } from "../../fixture/bunWebGPU"
-
-let device: GPUDevice
+import { setupDevice } from "@fixture/bunWebGPU"
+import { GPU } from "@metafor/boundary"
 
 beforeAll(async () => {
-  device = await setupDevice()
+  GPU._device = await setupDevice()
 })
 
 describe("Monad", () => {
   it("должен создавать монаду с конфигурацией", async () => {
-    const monad = new Monad(device)
+    const monad = new Monad()
     await monad.create({
       fields: { cmd: { type: "string" } },
       branes: [
@@ -31,7 +30,7 @@ describe("Monad", () => {
   })
 
   it("должен вызывать onStateChange при изменении состояния", (done) => {
-    const monad = new Monad(device)
+    const monad = new Monad()
     monad.onStateChange = (index, old, newer) => {
       if (newer === "выполнение") {
         expect(index).toBe(0)
@@ -68,7 +67,7 @@ describe("Monad", () => {
     let actionExecuted = false
     let actionParams: Record<string, unknown> = {}
 
-    const monad = new Monad(device)
+    const monad = new Monad()
     monad.onStateChange = (index, oldState, newState) => {
       if (newState === "выполнение") {
         monad.execute(index, newState)
@@ -109,7 +108,7 @@ describe("Monad", () => {
   it("должен обновлять params через update", (done) => {
     let updatedParams: Record<string, unknown> = {}
 
-    const monad = new Monad(device)
+    const monad = new Monad()
     monad.onStateChange = (index, oldState, newState) => {
       if (newState === "выполнение") {
         monad.execute(index, newState)
@@ -151,7 +150,7 @@ describe("Monad", () => {
   it("должен работать с несколькими бранами", (done) => {
     const stateChanges: Array<{ index: number; state: string }> = []
 
-    const monad = new Monad(device)
+    const monad = new Monad()
     monad.onStateChange = (index, oldState, newState) => {
       stateChanges.push({ index, state: newState })
 

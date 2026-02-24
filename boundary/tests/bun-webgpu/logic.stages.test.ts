@@ -1,16 +1,15 @@
 import { test, expect, describe, beforeAll } from "bun:test"
-import { setupDevice, getDevice } from "../../../fixture/bunWebGPU"
-import { Boundary } from "../../src/index"
+import { setupDevice } from "@fixture/bunWebGPU"
+import { Boundary, GPU } from "../../src/index"
 
 describe("Boundary — Логические стадии (bun-webgpu)", () => {
   beforeAll(async () => {
-    await setupDevice()
+    GPU._device = await setupDevice()
   })
 
   describe("Оператор IN (Списки)", () => {
     test("должен перейти, если значение в списке (int/enum)", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         GROUND: {
@@ -39,8 +38,7 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
     })
 
     test("должен перейти, если float-значение в списке", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         NORMAL: {
@@ -69,8 +67,7 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
 
   describe("Оператор NOT_IN (Исключение)", () => {
     test("должен перейти, если значение НЕ в списке", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         LOBBY: {
@@ -97,8 +94,7 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
 
   describe("Комбинированные условия", () => {
     test("должен работать с комбинацией диапазонов и списков", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         START: {

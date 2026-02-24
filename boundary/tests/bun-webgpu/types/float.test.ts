@@ -1,16 +1,15 @@
 import { test, expect, describe, beforeAll } from "bun:test"
-import { setupDevice, getDevice } from "../../../../fixture/bunWebGPU"
-import { Boundary } from "../../../src/index"
+import { setupDevice } from "@fixture/bunWebGPU"
+import { Boundary, GPU } from "../../../src/index"
 
 describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
   beforeAll(async () => {
-    await setupDevice()
+    GPU._device = await setupDevice()
   })
 
   describe("Оператор EQ (равно)", () => {
     test("должен выполнить переход, когда значение равно указанному", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { eq: 42 } } },
@@ -35,8 +34,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
     })
 
     test("должен работать с отрицательными числами", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { eq: -10 } } },
@@ -59,8 +57,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
     })
 
     test("должен работать с дробными числами", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { eq: 3.14 } } },
@@ -83,8 +80,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
     })
 
     test("должен работать с нулём", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { eq: 0 } } },
@@ -109,8 +105,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Оператор NEQ (не равно)", () => {
     test("должен выполнить переход, когда значение не равно указанному", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { neq: 42 } } },
@@ -135,8 +130,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
     })
 
     test("должен работать с алиасом 'ne'", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { ne: 0 } } },
@@ -159,8 +153,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
     })
 
     test("должен работать с алиасом 'notEq'", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { notEq: 100 } } },
@@ -185,8 +178,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Оператор GT (больше)", () => {
     test("должен выполнить переход, когда значение больше указанного", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { gt: 50 } } },
@@ -211,8 +203,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
     })
 
     test("должен работать с отрицательными числами", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { gt: -10 } } },
@@ -239,8 +230,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Оператор LT (меньше)", () => {
     test("должен выполнить переход, когда значение меньше указанного", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { lt: 50 } } },
@@ -265,8 +255,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
     })
 
     test("должен работать с отрицательными числами", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { lt: -5 } } },
@@ -293,8 +282,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Оператор GTE (больше или равно)", () => {
     test("должен выполнить переход, когда значение больше или равно указанному", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { gte: 50 } } },
@@ -321,8 +309,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Оператор LTE (меньше или равно)", () => {
     test("должен выполнить переход, когда значение меньше или равно указанному", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { lte: 50 } } },
@@ -349,8 +336,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Оператор IN (в списке)", () => {
     test("должен выполнить переход, если значение в списке", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { in: [10, 20, 30] } } },
@@ -377,8 +363,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
     })
 
     test("должен работать с пустым списком", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { in: [] } } },
@@ -399,8 +384,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Оператор NOT_IN (не в списке)", () => {
     test("должен выполнить переход, если значение не в списке", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { notIn: [10, 20, 30] } } },
@@ -427,8 +411,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Составные условия (between)", () => {
     test("должен выполнить переход, если значение в диапазоне", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { between: [10, 20] } } },
@@ -459,8 +442,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Отрицательные условия (notGt, notGte, notLt, notLte)", () => {
     test("notGt должен быть эквивалентен lte", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { notGt: 50 } } },
@@ -485,8 +467,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
     })
 
     test("notGte должен быть эквивалентен lt", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { notGte: 50 } } },
@@ -511,8 +492,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
     })
 
     test("notLt должен быть эквивалентен gte", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { notLt: 50 } } },
@@ -537,8 +517,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
     })
 
     test("notLte должен быть эквивалентен gt", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { notLte: 50 } } },
@@ -565,8 +544,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Множественные условия", () => {
     test("должен выполнить переход, когда все условия для одного поля выполнены (логика И)", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { value: { gte: 10, lte: 20 } } },

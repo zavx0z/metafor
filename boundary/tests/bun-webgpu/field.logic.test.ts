@@ -1,10 +1,10 @@
 import { test, expect, describe, beforeAll } from "bun:test"
-import { setupDevice, getDevice } from "../../../fixture/bunWebGPU"
-import { Boundary } from "../../src/index"
+import { setupDevice } from "@fixture/bunWebGPU"
+import { Boundary, GPU } from "../../src/index"
 
 describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
   beforeAll(async () => {
-    await setupDevice()
+    GPU._device = await setupDevice()
   })
 
   /** Общая суперпозиция для тестов hp/mana/isAlive */
@@ -25,8 +25,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Базовые переходы состояний", () => {
     test("должен перейти из IDLE в DEAD при hp <= 0", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       await boundary.init({
         fields: {
@@ -48,8 +47,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("должен перейти из IDLE в PATROL при hp > 50", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { PATROL: { hp: { gt: 50 } } },
@@ -72,8 +70,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("должен перейти из IDLE в PATROL при hp >= 50", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { PATROL: { hp: { gte: 50 } } },
@@ -96,8 +93,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("должен перейти из IDLE в PATROL при hp < 50", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { PATROL: { hp: { lt: 50 } } },
@@ -122,8 +118,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Логические условия", () => {
     test("должен перейти при логическом компоненте = true", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { isAlive: true } },
@@ -146,8 +141,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("должен перейти при логическом компоненте = false", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         ACTIVE: { DEAD: { isAlive: false } },
@@ -172,8 +166,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Множественные условия", () => {
     test("должен перейти при выполнении обоих условий", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: {
@@ -208,8 +201,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Обновление браны", () => {
     test("должен перейти после обновления браны", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { DEAD: { hp: { lte: 0 } } },
@@ -229,8 +221,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("не должен переходить после обновления браны при невыполнении условия", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { PATROL: { hp: { gt: 50 } } },
@@ -252,8 +243,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Многошаговая симуляция", () => {
     test("должен пройти через несколько состояний", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { PATROL: { hp: { gt: 50 } } },
@@ -279,8 +269,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Граничные случаи", () => {
     test("должен обрабатывать несколько полей с одинаковым начальным состоянием", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { hp: { gt: 0 } } },
@@ -305,8 +294,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("должен обрабатывать поля с разными начальными состояниями", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { hp: { gt: 50 } } },
@@ -331,8 +319,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Поля с разными суперпозициями", () => {
     test("каждое поле имеет свою суперпозицию с разными состояниями", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const warriorSuperposition = {
         IDLE: { COMBAT: { hp: { gt: 80 } } },
@@ -370,8 +357,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("поля с одинаковыми состояниями, но разными условиями перехода", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const lowThresholdSuperposition = {
         IDLE: { ACTIVE: { hp: { gt: 30 } } },
@@ -399,8 +385,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("поля с полностью разными конечными автоматами", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const aggressiveSuperposition = {
         IDLE: { ATTACK: { hp: { gt: 50 } } },
@@ -431,8 +416,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("поля с разными типами условий в суперпозиции", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const numericSuperposition = {
         IDLE: { ACTIVE: { hp: { gt: 50 } } },

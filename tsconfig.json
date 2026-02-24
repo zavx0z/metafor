@@ -15,6 +15,10 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "noEmit": true,
+    // Path aliases
+    "paths": {
+      "@fixture/*": ["./fixture/*"]
+    },
     // Best practices
     "strict": true,
     "skipLibCheck": true,
@@ -30,7 +34,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
-  "include": ["types/**/*.d.ts"],
+  "include": ["types/**/*.d.ts", "fixture/**/*.ts"],
   "exclude": [
     "**/dist-test/*",
     "**/script/**/*",

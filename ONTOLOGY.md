@@ -226,7 +226,7 @@ export default meta
 const monad = new Monad(jsonSchema)
 
 // Monad извлекает params из fields для создания браны
-const boundary = new Boundary(device)
+const boundary = new Boundary()
 await boundary.init({
   fields: extractFieldsForGPU(json.fields),  // технические типы для GPU
   branes: [{

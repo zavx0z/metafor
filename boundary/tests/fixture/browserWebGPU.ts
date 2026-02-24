@@ -129,7 +129,7 @@ export class BrowserWebGPU {
                     <body>
                       <div id="result"></div>
                       <script type="module">
-                        import { Boundary } from "/dist-test/index.js"
+                        import { Boundary, GPU } from "/dist-test/index.js"
 
                         async function run() {
                           try {
@@ -145,9 +145,10 @@ export class BrowserWebGPU {
 
                             console.log("[TEST] Requesting GPU device...")
                             const device = await adapter.requestDevice()
+                            GPU._device = device
 
                             console.log("[TEST] Creating Boundary...")
-                            const boundary = new Boundary(device)
+                            const boundary = new Boundary()
 
                             console.log("[TEST] Initializing with config:", ${JSON.stringify(testData.fields)})
                             await boundary.init({

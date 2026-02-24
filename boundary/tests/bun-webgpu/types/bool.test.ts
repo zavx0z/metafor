@@ -1,16 +1,15 @@
 import { test, expect, describe, beforeAll } from "bun:test"
-import { setupDevice, getDevice } from "../../../../fixture/bunWebGPU"
-import { Boundary } from "../../../src/index"
+import { setupDevice } from "@fixture/bunWebGPU"
+import { Boundary, GPU } from "../../../src/index"
 
 describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () => {
   beforeAll(async () => {
-    await setupDevice()
+    GPU._device = await setupDevice()
   })
 
   describe("Прямое значение true", () => {
     test("должен выполнить переход, когда значение равно true", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { isAlive: true } },
@@ -35,8 +34,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
   describe("Прямое значение false", () => {
     test("должен выполнить переход, когда значение равно false", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { DEAD: { isAlive: false } },
@@ -61,8 +59,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
   describe("Оператор EQ (равно)", () => {
     test("должен выполнить переход, когда значение равно true", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { isAlive: { eq: true } } },
@@ -85,8 +82,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
     })
 
     test("должен выполнить переход, когда значение равно false", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { DEAD: { isAlive: { eq: false } } },
@@ -111,8 +107,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
   describe("Оператор NEQ (не равно)", () => {
     test("должен выполнить переход, когда значение не равно true", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { DEAD: { isAlive: { neq: true } } },
@@ -135,8 +130,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
     })
 
     test("должен выполнить переход, когда значение не равно false", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { isAlive: { neq: false } } },
@@ -161,8 +155,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
   describe("Множественные логические условия", () => {
     test("должен выполнить переход, когда все условия выполнены (И)", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { isAlive: true, hasMana: true } },
@@ -189,8 +182,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
     })
 
     test("должен выполнить переход с разными комбинациями логических значений", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { isAlive: true, isStunned: false } },
@@ -217,8 +209,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
   describe("Обновление логических значений", () => {
     test("должен выполнить переход после обновления значения на true", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { ACTIVE: { isReady: true } },
@@ -238,8 +229,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
     })
 
     test("должен выполнить переход после обновления значения на false", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { DEAD: { isAlive: false } },
@@ -261,8 +251,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
   describe("Смешанные условия (логическое + число)", () => {
     test("должен выполнить переход, когда оба условия разных типов выполнены", async () => {
-      const device = getDevice()
-      const boundary = new Boundary(device)
+      const boundary = new Boundary()
 
       const superposition = {
         IDLE: { COMBAT: { isAlive: true, hp: { gt: 50 } } },
