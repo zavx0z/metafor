@@ -50,20 +50,45 @@ interface InternalBrane {
 // ==================== Внутреннее состояние ====================
 
 let _boundary: Boundary | null = null
-let _metas: Map<string, MonadConfig> = new Map()
+let _monads: Map<string, MonadConfig> = new Map()
 let _branes: Map<number, { id: string; brane: InternalBrane }> = new Map()
 let _states: Map<number, string> = new Map()
 let _onStateChange: ((index: number, old: string, newer: string) => void) | null = null
-let _initialized = false
 
 /**
- * Получает или создаёт Boundary.
+ * Создаёт Boundary с текущими бранами.
  */
-function _getBoundary(): Boundary {
-  if (!_boundary) {
-    _boundary = new Boundary()
+async function _createBoundary(): Promise<Boundary> {
+  // Собираем все браны с актуальными params из _branes
+  const allBranes: Array<{ id: string; params: Record<string, unknown>; state: string; superposition: any }> = []
+  for (const monad of _monads.values()) {
+    for (const brane of monad.branes) {
+      // Находим актуальные params в _branes
+      let actualParams = brane.params
+      for (const [_, { id, brane: b }] of _branes.entries()) {
+        if (id === monad.branes[0]?.id && b.id === brane.id) {
+          actualParams = b.params
+          break
+        }
+      }
+      allBranes.push({
+        id: brane.id,
+        params: actualParams,
+        state: brane.state,
+        superposition: brane.superposition,
+      })
+    }
   }
-  return _boundary
+
+  // Получаем fields из первой монады
+  const firstMonad = _monads.values().next().value
+  if (!firstMonad) {
+    throw new Error("No monads registered")
+  }
+
+  const boundary = new Boundary()
+  await boundary.init({ fields: firstMonad.fields, branes: allBranes })
+  return boundary
 }
 
 // ==================== Функции ====================
@@ -84,8 +109,8 @@ function _getBoundary(): Boundary {
  */
 export function createMonad(config: MonadConfig): void {
   // Получаем id первой браны как id монады
-  const monadId = config.branes[0]?.id || String(_metas.size)
-  _metas.set(monadId, config)
+  const monadId = config.branes[0]?.id || String(_monads.size)
+  _monads.set(monadId, config)
 
   // Регистрируем браны с учётом существующих
   const startIndex = _branes.size
@@ -115,7 +140,7 @@ export function createMonad(config: MonadConfig): void {
  * ```
  */
 export function deleteMonad(monadId: string): void {
-  _metas.delete(monadId)
+  _monads.delete(monadId)
 
   // Удаляем все браны этой монады
   for (const [index, { id }] of _branes.entries()) {
@@ -126,33 +151,10 @@ export function deleteMonad(monadId: string): void {
   }
 
   // Если удалили последнюю монаду — сбрасываем всё
-  if (_metas.size === 0) {
+  if (_monads.size === 0) {
     _onStateChange = null
-    _initialized = false
     _boundary = null
   }
-}
-
-/**
- * Инициализирует Boundary при первом вызове.
- */
-async function _initBoundary(): Promise<Boundary> {
-  if (!_initialized && _metas.size > 0) {
-    // Собираем все браны из всех мет
-    const allBranes: Array<{ id: string; params: Record<string, unknown>; state: string; superposition: any }> = []
-    for (const meta of _metas.values()) {
-      allBranes.push(...meta.branes)
-    }
-
-    // Получаем fields из первой меты
-    const firstMeta = _metas.values().next().value
-    if (firstMeta) {
-      const boundary = _getBoundary()
-      await boundary.init({ fields: firstMeta.fields, branes: allBranes })
-      _initialized = true
-    }
-  }
-  return _getBoundary()
 }
 
 /**
@@ -172,21 +174,22 @@ export async function updateMonad(index: number, fields: Record<string, unknown>
     throw new Error(`Brane with index ${index} not found`)
   }
 
-  const boundary = await _initBoundary()
+  // Пересоздаём Boundary с актуальными данными
+  _boundary = await _createBoundary()
 
   // Обновляем params локально
   entry.brane.params = { ...entry.brane.params, ...fields }
 
   // Обновляем каждое поле в boundary
   for (const [field, value] of Object.entries(fields)) {
-    boundary.updateBraneField(index, field, value)
+    _boundary.updateBraneField(index, field, value)
   }
 
   // Выполняем шаг эволюции (GPU проверяет триггеры)
-  boundary.step()
+  _boundary.step()
 
   // Получаем новые состояния
-  const newStates = boundary.getStates()
+  const newStates = _boundary.getStates()
 
   // Проверяем изменения и вызываем onStateChange
   newStates.then((states) => {
@@ -213,11 +216,13 @@ export async function updateMonad(index: number, fields: Record<string, unknown>
  * ```
  */
 export async function updateBoundary(index: number, field: string, value: unknown): Promise<void> {
-  const boundary = await _initBoundary()
-  boundary.updateBraneField(index, field, value)
-  boundary.step()
+  // Пересоздаём Boundary с актуальными данными
+  _boundary = await _createBoundary()
 
-  const newStates = boundary.getStates()
+  _boundary.updateBraneField(index, field, value)
+  _boundary.step()
+
+  const newStates = _boundary.getStates()
   newStates.then((states) => {
     states.forEach((newState, i) => {
       const oldState = _states.get(i)
@@ -253,30 +258,32 @@ export function onStateChange(callback: (index: number, old: string, newer: stri
  */
 export function execute(index: number, state: string): void {
   const entry = _branes.get(index)
-  if (!entry || !_metas.has(entry.id)) return
+  if (!entry || !_monads.has(entry.id)) return
 
-  const meta = _metas.get(entry.id)
-  if (!meta) return
+  const monad = _monads.get(entry.id)
+  if (!monad) return
 
-  const action = meta.actions[state]
+  const action = monad.actions[state]
   if (!action) return
 
   const update = (boundaryId: string, params: Record<string, unknown>) => {
     // Обновляем params в бране
     entry.brane.params = { ...entry.brane.params, ...params }
 
-    // Обновляем поля в boundary
-    const boundary = _initBoundary()
-    boundary.then((b) => {
+    // Пересоздаём Boundary с актуальными данными
+    _createBoundary().then((boundary) => {
+      _boundary = boundary
+
+      // Обновляем поля в boundary
       for (const [field, value] of Object.entries(params)) {
-        b.updateBraneField(index, field, value)
+        boundary.updateBraneField(index, field, value)
       }
 
       // Выполняем шаг эволюции (GPU проверяет триггеры)
-      b.step()
+      boundary.step()
 
       // Получаем новые состояния и проверяем изменения
-      const newStates = b.getStates()
+      const newStates = boundary.getStates()
       newStates.then((states) => {
         states.forEach((newState, i) => {
           const oldState = _states.get(i)

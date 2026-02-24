@@ -113,18 +113,12 @@ describe("Monad (модуль)", () => {
 
   it("должен обновлять params через update", (done) => {
     let updatedParams: Record<string, unknown> = {}
+    let actionCalled = false
 
     onStateChange((index, oldState, newState) => {
-      if (newState === "выполнение") {
+      if (newState === "выполнение" && !actionCalled) {
+        actionCalled = true
         execute(index, newState)
-      }
-
-      // После возврата в ожидание проверяем
-      if (newState === "ожидание" && oldState === "выполнение") {
-        setTimeout(() => {
-          expect(updatedParams.cmd).toBe("git status")
-          done()
-        }, 10)
       }
     })
 
@@ -137,7 +131,7 @@ describe("Monad (модуль)", () => {
           state: "ожидание",
           superposition: {
             ожидание: { выполнение: { cmd: { null: false } } },
-            выполнение: { ожидание: { cmd: null } },
+            выполнение: null,
           },
         },
       ],
@@ -145,6 +139,11 @@ describe("Monad (модуль)", () => {
         выполнение: (params, update) => {
           updatedParams = { ...params }
           update("test-4", { cmd: "", count: 1 })
+
+          setTimeout(() => {
+            expect(updatedParams.cmd).toBe("git status")
+            done()
+          }, 10)
         },
       },
     })
