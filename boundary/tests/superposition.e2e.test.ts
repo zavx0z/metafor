@@ -1,6 +1,6 @@
 import { test, expect, describe, beforeAll } from "bun:test"
-import { setupDevice } from "@fixture/bunWebGPU"
-import { Boundary, GPU } from "../../src/index"
+import { setupDevice } from "fixture/bunWebGPU"
+import { Boundary, GPU } from "../src/index"
 
 /**
  * E2E тесты для индивидуальных суперпозиций на реальном GPU с bun-webgpu.

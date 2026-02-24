@@ -1,21 +1,25 @@
-import { test, expect, describe, beforeAll, afterAll } from "bun:test"
-import { BrowserWebGPU } from "../../fixture/browserWebGPU"
+import { test, expect, describe, beforeAll } from "bun:test"
+import { setupDevice } from "fixture/bunWebGPU"
+import { Boundary, GPU } from "../../src/index"
 
-describe("Boundary — Тип STRING (строка)", () => {
-  beforeAll(async () => await BrowserWebGPU.setup())
-  afterAll(async () => await BrowserWebGPU.teardown(), 20000)
-  const fixture = new BrowserWebGPU()
+describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
+  beforeAll(async () => {
+    GPU._device = await setupDevice()
+  })
 
   // Тип STRING использует интернирование через StringAtlas.
   // Строки хранятся как [stringId, hash] для быстрого сравнения на GPU.
 
   describe("Оператор EQ (равно)", () => {
-    test("должен перейти при равенстве значения указанному", async () => {
+    test("должен выполнить переход, когда значение равно указанному", async () => {
+      const boundary = new Boundary()
+
       const superposition = {
         IDLE: { ACTIVE: { name: { eq: "hero" } } },
         ACTIVE: null,
       }
-      const result = await fixture.runSimulation({
+
+      await boundary.init({
         fields: { name: { type: "string" } },
         branes: [
           { id: "q1", state: "IDLE", params: { name: "hero" }, superposition },
@@ -23,20 +27,24 @@ describe("Boundary — Тип STRING (строка)", () => {
         ],
       })
 
-      expect(result.success).toBe(true)
-      expect(result.states).toBeDefined()
-      expect(result.states![0]).toBe("ACTIVE") // "hero" == "hero"
-      expect(result.states![1]).toBe("IDLE") // "monster" != "hero"
+      boundary.step()
+      const states = await boundary.getStates()
+
+      expect(states[0]).toBe("ACTIVE")
+      expect(states[1]).toBe("IDLE")
     })
   })
 
   describe("Оператор NEQ (не равно)", () => {
-    test("должен перейти при неравенстве значения указанному", async () => {
+    test("должен выполнить переход, когда значение не равно указанному", async () => {
+      const boundary = new Boundary()
+
       const superposition = {
         IDLE: { ACTIVE: { name: { neq: "enemy" } } },
         ACTIVE: null,
       }
-      const result = await fixture.runSimulation({
+
+      await boundary.init({
         fields: { name: { type: "string" } },
         branes: [
           { id: "q1", state: "IDLE", params: { name: "enemy" }, superposition },
@@ -44,20 +52,24 @@ describe("Boundary — Тип STRING (строка)", () => {
         ],
       })
 
-      expect(result.success).toBe(true)
-      expect(result.states).toBeDefined()
-      expect(result.states![0]).toBe("IDLE") // "enemy" == "enemy"
-      expect(result.states![1]).toBe("ACTIVE") // "ally" != "enemy"
+      boundary.step()
+      const states = await boundary.getStates()
+
+      expect(states[0]).toBe("IDLE")
+      expect(states[1]).toBe("ACTIVE")
     })
   })
 
   describe("Оператор IN (в списке)", () => {
-    test("должен перейти если значение в списке", async () => {
+    test("должен выполнить переход, если значение в списке", async () => {
+      const boundary = new Boundary()
+
       const superposition = {
         IDLE: { ACTIVE: { role: { in: ["warrior", "mage", "rogue"] } } },
         ACTIVE: null,
       }
-      const result = await fixture.runSimulation({
+
+      await boundary.init({
         fields: { role: { type: "string" } },
         branes: [
           { id: "q1", state: "IDLE", params: { role: "warrior" }, superposition },
@@ -66,39 +78,47 @@ describe("Boundary — Тип STRING (строка)", () => {
         ],
       })
 
-      expect(result.success).toBe(true)
-      expect(result.states).toBeDefined()
-      expect(result.states![0]).toBe("ACTIVE") // "warrior" в [...]
-      expect(result.states![1]).toBe("ACTIVE") // "mage" в [...]
-      expect(result.states![2]).toBe("IDLE") // "healer" не в [...]
+      boundary.step()
+      const states = await boundary.getStates()
+
+      expect(states[0]).toBe("ACTIVE")
+      expect(states[1]).toBe("ACTIVE")
+      expect(states[2]).toBe("IDLE")
     })
   })
 
   describe("Обновление строковых значений", () => {
-    test("должен корректно применять обновление строк и обрабатывать IN", async () => {
+    test("должен корректно применить обновление строки и обработать IN", async () => {
+      const boundary = new Boundary()
+
       const superposition = {
         IDLE: { ACTIVE: { role: { in: ["warrior", "mage"] } } },
         ACTIVE: null,
       }
-      const result = await fixture.runSimulation({
+
+      await boundary.init({
         fields: { role: { type: "string" } },
         branes: [{ id: "q1", state: "IDLE", params: { role: "healer" }, superposition }],
-        updates: [{ braneIndex: 0, componentName: "role", value: "warrior" }],
       })
 
-      expect(result.success).toBe(true)
-      expect(result.states).toBeDefined()
-      expect(result.states![0]).toBe("ACTIVE")
+      boundary.updateBraneField(0, "role", "warrior")
+      boundary.step()
+      const states = await boundary.getStates()
+
+      expect(states[0]).toBe("ACTIVE")
     })
   })
 
   describe("Оператор NOT_IN (не в списке)", () => {
-    test("должен перейти если значение не в списке", async () => {
+    test("должен выполнить переход, если значение не в списке", async () => {
+      const boundary = new Boundary()
+
       const superposition = {
         IDLE: { ACTIVE: { role: { notIn: ["enemy", "boss"] } } },
         ACTIVE: null,
       }
-      const result = await fixture.runSimulation({
+
+      await boundary.init({
         fields: { role: { type: "string" } },
         branes: [
           { id: "q1", state: "IDLE", params: { role: "enemy" }, superposition },
@@ -107,21 +127,25 @@ describe("Boundary — Тип STRING (строка)", () => {
         ],
       })
 
-      expect(result.success).toBe(true)
-      expect(result.states).toBeDefined()
-      expect(result.states![0]).toBe("IDLE") // "enemy" в [enemy, boss]
-      expect(result.states![1]).toBe("IDLE") // "boss" в [enemy, boss]
-      expect(result.states![2]).toBe("ACTIVE") // "ally" не в [enemy, boss]
+      boundary.step()
+      const states = await boundary.getStates()
+
+      expect(states[0]).toBe("IDLE")
+      expect(states[1]).toBe("IDLE")
+      expect(states[2]).toBe("ACTIVE")
     })
   })
 
   describe("Пустые строки", () => {
     test("должен корректно обрабатывать пустую строку", async () => {
+      const boundary = new Boundary()
+
       const superposition = {
         IDLE: { ACTIVE: { name: { eq: "" } } },
         ACTIVE: null,
       }
-      const result = await fixture.runSimulation({
+
+      await boundary.init({
         fields: { name: { type: "string" } },
         branes: [
           { id: "q1", state: "IDLE", params: { name: "" }, superposition },
@@ -129,20 +153,24 @@ describe("Boundary — Тип STRING (строка)", () => {
         ],
       })
 
-      expect(result.success).toBe(true)
-      expect(result.states).toBeDefined()
-      expect(result.states![0]).toBe("ACTIVE") // "" == ""
-      expect(result.states![1]).toBe("IDLE") // "hero" != ""
+      boundary.step()
+      const states = await boundary.getStates()
+
+      expect(states[0]).toBe("ACTIVE")
+      expect(states[1]).toBe("IDLE")
     })
   })
 
   describe("Специальные символы", () => {
     test("должен корректно обрабатывать строки со специальными символами", async () => {
+      const boundary = new Boundary()
+
       const superposition = {
         IDLE: { ACTIVE: { code: { eq: "test-123_@#" } } },
         ACTIVE: null,
       }
-      const result = await fixture.runSimulation({
+
+      await boundary.init({
         fields: { code: { type: "string" } },
         branes: [
           { id: "q1", state: "IDLE", params: { code: "test-123_@#" }, superposition },
@@ -150,20 +178,24 @@ describe("Boundary — Тип STRING (строка)", () => {
         ],
       })
 
-      expect(result.success).toBe(true)
-      expect(result.states).toBeDefined()
-      expect(result.states![0]).toBe("ACTIVE")
-      expect(result.states![1]).toBe("IDLE")
+      boundary.step()
+      const states = await boundary.getStates()
+
+      expect(states[0]).toBe("ACTIVE")
+      expect(states[1]).toBe("IDLE")
     })
   })
 
-  describe("Учёт регистра", () => {
-    test("должен учитывать регистр при сравнении", async () => {
+  describe("Чувствительность к регистру", () => {
+    test("должен быть чувствительным к регистру при сравнении", async () => {
+      const boundary = new Boundary()
+
       const superposition = {
         IDLE: { ACTIVE: { name: { eq: "Hero" } } },
         ACTIVE: null,
       }
-      const result = await fixture.runSimulation({
+
+      await boundary.init({
         fields: { name: { type: "string" } },
         branes: [
           { id: "q1", state: "IDLE", params: { name: "Hero" }, superposition },
@@ -172,11 +204,12 @@ describe("Boundary — Тип STRING (строка)", () => {
         ],
       })
 
-      expect(result.success).toBe(true)
-      expect(result.states).toBeDefined()
-      expect(result.states![0]).toBe("ACTIVE") // "Hero" == "Hero"
-      expect(result.states![1]).toBe("IDLE") // "hero" != "Hero"
-      expect(result.states![2]).toBe("IDLE") // "HERO" != "Hero"
+      boundary.step()
+      const states = await boundary.getStates()
+
+      expect(states[0]).toBe("ACTIVE")
+      expect(states[1]).toBe("IDLE")
+      expect(states[2]).toBe("IDLE")
     })
   })
 })

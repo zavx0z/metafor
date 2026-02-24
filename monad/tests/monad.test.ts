@@ -8,7 +8,7 @@ import {
   _resetState,
 } from "../src/monad"
 import { GPU } from "@metafor/boundary"
-import { setupDevice } from "../../fixture/bunWebGPU"
+import { setupDevice } from "fixture/bunWebGPU"
 
 beforeAll(async () => {
   GPU._device = await setupDevice()

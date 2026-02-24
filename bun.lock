@@ -28,9 +28,9 @@
       "version": "0.1.0",
       "devDependencies": {
         "@types/bun": "^1.1.11",
-        "@types/puppeteer": "^5.4.7",
         "@webgpu/types": "^0.1.32",
         "@zavx0z/context": "^2.3.1",
+        "fixture": "workspace:*",
         "puppeteer": "^24.37.2",
       },
       "peerDependencies": {
@@ -52,6 +52,15 @@
       "version": "1.0.41",
       "bin": {
         "create-metafor": "dist/cli.js",
+      },
+    },
+    "fixture": {
+      "name": "fixture",
+      "devDependencies": {
+        "@types/puppeteer": "^5.4.7",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
       },
     },
     "infra/inspect": {
@@ -550,6 +559,8 @@
     "fd-slicer": ["fd-slicer@1.1.0", "https://registry.yarnpkg.com/fd-slicer/-/fd-slicer-1.1.0.tgz", { "dependencies": { "pend": "~1.2.0" } }, "sha512-cE1qsB/VwyQozZ+q1dGxR8LBYNZeofhEdUNGSMbQD3Gw2lAzX9Zb3uIU6Ebc/Fmyjo9AWWfnn0AUCHqtevs/8g=="],
 
     "fflate": ["fflate@0.8.2", "https://registry.yarnpkg.com/fflate/-/fflate-0.8.2.tgz", {}, "sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A=="],
+
+    "fixture": ["fixture@workspace:fixture"],
 
     "get-caller-file": ["get-caller-file@2.0.5", "https://registry.yarnpkg.com/get-caller-file/-/get-caller-file-2.0.5.tgz", {}, "sha512-DyFP3BM/3YHTQOCUL/w0OZHR0lpKeGrxotcHWcqNEdnltqFwXVfhEBQ94eIo34AfQpo0rGki4cyIiftY06h2Fg=="],
 
