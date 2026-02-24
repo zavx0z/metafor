@@ -187,8 +187,11 @@ describe("Monad", () => {
 
         // Проверяем что состояние изменилось
         if (stateChanges.length >= 1) {
-          expect(stateChanges[0].index).toBe(0)
-          expect(stateChanges[0].state).toBe("выполнение")
+          const first = stateChanges[0]
+          if (first) {
+            expect(first.index).toBe(0)
+            expect(first.state).toBe("выполнение")
+          }
           done()
         }
       }

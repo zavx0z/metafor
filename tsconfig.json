@@ -30,6 +30,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true
   },
+  "include": ["types/**/*.d.ts"],
   "exclude": [
     "**/dist-test/*",
     "**/script/**/*",

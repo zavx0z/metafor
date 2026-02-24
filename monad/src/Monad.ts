@@ -149,7 +149,7 @@ export class Monad {
     newStates.then((states) => {
       states.forEach((newState, index) => {
         const oldState = this.states[index]
-        if (newState !== oldState) {
+        if (oldState !== undefined && newState !== oldState) {
           this.states[index] = newState
           this.onStateChange?.(index, oldState, newState)
         }
@@ -189,7 +189,7 @@ export class Monad {
       newStates.then((states) => {
         states.forEach((newState, index) => {
           const oldState = this.states[index]
-          if (newState !== oldState) {
+          if (oldState !== undefined && newState !== oldState) {
             this.states[index] = newState
             this.onStateChange?.(index, oldState, newState)
           }
