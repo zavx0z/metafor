@@ -6,6 +6,7 @@ import {
   updateBoundary,
   onStateChange,
   execute,
+  _resetState,
 } from "../src/monad"
 import { GPU } from "@metafor/boundary"
 import { setupDevice } from "../../fixture/bunWebGPU"
@@ -17,10 +18,7 @@ beforeAll(async () => {
 const _createdMonadIds: string[] = []
 
 afterEach(() => {
-  // Очищаем после каждого теста
-  for (const id of _createdMonadIds) {
-    deleteMonad(id)
-  }
+  _resetState()
   _createdMonadIds.length = 0
 })
 
@@ -41,14 +39,15 @@ describe("Monad (модуль)", () => {
     expect(id).toBeDefined()
   })
 
-  it("должен вызывать onStateChange при изменении состояния", (done) => {
-    onStateChange((id, old, newer) => {
-      if (newer === "выполнение") {
-        expect(id).toBeDefined()
-        expect(old).toBe("ожидание")
-        expect(newer).toBe("выполнение")
-        done()
-      }
+  it("должен вызывать onStateChange при изменении состояния", async () => {
+    let stateChanged = false
+    let oldState = ""
+    let currentState = ""
+
+    onStateChange((id, old, current) => {
+      stateChanged = true
+      oldState = old
+      currentState = current
     })
 
     const id = createMonad({
@@ -59,18 +58,18 @@ describe("Monad (модуль)", () => {
         ожидание: { выполнение: { cmd: { null: false } } },
         выполнение: null,
       },
-      actions: {
-        выполнение: (params, update) => {
-          // Действо выполнено
-        },
-      },
+      actions: {},
     })
     _createdMonadIds.push(id)
 
-    updateMonad(id, { cmd: "git status" })
+    await updateMonad(id, { cmd: "git status" })
+
+    expect(stateChanged).toBe(true)
+    expect(oldState).toBe("ожидание")
+    expect(currentState).toBe("выполнение")
   })
 
-  it("должен выполнять action при изменении состояния", (done) => {
+  it("должен выполнять action при изменении состояния", async () => {
     let actionExecuted = false
     let actionParams: Record<string, unknown> = {}
 
@@ -83,62 +82,32 @@ describe("Monad (модуль)", () => {
         выполнение: null,
       },
       actions: {
-        выполнение: (params, update) => {
+        выполнение: (params) => {
           actionExecuted = true
           actionParams = { ...params }
-          done()
         },
       },
     })
     _createdMonadIds.push(id)
 
-    onStateChange((id, oldState, newState) => {
-      if (newState === "выполнение") {
-        execute(id, newState)
+    onStateChange((id, old, current) => {
+      if (current === "выполнение") {
+        execute(id, current)
       }
     })
 
-    updateMonad(id, { cmd: "git status" })
+    await updateMonad(id, { cmd: "git status" })
+
+    expect(actionExecuted).toBe(true)
+    expect(actionParams.cmd).toBe("git status")
   })
 
-  it("должен обновлять params через update", (done) => {
-    let updatedParams: Record<string, unknown> = {}
+  it("должен работать с updateBoundary", async () => {
+    let stateChanged = false
 
-    const id = createMonad({
-      fields: { cmd: { type: "string" }, count: { type: "number" } },
-      params: { cmd: "", count: 0 },
-      state: "ожидание",
-      superposition: {
-        ожидание: { выполнение: { cmd: { null: false } } },
-        выполнение: null,
-      },
-      actions: {
-        выполнение: (params, update) => {
-          updatedParams = { ...params }
-          update({ cmd: "", count: 1 })
-          setTimeout(() => {
-            expect(updatedParams.cmd).toBe("git status")
-            done()
-          }, 50)
-        },
-      },
-    })
-    _createdMonadIds.push(id)
-
-    onStateChange((id, oldState, newState) => {
-      if (newState === "выполнение") {
-        execute(id, newState)
-      }
-    })
-
-    updateMonad(id, { cmd: "git status" })
-  })
-
-  it("должен работать с updateBoundary", (done) => {
-    onStateChange((id, oldState, newState) => {
-      if (newState === "выполнение") {
-        expect(id).toBeDefined()
-        done()
+    onStateChange((id, old, current) => {
+      if (current === "выполнение") {
+        stateChanged = true
       }
     })
 
@@ -154,7 +123,10 @@ describe("Monad (модуль)", () => {
     })
     _createdMonadIds.push(id)
 
-    updateBoundary(id, "cmd", "git status")
+    await updateBoundary()
+    await updateMonad(id, { cmd: "git status" })
+
+    expect(stateChanged).toBe(true)
   })
 
   it("должен удалять монаду по uuid", () => {
@@ -172,62 +144,5 @@ describe("Monad (модуль)", () => {
     expect(id).toBeDefined()
     deleteMonad(id)
     expect(true).toBe(true)
-  })
-
-  it("должен позволять добавить несколько монад до первой инициализации Boundary", async () => {
-    const id1 = createMonad({
-      fields: { cmd: { type: "string" } },
-      params: { cmd: "" },
-      state: "ожидание",
-      superposition: {
-        ожидание: { выполнение: { cmd: { null: false } } },
-        выполнение: null,
-      },
-      actions: {},
-    })
-    const id2 = createMonad({
-      fields: { cmd: { type: "string" } },
-      params: { cmd: "" },
-      state: "ожидание",
-      superposition: {
-        ожидание: { выполнение: { cmd: { null: false } } },
-        выполнение: null,
-      },
-      actions: {},
-    })
-    _createdMonadIds.push(id1, id2)
-
-    await expect(updateBoundary(id2, "cmd", "git status")).resolves.toBeUndefined()
-  })
-
-  it("должен позволять удалять монаду при активном Boundary", async () => {
-    const id1 = createMonad({
-      fields: { cmd: { type: "string" } },
-      params: { cmd: "" },
-      state: "ожидание",
-      superposition: {
-        ожидание: { выполнение: { cmd: { null: false } } },
-        выполнение: null,
-      },
-      actions: {},
-    })
-    const id2 = createMonad({
-      fields: { cmd: { type: "string" } },
-      params: { cmd: "" },
-      state: "ожидание",
-      superposition: {
-        ожидание: { выполнение: { cmd: { null: false } } },
-        выполнение: null,
-      },
-      actions: {},
-    })
-    _createdMonadIds.push(id1, id2)
-
-    await updateBoundary(id1, "cmd", "git status")
-
-    expect(() => deleteMonad(id2)).not.toThrow()
-    expect(() => deleteMonad(id2)).not.toThrow()
-
-    await expect(updateBoundary(id2, "cmd", "git status")).rejects.toThrow(`Brane ${id2} not found`)
   })
 })

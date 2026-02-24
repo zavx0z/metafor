@@ -13,4 +13,5 @@ export {
   execute,
 } from "./monad"
 
-export type { Brane, Action, Update, Actions, MonadConfig } from "./types"
+export type { MonadConfig } from "./monad"
+export type { Brane, Action, Update, Actions } from "./types"
