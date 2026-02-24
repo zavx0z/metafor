@@ -2,7 +2,8 @@
   "name": "fixture",
   "private": true,
   "devDependencies": {
-    "@types/puppeteer": "^5.4.7"
+    "@types/puppeteer": "^5.4.7",
+    "puppeteer": "^24.37.2"
   },
   "peerDependencies": {
     "typescript": "^5"

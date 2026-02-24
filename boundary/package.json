@@ -6,15 +6,9 @@
   "version": "0.1.0",
   "main": "./src/index.ts",
   "devDependencies": {
-    "@types/bun": "^1.1.11",
-    "@webgpu/types": "^0.1.32",
     "@zavx0z/context": "^2.3.1",
-    "puppeteer": "^24.37.2",
+    "@webgpu/types": "^0.1.32",
     "fixture": "workspace:*"
-  },
-  "peerDependencies": {
-    "bun": "^1.0.0",
-    "typescript": "^5.0.0"
   },
   "scripts": {
     "example": "bun run ./examples/server.ts",
