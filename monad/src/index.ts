@@ -1,8 +1,16 @@
 /**
- * Monad — минимальный конечный автомат.
+ * Monad — минимальный конечный автомат (модуль).
  *
  * @packageDocumentation
  */
 
-export { Monad } from "./Monad"
+export {
+  createMonad,
+  deleteMonad,
+  updateMonad,
+  updateBoundary,
+  onStateChange,
+  execute,
+} from "./monad"
+
 export type { Brane, Action, Update, Actions, MonadConfig } from "./types"

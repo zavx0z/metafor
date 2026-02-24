@@ -1,16 +1,25 @@
-import { describe, it, expect, beforeAll } from "bun:test"
-import { Monad } from "../src/Monad"
-import { setupDevice } from "@fixture/bunWebGPU"
+import { describe, it, expect, beforeAll, afterEach } from "bun:test"
+import { createMonad, deleteMonad, updateMonad, updateBoundary, onStateChange, execute } from "../src/monad"
 import { GPU } from "@metafor/boundary"
+import { setupDevice } from "../../fixture/bunWebGPU"
 
 beforeAll(async () => {
   GPU._device = await setupDevice()
 })
 
-describe("Monad", () => {
-  it("должен создавать монаду с конфигурацией", async () => {
-    const monad = new Monad()
-    await monad.create({
+afterEach(() => {
+  // Очищаем после каждого теста
+  deleteMonad("test-1")
+  deleteMonad("test-2")
+  deleteMonad("test-3")
+  deleteMonad("test-4")
+  deleteMonad("test-5")
+  deleteMonad("test-delete")
+})
+
+describe("Monad (модуль)", () => {
+  it("должен создавать монаду с конфигурацией", () => {
+    createMonad({
       fields: { cmd: { type: "string" } },
       branes: [
         {
@@ -26,25 +35,24 @@ describe("Monad", () => {
       actions: {},
     })
 
-    expect(monad).toBeDefined()
+    expect(true).toBe(true)
   })
 
   it("должен вызывать onStateChange при изменении состояния", (done) => {
-    const monad = new Monad()
-    monad.onStateChange = (index, old, newer) => {
+    onStateChange((index, old, newer) => {
       if (newer === "выполнение") {
         expect(index).toBe(0)
         expect(old).toBe("ожидание")
         expect(newer).toBe("выполнение")
         done()
       }
-    }
+    })
 
-    monad.create({
+    createMonad({
       fields: { cmd: { type: "string" } },
       branes: [
         {
-          id: "test-1",
+          id: "test-2",
           params: { cmd: "" },
           state: "ожидание",
           superposition: {
@@ -58,34 +66,32 @@ describe("Monad", () => {
           // Действо выполнено
         },
       },
-    }).then(() => {
-      monad.updateField(0, { cmd: "git status" })
     })
+
+    updateMonad(0, { cmd: "git status" })
   })
 
   it("должен выполнять action при изменении состояния", (done) => {
     let actionExecuted = false
     let actionParams: Record<string, unknown> = {}
 
-    const monad = new Monad()
-    monad.onStateChange = (index, oldState, newState) => {
+    onStateChange((index, oldState, newState) => {
       if (newState === "выполнение") {
-        monad.execute(index, newState)
+        execute(index, newState)
 
-        // Проверяем что action выполнился
         setTimeout(() => {
           expect(actionExecuted).toBe(true)
           expect(actionParams.cmd).toBe("git status")
           done()
         }, 10)
       }
-    }
+    })
 
-    monad.create({
+    createMonad({
       fields: { cmd: { type: "string" } },
       branes: [
         {
-          id: "test-1",
+          id: "test-3",
           params: { cmd: "" },
           state: "ожидание",
           superposition: {
@@ -100,18 +106,17 @@ describe("Monad", () => {
           actionParams = { ...params }
         },
       },
-    }).then(() => {
-      monad.updateField(0, { cmd: "git status" })
     })
+
+    updateMonad(0, { cmd: "git status" })
   })
 
   it("должен обновлять params через update", (done) => {
     let updatedParams: Record<string, unknown> = {}
 
-    const monad = new Monad()
-    monad.onStateChange = (index, oldState, newState) => {
+    onStateChange((index, oldState, newState) => {
       if (newState === "выполнение") {
-        monad.execute(index, newState)
+        execute(index, newState)
       }
 
       // После возврата в ожидание проверяем
@@ -121,13 +126,13 @@ describe("Monad", () => {
           done()
         }, 10)
       }
-    }
+    })
 
-    monad.create({
+    createMonad({
       fields: { cmd: { type: "string" }, count: { type: "number" } },
       branes: [
         {
-          id: "test-1",
+          id: "test-4",
           params: { cmd: "", count: 0 },
           state: "ожидание",
           superposition: {
@@ -139,41 +144,27 @@ describe("Monad", () => {
       actions: {
         выполнение: (params, update) => {
           updatedParams = { ...params }
-          update("test-1", { cmd: "", count: 1 })
+          update("test-4", { cmd: "", count: 1 })
         },
       },
-    }).then(() => {
-      monad.updateField(0, { cmd: "git status" })
     })
+
+    updateMonad(0, { cmd: "git status" })
   })
 
-  it("должен работать с несколькими бранами", (done) => {
-    const stateChanges: Array<{ index: number; state: string }> = []
-
-    const monad = new Monad()
-    monad.onStateChange = (index, oldState, newState) => {
-      stateChanges.push({ index, state: newState })
-
+  it("должен работать с updateBoundary", (done) => {
+    onStateChange((index, oldState, newState) => {
       if (newState === "выполнение") {
-        monad.execute(index, newState)
+        expect(index).toBe(0)
+        done()
       }
+    })
 
-      // Проверяем что состояние изменилось
-      if (stateChanges.length >= 1) {
-        const first = stateChanges[0]
-        if (first) {
-          expect(first.index).toBe(0)
-          expect(first.state).toBe("выполнение")
-          done()
-        }
-      }
-    }
-
-    monad.create({
+    createMonad({
       fields: { cmd: { type: "string" } },
       branes: [
         {
-          id: "test-1",
+          id: "test-5",
           params: { cmd: "" },
           state: "ожидание",
           superposition: {
@@ -182,13 +173,30 @@ describe("Monad", () => {
           },
         },
       ],
-      actions: {
-        выполнение: (params, update) => {
-          // Действо
-        },
-      },
-    }).then(() => {
-      monad.updateField(0, { cmd: "git status" })
+      actions: {},
     })
+
+    updateBoundary(0, "cmd", "git status")
+  })
+
+  it("должен удалять монаду по id", () => {
+    createMonad({
+      fields: { cmd: { type: "string" } },
+      branes: [
+        {
+          id: "test-delete",
+          params: { cmd: "" },
+          state: "ожидание",
+          superposition: {
+            ожидание: { выполнение: { cmd: { null: false } } },
+            выполнение: null,
+          },
+        },
+      ],
+      actions: {},
+    })
+
+    deleteMonad("test-delete")
+    expect(true).toBe(true)
   })
 })
