@@ -10,7 +10,8 @@ beforeAll(async () => {
 
 describe("Monad", () => {
   it("должен создавать монаду с конфигурацией", async () => {
-    const monad = await Monad.create(device, {
+    const monad = new Monad(device)
+    await monad.create({
       fields: { cmd: { type: "string" } },
       branes: [
         {
@@ -30,11 +31,17 @@ describe("Monad", () => {
   })
 
   it("должен вызывать onStateChange при изменении состояния", (done) => {
-    let stateChanged = false
-    let oldState = ""
-    let newState = ""
+    const monad = new Monad(device)
+    monad.onStateChange = (index, old, newer) => {
+      if (newer === "выполнение") {
+        expect(index).toBe(0)
+        expect(old).toBe("ожидание")
+        expect(newer).toBe("выполнение")
+        done()
+      }
+    }
 
-    Monad.create(device, {
+    monad.create({
       fields: { cmd: { type: "string" } },
       branes: [
         {
@@ -50,23 +57,9 @@ describe("Monad", () => {
       actions: {
         выполнение: (params, update) => {
           // Действо выполнено
-          stateChanged = true
         },
       },
-    }).then((monad) => {
-      monad.onStateChange = (index, old, newer) => {
-        stateChanged = true
-        oldState = old
-        newState = newer
-
-        if (newer === "выполнение") {
-          expect(index).toBe(0)
-          expect(old).toBe("ожидание")
-          expect(newer).toBe("выполнение")
-          done()
-        }
-      }
-
+    }).then(() => {
       monad.updateField(0, { cmd: "git status" })
     })
   })
@@ -75,7 +68,21 @@ describe("Monad", () => {
     let actionExecuted = false
     let actionParams: Record<string, unknown> = {}
 
-    Monad.create(device, {
+    const monad = new Monad(device)
+    monad.onStateChange = (index, oldState, newState) => {
+      if (newState === "выполнение") {
+        monad.execute(index, newState)
+
+        // Проверяем что action выполнился
+        setTimeout(() => {
+          expect(actionExecuted).toBe(true)
+          expect(actionParams.cmd).toBe("git status")
+          done()
+        }, 10)
+      }
+    }
+
+    monad.create({
       fields: { cmd: { type: "string" } },
       branes: [
         {
@@ -94,20 +101,7 @@ describe("Monad", () => {
           actionParams = { ...params }
         },
       },
-    }).then((monad) => {
-      monad.onStateChange = (index, oldState, newState) => {
-        if (newState === "выполнение") {
-          monad.execute(index, newState)
-
-          // Проверяем что action выполнился
-          setTimeout(() => {
-            expect(actionExecuted).toBe(true)
-            expect(actionParams.cmd).toBe("git status")
-            done()
-          }, 10)
-        }
-      }
-
+    }).then(() => {
       monad.updateField(0, { cmd: "git status" })
     })
   })
@@ -115,7 +109,22 @@ describe("Monad", () => {
   it("должен обновлять params через update", (done) => {
     let updatedParams: Record<string, unknown> = {}
 
-    Monad.create(device, {
+    const monad = new Monad(device)
+    monad.onStateChange = (index, oldState, newState) => {
+      if (newState === "выполнение") {
+        monad.execute(index, newState)
+      }
+
+      // После возврата в ожидание проверяем
+      if (newState === "ожидание" && oldState === "выполнение") {
+        setTimeout(() => {
+          expect(updatedParams.cmd).toBe("git status")
+          done()
+        }, 10)
+      }
+    }
+
+    monad.create({
       fields: { cmd: { type: "string" }, count: { type: "number" } },
       branes: [
         {
@@ -134,24 +143,7 @@ describe("Monad", () => {
           update("test-1", { cmd: "", count: 1 })
         },
       },
-    }).then((monad) => {
-      let transitionCount = 0
-      monad.onStateChange = (index, oldState, newState) => {
-        transitionCount++
-
-        if (newState === "выполнение") {
-          monad.execute(index, newState)
-        }
-
-        // После возврата в ожидание проверяем
-        if (newState === "ожидание" && transitionCount >= 2) {
-          setTimeout(() => {
-            expect(updatedParams.cmd).toBe("git status")
-            done()
-          }, 10)
-        }
-      }
-
+    }).then(() => {
       monad.updateField(0, { cmd: "git status" })
     })
   })
@@ -159,7 +151,26 @@ describe("Monad", () => {
   it("должен работать с несколькими бранами", (done) => {
     const stateChanges: Array<{ index: number; state: string }> = []
 
-    Monad.create(device, {
+    const monad = new Monad(device)
+    monad.onStateChange = (index, oldState, newState) => {
+      stateChanges.push({ index, state: newState })
+
+      if (newState === "выполнение") {
+        monad.execute(index, newState)
+      }
+
+      // Проверяем что состояние изменилось
+      if (stateChanges.length >= 1) {
+        const first = stateChanges[0]
+        if (first) {
+          expect(first.index).toBe(0)
+          expect(first.state).toBe("выполнение")
+          done()
+        }
+      }
+    }
+
+    monad.create({
       fields: { cmd: { type: "string" } },
       branes: [
         {
@@ -177,25 +188,7 @@ describe("Monad", () => {
           // Действо
         },
       },
-    }).then((monad) => {
-      monad.onStateChange = (index, oldState, newState) => {
-        stateChanges.push({ index, state: newState })
-
-        if (newState === "выполнение") {
-          monad.execute(index, newState)
-        }
-
-        // Проверяем что состояние изменилось
-        if (stateChanges.length >= 1) {
-          const first = stateChanges[0]
-          if (first) {
-            expect(first.index).toBe(0)
-            expect(first.state).toBe("выполнение")
-          }
-          done()
-        }
-      }
-
+    }).then(() => {
       monad.updateField(0, { cmd: "git status" })
     })
   })

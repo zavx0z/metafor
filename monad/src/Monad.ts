@@ -5,7 +5,8 @@
  *
  * @example
  * ```typescript
- * const monad = await Monad.create(device, {
+ * const monad = new Monad(device)
+ * await monad.create({
  *   fields: { cmd: { type: "string" } },
  *   branes: [{
  *     id: "git-1",
@@ -34,7 +35,7 @@
  * @packageDocumentation
  */
 
-import { Boundary, type Superposition } from "@metafor/boundary"
+import { Boundary, type DebugOptions, type Superposition } from "@metafor/boundary"
 import type { MonadConfig, Update } from "./types"
 
 /**
@@ -48,13 +49,13 @@ interface InternalBrane {
 }
 
 /**
- * Минимальная монада — конечный автомат.
+ * Минимальная монада — конечный автомат (реестр конфигураций).
  */
 export class Monad {
   private boundary: Boundary
-  private config: MonadConfig
-  private states: string[]
-  private branes: InternalBrane[]
+  private config: MonadConfig | null = null
+  private states: string[] = []
+  private branes: InternalBrane[] = []
 
   /**
    * Callback на изменение состояния.
@@ -65,9 +66,40 @@ export class Monad {
    */
   public onStateChange?: (braneIndex: number, oldState: string, newState: string) => void
 
-  private constructor(config: MonadConfig, boundary: Boundary) {
+  /**
+   * Создаёт экземпляр монады.
+   *
+   * @param device - GPU device.
+   * @param options - Опции debug.
+   *
+   * @example
+   * ```typescript
+   * const monad = new Monad(device)
+   * ```
+   */
+  constructor(device: GPUDevice, options?: { debug?: DebugOptions }) {
+    this.boundary = new Boundary(device, options)
+  }
+
+  /**
+   * Регистрирует конфигурацию в реестре.
+   *
+   * @param config - Конфигурация монады.
+   * @returns Промис завершения инициализации.
+   *
+   * @example
+   * ```typescript
+   * const monad = new Monad(device)
+   * await monad.create({
+   *   fields: { cmd: { type: "string" } },
+   *   branes: [{ id, params, state, superposition }],
+   *   actions: { "состояние": (params, update) => { ... } }
+   * })
+   * ```
+   */
+  async create(config: MonadConfig): Promise<void> {
+    await this.boundary.init({ fields: config.fields, branes: config.branes })
     this.config = config
-    this.boundary = boundary
     this.branes = config.branes.map((b) => ({
       id: b.id,
       params: { ...b.params },
@@ -77,41 +109,8 @@ export class Monad {
     this.states = this.branes.map((b) => b.state)
   }
 
-  /**
-   * Создаёт и инициализирует монаду.
-   *
-   * @param device - GPU device.
-   * @param config - Конфигурация монады.
-   * @returns Промис с экземпляром Monad.
-   *
-   * @example
-   * ```typescript
-   * const monad = await Monad.create(device, {
-   *   fields: { cmd: { type: "string" } },
-   *   branes: [{
-   *     id: "git-1",
-   *     params: { cmd: "" },
-   *     state: "ожидание",
-   *     superposition: {
-   *       "ожидание": { "выполнение": { cmd: { null: false } } },
-   *       "выполнение": null
-   *     }
-   *   }],
-   *   actions: {
-   *     "выполнение": (params, update) => {
-   *       exec(params.cmd)
-   *       update("git-1", { cmd: "" })
-   *     }
-   *   }
-   * })
-   * ```
-   */
-  static async create(device: GPUDevice, config: MonadConfig): Promise<Monad> {
-    const boundary = new Boundary(device)
-    await boundary.init({ fields: config.fields, branes: config.branes })
-
-    const monad = new Monad(config, boundary)
-    return monad
+  private getBrane(idx: number): InternalBrane | undefined {
+    return this.branes[idx]
   }
 
   /**
@@ -126,7 +125,7 @@ export class Monad {
    * ```
    */
   public updateField(braneIndex: number, fields: Record<string, unknown>): void {
-    const brane = this.branes[braneIndex]
+    const brane = this.getBrane(braneIndex)
     if (!brane) {
       throw new Error(`Brane with index ${braneIndex} not found`)
     }
@@ -166,10 +165,12 @@ export class Monad {
    * @internal
    */
   public execute(braneIndex: number, state: string): void {
+    if (!this.config) return
+
     const action = this.config.actions[state]
     if (!action) return
 
-    const brane = this.branes[braneIndex]
+    const brane = this.getBrane(braneIndex)
     if (!brane) return
 
     const update: Update = (boundaryId, params) => {
