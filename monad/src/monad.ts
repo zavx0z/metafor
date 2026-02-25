@@ -15,7 +15,7 @@ import type {
   SuperpositionsStore,
   UuidToIndexStore,
 } from "./monad.t"
-import type { Action, Actions, MonadConfig } from "./types"
+import type { MonadConfig } from "./types"
 import { convertAllFields } from "./field"
 
 // ==================== Внутреннее состояние ====================

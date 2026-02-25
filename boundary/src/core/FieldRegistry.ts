@@ -1,11 +1,17 @@
 /**
- * Глобальный реестр полей браны (Singleton).
+ * Глобальный реестр полей (Singleton).
  *
- * Присваивает уникальные числовые ID каждому полю для использования в байт-коде.
- * Должен быть очищен перед каждой инициализацией {@link Boundary}.
+ * Регистрирует поля из схемы и присваивает им уникальные числовые ID для использования в байт-коде.
+ *
+ * ## Архитектура
+ *
+ * - **Fields (поля)** — общие для всех бран: схема типов для GPU
+ * - Каждое поле получает уникальный `fieldId` (0, 1, 2...)
+ * - Реестр очищается перед каждой инициализацией {@link Boundary}
  *
  * @example
  * ```ts
+ * // Регистрация полей из схемы
  * const registry = FieldRegistry.getInstance()
  * registry.register('hp', FieldType.F32)
  * registry.register('name', FieldType.STRING_PTR)
@@ -72,10 +78,10 @@ export class FieldRegistry {
   }
 
   /**
-   * Регистрирует новое поле.
+   * Регистрирует поле из схемы.
    *
    * @param name - Уникальное имя поля.
-   * @param type - Тип данных.
+   * @param type - Тип данных из схемы (FieldType.F32, FieldType.BOOL, etc.).
    * @param options.elementType - Для массивов: тип элементов.
    * @param options.enumValues - Для enum: допустимые значения.
    *
@@ -100,6 +106,12 @@ export class FieldRegistry {
     return fieldId
   }
 
+  /**
+   * Регистрирует несколько полей из схемы.
+   *
+   * @param components - Схема полей: `{ name: type }`.
+   * @returns Маппинг имён полей в их ID.
+   */
   registerBatch(components: Record<string, FieldTypeValue>): Record<string, number> {
     const result: Record<string, number> = {}
     for (const [name, type] of Object.entries(components)) {

@@ -124,20 +124,35 @@ export class Boundary {
    * Записывает конфигурацию на границу (GPU-ресурсы должны быть инициализированы).
    *
    * @remarks
+   * **Архитектура:**
+   * - **Fields (поля)** — общие для всех бран: схема типов для GPU
+   * - **Branes (браны)** — независимые возмущения: каждая со своими params, state, superposition
+   *
    * **Side Effects:**
    * - Очищает FieldRegistry и StringAtlas перед записью.
    * - Аллоцирует GPU-буферы (не освобождаются автоматически).
    *
-   * @param config - Конфигурация полевой границы (fields + branes).
+   * @param config - Конфигурация полевой границы.
+   * @param config.fields - Схема типов полей (общая для всех бран).
+   * @param config.branes - Массив бран (по одной на superposition).
    *
    * @throws {Error} Если тип поля не распознан.
+   *
+   * @example
+   * ```ts
+   * await boundary.write({
+   *   fields: { hp: { type: FieldType.F32 } },  // общее поле для всех бран
+   *   branes: [
+   *     { params: { hp: 100 }, state: "IDLE", superposition: {...} },  // брана 0
+   *     { params: { hp: 80 }, state: "PATROL", superposition: {...} }, // брана 1
+   *   ]
+   * })
+   * ```
    */
   async write(config: BoundaryConfigWithTypes) {
     const debug = this.isDebugEnabled.bind(this)
 
-    if (debug("fields")) {
-      console.log("[Boundary] Writing fields:", config.fields)
-    }
+    if (debug("fields")) console.log("[Boundary] Writing fields:", config.fields)
 
     this.clear()
 
@@ -148,9 +163,7 @@ export class Boundary {
     for (const [name, field] of Object.entries(typedFields)) {
       if (!registry.has(name)) {
         registry.register(name, field.type, field.options ?? {})
-        if (debug("fields")) {
-          console.log(`[Boundary] Registered field: ${name} = ${field.type}`, field.options ?? {})
-        }
+        if (debug("fields")) console.log(`[Boundary] Registered field: ${name} = ${field.type}`, field.options ?? {})
       }
     }
 

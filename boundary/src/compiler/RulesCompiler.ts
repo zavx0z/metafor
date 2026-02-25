@@ -499,19 +499,23 @@ export class RulesCompiler {
   /**
    * Компилирует массив superposition в единый конкатенированный bytecode.
    *
-   * Каждое поле получает свой независимый bytecode со своей таблицей состояний.
-   * Это позволяет полям иметь разные графы переходов с разными условиями.
+   * Каждая superposition компилируется независимо со своими состояниями и переходами.
+   * Поля (fields) общие для всех суперпозиций — они уже должны быть зарегистрированы в FieldRegistry.
+   *
+   * ### Использование:
+   * * **Одна брана** — одна superposition
+   * * **Несколько бран** — массив superpositions (по одной на брану)
    *
    * ### Структура результата:
    * ```
-   * bytecode:           [field0_bc][field1_bc][field2_bc]...
+   * bytecode:           [superposition0_bc][superposition1_bc][superposition2_bc]...
    * bytecodeOffsets:    [0, len0, len0+len1, ...]
    * stateMaps:          [{IDLE:0,...}, {IDLE:0,...}, ...]
    * reverseStateMaps:   [["IDLE",...], ["IDLE",...], ...]
    * ```
    *
-   * @param superpositions - Массив графов переходов (по одному на поле)
-   * @param branes - Схема типов данных браны (общая для всех полей)
+   * @param superpositions - Массив графов переходов (по одному на брану)
+   * @param fields - Схема типов полей (общая для всех бран)
    * @param options - Опции компиляции
    * @param options.debug - Включить debug-логирование
    * @returns Скомпилированный ансамбль с таблицей смещений
@@ -521,16 +525,16 @@ export class RulesCompiler {
    * const compiler = new RulesCompiler()
    * const ensemble = compiler.compileEnsemble(
    *   [
-   *     { IDLE: { COMBAT: { hp: { gt: 80 } } }, COMBAT: null },
-   *     { IDLE: { MEDITATE: { mana: { lt: 20 } } }, MEDITATE: null },
+   *     { IDLE: { PATROL: { hp: { gt: 50 } } }, PATROL: null },  // брана 0
+   *     { IDLE: { COMBAT: { hp: { gt: 80 } } }, COMBAT: null },  // брана 1
    *   ],
-   *   { hp: "number", mana: "number" }
+   *   { hp: { type: FieldType.F32 } }  // общие поля для всех бран
    * )
    * ```
    */
   compileEnsemble(
     superpositions: Superposition[],
-    branes: Record<string, any> = {},
+    fields: Record<string, any> = {},
     options: { preserveRegistry?: boolean; debug?: boolean } = {},
   ): CompiledEnsemble {
     const { debug = false } = options
@@ -538,17 +542,17 @@ export class RulesCompiler {
     // Поля должны быть уже зарегистрированы в FieldRegistry перед вызовом compileEnsemble
 
     if (debug) {
-      console.log("[RulesCompiler] Compiling ensemble with", superpositions.length, "superpositions")
+      console.log("[RulesCompiler] Compiling ensemble with", superpositions.length, "superpositions (one per brane)")
     }
 
     // Компилируем каждую superposition отдельно
     const compiled: CompiledFieldRules[] = []
     for (let i = 0; i < superpositions.length; i++) {
       // preserveRegistry=true для всех кроме первой, чтобы сохранить зарегистрированные поля
-      compiled.push(this.compileSingle(superpositions[i]!, branes, { preserveRegistry: i > 0 }))
+      compiled.push(this.compileSingle(superpositions[i]!, fields, { preserveRegistry: i > 0 }))
       if (debug) {
         console.log(
-          `[RulesCompiler] Superposition ${i}: ${compiled[i]!.bytecode.length} words, states=`,
+          `[RulesCompiler] Superposition ${i} (brane ${i}): ${compiled[i]!.bytecode.length} words, states=`,
           compiled[i]!.reverseStateMap,
         )
       }
