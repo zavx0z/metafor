@@ -2,6 +2,27 @@
  * Типы и интерфейсы для Boundary.
  */
 
+/**
+ * Уникальный идентификатор браны.
+ *
+ * @remarks
+ * Используется для идентификации браны в Boundary и BraneManager.
+ * Может быть UUID, хешем или любым другим уникальным идентификатором.
+ */
+export type BraneId = string
+
+/**
+ * Индекс браны в массиве Boundary.
+ *
+ * @remarks
+ * Boundary хранит браны как плоский массив. Индекс используется для:
+ * - Доступа к бране в GPU-буферах
+ * - Чтения состояний из {@link GPUBackend.read}
+ * - Обновления полей через {@link Boundary.updateBraneField}
+ *
+ * Это технический индекс (0, 1, 2...), а не уникальный идентификатор.
+ */
+export type BraneIndex = number
 
 /**
  * Определение типа поля для GPU.
@@ -42,7 +63,7 @@ export type Superposition = Record<string, Record<string, any> | null>
  */
 export interface BraneDefinition {
   /** Уникальный идентификатор браны. */
-  id: string
+  id: BraneId
   /** Значения полей браны (params — данные). */
   params: Record<string, unknown>
   /** Текущее состояние (должно быть в superposition). */

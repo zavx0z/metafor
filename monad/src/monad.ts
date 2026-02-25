@@ -4,20 +4,30 @@
  * @packageDocumentation
  */
 
-import { Boundary, type FieldsDefinition, type Superposition } from "@metafor/boundary"
+import { Boundary } from "@metafor/boundary"
+import type {
+  ActionsStore,
+  FieldsStore,
+  IndexToUuidStore,
+  MonadId,
+  ParamsStore,
+  StatesStore,
+  SuperpositionsStore,
+  UuidToIndexStore,
+} from "./monad.t"
 import type { Action, Actions, MonadConfig } from "./types"
 
 // ==================== Внутреннее состояние ====================
 
 const _boundary: { current: Boundary | null } = { current: null }
-const _fields: Map<string, FieldsDefinition> = new Map()
-const _actions: Map<string, Actions> = new Map()
-const _params: Map<string, Record<string, unknown>> = new Map()
-const _superpositions: Map<string, Superposition> = new Map()
-const _states: Map<string, string> = new Map()
-const _uuidToIndex: Map<string, number> = new Map()
-const _indexToUuid: Map<number, string> = new Map()
-const _onStateChange: { current: ((monadId: string, old: string, current: string) => void) | null } = { current: null }
+const _fields: FieldsStore = new Map()
+const _actions: ActionsStore = new Map()
+const _params: ParamsStore = new Map()
+const _superpositions: SuperpositionsStore = new Map()
+const _states: StatesStore = new Map()
+const _uuidToIndex: UuidToIndexStore = new Map()
+const _indexToUuid: IndexToUuidStore = new Map()
+const _onStateChange: { current: ((monadId: MonadId, old: string, current: string) => void) | null } = { current: null }
 
 // Экспорт для тестов
 export function _resetState(): void {
@@ -53,9 +63,9 @@ export function createMonad(config: MonadConfig): string {
 /**
  * Удаляет монаду.
  *
- * @param id - UUID монады.
+ * @param id - {@link MonadId} монады.
  */
-export function deleteMonad(id: string): void {
+export function deleteMonad(id: MonadId): void {
   _fields.delete(id)
   _actions.delete(id)
   _params.delete(id)
@@ -110,11 +120,11 @@ export async function updateBoundary(): Promise<void> {
 /**
  * Обновляет поля браны и выполняет шаг эволюции.
  *
- * @param id - UUID монады.
+ * @param id - {@link MonadId} монады.
  * @param fields - Новые значения полей.
  * @throws {Error} Если Boundary не инициализирован. Вызовите updateBoundary() перед updateMonad().
  */
-export async function updateMonad(id: string, fields: Record<string, unknown>): Promise<void> {
+export async function updateMonad(id: MonadId, fields: Record<string, unknown>): Promise<void> {
   const params = _params.get(id)
   if (!params) {
     throw new Error(`Brane with id ${id} not found`)
@@ -179,6 +189,6 @@ export async function updateMonad(id: string, fields: Record<string, unknown>): 
  * })
  * ```
  */
-export function onStateChange(callback: (monadId: string, old: string, current: string) => void): void {
+export function onStateChange(callback: (monadId: MonadId, old: string, current: string) => void): void {
   _onStateChange.current = callback
 }

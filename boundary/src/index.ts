@@ -47,6 +47,8 @@ export type {
   BraneDefinition,
   DebugOptions,
   BoundaryConfig,
+  BraneId,
+  BraneIndex,
 } from "./index.t"
 
 /**
