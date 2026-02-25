@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import type { FieldsDefinition, Superposition, BraneId } from "@metafor/boundary"
+import type { FieldsDefinition, Superposition } from "@metafor/boundary"
 
 /**
  * Конфигурация монады.
@@ -36,8 +36,6 @@ export type Actions = Record<string, Action | null>
  * Брана — носитель состояния.
  */
 export interface Brane {
-  /** Уникальный идентификатор браны. */
-  id: BraneId
   /** Значения полей браны (params — данные). */
   params: Record<string, unknown>
   /** Текущее состояние (должно быть в superposition). */

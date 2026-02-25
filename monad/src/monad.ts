@@ -78,12 +78,14 @@ export function deleteMonad(id: MonadId): void {
  * Создаёт/пересоздаёт Boundary со всеми бранами.
  */
 export async function updateBoundary(): Promise<void> {
+  // Получаем все ID монад
+  const monadIds = Array.from(_params.keys())
+
   // Собираем все браны
-  const allBranes = Array.from(_params.entries()).map(([id, params]) => ({
-    id,
-    params,
-    state: _states.get(id)!,
-    superposition: _superpositions.get(id)!,
+  const allBranes = monadIds.map((monadId) => ({
+    params: _params.get(monadId)!,
+    state: _states.get(monadId)!,
+    superposition: _superpositions.get(monadId)!,
   }))
 
   if (allBranes.length === 0) {
@@ -108,12 +110,12 @@ export async function updateBoundary(): Promise<void> {
   }
   await _boundary.current.write({ fields: firstFields, branes: allBranes })
 
-  // Строим маппинги
+  // Строим маппинги по индексу
   _uuidToIndex.clear()
   _indexToUuid.clear()
-  allBranes.forEach((brane, i) => {
-    _uuidToIndex.set(brane.id, i)
-    _indexToUuid.set(i, brane.id)
+  monadIds.forEach((monadId, i) => {
+    _uuidToIndex.set(monadId, i)
+    _indexToUuid.set(i, monadId)
   })
 }
 

@@ -3,15 +3,6 @@
  */
 
 /**
- * Уникальный идентификатор браны.
- *
- * @remarks
- * Используется для идентификации браны в Boundary и BraneManager.
- * Может быть UUID, хешем или любым другим уникальным идентификатором.
- */
-export type BraneId = string
-
-/**
  * Индекс браны в массиве Boundary.
  *
  * @remarks
@@ -60,10 +51,10 @@ export type Superposition = Record<string, Record<string, any> | null>
  * - params — значения полей (данные)
  * - state — текущее состояние (одно из superposition)
  * - superposition — все возможные состояния + граф переходов
+ *
+ * Индекс браны в массиве Boundary используется как идентификатор.
  */
 export interface BraneDefinition {
-  /** Уникальный идентификатор браны. */
-  id: BraneId
   /** Значения полей браны (params — данные). */
   params: Record<string, unknown>
   /** Текущее состояние (должно быть в superposition). */

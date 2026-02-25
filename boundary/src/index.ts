@@ -47,7 +47,6 @@ export type {
   BraneDefinition,
   DebugOptions,
   BoundaryConfig,
-  BraneId,
   BraneIndex,
 } from "./index.t"
 
@@ -187,9 +186,7 @@ export class Boundary {
 
     if (debug("branes")) {
       console.log("[Boundary] Creating ensemble with", config.branes.length, "branes")
-      config.branes.forEach((b, i) => {
-        console.log(`  [Brane ${i}] id="${b.id}", state="${b.state}", params=`, b.params)
-      })
+      config.branes.forEach((b, i) => console.log(`  [Brane ${i}] state="${b.state}", params=`, b.params))
     }
 
     this.braneIds = this.braneManager.createEnsemble(config.branes.map((f) => f.params))
@@ -227,8 +224,6 @@ export class Boundary {
 
     const atlas = getStringAtlas()
     const atlasExport = atlas.export()
-    const registryData = atlasExport.registry.length > 0 ? atlasExport.registry : new Uint32Array(1)
-    const heapData = atlasExport.heap.length > 0 ? atlasExport.heap : new Uint32Array(1)
 
     if (debug("strings")) {
       console.log("[Boundary] String Atlas:", {
