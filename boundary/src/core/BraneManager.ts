@@ -215,28 +215,28 @@ export class BraneManager {
     if (!brane) {
       throw new Error(`Brane with ID ${braneId} not found`)
     }
-    const fieldMeta = this.registry.getMeta(fieldName)
-    if (!fieldMeta) {
+    const field = this.registry.getField(fieldName)
+    if (!field) {
       throw new Error(`Field '${fieldName}' not registered`)
     }
     const block = this.heapData.slice(brane.blockPtr, brane.blockPtr + brane.blockSize)
-    const fieldInfo = BlockUtils.findField(block, fieldMeta.fieldId)
+    const fieldInfo = BlockUtils.findField(block, field.fieldId)
     if (!fieldInfo) {
       throw new Error(`Field '${fieldName}' not found in brane block`)
     }
     const absoluteOffset = brane.blockPtr + fieldInfo.meta.offset
-    switch (fieldMeta.type) {
+    switch (field.type) {
       case FieldType.F32: {
         const view = new DataView(this.heapData.buffer)
         view.setFloat32(absoluteOffset * 4, Number(newValue), true)
         break
       }
       case FieldType.U32:
-        if (Array.isArray(fieldMeta.enumValues)) {
-          const enumIndex = fieldMeta.enumValues.indexOf(newValue)
+        if (Array.isArray(field.enumValues)) {
+          const enumIndex = field.enumValues.indexOf(newValue)
           if (enumIndex === -1) {
             throw new Error(
-              `Value '${String(newValue)}' not found in enum '${fieldName}': [${fieldMeta.enumValues.join(", ")}]`,
+              `Value '${String(newValue)}' not found in enum '${fieldName}': [${field.enumValues.join(", ")}]`,
             )
           }
           this.heapData[absoluteOffset] = enumIndex
@@ -273,8 +273,8 @@ export class BraneManager {
         if (!Array.isArray(newValue)) {
           throw new Error(`Expected array for field '${fieldName}'`)
         }
-        const meta = this.registry.getMeta(fieldName)
-        const elementType = meta?.elementType
+        const field = this.registry.getField(fieldName)
+        const elementType = field?.elementType
         const values = newValue as unknown[]
         const newWordCount = values.length + 1
         const newBlock = this.allocator.alloc(newWordCount)

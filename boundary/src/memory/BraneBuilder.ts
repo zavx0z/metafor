@@ -20,7 +20,8 @@
  * @packageDocumentation
  */
 
-import { FieldRegistry, FieldType, type FieldMeta, type FieldTypeValue } from "../core/FieldRegistry"
+import { FieldRegistry, FieldType, type FieldTypeValue } from "../core/FieldRegistry"
+import { type Field } from "../core"
 import { HeapAllocator, type AllocResult } from "./HeapAllocator"
 import { getStringAtlas, type StringId } from "../strings/StringAtlas"
 
@@ -158,13 +159,13 @@ export class BraneBuilder {
     // Сортируем поля по имени для детерминизма.
     const localEntries = Object.entries(brane)
       .map(([name, value]) => {
-        const meta = this.registry.getMeta(name)
-        if (!meta) {
+        const field = this.registry.getField(name)
+        if (!field) {
           throw new Error(`Неизвестное поле: ${name}`)
         }
-        return { name, meta, value }
+        return { name, field, value }
       })
-      .sort((a, b) => a.meta.fieldId - b.meta.fieldId)
+      .sort((a, b) => a.field.fieldId - b.field.fieldId)
 
     const localFieldCount = localEntries.length
 
@@ -176,12 +177,12 @@ export class BraneBuilder {
     // Раскладываем поля в блоке и вычисляем их смещения.
     let currentOffset = bodyStart + sharedPtrsSize
     const fieldLayouts = localEntries.map((entry) => {
-      const sizeInWords = getFieldSize(entry.meta.type, entry.value)
+      const sizeInWords = getFieldSize(entry.field.type, entry.value)
       const offsetInWords = currentOffset
       currentOffset += sizeInWords
       if (this.debug) {
         console.log(
-          `[BraneBuilder] Field "${entry.name}": type=${entry.meta.type}, size=${sizeInWords}, offset=${offsetInWords}`,
+          `[BraneBuilder] Field "${entry.name}": type=${entry.field.type}, size=${sizeInWords}, offset=${offsetInWords}`,
         )
       }
       return { ...entry, sizeInWords, offsetInWords }
@@ -205,11 +206,11 @@ export class BraneBuilder {
     // Заполняем дескрипторы полей.
     let headerIndex = 2
     for (const layout of fieldLayouts) {
-      blockView[headerIndex++] = layout.meta.fieldId
-      const packedMeta = packMeta(layout.meta.type, layout.sizeInWords, layout.offsetInWords)
+      blockView[headerIndex++] = layout.field.fieldId
+      const packedMeta = packMeta(layout.field.type, layout.sizeInWords, layout.offsetInWords)
       if (this.debug) {
         console.log(
-          `[BraneBuilder] packMeta(${layout.meta.type}, ${layout.sizeInWords}, ${layout.offsetInWords}) = ${packedMeta} (0x${packedMeta.toString(16)})`,
+          `[BraneBuilder] packMeta(${layout.field.type}, ${layout.sizeInWords}, ${layout.offsetInWords}) = ${packedMeta} (0x${packedMeta.toString(16)})`,
         )
       }
       blockView[headerIndex++] = packedMeta
@@ -227,16 +228,16 @@ export class BraneBuilder {
     for (const layout of fieldLayouts) {
       const offsetBytes = layout.offsetInWords * 4
 
-      switch (layout.meta.type) {
+      switch (layout.field.type) {
         case FieldType.F32:
           dataView.setFloat32(offsetBytes, Number(layout.value), true)
           break
         case FieldType.U32:
-          if (Array.isArray(layout.meta.enumValues)) {
-            const enumIndex = layout.meta.enumValues.indexOf(layout.value)
+          if (Array.isArray(layout.field.enumValues)) {
+            const enumIndex = layout.field.enumValues.indexOf(layout.value)
             if (enumIndex === -1) {
               throw new Error(
-                `Значение '${String(layout.value)}' не найдено в enum '${layout.name}': [${layout.meta.enumValues.join(", ")}]`,
+                `Значение '${String(layout.value)}' не найдено в enum '${layout.name}': [${layout.field.enumValues.join(", ")}]`,
               )
             }
             dataView.setUint32(offsetBytes, enumIndex, true)
@@ -274,7 +275,7 @@ export class BraneBuilder {
             throw new Error(`Ожидался массив для поля '${layout.name}'`)
           }
 
-          const elementType = layout.meta.elementType
+          const elementType = layout.field.elementType
           const values = layout.value as unknown[]
           const arrayWords = values.length + 1
           const arrayBlock = this.allocator.alloc(arrayWords)
@@ -312,7 +313,7 @@ export class BraneBuilder {
           break
         }
         default:
-          throw new Error(`Неподдерживаемый тип поля: ${layout.meta.type}`)
+          throw new Error(`Неподдерживаемый тип поля: ${layout.field.type}`)
       }
     }
 
@@ -331,10 +332,10 @@ export class BraneBuilder {
     let fieldCount = 0
     let fieldsSize = 0
     for (const [name] of Object.entries(brane)) {
-      const meta = this.registry.getMeta(name)
-      if (!meta) continue
+      const field = this.registry.getField(name)
+      if (!field) continue
       fieldCount++
-      fieldsSize += getFieldSize(meta.type, brane[name])
+      fieldsSize += getFieldSize(field.type, brane[name])
     }
     // header + shared_ptrs + fields
     return 2 + fieldCount * 2 + sharedPtrsCount + fieldsSize

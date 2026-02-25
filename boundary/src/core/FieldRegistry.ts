@@ -30,7 +30,7 @@ export const FieldType = {
 
 export type FieldTypeValue = typeof FieldType[keyof typeof FieldType]
 
-export interface FieldMeta {
+export interface Field {
   name: string
   fieldId: number
   type: FieldTypeValue
@@ -42,8 +42,8 @@ export interface FieldMeta {
 
 export class FieldRegistry {
   private static instance: FieldRegistry | null = null
-  private nameToMeta: Map<string, FieldMeta> = new Map()
-  private idToMeta: Map<number, FieldMeta> = new Map()
+  private nameToField: Map<string, Field> = new Map()
+  private idToField: Map<number, Field> = new Map()
   private nextId: number = 0
 
   private constructor() {}
@@ -55,25 +55,13 @@ export class FieldRegistry {
     return FieldRegistry.instance
   }
 
-  /**
-   * Сбрасывает реестр (только если пуст).
-   *
-   * @throws {Error} Если уже есть зарегистрированные поля.
-   */
-  static reset(): void {
-    if (FieldRegistry.instance && FieldRegistry.instance.nextId > 0) {
-      throw new Error('Cannot reset registry after fields have been registered')
-    }
-    FieldRegistry.instance = null
-  }
-
   /** Очищает реестр полностью (для тестов). */
   static clear(): void {
     if (!FieldRegistry.instance) {
       return
     }
-    FieldRegistry.instance.nameToMeta.clear()
-    FieldRegistry.instance.idToMeta.clear()
+    FieldRegistry.instance.nameToField.clear()
+    FieldRegistry.instance.idToField.clear()
     FieldRegistry.instance.nextId = 0
   }
 
@@ -90,65 +78,35 @@ export class FieldRegistry {
    * @throws {Error} Если поле уже зарегистрировано.
    */
   register(name: string, type: FieldTypeValue, options: { elementType?: string; enumValues?: any[] } = {}): number {
-    if (this.nameToMeta.has(name)) {
+    if (this.nameToField.has(name)) {
       throw new Error(`Field '${name}' already registered`)
     }
     const fieldId = this.nextId++
-    const meta: FieldMeta = {
+    const field: Field = {
       fieldId,
       type,
       name,
       ...(options.elementType !== undefined ? { elementType: options.elementType } : {}),
       ...(options.enumValues !== undefined ? { enumValues: options.enumValues } : {}),
     }
-    this.nameToMeta.set(name, meta)
-    this.idToMeta.set(fieldId, meta)
+    this.nameToField.set(name, field)
+    this.idToField.set(fieldId, field)
     return fieldId
   }
 
-  /**
-   * Регистрирует несколько полей из схемы.
-   *
-   * @param components - Схема полей: `{ name: type }`.
-   * @returns Маппинг имён полей в их ID.
-   */
-  registerBatch(components: Record<string, FieldTypeValue>): Record<string, number> {
-    const result: Record<string, number> = {}
-    for (const [name, type] of Object.entries(components)) {
-      result[name] = this.register(name, type)
-    }
-    return result
-  }
-
-  getMeta(name: string): FieldMeta | undefined {
-    return this.nameToMeta.get(name)
-  }
-
-  getMetaById(fieldId: number): FieldMeta | undefined {
-    return this.idToMeta.get(fieldId)
+  getField(name: string): Field | undefined {
+    return this.nameToField.get(name)
   }
 
   getId(name: string): number {
-    return this.nameToMeta.get(name)?.fieldId ?? -1
-  }
-
-  getTypeByName(name: string): FieldTypeValue | -1 {
-    return this.nameToMeta.get(name)?.type ?? -1
-  }
-
-  getType(fieldId: number): FieldTypeValue | -1 {
-    return this.idToMeta.get(fieldId)?.type ?? -1
+    return this.nameToField.get(name)?.fieldId ?? -1
   }
 
   has(name: string): boolean {
-    return this.nameToMeta.has(name)
+    return this.nameToField.has(name)
   }
 
-  getAll(): FieldMeta[] {
-    return Array.from(this.idToMeta.values())
-  }
-
-  get size(): number {
-    return this.nameToMeta.size
+  getAll(): Field[] {
+    return Array.from(this.idToField.values())
   }
 }
