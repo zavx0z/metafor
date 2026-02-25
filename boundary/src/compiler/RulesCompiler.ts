@@ -165,16 +165,12 @@ export class RulesCompiler {
    * о stateMap и reverseStateMap для декодирования результатов.
    *
    * @param superposition - Граф переходов состояний. Ключи условий — числовые индексы.
-   * @param fieldsTuple - Поля в формате кортежей [[id, field], ...] (опционально)
-   * @param options - Опции компиляции
-   * @param options.preserveRegistry - Если true, не очищать существующие поля
+   * @param fieldsTuple - Поля в формате кортежей [[id, field], ...]
    * @returns Скомпилированные правила с метаданными
    */
-  compileSingle(superposition: Superposition, fieldsTuple?: any, options: { preserveRegistry?: boolean } = {}): CompiledFieldRules {
-    const { preserveRegistry = false } = options
-
+  compileSingle(superposition: Superposition, fieldsTuple?: any): CompiledFieldRules {
     // Регистрируем поля если переданы
-    if (fieldsTuple && Array.isArray(fieldsTuple) && !preserveRegistry) {
+    if (fieldsTuple && Array.isArray(fieldsTuple)) {
       this.fields.clear()
       for (const [fieldId, field] of fieldsTuple) {
         const typeCode = fieldTypeToBytecodeType(field.type)
@@ -195,30 +191,6 @@ export class RulesCompiler {
           ...(subType !== undefined ? { subType } : {}),
           ...(field.enumValues !== undefined ? { enumValues: field.enumValues } : {}),
         })
-      }
-    } else if (fieldsTuple && Array.isArray(fieldsTuple) && preserveRegistry) {
-      // Добавляем поля к существующим
-      for (const [fieldId, field] of fieldsTuple) {
-        if (!this.fields.has(fieldId)) {
-          const typeCode = fieldTypeToBytecodeType(field.type)
-          let subType: number | undefined
-          switch (field.elementType) {
-            case "number":
-              subType = TYPE.FLOAT
-              break
-            case "string":
-              subType = TYPE.STRING
-              break
-            default:
-              subType = undefined
-          }
-          this.fields.set(fieldId, {
-            fieldId,
-            type: typeCode,
-            ...(subType !== undefined ? { subType } : {}),
-            ...(field.enumValues !== undefined ? { enumValues: field.enumValues } : {}),
-          })
-        }
       }
     }
 
@@ -286,49 +258,6 @@ export class RulesCompiler {
       bytecode: result.bytecode,
       stateMap: result.stateMap,
       reverseStateMap,
-    }
-  }
-
-  /**
-   * Компилирует superposition в bytecode.
-   *
-   * @deprecated Используйте {@link compileSingle} или {@link compileEnsemble}
-   *
-   * @param superposition - Граф переходов состояний. Ключи условий — числовые индексы.
-   * @param fieldsTuple - Поля в формате кортежей [[id, field], ...] (для совместимости)
-   * @returns Скомпилированные правила с метаданными
-   */
-  compile(superposition: Superposition, fieldsTuple?: any): CompiledRules {
-    // Для обратной совместимости - регистрируем поля и вызываем compileSingle
-    if (fieldsTuple && Array.isArray(fieldsTuple)) {
-      this.fields.clear()
-      for (const [fieldId, field] of fieldsTuple) {
-        const typeCode = fieldTypeToBytecodeType(field.type)
-        let subType: number | undefined
-        switch (field.elementType) {
-          case "number":
-            subType = TYPE.FLOAT
-            break
-          case "string":
-            subType = TYPE.STRING
-            break
-          default:
-            subType = undefined
-        }
-        this.fields.set(fieldId, {
-          fieldId,
-          type: typeCode,
-          ...(subType !== undefined ? { subType } : {}),
-          ...(field.enumValues !== undefined ? { enumValues: field.enumValues } : {}),
-        })
-      }
-    }
-
-    const result = this.compileSingle(superposition)
-    return {
-      bytecode: result.bytecode,
-      stateTableOffset: 0,
-      stateMap: result.stateMap,
     }
   }
 

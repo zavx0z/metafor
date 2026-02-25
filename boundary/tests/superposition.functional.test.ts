@@ -18,8 +18,6 @@ import type { FieldTuple } from "../src/index.t"
  * 5. Корректность смещений в bytecodeOffsets
  */
 describe("Компиляция индивидуальных суперпозиций — функциональные тесты", () => {
-  beforeEach(() => {
-  })
 
   describe("compileSingle — компиляция одной superposition", () => {
     test("должен вернуть bytecode, stateMap и reverseStateMap", () => {
@@ -58,7 +56,7 @@ describe("Компиляция индивидуальных суперпозиц
       ]
 
       const result1 = compiler.compileSingle(superposition1, fields)
-      const result2 = compiler.compileSingle(superposition2, fields, { preserveRegistry: true })
+      const result2 = compiler.compileSingle(superposition2, fields)
 
       // Разные stateMap
       expect(result1.stateMap).toEqual({ IDLE: 0, COMBAT: 1 })
