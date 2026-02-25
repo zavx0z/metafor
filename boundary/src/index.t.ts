@@ -46,33 +46,53 @@ export type FieldDefinition =
 export type FieldsDefinition = Record<string, FieldDefinition>
 
 /**
- * Суперпозиция — граф переходов между состояниями.
+ * Переход между состояниями в числовой суперпозиции.
+ */
+export interface Transition {
+  /** Индекс целевого состояния в массиве states. */
+  to: number
+  /** Условия перехода: индекс поля → условие. */
+  conditions: Record<number, any>
+}
+
+/**
+ * Суперпозиция с числовыми ID состояний.
  *
  * @remarks
- * **Порядок ключей важен!** Переходы проверяются в порядке объявления ключей.
- * Первый выполненный переход останавливает проверку.
- *
- * Структура:
- * - Ключ верхнего уровня — имя состояния
- * - Значение — карта переходов или `null` (терминальное состояние)
- * - Ключи условий — числовые индексы полей (не имена)
+ * Гарантирует порядок переходов через массив вместо объекта.
+ * Boundary работает только с индексами, не зная имён состояний.
  *
  * @example
  * ```typescript
  * {
- *   IDLE: {
- *     PATROL: { 0: { gt: 50 } },  // ← Приоритет 1 (проверяется первым)
- *     DEAD: { 0: { lte: 0 } }     // ← Приоритет 2 (проверяется вторым)
- *   },
- *   PATROL: {
- *     IDLE: { 1: { lt: 10 } },    // Переход по второму полю
- *     COMBAT: { 2: true }         // Переход по логическому полю
- *   },
- *   DEAD: null                    // Терминальное состояние
+ *   states: ["IDLE", "PATROL", "DEAD"],
+ *   transitions: [
+ *     [  // Из IDLE (индекс 0)
+ *       { to: 1, conditions: { 0: { gt: 50 } } },   // → PATROL (приоритет 1)
+ *       { to: 2, conditions: { 0: { lte: 0 } } }    // → DEAD (приоритет 2)
+ *     ],
+ *     [null],  // PATROL — терминальное
+ *     [null]   // DEAD — терминальное
+ *   ]
  * }
  * ```
  */
-export type Superposition = Record<string, Record<string, any> | null>
+export interface NumericSuperposition {
+  /** Имена состояний для маппинга имён ↔ индексы. */
+  states: string[]
+  /**
+   * Массив переходов по индексам состояний.
+   * transitions[fromIndex] = массив переходов из этого состояния.
+   * null означает терминальный переход (поглощение).
+   */
+  transitions: Array<Array<Transition | null>>
+}
+
+/**
+ * Суперпозиция — граф переходов между состояниями.
+ * Используется только числовой формат (NumericSuperposition).
+ */
+export type Superposition = NumericSuperposition
 
 /**
  * Брана — возмущение квантовых полей.
@@ -80,18 +100,16 @@ export type Superposition = Record<string, Record<string, any> | null>
  * @remarks
  * Брана содержит:
  * - params — значения полей (данные) в формате кортежей
- * - state — текущее состояние (одно из superposition)
- * - superposition — все возможные состояния + граф переходов
- *
- * Индекс браны в массиве Boundary используется как идентификатор.
+ * - initialStateIndex — индекс начального состояния в массиве states
+ * - superposition — граф переходов с числовыми ID состояний
  */
 export interface BraneDefinition {
   /** Значения полей браны в формате кортежей [[index, value], ...]. */
   params: ValueTuple[]
-  /** Текущее состояние (должно быть в superposition). */
-  state: string
-  /** Суперпозиция — все состояния + граф переходов. Ключи — индексы полей. */
-  superposition: Superposition
+  /** Индекс начального состояния в массиве states. */
+  initialStateIndex: number
+  /** Суперпозиция — граф переходов с числовыми ID состояний. */
+  superposition: NumericSuperposition
 }
 
 /**

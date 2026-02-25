@@ -1,5 +1,7 @@
 # План: Числовые ID состояний для гарантии порядка переходов
 
+> **Статус:** Готов к реализации. Разделение RulesCompiler ✅ выполнено.
+
 ## Проблема
 
 **Текущий формат Superposition:**
@@ -44,6 +46,20 @@
 
 ## Изменения по файлам
 
+### 0. Подготовительный этап ✅
+
+**Выполнено:** Разделение `RulesCompiler` на классы.
+
+**Созданные файлы:**
+- `boundary/src/compiler/ConditionParser.ts` — парсинг условий
+- `boundary/src/compiler/BytecodeEncoder.ts` — кодирование значений
+
+**Изменённые файлы:**
+- `boundary/src/compiler/RulesCompiler.ts` — использует `ConditionParser` и `BytecodeEncoder`
+- `boundary/src/compiler/index.ts` — экспорт новых классов
+
+---
+
 ### 1. boundary/src/index.t.ts
 
 **Добавить:**
@@ -74,7 +90,63 @@ export type Superposition =
 
 ### 2. boundary/src/compiler/RulesCompiler.ts
 
-**Изменить compileEnsemble:**
+**Добавить метод `compileNumeric`:**
+
+```typescript
+private compileNumeric(superposition: NumericSuperposition): CompiledFieldRules {
+  this.bytecode = []
+  this.states = superposition.states
+
+  // 1. Таблица состояний
+  const stateTableOffset = this.bytecode.length
+  for (let i = 0; i < this.states.length; i++) {
+    this.bytecode.push(0)  // заглушка
+  }
+
+  // 2. Компилируем каждое состояние
+  for (let i = 0; i < this.states.length; i++) {
+    const stateBlockPtr = this.bytecode.length
+    this.bytecode[stateTableOffset + i] = stateBlockPtr
+
+    const transitions = superposition.transitions[i] || []
+    const validTransitions = transitions.filter(t => t !== null) as Array<{
+      to: number
+      conditions: Record<number, any>
+    }>
+
+    this.bytecode.push(validTransitions.length)
+
+    // Заголовки переходов
+    for (const tr of validTransitions) {
+      this.bytecode.push(tr.to)
+      this.bytecode.push(0)  // заглушка для condPtr
+    }
+
+    // Блоки условий
+    for (let trIdx = 0; trIdx < validTransitions.length; trIdx++) {
+      const tr = validTransitions[trIdx]!
+      const trBase = stateBlockPtr + 1 + trIdx * 2
+      const condBlockPtr = this.bytecode.length
+      this.bytecode[trBase + 1] = condBlockPtr
+
+      // Конвертируем conditions: Record<number, any> → Record<string, any>
+      const conditionsObj: Record<string, any> = {}
+      for (const [fieldIdx, cond] of Object.entries(tr.conditions)) {
+        conditionsObj[fieldIdx] = cond
+      }
+      this.compileConditions(conditionsObj)
+    }
+  }
+
+  return {
+    bytecode: new Uint32Array(this.bytecode),
+    stateMap: Object.fromEntries(this.states.map((s, i) => [s, i])),
+    reverseStateMap: [...this.states]
+  }
+}
+```
+
+**Изменить `compileEnsemble`:**
 ```typescript
 compileEnsemble(
   superpositions: Superposition[],

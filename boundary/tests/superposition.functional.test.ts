@@ -3,78 +3,23 @@ import { RulesCompiler } from "../src/compiler/RulesCompiler"
 import { OP } from "../src/opcodes"
 import { FieldType } from "../src/index"
 import type { FieldTuple } from "../src/index.t"
+import { toNumericSuperposition } from "./numeric.helper"
 
 /**
  * Функциональные тесты компиляции индивидуальных суперпозиций.
  *
  * Эти тесты проверяют корректность компиляции разных superposition
  * для разных полей без использования GPU.
- *
- * ### Покрываемые сценарии:
- * 1. Компиляция одной superposition (compileSingle)
- * 2. Компиляция ансамбля superposition (compileEnsemble)
- * 3. Конкатенация bytecode
- * 4. Независимость stateMap для каждого поля
- * 5. Корректность смещений в bytecodeOffsets
  */
 describe("Компиляция индивидуальных суперпозиций — функциональные тесты", () => {
-
-  describe("compileSingle — компиляция одной superposition", () => {
-    test("должен вернуть bytecode, stateMap и reverseStateMap", () => {
-      const compiler = new RulesCompiler()
-
-      const superposition = {
-        IDLE: { PATROL: { 0: { gt: 50 } } },
-        PATROL: null,
-      }
-      const fields: FieldTuple[] = [[0, { type: FieldType.F32 }]]
-
-      const result = compiler.compileSingle(superposition, fields)
-
-      expect(result.bytecode).toBeInstanceOf(Uint32Array)
-      expect(result.bytecode.length).toBeGreaterThan(0)
-      expect(result.stateMap).toEqual({ IDLE: 0, PATROL: 1 })
-      expect(result.reverseStateMap).toEqual(["IDLE", "PATROL"])
-    })
-
-    test("должен компилировать разные состояния для разных superposition", () => {
-      const compiler = new RulesCompiler()
-
-      const superposition1 = {
-        IDLE: { COMBAT: { 0: { gt: 80 } } },
-        COMBAT: null,
-      }
-
-      const superposition2 = {
-        IDLE: { MEDITATE: { 1: { lt: 20 } } },
-        MEDITATE: null,
-      }
-
-      const fields: FieldTuple[] = [
-        [0, { type: FieldType.F32 }],
-        [1, { type: FieldType.F32 }],
-      ]
-
-      const result1 = compiler.compileSingle(superposition1, fields)
-      const result2 = compiler.compileSingle(superposition2, fields)
-
-      // Разные stateMap
-      expect(result1.stateMap).toEqual({ IDLE: 0, COMBAT: 1 })
-      expect(result2.stateMap).toEqual({ IDLE: 0, MEDITATE: 1 })
-
-      // Разные reverseStateMap
-      expect(result1.reverseStateMap).toEqual(["IDLE", "COMBAT"])
-      expect(result2.reverseStateMap).toEqual(["IDLE", "MEDITATE"])
-    })
-  })
 
   describe("compileEnsemble — компиляция ансамбля superposition", () => {
     test("должен конкатенировать bytecode всех полей", () => {
       const compiler = new RulesCompiler()
 
       const superpositions = [
-        { IDLE: { ACTIVE: { 0: { gt: 50 } } }, ACTIVE: null },
-        { IDLE: { PATROL: { 1: { lt: 10 } } }, PATROL: null },
+        toNumericSuperposition({ IDLE: { ACTIVE: { 0: { gt: 50 } } }, ACTIVE: null }),
+        toNumericSuperposition({ IDLE: { PATROL: { 1: { lt: 10 } } }, PATROL: null }),
       ]
       const fields: FieldTuple[] = [
         [0, { type: FieldType.F32 }],
@@ -83,58 +28,65 @@ describe("Компиляция индивидуальных суперпозиц
 
       const result = compiler.compileEnsemble(superpositions, fields)
 
-      // Проверяем структуру результата
+      // bytecode — конкатенация всех bytecode
       expect(result.bytecode).toBeInstanceOf(Uint32Array)
-      expect(result.bytecodeOffsets).toBeInstanceOf(Uint32Array)
-      expect(result.bytecodeOffsets.length).toBe(2)
-      expect(result.stateMaps.length).toBe(2)
-      expect(result.reverseStateMaps.length).toBe(2)
+      expect(result.bytecode.length).toBeGreaterThan(0)
 
-      // Первое смещение = 0
+      // bytecodeOffsets — смещения для каждого поля
+      expect(result.bytecodeOffsets.length).toBe(2)
       expect(result.bytecodeOffsets[0]).toBe(0)
-      // Второе смещение = длина первого bytecode
       expect(result.bytecodeOffsets[1]).toBeGreaterThan(0)
+
+      // stateMaps — независимые для каждого поля
+      expect(result.stateMaps.length).toBe(2)
+      expect(result.stateMaps[0]).toEqual({ IDLE: 0, ACTIVE: 1 })
+      expect(result.stateMaps[1]).toEqual({ IDLE: 0, PATROL: 1 })
     })
 
     test("должен создавать независимые stateMap для каждого поля", () => {
       const compiler = new RulesCompiler()
 
       const superpositions = [
-        { IDLE: { COMBAT: { 0: { gt: 80 } } }, COMBAT: { VICTORY: { 0: { gt: 90 } } }, VICTORY: null },
-        { IDLE: { DEFEND: { 0: { lte: 50 } } }, DEFEND: { FORTIFY: { 0: { lte: 20 } } }, FORTIFY: null },
+        toNumericSuperposition({ IDLE: { COMBAT: { 0: { gt: 80 } } }, COMBAT: null }),
+        toNumericSuperposition({ IDLE: { MEDITATE: { 1: { lt: 20 } } }, MEDITATE: null }),
       ]
-      const fields: FieldTuple[] = [[0, { type: FieldType.F32 }]]
+      const fields: FieldTuple[] = [
+        [0, { type: FieldType.F32 }],
+        [1, { type: FieldType.F32 }],
+      ]
 
       const result = compiler.compileEnsemble(superpositions, fields)
 
-      // Поле 0: IDLE=0, COMBAT=1, VICTORY=2
-      expect(result.stateMaps[0]).toEqual({ IDLE: 0, COMBAT: 1, VICTORY: 2 })
-      expect(result.reverseStateMaps[0]).toEqual(["IDLE", "COMBAT", "VICTORY"])
+      // Разные stateMap
+      expect(result.stateMaps[0]).toEqual({ IDLE: 0, COMBAT: 1 })
+      expect(result.stateMaps[1]).toEqual({ IDLE: 0, MEDITATE: 1 })
 
-      // Поле 1: IDLE=0, DEFEND=1, FORTIFY=2
-      expect(result.stateMaps[1]).toEqual({ IDLE: 0, DEFEND: 1, FORTIFY: 2 })
-      expect(result.reverseStateMaps[1]).toEqual(["IDLE", "DEFEND", "FORTIFY"])
+      // Разные reverseStateMaps
+      expect(result.reverseStateMaps[0]).toEqual(["IDLE", "COMBAT"])
+      expect(result.reverseStateMaps[1]).toEqual(["IDLE", "MEDITATE"])
     })
 
     test("должен корректно вычислять смещения для трёх полей", () => {
       const compiler = new RulesCompiler()
 
       const superpositions = [
-        { IDLE: { A: { 0: { gt: 10 } } }, A: null },
-        { IDLE: { B: { 0: { gt: 20 } } }, B: null },
-        { IDLE: { C: { 0: { gt: 30 } } }, C: null },
+        toNumericSuperposition({ A: { B: { 0: { gt: 10 } } }, B: null }),
+        toNumericSuperposition({ X: { Y: { 1: { lt: 5 } } }, Y: null }),
+        toNumericSuperposition({ P: { Q: { 2: { eq: 0 } } }, Q: null }),
       ]
-      const fields: FieldTuple[] = [[0, { type: FieldType.F32 }]]
+      const fields: FieldTuple[] = [
+        [0, { type: FieldType.F32 }],
+        [1, { type: FieldType.F32 }],
+        [2, { type: FieldType.F32 }],
+      ]
 
       const result = compiler.compileEnsemble(superpositions, fields)
 
+      // Три смещения
+      expect(result.bytecodeOffsets.length).toBe(3)
       expect(result.bytecodeOffsets[0]).toBe(0)
       expect(result.bytecodeOffsets[1]).toBeGreaterThan(0)
       expect(result.bytecodeOffsets[2]).toBeGreaterThan(result.bytecodeOffsets[1]!)
-
-      // Общая длина = сумма длин
-      const totalLength = result.bytecode.length
-      expect(totalLength).toBeGreaterThan(0)
     })
   })
 
@@ -143,16 +95,16 @@ describe("Компиляция индивидуальных суперпозиц
       const compiler = new RulesCompiler()
 
       // Поле 0: переходит в ACTIVE при hp > 30
-      const superposition0 = {
+      const superposition0 = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gt: 30 } } },
         ACTIVE: null,
-      }
+      })
 
       // Поле 1: переходит в ACTIVE при hp > 70
-      const superposition1 = {
+      const superposition1 = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gt: 70 } } },
         ACTIVE: null,
-      }
+      })
 
       const fields: FieldTuple[] = [[0, { type: FieldType.F32 }]]
 
@@ -163,17 +115,14 @@ describe("Компиляция индивидуальных суперпозиц
       expect(result.stateMaps[1]).toEqual({ IDLE: 0, ACTIVE: 1 })
 
       // Но bytecode должен быть разным (разные значения в условиях)
-      // Находим оператор GT в bytecode
       const bc0Start = result.bytecodeOffsets[0]
       const bc1Start = result.bytecodeOffsets[1]
 
-      // Ищем значение 30 в первом bytecode и 70 во втором
+      // Проверяем, что значения присутствуют в соответствующих частях bytecode
       const value30 = new Uint32Array(new Float32Array([30]).buffer)[0]
       const value70 = new Uint32Array(new Float32Array([70]).buffer)[0]
 
-      // Проверяем, что значения присутствуют в соответствующих частях bytecode
-      const bc0End = bc1Start
-      const bc0 = Array.from(result.bytecode.slice(bc0Start, bc0End))
+      const bc0 = Array.from(result.bytecode.slice(bc0Start, bc1Start))
       const bc1 = Array.from(result.bytecode.slice(bc1Start))
 
       expect(bc0.includes(value30!)).toBe(true)
@@ -186,22 +135,22 @@ describe("Компиляция индивидуальных суперпозиц
       const compiler = new RulesCompiler()
 
       // Поле 0: переход по hp
-      const superposition0 = {
+      const superposition0 = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gt: 50 } } },
         ACTIVE: null,
-      }
+      })
 
       // Поле 1: переход по mana
-      const superposition1 = {
+      const superposition1 = toNumericSuperposition({
         IDLE: { MEDITATE: { 1: { lt: 20 } } },
         MEDITATE: null,
-      }
+      })
 
       // Поле 2: переход по isAlive
-      const superposition2 = {
+      const superposition2 = toNumericSuperposition({
         IDLE: { DEAD: { 2: false } },
         DEAD: null,
-      }
+      })
 
       const fields: FieldTuple[] = [
         [0, { type: FieldType.F32 }],
@@ -220,7 +169,7 @@ describe("Компиляция индивидуальных суперпозиц
     test("поля могут использовать множественные условия", () => {
       const compiler = new RulesCompiler()
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: {
           COMBAT: {
             0: { gt: 50 },
@@ -228,14 +177,14 @@ describe("Компиляция индивидуальных суперпозиц
           },
         },
         COMBAT: null,
-      }
+      })
 
       const fields: FieldTuple[] = [
         [0, { type: FieldType.F32 }],
         [1, { type: FieldType.F32 }],
       ]
 
-      const result = compiler.compileSingle(superposition, fields)
+      const result = compiler.compileEnsemble([superposition], fields)
 
       // Проверяем наличие обоих операторов GT в bytecode
       const bc = Array.from(result.bytecode)
@@ -259,34 +208,34 @@ describe("Компиляция индивидуальных суперпозиц
     test("одно поле с терминальным состоянием", () => {
       const compiler = new RulesCompiler()
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         DEAD: null,
-      }
+      })
 
       const fields: FieldTuple[] = [[0, { type: FieldType.F32 }]]
 
-      const result = compiler.compileSingle(superposition, fields)
+      const result = compiler.compileEnsemble([superposition], fields)
 
-      expect(result.stateMap).toEqual({ DEAD: 0 })
-      expect(result.reverseStateMap).toEqual(["DEAD"])
+      expect(result.stateMaps[0]).toEqual({ DEAD: 0 })
+      expect(result.reverseStateMaps[0]).toEqual(["DEAD"])
     })
 
     test("поля с полностью разными машинами состояний", () => {
       const compiler = new RulesCompiler()
 
       // Воин: IDLE → ATTACK → VICTORY
-      const warriorSuperposition = {
+      const warriorSuperposition = toNumericSuperposition({
         IDLE: { ATTACK: { 0: { gt: 50 } } },
         ATTACK: { VICTORY: { 0: { gt: 90 } } },
         VICTORY: null,
-      }
+      })
 
       // Маг: IDLE → CAST → RECOVER
-      const mageSuperposition = {
+      const mageSuperposition = toNumericSuperposition({
         IDLE: { CAST: { 1: { gt: 30 } } },
         CAST: { RECOVER: { 1: { lte: 10 } } },
         RECOVER: null,
-      }
+      })
 
       const fields: FieldTuple[] = [
         [0, { type: FieldType.F32 }],
@@ -301,8 +250,6 @@ describe("Компиляция индивидуальных суперпозиц
     })
 
     test("порядок триггеров: более специфичные условия проверяются первыми", () => {
-      const compiler = new RulesCompiler()
-
       // Проверяем что Object.entries сохраняет порядок ключей
       const transitions = {
         "коммит с подписью и сообщением": { signoff: { null: false }, message: { null: false } },
@@ -311,7 +258,7 @@ describe("Компиляция индивидуальных суперпозиц
       }
 
       const entries = Object.entries(transitions)
-      
+
       // Первый ключ должен быть самым специфичным
       expect(entries[0]?.[0]).toBe("коммит с подписью и сообщением")
       // Второй ключ - менее специфичный

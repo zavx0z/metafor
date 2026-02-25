@@ -1,6 +1,7 @@
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import { Boundary, GPU, FieldType } from "../../src/index"
+import { toNumericSuperposition } from "../numeric.helper"
 
 describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
   let boundary: Boundary
@@ -21,19 +22,19 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
     test("должен выполнить переход, когда значение равно указанному (строковый enum)", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { eq: "ACTIVE" } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [
           [0, { type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "DEAD"] }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, "ACTIVE"]], superposition },
-          { state: "IDLE", params: [[0, "IDLE"]], superposition },
-          { state: "IDLE", params: [[0, "DEAD"]], superposition },
+          { initialStateIndex: 0, params: [[0, "ACTIVE"]], superposition },
+          { initialStateIndex: 0, params: [[0, "IDLE"]], superposition },
+          { initialStateIndex: 0, params: [[0, "DEAD"]], superposition },
         ],
       })
 
@@ -48,19 +49,19 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
     test("должен выполнить переход, когда значение равно указанному (числовой enum)", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { eq: 2 } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [
           [0, { type: FieldType.U32, enumValues: [1, 2, 3] }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, 2]], superposition },
-          { state: "IDLE", params: [[0, 1]], superposition },
-          { state: "IDLE", params: [[0, 3]], superposition },
+          { initialStateIndex: 0, params: [[0, 2]], superposition },
+          { initialStateIndex: 0, params: [[0, 1]], superposition },
+          { initialStateIndex: 0, params: [[0, 3]], superposition },
         ],
       })
 
@@ -77,19 +78,19 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
     test("должен выполнить переход, когда значение не равно указанному", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { neq: "IDLE" } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [
           [0, { type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "DEAD"] }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, "IDLE"]], superposition },
-          { state: "IDLE", params: [[0, "ACTIVE"]], superposition },
-          { state: "IDLE", params: [[0, "DEAD"]], superposition },
+          { initialStateIndex: 0, params: [[0, "IDLE"]], superposition },
+          { initialStateIndex: 0, params: [[0, "ACTIVE"]], superposition },
+          { initialStateIndex: 0, params: [[0, "DEAD"]], superposition },
         ],
       })
 
@@ -106,19 +107,19 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
     test("должен выполнить переход, когда значение больше указанного", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gt: 1 } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [
           [0, { type: FieldType.U32, enumValues: [1, 2, 3, 4, 5] }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, 1]], superposition },
-          { state: "IDLE", params: [[0, 2]], superposition },
-          { state: "IDLE", params: [[0, 3]], superposition },
+          { initialStateIndex: 0, params: [[0, 1]], superposition },
+          { initialStateIndex: 0, params: [[0, 2]], superposition },
+          { initialStateIndex: 0, params: [[0, 3]], superposition },
         ],
       })
 
@@ -135,19 +136,19 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
     test("должен выполнить переход, когда значение меньше указанного", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { lt: 3 } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [
           [0, { type: FieldType.U32, enumValues: [1, 2, 3, 4, 5] }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, 1]], superposition },
-          { state: "IDLE", params: [[0, 2]], superposition },
-          { state: "IDLE", params: [[0, 3]], superposition },
+          { initialStateIndex: 0, params: [[0, 1]], superposition },
+          { initialStateIndex: 0, params: [[0, 2]], superposition },
+          { initialStateIndex: 0, params: [[0, 3]], superposition },
         ],
       })
 
@@ -164,19 +165,19 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
     test("должен выполнить переход, когда значение больше или равно указанному", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gte: 3 } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [
           [0, { type: FieldType.U32, enumValues: [1, 2, 3, 4, 5] }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, 2]], superposition },
-          { state: "IDLE", params: [[0, 3]], superposition },
-          { state: "IDLE", params: [[0, 4]], superposition },
+          { initialStateIndex: 0, params: [[0, 2]], superposition },
+          { initialStateIndex: 0, params: [[0, 3]], superposition },
+          { initialStateIndex: 0, params: [[0, 4]], superposition },
         ],
       })
 
@@ -193,19 +194,19 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
     test("должен выполнить переход, когда значение меньше или равно указанному", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { lte: 2 } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [
           [0, { type: FieldType.U32, enumValues: [1, 2, 3, 4, 5] }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, 1]], superposition },
-          { state: "IDLE", params: [[0, 2]], superposition },
-          { state: "IDLE", params: [[0, 3]], superposition },
+          { initialStateIndex: 0, params: [[0, 1]], superposition },
+          { initialStateIndex: 0, params: [[0, 2]], superposition },
+          { initialStateIndex: 0, params: [[0, 3]], superposition },
         ],
       })
 
@@ -222,20 +223,20 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
     test("должен выполнить переход, если значение в списке", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { in: ["ACTIVE", "RUNNING"] } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [
           [0, { type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "RUNNING", "DEAD"] }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, "ACTIVE"]], superposition },
-          { state: "IDLE", params: [[0, "RUNNING"]], superposition },
-          { state: "IDLE", params: [[0, "IDLE"]], superposition },
-          { state: "IDLE", params: [[0, "DEAD"]], superposition },
+          { initialStateIndex: 0, params: [[0, "ACTIVE"]], superposition },
+          { initialStateIndex: 0, params: [[0, "RUNNING"]], superposition },
+          { initialStateIndex: 0, params: [[0, "IDLE"]], superposition },
+          { initialStateIndex: 0, params: [[0, "DEAD"]], superposition },
         ],
       })
 
@@ -253,20 +254,20 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
     test("должен выполнить переход, если значение не в списке", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { notIn: ["IDLE", "DEAD"] } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [
           [0, { type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "RUNNING", "DEAD"] }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, "IDLE"]], superposition },
-          { state: "IDLE", params: [[0, "DEAD"]], superposition },
-          { state: "IDLE", params: [[0, "ACTIVE"]], superposition },
-          { state: "IDLE", params: [[0, "RUNNING"]], superposition },
+          { initialStateIndex: 0, params: [[0, "IDLE"]], superposition },
+          { initialStateIndex: 0, params: [[0, "DEAD"]], superposition },
+          { initialStateIndex: 0, params: [[0, "ACTIVE"]], superposition },
+          { initialStateIndex: 0, params: [[0, "RUNNING"]], superposition },
         ],
       })
 
@@ -284,21 +285,21 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
     test("должен выполнить переход, когда условия выполнены", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gte: 2, lte: 4 } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [
           [0, { type: FieldType.U32, enumValues: [1, 2, 3, 4, 5] }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, 1]], superposition },
-          { state: "IDLE", params: [[0, 2]], superposition },
-          { state: "IDLE", params: [[0, 3]], superposition },
-          { state: "IDLE", params: [[0, 4]], superposition },
-          { state: "IDLE", params: [[0, 5]], superposition },
+          { initialStateIndex: 0, params: [[0, 1]], superposition },
+          { initialStateIndex: 0, params: [[0, 2]], superposition },
+          { initialStateIndex: 0, params: [[0, 3]], superposition },
+          { initialStateIndex: 0, params: [[0, 4]], superposition },
+          { initialStateIndex: 0, params: [[0, 5]], superposition },
         ],
       })
 

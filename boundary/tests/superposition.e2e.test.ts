@@ -1,6 +1,7 @@
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import { Boundary, GPU, FieldType } from "../src/index"
+import { toNumericSuperposition } from "./numeric.helper"
 
 /**
  * E2E тесты для индивидуальных суперпозиций на реальном GPU с bun-webgpu.
@@ -24,20 +25,20 @@ describe("Boundary — E2E тесты для индивидуальных суп
     test("каждое поле переходит в целевое состояние", async () => {
       
 
-      const warriorSuperposition = {
+      const warriorSuperposition = toNumericSuperposition({
         IDLE: { COMBAT: { 0: { gt: 80 } } },
         COMBAT: null,
-      }
+      })
 
-      const mageSuperposition = {
+      const mageSuperposition = toNumericSuperposition({
         IDLE: { MEDITATE: { 1: { lt: 20 } } },
         MEDITATE: null,
-      }
+      })
 
-      const scoutSuperposition = {
+      const scoutSuperposition = toNumericSuperposition({
         IDLE: { SCOUT: { 0: { gt: 30 } } },
         SCOUT: null,
-      }
+      })
 
       await boundary.write({
         fields: [
@@ -45,9 +46,9 @@ describe("Boundary — E2E тесты для индивидуальных суп
           [1, { type: FieldType.F32 }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, 90], [1, 50]], superposition: warriorSuperposition },
-          { state: "IDLE", params: [[0, 50], [1, 10]], superposition: mageSuperposition },
-          { state: "IDLE", params: [[0, 60], [1, 30]], superposition: scoutSuperposition },
+          { initialStateIndex: 0, params: [[0, 90], [1, 50]], superposition: warriorSuperposition },
+          { initialStateIndex: 0, params: [[0, 50], [1, 10]], superposition: mageSuperposition },
+          { initialStateIndex: 0, params: [[0, 60], [1, 30]], superposition: scoutSuperposition },
         ],
       })
 
@@ -64,21 +65,21 @@ describe("Boundary — E2E тесты для индивидуальных суп
     test("разные пороги для одного перехода", async () => {
       
 
-      const lowThresholdSuperposition = {
+      const lowThresholdSuperposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gt: 30 } } },
         ACTIVE: null,
-      }
+      })
 
-      const highThresholdSuperposition = {
+      const highThresholdSuperposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gt: 70 } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: "IDLE", params: [[0, 50]], superposition: lowThresholdSuperposition },
-          { state: "IDLE", params: [[0, 50]], superposition: highThresholdSuperposition },
+          { initialStateIndex: 0, params: [[0, 50]], superposition: lowThresholdSuperposition },
+          { initialStateIndex: 0, params: [[0, 50]], superposition: highThresholdSuperposition },
         ],
       })
 
@@ -92,27 +93,27 @@ describe("Boundary — E2E тесты для индивидуальных суп
     test("разные операторы сравнения", async () => {
       
 
-      const gtSuperposition = {
+      const gtSuperposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gt: 50 } } },
         ACTIVE: null,
-      }
+      })
 
-      const gteSuperposition = {
+      const gteSuperposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gte: 50 } } },
         ACTIVE: null,
-      }
+      })
 
-      const ltSuperposition = {
+      const ltSuperposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { lt: 50 } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: "IDLE", params: [[0, 50]], superposition: gtSuperposition },
-          { state: "IDLE", params: [[0, 50]], superposition: gteSuperposition },
-          { state: "IDLE", params: [[0, 50]], superposition: ltSuperposition },
+          { initialStateIndex: 0, params: [[0, 50]], superposition: gtSuperposition },
+          { initialStateIndex: 0, params: [[0, 50]], superposition: gteSuperposition },
+          { initialStateIndex: 0, params: [[0, 50]], superposition: ltSuperposition },
         ],
       })
 
@@ -129,23 +130,23 @@ describe("Boundary — E2E тесты для индивидуальных суп
     test("агрессивный против защитного юнита", async () => {
       
 
-      const aggressiveSuperposition = {
+      const aggressiveSuperposition = toNumericSuperposition({
         IDLE: { ATTACK: { 0: { gt: 50 } } },
         ATTACK: { VICTORY: { 0: { gt: 90 } } },
         VICTORY: null,
-      }
+      })
 
-      const defensiveSuperposition = {
+      const defensiveSuperposition = toNumericSuperposition({
         IDLE: { DEFEND: { 0: { lte: 50 } } },
         DEFEND: { FORTIFY: { 0: { lte: 20 } } },
         FORTIFY: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: "IDLE", params: [[0, 95]], superposition: aggressiveSuperposition },
-          { state: "IDLE", params: [[0, 15]], superposition: defensiveSuperposition },
+          { initialStateIndex: 0, params: [[0, 95]], superposition: aggressiveSuperposition },
+          { initialStateIndex: 0, params: [[0, 15]], superposition: defensiveSuperposition },
         ],
       })
 
@@ -162,17 +163,17 @@ describe("Boundary — E2E тесты для индивидуальных суп
     test("числовые, логические и множественные условия", async () => {
       
 
-      const numericSuperposition = {
+      const numericSuperposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gt: 50 } } },
         ACTIVE: null,
-      }
+      })
 
-      const booleanSuperposition = {
+      const booleanSuperposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 2: true } },
         ACTIVE: null,
-      }
+      })
 
-      const multiConditionSuperposition = {
+      const multiConditionSuperposition = toNumericSuperposition({
         IDLE: {
           ACTIVE: {
             0: { gt: 30 },
@@ -180,7 +181,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
           },
         },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [
@@ -189,9 +190,9 @@ describe("Boundary — E2E тесты для индивидуальных суп
           [2, { type: FieldType.BOOL }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, 60], [1, 0], [2, false]], superposition: numericSuperposition },
-          { state: "IDLE", params: [[0, 0], [1, 0], [2, true]], superposition: booleanSuperposition },
-          { state: "IDLE", params: [[0, 40], [1, 30], [2, false]], superposition: multiConditionSuperposition },
+          { initialStateIndex: 0, params: [[0, 60], [1, 0], [2, false]], superposition: numericSuperposition },
+          { initialStateIndex: 0, params: [[0, 0], [1, 0], [2, true]], superposition: booleanSuperposition },
+          { initialStateIndex: 0, params: [[0, 40], [1, 30], [2, false]], superposition: multiConditionSuperposition },
         ],
       })
 
@@ -208,21 +209,21 @@ describe("Boundary — E2E тесты для индивидуальных суп
     test("разные начальные значения с разными порогами", async () => {
       
 
-      const superposition1 = {
+      const superposition1 = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gt: 50 } } },
         ACTIVE: null,
-      }
+      })
 
-      const superposition2 = {
+      const superposition2 = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gt: 70 } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: "IDLE", params: [[0, 60]], superposition: superposition1 },
-          { state: "IDLE", params: [[0, 60]], superposition: superposition2 },
+          { initialStateIndex: 0, params: [[0, 60]], superposition: superposition1 },
+          { initialStateIndex: 0, params: [[0, 60]], superposition: superposition2 },
         ],
       })
 
@@ -238,18 +239,18 @@ describe("Boundary — E2E тесты для индивидуальных суп
     test("каждое поле следует своему пути состояний", async () => {
       
 
-      const unit1Superposition = {
+      const unit1Superposition = toNumericSuperposition({
         IDLE: { PHASE1: { 0: { gt: 80 } } },
         PHASE1: { PHASE2: { 0: { gt: 60 } } },
         PHASE2: { FINAL: { 0: { gt: 40 } } },
         FINAL: null,
-      }
+      })
 
-      const unit2Superposition = {
+      const unit2Superposition = toNumericSuperposition({
         IDLE: { STAGE_A: { 1: { lt: 50 } } },
         STAGE_A: { STAGE_B: { 1: { lt: 20 } } },
         STAGE_B: null,
-      }
+      })
 
       await boundary.write({
         fields: [
@@ -257,8 +258,8 @@ describe("Boundary — E2E тесты для индивидуальных суп
           [1, { type: FieldType.F32 }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, 90], [1, 100]], superposition: unit1Superposition },
-          { state: "IDLE", params: [[0, 100], [1, 10]], superposition: unit2Superposition },
+          { initialStateIndex: 0, params: [[0, 90], [1, 100]], superposition: unit1Superposition },
+          { initialStateIndex: 0, params: [[0, 100], [1, 10]], superposition: unit2Superposition },
         ],
       })
 

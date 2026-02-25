@@ -1,6 +1,7 @@
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import { Boundary, GPU, FieldType } from "../src/index"
+import { toNumericSuperposition } from "./numeric.helper"
 
 describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
   let boundary: Boundary
@@ -15,7 +16,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
   })
 
   /** Общая суперпозиция для тестов hp/mana/isAlive */
-  const defaultSuperposition = {
+  const defaultSuperposition = toNumericSuperposition({
     IDLE: {
       PATROL: { 0: { gt: 50 } },
       DEAD: { 0: { lte: 0 } },
@@ -28,7 +29,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       DEAD: { 0: { lte: 0 } },
     },
     DEAD: null,
-  }
+  })
 
   describe("Базовые переходы состояний", () => {
     test("должен перейти из IDLE в DEAD при hp <= 0", async () => {
@@ -41,8 +42,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
           [2, { type: FieldType.BOOL }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, 100], [1, 100], [2, true]], superposition: defaultSuperposition },
-          { state: "IDLE", params: [[0, 0], [1, 50], [2, false]], superposition: defaultSuperposition },
+          { initialStateIndex: 0, params: [[0, 100], [1, 100], [2, true]], superposition: defaultSuperposition },
+          { initialStateIndex: 0, params: [[0, 0], [1, 50], [2, false]], superposition: defaultSuperposition },
         ],
       })
 
@@ -54,18 +55,18 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("должен перейти из IDLE в PATROL при hp > 50", async () => {
-      
 
-      const superposition = {
+
+      const superposition = toNumericSuperposition({
         IDLE: { PATROL: { 0: { gt: 50 } } },
         PATROL: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: "IDLE", params: [[0, 100]], superposition },
-          { state: "IDLE", params: [[0, 50]], superposition },
+          { initialStateIndex: 0, params: [[0, 100]], superposition },
+          { initialStateIndex: 0, params: [[0, 50]], superposition },
         ],
       })
 
@@ -77,18 +78,18 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("должен перейти из IDLE в PATROL при hp >= 50", async () => {
-      
 
-      const superposition = {
+
+      const superposition = toNumericSuperposition({
         IDLE: { PATROL: { 0: { gte: 50 } } },
         PATROL: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: "IDLE", params: [[0, 50]], superposition },
-          { state: "IDLE", params: [[0, 49]], superposition },
+          { initialStateIndex: 0, params: [[0, 50]], superposition },
+          { initialStateIndex: 0, params: [[0, 49]], superposition },
         ],
       })
 
@@ -100,18 +101,18 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("должен перейти из IDLE в PATROL при hp < 50", async () => {
-      
 
-      const superposition = {
+
+      const superposition = toNumericSuperposition({
         IDLE: { PATROL: { 0: { lt: 50 } } },
         PATROL: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: "IDLE", params: [[0, 49]], superposition },
-          { state: "IDLE", params: [[0, 50]], superposition },
+          { initialStateIndex: 0, params: [[0, 49]], superposition },
+          { initialStateIndex: 0, params: [[0, 50]], superposition },
         ],
       })
 
@@ -125,18 +126,18 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Логические условия", () => {
     test("должен перейти при логическом компоненте = true", async () => {
-      
 
-      const superposition = {
+
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: true } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
         branes: [
-          { state: "IDLE", params: [[0, true]], superposition },
-          { state: "IDLE", params: [[0, false]], superposition },
+          { initialStateIndex: 0, params: [[0, true]], superposition },
+          { initialStateIndex: 0, params: [[0, false]], superposition },
         ],
       })
 
@@ -148,18 +149,18 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("должен перейти при логическом компоненте = false", async () => {
-      
 
-      const superposition = {
+
+      const superposition = toNumericSuperposition({
         ACTIVE: { DEAD: { 0: false } },
         DEAD: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
         branes: [
-          { state: "ACTIVE", params: [[0, false]], superposition },
-          { state: "ACTIVE", params: [[0, true]], superposition },
+          { initialStateIndex: 0, params: [[0, false]], superposition },
+          { initialStateIndex: 0, params: [[0, true]], superposition },
         ],
       })
 
@@ -173,9 +174,9 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Множественные условия", () => {
     test("должен перейти при выполнении обоих условий", async () => {
-      
 
-      const superposition = {
+
+      const superposition = toNumericSuperposition({
         IDLE: {
           COMBAT: {
             0: { gt: 50 },
@@ -183,7 +184,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
           },
         },
         COMBAT: null,
-      }
+      })
 
       await boundary.write({
         fields: [
@@ -191,9 +192,9 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
           [1, { type: FieldType.F32 }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, 100], [1, 50]], superposition },
-          { state: "IDLE", params: [[0, 100], [1, 10]], superposition },
-          { state: "IDLE", params: [[0, 30], [1, 50]], superposition },
+          { initialStateIndex: 0, params: [[0, 100], [1, 50]], superposition },
+          { initialStateIndex: 0, params: [[0, 100], [1, 10]], superposition },
+          { initialStateIndex: 0, params: [[0, 30], [1, 50]], superposition },
         ],
       })
 
@@ -208,16 +209,16 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Обновление браны", () => {
     test("должен перейти после обновления браны", async () => {
-      
 
-      const superposition = {
+
+      const superposition = toNumericSuperposition({
         IDLE: { DEAD: { 0: { lte: 0 } } },
         DEAD: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
-        branes: [{ state: "IDLE", params: [[0, 100]], superposition }],
+        branes: [{ initialStateIndex: 0, params: [[0, 100]], superposition }],
       })
 
       boundary.updateBraneField(0, 0, 0)
@@ -228,16 +229,16 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("не должен переходить после обновления браны при невыполнении условия", async () => {
-      
 
-      const superposition = {
+
+      const superposition = toNumericSuperposition({
         IDLE: { PATROL: { 0: { gt: 50 } } },
         PATROL: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
-        branes: [{ state: "IDLE", params: [[0, 100]], superposition }],
+        branes: [{ initialStateIndex: 0, params: [[0, 100]], superposition }],
       })
 
       boundary.updateBraneField(0, 0, 50)
@@ -250,20 +251,20 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Многошаговая симуляция", () => {
     test("должен пройти через несколько состояний", async () => {
-      
 
-      const superposition = {
+
+      const superposition = toNumericSuperposition({
         IDLE: { PATROL: { 0: { gt: 50 } } },
         PATROL: { COMBAT: { 1: { lt: 10 } } },
         COMBAT: null,
-      }
+      })
 
       await boundary.write({
         fields: [
           [0, { type: FieldType.F32 }],
           [1, { type: FieldType.F32 }],
         ],
-        branes: [{ state: "IDLE", params: [[0, 100], [1, 5]], superposition }],
+        branes: [{ initialStateIndex: 0, params: [[0, 100], [1, 5]], superposition }],
       })
 
       boundary.step()
@@ -276,19 +277,19 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Граничные случаи", () => {
     test("должен обрабатывать несколько полей с одинаковым начальным состоянием", async () => {
-      
 
-      const superposition = {
+
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gt: 0 } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: "IDLE", params: [[0, 100]], superposition },
-          { state: "IDLE", params: [[0, 200]], superposition },
-          { state: "IDLE", params: [[0, 0]], superposition },
+          { initialStateIndex: 0, params: [[0, 100]], superposition },
+          { initialStateIndex: 0, params: [[0, 200]], superposition },
+          { initialStateIndex: 0, params: [[0, 0]], superposition },
         ],
       })
 
@@ -301,18 +302,18 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("должен обрабатывать поля с разными начальными состояниями", async () => {
-      
 
-      const superposition = {
+
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gt: 50 } } },
         ACTIVE: { IDLE: { 0: { lte: 50 } } },
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: "IDLE", params: [[0, 100]], superposition },
-          { state: "ACTIVE", params: [[0, 30]], superposition },
+          { initialStateIndex: 0, params: [[0, 100]], superposition },
+          { initialStateIndex: 1, params: [[0, 30]], superposition },
         ],
       })
 
@@ -326,22 +327,22 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Поля с разными суперпозициями", () => {
     test("каждое поле имеет свою суперпозицию с разными состояниями", async () => {
-      
 
-      const warriorSuperposition = {
+
+      const warriorSuperposition = toNumericSuperposition({
         IDLE: { COMBAT: { 0: { gt: 80 } } },
         COMBAT: null,
-      }
+      })
 
-      const mageSuperposition = {
+      const mageSuperposition = toNumericSuperposition({
         IDLE: { MEDITATION: { 1: { lt: 20 } } },
         MEDITATION: null,
-      }
+      })
 
-      const scoutSuperposition = {
+      const scoutSuperposition = toNumericSuperposition({
         IDLE: { SCOUT: { 0: { gt: 30 } } },
         SCOUT: null,
-      }
+      })
 
       await boundary.write({
         fields: [
@@ -349,9 +350,9 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
           [1, { type: FieldType.F32 }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, 90], [1, 50]], superposition: warriorSuperposition },
-          { state: "IDLE", params: [[0, 50], [1, 10]], superposition: mageSuperposition },
-          { state: "IDLE", params: [[0, 60], [1, 30]], superposition: scoutSuperposition },
+          { initialStateIndex: 0, params: [[0, 90], [1, 50]], superposition: warriorSuperposition },
+          { initialStateIndex: 0, params: [[0, 50], [1, 10]], superposition: mageSuperposition },
+          { initialStateIndex: 0, params: [[0, 60], [1, 30]], superposition: scoutSuperposition },
         ],
       })
 
@@ -364,23 +365,23 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("поля с одинаковыми состояниями, но разными условиями перехода", async () => {
-      
 
-      const lowThresholdSuperposition = {
+
+      const lowThresholdSuperposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gt: 30 } } },
         ACTIVE: null,
-      }
+      })
 
-      const highThresholdSuperposition = {
+      const highThresholdSuperposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gt: 70 } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: "IDLE", params: [[0, 50]], superposition: lowThresholdSuperposition },
-          { state: "IDLE", params: [[0, 50]], superposition: highThresholdSuperposition },
+          { initialStateIndex: 0, params: [[0, 50]], superposition: lowThresholdSuperposition },
+          { initialStateIndex: 0, params: [[0, 50]], superposition: highThresholdSuperposition },
         ],
       })
 
@@ -392,25 +393,25 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("поля с полностью разными конечными автоматами", async () => {
-      
 
-      const aggressiveSuperposition = {
+
+      const aggressiveSuperposition = toNumericSuperposition({
         IDLE: { ATTACK: { 0: { gt: 50 } } },
         ATTACK: { VICTORY: { 0: { gt: 90 } } },
         VICTORY: null,
-      }
+      })
 
-      const defensiveSuperposition = {
+      const defensiveSuperposition = toNumericSuperposition({
         IDLE: { DEFEND: { 0: { lte: 50 } } },
         DEFEND: { FORTIFY: { 0: { lte: 20 } } },
         FORTIFY: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: "IDLE", params: [[0, 95]], superposition: aggressiveSuperposition },
-          { state: "IDLE", params: [[0, 15]], superposition: defensiveSuperposition },
+          { initialStateIndex: 0, params: [[0, 95]], superposition: aggressiveSuperposition },
+          { initialStateIndex: 0, params: [[0, 15]], superposition: defensiveSuperposition },
         ],
       })
 
@@ -423,19 +424,19 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("поля с разными типами условий в суперпозиции", async () => {
-      
 
-      const numericSuperposition = {
+
+      const numericSuperposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { gt: 50 } } },
         ACTIVE: null,
-      }
+      })
 
-      const booleanSuperposition = {
+      const booleanSuperposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 2: true } },
         ACTIVE: null,
-      }
+      })
 
-      const multiConditionSuperposition = {
+      const multiConditionSuperposition = toNumericSuperposition({
         IDLE: {
           ACTIVE: {
             0: { gt: 30 },
@@ -443,7 +444,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
           },
         },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [
@@ -452,9 +453,9 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
           [2, { type: FieldType.BOOL }],
         ],
         branes: [
-          { state: "IDLE", params: [[0, 60], [1, 0], [2, false]], superposition: numericSuperposition },
-          { state: "IDLE", params: [[0, 0], [1, 0], [2, true]], superposition: booleanSuperposition },
-          { state: "IDLE", params: [[0, 40], [1, 30], [2, false]], superposition: multiConditionSuperposition },
+          { initialStateIndex: 0, params: [[0, 60], [1, 0], [2, false]], superposition: numericSuperposition },
+          { initialStateIndex: 0, params: [[0, 0], [1, 0], [2, true]], superposition: booleanSuperposition },
+          { initialStateIndex: 0, params: [[0, 40], [1, 30], [2, false]], superposition: multiConditionSuperposition },
         ],
       })
 

@@ -157,7 +157,9 @@ export class Boundary {
 
     if (debug("branes")) {
       console.log("[Boundary] Creating ensemble with", config.branes.length, "branes")
-      config.branes.forEach((b, i) => console.log(`  [Brane ${i}] state="${b.state}", params=`, b.params))
+      config.branes.forEach((b, i) => {
+        console.log(`  [Brane ${i}] initialStateIndex=${b.initialStateIndex}, params=`, b.params)
+      })
     }
 
     this.braneIds = this.braneManager.createEnsemble(
@@ -181,7 +183,8 @@ export class Boundary {
       console.log("[Boundary] State maps:", this.stateMaps)
     }
 
-    const states = new Uint32Array(config.branes.map((f, i) => this.stateMaps[i]![f.state] ?? 0))
+    // Initial states из branes.initialStateIndex
+    const states = new Uint32Array(config.branes.map((b) => b.initialStateIndex))
 
     if (debug("branes")) {
       console.log("[Boundary] Initial states (encoded):", Array.from(states))

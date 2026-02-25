@@ -1,6 +1,7 @@
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import { Boundary, GPU, FieldType } from "../../src/index"
+import { toNumericSuperposition } from "../numeric.helper"
 
 describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
   let boundary: Boundary
@@ -21,16 +22,16 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
     test("должен выполнить переход, когда значение равно указанному", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { eq: "hero" } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.STRING_PTR }]],
         branes: [
-          { state: "IDLE", params: [[0, "hero"]], superposition },
-          { state: "IDLE", params: [[0, "monster"]], superposition },
+          { initialStateIndex: 0, params: [[0, "hero"]], superposition },
+          { initialStateIndex: 0, params: [[0, "monster"]], superposition },
         ],
       })
 
@@ -46,16 +47,16 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
     test("должен выполнить переход, когда значение не равно указанному", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { neq: "enemy" } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.STRING_PTR }]],
         branes: [
-          { state: "IDLE", params: [[0, "enemy"]], superposition },
-          { state: "IDLE", params: [[0, "ally"]], superposition },
+          { initialStateIndex: 0, params: [[0, "enemy"]], superposition },
+          { initialStateIndex: 0, params: [[0, "ally"]], superposition },
         ],
       })
 
@@ -71,17 +72,17 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
     test("должен выполнить переход, если значение в списке", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { in: ["warrior", "mage", "rogue"] } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.STRING_PTR }]],
         branes: [
-          { state: "IDLE", params: [[0, "warrior"]], superposition },
-          { state: "IDLE", params: [[0, "mage"]], superposition },
-          { state: "IDLE", params: [[0, "healer"]], superposition },
+          { initialStateIndex: 0, params: [[0, "warrior"]], superposition },
+          { initialStateIndex: 0, params: [[0, "mage"]], superposition },
+          { initialStateIndex: 0, params: [[0, "healer"]], superposition },
         ],
       })
 
@@ -98,14 +99,14 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
     test("должен корректно применить обновление строки и обработать IN", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { in: ["warrior", "mage"] } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.STRING_PTR }]],
-        branes: [{ state: "IDLE", params: [[0, "healer"]], superposition }],
+        branes: [{ initialStateIndex: 0, params: [[0, "healer"]], superposition }],
       })
 
       boundary.updateBraneField(0, 0, "warrior")
@@ -120,17 +121,17 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
     test("должен выполнить переход, если значение не в списке", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { notIn: ["enemy", "boss"] } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.STRING_PTR }]],
         branes: [
-          { state: "IDLE", params: [[0, "enemy"]], superposition },
-          { state: "IDLE", params: [[0, "boss"]], superposition },
-          { state: "IDLE", params: [[0, "ally"]], superposition },
+          { initialStateIndex: 0, params: [[0, "enemy"]], superposition },
+          { initialStateIndex: 0, params: [[0, "boss"]], superposition },
+          { initialStateIndex: 0, params: [[0, "ally"]], superposition },
         ],
       })
 
@@ -147,16 +148,16 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
     test("должен корректно обрабатывать пустую строку", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { eq: "" } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.STRING_PTR }]],
         branes: [
-          { state: "IDLE", params: [[0, ""]], superposition },
-          { state: "IDLE", params: [[0, "hero"]], superposition },
+          { initialStateIndex: 0, params: [[0, ""]], superposition },
+          { initialStateIndex: 0, params: [[0, "hero"]], superposition },
         ],
       })
 
@@ -172,16 +173,16 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
     test("должен корректно обрабатывать строки со специальными символами", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { eq: "test-123_@#" } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.STRING_PTR }]],
         branes: [
-          { state: "IDLE", params: [[0, "test-123_@#"]], superposition },
-          { state: "IDLE", params: [[0, "test-123"]], superposition },
+          { initialStateIndex: 0, params: [[0, "test-123_@#"]], superposition },
+          { initialStateIndex: 0, params: [[0, "test-123"]], superposition },
         ],
       })
 
@@ -197,17 +198,17 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
     test("должен быть чувствительным к регистру при сравнении", async () => {
       
 
-      const superposition = {
+      const superposition = toNumericSuperposition({
         IDLE: { ACTIVE: { 0: { eq: "Hero" } } },
         ACTIVE: null,
-      }
+      })
 
       await boundary.write({
         fields: [[0, { type: FieldType.STRING_PTR }]],
         branes: [
-          { state: "IDLE", params: [[0, "Hero"]], superposition },
-          { state: "IDLE", params: [[0, "hero"]], superposition },
-          { state: "IDLE", params: [[0, "HERO"]], superposition },
+          { initialStateIndex: 0, params: [[0, "Hero"]], superposition },
+          { initialStateIndex: 0, params: [[0, "hero"]], superposition },
+          { initialStateIndex: 0, params: [[0, "HERO"]], superposition },
         ],
       })
 

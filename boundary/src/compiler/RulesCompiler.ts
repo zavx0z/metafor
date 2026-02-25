@@ -2,18 +2,9 @@ import { OP, TYPE } from "../opcodes"
 import type { CompiledRules, CompiledFieldRules, CompiledEnsemble } from "../index.t"
 import type { Field, FieldTypeValue } from "../index.t"
 import { fieldTypeToBytecodeType } from "../utils/typeBridge"
-import type { FieldTuple } from "../index.t"
+import type { FieldTuple, NumericSuperposition, Transition } from "../index.t"
 import { ConditionParser } from "./ConditionParser"
 import { BytecodeEncoder } from "./BytecodeEncoder"
-
-// Типы для представления конфигурации правил суперпозиции.
-/** Условия коллапса — набор проверок компонент браны для перехода между состояниями */
-type CollapseConditions = Record<string, ConditionValue>
-type Transitions = Record<string, CollapseConditions | null | undefined>
-/** Суперпозиция — граф возможных состояний и условий переходов */
-type Superposition = Record<string, Transitions | null | undefined>
-
-type ConditionValue = number | boolean | string | { [key: string]: any }
 
 /**
  * Транслятор JSON-правил в байт-код для кастомной VM на GPU.
@@ -63,7 +54,7 @@ export class RulesCompiler {
   }
 
   /**
-   * Компилирует массив superposition в единый конкатенированный bytecode.
+   * Компилирует массив NumericSuperposition в единый конкатенированный bytecode.
    *
    * Каждая superposition компилируется независимо со своими состояниями и переходами.
    * Поля (fields) общие для всех суперпозиций.
@@ -80,7 +71,7 @@ export class RulesCompiler {
    * reverseStateMaps:   [["IDLE",...], ["IDLE",...], ...]
    * ```
    *
-   * @param superpositions - Массив графов переходов (по одному на брану)
+   * @param superpositions - Массив графов переходов (NumericSuperposition[])
    * @param fields - Поля в формате кортежей [[index, field], ...]
    * @param options - Опции компиляции
    * @param options.debug - Включить debug-логирование
@@ -91,15 +82,20 @@ export class RulesCompiler {
    * const compiler = new RulesCompiler()
    * const ensemble = compiler.compileEnsemble(
    *   [
-   *     { IDLE: { PATROL: { 0: { gt: 50 } } }, PATROL: null },  // брана 0
-   *     { IDLE: { COMBAT: { 0: { gt: 80 } } }, COMBAT: null },  // брана 1
+   *     {
+   *       states: ["IDLE", "PATROL"],
+   *       transitions: [
+   *         [{ to: 1, conditions: { 0: { gt: 50 } } }],
+   *         [null]
+   *       ]
+   *     }
    *   ],
-   *   [[0, { type: FieldType.F32 }]]  // общие поля для всех бран
+   *   [[0, { type: FieldType.F32 }]]
    * )
    * ```
    */
   compileEnsemble(
-    superpositions: Superposition[],
+    superpositions: NumericSuperposition[],
     fields: FieldTuple[],
     options: { debug?: boolean } = {},
   ): CompiledEnsemble {
@@ -134,7 +130,7 @@ export class RulesCompiler {
     // Компилируем каждую superposition отдельно
     const compiled: CompiledFieldRules[] = []
     for (let i = 0; i < superpositions.length; i++) {
-      compiled.push(this.compileSingle(superpositions[i]!))
+      compiled.push(this.compileNumeric(superpositions[i]!))
       if (debug) {
         console.log(
           `[RulesCompiler] Superposition ${i} (brane ${i}): ${compiled[i]!.bytecode.length} words, states=`,
@@ -171,92 +167,53 @@ export class RulesCompiler {
   }
 
   /**
-   * Компилирует одну superposition в bytecode для отдельного поля.
+   * Компилирует NumericSuperposition в bytecode.
    *
-   * В отличие от `compileEnsemble()`, этот метод возвращает полную информацию
-   * о stateMap и reverseStateMap для декодирования результатов.
-   *
-   * @param superposition - Граф переходов состояний. Ключи условий — числовые индексы.
-   * @param fieldsTuple - Поля в формате кортежей [[id, field], ...]
-   * @returns Скомпилированные правила с метаданными
+   * @param superposition - Суперпозиция с числовыми ID состояний.
+   * @returns Скомпилированные правила с метаданными.
    */
-  compileSingle(superposition: Superposition, fieldsTuple?: any): CompiledFieldRules {
-    // Регистрируем поля если переданы
-    if (fieldsTuple && Array.isArray(fieldsTuple)) {
-      this.fields.clear()
-      for (const [fieldId, field] of fieldsTuple) {
-        const typeCode = fieldTypeToBytecodeType(field.type)
-        let subType: number | undefined
-        switch (field.elementType) {
-          case "number":
-            subType = TYPE.FLOAT
-            break
-          case "string":
-            subType = TYPE.STRING
-            break
-          default:
-            subType = undefined
-        }
-        this.fields.set(fieldId, {
-          type: typeCode,
-          ...(subType !== undefined ? { subType } : {}),
-          ...(field.enumValues !== undefined ? { enumValues: field.enumValues } : {}),
-        })
-      }
-    }
-
+  private compileNumeric(superposition: NumericSuperposition): CompiledFieldRules {
     this.bytecode = []
-    this.states = Object.keys(superposition)
+    this.states = superposition.states
 
-    // 1. Резервируем место для таблицы состояний
+    // 1. Таблица состояний
     const stateTableOffset = this.bytecode.length
-    // Заглушка для смещения каждого состояния
-    for (let i = 0; i < this.states.length; i++) this.bytecode.push(0)
+    for (let i = 0; i < this.states.length; i++) {
+      this.bytecode.push(0) // заглушка
+    }
 
     // 2. Компилируем каждое состояние
     for (let i = 0; i < this.states.length; i++) {
-      const stateName = this.states[i]!
-      const transitions = superposition[stateName] || {}
-
-      // Сохраняем указатель на этот блок состояния в таблице
       const stateBlockPtr = this.bytecode.length
       this.bytecode[stateTableOffset + i] = stateBlockPtr
 
-      // Порядок ключей определяет приоритет переходов.
-      // Первый выполненный переход останавливает проверку.
-      // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object#property_order
-      const transitionKeys = Object.keys(transitions)
-      this.bytecode.push(transitionKeys.length) // количество переходов (transitionCount)
+      const transitions = superposition.transitions[i] || []
+      // Фильтруем null и приводим к Transition[]
+      const validTransitions = transitions.filter(
+        (t): t is Transition => t !== null
+      )
 
-      for (const targetName of transitionKeys) {
-        const targetIdx = this.states.indexOf(targetName)
-        if (targetIdx === -1) throw new Error(`Unknown target state: ${targetName}`)
+      this.bytecode.push(validTransitions.length)
 
-        const conditions = transitions[targetName] || {}
-
-        // Заголовок перехода
-        this.bytecode.push(targetIdx)
-
-        // Пушим заглушку для condPtr, заполним позже
-        const condPtrIdx = this.bytecode.length
-        this.bytecode.push(0)
+      // Заголовки переходов: [targetState, condPtr]
+      for (const tr of validTransitions) {
+        this.bytecode.push(tr.to)
+        this.bytecode.push(0) // заглушка для condPtr
       }
 
-      // Теперь заполняем блоки условий для переходов этого состояния
-      let transitionIdx = 0
-      for (const targetName of transitionKeys) {
-        const conditions = transitions[targetName] || {}
-
-        // Местоположение определения перехода:
-        // stateBlockPtr + 1 (кол-во) + transitionIdx * 2
-        const trBase = stateBlockPtr + 1 + transitionIdx * 2
-
-        // Начало блока условий
+      // Блоки условий
+      for (let trIdx = 0; trIdx < validTransitions.length; trIdx++) {
+        const tr = validTransitions[trIdx]!
+        const trBase = stateBlockPtr + 1 + trIdx * 2
         const condBlockPtr = this.bytecode.length
-        this.bytecode[trBase + 1] = condBlockPtr // Ссылка с перехода сюда
+        this.bytecode[trBase + 1] = condBlockPtr
 
-        this.compileConditions(conditions)
-        transitionIdx++
+        // Конвертируем conditions: Record<number, any> → Record<string, any>
+        const conditionsObj: Record<string, any> = {}
+        for (const [fieldIdx, cond] of Object.entries(tr.conditions)) {
+          conditionsObj[fieldIdx] = cond
+        }
+        this.compileConditions(conditionsObj)
       }
     }
 
@@ -266,7 +223,7 @@ export class RulesCompiler {
       stateMap: Object.fromEntries(this.states.map((s, i) => [s, i])),
     }
 
-    const reverseStateMap = Object.keys(result.stateMap)
+    const reverseStateMap = [...this.states]
 
     return {
       bytecode: result.bytecode,

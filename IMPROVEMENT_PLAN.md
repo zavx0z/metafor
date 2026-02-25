@@ -108,108 +108,19 @@ const transitionKeys = Object.keys(transitions)
 
 ---
 
-## Приоритет 3: Кэширование конвертации суперпозиций
+## Приоритет 3: Кэширование конвертации суперпозиций ❌
 
-### Проблема
+**Статус:** Неактуально.
 
-`convertSuperpositionToIndices()` вызывается каждый раз при `updateMonad()`, пересоздавая одинаковые структуры:
-
-```typescript
-// monad/src/monad.ts:152
-const convertedSuperposition = convertSuperpositionToIndices(superposition, _fieldNameIndex)
-```
-
-### Решение
-
-Добавить `WeakMap` для memoization результатов конвертации.
-
-### Файлы
-
-| Файл | Изменение |
-|------|-----------|
-| `monad/src/superposition.ts` | Кэш на основе WeakMap |
-
-### Пример реализации
-
-```typescript
-const conversionCache = new WeakMap<object, Superposition>()
-
-export function convertSuperpositionToIndices(
-  superposition: Superposition,
-  fieldNameIndex: Map<string, number>
-): Superposition {
-  // Проверяем кэш
-  const cached = conversionCache.get(superposition)
-  if (cached) return cached
-
-  // Конвертация...
-  const converted: Superposition = {}
-
-  // Сохраняем в кэш
-  conversionCache.set(superposition, converted)
-  return converted
-}
-```
+**Причина:** Не влияет на переход на numeric ID состояний. Кэширование может быть добавлено позже при необходимости оптимизации.
 
 ---
 
-## Приоритет 4: Удалить дублирование `_params`
+## Приоритет 4: Удалить дублирование `_params` ❌
 
-### Проблема
+**Статус:** Неактуально.
 
-В `updateMonad()` обновляются оба хранилища:
-
-```typescript
-// monad/src/monad.ts:183-185
-for (const [name, value] of Object.entries(fields)) {
-  _params.set(name, value)  // ← Глобальное (перезаписывает значения других монад!)
-}
-
-// monad/src/monad.ts:188-190
-const monadParams = _monadParams.get(id)
-if (monadParams) {
-  _monadParams.set(id, { ...monadParams, ...fields })  // ← Индивидуальное (правильно)
-}
-```
-
-**Сценарий бага:**
-
-```typescript
-const monad1 = createMonad({ params: { hp: 100 } })
-const monad2 = createMonad({ params: { hp: 50 } })
-
-// _params: { hp: 50 } ← monad1 потерял hp: 100 в глобальном хранилище
-// _monadParams: { monad1: { hp: 100 }, monad2: { hp: 50 } } ← правильно
-
-updateMonad(monad1, { hp: 150 })
-// _params: { hp: 150 } ← перезаписано (мёртвый код)
-// _monadParams: { monad1: { hp: 150 }, monad2: { hp: 50 } } ← правильно
-```
-
-### Решение
-
-Удалить обновление `_params` в `updateMonad()`, оставить только `_monadParams`.
-
-### Файлы
-
-| Файл | Изменение |
-|------|-----------|
-| `monad/src/monad.ts` | Удалить `_params.set()` в `updateMonad()` |
-
-### Изменения в коде
-
-```typescript
-// Удалить из updateMonad():
-for (const [name, value] of Object.entries(fields)) {
-  _params.set(name, value)  // ← УДАЛИТЬ
-}
-
-// Оставить:
-const monadParams = _monadParams.get(id)
-if (monadParams) {
-  _monadParams.set(id, { ...monadParams, ...fields })
-}
-```
+**Причина:** Глобальное хранилище `_params` — преднамеренное решение для Gravity Agent (Bulk), который управляет общими полями. Изоляция будет на уровне System.
 
 ---
 
@@ -302,24 +213,17 @@ export class RulesCompiler {
 |---|-----------|-------|-----------|-----------|--------|
 | 1 | Документирование порядка переходов | `boundary/src/index.t.ts`, `monad/src/types.ts` | Высокий | Низкая | ✅ |
 | 2 | Явный порядок в RulesCompiler | `boundary/src/compiler/RulesCompiler.ts` | Высокий | Низкая | ✅ |
-| 3 | Кэширование конвертации | `monad/src/superposition.ts` | Средний | Средняя | ⏳ |
-| 4 | Удалить дублирование `_params` | `monad/src/monad.ts` | Средний | Низкая | ⏳ |
+| 3 | Кэширование конвертации | `monad/src/superposition.ts` | Средний | Средняя | ❌ Неактуально |
+| 4 | Удалить дублирование `_params` | `monad/src/monad.ts` | Средний | Низкая | ❌ Неактуально |
 | 5 | Разделение RulesCompiler | `boundary/src/compiler/*.ts` | Низкий | Высокая | ✅ |
 
 ---
 
 ## Следующие шаги
 
-**Осталось выполнить:**
+**План завершён.** Следующий этап — переход на numeric ID состояний.
 
-1. **Приоритет 3:** Кэширование конвертации суперпозиций (`monad/src/superposition.ts`)
-2. **Приоритет 4:** Удалить дублирование `_params` (`monad/src/monad.ts`)
-
-**После выполнения этого плана:**
-
-1. ✅ **Протестировать** все изменения на существующих тестах — **16 тестов boundary + 5 тестов monad = ✅**
-2. ✅ **Документировать** новые API в TSDoc — **ConditionParser, BytecodeEncoder задокументированы**
-3. **Подготовить** код к переходу на numeric ID состояний (отдельный план)
+**См.:** `NUMERIC_SUPERPOSITION_PLAN.md` — план перехода на числовые идентификаторы состояний.
 
 ---
 
