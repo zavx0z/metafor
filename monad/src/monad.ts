@@ -7,34 +7,29 @@
 import { Boundary, type FieldsDefinition, type Superposition } from "@metafor/boundary"
 import type { Action, Actions, MonadConfig } from "./types"
 
-/**
- * Внутреннее представление браны.
- */
-interface InternalBrane {
-  params: Record<string, unknown>
-  state: string
-  superposition: Superposition
-}
-
 // ==================== Внутреннее состояние ====================
 
-let _boundary: Boundary | null = null
-let _monads: Map<string, MonadConfig> = new Map()
-let _branes: Map<string, InternalBrane> = new Map()
-let _states: Map<string, string> = new Map()
-let _uuidToIndex: Map<string, number> = new Map()
-let _indexToUuid: Map<number, string> = new Map()
-let _onStateChange: ((monadId: string, old: string, current: string) => void) | null = null
+const _boundary: { current: Boundary | null } = { current: null }
+const _fields: Map<string, FieldsDefinition> = new Map()
+const _actions: Map<string, Actions> = new Map()
+const _params: Map<string, Record<string, unknown>> = new Map()
+const _superpositions: Map<string, Superposition> = new Map()
+const _states: Map<string, string> = new Map()
+const _uuidToIndex: Map<string, number> = new Map()
+const _indexToUuid: Map<number, string> = new Map()
+const _onStateChange: { current: ((monadId: string, old: string, current: string) => void) | null } = { current: null }
 
 // Экспорт для тестов
 export function _resetState(): void {
-  _boundary = null
-  _monads.clear()
-  _branes.clear()
+  _boundary.current = null
+  _fields.clear()
+  _actions.clear()
+  _params.clear()
+  _superpositions.clear()
   _states.clear()
   _uuidToIndex.clear()
   _indexToUuid.clear()
-  _onStateChange = null
+  _onStateChange.current = null
 }
 
 // ==================== Функции ====================
@@ -47,12 +42,10 @@ export function _resetState(): void {
  */
 export function createMonad(config: MonadConfig): string {
   const id = crypto.randomUUID()
-  _monads.set(id, config)
-  _branes.set(id, {
-    params: { ...config.params },
-    state: config.state,
-    superposition: config.superposition,
-  })
+  _fields.set(id, config.fields)
+  _actions.set(id, config.actions)
+  _params.set(id, { ...config.params })
+  _superpositions.set(id, config.superposition)
   _states.set(id, config.state)
   return id
 }
@@ -63,8 +56,10 @@ export function createMonad(config: MonadConfig): string {
  * @param id - UUID монады.
  */
 export function deleteMonad(id: string): void {
-  _monads.delete(id)
-  _branes.delete(id)
+  _fields.delete(id)
+  _actions.delete(id)
+  _params.delete(id)
+  _superpositions.delete(id)
   _states.delete(id)
   _uuidToIndex.delete(id)
 }
@@ -74,34 +69,34 @@ export function deleteMonad(id: string): void {
  */
 export async function updateBoundary(): Promise<void> {
   // Собираем все браны
-  const allBranes = Array.from(_branes.entries()).map(([id, brane]) => ({
+  const allBranes = Array.from(_params.entries()).map(([id, params]) => ({
     id,
-    params: brane.params,
-    state: _states.get(id) || brane.state,
-    superposition: brane.superposition,
+    params,
+    state: _states.get(id)!,
+    superposition: _superpositions.get(id)!,
   }))
 
   if (allBranes.length === 0) {
-    _boundary?.clear()
-    _boundary = null
+    _boundary.current?.clear()
+    _boundary.current = null
     _uuidToIndex.clear()
     _indexToUuid.clear()
     return
   }
 
   // Получаем fields из первой монады
-  const firstMonad = _monads.values().next().value
-  if (!firstMonad) {
+  const firstFields = _fields.values().next().value
+  if (!firstFields) {
     throw new Error("No monads registered")
   }
 
   // Создаём Boundary если его нет, иначе очищаем существующий
-  if (!_boundary) {
-    _boundary = new Boundary()
+  if (!_boundary.current) {
+    _boundary.current = new Boundary()
   } else {
-    _boundary.clear()
+    _boundary.current.clear()
   }
-  await _boundary.write({ fields: firstMonad.fields, branes: allBranes })
+  await _boundary.current.write({ fields: firstFields, branes: allBranes })
 
   // Строим маппинги
   _uuidToIndex.clear()
@@ -120,13 +115,13 @@ export async function updateBoundary(): Promise<void> {
  * @throws {Error} Если Boundary не инициализирован. Вызовите updateBoundary() перед updateMonad().
  */
 export async function updateMonad(id: string, fields: Record<string, unknown>): Promise<void> {
-  const brane = _branes.get(id)
-  if (!brane) {
+  const params = _params.get(id)
+  if (!params) {
     throw new Error(`Brane with id ${id} not found`)
   }
 
   // Boundary должен быть создан через updateBoundary()
-  if (!_boundary) {
+  if (!_boundary.current) {
     throw new Error("Boundary not initialized. Call updateBoundary() first.")
   }
 
@@ -136,38 +131,38 @@ export async function updateMonad(id: string, fields: Record<string, unknown>): 
   }
 
   // Обновляем локально
-  brane.params = { ...brane.params, ...fields }
+  _params.set(id, { ...params, ...fields })
 
   // Обновляем в Boundary
   for (const [field, value] of Object.entries(fields)) {
-    _boundary.updateBraneField(index, field, value)
+    _boundary.current.updateBraneField(index, field, value)
   }
 
   // Шаг эволюции
-  _boundary.step()
+  _boundary.current.step()
 
   // Получаем новые состояния и обрабатываем изменения
-  const states = await _boundary.getStates()
+  const states = await _boundary.current.getStates()
   states.forEach((current, i) => {
     const monadId = _indexToUuid.get(i)
     if (!monadId) return
-    
+
     const old = _states.get(monadId)
     if (old !== undefined && current !== old) {
       _states.set(monadId, current)
-      
+
       // Автоматически выполняем действие для нового состояния
-      const monad = _monads.get(monadId)
-      const action = monad?.actions[current]
+      const actions = _actions.get(monadId)
+      const action = actions?.[current]
       if (action) {
-        const brane = _branes.get(monadId)
-        if (brane) {
-          action(brane.params)
+        const params = _params.get(monadId)
+        if (params) {
+          action(params)
         }
       }
-      
+
       // Вызываем callback
-      _onStateChange?.(monadId, old, current)
+      _onStateChange.current?.(monadId, old, current)
     }
   })
 }
@@ -185,5 +180,5 @@ export async function updateMonad(id: string, fields: Record<string, unknown>): 
  * ```
  */
 export function onStateChange(callback: (monadId: string, old: string, current: string) => void): void {
-  _onStateChange = callback
+  _onStateChange.current = callback
 }
