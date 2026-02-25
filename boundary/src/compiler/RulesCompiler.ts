@@ -1,6 +1,6 @@
 import { OP, TYPE } from "../opcodes"
 import type { CompiledRules, CompiledFieldRules, CompiledEnsemble } from "../index.t"
-import type { Field, FieldTypeValue } from "../core/FieldRegistry"
+import type { Field, FieldTypeValue } from "../index.t"
 import { fieldTypeToBytecodeType } from "../utils/typeBridge"
 import { getStringAtlas } from "../strings/StringAtlas"
 import type { FieldTuple } from "../index.t"

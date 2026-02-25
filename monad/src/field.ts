@@ -4,12 +4,8 @@
  * @packageDocumentation
  */
 
-import { FieldType, type FieldDefinition, type FieldTypeValue, type RegisteredFieldConfig as RegisteredField } from "@metafor/boundary"
-
-/**
- * Опции для зарегистрированного поля.
- */
-export type FieldRegisterOptions = NonNullable<RegisteredField["options"]>
+import { FieldType, type FieldDefinition, type FieldTypeValue } from "@metafor/boundary"
+import type { Field } from "@metafor/boundary"
 
 /**
  * Преобразует определение поля из строкового типа в числовой.
@@ -17,7 +13,7 @@ export type FieldRegisterOptions = NonNullable<RegisteredField["options"]>
  * @param def - Определение поля из FieldsDefinition
  * @returns Готовые данные для registry.register()
  */
-export function convertField(def: FieldDefinition): RegisteredField {
+export function convertField(def: FieldDefinition): Field {
   const defTyped = def as { type?: string; values?: any[] } | string
   const typeStr = typeof defTyped === "string" ? defTyped : defTyped.type
   const enumValues = typeof defTyped !== "string" && "values" in defTyped ? defTyped.values : undefined
@@ -53,25 +49,7 @@ export function convertField(def: FieldDefinition): RegisteredField {
 
   return {
     type: fieldType,
-    options: {
-      ...(elementType !== undefined ? { elementType } : {}),
-      ...(enumValues !== undefined ? { enumValues } : {}),
-    },
+    ...(elementType !== undefined ? { elementType } : {}),
+    ...(enumValues !== undefined ? { enumValues } : {}),
   }
-}
-
-/**
- * Преобразует все поля из FieldsDefinition в зарегистрированные поля.
- *
- * @param fields - Определение полей из BoundaryConfig
- * @returns Record с готовыми данными для регистрации
- */
-export function convertAllFields(fields: Record<string, FieldDefinition>): Record<string, RegisteredField> {
-  const result: Record<string, RegisteredField> = {}
-
-  for (const [name, def] of Object.entries(fields)) {
-    result[name] = convertField(def)
-  }
-
-  return result
 }

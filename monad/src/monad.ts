@@ -4,46 +4,145 @@
  * @packageDocumentation
  */
 
-import { Boundary } from "@metafor/boundary"
+import { Boundary, type Superposition, type Field } from "@metafor/boundary"
 import type {
   ActionsStore,
-  FieldsStore,
   IndexToUuidStore,
   MonadId,
-  ParamsStore,
   StatesStore,
   SuperpositionsStore,
   UuidToIndexStore,
 } from "./monad.t"
 import type { MonadConfig } from "./types"
-import { convertAllFields } from "./field"
+import { convertField } from "./field"
 
 // ==================== Внутреннее состояние ====================
 
 const _boundary: { current: Boundary | null } = { current: null }
-const _fields: FieldsStore = new Map()
+const _globalFields: Map<string, [number, Field]> = new Map()
+const _fieldNameIndex: Map<string, number> = new Map()
+const _params: Map<string, unknown> = new Map()
+const _fieldUsageCount: Map<string, number> = new Map()
 const _actions: ActionsStore = new Map()
-const _params: ParamsStore = new Map()
 const _superpositions: SuperpositionsStore = new Map()
 const _states: StatesStore = new Map()
+const _monadParams: Map<MonadId, Record<string, unknown>> = new Map()
 const _uuidToIndex: UuidToIndexStore = new Map()
 const _indexToUuid: IndexToUuidStore = new Map()
 const _onStateChange: { current: ((monadId: MonadId, old: string, current: string) => void) | null } = { current: null }
+const _monadIds: Set<MonadId> = new Set()
+let _nextFieldIndex = 0
 
 // Экспорт для тестов
 export function _resetState(): void {
   _boundary.current = null
-  _fields.clear()
-  _actions.clear()
+  _globalFields.clear()
+  _fieldNameIndex.clear()
   _params.clear()
+  _fieldUsageCount.clear()
+  _actions.clear()
   _superpositions.clear()
   _states.clear()
+  _monadParams.clear()
   _uuidToIndex.clear()
   _indexToUuid.clear()
   _onStateChange.current = null
+  _monadIds.clear()
+  _nextFieldIndex = 0
 }
 
 // ==================== Функции ====================
+
+/**
+ * Добавляет поле в глобальное хранилище.
+ *
+ * @param name - Имя поля.
+ * @param field - Зарегистрированное поле.
+ * @returns Индекс поля.
+ * @throws {Error} Если тип поля конфликтует с существующим.
+ */
+function addMonadField(name: string, field: Field): number {
+  const existing = _globalFields.get(name)
+  if (existing) {
+    const [existingIndex, existingField] = existing
+    if (existingField.type !== field.type) {
+      throw new Error(`Field '${name}' type conflict`)
+    }
+    return existingIndex
+  }
+
+  const newIndex = _nextFieldIndex++
+  _globalFields.set(name, [newIndex, field])
+  _fieldNameIndex.set(name, newIndex)
+  return newIndex
+}
+
+/**
+ * Возвращает все глобальные поля в виде кортежей [индекс, имя, поле].
+ *
+ * @returns Отсортированный массив кортежей.
+ */
+export function getGlobalFields(): [number, string, Field][] {
+  const result: [number, string, Field][] = []
+  for (const [name, [index, field]] of _globalFields.entries()) {
+    result.push([index, name, field])
+  }
+  return result.sort((a, b) => a[0] - b[0])
+}
+
+/**
+ * Возвращает все параметры в виде Record.
+ *
+ * @returns Record с параметрами.
+ */
+export function getParams(): Record<string, unknown> {
+  const result: Record<string, unknown> = {}
+  for (const [name, value] of _params.entries()) {
+    result[name] = value
+  }
+  return result
+}
+
+/**
+ * Конвертирует суперпозицию из имён полей в индексы.
+ *
+ * @param superposition - Суперпозиция с именами полей.
+ * @param fieldNameIndex - Маппинг имён в индексы.
+ * @returns Суперпозиция с индексами полей.
+ * @throws {Error} Если поле не найдено в маппинге.
+ */
+function convertSuperpositionToIndices(
+  superposition: Superposition,
+  fieldNameIndex: Map<string, number>
+): Superposition {
+  const converted: Superposition = {}
+
+  for (const [fromState, transitions] of Object.entries(superposition)) {
+    if (!transitions) {
+      converted[fromState] = null
+      continue
+    }
+
+    const convertedTransitions: Record<string, any> = {}
+    for (const [toState, conditions] of Object.entries(transitions)) {
+      const convertedConditions: Record<string, any> = {}
+
+      for (const [fieldName, condition] of Object.entries(conditions)) {
+        const fieldIndex = fieldNameIndex.get(fieldName)
+        if (fieldIndex === undefined) {
+          throw new Error(`Field '${fieldName}' not found`)
+        }
+        convertedConditions[fieldIndex] = condition
+      }
+
+      convertedTransitions[toState] = convertedConditions
+    }
+
+    converted[fromState] = convertedTransitions
+  }
+
+  return converted
+}
 
 /**
  * Создаёт и регистрирует монаду.
@@ -53,9 +152,22 @@ export function _resetState(): void {
  */
 export function createMonad(config: MonadConfig): string {
   const id = crypto.randomUUID()
-  _fields.set(id, config.fields)
+  _monadIds.add(id)
+
+  for (const [name, def] of Object.entries(config.fields)) {
+    const registeredField = convertField(def)
+    addMonadField(name, registeredField)
+
+    const count = _fieldUsageCount.get(name) ?? 0
+    _fieldUsageCount.set(name, count + 1)
+
+    if (config.params[name] !== undefined) {
+      _params.set(name, config.params[name])
+    }
+  }
+
+  _monadParams.set(id, { ...config.params })
   _actions.set(id, config.actions)
-  _params.set(id, { ...config.params })
   _superpositions.set(id, config.superposition)
   _states.set(id, config.state)
   return id
@@ -67,9 +179,9 @@ export function createMonad(config: MonadConfig): string {
  * @param id - {@link MonadId} монады.
  */
 export function deleteMonad(id: MonadId): void {
-  _fields.delete(id)
+  _monadIds.delete(id)
+  _monadParams.delete(id)
   _actions.delete(id)
-  _params.delete(id)
   _superpositions.delete(id)
   _states.delete(id)
   _uuidToIndex.delete(id)
@@ -79,38 +191,43 @@ export function deleteMonad(id: MonadId): void {
  * Создаёт/пересоздаёт Boundary со всеми бранами.
  */
 export async function updateBoundary(): Promise<void> {
-  // Получаем все ID монад
-  const monadIds = Array.from(_params.keys())
+  const monadIds = Array.from(_monadIds)
 
-  // Собираем все браны
-  const allBranes = monadIds.map((monadId) => ({
-    params: _params.get(monadId)!,
-    state: _states.get(monadId)!,
-    superposition: _superpositions.get(monadId)!,
-  }))
-
-  if (allBranes.length === 0) {
+  if (monadIds.length === 0) {
     _boundary.current?.clear()
     _boundary.current = null
-    _uuidToIndex.clear()
-    _indexToUuid.clear()
     return
   }
 
-  // Преобразуем поля первой монады в готовые типы
-  const firstFields = _fields.values().next().value
-  if (!firstFields) {
-    throw new Error("No monads registered")
-  }
-  const convertedFields = convertAllFields(firstFields)
+  const fieldsSchema = getGlobalFields()
+
+  // Конвертируем params в кортежи для каждой монады
+  const allBranes = monadIds.map((monadId, i) => {
+    const monadParams = _monadParams.get(monadId)!
+    const paramsTuples: [number, unknown][] = fieldsSchema.map(([index, name, _]) => {
+      return [index, monadParams[name]]
+    })
+
+    const superposition = _superpositions.get(monadId)!
+    const convertedSuperposition = convertSuperpositionToIndices(superposition, _fieldNameIndex)
+
+    return {
+      params: paramsTuples,
+      state: _states.get(monadId)!,
+      superposition: convertedSuperposition
+    }
+  })
 
   // Создаём Boundary если его нет, иначе очищаем существующий
   if (!_boundary.current) _boundary.current = new Boundary()
   else _boundary.current.clear()
 
-  await _boundary.current.write({ fields: convertedFields, branes: allBranes })
+  await _boundary.current.write({
+    fields: fieldsSchema.map(([index, name, field]) => [index, { ...field, name }]),
+    branes: allBranes
+  })
 
-  // Строим маппинги по индексу
+  // Маппинги
   _uuidToIndex.clear()
   _indexToUuid.clear()
   monadIds.forEach((monadId, i) => {
@@ -127,30 +244,35 @@ export async function updateBoundary(): Promise<void> {
  * @throws {Error} Если Boundary не инициализирован. Вызовите updateBoundary() перед updateMonad().
  */
 export async function updateMonad(id: MonadId, fields: Record<string, unknown>): Promise<void> {
-  const params = _params.get(id)
-  if (!params) {
-    throw new Error(`Brane with id ${id} not found`)
-  }
-
-  // Boundary должен быть создан через updateBoundary()
-  if (!_boundary.current) {
-    throw new Error("Boundary not initialized. Call updateBoundary() first.")
-  }
-
   const index = _uuidToIndex.get(id)
   if (index === undefined) {
-    throw new Error(`Brane ${id} not found in boundary`)
+    throw new Error(`Monad ${id} not found in boundary`)
   }
 
-  // Обновляем локально
-  _params.set(id, { ...params, ...fields })
-
-  // Обновляем в Boundary
-  for (const [field, value] of Object.entries(fields)) {
-    _boundary.current.updateBraneField(index, field, value)
+  // Обновляем локально (имена)
+  for (const [name, value] of Object.entries(fields)) {
+    _params.set(name, value)
   }
 
-  // Шаг эволюции
+  // Обновляем params монады
+  const monadParams = _monadParams.get(id)
+  if (monadParams) {
+    _monadParams.set(id, { ...monadParams, ...fields })
+  }
+
+  if (!_boundary.current) {
+    throw new Error("Boundary not initialized")
+  }
+
+  // Конвертируем в кортежи
+  for (const [name, value] of Object.entries(fields)) {
+    const fieldId = _fieldNameIndex.get(name)
+    if (fieldId === undefined) {
+      throw new Error(`Field '${name}' not found`)
+    }
+    _boundary.current.updateBraneField(index, fieldId, value)
+  }
+
   _boundary.current.step()
 
   // Получаем новые состояния и обрабатываем изменения
@@ -167,7 +289,7 @@ export async function updateMonad(id: MonadId, fields: Record<string, unknown>):
       const actions = _actions.get(monadId)
       const action = actions?.[current]
       if (action) {
-        const params = _params.get(monadId)
+        const params = _monadParams.get(monadId)
         if (params) {
           action(params)
         }

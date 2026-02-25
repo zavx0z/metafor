@@ -1,5 +1,5 @@
 import { TYPE } from "../opcodes"
-import { FieldType, type FieldTypeValue } from "../core/FieldRegistry"
+import { FieldType, type FieldTypeValue } from "../index.t"
 import { getStringAtlas, type StringId } from "../strings/StringAtlas"
 
 /**

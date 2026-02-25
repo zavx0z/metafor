@@ -10,6 +10,8 @@ export {
   updateMonad,
   updateBoundary,
   onStateChange,
+  getGlobalFields,
+  getParams,
 } from "./monad"
 
 export type { MonadConfig } from "./types"
@@ -24,5 +26,5 @@ export type {
   UuidToIndexStore,
   IndexToUuidStore,
 } from "./monad.t"
-export { convertField, convertAllFields } from "./field"
-export type { FieldRegisterOptions, RegisteredField } from "./field"
+export { convertField } from "./field"
+export type { Field } from "@metafor/boundary"

@@ -40,7 +40,7 @@ import { GPU } from "./gpu/device"
 import type { DebugOptions, BoundaryConfig } from "./index.t"
 
 export { GPU }
-export { FieldType, type FieldTypeValue } from "./core"
+export { FieldType, type FieldTypeValue, type Field } from "./index.t"
 export type {
   FieldDefinition,
   FieldsDefinition,
@@ -162,7 +162,7 @@ export class Boundary {
 
     this.braneIds = this.braneManager.createEnsemble(
       config.branes.map((b) => b.params),
-      config.fields
+      config.fields,
     )
 
     if (debug("compiler")) {

@@ -24,7 +24,7 @@
  * ```
  */
 
-import { FieldType, type FieldTypeValue, type Field } from "../core/FieldRegistry"
+import { FieldType, type FieldTypeValue, type Field } from "../index.t"
 import { HeapAllocator } from "../memory/HeapAllocator"
 import { BraneBuilder, BlockUtils } from "../memory/BraneBuilder"
 import { getStringAtlas } from "../strings/StringAtlas"

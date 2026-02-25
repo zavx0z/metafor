@@ -20,7 +20,7 @@
  * @packageDocumentation
  */
 
-import { FieldType, type FieldTypeValue, type Field } from "../core/FieldRegistry"
+import { FieldType, type FieldTypeValue, type Field } from "../index.t"
 import { HeapAllocator, type AllocResult } from "./HeapAllocator"
 import { getStringAtlas, type StringId } from "../strings/StringAtlas"
 import type { ValueTuple } from "../index.t"
