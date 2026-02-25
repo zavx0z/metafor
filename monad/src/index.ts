@@ -10,8 +10,6 @@ export {
   updateMonad,
   updateBoundary,
   onStateChange,
-  getGlobalFields,
-  getParams,
 } from "./monad"
 
 export type { MonadConfig } from "./types"
@@ -28,3 +26,4 @@ export type {
 } from "./monad.t"
 export { convertField } from "./field"
 export type { Field } from "@metafor/boundary"
+export { convertSuperpositionToIndices } from "./superposition"

@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import { Boundary, type Superposition, type Field } from "@metafor/boundary"
+import { Boundary, type Field } from "@metafor/boundary"
 import type {
   ActionsStore,
   IndexToUuidStore,
@@ -15,6 +15,7 @@ import type {
 } from "./monad.t"
 import type { MonadConfig } from "./types"
 import { convertField } from "./field"
+import { convertSuperpositionToIndices } from "./superposition"
 
 // ==================== Внутреннее состояние ====================
 
@@ -78,73 +79,6 @@ function addMonadField(name: string, field: Field): number {
 }
 
 /**
- * Возвращает все глобальные поля в виде кортежей [индекс, имя, поле].
- *
- * @returns Отсортированный массив кортежей.
- */
-export function getGlobalFields(): [number, string, Field][] {
-  const result: [number, string, Field][] = []
-  for (const [name, [index, field]] of _globalFields.entries()) {
-    result.push([index, name, field])
-  }
-  return result.sort((a, b) => a[0] - b[0])
-}
-
-/**
- * Возвращает все параметры в виде Record.
- *
- * @returns Record с параметрами.
- */
-export function getParams(): Record<string, unknown> {
-  const result: Record<string, unknown> = {}
-  for (const [name, value] of _params.entries()) {
-    result[name] = value
-  }
-  return result
-}
-
-/**
- * Конвертирует суперпозицию из имён полей в индексы.
- *
- * @param superposition - Суперпозиция с именами полей.
- * @param fieldNameIndex - Маппинг имён в индексы.
- * @returns Суперпозиция с индексами полей.
- * @throws {Error} Если поле не найдено в маппинге.
- */
-function convertSuperpositionToIndices(
-  superposition: Superposition,
-  fieldNameIndex: Map<string, number>
-): Superposition {
-  const converted: Superposition = {}
-
-  for (const [fromState, transitions] of Object.entries(superposition)) {
-    if (!transitions) {
-      converted[fromState] = null
-      continue
-    }
-
-    const convertedTransitions: Record<string, any> = {}
-    for (const [toState, conditions] of Object.entries(transitions)) {
-      const convertedConditions: Record<string, any> = {}
-
-      for (const [fieldName, condition] of Object.entries(conditions)) {
-        const fieldIndex = fieldNameIndex.get(fieldName)
-        if (fieldIndex === undefined) {
-          throw new Error(`Field '${fieldName}' not found`)
-        }
-        convertedConditions[fieldIndex] = condition
-      }
-
-      convertedTransitions[toState] = convertedConditions
-    }
-
-    converted[fromState] = convertedTransitions
-  }
-
-  return converted
-}
-
-/**
  * Создаёт и регистрирует монаду.
  *
  * @param config - Конфигурация монады.
@@ -199,12 +133,17 @@ export async function updateBoundary(): Promise<void> {
     return
   }
 
-  const fieldsSchema = getGlobalFields()
+  // Собираем глобальные поля в отсортированный массив кортежей
+  const fields: [number, string, Field][] = []
+  for (const [name, [index, field]] of _globalFields.entries()) {
+    fields.push([index, name, field])
+  }
+  fields.sort((a, b) => a[0] - b[0])
 
   // Конвертируем params в кортежи для каждой монады
   const allBranes = monadIds.map((monadId, i) => {
     const monadParams = _monadParams.get(monadId)!
-    const paramsTuples: [number, unknown][] = fieldsSchema.map(([index, name, _]) => {
+    const paramsTuples: [number, unknown][] = fields.map(([index, name, _]) => {
       return [index, monadParams[name]]
     })
 
@@ -214,7 +153,7 @@ export async function updateBoundary(): Promise<void> {
     return {
       params: paramsTuples,
       state: _states.get(monadId)!,
-      superposition: convertedSuperposition
+      superposition: convertedSuperposition,
     }
   })
 
@@ -223,8 +162,8 @@ export async function updateBoundary(): Promise<void> {
   else _boundary.current.clear()
 
   await _boundary.current.write({
-    fields: fieldsSchema.map(([index, name, field]) => [index, { ...field, name }]),
-    branes: allBranes
+    fields: fields.map(([index, name, field]) => [index, { ...field, name }]),
+    branes: allBranes,
   })
 
   // Маппинги
