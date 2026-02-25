@@ -15,7 +15,7 @@ import type {
 } from "./monad.t"
 import type { MonadConfig } from "./types"
 import { convertField } from "./field"
-import { convertSuperpositionToIndices } from "./superposition"
+import { convertToNumeric, type LegacySuperposition } from "./superposition"
 
 // ==================== Внутреннее состояние ====================
 
@@ -102,7 +102,7 @@ export function createMonad(config: MonadConfig): string {
 
   _monadParams.set(id, { ...config.params })
   _actions.set(id, config.actions)
-  _superpositions.set(id, config.superposition)
+  _superpositions.set(id, config.superposition as unknown as LegacySuperposition)
   _states.set(id, config.state)
   return id
 }
@@ -141,19 +141,25 @@ export async function updateBoundary(): Promise<void> {
   fields.sort((a, b) => a[0] - b[0])
 
   // Конвертируем params в кортежи для каждой монады
-  const allBranes = monadIds.map((monadId, i) => {
+  const allBranes = monadIds.map((monadId) => {
     const monadParams = _monadParams.get(monadId)!
     const paramsTuples: [number, unknown][] = fields.map(([index, name, _]) => {
       return [index, monadParams[name]]
     })
 
-    const superposition = _superpositions.get(monadId)!
-    const convertedSuperposition = convertSuperpositionToIndices(superposition, _fieldNameIndex)
+    const legacySuperposition = _superpositions.get(monadId)!
+    const superposition = convertToNumeric(legacySuperposition, _fieldNameIndex)
+    
+    // Находим индекс начального состояния
+    const initialStateIndex = superposition.states.indexOf(_states.get(monadId)!)
+    if (initialStateIndex === -1) {
+      throw new Error(`State '${_states.get(monadId)}' not found in superposition`)
+    }
 
     return {
       params: paramsTuples,
-      state: _states.get(monadId)!,
-      superposition: convertedSuperposition,
+      initialStateIndex,
+      superposition,
     }
   })
 

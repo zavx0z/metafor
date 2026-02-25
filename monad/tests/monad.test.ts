@@ -28,7 +28,7 @@ describe("Monad (модуль)", () => {
       params: { cmd: "" },
       state: "ожидание",
       superposition: {
-        ожидание: { выполнение: { cmd: { null: false } } },
+        ожидание: { выполнение: { cmd: { eq: "git status" } } },
         выполнение: null,
       },
       actions: {},
@@ -54,7 +54,7 @@ describe("Monad (модуль)", () => {
       params: { cmd: "" },
       state: "ожидание",
       superposition: {
-        ожидание: { выполнение: { cmd: { null: false } } },
+        ожидание: { выполнение: { cmd: { eq: "git status" } } },
         выполнение: null,
       },
       actions: {},
@@ -78,7 +78,7 @@ describe("Monad (модуль)", () => {
       params: { cmd: "" },
       state: "ожидание",
       superposition: {
-        ожидание: { выполнение: { cmd: { null: false } } },
+        ожидание: { выполнение: { cmd: { eq: "git status" } } },
         выполнение: null,
       },
       actions: {
@@ -115,7 +115,7 @@ describe("Monad (модуль)", () => {
       params: { cmd: "" },
       state: "ожидание",
       superposition: {
-        ожидание: { выполнение: { cmd: { null: false } } },
+        ожидание: { выполнение: { cmd: { eq: "git status" } } },
         выполнение: null,
       },
       actions: {},
@@ -134,7 +134,7 @@ describe("Monad (модуль)", () => {
       params: { cmd: "" },
       state: "ожидание",
       superposition: {
-        ожидание: { выполнение: { cmd: { null: false } } },
+        ожидание: { выполнение: { cmd: { eq: "git status" } } },
         выполнение: null,
       },
       actions: {},

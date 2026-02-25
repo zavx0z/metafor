@@ -4,7 +4,27 @@
  * @packageDocumentation
  */
 
-import type { FieldsDefinition, Superposition } from "@metafor/boundary"
+import type { FieldsDefinition, NumericSuperposition } from "@metafor/boundary"
+
+/**
+ * Суперпозиция в старом формате (для удобства ввода).
+ * Будет автоматически сконвертирована в NumericSuperposition.
+ *
+ * @example
+ * ```typescript
+ * {
+ *   IDLE: {
+ *     PATROL: { hp: { gt: 50 } },  // Переход в PATROL при hp > 50
+ *     DEAD: { hp: { lte: 0 } }     // Переход в DEAD при hp <= 0
+ *   },
+ *   PATROL: null,                   // Терминальное состояние
+ *   DEAD: null
+ * }
+ * ```
+ */
+export interface LegacySuperposition {
+  [state: string]: Record<string, any> | null
+}
 
 /**
  * Конфигурация монады.
@@ -26,14 +46,14 @@ import type { FieldsDefinition, Superposition } from "@metafor/boundary"
  *   state: "IDLE",
  *   superposition: {
  *     IDLE: {
- *       PATROL: { 0: { gt: 50 } },   // ← Приоритет 1: hp > 50
- *       DEAD: { 0: { lte: 0 } }      // ← Приоритет 2: hp <= 0
+ *       PATROL: { hp: { gt: 50 } },   // ← Приоритет 1: hp > 50
+ *       DEAD: { hp: { lte: 0 } }      // ← Приоритет 2: hp <= 0
  *     },
  *     PATROL: {
- *       IDLE: { 1: { lt: 10 } },     // mana < 10 → IDLE
- *       COMBAT: { 2: true }          // isAlive === true → COMBAT
+ *       IDLE: { mana: { lt: 10 } },   // mana < 10 → IDLE
+ *       COMBAT: { isAlive: true }     // isAlive === true → COMBAT
  *     },
- *     DEAD: null                      // Терминальное состояние
+ *     DEAD: null                       // Терминальное состояние
  *   },
  *   actions: {
  *     PATROL: () => console.log("Start patrol"),
@@ -46,7 +66,7 @@ export interface MonadConfig {
   fields: FieldsDefinition
   params: Record<string, unknown>
   state: string
-  superposition: Superposition
+  superposition: LegacySuperposition
   actions: Actions
 }
 

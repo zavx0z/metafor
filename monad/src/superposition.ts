@@ -1,48 +1,88 @@
 /**
- * Конвертация суперпозиций.
+ * Конвертация суперпозиций в NumericSuperposition.
  *
  * @packageDocumentation
  */
 
-import type { Superposition } from "@metafor/boundary"
+import type { NumericSuperposition, Transition } from "@metafor/boundary"
 
 /**
- * Конвертирует суперпозицию из имён полей в индексы.
- *
- * @param superposition - Суперпозиция с именами полей.
- * @param fieldNameIndex - Маппинг имён в индексы.
- * @returns Суперпозиция с индексами полей.
- * @throws {Error} Если поле не найдено в маппинге.
+ * Старый формат суперпозиции (для ввода пользователем).
  */
-export function convertSuperpositionToIndices(
-  superposition: Superposition,
-  fieldNameIndex: Map<string, number>
-): Superposition {
-  const converted: Superposition = {}
+export interface LegacySuperposition {
+  [fromState: string]: Record<string, any> | null
+}
 
-  for (const [fromState, transitions] of Object.entries(superposition)) {
-    if (!transitions) {
-      converted[fromState] = null
+/**
+ * Конвертирует старый формат суперпозиции в NumericSuperposition.
+ *
+ * @param legacy - Старый формат: { IDLE: { PATROL: { hp: { gt: 50 } } }, PATROL: null }
+ * @param fieldNameIndex - Маппинг имён полей в индексы.
+ * @returns NumericSuperposition с числовыми ID состояний и полей.
+ *
+ * @example
+ * ```typescript
+ * const legacy = {
+ *   IDLE: { PATROL: { hp: { gt: 50 } } },
+ *   PATROL: null
+ * }
+ * const fieldNameIndex = new Map([["hp", 0]])
+ * const numeric = convertToNumeric(legacy, fieldNameIndex)
+ * // numeric = {
+ * //   states: ["IDLE", "PATROL"],
+ * //   transitions: [
+ * //     [{ to: 1, conditions: { 0: { gt: 50 } } }],
+ * //     [null]
+ * //   ]
+ * // }
+ * ```
+ */
+export function convertToNumeric(
+  legacy: LegacySuperposition,
+  fieldNameIndex: Map<string, number>
+): NumericSuperposition {
+  const states = Object.keys(legacy)
+  const stateIndex = new Map<string, number>()
+  states.forEach((name, i) => stateIndex.set(name, i))
+
+  const transitions: Array<Array<Transition | null>> = []
+
+  for (const fromState of states) {
+    const transObj = legacy[fromState]
+    if (!transObj) {
+      transitions.push([null])
       continue
     }
 
-    const convertedTransitions: Record<string, any> = {}
-    for (const [toState, conditions] of Object.entries(transitions)) {
-      const convertedConditions: Record<string, any> = {}
+    const fromTransitions: Array<Transition | null> = []
 
-      for (const [fieldName, condition] of Object.entries(conditions)) {
-        const fieldIndex = fieldNameIndex.get(fieldName)
-        if (fieldIndex === undefined) {
-          throw new Error(`Field '${fieldName}' not found`)
-        }
-        convertedConditions[fieldIndex] = condition
+    for (const [toState, conditions] of Object.entries(transObj)) {
+      const toIdx = stateIndex.get(toState)
+      if (toIdx === undefined) {
+        throw new Error(`Unknown state: ${toState}`)
       }
 
-      convertedTransitions[toState] = convertedConditions
+      if (!conditions) {
+        fromTransitions.push({ to: toIdx, conditions: {} })
+      } else {
+        // Конвертируем имена полей → индексы
+        const converted: Record<number, any> = {}
+        for (const [fieldName, cond] of Object.entries(conditions)) {
+          const fieldIdx = fieldNameIndex.get(fieldName)
+          if (fieldIdx === undefined) {
+            throw new Error(`Field '${fieldName}' not found`)
+          }
+          converted[fieldIdx] = cond
+        }
+        fromTransitions.push({ to: toIdx, conditions: converted })
+      }
     }
 
-    converted[fromState] = convertedTransitions
+    transitions.push(fromTransitions)
   }
 
-  return converted
+  return {
+    states,
+    transitions,
+  }
 }
