@@ -34,8 +34,8 @@ describe("Boundary — E2E тесты для индивидуальных суп
 
       await boundary.write({
         fields: [
-          [0, { fieldId: 0, type: FieldType.F32 }],
-          [1, { fieldId: 1, type: FieldType.F32 }],
+          [0, { type: FieldType.F32 }],
+          [1, { type: FieldType.F32 }],
         ],
         branes: [
           { state: "IDLE", params: [[0, 90], [1, 50]], superposition: warriorSuperposition },
@@ -68,7 +68,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 50]], superposition: lowThresholdSuperposition },
           { state: "IDLE", params: [[0, 50]], superposition: highThresholdSuperposition },
@@ -101,7 +101,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 50]], superposition: gtSuperposition },
           { state: "IDLE", params: [[0, 50]], superposition: gteSuperposition },
@@ -135,7 +135,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 95]], superposition: aggressiveSuperposition },
           { state: "IDLE", params: [[0, 15]], superposition: defensiveSuperposition },
@@ -177,9 +177,9 @@ describe("Boundary — E2E тесты для индивидуальных суп
 
       await boundary.write({
         fields: [
-          [0, { fieldId: 0, type: FieldType.F32 }],
-          [1, { fieldId: 1, type: FieldType.F32 }],
-          [2, { fieldId: 2, type: FieldType.BOOL }],
+          [0, { type: FieldType.F32 }],
+          [1, { type: FieldType.F32 }],
+          [2, { type: FieldType.BOOL }],
         ],
         branes: [
           { state: "IDLE", params: [[0, 60], [1, 0], [2, false]], superposition: numericSuperposition },
@@ -212,7 +212,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 60]], superposition: superposition1 },
           { state: "IDLE", params: [[0, 60]], superposition: superposition2 },
@@ -246,8 +246,8 @@ describe("Boundary — E2E тесты для индивидуальных суп
 
       await boundary.write({
         fields: [
-          [0, { fieldId: 0, type: FieldType.F32 }],
-          [1, { fieldId: 1, type: FieldType.F32 }],
+          [0, { type: FieldType.F32 }],
+          [1, { type: FieldType.F32 }],
         ],
         branes: [
           { state: "IDLE", params: [[0, 90], [1, 100]], superposition: unit1Superposition },

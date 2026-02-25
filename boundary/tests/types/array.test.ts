@@ -20,7 +20,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
+        fields: [[0, { type: FieldType.ARRAY_PTR, elementType: "number" }]],
         branes: [
           { state: "IDLE", params: [[0, [1, 5, 10]]], superposition },
           { state: "IDLE", params: [[0, [1, 2, 3]]], superposition },
@@ -45,7 +45,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "string" }]],
+        fields: [[0, { type: FieldType.ARRAY_PTR, elementType: "string" }]],
         branes: [
           { state: "IDLE", params: [[0, ["fire", "ice", "lightning"]]], superposition },
           { state: "IDLE", params: [[0, ["ice", "lightning"]]], superposition },
@@ -70,7 +70,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
+        fields: [[0, { type: FieldType.ARRAY_PTR, elementType: "number" }]],
         branes: [
           { state: "IDLE", params: [[0, [1, 2, 3]]], superposition },
           { state: "IDLE", params: [[0, [99, 100]]], superposition },
@@ -97,7 +97,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
+        fields: [[0, { type: FieldType.ARRAY_PTR, elementType: "number" }]],
         branes: [
           { state: "IDLE", params: [[0, [1, 2, 3]]], superposition },
           { state: "IDLE", params: [[0, [1, 2]]], superposition },
@@ -124,7 +124,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
+        fields: [[0, { type: FieldType.ARRAY_PTR, elementType: "number" }]],
         branes: [
           { state: "IDLE", params: [[0, [1]]], superposition },
           { state: "IDLE", params: [[0, [1, 2]]], superposition },
@@ -151,7 +151,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
+        fields: [[0, { type: FieldType.ARRAY_PTR, elementType: "number" }]],
         branes: [
           { state: "IDLE", params: [[0, []]], superposition },
           { state: "IDLE", params: [[0, [1]]], superposition },
@@ -176,7 +176,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
+        fields: [[0, { type: FieldType.ARRAY_PTR, elementType: "number" }]],
         branes: [
           { state: "IDLE", params: [[0, []]], superposition },
           { state: "IDLE", params: [[0, [1]]], superposition },
@@ -209,8 +209,8 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
 
       await boundary.write({
         fields: [
-          [0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }],
-          [1, { fieldId: 1, type: FieldType.ARRAY_PTR, elementType: "number" }],
+          [0, { type: FieldType.ARRAY_PTR, elementType: "number" }],
+          [1, { type: FieldType.ARRAY_PTR, elementType: "number" }],
         ],
         branes: [
           { state: "IDLE", params: [[0, [1, 2, 3]], [1, [1, 5]]], superposition },
@@ -238,7 +238,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
+        fields: [[0, { type: FieldType.ARRAY_PTR, elementType: "number" }]],
         branes: [{ state: "IDLE", params: [[0, []]], superposition }],
       })
 
@@ -257,7 +257,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
+        fields: [[0, { type: FieldType.ARRAY_PTR, elementType: "number" }]],
         branes: [{ state: "IDLE", params: [[0, [42]]], superposition }],
       })
 
@@ -276,7 +276,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
+        fields: [[0, { type: FieldType.ARRAY_PTR, elementType: "number" }]],
         branes: [
           {
             state: "IDLE",

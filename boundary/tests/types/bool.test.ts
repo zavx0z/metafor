@@ -17,7 +17,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
+        fields: [[0, { type: FieldType.BOOL }]],
         branes: [
           { state: "IDLE", params: [[0, true]], superposition },
           { state: "IDLE", params: [[0, false]], superposition },
@@ -42,7 +42,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
+        fields: [[0, { type: FieldType.BOOL }]],
         branes: [
           { state: "IDLE", params: [[0, false]], superposition },
           { state: "IDLE", params: [[0, true]], superposition },
@@ -67,7 +67,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
+        fields: [[0, { type: FieldType.BOOL }]],
         branes: [
           { state: "IDLE", params: [[0, true]], superposition },
           { state: "IDLE", params: [[0, false]], superposition },
@@ -90,7 +90,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
+        fields: [[0, { type: FieldType.BOOL }]],
         branes: [
           { state: "IDLE", params: [[0, false]], superposition },
           { state: "IDLE", params: [[0, true]], superposition },
@@ -115,7 +115,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
+        fields: [[0, { type: FieldType.BOOL }]],
         branes: [
           { state: "IDLE", params: [[0, true]], superposition },
           { state: "IDLE", params: [[0, false]], superposition },
@@ -138,7 +138,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
+        fields: [[0, { type: FieldType.BOOL }]],
         branes: [
           { state: "IDLE", params: [[0, false]], superposition },
           { state: "IDLE", params: [[0, true]], superposition },
@@ -164,8 +164,8 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
       await boundary.write({
         fields: [
-          [0, { fieldId: 0, type: FieldType.BOOL }],
-          [1, { fieldId: 1, type: FieldType.BOOL }],
+          [0, { type: FieldType.BOOL }],
+          [1, { type: FieldType.BOOL }],
         ],
         branes: [
           { state: "IDLE", params: [[0, true], [1, true]], superposition },
@@ -194,8 +194,8 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
       await boundary.write({
         fields: [
-          [0, { fieldId: 0, type: FieldType.BOOL }],
-          [1, { fieldId: 1, type: FieldType.BOOL }],
+          [0, { type: FieldType.BOOL }],
+          [1, { type: FieldType.BOOL }],
         ],
         branes: [
           { state: "IDLE", params: [[0, true], [1, false]], superposition },
@@ -223,7 +223,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
+        fields: [[0, { type: FieldType.BOOL }]],
         branes: [{ state: "IDLE", params: [[0, false]], superposition }],
       })
 
@@ -243,7 +243,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
+        fields: [[0, { type: FieldType.BOOL }]],
         branes: [{ state: "IDLE", params: [[0, true]], superposition }],
       })
 
@@ -266,8 +266,8 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
       await boundary.write({
         fields: [
-          [0, { fieldId: 0, type: FieldType.BOOL }],
-          [1, { fieldId: 1, type: FieldType.F32 }],
+          [0, { type: FieldType.BOOL }],
+          [1, { type: FieldType.F32 }],
         ],
         branes: [
           { state: "IDLE", params: [[0, true], [1, 100]], superposition },

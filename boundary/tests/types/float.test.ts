@@ -17,7 +17,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 42]], superposition },
           { state: "IDLE", params: [[0, 41]], superposition },
@@ -42,7 +42,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, -10]], superposition },
           { state: "IDLE", params: [[0, 10]], superposition },
@@ -65,7 +65,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 3.14]], superposition },
           { state: "IDLE", params: [[0, 3.15]], superposition },
@@ -88,7 +88,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 0]], superposition },
           { state: "IDLE", params: [[0, 0.001]], superposition },
@@ -113,7 +113,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 42]], superposition },
           { state: "IDLE", params: [[0, 41]], superposition },
@@ -138,7 +138,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 0]], superposition },
           { state: "IDLE", params: [[0, 1]], superposition },
@@ -161,7 +161,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 100]], superposition },
           { state: "IDLE", params: [[0, 99]], superposition },
@@ -186,7 +186,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 100]], superposition },
           { state: "IDLE", params: [[0, 50]], superposition },
@@ -211,7 +211,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, -5]], superposition },
           { state: "IDLE", params: [[0, -10]], superposition },
@@ -238,7 +238,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 49]], superposition },
           { state: "IDLE", params: [[0, 50]], superposition },
@@ -263,7 +263,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, -10]], superposition },
           { state: "IDLE", params: [[0, -5]], superposition },
@@ -290,7 +290,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 100]], superposition },
           { state: "IDLE", params: [[0, 50]], superposition },
@@ -317,7 +317,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 49]], superposition },
           { state: "IDLE", params: [[0, 50]], superposition },
@@ -344,7 +344,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 10]], superposition },
           { state: "IDLE", params: [[0, 20]], superposition },
@@ -371,7 +371,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [{ state: "IDLE", params: [[0, 10]], superposition }],
       })
 
@@ -392,7 +392,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 10]], superposition },
           { state: "IDLE", params: [[0, 15]], superposition },
@@ -419,7 +419,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 9]], superposition },
           { state: "IDLE", params: [[0, 10]], superposition },
@@ -450,7 +450,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 49]], superposition },
           { state: "IDLE", params: [[0, 50]], superposition },
@@ -475,7 +475,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 49]], superposition },
           { state: "IDLE", params: [[0, 50]], superposition },
@@ -500,7 +500,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 49]], superposition },
           { state: "IDLE", params: [[0, 50]], superposition },
@@ -525,7 +525,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 49]], superposition },
           { state: "IDLE", params: [[0, 50]], superposition },
@@ -552,7 +552,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 9]], superposition },
           { state: "IDLE", params: [[0, 15]], superposition },
@@ -579,7 +579,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [{ state: "IDLE", params: [[0, 30]], superposition }],
       })
 

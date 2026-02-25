@@ -29,9 +29,9 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
       await boundary.write({
         fields: [
-          [0, { fieldId: 0, type: FieldType.F32 }],
-          [1, { fieldId: 1, type: FieldType.F32 }],
-          [2, { fieldId: 2, type: FieldType.BOOL }],
+          [0, { type: FieldType.F32 }],
+          [1, { type: FieldType.F32 }],
+          [2, { type: FieldType.BOOL }],
         ],
         branes: [
           { state: "IDLE", params: [[0, 100], [1, 100], [2, true]], superposition: defaultSuperposition },
@@ -55,7 +55,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 100]], superposition },
           { state: "IDLE", params: [[0, 50]], superposition },
@@ -78,7 +78,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 50]], superposition },
           { state: "IDLE", params: [[0, 49]], superposition },
@@ -101,7 +101,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 49]], superposition },
           { state: "IDLE", params: [[0, 50]], superposition },
@@ -126,7 +126,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
+        fields: [[0, { type: FieldType.BOOL }]],
         branes: [
           { state: "IDLE", params: [[0, true]], superposition },
           { state: "IDLE", params: [[0, false]], superposition },
@@ -149,7 +149,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
+        fields: [[0, { type: FieldType.BOOL }]],
         branes: [
           { state: "ACTIVE", params: [[0, false]], superposition },
           { state: "ACTIVE", params: [[0, true]], superposition },
@@ -180,8 +180,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
       await boundary.write({
         fields: [
-          [0, { fieldId: 0, type: FieldType.F32 }],
-          [1, { fieldId: 1, type: FieldType.F32 }],
+          [0, { type: FieldType.F32 }],
+          [1, { type: FieldType.F32 }],
         ],
         branes: [
           { state: "IDLE", params: [[0, 100], [1, 50]], superposition },
@@ -209,7 +209,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [{ state: "IDLE", params: [[0, 100]], superposition }],
       })
 
@@ -229,7 +229,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [{ state: "IDLE", params: [[0, 100]], superposition }],
       })
 
@@ -253,8 +253,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
       await boundary.write({
         fields: [
-          [0, { fieldId: 0, type: FieldType.F32 }],
-          [1, { fieldId: 1, type: FieldType.F32 }],
+          [0, { type: FieldType.F32 }],
+          [1, { type: FieldType.F32 }],
         ],
         branes: [{ state: "IDLE", params: [[0, 100], [1, 5]], superposition }],
       })
@@ -277,7 +277,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 100]], superposition },
           { state: "IDLE", params: [[0, 200]], superposition },
@@ -302,7 +302,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 100]], superposition },
           { state: "ACTIVE", params: [[0, 30]], superposition },
@@ -338,8 +338,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
       await boundary.write({
         fields: [
-          [0, { fieldId: 0, type: FieldType.F32 }],
-          [1, { fieldId: 1, type: FieldType.F32 }],
+          [0, { type: FieldType.F32 }],
+          [1, { type: FieldType.F32 }],
         ],
         branes: [
           { state: "IDLE", params: [[0, 90], [1, 50]], superposition: warriorSuperposition },
@@ -370,7 +370,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 50]], superposition: lowThresholdSuperposition },
           { state: "IDLE", params: [[0, 50]], superposition: highThresholdSuperposition },
@@ -400,7 +400,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "IDLE", params: [[0, 95]], superposition: aggressiveSuperposition },
           { state: "IDLE", params: [[0, 15]], superposition: defensiveSuperposition },
@@ -440,9 +440,9 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
       await boundary.write({
         fields: [
-          [0, { fieldId: 0, type: FieldType.F32 }],
-          [1, { fieldId: 1, type: FieldType.F32 }],
-          [2, { fieldId: 2, type: FieldType.BOOL }],
+          [0, { type: FieldType.F32 }],
+          [1, { type: FieldType.F32 }],
+          [2, { type: FieldType.BOOL }],
         ],
         branes: [
           { state: "IDLE", params: [[0, 60], [1, 0], [2, false]], superposition: numericSuperposition },

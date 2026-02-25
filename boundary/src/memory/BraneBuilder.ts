@@ -230,7 +230,7 @@ export class BraneBuilder {
             const enumIndex = layout.field.enumValues.indexOf(layout.value)
             if (enumIndex === -1) {
               throw new Error(
-                `Значение '${String(layout.value)}' не найдено в enum '${layout.fieldId}': [${layout.field.enumValues.join(", ")}]`,
+                `Значение '${String(layout.value)}' не найдено в enum #${layout.fieldId}: [${layout.field.enumValues.join(", ")}]`,
               )
             }
             dataView.setUint32(offsetBytes, enumIndex, true)
@@ -263,7 +263,7 @@ export class BraneBuilder {
         }
         case FieldType.ARRAY_PTR: {
           if (!Array.isArray(layout.value)) {
-            throw new Error(`Ожидался массив для поля '${layout.fieldId}'`)
+            throw new Error(`Ожидался массив для поля #${layout.fieldId}`)
           }
 
           const elementType = layout.field.elementType

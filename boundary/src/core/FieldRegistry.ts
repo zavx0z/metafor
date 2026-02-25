@@ -16,9 +16,7 @@ export const FieldType = {
 export type FieldTypeValue = typeof FieldType[keyof typeof FieldType]
 
 export interface Field {
-  fieldId: number
   type: FieldTypeValue
-  name?: string
   elementType?: string
   enumValues?: any[]
 }

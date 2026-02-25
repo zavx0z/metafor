@@ -21,7 +21,7 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "GROUND", params: [[0, 1]], superposition }, // WALK -> MOVING
           { state: "GROUND", params: [[0, 3]], superposition }, // FLY -> AIR
@@ -48,7 +48,7 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "NORMAL", params: [[0, 36.6]], superposition },
           { state: "NORMAL", params: [[0, 37.0]], superposition },
@@ -77,7 +77,7 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
       }
 
       await boundary.write({
-        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
+        fields: [[0, { type: FieldType.F32 }]],
         branes: [
           { state: "LOBBY", params: [[0, 1]], superposition }, // Player -> GAME
           { state: "LOBBY", params: [[0, 0]], superposition }, // Spectator -> LOBBY
@@ -108,8 +108,8 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
 
       await boundary.write({
         fields: [
-          [0, { fieldId: 0, type: FieldType.F32 }],
-          [1, { fieldId: 1, type: FieldType.F32 }],
+          [0, { type: FieldType.F32 }],
+          [1, { type: FieldType.F32 }],
         ],
         branes: [
           { state: "START", params: [[0, 150], [1, 5]], superposition }, // OK

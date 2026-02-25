@@ -27,7 +27,7 @@ describe("Компиляция индивидуальных суперпозиц
         IDLE: { PATROL: { 0: { gt: 50 } } },
         PATROL: null,
       }
-      const fields: FieldTuple[] = [[0, { fieldId: 0, type: FieldType.F32 }]]
+      const fields: FieldTuple[] = [[0, { type: FieldType.F32 }]]
 
       const result = compiler.compileSingle(superposition, fields)
 
@@ -51,8 +51,8 @@ describe("Компиляция индивидуальных суперпозиц
       }
 
       const fields: FieldTuple[] = [
-        [0, { fieldId: 0, type: FieldType.F32 }],
-        [1, { fieldId: 1, type: FieldType.F32 }],
+        [0, { type: FieldType.F32 }],
+        [1, { type: FieldType.F32 }],
       ]
 
       const result1 = compiler.compileSingle(superposition1, fields)
@@ -77,8 +77,8 @@ describe("Компиляция индивидуальных суперпозиц
         { IDLE: { PATROL: { 1: { lt: 10 } } }, PATROL: null },
       ]
       const fields: FieldTuple[] = [
-        [0, { fieldId: 0, type: FieldType.F32 }],
-        [1, { fieldId: 1, type: FieldType.F32 }],
+        [0, { type: FieldType.F32 }],
+        [1, { type: FieldType.F32 }],
       ]
 
       const result = compiler.compileEnsemble(superpositions, fields)
@@ -103,7 +103,7 @@ describe("Компиляция индивидуальных суперпозиц
         { IDLE: { COMBAT: { 0: { gt: 80 } } }, COMBAT: { VICTORY: { 0: { gt: 90 } } }, VICTORY: null },
         { IDLE: { DEFEND: { 0: { lte: 50 } } }, DEFEND: { FORTIFY: { 0: { lte: 20 } } }, FORTIFY: null },
       ]
-      const fields: FieldTuple[] = [[0, { fieldId: 0, type: FieldType.F32 }]]
+      const fields: FieldTuple[] = [[0, { type: FieldType.F32 }]]
 
       const result = compiler.compileEnsemble(superpositions, fields)
 
@@ -124,7 +124,7 @@ describe("Компиляция индивидуальных суперпозиц
         { IDLE: { B: { 0: { gt: 20 } } }, B: null },
         { IDLE: { C: { 0: { gt: 30 } } }, C: null },
       ]
-      const fields: FieldTuple[] = [[0, { fieldId: 0, type: FieldType.F32 }]]
+      const fields: FieldTuple[] = [[0, { type: FieldType.F32 }]]
 
       const result = compiler.compileEnsemble(superpositions, fields)
 
@@ -154,7 +154,7 @@ describe("Компиляция индивидуальных суперпозиц
         ACTIVE: null,
       }
 
-      const fields: FieldTuple[] = [[0, { fieldId: 0, type: FieldType.F32 }]]
+      const fields: FieldTuple[] = [[0, { type: FieldType.F32 }]]
 
       const result = compiler.compileEnsemble([superposition0, superposition1], fields)
 
@@ -204,9 +204,9 @@ describe("Компиляция индивидуальных суперпозиц
       }
 
       const fields: FieldTuple[] = [
-        [0, { fieldId: 0, type: FieldType.F32 }],
-        [1, { fieldId: 1, type: FieldType.F32 }],
-        [2, { fieldId: 2, type: FieldType.BOOL }],
+        [0, { type: FieldType.F32 }],
+        [1, { type: FieldType.F32 }],
+        [2, { type: FieldType.BOOL }],
       ]
 
       const result = compiler.compileEnsemble([superposition0, superposition1, superposition2], fields)
@@ -231,8 +231,8 @@ describe("Компиляция индивидуальных суперпозиц
       }
 
       const fields: FieldTuple[] = [
-        [0, { fieldId: 0, type: FieldType.F32 }],
-        [1, { fieldId: 1, type: FieldType.F32 }],
+        [0, { type: FieldType.F32 }],
+        [1, { type: FieldType.F32 }],
       ]
 
       const result = compiler.compileSingle(superposition, fields)
@@ -263,7 +263,7 @@ describe("Компиляция индивидуальных суперпозиц
         DEAD: null,
       }
 
-      const fields: FieldTuple[] = [[0, { fieldId: 0, type: FieldType.F32 }]]
+      const fields: FieldTuple[] = [[0, { type: FieldType.F32 }]]
 
       const result = compiler.compileSingle(superposition, fields)
 
@@ -289,8 +289,8 @@ describe("Компиляция индивидуальных суперпозиц
       }
 
       const fields: FieldTuple[] = [
-        [0, { fieldId: 0, type: FieldType.F32 }],
-        [1, { fieldId: 1, type: FieldType.F32 }],
+        [0, { type: FieldType.F32 }],
+        [1, { type: FieldType.F32 }],
       ]
 
       const result = compiler.compileEnsemble([warriorSuperposition, mageSuperposition], fields)

@@ -47,7 +47,7 @@ type Superposition = Record<string, Transitions | null | undefined>
 export class RulesCompiler {
   private bytecode: number[] = []
   private states: string[] = []
-  private fields: Map<number, { fieldId: number; type: number; subType?: number | undefined; enumValues?: any[] | undefined }> = new Map()
+  private fields: Map<number, { type: number; subType?: number | undefined; enumValues?: any[] | undefined }> = new Map()
 
   /**
    * Компилирует массив superposition в единый конкатенированный bytecode.
@@ -108,7 +108,6 @@ export class RulesCompiler {
           subType = undefined
       }
       this.fields.set(fieldId, {
-        fieldId,
         type: typeCode,
         ...(subType !== undefined ? { subType } : {}),
         ...(field.enumValues !== undefined ? { enumValues: field.enumValues } : {}),
@@ -186,7 +185,6 @@ export class RulesCompiler {
             subType = undefined
         }
         this.fields.set(fieldId, {
-          fieldId,
           type: typeCode,
           ...(subType !== undefined ? { subType } : {}),
           ...(field.enumValues !== undefined ? { enumValues: field.enumValues } : {}),
@@ -288,7 +286,7 @@ export class RulesCompiler {
         // 1. type
         this.bytecode.push(field.type)
         // 2. field_id
-        this.bytecode.push(field.fieldId)
+        this.bytecode.push(fieldId)
         // 3. оператор
         this.bytecode.push(check.op)
         // 4. значение (или указатель на кучу для массивов)
@@ -413,7 +411,7 @@ export class RulesCompiler {
   }
 
   private getEncodingContextForOp(
-    field: { fieldId: number; type: number; subType?: number | undefined; enumValues?: any[] | undefined },
+    field: { type: number; subType?: number | undefined; enumValues?: any[] | undefined },
     op: number,
   ): { subType?: number | undefined; enumValues?: any[] | undefined } | undefined {
     // Для массивов include/notInclude значение нужно кодировать в тип элемента.
