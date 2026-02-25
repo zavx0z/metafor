@@ -1,10 +1,17 @@
-import { test, expect, describe, beforeAll } from "bun:test"
+import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import { Boundary, GPU, FieldType } from "../../src/index"
 
 describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
+  let boundary: Boundary
+
   beforeAll(async () => {
     GPU._device = await setupDevice()
+    boundary = new Boundary()
+  })
+
+  afterEach(() => {
+    boundary.clear()
   })
 
   // ПРИМЕЧАНИЕ: Значения enum хранятся как индексы в массиве значений.
@@ -12,7 +19,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
 
   describe("Оператор EQ (равно)", () => {
     test("должен выполнить переход, когда значение равно указанному (строковый enum)", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { eq: "ACTIVE" } } },
@@ -39,7 +46,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
     })
 
     test("должен выполнить переход, когда значение равно указанному (числовой enum)", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { eq: 2 } } },
@@ -68,7 +75,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
 
   describe("Оператор NEQ (не равно)", () => {
     test("должен выполнить переход, когда значение не равно указанному", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { neq: "IDLE" } } },
@@ -97,7 +104,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
 
   describe("Оператор GT (больше)", () => {
     test("должен выполнить переход, когда значение больше указанного", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { gt: 1 } } },
@@ -126,7 +133,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
 
   describe("Оператор LT (меньше)", () => {
     test("должен выполнить переход, когда значение меньше указанного", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { lt: 3 } } },
@@ -155,7 +162,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
 
   describe("Оператор GTE (больше или равно)", () => {
     test("должен выполнить переход, когда значение больше или равно указанному", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { gte: 3 } } },
@@ -184,7 +191,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
 
   describe("Оператор LTE (меньше или равно)", () => {
     test("должен выполнить переход, когда значение меньше или равно указанному", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { lte: 2 } } },
@@ -213,7 +220,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
 
   describe("Оператор IN (в списке)", () => {
     test("должен выполнить переход, если значение в списке", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { in: ["ACTIVE", "RUNNING"] } } },
@@ -244,7 +251,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
 
   describe("Оператор NOT_IN (не в списке)", () => {
     test("должен выполнить переход, если значение не в списке", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { notIn: ["IDLE", "DEAD"] } } },
@@ -275,7 +282,7 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
 
   describe("Множественные условия", () => {
     test("должен выполнить переход, когда условия выполнены", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { gte: 2, lte: 4 } } },

@@ -1,10 +1,17 @@
-import { test, expect, describe, beforeAll } from "bun:test"
+import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import { Boundary, GPU, FieldType } from "../src/index"
 
 describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
+  let boundary: Boundary
+
   beforeAll(async () => {
     GPU._device = await setupDevice()
+    boundary = new Boundary()
+  })
+
+  afterEach(() => {
+    boundary.clear()
   })
 
   /** Общая суперпозиция для тестов hp/mana/isAlive */
@@ -25,7 +32,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Базовые переходы состояний", () => {
     test("должен перейти из IDLE в DEAD при hp <= 0", async () => {
-      const boundary = new Boundary()
+      
 
       await boundary.write({
         fields: [
@@ -47,7 +54,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("должен перейти из IDLE в PATROL при hp > 50", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { PATROL: { 0: { gt: 50 } } },
@@ -70,7 +77,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("должен перейти из IDLE в PATROL при hp >= 50", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { PATROL: { 0: { gte: 50 } } },
@@ -93,7 +100,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("должен перейти из IDLE в PATROL при hp < 50", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { PATROL: { 0: { lt: 50 } } },
@@ -118,7 +125,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Логические условия", () => {
     test("должен перейти при логическом компоненте = true", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: true } },
@@ -141,7 +148,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("должен перейти при логическом компоненте = false", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         ACTIVE: { DEAD: { 0: false } },
@@ -166,7 +173,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Множественные условия", () => {
     test("должен перейти при выполнении обоих условий", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: {
@@ -201,7 +208,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Обновление браны", () => {
     test("должен перейти после обновления браны", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { DEAD: { 0: { lte: 0 } } },
@@ -221,7 +228,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("не должен переходить после обновления браны при невыполнении условия", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { PATROL: { 0: { gt: 50 } } },
@@ -243,7 +250,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Многошаговая симуляция", () => {
     test("должен пройти через несколько состояний", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { PATROL: { 0: { gt: 50 } } },
@@ -269,7 +276,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Граничные случаи", () => {
     test("должен обрабатывать несколько полей с одинаковым начальным состоянием", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { gt: 0 } } },
@@ -294,7 +301,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("должен обрабатывать поля с разными начальными состояниями", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { gt: 50 } } },
@@ -319,7 +326,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
   describe("Поля с разными суперпозициями", () => {
     test("каждое поле имеет свою суперпозицию с разными состояниями", async () => {
-      const boundary = new Boundary()
+      
 
       const warriorSuperposition = {
         IDLE: { COMBAT: { 0: { gt: 80 } } },
@@ -357,7 +364,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("поля с одинаковыми состояниями, но разными условиями перехода", async () => {
-      const boundary = new Boundary()
+      
 
       const lowThresholdSuperposition = {
         IDLE: { ACTIVE: { 0: { gt: 30 } } },
@@ -385,7 +392,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("поля с полностью разными конечными автоматами", async () => {
-      const boundary = new Boundary()
+      
 
       const aggressiveSuperposition = {
         IDLE: { ATTACK: { 0: { gt: 50 } } },
@@ -416,7 +423,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
     })
 
     test("поля с разными типами условий в суперпозиции", async () => {
-      const boundary = new Boundary()
+      
 
       const numericSuperposition = {
         IDLE: { ACTIVE: { 0: { gt: 50 } } },

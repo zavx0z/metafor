@@ -1,10 +1,17 @@
-import { test, expect, describe, beforeAll } from "bun:test"
+import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import { Boundary, GPU, FieldType } from "../../src/index"
 
 describe("Boundary - тип ARRAY с bun-webgpu", () => {
+  let boundary: Boundary
+
   beforeAll(async () => {
     GPU._device = await setupDevice()
+    boundary = new Boundary()
+  })
+
+  afterEach(() => {
+    boundary.clear()
   })
 
   // ПРИМЕЧАНИЕ: Тип ARRAY хранится как длина + указатели на элементы.
@@ -12,7 +19,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
 
   describe("Оператор INCLUDE (содержит элемент)", () => {
     test("должен выполнить переход, если массив содержит указанный элемент (число)", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { include: 5 } } },
@@ -37,7 +44,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
     })
 
     test("должен выполнить переход, если массив содержит указанный элемент (строка)", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { include: "fire" } } },
@@ -62,7 +69,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
 
   describe("Оператор NOT_INCLUDE (не содержит элемент)", () => {
     test("должен выполнить переход, если массив не содержит указанный элемент", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { notInclude: 99 } } },
@@ -89,7 +96,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
 
   describe("Оператор LENGTH (длина массива)", () => {
     test("должен выполнить переход, когда длина равна указанному значению", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { length: 3 } } },
@@ -116,7 +123,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
     })
 
     test("должен поддерживать сравнение длины с операторами", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { length: { gte: 2 } } } },
@@ -143,7 +150,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
 
   describe("Оператор IS_EMPTY (пустой массив)", () => {
     test("должен выполнить переход, если массив пустой", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { EMPTY: { 0: { isEmpty: true } } },
@@ -168,7 +175,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
     })
 
     test("должен выполнить переход, если массив не пустой (isEmpty: false)", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { isEmpty: false } } },
@@ -195,7 +202,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
 
   describe("Комбинированные условия с массивами", () => {
     test("должен выполнить переход, когда несколько условий выполнены", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: {
@@ -230,7 +237,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
 
   describe("Пограничные случаи", () => {
     test("должен корректно обрабатывать пустой массив", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { isEmpty: true } } },
@@ -249,7 +256,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
     })
 
     test("должен корректно обрабатывать массив с одним элементом", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { length: 1 } } },
@@ -268,7 +275,7 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
     })
 
     test("должен корректно обрабатывать большой массив", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { length: 100 } } },

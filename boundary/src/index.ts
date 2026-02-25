@@ -34,7 +34,7 @@
 
 import { GPUBackend } from "./gpu/Backend"
 import { RulesCompiler } from "./compiler/RulesCompiler"
-import { BraneManager, FieldType, type FieldTypeValue } from "./core"
+import { BraneManager } from "./core"
 import { resetStringAtlas, getStringAtlas } from "./strings"
 import { GPU } from "./gpu/device"
 import type { DebugOptions, BoundaryConfig } from "./index.t"

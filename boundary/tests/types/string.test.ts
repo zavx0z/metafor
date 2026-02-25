@@ -1,10 +1,17 @@
-import { test, expect, describe, beforeAll } from "bun:test"
+import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import { Boundary, GPU, FieldType } from "../../src/index"
 
 describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
+  let boundary: Boundary
+
   beforeAll(async () => {
     GPU._device = await setupDevice()
+    boundary = new Boundary()
+  })
+
+  afterEach(() => {
+    boundary.clear()
   })
 
   // Тип STRING использует интернирование через StringAtlas.
@@ -12,7 +19,7 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
 
   describe("Оператор EQ (равно)", () => {
     test("должен выполнить переход, когда значение равно указанному", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { eq: "hero" } } },
@@ -37,7 +44,7 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
 
   describe("Оператор NEQ (не равно)", () => {
     test("должен выполнить переход, когда значение не равно указанному", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { neq: "enemy" } } },
@@ -62,7 +69,7 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
 
   describe("Оператор IN (в списке)", () => {
     test("должен выполнить переход, если значение в списке", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { in: ["warrior", "mage", "rogue"] } } },
@@ -89,7 +96,7 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
 
   describe("Обновление строковых значений", () => {
     test("должен корректно применить обновление строки и обработать IN", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { in: ["warrior", "mage"] } } },
@@ -111,7 +118,7 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
 
   describe("Оператор NOT_IN (не в списке)", () => {
     test("должен выполнить переход, если значение не в списке", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { notIn: ["enemy", "boss"] } } },
@@ -138,7 +145,7 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
 
   describe("Пустые строки", () => {
     test("должен корректно обрабатывать пустую строку", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { eq: "" } } },
@@ -163,7 +170,7 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
 
   describe("Специальные символы", () => {
     test("должен корректно обрабатывать строки со специальными символами", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { eq: "test-123_@#" } } },
@@ -188,7 +195,7 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
 
   describe("Чувствительность к регистру", () => {
     test("должен быть чувствительным к регистру при сравнении", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { eq: "Hero" } } },

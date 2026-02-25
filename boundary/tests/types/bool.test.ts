@@ -1,15 +1,22 @@
-import { test, expect, describe, beforeAll } from "bun:test"
+import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import { Boundary, GPU, FieldType } from "../../src/index"
 
 describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () => {
+  let boundary: Boundary
+
   beforeAll(async () => {
     GPU._device = await setupDevice()
+    boundary = new Boundary()
+  })
+
+  afterEach(() => {
+    boundary.clear()
   })
 
   describe("Прямое значение true", () => {
     test("должен выполнить переход, когда значение равно true", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: true } },
@@ -34,7 +41,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
   describe("Прямое значение false", () => {
     test("должен выполнить переход, когда значение равно false", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { DEAD: { 0: false } },
@@ -59,7 +66,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
   describe("Оператор EQ (равно)", () => {
     test("должен выполнить переход, когда значение равно true", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { eq: true } } },
@@ -82,7 +89,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
     })
 
     test("должен выполнить переход, когда значение равно false", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { DEAD: { 0: { eq: false } } },
@@ -107,7 +114,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
   describe("Оператор NEQ (не равно)", () => {
     test("должен выполнить переход, когда значение не равно true", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { DEAD: { 0: { neq: true } } },
@@ -130,7 +137,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
     })
 
     test("должен выполнить переход, когда значение не равно false", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: { neq: false } } },
@@ -155,7 +162,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
   describe("Множественные логические условия", () => {
     test("должен выполнить переход, когда все условия выполнены (И)", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: true, 1: true } },
@@ -185,7 +192,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
     })
 
     test("должен выполнить переход с разными комбинациями логических значений", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: true, 1: false } },
@@ -215,7 +222,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
   describe("Обновление логических значений", () => {
     test("должен выполнить переход после обновления значения на true", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { ACTIVE: { 0: true } },
@@ -235,7 +242,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
     })
 
     test("должен выполнить переход после обновления значения на false", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { DEAD: { 0: false } },
@@ -257,7 +264,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
   describe("Смешанные условия (логическое + число)", () => {
     test("должен выполнить переход, когда оба условия разных типов выполнены", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition = {
         IDLE: { COMBAT: { 0: true, 1: { gt: 50 } } },

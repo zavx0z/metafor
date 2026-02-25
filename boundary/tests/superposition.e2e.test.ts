@@ -1,4 +1,4 @@
-import { test, expect, describe, beforeAll } from "bun:test"
+import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import { Boundary, GPU, FieldType } from "../src/index"
 
@@ -9,13 +9,20 @@ import { Boundary, GPU, FieldType } from "../src/index"
  * на GPU с разными суперпозициями для каждого поля.
  */
 describe("Boundary — E2E тесты для индивидуальных суперпозиций (bun-webgpu)", () => {
+  let boundary: Boundary
+
   beforeAll(async () => {
     GPU._device = await setupDevice()
+    boundary = new Boundary()
+  })
+
+  afterEach(() => {
+    boundary.clear()
   })
 
   describe("Поля с разными состояниями", () => {
     test("каждое поле переходит в целевое состояние", async () => {
-      const boundary = new Boundary()
+      
 
       const warriorSuperposition = {
         IDLE: { COMBAT: { 0: { gt: 80 } } },
@@ -55,7 +62,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
 
   describe("Поля с разными условиями перехода", () => {
     test("разные пороги для одного перехода", async () => {
-      const boundary = new Boundary()
+      
 
       const lowThresholdSuperposition = {
         IDLE: { ACTIVE: { 0: { gt: 30 } } },
@@ -83,7 +90,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
     })
 
     test("разные операторы сравнения", async () => {
-      const boundary = new Boundary()
+      
 
       const gtSuperposition = {
         IDLE: { ACTIVE: { 0: { gt: 50 } } },
@@ -120,7 +127,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
 
   describe("Поля с полностью разными конечными автоматами", () => {
     test("агрессивный против защитного юнита", async () => {
-      const boundary = new Boundary()
+      
 
       const aggressiveSuperposition = {
         IDLE: { ATTACK: { 0: { gt: 50 } } },
@@ -153,7 +160,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
 
   describe("Разные типы условий", () => {
     test("числовые, логические и множественные условия", async () => {
-      const boundary = new Boundary()
+      
 
       const numericSuperposition = {
         IDLE: { ACTIVE: { 0: { gt: 50 } } },
@@ -199,7 +206,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
 
   describe("Обновление браны с индивидуальной суперпозицией", () => {
     test("разные начальные значения с разными порогами", async () => {
-      const boundary = new Boundary()
+      
 
       const superposition1 = {
         IDLE: { ACTIVE: { 0: { gt: 50 } } },
@@ -229,7 +236,7 @@ describe("Boundary — E2E тесты для индивидуальных суп
 
   describe("Многошаговая симуляция", () => {
     test("каждое поле следует своему пути состояний", async () => {
-      const boundary = new Boundary()
+      
 
       const unit1Superposition = {
         IDLE: { PHASE1: { 0: { gt: 80 } } },
