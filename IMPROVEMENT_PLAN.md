@@ -3,7 +3,7 @@
 > Улучшаем имеющуюся архитектуру перед переходом на numeric ID состояний
 
 **Дата:** 26 февраля 2026 г.
-**Статус:** Приоритет 1 (Документирование) — ✅ Выполнено
+**Статус:** Приоритет 1 (Документирование) — ✅ Выполнено, Приоритет 5 (Разделение RulesCompiler) — ✅ Выполнено
 
 ---
 
@@ -213,11 +213,11 @@ if (monadParams) {
 
 ---
 
-## Приоритет 5: Разделение RulesCompiler
+## Приоритет 5: Разделение RulesCompiler ✅
 
 ### Проблема
 
-`RulesCompiler` делает всё:
+`RulesCompiler` делал всё:
 
 ```typescript
 export class RulesCompiler {
@@ -237,40 +237,48 @@ export class RulesCompiler {
 
 Выделить вспомогательные классы для разделения ответственности.
 
-### Файлы
+### Выполненные изменения
 
-| Файл | Статус | Описание |
-|------|--------|----------|
-| `boundary/src/compiler/BytecodeEncoder.ts` | Новый | `encodeValue()`, `encodeCondition()` |
-| `boundary/src/compiler/ConditionParser.ts` | Новый | `parseCondition()` |
-| `boundary/src/compiler/RulesCompiler.ts` | Рефакторинг | Делегирование новым классам |
+**Созданные файлы:**
 
-### Структура новых классов
+| Файл | Описание |
+|------|----------|
+| `boundary/src/compiler/ConditionParser.ts` | Класс `ConditionParser` для парсинга условий |
+| `boundary/src/compiler/BytecodeEncoder.ts` | Класс `BytecodeEncoder` для кодирования значений |
 
-**BytecodeEncoder.ts:**
+**Изменённые файлы:**
 
-```typescript
-export class BytecodeEncoder {
-  encodeValue(
-    inputType: number,
-    val: any,
-    contextField?: { subType?: number; enumValues?: any[] }
-  ): number
+| Файл | Изменение |
+|------|-----------|
+| `boundary/src/compiler/RulesCompiler.ts` | Удалены `parseCondition`, `encodeValue`, `getEncodingContextForOp` |
+| `boundary/src/compiler/index.ts` | Экспорт новых классов |
 
-  encodeCondition(
-    fieldId: number,
-    op: number,
-    val: any,
-    blockHeap: number[]
-  ): void
-}
-```
+**Структура новых классов:**
 
 **ConditionParser.ts:**
 
 ```typescript
 export class ConditionParser {
-  parseCondition(cond: ConditionValue): { op: number; val: any }[]
+  /**
+   * Парсит условие в массив проверок.
+   */
+  parseCondition(cond: ConditionValue): ParsedCheck[]
+}
+```
+
+**BytecodeEncoder.ts:**
+
+```typescript
+export class BytecodeEncoder {
+  /**
+   * Кодирует значение в 32-битное целое число.
+   */
+  encodeValue(inputType: number, val: any, contextField?: EncodingContext): number
+
+  /**
+   * Определяет контекст кодирования для оператора.
+   */
+  getEncodingContextForOp(field: {...}, op: number): EncodingContext | undefined
 }
 ```
 
@@ -296,16 +304,21 @@ export class RulesCompiler {
 | 2 | Явный порядок в RulesCompiler | `boundary/src/compiler/RulesCompiler.ts` | Высокий | Низкая | ✅ |
 | 3 | Кэширование конвертации | `monad/src/superposition.ts` | Средний | Средняя | ⏳ |
 | 4 | Удалить дублирование `_params` | `monad/src/monad.ts` | Средний | Низкая | ⏳ |
-| 5 | Разделение RulesCompiler | `boundary/src/compiler/*.ts` | Низкий | Высокая | ⏳ |
+| 5 | Разделение RulesCompiler | `boundary/src/compiler/*.ts` | Низкий | Высокая | ✅ |
 
 ---
 
 ## Следующие шаги
 
-После выполнения этого плана:
+**Осталось выполнить:**
 
-1. **Протестировать** все изменения на существующих тестах
-2. **Документировать** новые API в TSDoc
+1. **Приоритет 3:** Кэширование конвертации суперпозиций (`monad/src/superposition.ts`)
+2. **Приоритет 4:** Удалить дублирование `_params` (`monad/src/monad.ts`)
+
+**После выполнения этого плана:**
+
+1. ✅ **Протестировать** все изменения на существующих тестах — **16 тестов boundary + 5 тестов monad = ✅**
+2. ✅ **Документировать** новые API в TSDoc — **ConditionParser, BytecodeEncoder задокументированы**
 3. **Подготовить** код к переходу на numeric ID состояний (отдельный план)
 
 ---

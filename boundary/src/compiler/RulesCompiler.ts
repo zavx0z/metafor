@@ -2,16 +2,18 @@ import { OP, TYPE } from "../opcodes"
 import type { CompiledRules, CompiledFieldRules, CompiledEnsemble } from "../index.t"
 import type { Field, FieldTypeValue } from "../index.t"
 import { fieldTypeToBytecodeType } from "../utils/typeBridge"
-import { getStringAtlas } from "../strings/StringAtlas"
 import type { FieldTuple } from "../index.t"
+import { ConditionParser } from "./ConditionParser"
+import { BytecodeEncoder } from "./BytecodeEncoder"
 
 // Типы для представления конфигурации правил суперпозиции.
-type ConditionValue = number | boolean | string | { [key: string]: any }
 /** Условия коллапса — набор проверок компонент браны для перехода между состояниями */
 type CollapseConditions = Record<string, ConditionValue>
 type Transitions = Record<string, CollapseConditions | null | undefined>
 /** Суперпозиция — граф возможных состояний и условий переходов */
 type Superposition = Record<string, Transitions | null | undefined>
+
+type ConditionValue = number | boolean | string | { [key: string]: any }
 
 /**
  * Транслятор JSON-правил в байт-код для кастомной VM на GPU.
@@ -43,11 +45,22 @@ type Superposition = Record<string, Transitions | null | undefined>
  * * **Поля должны быть переданы** в compileEnsemble.
  * * **Нет проверки циклов** в графе состояний (бесконечные переходы возможны).
  * * **Размер байт-кода не ограничен** (может превысить лимиты GPU-буфера).
+ *
+ * ### Зависимости:
+ * * {@link ConditionParser} — парсинг JSON-условий
+ * * {@link BytecodeEncoder} — кодирование значений для GPU
  */
 export class RulesCompiler {
   private bytecode: number[] = []
   private states: string[] = []
-  private fields: Map<number, { type: number; subType?: number | undefined; enumValues?: any[] | undefined }> = new Map()
+  private fields: Map<number, { type: number; subType?: number; enumValues?: any[] }> = new Map()
+  private parser: ConditionParser
+  private encoder: BytecodeEncoder
+
+  constructor() {
+    this.parser = new ConditionParser()
+    this.encoder = new BytecodeEncoder()
+  }
 
   /**
    * Компилирует массив superposition в единый конкатенированный bytecode.
@@ -264,10 +277,11 @@ export class RulesCompiler {
 
   private compileConditions(wave: CollapseConditions) {
     const entries = Object.entries(wave)
+
     // Сначала подсчитаем общее количество условий (инструкций)
     let totalConditions = 0
     for (const [key, cond] of entries) {
-      const checks = this.parseCondition(cond)
+      const checks = this.parser.parseCondition(cond)
       totalConditions += checks.length
     }
     this.bytecode.push(totalConditions)
@@ -284,7 +298,7 @@ export class RulesCompiler {
       const field = this.fields.get(fieldId)
       if (!field) throw new Error(`Unknown field ID: ${fieldId}`)
 
-      const checks = this.parseCondition(cond)
+      const checks = this.parser.parseCondition(cond)
       for (const check of checks) {
         // 1. type
         this.bytecode.push(field.type)
@@ -298,12 +312,22 @@ export class RulesCompiler {
           const ptr = totalInstructionsSize + blockHeap.length
           blockHeap.push(check.val.length)
           for (const v of check.val) {
-            const encoded = this.encodeValue(field.type, v, this.getEncodingContextForOp(field, check.op))
+            const encoded = this.encoder.encodeValue(
+              field.type,
+              v,
+              this.encoder.getEncodingContextForOp(field, check.op),
+            )
             blockHeap.push(encoded)
           }
           this.bytecode.push(ptr)
         } else {
-          this.bytecode.push(this.encodeValue(field.type, check.val, this.getEncodingContextForOp(field, check.op)))
+          this.bytecode.push(
+            this.encoder.encodeValue(
+              field.type,
+              check.val,
+              this.encoder.getEncodingContextForOp(field, check.op),
+            ),
+          )
         }
       }
     }
@@ -312,152 +336,5 @@ export class RulesCompiler {
     for (const w of blockHeap) {
       this.bytecode.push(w)
     }
-  }
-
-  private parseCondition(cond: ConditionValue): { op: number; val: any }[] {
-    if (typeof cond !== "object" || cond === null) {
-      return [{ op: OP.EQ, val: cond }]
-    }
-    const checks: { op: number; val: any }[] = []
-    // Обработка сложного объекта { gt: 5, lte: 10 }
-    for (const [k, v] of Object.entries(cond)) {
-      switch (k) {
-        case "eq":
-          checks.push({ op: OP.EQ, val: v })
-          break
-        case "ne":
-        case "notEq":
-        case "neq":
-          checks.push({ op: OP.NEQ, val: v })
-          break
-        case "gt":
-          checks.push({ op: OP.GT, val: v })
-          break
-        case "lt":
-          checks.push({ op: OP.LT, val: v })
-          break
-        case "gte":
-          checks.push({ op: OP.GTE, val: v })
-          break
-        case "lte":
-          checks.push({ op: OP.LTE, val: v })
-          break
-
-        case "in":
-          checks.push({ op: OP.IN, val: v })
-          break
-        case "notIn":
-          checks.push({ op: OP.NOT_IN, val: v })
-          break
-
-        // Array Operators
-        case "include":
-          checks.push({ op: OP.INCLUDE, val: v })
-          break
-        case "notInclude":
-          checks.push({ op: OP.NOT_INCLUDE, val: v })
-          break
-        case "length":
-          if (typeof v === "number") {
-            checks.push({ op: OP.LENGTH, val: v })
-            break
-          }
-
-          if (typeof v === "object" && v !== null) {
-            for (const [lengthOp, lengthVal] of Object.entries(v)) {
-              switch (lengthOp) {
-                case "eq":
-                  checks.push({ op: OP.LENGTH, val: lengthVal })
-                  break
-                case "gt":
-                  checks.push({ op: OP.GT, val: lengthVal })
-                  break
-                case "lt":
-                  checks.push({ op: OP.LT, val: lengthVal })
-                  break
-                case "gte":
-                  checks.push({ op: OP.GTE, val: lengthVal })
-                  break
-                case "lte":
-                  checks.push({ op: OP.LTE, val: lengthVal })
-                  break
-              }
-            }
-          }
-          break
-        case "isEmpty":
-          checks.push({ op: OP.IS_EMPTY, val: v })
-          break
-
-        // Atom-like extended conditions
-        case "notGt":
-          checks.push({ op: OP.LTE, val: v }) // ! >  == <=
-          break
-        case "notGte":
-          checks.push({ op: OP.LT, val: v }) // ! >= == <
-          break
-        case "notLt":
-          checks.push({ op: OP.GTE, val: v }) // ! <  == >=
-          break
-        case "notLte":
-          checks.push({ op: OP.GT, val: v }) // ! <= == >
-          break
-        case "between":
-          if (Array.isArray(v) && v.length === 2) {
-            checks.push({ op: OP.GTE, val: v[0] })
-            checks.push({ op: OP.LTE, val: v[1] })
-          }
-          break
-      }
-    }
-    return checks
-  }
-
-  private getEncodingContextForOp(
-    field: { type: number; subType?: number | undefined; enumValues?: any[] | undefined },
-    op: number,
-  ): { subType?: number | undefined; enumValues?: any[] | undefined } | undefined {
-    // Для массивов include/notInclude значение нужно кодировать в тип элемента.
-    if (field.type === TYPE.ARRAY) {
-      if (op === OP.INCLUDE || op === OP.NOT_INCLUDE) {
-        return field
-      }
-      // Для length/isEmpty и скалярных сравнений по длине используем чисто UINT/BOOL.
-      return undefined
-    }
-
-    return field
-  }
-
-  private encodeValue(
-    inputType: number,
-    val: any,
-    contextField?: { subType?: number | undefined; enumValues?: any[] | undefined },
-  ): number {
-    // 1. Обработка ENUM: превращаем значение в индекс
-    if (contextField?.enumValues) {
-      const idx = contextField.enumValues.indexOf(val)
-      if (idx === -1) throw new Error(`Value '${val}' not found in enum values: [${contextField.enumValues}]`)
-      return idx
-    }
-
-    // Если это элемент массива, используем подтип массива как тип значения
-    const type = contextField?.subType !== undefined ? contextField.subType : inputType
-
-    if (type === TYPE.FLOAT) {
-      const buf = new Float32Array([Number(val)])
-      return new Uint32Array(buf.buffer)[0]!
-    }
-    if (type === TYPE.BOOL) {
-      return val ? 1 : 0
-    }
-    // UINT / Строки
-    if (typeof val === "string") {
-      // Интернируем строку через StringAtlas
-      const atlas = getStringAtlas()
-      const stringId = atlas.intern(val)
-      return stringId
-    }
-    return Number(val)
   }
 }
