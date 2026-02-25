@@ -8,6 +8,39 @@ import type { FieldsDefinition, Superposition } from "@metafor/boundary"
 
 /**
  * Конфигурация монады.
+ *
+ * @remarks
+ * **Порядок переходов в суперпозиции важен!**
+ * Переходы проверяются в порядке объявления ключей.
+ * Первый выполненный переход останавливает проверку.
+ *
+ * @example
+ * ```typescript
+ * createMonad({
+ *   fields: {
+ *     hp: { type: "number" },
+ *     mana: { type: "number" },
+ *     isAlive: { type: "boolean" }
+ *   },
+ *   params: { hp: 100, mana: 50, isAlive: true },
+ *   state: "IDLE",
+ *   superposition: {
+ *     IDLE: {
+ *       PATROL: { 0: { gt: 50 } },   // ← Приоритет 1: hp > 50
+ *       DEAD: { 0: { lte: 0 } }      // ← Приоритет 2: hp <= 0
+ *     },
+ *     PATROL: {
+ *       IDLE: { 1: { lt: 10 } },     // mana < 10 → IDLE
+ *       COMBAT: { 2: true }          // isAlive === true → COMBAT
+ *     },
+ *     DEAD: null                      // Терминальное состояние
+ *   },
+ *   actions: {
+ *     PATROL: () => console.log("Start patrol"),
+ *     DEAD: () => console.log("Unit died")
+ *   }
+ * })
+ * ```
  */
 export interface MonadConfig {
   fields: FieldsDefinition

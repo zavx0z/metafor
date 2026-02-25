@@ -209,6 +209,9 @@ export class RulesCompiler {
       const stateBlockPtr = this.bytecode.length
       this.bytecode[stateTableOffset + i] = stateBlockPtr
 
+      // Порядок ключей определяет приоритет переходов.
+      // Первый выполненный переход останавливает проверку.
+      // https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object#property_order
       const transitionKeys = Object.keys(transitions)
       this.bytecode.push(transitionKeys.length) // количество переходов (transitionCount)
 
