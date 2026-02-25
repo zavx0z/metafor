@@ -1,34 +1,32 @@
 /**
- * Конвертация суперпозиций в NumericSuperposition.
+ * Конвертация суперпозиций из формата MONAD в формат BOUNDARY.
  *
  * @packageDocumentation
  */
 
 import type { NumericSuperposition, Transition } from "@metafor/boundary"
+import type { Superposition } from "./types"
 
 /**
- * Старый формат суперпозиции (для ввода пользователем).
- */
-export interface LegacySuperposition {
-  [fromState: string]: Record<string, any> | null
-}
-
-/**
- * Конвертирует старый формат суперпозиции в NumericSuperposition.
+ * Конвертирует суперпозицию уровня MONAD в суперпозицию уровня BOUNDARY.
  *
- * @param legacy - Старый формат: { IDLE: { PATROL: { hp: { gt: 50 } } }, PATROL: null }
+ * @remarks
+ * MONAD оперирует именами состояний и полей (семантика).
+ * BOUNDARY оперирует индексами состояний и полей (вычисления).
+ *
+ * @param superposition - Формат MONAD: { IDLE: { PATROL: { hp: { gt: 50 } } } }
  * @param fieldNameIndex - Маппинг имён полей в индексы.
  * @returns NumericSuperposition с числовыми ID состояний и полей.
  *
  * @example
  * ```typescript
- * const legacy = {
+ * const superposition = {
  *   IDLE: { PATROL: { hp: { gt: 50 } } },
  *   PATROL: null
  * }
  * const fieldNameIndex = new Map([["hp", 0]])
- * const numeric = convertToNumeric(legacy, fieldNameIndex)
- * // numeric = {
+ * const boundarySuperposition = convertToNumeric(superposition, fieldNameIndex)
+ * // boundarySuperposition = {
  * //   states: ["IDLE", "PATROL"],
  * //   transitions: [
  * //     [{ to: 1, conditions: { 0: { gt: 50 } } }],
@@ -38,17 +36,17 @@ export interface LegacySuperposition {
  * ```
  */
 export function convertToNumeric(
-  legacy: LegacySuperposition,
+  superposition: Superposition,
   fieldNameIndex: Map<string, number>
 ): NumericSuperposition {
-  const states = Object.keys(legacy)
+  const states = Object.keys(superposition)
   const stateIndex = new Map<string, number>()
   states.forEach((name, i) => stateIndex.set(name, i))
 
   const transitions: Array<Array<Transition | null>> = []
 
   for (const fromState of states) {
-    const transObj = legacy[fromState]
+    const transObj = superposition[fromState]
     if (!transObj) {
       transitions.push([null])
       continue

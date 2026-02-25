@@ -4,8 +4,8 @@
  * @packageDocumentation
  */
 
-import type { FieldsDefinition, Superposition, BraneIndex } from "@metafor/boundary"
-import type { Actions } from "./types"
+import type { FieldsDefinition, NumericSuperposition, BraneIndex } from "@metafor/boundary"
+import type { Actions, Superposition } from "./types"
 
 /**
  * Уникальный идентификатор монады (UUID v4).
@@ -45,7 +45,10 @@ export type ParamsStore = Map<MonadId, Record<string, unknown>>
  * Хранилище суперпозиции (правила перехода) для каждой монады.
  *
  * - **Ключ:** {@link MonadId}
- * - **Значение:** {@link Superposition} — статичная конфигурация переходов
+ * - **Значение:** {@link Superposition} — статичная конфигурация переходов (формат MONAD)
+ *
+ * @remarks
+ * Хранится в формате MONAD (с именами). При `updateBoundary()` конвертируется в {@link NumericSuperposition}.
  */
 export type SuperpositionsStore = Map<MonadId, Superposition>
 

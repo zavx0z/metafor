@@ -13,9 +13,9 @@ import type {
   SuperpositionsStore,
   UuidToIndexStore,
 } from "./monad.t"
-import type { MonadConfig } from "./types"
+import type { MonadConfig, Superposition } from "./types"
 import { convertField } from "./field"
-import { convertToNumeric, type LegacySuperposition } from "./superposition"
+import { convertToNumeric } from "./superposition"
 
 // ==================== Внутреннее состояние ====================
 
@@ -102,7 +102,7 @@ export function createMonad(config: MonadConfig): string {
 
   _monadParams.set(id, { ...config.params })
   _actions.set(id, config.actions)
-  _superpositions.set(id, config.superposition as unknown as LegacySuperposition)
+  _superpositions.set(id, config.superposition)
   _states.set(id, config.state)
   return id
 }
@@ -147,11 +147,11 @@ export async function updateBoundary(): Promise<void> {
       return [index, monadParams[name]]
     })
 
-    const legacySuperposition = _superpositions.get(monadId)!
-    const superposition = convertToNumeric(legacySuperposition, _fieldNameIndex)
+    const monadSuperposition = _superpositions.get(monadId)!
+    const boundarySuperposition = convertToNumeric(monadSuperposition, _fieldNameIndex)
     
     // Находим индекс начального состояния
-    const initialStateIndex = superposition.states.indexOf(_states.get(monadId)!)
+    const initialStateIndex = boundarySuperposition.states.indexOf(_states.get(monadId)!)
     if (initialStateIndex === -1) {
       throw new Error(`State '${_states.get(monadId)}' not found in superposition`)
     }
@@ -159,7 +159,7 @@ export async function updateBoundary(): Promise<void> {
     return {
       params: paramsTuples,
       initialStateIndex,
-      superposition,
+      superposition: boundarySuperposition,
     }
   })
 

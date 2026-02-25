@@ -7,22 +7,25 @@
 import type { FieldsDefinition, NumericSuperposition } from "@metafor/boundary"
 
 /**
- * Суперпозиция в старом формате (для удобства ввода).
- * Будет автоматически сконвертирована в NumericSuperposition.
+ * Суперпозиция — граф переходов между состояниями.
+ *
+ * @remarks
+ * MONAD оперирует именами состояний и полей (семантика).
+ * При `updateBoundary()` конвертируется в `NumericSuperposition` для BOUNDARY.
  *
  * @example
  * ```typescript
  * {
  *   IDLE: {
- *     PATROL: { hp: { gt: 50 } },  // Переход в PATROL при hp > 50
- *     DEAD: { hp: { lte: 0 } }     // Переход в DEAD при hp <= 0
+ *     PATROL: { hp: { gt: 50 } },  // Имя поля: hp, имя состояния: PATROL
+ *     DEAD: { hp: { lte: 0 } }
  *   },
- *   PATROL: null,                   // Терминальное состояние
+ *   PATROL: null,
  *   DEAD: null
  * }
  * ```
  */
-export interface LegacySuperposition {
+export interface Superposition {
   [state: string]: Record<string, any> | null
 }
 
@@ -66,7 +69,7 @@ export interface MonadConfig {
   fields: FieldsDefinition
   params: Record<string, unknown>
   state: string
-  superposition: LegacySuperposition
+  superposition: MonadSuperposition
   actions: Actions
 }
 

@@ -92,21 +92,64 @@
 
 ## 📊 Архитектура
 
-**MONAD (сущность)**
+### MONAD (сущность)
 
 * Processes — намерения (action/success/error)
 * Reactions — отклики на события
 * States — граф переходов (decoherence)
+* **Superposition** — формат суперпозиции с именами состояний и полей
 
-**BOUNDARY (поле)**
+### BOUNDARY (поле)
 
 * GPU — вычисление эволюции суперпозиций
 * Branes — носители данных (params, state, superposition)
+* **NumericSuperposition** — формат суперпозиции с числовыми индексами
 
-**BULK (формы)**
+### BULK (формы)
 
 * Agents — персонификации сил (Gravity, Electromagnetic...)
 * Render — визуализация и взаимодействие
+
+---
+
+## 🔌 Интерфейсы между уровнями
+
+### Почему разные форматы данных?
+
+**Принцип соответствия:** Каждый уровень реальности использует формат данных, соответствующий его природе.
+
+| Уровень | Формат | Почему |
+| ------- | ------ | ------ |
+| **MONAD** | `Superposition` (имена) | **Семантика.** Монада — это сущность с намерениями. Имена (`"IDLE"`, `"PATROL"`, `"hp"`) несут *смысл* для разработчика и DSL. |
+| **BOUNDARY** | `NumericSuperposition` (индексы) | **Вычисления.** Boundary — это полевой уровень. Индексы (`0`, `1`, `2`) эффективны для GPU и не требуют маппинга строк. |
+| **BULK** | Визуальные формы | **Проявление.** Bulk — это царство форм. Агенты и визуализация требуют конкретных представлений (3D-модели, спрайты, цвета). |
+
+### MONAD → BOUNDARY: Конвертация суперпозиции
+
+**Конвертер:** `convertToNumeric(monadSuperposition, fieldNameIndex)`
+
+**Что происходит:**
+
+```typescript
+// MONAD (смысл)
+{
+  IDLE: { PATROL: { hp: { gt: 50 } } },
+  PATROL: null
+}
+
+// ↓ convertToNumeric()
+
+// BOUNDARY (вычисления)
+{
+  states: ["IDLE", "PATROL"],
+  transitions: [
+    [{ to: 1, conditions: { 0: { gt: 50 } } }],
+    [null]
+  ]
+}
+```
+
+**Ключевой принцип:** Boundary не знает имён состояний — только индексы для GPU-вычислений. MONAD определяет *смысл* состояний, BOUNDARY вычисляет *переходы* между ними.
 
 ---
 
@@ -148,13 +191,11 @@
 
 **Было (atom)** — смешанная ответственность: Field, Gravity, EM, Weak, Strong, Atom
 
-**Стало (разделение)**
+**Стало (разделение):**
 
-**monad (сущность)** — MetaFor DSL, processes, reactions, states, Weak, Strong
-
-**boundary (поле)** — Boundary GPU, BraneManager, RulesCompiler, StringAtlas
-
-**bulk (формы)** — Atom, GravityAgent, ElectromagneticAgent, virtual, inspect
+* **monad (сущность)** — MetaFor DSL, processes, reactions, states, Weak, Strong
+* **boundary (поле)** — Boundary GPU, BraneManager, RulesCompiler, StringAtlas
+* **bulk (формы)** — Atom, GravityAgent, ElectromagneticAgent, virtual, inspect
 
 ---
 
@@ -169,6 +210,9 @@
 | **Fields (boundary)** | Технические типы для GPU: `{ type: FieldType.F32, options?: {...} }` |
 | **Fields (monad)** | Семантика для ИИ: `{ type, required, label, default }` |
 | **MonadJson** | Формат JSON для monad: `{ fields, superposition, processes, reactions }` |
+| **Superposition** | Формат суперпозиции уровня MONAD (имена состояний и полей). Несёт *смысл* для разработчика. |
+| **NumericSuperposition** | Формат суперпозиции уровня BOUNDARY (числовые индексы). Эффектен для GPU-вычислений. |
+| **convertToNumeric()** | Конвертер: `Superposition → NumericSuperposition`. Переводит смысл в индексы. |
 | **params** | Значения полей (извлекаются из `fields[].default`) |
 | **state** | Текущее состояние браны (одно из суперпозиции) |
 | **superposition** | Все возможные состояния браны + граф переходов между ними |

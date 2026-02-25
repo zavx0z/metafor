@@ -1,27 +1,34 @@
 /**
- * Helper для конвертации старого формата суперпозиции в NumericSuperposition.
+ * Helper для конвертации формата MONAD (Superposition) в NumericSuperposition.
  * Только для тестов!
  */
 
 import type { NumericSuperposition } from "../src/index.t"
 
 /**
- * Конвертирует старый формат Superposition в NumericSuperposition.
+ * Суперпозиция в формате MONAD (с именами состояний и полей).
+ */
+export interface Superposition {
+  [state: string]: Record<string, any> | null
+}
+
+/**
+ * Конвертирует формат MONAD в NumericSuperposition (формат BOUNDARY).
  *
- * @param oldFormat - Старый формат: { IDLE: { PATROL: {...} }, PATROL: null }
+ * @param superposition - Формат MONAD: { IDLE: { PATROL: { hp: { gt: 50 } } } }
  * @returns NumericSuperposition
  */
 export function toNumericSuperposition(
-  oldFormat: Record<string, Record<string, any> | null>
+  superposition: Superposition
 ): NumericSuperposition {
-  const states = Object.keys(oldFormat)
+  const states = Object.keys(superposition)
   const stateIndex = new Map<string, number>()
   states.forEach((name, i) => stateIndex.set(name, i))
 
   const transitions: Array<Array<{ to: number; conditions: Record<number, any> } | null>> = []
 
   for (const fromState of states) {
-    const transObj = oldFormat[fromState]
+    const transObj = superposition[fromState]
     if (!transObj) {
       transitions.push([null])
       continue
