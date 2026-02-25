@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { TYPE } from "../src/opcodes"
-import { FieldType } from "../src/core/FieldRegistry"
+import { FieldType } from "../src/index"
 import { fieldTypeToBytecodeType } from "../src/utils/typeBridge"
 
 describe("fieldTypeToBytecodeType", () => {

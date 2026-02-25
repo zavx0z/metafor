@@ -12,15 +12,15 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { isAlive: true } },
+        IDLE: { ACTIVE: { 0: true } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { isAlive: { type: FieldType.BOOL } },
+        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
         branes: [
-          { state: "IDLE", params: { isAlive: true }, superposition },
-          { state: "IDLE", params: { isAlive: false }, superposition },
+          { state: "IDLE", params: [[0, true]], superposition },
+          { state: "IDLE", params: [[0, false]], superposition },
         ],
       })
 
@@ -37,15 +37,15 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { DEAD: { isAlive: false } },
+        IDLE: { DEAD: { 0: false } },
         DEAD: null,
       }
 
       await boundary.write({
-        fields: { isAlive: { type: FieldType.BOOL } },
+        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
         branes: [
-          { state: "IDLE", params: { isAlive: false }, superposition },
-          { state: "IDLE", params: { isAlive: true }, superposition },
+          { state: "IDLE", params: [[0, false]], superposition },
+          { state: "IDLE", params: [[0, true]], superposition },
         ],
       })
 
@@ -62,15 +62,15 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { isAlive: { eq: true } } },
+        IDLE: { ACTIVE: { 0: { eq: true } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { isAlive: { type: FieldType.BOOL } },
+        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
         branes: [
-          { state: "IDLE", params: { isAlive: true }, superposition },
-          { state: "IDLE", params: { isAlive: false }, superposition },
+          { state: "IDLE", params: [[0, true]], superposition },
+          { state: "IDLE", params: [[0, false]], superposition },
         ],
       })
 
@@ -85,15 +85,15 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { DEAD: { isAlive: { eq: false } } },
+        IDLE: { DEAD: { 0: { eq: false } } },
         DEAD: null,
       }
 
       await boundary.write({
-        fields: { isAlive: { type: FieldType.BOOL } },
+        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
         branes: [
-          { state: "IDLE", params: { isAlive: false }, superposition },
-          { state: "IDLE", params: { isAlive: true }, superposition },
+          { state: "IDLE", params: [[0, false]], superposition },
+          { state: "IDLE", params: [[0, true]], superposition },
         ],
       })
 
@@ -110,15 +110,15 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { DEAD: { isAlive: { neq: true } } },
+        IDLE: { DEAD: { 0: { neq: true } } },
         DEAD: null,
       }
 
       await boundary.write({
-        fields: { isAlive: { type: FieldType.BOOL } },
+        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
         branes: [
-          { state: "IDLE", params: { isAlive: true }, superposition },
-          { state: "IDLE", params: { isAlive: false }, superposition },
+          { state: "IDLE", params: [[0, true]], superposition },
+          { state: "IDLE", params: [[0, false]], superposition },
         ],
       })
 
@@ -133,15 +133,15 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { isAlive: { neq: false } } },
+        IDLE: { ACTIVE: { 0: { neq: false } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { isAlive: { type: FieldType.BOOL } },
+        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
         branes: [
-          { state: "IDLE", params: { isAlive: false }, superposition },
-          { state: "IDLE", params: { isAlive: true }, superposition },
+          { state: "IDLE", params: [[0, false]], superposition },
+          { state: "IDLE", params: [[0, true]], superposition },
         ],
       })
 
@@ -158,17 +158,20 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { isAlive: true, hasMana: true } },
+        IDLE: { ACTIVE: { 0: true, 1: true } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { isAlive: { type: FieldType.BOOL }, hasMana: { type: FieldType.BOOL } },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.BOOL }],
+          [1, { fieldId: 1, type: FieldType.BOOL }],
+        ],
         branes: [
-          { state: "IDLE", params: { isAlive: true, hasMana: true }, superposition },
-          { state: "IDLE", params: { isAlive: true, hasMana: false }, superposition },
-          { state: "IDLE", params: { isAlive: false, hasMana: true }, superposition },
-          { state: "IDLE", params: { isAlive: false, hasMana: false }, superposition },
+          { state: "IDLE", params: [[0, true], [1, true]], superposition },
+          { state: "IDLE", params: [[0, true], [1, false]], superposition },
+          { state: "IDLE", params: [[0, false], [1, true]], superposition },
+          { state: "IDLE", params: [[0, false], [1, false]], superposition },
         ],
       })
 
@@ -185,16 +188,19 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { isAlive: true, isStunned: false } },
+        IDLE: { ACTIVE: { 0: true, 1: false } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { isAlive: { type: FieldType.BOOL }, isStunned: { type: FieldType.BOOL } },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.BOOL }],
+          [1, { fieldId: 1, type: FieldType.BOOL }],
+        ],
         branes: [
-          { state: "IDLE", params: { isAlive: true, isStunned: false }, superposition },
-          { state: "IDLE", params: { isAlive: true, isStunned: true }, superposition },
-          { state: "IDLE", params: { isAlive: false, isStunned: false }, superposition },
+          { state: "IDLE", params: [[0, true], [1, false]], superposition },
+          { state: "IDLE", params: [[0, true], [1, true]], superposition },
+          { state: "IDLE", params: [[0, false], [1, false]], superposition },
         ],
       })
 
@@ -212,16 +218,16 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { isReady: true } },
+        IDLE: { ACTIVE: { 0: true } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { isReady: { type: FieldType.BOOL } },
-        branes: [{ state: "IDLE", params: { isReady: false }, superposition }],
+        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
+        branes: [{ state: "IDLE", params: [[0, false]], superposition }],
       })
 
-      boundary.updateBraneField(0, "isReady", true)
+      boundary.updateBraneField(0, 0, true)
       boundary.step()
       const states = await boundary.getStates()
 
@@ -232,16 +238,16 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { DEAD: { isAlive: false } },
+        IDLE: { DEAD: { 0: false } },
         DEAD: null,
       }
 
       await boundary.write({
-        fields: { isAlive: { type: FieldType.BOOL } },
-        branes: [{ state: "IDLE", params: { isAlive: true }, superposition }],
+        fields: [[0, { fieldId: 0, type: FieldType.BOOL }]],
+        branes: [{ state: "IDLE", params: [[0, true]], superposition }],
       })
 
-      boundary.updateBraneField(0, "isAlive", false)
+      boundary.updateBraneField(0, 0, false)
       boundary.step()
       const states = await boundary.getStates()
 
@@ -254,17 +260,20 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { COMBAT: { isAlive: true, hp: { gt: 50 } } },
+        IDLE: { COMBAT: { 0: true, 1: { gt: 50 } } },
         COMBAT: null,
       }
 
       await boundary.write({
-        fields: { isAlive: { type: FieldType.BOOL }, hp: { type: FieldType.F32 } },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.BOOL }],
+          [1, { fieldId: 1, type: FieldType.F32 }],
+        ],
         branes: [
-          { state: "IDLE", params: { isAlive: true, hp: 100 }, superposition },
-          { state: "IDLE", params: { isAlive: true, hp: 30 }, superposition },
-          { state: "IDLE", params: { isAlive: false, hp: 100 }, superposition },
-          { state: "IDLE", params: { isAlive: false, hp: 30 }, superposition },
+          { state: "IDLE", params: [[0, true], [1, 100]], superposition },
+          { state: "IDLE", params: [[0, true], [1, 30]], superposition },
+          { state: "IDLE", params: [[0, false], [1, 100]], superposition },
+          { state: "IDLE", params: [[0, false], [1, 30]], superposition },
         ],
       })
 

@@ -34,10 +34,10 @@
 
 import { GPUBackend } from "./gpu/Backend"
 import { RulesCompiler } from "./compiler/RulesCompiler"
-import { BraneManager, FieldType, FieldRegistry, type FieldTypeValue } from "./core"
+import { BraneManager, FieldType, type FieldTypeValue } from "./core"
 import { resetStringAtlas, getStringAtlas } from "./strings"
 import { GPU } from "./gpu/device"
-import type { DebugOptions, BoundaryConfigWithTypes, RegisteredFieldConfig } from "./index.t"
+import type { DebugOptions, BoundaryConfig } from "./index.t"
 
 export { GPU }
 export { FieldType, type FieldTypeValue } from "./core"
@@ -47,8 +47,9 @@ export type {
   Superposition,
   BraneDefinition,
   DebugOptions,
-  BoundaryConfigWithTypes,
-  RegisteredFieldConfig,
+  BoundaryConfig,
+  FieldTuple,
+  ValueTuple,
   BraneIndex,
 } from "./index.t"
 
@@ -63,12 +64,11 @@ export type {
  * const boundary = new Boundary({ debug: { all: true } })
  *
  * await boundary.write({
- *   fields: { hp: { type: "number" }, name: { type: "string" } },
+ *   fields: [[0, { type: FieldType.F32 }]],
  *   branes: [{
- *     id: "hero",
- *     params: { hp: 100, name: "Arthur" },
+ *     params: [[0, 100]],
  *     state: "IDLE",
- *     superposition: { IDLE: { FIGHT: { hp: { gt: 50 } } }, FIGHT: null }
+ *     superposition: { IDLE: { FIGHT: { 0: { gt: 50 } } }, FIGHT: null }
  *   }]
  * })
  *
@@ -101,17 +101,16 @@ export class Boundary {
   }
 
   /**
-   * Очищает данные границы (FieldRegistry, StringAtlas, GPU-буферы, BraneManager).
+   * Очищает данные границы (StringAtlas, GPU-буферы, BraneManager).
    *
    * @remarks
    * **Side Effects:**
-   * - Очищает FieldRegistry и StringAtlas.
+   * - Очищает StringAtlas.
    * - Уничтожает все GPU-буферы.
    * - Сбрасывает состояние BraneManager.
    * - После вызова требуется повторный `write()` для работы.
    */
   clear() {
-    FieldRegistry.clear()
     resetStringAtlas()
     this.braneManager.clear()
     this.backend.clear()
@@ -125,15 +124,15 @@ export class Boundary {
    *
    * @remarks
    * **Архитектура:**
-   * - **Fields (поля)** — общие для всех бран: схема типов для GPU
+   * - **Fields (поля)** — общие для всех бран: схема типов для GPU в формате кортежей
    * - **Branes (браны)** — независимые возмущения: каждая со своими params, state, superposition
    *
    * **Side Effects:**
-   * - Очищает FieldRegistry и StringAtlas перед записью.
+   * - Очищает StringAtlas перед записью.
    * - Аллоцирует GPU-буферы (не освобождаются автоматически).
    *
    * @param config - Конфигурация полевой границы.
-   * @param config.fields - Схема типов полей (общая для всех бран).
+   * @param config.fields - Поля в формате кортежей [[index, field], ...].
    * @param config.branes - Массив бран (по одной на superposition).
    *
    * @throws {Error} Если тип поля не распознан.
@@ -141,38 +140,30 @@ export class Boundary {
    * @example
    * ```ts
    * await boundary.write({
-   *   fields: { hp: { type: FieldType.F32 } },  // общее поле для всех бран
+   *   fields: [[0, { type: FieldType.F32 }]],
    *   branes: [
-   *     { params: { hp: 100 }, state: "IDLE", superposition: {...} },  // брана 0
-   *     { params: { hp: 80 }, state: "PATROL", superposition: {...} }, // брана 1
+   *     { params: [[0, 100]], state: "IDLE", superposition: {...} },  // брана 0
+   *     { params: [[0, 80]], state: "PATROL", superposition: {...} }, // брана 1
    *   ]
    * })
    * ```
    */
-  async write(config: BoundaryConfigWithTypes) {
+  async write(config: BoundaryConfig) {
     const debug = this.isDebugEnabled.bind(this)
 
     if (debug("fields")) console.log("[Boundary] Writing fields:", config.fields)
 
     this.clear()
 
-    const registry = FieldRegistry.getInstance()
-
-    // Конфигурация с готовыми типами
-    const typedFields = config.fields as Record<string, RegisteredFieldConfig>
-    for (const [name, field] of Object.entries(typedFields)) {
-      if (!registry.has(name)) {
-        registry.register(name, field.type, field.options ?? {})
-        if (debug("fields")) console.log(`[Boundary] Registered field: ${name} = ${field.type}`, field.options ?? {})
-      }
-    }
-
     if (debug("branes")) {
       console.log("[Boundary] Creating ensemble with", config.branes.length, "branes")
       config.branes.forEach((b, i) => console.log(`  [Brane ${i}] state="${b.state}", params=`, b.params))
     }
 
-    this.braneIds = this.braneManager.createEnsemble(config.branes.map((f) => f.params))
+    this.braneIds = this.braneManager.createEnsemble(
+      config.branes.map((b) => b.params),
+      config.fields
+    )
 
     if (debug("compiler")) {
       console.log("[Boundary] Compiling ensemble rules...")
@@ -264,17 +255,17 @@ export class Boundary {
    * **Side Effect:** Если изменился размер heap, отправляет новые данные на GPU.
    *
    * @param braneIndex - Индекс браны в массиве конфигурации `[0..branes.length-1]`.
-   * @param fieldName - Имя поля (должно быть зарегистрировано в FieldRegistry).
+   * @param fieldId - Индекс поля.
    * @param value - Новое значение (тип должен соответствовать схеме fields).
    *
    * @throws {Error} Если braneIndex вне диапазона.
    */
-  updateBraneField(braneIndex: number, fieldName: string, value: unknown): void {
+  updateBraneField(braneIndex: number, fieldId: number, value: unknown): void {
     const braneId = this.braneIds[braneIndex]
     if (braneId === undefined) {
       throw new Error(`Unknown brane index: ${braneIndex}`)
     }
-    this.braneManager.updateBraneField(braneId, fieldName, value)
+    this.braneManager.updateBraneField(braneId, fieldId, value)
     if (this.braneManager.isHeapDirty()) {
       const { heap } = this.braneManager.getGPUBuffers()
       this.backend.updateHeap(heap)
@@ -284,7 +275,6 @@ export class Boundary {
 }
 
 // Экспорты для совместимости
-export { FieldRegistry } from "./core"
 export { BraneManager, type BraneInfo, type EntangledBraneInfo } from "./core/BraneManager"
 export { HeapAllocator, type AllocResult } from "./memory"
 export { BraneBuilder, BlockUtils, packMeta, unpackMeta, encodeString, decodeString } from "./memory"

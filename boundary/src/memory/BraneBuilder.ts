@@ -20,10 +20,10 @@
  * @packageDocumentation
  */
 
-import { FieldRegistry, FieldType, type FieldTypeValue } from "../core/FieldRegistry"
-import { type Field } from "../core"
+import { FieldType, type FieldTypeValue, type Field } from "../core/FieldRegistry"
 import { HeapAllocator, type AllocResult } from "./HeapAllocator"
 import { getStringAtlas, type StringId } from "../strings/StringAtlas"
+import type { ValueTuple } from "../index.t"
 
 /**
  * Результат построения блока.
@@ -137,37 +137,26 @@ export class BraneBuilder {
   private encoder = new TextEncoder()
   private debug: boolean
 
-  constructor(
-    private registry: FieldRegistry,
-    private allocator: HeapAllocator,
-    debug: boolean = false,
-  ) {
+  constructor(debug: boolean = false) {
     this.debug = debug
   }
 
   /**
    * Построить блок браны.
    *
-   * @param brane - Объект с полями {имя: значение}
+   * @param params - Кортежи полей [[fieldId, value], ...]
+   * @param fields - Карта полей fieldId -> Field
    * @param options - Опции построения
    * @returns Результат построения блока и дополнительных аллокаций (строки, массивы)
    */
-  build(brane: Record<string, unknown>, options: BuildOptions = {}): BuildResult {
+  build(params: ValueTuple[], fields: Map<number, Field>, options: BuildOptions = {}): BuildResult {
     const sharedPtrs = options.sharedPtrs ?? []
     const sharedCount = sharedPtrs.length
 
-    // Сортируем поля по имени для детерминизма.
-    const localEntries = Object.entries(brane)
-      .map(([name, value]) => {
-        const field = this.registry.getField(name)
-        if (!field) {
-          throw new Error(`Неизвестное поле: ${name}`)
-        }
-        return { name, field, value }
-      })
-      .sort((a, b) => a.field.fieldId - b.field.fieldId)
+    // Сортируем поля по fieldId для детерминизма.
+    const sortedParams = [...params].sort((a, b) => a[0] - b[0])
 
-    const localFieldCount = localEntries.length
+    const localFieldCount = sortedParams.length
 
     // Рассчитываем размеры блока.
     const headerWords = 2 + localFieldCount * 2 // [count, count] + [field_id, meta] * N
@@ -176,16 +165,20 @@ export class BraneBuilder {
 
     // Раскладываем поля в блоке и вычисляем их смещения.
     let currentOffset = bodyStart + sharedPtrsSize
-    const fieldLayouts = localEntries.map((entry) => {
-      const sizeInWords = getFieldSize(entry.field.type, entry.value)
+    const fieldLayouts = sortedParams.map(([fieldId, value]) => {
+      const field = fields.get(fieldId)
+      if (!field) {
+        throw new Error(`Unknown field ID: ${fieldId}`)
+      }
+      const sizeInWords = getFieldSize(field.type, value)
       const offsetInWords = currentOffset
       currentOffset += sizeInWords
       if (this.debug) {
         console.log(
-          `[BraneBuilder] Field "${entry.name}": type=${entry.field.type}, size=${sizeInWords}, offset=${offsetInWords}`,
+          `[BraneBuilder] Field ID=${fieldId}: type=${field.type}, size=${sizeInWords}, offset=${offsetInWords}`,
         )
       }
-      return { ...entry, sizeInWords, offsetInWords }
+      return { fieldId, field, value, sizeInWords, offsetInWords }
     })
 
     const totalSize = currentOffset
@@ -206,7 +199,7 @@ export class BraneBuilder {
     // Заполняем дескрипторы полей.
     let headerIndex = 2
     for (const layout of fieldLayouts) {
-      blockView[headerIndex++] = layout.field.fieldId
+      blockView[headerIndex++] = layout.fieldId
       const packedMeta = packMeta(layout.field.type, layout.sizeInWords, layout.offsetInWords)
       if (this.debug) {
         console.log(
@@ -237,7 +230,7 @@ export class BraneBuilder {
             const enumIndex = layout.field.enumValues.indexOf(layout.value)
             if (enumIndex === -1) {
               throw new Error(
-                `Значение '${String(layout.value)}' не найдено в enum '${layout.name}': [${layout.field.enumValues.join(", ")}]`,
+                `Значение '${String(layout.value)}' не найдено в enum '${layout.fieldId}': [${layout.field.enumValues.join(", ")}]`,
               )
             }
             dataView.setUint32(offsetBytes, enumIndex, true)
@@ -264,15 +257,13 @@ export class BraneBuilder {
           }
 
           // Записываем [stringId, hash] в блок браны
-          // Это позволяет GPU быстро сравнивать хэши и при необходимости
-          // выполнять посимвольное сравнение через stringAtlas
           dataView.setUint32(offsetBytes, stringId, true)
           dataView.setUint32(offsetBytes + 4, meta.hash, true)
           break
         }
         case FieldType.ARRAY_PTR: {
           if (!Array.isArray(layout.value)) {
-            throw new Error(`Ожидался массив для поля '${layout.name}'`)
+            throw new Error(`Ожидался массив для поля '${layout.fieldId}'`)
           }
 
           const elementType = layout.field.elementType
@@ -328,18 +319,20 @@ export class BraneBuilder {
   /**
    * Вычислить размер блока без аллокации (для предварительной оценки).
    */
-  calculateSize(brane: Record<string, unknown>, sharedPtrsCount: number = 0): number {
+  calculateSize(params: ValueTuple[], fields: Map<number, Field>, sharedPtrsCount: number = 0): number {
     let fieldCount = 0
     let fieldsSize = 0
-    for (const [name] of Object.entries(brane)) {
-      const field = this.registry.getField(name)
+    for (const [fieldId, value] of params) {
+      const field = fields.get(fieldId)
       if (!field) continue
       fieldCount++
-      fieldsSize += getFieldSize(field.type, brane[name])
+      fieldsSize += getFieldSize(field.type, value)
     }
     // header + shared_ptrs + fields
     return 2 + fieldCount * 2 + sharedPtrsCount + fieldsSize
   }
+
+  private allocator = new HeapAllocator(16384, 1)
 }
 
 /**

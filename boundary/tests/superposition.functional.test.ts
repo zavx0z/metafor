@@ -1,8 +1,8 @@
 import { test, expect, describe, beforeEach } from "bun:test"
 import { RulesCompiler } from "../src/compiler/RulesCompiler"
 import { OP } from "../src/opcodes"
-import { FieldRegistry } from "../src/core/FieldRegistry"
 import { FieldType } from "../src/index"
+import type { FieldTuple } from "../src/index.t"
 
 /**
  * Функциональные тесты компиляции индивидуальных суперпозиций.
@@ -19,7 +19,6 @@ import { FieldType } from "../src/index"
  */
 describe("Компиляция индивидуальных суперпозиций — функциональные тесты", () => {
   beforeEach(() => {
-    FieldRegistry.clear()
   })
 
   describe("compileSingle — компиляция одной superposition", () => {
@@ -27,10 +26,10 @@ describe("Компиляция индивидуальных суперпозиц
       const compiler = new RulesCompiler()
 
       const superposition = {
-        IDLE: { PATROL: { hp: { gt: 50 } } },
+        IDLE: { PATROL: { 0: { gt: 50 } } },
         PATROL: null,
       }
-      const fields = { hp: { type: FieldType.F32 } }
+      const fields: FieldTuple[] = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compileSingle(superposition, fields)
 
@@ -44,16 +43,19 @@ describe("Компиляция индивидуальных суперпозиц
       const compiler = new RulesCompiler()
 
       const superposition1 = {
-        IDLE: { COMBAT: { hp: { gt: 80 } } },
+        IDLE: { COMBAT: { 0: { gt: 80 } } },
         COMBAT: null,
       }
 
       const superposition2 = {
-        IDLE: { MEDITATE: { mana: { lt: 20 } } },
+        IDLE: { MEDITATE: { 1: { lt: 20 } } },
         MEDITATE: null,
       }
 
-      const fields = { hp: { type: FieldType.F32 }, mana: { type: FieldType.F32 } }
+      const fields: FieldTuple[] = [
+        [0, { fieldId: 0, type: FieldType.F32 }],
+        [1, { fieldId: 1, type: FieldType.F32 }],
+      ]
 
       const result1 = compiler.compileSingle(superposition1, fields)
       const result2 = compiler.compileSingle(superposition2, fields, { preserveRegistry: true })
@@ -73,10 +75,13 @@ describe("Компиляция индивидуальных суперпозиц
       const compiler = new RulesCompiler()
 
       const superpositions = [
-        { IDLE: { ACTIVE: { hp: { gt: 50 } } }, ACTIVE: null },
-        { IDLE: { PATROL: { mana: { lt: 10 } } }, PATROL: null },
+        { IDLE: { ACTIVE: { 0: { gt: 50 } } }, ACTIVE: null },
+        { IDLE: { PATROL: { 1: { lt: 10 } } }, PATROL: null },
       ]
-      const fields = { hp: { type: FieldType.F32 }, mana: { type: FieldType.F32 } }
+      const fields: FieldTuple[] = [
+        [0, { fieldId: 0, type: FieldType.F32 }],
+        [1, { fieldId: 1, type: FieldType.F32 }],
+      ]
 
       const result = compiler.compileEnsemble(superpositions, fields)
 
@@ -97,10 +102,10 @@ describe("Компиляция индивидуальных суперпозиц
       const compiler = new RulesCompiler()
 
       const superpositions = [
-        { IDLE: { COMBAT: { hp: { gt: 80 } } }, COMBAT: { VICTORY: { hp: { gt: 90 } } }, VICTORY: null },
-        { IDLE: { DEFEND: { hp: { lte: 50 } } }, DEFEND: { FORTIFY: { hp: { lte: 20 } } }, FORTIFY: null },
+        { IDLE: { COMBAT: { 0: { gt: 80 } } }, COMBAT: { VICTORY: { 0: { gt: 90 } } }, VICTORY: null },
+        { IDLE: { DEFEND: { 0: { lte: 50 } } }, DEFEND: { FORTIFY: { 0: { lte: 20 } } }, FORTIFY: null },
       ]
-      const fields = { hp: { type: FieldType.F32 } }
+      const fields: FieldTuple[] = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compileEnsemble(superpositions, fields)
 
@@ -117,11 +122,11 @@ describe("Компиляция индивидуальных суперпозиц
       const compiler = new RulesCompiler()
 
       const superpositions = [
-        { IDLE: { A: { hp: { gt: 10 } } }, A: null },
-        { IDLE: { B: { hp: { gt: 20 } } }, B: null },
-        { IDLE: { C: { hp: { gt: 30 } } }, C: null },
+        { IDLE: { A: { 0: { gt: 10 } } }, A: null },
+        { IDLE: { B: { 0: { gt: 20 } } }, B: null },
+        { IDLE: { C: { 0: { gt: 30 } } }, C: null },
       ]
-      const fields = { hp: { type: FieldType.F32 } }
+      const fields: FieldTuple[] = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compileEnsemble(superpositions, fields)
 
@@ -141,17 +146,17 @@ describe("Компиляция индивидуальных суперпозиц
 
       // Поле 0: переходит в ACTIVE при hp > 30
       const superposition0 = {
-        IDLE: { ACTIVE: { hp: { gt: 30 } } },
+        IDLE: { ACTIVE: { 0: { gt: 30 } } },
         ACTIVE: null,
       }
 
       // Поле 1: переходит в ACTIVE при hp > 70
       const superposition1 = {
-        IDLE: { ACTIVE: { hp: { gt: 70 } } },
+        IDLE: { ACTIVE: { 0: { gt: 70 } } },
         ACTIVE: null,
       }
 
-      const fields = { hp: { type: FieldType.F32 } }
+      const fields: FieldTuple[] = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compileEnsemble([superposition0, superposition1], fields)
 
@@ -184,23 +189,27 @@ describe("Компиляция индивидуальных суперпозиц
 
       // Поле 0: переход по hp
       const superposition0 = {
-        IDLE: { ACTIVE: { hp: { gt: 50 } } },
+        IDLE: { ACTIVE: { 0: { gt: 50 } } },
         ACTIVE: null,
       }
 
       // Поле 1: переход по mana
       const superposition1 = {
-        IDLE: { MEDITATE: { mana: { lt: 20 } } },
+        IDLE: { MEDITATE: { 1: { lt: 20 } } },
         MEDITATE: null,
       }
 
       // Поле 2: переход по isAlive
       const superposition2 = {
-        IDLE: { DEAD: { isAlive: false } },
+        IDLE: { DEAD: { 2: false } },
         DEAD: null,
       }
 
-      const fields = { hp: "number", mana: "number", isAlive: "boolean" }
+      const fields: FieldTuple[] = [
+        [0, { fieldId: 0, type: FieldType.F32 }],
+        [1, { fieldId: 1, type: FieldType.F32 }],
+        [2, { fieldId: 2, type: FieldType.BOOL }],
+      ]
 
       const result = compiler.compileEnsemble([superposition0, superposition1, superposition2], fields)
 
@@ -216,14 +225,17 @@ describe("Компиляция индивидуальных суперпозиц
       const superposition = {
         IDLE: {
           COMBAT: {
-            hp: { gt: 50 },
-            mana: { gt: 20 },
+            0: { gt: 50 },
+            1: { gt: 20 },
           },
         },
         COMBAT: null,
       }
 
-      const fields = { hp: { type: FieldType.F32 }, mana: { type: FieldType.F32 } }
+      const fields: FieldTuple[] = [
+        [0, { fieldId: 0, type: FieldType.F32 }],
+        [1, { fieldId: 1, type: FieldType.F32 }],
+      ]
 
       const result = compiler.compileSingle(superposition, fields)
 
@@ -238,7 +250,7 @@ describe("Компиляция индивидуальных суперпозиц
     test("пустой ансамбль должен возвращать пустые массивы", () => {
       const compiler = new RulesCompiler()
 
-      const result = compiler.compileEnsemble([], {})
+      const result = compiler.compileEnsemble([], [])
 
       expect(result.bytecode.length).toBe(0)
       expect(result.bytecodeOffsets.length).toBe(0)
@@ -253,7 +265,7 @@ describe("Компиляция индивидуальных суперпозиц
         DEAD: null,
       }
 
-      const fields = { hp: { type: FieldType.F32 } }
+      const fields: FieldTuple[] = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compileSingle(superposition, fields)
 
@@ -266,19 +278,22 @@ describe("Компиляция индивидуальных суперпозиц
 
       // Воин: IDLE → ATTACK → VICTORY
       const warriorSuperposition = {
-        IDLE: { ATTACK: { hp: { gt: 50 } } },
-        ATTACK: { VICTORY: { hp: { gt: 90 } } },
+        IDLE: { ATTACK: { 0: { gt: 50 } } },
+        ATTACK: { VICTORY: { 0: { gt: 90 } } },
         VICTORY: null,
       }
 
       // Маг: IDLE → CAST → RECOVER
       const mageSuperposition = {
-        IDLE: { CAST: { mana: { gt: 30 } } },
-        CAST: { RECOVER: { mana: { lte: 10 } } },
+        IDLE: { CAST: { 1: { gt: 30 } } },
+        CAST: { RECOVER: { 1: { lte: 10 } } },
         RECOVER: null,
       }
 
-      const fields = { hp: { type: FieldType.F32 }, mana: { type: FieldType.F32 } }
+      const fields: FieldTuple[] = [
+        [0, { fieldId: 0, type: FieldType.F32 }],
+        [1, { fieldId: 1, type: FieldType.F32 }],
+      ]
 
       const result = compiler.compileEnsemble([warriorSuperposition, mageSuperposition], fields)
 

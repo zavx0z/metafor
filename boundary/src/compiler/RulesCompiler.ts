@@ -1,8 +1,9 @@
 import { OP, TYPE } from "../opcodes"
-import type { CompiledRules, CompiledFieldRules, CompiledEnsemble, RegisteredFieldConfig } from "../index.t"
-import { FieldRegistry, FieldType, type FieldTypeValue } from "../core/FieldRegistry"
+import type { CompiledRules, CompiledFieldRules, CompiledEnsemble } from "../index.t"
+import type { Field, FieldTypeValue } from "../core/FieldRegistry"
 import { fieldTypeToBytecodeType } from "../utils/typeBridge"
 import { getStringAtlas } from "../strings/StringAtlas"
+import type { FieldTuple } from "../index.t"
 
 // Типы для представления конфигурации правил суперпозиции.
 type ConditionValue = number | boolean | string | { [key: string]: any }
@@ -26,7 +27,7 @@ type Superposition = Record<string, Transitions | null | undefined>
  * ### Формат инструкции условия (4 слова):
  * ```
  * [0] type:      TYPE.FLOAT, TYPE.UINT, TYPE.BOOL, TYPE.ARRAY
- * [1] field_id:  числовой идентификатор поля из FieldRegistry
+ * [1] field_id:  числовой идентификатор поля
  * [2] op:        OP.EQ, OP.GT, OP.IN, OP.INCLUDE, ...
  * [3] value:     закодированное значение или указатель на кучу
  * ```
@@ -39,91 +40,191 @@ type Superposition = Record<string, Transitions | null | undefined>
  *
  * ### Важные ограничения:
  * * **Все состояния-цели** должны быть объявлены в корне superposition (даже если null).
- * * **Поля должны быть зарегистрированы** в FieldRegistry до компиляции.
+ * * **Поля должны быть переданы** в compileEnsemble.
  * * **Нет проверки циклов** в графе состояний (бесконечные переходы возможны).
  * * **Размер байт-кода не ограничен** (может превысить лимиты GPU-буфера).
  */
 export class RulesCompiler {
   private bytecode: number[] = []
   private states: string[] = []
-  private fields: Record<
-    string,
-    {
-      fieldId: number
-      type: number
-      subType?: number | undefined
-      enumValues?: any[] | undefined
-    }
-  > = {}
+  private fields: Map<number, { fieldId: number; type: number; subType?: number | undefined; enumValues?: any[] | undefined }> = new Map()
 
   /**
-   * Транслирует конфигурацию состояний в байт-код для GPU.
+   * Компилирует массив superposition в единый конкатенированный bytecode.
    *
-   * ### Алгоритм компиляции:
-   * 1. Регистрация полей из схемы в FieldRegistry (получение field_id).
-   * 2. Построение таблицы состояний с резервированием места для указателей.
-   * 3. Для каждого состояния:
-   *    * Запись количества переходов.
-   *    * Для каждого перехода: запись targetState + указателя на блок условий (позже заполняется).
-   *    * Компиляция условий перехода в блок инструкций.
-   * 4. Заполнение указателей на блоки условий в переходах.
+   * Каждая superposition компилируется независимо со своими состояниями и переходами.
+   * Поля (fields) общие для всех суперпозиций.
+   *
+   * ### Использование:
+   * * **Одна брана** — одна superposition
+   * * **Несколько бран** — массив superpositions (по одной на брану)
    *
    * ### Структура результата:
-   * * `bytecode: Uint32Array` — плоский массив с программой VM.
-   * * `stateTableOffset: number` — смещение таблицы состояний в байт-коде (всегда 0).
-   * * `stateMap: Record<string, number>` — маппинг имён состояний на числовые ID.
-   *
-   * @param superposition - Граф переходов. Формат:
-   * ```ts
-   * {
-   *   "IDLE": { "PATROL": { hp: { gt: 50 } } },
-   *   "PATROL": null // Обязательно объявить все состояния
-   * }
    * ```
-   * @param branes - Схема типов данных. Если не передана, предполагается,
-   * что поля уже зарегистрированы в FieldRegistry.
-   * @param options - Дополнительные опции компиляции.
-   * @param options.preserveRegistry - Если true, не очищает FieldRegistry перед регистрацией.
+   * bytecode:           [superposition0_bc][superposition1_bc][superposition2_bc]...
+   * bytecodeOffsets:    [0, len0, len0+len1, ...]
+   * stateMaps:          [{IDLE:0,...}, {IDLE:0,...}, ...]
+   * reverseStateMaps:   [["IDLE",...], ["IDLE",...], ...]
+   * ```
    *
-   * @returns {CompiledRules} Скомпилированные правила, готовые для загрузки в GPUBackend.
-   *
-   * @throws {Error} Если:
-   * * Обнаружено состояние-цель, не объявленное в superposition.
-   * * Поле из условий не зарегистрировано в FieldRegistry.
-   * * Значение enum не найдено в списке допустимых значений.
+   * @param superpositions - Массив графов переходов (по одному на брану)
+   * @param fields - Поля в формате кортежей [[index, field], ...]
+   * @param options - Опции компиляции
+   * @param options.debug - Включить debug-логирование
+   * @returns Скомпилированный ансамбль с таблицей смещений
    *
    * @example
    * ```ts
-   * const compiler = new RulesCompiler();
-   * const rules = compiler.compile(
-   *   { IDLE: { PATROL: { hp: { gt: 50 } } }, PATROL: null },
-   *   { hp: "number" }
-   * );
+   * const compiler = new RulesCompiler()
+   * const ensemble = compiler.compileEnsemble(
+   *   [
+   *     { IDLE: { PATROL: { 0: { gt: 50 } } }, PATROL: null },  // брана 0
+   *     { IDLE: { COMBAT: { 0: { gt: 80 } } }, COMBAT: null },  // брана 1
+   *   ],
+   *   [[0, { type: FieldType.F32 }]]  // общие поля для всех бран
+   * )
    * ```
    */
-  compile(
-    superposition: Superposition,
-    fieldsSchema: Record<string, any> = {},
-    options: { preserveRegistry?: boolean } = {},
-  ): CompiledRules {
+  compileEnsemble(
+    superpositions: Superposition[],
+    fields: FieldTuple[],
+    options: { debug?: boolean } = {},
+  ): CompiledEnsemble {
+    const { debug = false } = options
+
+    // Сохраняем поля локально
+    this.fields.clear()
+    for (const [fieldId, field] of fields) {
+      const typeCode = fieldTypeToBytecodeType(field.type)
+      let subType: number | undefined
+      switch (field.elementType) {
+        case "number":
+          subType = TYPE.FLOAT
+          break
+        case "string":
+          subType = TYPE.STRING
+          break
+        default:
+          subType = undefined
+      }
+      this.fields.set(fieldId, {
+        fieldId,
+        type: typeCode,
+        ...(subType !== undefined ? { subType } : {}),
+        ...(field.enumValues !== undefined ? { enumValues: field.enumValues } : {}),
+      })
+    }
+
+    if (debug) {
+      console.log("[RulesCompiler] Compiling ensemble with", superpositions.length, "superpositions (one per brane)")
+    }
+
+    // Компилируем каждую superposition отдельно
+    const compiled: CompiledFieldRules[] = []
+    for (let i = 0; i < superpositions.length; i++) {
+      compiled.push(this.compileSingle(superpositions[i]!))
+      if (debug) {
+        console.log(
+          `[RulesCompiler] Superposition ${i} (brane ${i}): ${compiled[i]!.bytecode.length} words, states=`,
+          compiled[i]!.reverseStateMap,
+        )
+      }
+    }
+
+    // Вычисляем общий размер bytecode
+    const totalLength = compiled.reduce((sum, c) => sum + c.bytecode.length, 0)
+
+    // Создаём конкатенированный bytecode и таблицу смещений
+    const bytecode = new Uint32Array(totalLength)
+    const bytecodeOffsets = new Uint32Array(superpositions.length)
+
+    let offset = 0
+    for (let i = 0; i < compiled.length; i++) {
+      bytecodeOffsets[i] = offset
+      bytecode.set(compiled[i]!.bytecode, offset)
+      offset += compiled[i]!.bytecode.length
+    }
+
+    if (debug) {
+      console.log("[RulesCompiler] Total bytecode:", bytecode.length, "words")
+      console.log("[RulesCompiler] Bytecode offsets:", Array.from(bytecodeOffsets))
+    }
+
+    return {
+      bytecode,
+      bytecodeOffsets,
+      stateMaps: compiled.map((c) => c.stateMap),
+      reverseStateMaps: compiled.map((c) => c.reverseStateMap),
+    }
+  }
+
+  /**
+   * Компилирует одну superposition в bytecode для отдельного поля.
+   *
+   * В отличие от `compileEnsemble()`, этот метод возвращает полную информацию
+   * о stateMap и reverseStateMap для декодирования результатов.
+   *
+   * @param superposition - Граф переходов состояний. Ключи условий — числовые индексы.
+   * @param fieldsTuple - Поля в формате кортежей [[id, field], ...] (опционально)
+   * @param options - Опции компиляции
+   * @param options.preserveRegistry - Если true, не очищать существующие поля
+   * @returns Скомпилированные правила с метаданными
+   */
+  compileSingle(superposition: Superposition, fieldsTuple?: any, options: { preserveRegistry?: boolean } = {}): CompiledFieldRules {
+    const { preserveRegistry = false } = options
+
+    // Регистрируем поля если переданы
+    if (fieldsTuple && Array.isArray(fieldsTuple) && !preserveRegistry) {
+      this.fields.clear()
+      for (const [fieldId, field] of fieldsTuple) {
+        const typeCode = fieldTypeToBytecodeType(field.type)
+        let subType: number | undefined
+        switch (field.elementType) {
+          case "number":
+            subType = TYPE.FLOAT
+            break
+          case "string":
+            subType = TYPE.STRING
+            break
+          default:
+            subType = undefined
+        }
+        this.fields.set(fieldId, {
+          fieldId,
+          type: typeCode,
+          ...(subType !== undefined ? { subType } : {}),
+          ...(field.enumValues !== undefined ? { enumValues: field.enumValues } : {}),
+        })
+      }
+    } else if (fieldsTuple && Array.isArray(fieldsTuple) && preserveRegistry) {
+      // Добавляем поля к существующим
+      for (const [fieldId, field] of fieldsTuple) {
+        if (!this.fields.has(fieldId)) {
+          const typeCode = fieldTypeToBytecodeType(field.type)
+          let subType: number | undefined
+          switch (field.elementType) {
+            case "number":
+              subType = TYPE.FLOAT
+              break
+            case "string":
+              subType = TYPE.STRING
+              break
+            default:
+              subType = undefined
+          }
+          this.fields.set(fieldId, {
+            fieldId,
+            type: typeCode,
+            ...(subType !== undefined ? { subType } : {}),
+            ...(field.enumValues !== undefined ? { enumValues: field.enumValues } : {}),
+          })
+        }
+      }
+    }
+
     this.bytecode = []
     this.states = Object.keys(superposition)
-    this.fields = {}
 
-    // Поля должны быть уже зарегистрированы через Boundary.write()
-    // Или переданы через fieldsSchema для тестов
-    if (!options.preserveRegistry) {
-      FieldRegistry.clear()
-    }
-    
-    // Регистрируем поля из схемы если передана
-    if (Object.keys(fieldsSchema).length > 0) {
-      this.registerFieldsFromSchema(fieldsSchema)
-    }
-    
-    // Загружаем поля из Registry
-    this.loadFieldsFromRegistry()
-    
     // 1. Резервируем место для таблицы состояний
     const stateTableOffset = this.bytecode.length
     // Заглушка для смещения каждого состояния
@@ -150,18 +251,9 @@ export class RulesCompiler {
         // Заголовок перехода
         this.bytecode.push(targetIdx)
 
-        // Нам нужно прыгнуть к блоку условий. Пушим заглушку, компилируем условия, потом фиксим.
-        // Вообще, можно скомпилировать условия *после* списка переходов, но для локальности кэша
-        // лучше поместить их рядом. Добавим условия сразу после.
-        // Но формат ожидает [target, condPtr].
-        // Так что пушим цель, затем заглушку для condPtr.
+        // Пушим заглушку для condPtr, заполним позже
         const condPtrIdx = this.bytecode.length
         this.bytecode.push(0)
-        // Но так как мы итерируемся, мы не можем легко поместить блоки "после".
-        // Использовать отдельный буфер для условий или просто добавить в конец массива байт-кода позже?
-        // Проще: Добавить условия СЕЙЧАС и связать.
-        // Ой, если добавить сейчас, следующий заголовок перехода будет после условий.
-        // Это нормально. Байт-код — это плоский массив, указатели — абсолютные индексы.
       }
 
       // Теперь заполняем блоки условий для переходов этого состояния
@@ -182,128 +274,97 @@ export class RulesCompiler {
       }
     }
 
-    return {
+    const result: CompiledRules = {
       bytecode: new Uint32Array(this.bytecode),
       stateTableOffset,
       stateMap: Object.fromEntries(this.states.map((s, i) => [s, i])),
     }
-  }
 
-  private registerFieldsFromSchema(schema: Record<string, RegisteredFieldConfig>) {
-    // Используем глобальный реестр для регистрации полей
-    const registry = FieldRegistry.getInstance()
+    const reverseStateMap = Object.keys(result.stateMap)
 
-    for (const [name, def] of Object.entries(schema)) {
-      let fieldType: FieldTypeValue
-      let elementType: string | undefined
-      let enumValues: any[] | undefined = undefined
-
-      // Числовой формат: { type: FieldType.F32, options?: {...} }
-      fieldType = def.type
-      
-      if (def.options) {
-        elementType = def.options.elementType
-        enumValues = def.options.enumValues
-      }
-
-      // Регистрируем поле, если еще не зарегистрировано
-      if (!registry.has(name)) {
-        const registerOptions = {
-          ...(elementType !== undefined ? { elementType } : {}),
-          ...(enumValues !== undefined ? { enumValues } : {}),
-        }
-        registry.register(name, fieldType, registerOptions)
-      }
-
-      // Получаем fieldId и сохраняем информацию о поле
-      const fieldId = registry.getId(name)
-      const typeCode = fieldTypeToBytecodeType(fieldType)
-
-      // Вычисляем subType для array (для кодирования значений в байткоде)
-      let subType: number | undefined = undefined
-      if (elementType === "string") subType = TYPE.STRING
-      else if (elementType === "number") subType = TYPE.FLOAT
-
-      this.fields[name] = { fieldId, type: typeCode, subType, enumValues }
+    return {
+      bytecode: result.bytecode,
+      stateMap: result.stateMap,
+      reverseStateMap,
     }
   }
 
-  private loadFieldsFromRegistry() {
-    const registry = FieldRegistry.getInstance()
-    for (const meta of registry.getAll()) {
-      const typeCode = fieldTypeToBytecodeType(meta.type)
-
-      let subType: number | undefined
-      switch (meta.elementType) {
-        case "number":
-          subType = TYPE.FLOAT
-          break
-        case "string":
-          subType = TYPE.STRING
-          break
-        default:
-          subType = undefined
-      }
-
-      this.fields[meta.name] = { fieldId: meta.fieldId, type: typeCode, subType, enumValues: meta.enumValues }
-    }
-  }
-
-  private validateFieldsFromSuperposition(superposition: Superposition) {
-    // Проверяем, что все поля из правил зарегистрированы в глобальном реестре
-    const registry = FieldRegistry.getInstance()
-
-    for (const state in superposition) {
-      const transitions = superposition[state]
-      if (!transitions) continue
-
-      for (const target in transitions) {
-        const conditions = transitions[target]
-        if (!conditions) continue
-
-        for (const field in conditions) {
-          if (!registry.has(field)) {
-            throw new Error(`Field '${field}' is not registered in FieldRegistry`)
-          }
+  /**
+   * Компилирует superposition в bytecode.
+   *
+   * @deprecated Используйте {@link compileSingle} или {@link compileEnsemble}
+   *
+   * @param superposition - Граф переходов состояний. Ключи условий — числовые индексы.
+   * @param fieldsTuple - Поля в формате кортежей [[id, field], ...] (для совместимости)
+   * @returns Скомпилированные правила с метаданными
+   */
+  compile(superposition: Superposition, fieldsTuple?: any): CompiledRules {
+    // Для обратной совместимости - регистрируем поля и вызываем compileSingle
+    if (fieldsTuple && Array.isArray(fieldsTuple)) {
+      this.fields.clear()
+      for (const [fieldId, field] of fieldsTuple) {
+        const typeCode = fieldTypeToBytecodeType(field.type)
+        let subType: number | undefined
+        switch (field.elementType) {
+          case "number":
+            subType = TYPE.FLOAT
+            break
+          case "string":
+            subType = TYPE.STRING
+            break
+          default:
+            subType = undefined
         }
+        this.fields.set(fieldId, {
+          fieldId,
+          type: typeCode,
+          ...(subType !== undefined ? { subType } : {}),
+          ...(field.enumValues !== undefined ? { enumValues: field.enumValues } : {}),
+        })
       }
+    }
+
+    const result = this.compileSingle(superposition)
+    return {
+      bytecode: result.bytecode,
+      stateTableOffset: 0,
+      stateMap: result.stateMap,
     }
   }
 
   private compileConditions(wave: CollapseConditions) {
     const entries = Object.entries(wave)
     // Сначала подсчитаем общее количество условий (инструкций)
-    // Для { value: { gte: 10, lte: 20 } } будет 2 инструкции
     let totalConditions = 0
     for (const [key, cond] of entries) {
       const checks = this.parseCondition(cond)
       totalConditions += checks.length
     }
     this.bytecode.push(totalConditions)
-    // Генерируем инструкции: [type, field_id, op, value] (4 слова на условие)
-    // Для массивов (IN/NOT_IN) value = указатель на кучу со списком значений.
-    const blockHeap: number[] = []
+
     // Считаем полный размер инструкций (4 слова на каждую проверку)
     const totalInstructionsSize = totalConditions * 4
+
     // Условия в шейдере читаются от базы инструкций конкретного cond-блока
-    // (bytecode_base + cond_ptr + 1), поэтому для списков кодируем
-    // смещение относительно этой базы.
+    const blockHeap: number[] = []
+
     // Генерируем инструкции с правильными указателями на кучу.
     for (const [key, cond] of entries) {
-      const field = this.fields[key]
-      if (!field) throw new Error(`Unknown field in conditions: ${key}`)
+      const fieldId = Number(key)
+      const field = this.fields.get(fieldId)
+      if (!field) throw new Error(`Unknown field ID: ${fieldId}`)
+
       const checks = this.parseCondition(cond)
       for (const check of checks) {
         // 1. type
         this.bytecode.push(field.type)
         // 2. field_id
         this.bytecode.push(field.fieldId)
-        // 3. оператор.
+        // 3. оператор
         this.bytecode.push(check.op)
-        // 4. значение (или указатель на кучу для массивов).
+        // 4. значение (или указатель на кучу для массивов)
         if (Array.isArray(check.val) && (check.op === OP.IN || check.op === OP.NOT_IN)) {
-          // ptr - смещение от базы инструкций cond-блока.
-          // [count, item1, item2, ...] лежит после всех инструкций блока.
+          // ptr - смещение от базы инструкций cond-блока
           const ptr = totalInstructionsSize + blockHeap.length
           blockHeap.push(check.val.length)
           for (const v of check.val) {
@@ -316,6 +377,7 @@ export class RulesCompiler {
         }
       }
     }
+
     // Записываем кучу после инструкций.
     for (const w of blockHeap) {
       this.bytecode.push(w)
@@ -422,7 +484,7 @@ export class RulesCompiler {
   }
 
   private getEncodingContextForOp(
-    field: { type: number; subType?: number | undefined; enumValues?: any[] | undefined },
+    field: { fieldId: number; type: number; subType?: number | undefined; enumValues?: any[] | undefined },
     op: number,
   ): { subType?: number | undefined; enumValues?: any[] | undefined } | undefined {
     // Для массивов include/notInclude значение нужно кодировать в тип элемента.
@@ -450,7 +512,6 @@ export class RulesCompiler {
     }
 
     // Если это элемент массива, используем подтип массива как тип значения
-    // Это важно для 'include': если поле array<float>, то значение поиска 1.5 нужно bitcast-ить
     const type = contextField?.subType !== undefined ? contextField.subType : inputType
 
     if (type === TYPE.FLOAT) {
@@ -468,120 +529,5 @@ export class RulesCompiler {
       return stringId
     }
     return Number(val)
-  }
-
-  /**
-   * Компилирует одну superposition в bytecode для отдельного поля.
-   *
-   * В отличие от `compile()`, этот метод возвращает полную информацию
-   * о stateMap и reverseStateMap для декодирования результатов.
-   *
-   * @param superposition - Граф переходов состояний
-   * @param branes - Схема типов данных браны
-   * @param options - Опции компиляции
-   * @returns Скомпилированные правила с метаданными
-   */
-  compileSingle(
-    superposition: Superposition,
-    branes: Record<string, any> = {},
-    options: { preserveRegistry?: boolean } = {},
-  ): CompiledFieldRules {
-    const result = this.compile(superposition, branes, options)
-    const reverseStateMap = Object.keys(result.stateMap)
-
-    return {
-      bytecode: result.bytecode,
-      stateMap: result.stateMap,
-      reverseStateMap,
-    }
-  }
-
-  /**
-   * Компилирует массив superposition в единый конкатенированный bytecode.
-   *
-   * Каждая superposition компилируется независимо со своими состояниями и переходами.
-   * Поля (fields) общие для всех суперпозиций — они уже должны быть зарегистрированы в FieldRegistry.
-   *
-   * ### Использование:
-   * * **Одна брана** — одна superposition
-   * * **Несколько бран** — массив superpositions (по одной на брану)
-   *
-   * ### Структура результата:
-   * ```
-   * bytecode:           [superposition0_bc][superposition1_bc][superposition2_bc]...
-   * bytecodeOffsets:    [0, len0, len0+len1, ...]
-   * stateMaps:          [{IDLE:0,...}, {IDLE:0,...}, ...]
-   * reverseStateMaps:   [["IDLE",...], ["IDLE",...], ...]
-   * ```
-   *
-   * @param superpositions - Массив графов переходов (по одному на брану)
-   * @param fields - Схема типов полей (общая для всех бран)
-   * @param options - Опции компиляции
-   * @param options.debug - Включить debug-логирование
-   * @returns Скомпилированный ансамбль с таблицей смещений
-   *
-   * @example
-   * ```ts
-   * const compiler = new RulesCompiler()
-   * const ensemble = compiler.compileEnsemble(
-   *   [
-   *     { IDLE: { PATROL: { hp: { gt: 50 } } }, PATROL: null },  // брана 0
-   *     { IDLE: { COMBAT: { hp: { gt: 80 } } }, COMBAT: null },  // брана 1
-   *   ],
-   *   { hp: { type: FieldType.F32 } }  // общие поля для всех бран
-   * )
-   * ```
-   */
-  compileEnsemble(
-    superpositions: Superposition[],
-    fields: Record<string, any> = {},
-    options: { preserveRegistry?: boolean; debug?: boolean } = {},
-  ): CompiledEnsemble {
-    const { debug = false } = options
-
-    // Поля должны быть уже зарегистрированы в FieldRegistry перед вызовом compileEnsemble
-
-    if (debug) {
-      console.log("[RulesCompiler] Compiling ensemble with", superpositions.length, "superpositions (one per brane)")
-    }
-
-    // Компилируем каждую superposition отдельно
-    const compiled: CompiledFieldRules[] = []
-    for (let i = 0; i < superpositions.length; i++) {
-      // preserveRegistry=true для всех кроме первой, чтобы сохранить зарегистрированные поля
-      compiled.push(this.compileSingle(superpositions[i]!, fields, { preserveRegistry: i > 0 }))
-      if (debug) {
-        console.log(
-          `[RulesCompiler] Superposition ${i} (brane ${i}): ${compiled[i]!.bytecode.length} words, states=`,
-          compiled[i]!.reverseStateMap,
-        )
-      }
-    }
-
-    // Вычисляем общий размер bytecode
-    const totalLength = compiled.reduce((sum, c) => sum + c.bytecode.length, 0)
-
-    // Создаём конкатенированный bytecode и таблицу смещений
-    const bytecode = new Uint32Array(totalLength)
-    const bytecodeOffsets = new Uint32Array(superpositions.length)
-
-    let offset = 0
-    for (let i = 0; i < compiled.length; i++) {
-      bytecodeOffsets[i] = offset
-      bytecode.set(compiled[i]!.bytecode, offset)
-      offset += compiled[i]!.bytecode.length
-    }
-
-    if (debug) {
-      console.log("[RulesCompiler] Total bytecode:", bytecode.length, "words")
-      console.log("[RulesCompiler] Bytecode offsets:", Array.from(bytecodeOffsets))
-    }
-
-    return {
-      bytecode,
-      bytecodeOffsets,
-      stateMaps: compiled.map((c) => c.stateMap),
-      reverseStateMaps: compiled.map((c) => c.reverseStateMap),
-    }
   }
 }

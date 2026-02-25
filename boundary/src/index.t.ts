@@ -2,6 +2,8 @@
  * Типы и интерфейсы для Boundary.
  */
 
+import type { Field, FieldType } from "./core/FieldRegistry"
+
 /**
  * Индекс браны в массиве Boundary.
  *
@@ -14,6 +16,16 @@
  * Это технический индекс (0, 1, 2...), а не уникальный идентификатор.
  */
 export type BraneIndex = number
+
+/**
+ * Кортеж поля: [индекс, определение поля].
+ */
+export type FieldTuple = [number, Field]
+
+/**
+ * Кортеж значения: [индекс, значение].
+ */
+export type ValueTuple = [number, unknown]
 
 /**
  * Определение типа поля для GPU.
@@ -40,6 +52,8 @@ export type FieldsDefinition = Record<string, FieldDefinition>
  * @remarks
  * Ключ верхнего уровня — имя состояния, значение — карта переходов.
  * `null` означает состояние без исходящих переходов (терминальное).
+ *
+ * Ключи условий — числовые индексы полей (не имена).
  */
 export type Superposition = Record<string, Record<string, any> | null>
 
@@ -48,19 +62,29 @@ export type Superposition = Record<string, Record<string, any> | null>
  *
  * @remarks
  * Брана содержит:
- * - params — значения полей (данные)
+ * - params — значения полей (данные) в формате кортежей
  * - state — текущее состояние (одно из superposition)
  * - superposition — все возможные состояния + граф переходов
  *
  * Индекс браны в массиве Boundary используется как идентификатор.
  */
 export interface BraneDefinition {
-  /** Значения полей браны (params — данные). */
-  params: Record<string, unknown>
+  /** Значения полей браны в формате кортежей [[index, value], ...]. */
+  params: ValueTuple[]
   /** Текущее состояние (должно быть в superposition). */
   state: string
-  /** Суперпозиция — все состояния + граф переходов. */
+  /** Суперпозиция — все состояния + граф переходов. Ключи — индексы полей. */
   superposition: Superposition
+}
+
+/**
+ * Конфигурация Boundary с кортежами.
+ */
+export interface BoundaryConfig {
+  /** Поля в формате кортежей [[index, field], ...]. */
+  fields: FieldTuple[]
+  /** Массив бран — возмущений в поле. */
+  branes: BraneDefinition[]
 }
 
 /**
@@ -79,35 +103,6 @@ export interface DebugOptions {
   strings?: boolean
   /** Включить полное логирование (все категории). */
   all?: boolean
-}
-
-/**
- * Зарегистрированное поле с готовым числовым типом.
- * Используется для передачи готовых данных в FieldRegistry.
- */
-export interface RegisteredFieldConfig {
-  /** Числовой тип для GPU (FieldType.F32, FieldType.U32, etc.) */
-  type: FieldTypeValue
-  /** Опции для массивов и enum */
-  options?: {
-    elementType?: string
-    enumValues?: any[]
-  }
-}
-
-/**
- * Конфигурация полевой границы с готовыми типами.
- *
- * @remarks
- * Boundary управляет двумя компонентами:
- * - fields — статика: схема типов полей для GPU (уже преобразована)
- * - branes — динамика: массив бран с params, state, superposition
- */
-export interface BoundaryConfigWithTypes {
-  /** Схема типов полей с готовыми числовыми типами */
-  fields: Record<string, RegisteredFieldConfig>
-  /** Массив бран — возмущений в поле. */
-  branes: BraneDefinition[]
 }
 
 /**

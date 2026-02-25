@@ -15,16 +15,16 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { tags: { include: 5 } } },
+        IDLE: { ACTIVE: { 0: { include: 5 } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { tags: { type: FieldType.ARRAY_PTR, options: { elementType: "number" } } },
+        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
         branes: [
-          { state: "IDLE", params: { tags: [1, 5, 10] }, superposition },
-          { state: "IDLE", params: { tags: [1, 2, 3] }, superposition },
-          { state: "IDLE", params: { tags: [] }, superposition },
+          { state: "IDLE", params: [[0, [1, 5, 10]]], superposition },
+          { state: "IDLE", params: [[0, [1, 2, 3]]], superposition },
+          { state: "IDLE", params: [[0, []]], superposition },
         ],
       })
 
@@ -40,15 +40,15 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { tags: { include: "fire" } } },
+        IDLE: { ACTIVE: { 0: { include: "fire" } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { tags: { type: FieldType.ARRAY_PTR, options: { elementType: "string" } } },
+        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "string" }]],
         branes: [
-          { state: "IDLE", params: { tags: ["fire", "ice", "lightning"] }, superposition },
-          { state: "IDLE", params: { tags: ["ice", "lightning"] }, superposition },
+          { state: "IDLE", params: [[0, ["fire", "ice", "lightning"]]], superposition },
+          { state: "IDLE", params: [[0, ["ice", "lightning"]]], superposition },
         ],
       })
 
@@ -65,16 +65,16 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { tags: { notInclude: 99 } } },
+        IDLE: { ACTIVE: { 0: { notInclude: 99 } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { tags: { type: FieldType.ARRAY_PTR, options: { elementType: "number" } } },
+        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
         branes: [
-          { state: "IDLE", params: { tags: [1, 2, 3] }, superposition },
-          { state: "IDLE", params: { tags: [99, 100] }, superposition },
-          { state: "IDLE", params: { tags: [] }, superposition },
+          { state: "IDLE", params: [[0, [1, 2, 3]]], superposition },
+          { state: "IDLE", params: [[0, [99, 100]]], superposition },
+          { state: "IDLE", params: [[0, []]], superposition },
         ],
       })
 
@@ -92,17 +92,17 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { items: { length: 3 } } },
+        IDLE: { ACTIVE: { 0: { length: 3 } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { items: { type: FieldType.ARRAY_PTR, options: { elementType: "number" } } },
+        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
         branes: [
-          { state: "IDLE", params: { items: [1, 2, 3] }, superposition },
-          { state: "IDLE", params: { items: [1, 2] }, superposition },
-          { state: "IDLE", params: { items: [1, 2, 3, 4] }, superposition },
-          { state: "IDLE", params: { items: [] }, superposition },
+          { state: "IDLE", params: [[0, [1, 2, 3]]], superposition },
+          { state: "IDLE", params: [[0, [1, 2]]], superposition },
+          { state: "IDLE", params: [[0, [1, 2, 3, 4]]], superposition },
+          { state: "IDLE", params: [[0, []]], superposition },
         ],
       })
 
@@ -119,16 +119,16 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { items: { length: { gte: 2 } } } },
+        IDLE: { ACTIVE: { 0: { length: { gte: 2 } } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { items: { type: FieldType.ARRAY_PTR, options: { elementType: "number" } } },
+        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
         branes: [
-          { state: "IDLE", params: { items: [1] }, superposition },
-          { state: "IDLE", params: { items: [1, 2] }, superposition },
-          { state: "IDLE", params: { items: [1, 2, 3] }, superposition },
+          { state: "IDLE", params: [[0, [1]]], superposition },
+          { state: "IDLE", params: [[0, [1, 2]]], superposition },
+          { state: "IDLE", params: [[0, [1, 2, 3]]], superposition },
         ],
       })
 
@@ -146,16 +146,16 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { EMPTY: { items: { isEmpty: true } } },
+        IDLE: { EMPTY: { 0: { isEmpty: true } } },
         EMPTY: null,
       }
 
       await boundary.write({
-        fields: { items: { type: FieldType.ARRAY_PTR, options: { elementType: "number" } } },
+        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
         branes: [
-          { state: "IDLE", params: { items: [] }, superposition },
-          { state: "IDLE", params: { items: [1] }, superposition },
-          { state: "IDLE", params: { items: [1, 2, 3] }, superposition },
+          { state: "IDLE", params: [[0, []]], superposition },
+          { state: "IDLE", params: [[0, [1]]], superposition },
+          { state: "IDLE", params: [[0, [1, 2, 3]]], superposition },
         ],
       })
 
@@ -171,16 +171,16 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { items: { isEmpty: false } } },
+        IDLE: { ACTIVE: { 0: { isEmpty: false } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { items: { type: FieldType.ARRAY_PTR, options: { elementType: "number" } } },
+        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
         branes: [
-          { state: "IDLE", params: { items: [] }, superposition },
-          { state: "IDLE", params: { items: [1] }, superposition },
-          { state: "IDLE", params: { items: [1, 2, 3] }, superposition },
+          { state: "IDLE", params: [[0, []]], superposition },
+          { state: "IDLE", params: [[0, [1]]], superposition },
+          { state: "IDLE", params: [[0, [1, 2, 3]]], superposition },
         ],
       })
 
@@ -200,22 +200,22 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       const superposition = {
         IDLE: {
           ACTIVE: {
-            items: { length: { gte: 2, lte: 5 } },
-            tags: { include: 1 },
+            0: { length: { gte: 2, lte: 5 } },
+            1: { include: 1 },
           },
         },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: {
-          items: { type: FieldType.ARRAY_PTR, options: { elementType: "number" } },
-          tags: { type: FieldType.ARRAY_PTR, options: { elementType: "number" } },
-        },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }],
+          [1, { fieldId: 1, type: FieldType.ARRAY_PTR, elementType: "number" }],
+        ],
         branes: [
-          { state: "IDLE", params: { items: [1, 2, 3], tags: [1, 5] }, superposition },
-          { state: "IDLE", params: { items: [1], tags: [1, 5] }, superposition },
-          { state: "IDLE", params: { items: [1, 2, 3], tags: [2, 3] }, superposition },
+          { state: "IDLE", params: [[0, [1, 2, 3]], [1, [1, 5]]], superposition },
+          { state: "IDLE", params: [[0, [1]], [1, [1, 5]]], superposition },
+          { state: "IDLE", params: [[0, [1, 2, 3]], [1, [2, 3]]], superposition },
         ],
       })
 
@@ -233,13 +233,13 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { items: { isEmpty: true } } },
+        IDLE: { ACTIVE: { 0: { isEmpty: true } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { items: { type: FieldType.ARRAY_PTR, options: { elementType: "number" } } },
-        branes: [{ state: "IDLE", params: { items: [] }, superposition }],
+        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
+        branes: [{ state: "IDLE", params: [[0, []]], superposition }],
       })
 
       boundary.step()
@@ -252,13 +252,13 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { items: { length: 1 } } },
+        IDLE: { ACTIVE: { 0: { length: 1 } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { items: { type: FieldType.ARRAY_PTR, options: { elementType: "number" } } },
-        branes: [{ state: "IDLE", params: { items: [42] }, superposition }],
+        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
+        branes: [{ state: "IDLE", params: [[0, [42]]], superposition }],
       })
 
       boundary.step()
@@ -271,16 +271,16 @@ describe("Boundary - тип ARRAY с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { items: { length: 100 } } },
+        IDLE: { ACTIVE: { 0: { length: 100 } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { items: { type: FieldType.ARRAY_PTR, options: { elementType: "number" } } },
+        fields: [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]],
         branes: [
           {
             state: "IDLE",
-            params: { items: Array.from({ length: 100 }, (_, i) => i) },
+            params: [[0, Array.from({ length: 100 }, (_, i) => i)]],
             superposition,
           },
         ],

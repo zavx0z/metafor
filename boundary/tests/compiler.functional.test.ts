@@ -20,10 +20,10 @@ describe("Компилятор правил — функциональные т�
       // Конфигурация: состояние IDLE может перейти в DEAD, если здоровье <= 0
       // ВАЖНО: все состояния (включая цели переходов) должны быть объявлены в корне!
       const superposition = {
-        IDLE: { DEAD: { hp: { lte: 0 } } },
+        IDLE: { DEAD: { 0: { lte: 0 } } },
         DEAD: null, // ← обязательно объявляем состояние-цель!
       }
-      const fields = { hp: { type: FieldType.F32 } }
+      const fields = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
@@ -41,10 +41,10 @@ describe("Компилятор правил — функциональные т�
       const compiler = new RulesCompiler()
 
       const superposition = {
-        IDLE: { PATROL: { hp: { gt: 50 } } },
+        IDLE: { PATROL: { 0: { gt: 50 } } },
         PATROL: null, // ← объявляем цель перехода
       }
-      const fields = { hp: { type: FieldType.F32 } }
+      const fields = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
@@ -59,10 +59,10 @@ describe("Компилятор правил — функциональные т�
       const compiler = new RulesCompiler()
 
       const superposition = {
-        IDLE: { PATROL: { hp: { gte: 50 } } },
+        IDLE: { PATROL: { 0: { gte: 50 } } },
         PATROL: null,
       }
-      const fields = { hp: { type: FieldType.F32 } }
+      const fields = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
@@ -77,10 +77,10 @@ describe("Компилятор правил — функциональные т�
       const compiler = new RulesCompiler()
 
       const superposition = {
-        PATROL: { IDLE: { mana: { lt: 10 } } },
+        PATROL: { IDLE: { 0: { lt: 10 } } },
         IDLE: null,
       }
-      const fields = { mana: { type: FieldType.F32 } }
+      const fields = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
@@ -95,10 +95,10 @@ describe("Компилятор правил — функциональные т�
       const compiler = new RulesCompiler()
 
       const superposition = {
-        PATROL: { COMBAT: { isAlive: { eq: true } } },
+        PATROL: { COMBAT: { 0: { eq: true } } },
         COMBAT: null,
       }
-      const fields = { isAlive: { type: FieldType.BOOL } }
+      const fields = [[0, { fieldId: 0, type: FieldType.BOOL }]]
 
       const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
@@ -113,10 +113,10 @@ describe("Компилятор правил — функциональные т�
       const compiler = new RulesCompiler()
 
       const superposition = {
-        ACTIVE: { IDLE: { isAlive: { neq: false } } },
+        ACTIVE: { IDLE: { 0: { neq: false } } },
         IDLE: null,
       }
-      const fields = { isAlive: { type: FieldType.BOOL } }
+      const fields = [[0, { fieldId: 0, type: FieldType.BOOL }]]
 
       const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
@@ -133,10 +133,10 @@ describe("Компилятор правил — функциональные т�
       const compiler = new RulesCompiler()
 
       const superposition = {
-        IDLE: { DEAD: { hp: { lte: 0.0 } } },
+        IDLE: { DEAD: { 0: { lte: 0.0 } } },
         DEAD: null,
       }
-      const fields = { hp: { type: FieldType.F32 } }
+      const fields = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
@@ -160,10 +160,10 @@ describe("Компилятор правил — функциональные т�
     test("булево значение 'true' должно кодироваться как 1", () => {
       const compiler = new RulesCompiler()
       const superposition = {
-        IDLE: { ACTIVE: { isAlive: { eq: true } } },
+        IDLE: { ACTIVE: { 0: { eq: true } } },
         ACTIVE: null,
       }
-      const fields = { isAlive: { type: FieldType.BOOL } }
+      const fields = [[0, { fieldId: 0, type: FieldType.BOOL }]]
       const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
       // Для булевых значений используется тип BOOL (2)
@@ -182,10 +182,10 @@ describe("Компилятор правил — функциональные т�
     test("булево значение 'false' должно кодироваться как 0", () => {
       const compiler = new RulesCompiler()
       const superposition = {
-        ACTIVE: { DEAD: { isAlive: { eq: false } } },
+        ACTIVE: { DEAD: { 0: { eq: false } } },
         DEAD: null,
       }
-      const fields = { isAlive: { type: FieldType.BOOL } }
+      const fields = [[0, { fieldId: 0, type: FieldType.BOOL }]]
       const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
       let encodedValue = 0
@@ -205,11 +205,14 @@ describe("Компилятор правил — функциональные т�
       const compiler = new RulesCompiler()
 
       const superposition = {
-        IDLE: { PATROL: { hp: { gt: 50 } } },
-        PATROL: { IDLE: { mana: { lt: 10 } } },
+        IDLE: { PATROL: { 0: { gt: 50 } } },
+        PATROL: { IDLE: { 1: { lt: 10 } } },
         DEAD: null,
       }
-      const fields = { hp: { type: FieldType.F32 }, mana: { type: FieldType.F32 } }
+      const fields = [
+        [0, { fieldId: 0, type: FieldType.F32 }],
+        [1, { fieldId: 1, type: FieldType.F32 }],
+      ]
 
       const result = compiler.compile(superposition, fields)
 
@@ -234,11 +237,14 @@ describe("Компилятор правил — функциональные т�
       const compiler = new RulesCompiler()
 
       const superposition = {
-        IDLE: { PATROL: { hp: { gt: 50 } } },
-        PATROL: { IDLE: { mana: { lt: 10 } } },
+        IDLE: { PATROL: { 0: { gt: 50 } } },
+        PATROL: { IDLE: { 1: { lt: 10 } } },
         DEAD: null,
       }
-      const fields = { hp: { type: FieldType.F32 }, mana: { type: FieldType.F32 } }
+      const fields = [
+        [0, { fieldId: 0, type: FieldType.F32 }],
+        [1, { fieldId: 1, type: FieldType.F32 }],
+      ]
 
       const result = compiler.compile(superposition, fields)
 
@@ -257,13 +263,13 @@ describe("Компилятор правил — функциональные т�
 
       const superposition = {
         IDLE: {
-          PATROL: { hp: { gt: 50 } },
-          DEAD: { hp: { lte: 0 } },
+          PATROL: { 0: { gt: 50 } },
+          DEAD: { 0: { lte: 0 } },
         },
         PATROL: null,
         DEAD: null,
       }
-      const fields = { hp: { type: FieldType.F32 } }
+      const fields = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compile(superposition, fields)
 
@@ -281,13 +287,13 @@ describe("Компилятор правил — функциональные т�
 
       const superposition = {
         IDLE: {
-          PATROL: { hp: { gt: 50 } },
-          DEAD: { hp: { lte: 0 } },
+          PATROL: { 0: { gt: 50 } },
+          DEAD: { 0: { lte: 0 } },
         },
         PATROL: null,
         DEAD: null,
       }
-      const fields = { hp: { type: FieldType.F32 } }
+      const fields = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compile(superposition, fields)
 
@@ -315,11 +321,11 @@ describe("Компилятор правил — функциональные т�
 
       const superposition = {
         IDLE: {
-          PATROL: { hp: { gt: 50 } },
+          PATROL: { 0: { gt: 50 } },
         },
         PATROL: null,
       }
-      const fields = { hp: { type: FieldType.F32 } }
+      const fields = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compile(superposition, fields)
 
@@ -339,11 +345,11 @@ describe("Компилятор правил — функциональные т�
 
       const superposition = {
         IDLE: {
-          PATROL: { hp: { gt: 50 } },
+          PATROL: { 0: { gt: 50 } },
         },
         PATROL: null,
       }
-      const fields = { hp: { type: FieldType.F32 } }
+      const fields = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compile(superposition, fields)
 
@@ -375,13 +381,16 @@ describe("Компилятор правил — функциональные т�
       const superposition = {
         IDLE: {
           COMBAT: {
-            hp: { gt: 50 },
-            mana: { gt: 20 },
+            0: { gt: 50 },
+            1: { gt: 20 },
           },
         },
         COMBAT: null,
       }
-      const fields = { hp: { type: FieldType.F32 }, mana: { type: FieldType.F32 } }
+      const fields = [
+        [0, { fieldId: 0, type: FieldType.F32 }],
+        [1, { fieldId: 1, type: FieldType.F32 }],
+      ]
 
       const result = compiler.compile(superposition, fields)
 
@@ -422,15 +431,15 @@ describe("Компилятор правил — функциональные т�
     test("поля должны быть зарегистрированы в GlobalFieldRegistry", () => {
       const compiler = new RulesCompiler()
 
-      const fields = {
-        hp: "number",
-        mana: "number",
-        isAlive: "boolean",
-      }
+      const fields = [
+        [0, { fieldId: 0, type: FieldType.F32 }],
+        [1, { fieldId: 1, type: FieldType.F32 }],
+        [2, { fieldId: 2, type: FieldType.BOOL }],
+      ]
 
       // Минимальная конфигурация для компиляции (нужны хотя бы 2 состояния)
       const superposition = {
-        IDLE: { PATROL: { hp: { gt: 50 } } },
+        IDLE: { PATROL: { 0: { gt: 50 } } },
         PATROL: null,
       }
 
@@ -446,9 +455,12 @@ describe("Компилятор правил — функциональные т�
     test("поля типа 'number' должны компилироваться корректно", () => {
       const compiler = new RulesCompiler()
 
-      const fields = { hp: { type: FieldType.F32 }, mana: { type: FieldType.F32 } }
+      const fields = [
+        [0, { fieldId: 0, type: FieldType.F32 }],
+        [1, { fieldId: 1, type: FieldType.F32 }],
+      ]
       const superposition = {
-        IDLE: { PATROL: { hp: { gt: 50 } } },
+        IDLE: { PATROL: { 0: { gt: 50 } } },
         PATROL: null,
       }
 
@@ -464,9 +476,9 @@ describe("Компилятор правил — функциональные т�
 
     test("поля типа 'boolean' должны компилироваться корректно", () => {
       const compiler = new RulesCompiler()
-      const fields = { isAlive: { type: FieldType.BOOL } }
+      const fields = [[0, { fieldId: 0, type: FieldType.BOOL }]]
       const superposition = {
-        IDLE: { ACTIVE: { isAlive: { eq: true } } },
+        IDLE: { ACTIVE: { 0: { eq: true } } },
         ACTIVE: null,
       }
       const result = compiler.compile(superposition, fields)
@@ -485,10 +497,10 @@ describe("Компилятор правил — функциональные т�
       const compiler = new RulesCompiler()
 
       const superposition = {
-        START: { END: { val: { notGt: 10 } } },
+        START: { END: { 0: { notGt: 10 } } },
         END: null,
       }
-      const fields = { val: "number" }
+      const fields = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compile(superposition, fields)
 
@@ -504,10 +516,10 @@ describe("Компилятор правил — функциональные т�
       const compiler = new RulesCompiler()
 
       const superposition = {
-        START: { END: { val: { notLt: 5 } } },
+        START: { END: { 0: { notLt: 5 } } },
         END: null,
       }
-      const fields = { val: "number" }
+      const fields = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compile(superposition, fields)
 
@@ -523,10 +535,10 @@ describe("Компилятор правил — функциональные т�
       const compiler = new RulesCompiler()
 
       const superposition = {
-        START: { END: { val: { notGte: 20 } } },
+        START: { END: { 0: { notGte: 20 } } },
         END: null,
       }
-      const fields = { val: "number" }
+      const fields = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compile(superposition, fields)
 
@@ -542,10 +554,10 @@ describe("Компилятор правил — функциональные т�
       const compiler = new RulesCompiler()
 
       const superposition = {
-        START: { END: { val: { notLte: 0 } } },
+        START: { END: { 0: { notLte: 0 } } },
         END: null,
       }
-      const fields = { val: "number" }
+      const fields = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compile(superposition, fields)
 
@@ -561,10 +573,10 @@ describe("Компилятор правил — функциональные т�
       const compiler = new RulesCompiler()
 
       const superposition = {
-        START: { END: { val: { between: [6, 9] } } },
+        START: { END: { 0: { between: [6, 9] } } },
         END: null,
       }
-      const fields = { val: "number" }
+      const fields = [[0, { fieldId: 0, type: FieldType.F32 }]]
 
       const result = compiler.compile(superposition, fields)
 
@@ -587,23 +599,23 @@ describe("Компилятор правил — функциональные т�
 
       const superposition = {
         IDLE: {
-          PATROL: { hp: { gt: 50 } },
-          DEAD: { hp: { lte: 0 } },
+          PATROL: { 0: { gt: 50 } },
+          DEAD: { 0: { lte: 0 } },
         },
         PATROL: {
-          IDLE: { mana: { lt: 10 } },
-          COMBAT: { isAlive: { eq: true } },
+          IDLE: { 1: { lt: 10 } },
+          COMBAT: { 2: { eq: true } },
         },
         COMBAT: {
-          DEAD: { hp: { lte: 0 } },
+          DEAD: { 0: { lte: 0 } },
         },
         DEAD: null,
       }
-      const fields = {
-        hp: "number",
-        mana: "number",
-        isAlive: "boolean",
-      }
+      const fields = [
+        [0, { fieldId: 0, type: FieldType.F32 }],
+        [1, { fieldId: 1, type: FieldType.F32 }],
+        [2, { fieldId: 2, type: FieldType.BOOL }],
+      ]
 
       const result = compiler.compile(superposition, fields)
 
@@ -628,23 +640,23 @@ describe("Компилятор правил — функциональные т�
 
       const superposition = {
         IDLE: {
-          PATROL: { hp: { gt: 50 } },
-          DEAD: { hp: { lte: 0 } },
+          PATROL: { 0: { gt: 50 } },
+          DEAD: { 0: { lte: 0 } },
         },
         PATROL: {
-          IDLE: { mana: { lt: 10 } },
-          COMBAT: { isAlive: { eq: true } },
+          IDLE: { 1: { lt: 10 } },
+          COMBAT: { 2: { eq: true } },
         },
         COMBAT: {
-          DEAD: { hp: { lte: 0 } },
+          DEAD: { 0: { lte: 0 } },
         },
         DEAD: null,
       }
-      const fields = {
-        hp: "number",
-        mana: "number",
-        isAlive: "boolean",
-      }
+      const fields = [
+        [0, { fieldId: 0, type: FieldType.F32 }],
+        [1, { fieldId: 1, type: FieldType.F32 }],
+        [2, { fieldId: 2, type: FieldType.BOOL }],
+      ]
 
       const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)

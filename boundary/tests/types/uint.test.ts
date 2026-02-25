@@ -15,18 +15,18 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { status: { eq: "ACTIVE" } } },
+        IDLE: { ACTIVE: { 0: { eq: "ACTIVE" } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: {
-          status: { type: FieldType.U32, options: { enumValues: ["IDLE", "ACTIVE", "DEAD"] } },
-        },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "DEAD"] }],
+        ],
         branes: [
-          { state: "IDLE", params: { status: "ACTIVE" }, superposition },
-          { state: "IDLE", params: { status: "IDLE" }, superposition },
-          { state: "IDLE", params: { status: "DEAD" }, superposition },
+          { state: "IDLE", params: [[0, "ACTIVE"]], superposition },
+          { state: "IDLE", params: [[0, "IDLE"]], superposition },
+          { state: "IDLE", params: [[0, "DEAD"]], superposition },
         ],
       })
 
@@ -42,18 +42,18 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { level: { eq: 2 } } },
+        IDLE: { ACTIVE: { 0: { eq: 2 } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: {
-          level: { type: FieldType.U32, options: { enumValues: [1, 2, 3] } },
-        },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.U32, enumValues: [1, 2, 3] }],
+        ],
         branes: [
-          { state: "IDLE", params: { level: 2 }, superposition },
-          { state: "IDLE", params: { level: 1 }, superposition },
-          { state: "IDLE", params: { level: 3 }, superposition },
+          { state: "IDLE", params: [[0, 2]], superposition },
+          { state: "IDLE", params: [[0, 1]], superposition },
+          { state: "IDLE", params: [[0, 3]], superposition },
         ],
       })
 
@@ -71,18 +71,18 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { status: { neq: "IDLE" } } },
+        IDLE: { ACTIVE: { 0: { neq: "IDLE" } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: {
-          status: { type: FieldType.U32, options: { enumValues: ["IDLE", "ACTIVE", "DEAD"] } },
-        },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "DEAD"] }],
+        ],
         branes: [
-          { state: "IDLE", params: { status: "IDLE" }, superposition },
-          { state: "IDLE", params: { status: "ACTIVE" }, superposition },
-          { state: "IDLE", params: { status: "DEAD" }, superposition },
+          { state: "IDLE", params: [[0, "IDLE"]], superposition },
+          { state: "IDLE", params: [[0, "ACTIVE"]], superposition },
+          { state: "IDLE", params: [[0, "DEAD"]], superposition },
         ],
       })
 
@@ -100,18 +100,18 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { level: { gt: 1 } } },
+        IDLE: { ACTIVE: { 0: { gt: 1 } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: {
-          level: { type: FieldType.U32, options: { enumValues: [1, 2, 3, 4, 5] } },
-        },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.U32, enumValues: [1, 2, 3, 4, 5] }],
+        ],
         branes: [
-          { state: "IDLE", params: { level: 1 }, superposition },
-          { state: "IDLE", params: { level: 2 }, superposition },
-          { state: "IDLE", params: { level: 3 }, superposition },
+          { state: "IDLE", params: [[0, 1]], superposition },
+          { state: "IDLE", params: [[0, 2]], superposition },
+          { state: "IDLE", params: [[0, 3]], superposition },
         ],
       })
 
@@ -129,18 +129,18 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { level: { lt: 3 } } },
+        IDLE: { ACTIVE: { 0: { lt: 3 } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: {
-          level: { type: FieldType.U32, options: { enumValues: [1, 2, 3, 4, 5] } },
-        },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.U32, enumValues: [1, 2, 3, 4, 5] }],
+        ],
         branes: [
-          { state: "IDLE", params: { level: 1 }, superposition },
-          { state: "IDLE", params: { level: 2 }, superposition },
-          { state: "IDLE", params: { level: 3 }, superposition },
+          { state: "IDLE", params: [[0, 1]], superposition },
+          { state: "IDLE", params: [[0, 2]], superposition },
+          { state: "IDLE", params: [[0, 3]], superposition },
         ],
       })
 
@@ -158,18 +158,18 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { level: { gte: 3 } } },
+        IDLE: { ACTIVE: { 0: { gte: 3 } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: {
-          level: { type: FieldType.U32, options: { enumValues: [1, 2, 3, 4, 5] } },
-        },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.U32, enumValues: [1, 2, 3, 4, 5] }],
+        ],
         branes: [
-          { state: "IDLE", params: { level: 2 }, superposition },
-          { state: "IDLE", params: { level: 3 }, superposition },
-          { state: "IDLE", params: { level: 4 }, superposition },
+          { state: "IDLE", params: [[0, 2]], superposition },
+          { state: "IDLE", params: [[0, 3]], superposition },
+          { state: "IDLE", params: [[0, 4]], superposition },
         ],
       })
 
@@ -187,18 +187,18 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { level: { lte: 2 } } },
+        IDLE: { ACTIVE: { 0: { lte: 2 } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: {
-          level: { type: FieldType.U32, options: { enumValues: [1, 2, 3, 4, 5] } },
-        },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.U32, enumValues: [1, 2, 3, 4, 5] }],
+        ],
         branes: [
-          { state: "IDLE", params: { level: 1 }, superposition },
-          { state: "IDLE", params: { level: 2 }, superposition },
-          { state: "IDLE", params: { level: 3 }, superposition },
+          { state: "IDLE", params: [[0, 1]], superposition },
+          { state: "IDLE", params: [[0, 2]], superposition },
+          { state: "IDLE", params: [[0, 3]], superposition },
         ],
       })
 
@@ -216,19 +216,19 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { status: { in: ["ACTIVE", "RUNNING"] } } },
+        IDLE: { ACTIVE: { 0: { in: ["ACTIVE", "RUNNING"] } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: {
-          status: { type: FieldType.U32, options: { enumValues: ["IDLE", "ACTIVE", "RUNNING", "DEAD"] } },
-        },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "RUNNING", "DEAD"] }],
+        ],
         branes: [
-          { state: "IDLE", params: { status: "ACTIVE" }, superposition },
-          { state: "IDLE", params: { status: "RUNNING" }, superposition },
-          { state: "IDLE", params: { status: "IDLE" }, superposition },
-          { state: "IDLE", params: { status: "DEAD" }, superposition },
+          { state: "IDLE", params: [[0, "ACTIVE"]], superposition },
+          { state: "IDLE", params: [[0, "RUNNING"]], superposition },
+          { state: "IDLE", params: [[0, "IDLE"]], superposition },
+          { state: "IDLE", params: [[0, "DEAD"]], superposition },
         ],
       })
 
@@ -247,19 +247,19 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { status: { notIn: ["IDLE", "DEAD"] } } },
+        IDLE: { ACTIVE: { 0: { notIn: ["IDLE", "DEAD"] } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: {
-          status: { type: FieldType.U32, options: { enumValues: ["IDLE", "ACTIVE", "RUNNING", "DEAD"] } },
-        },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "RUNNING", "DEAD"] }],
+        ],
         branes: [
-          { state: "IDLE", params: { status: "IDLE" }, superposition },
-          { state: "IDLE", params: { status: "DEAD" }, superposition },
-          { state: "IDLE", params: { status: "ACTIVE" }, superposition },
-          { state: "IDLE", params: { status: "RUNNING" }, superposition },
+          { state: "IDLE", params: [[0, "IDLE"]], superposition },
+          { state: "IDLE", params: [[0, "DEAD"]], superposition },
+          { state: "IDLE", params: [[0, "ACTIVE"]], superposition },
+          { state: "IDLE", params: [[0, "RUNNING"]], superposition },
         ],
       })
 
@@ -278,20 +278,20 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       const boundary = new Boundary()
 
       const superposition = {
-        IDLE: { ACTIVE: { level: { gte: 2, lte: 4 } } },
+        IDLE: { ACTIVE: { 0: { gte: 2, lte: 4 } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: {
-          level: { type: FieldType.U32, options: { enumValues: [1, 2, 3, 4, 5] } },
-        },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.U32, enumValues: [1, 2, 3, 4, 5] }],
+        ],
         branes: [
-          { state: "IDLE", params: { level: 1 }, superposition },
-          { state: "IDLE", params: { level: 2 }, superposition },
-          { state: "IDLE", params: { level: 3 }, superposition },
-          { state: "IDLE", params: { level: 4 }, superposition },
-          { state: "IDLE", params: { level: 5 }, superposition },
+          { state: "IDLE", params: [[0, 1]], superposition },
+          { state: "IDLE", params: [[0, 2]], superposition },
+          { state: "IDLE", params: [[0, 3]], superposition },
+          { state: "IDLE", params: [[0, 4]], superposition },
+          { state: "IDLE", params: [[0, 5]], superposition },
         ],
       })
 

@@ -7,7 +7,7 @@ describe("Компилятор — Строгая типизация", () => {
   describe("Регистрация полей", () => {
     test("должен компилировать superposition с полем array<number>", () => {
       const compiler = new RulesCompiler()
-      const fields = { vals: { type: FieldType.ARRAY_PTR, options: { elementType: "number" } } }
+      const fields = [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]]
       const config = { S1: null }
 
       const result = compiler.compile(config, fields)
@@ -19,7 +19,7 @@ describe("Компилятор — Строгая типизация", () => {
 
     test("должен компилировать superposition с полем array<string>", () => {
       const compiler = new RulesCompiler()
-      const fields = { ids: { type: FieldType.ARRAY_PTR, options: { elementType: "string" } } }
+      const fields = [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "string" }]]
       const config = { S1: null }
 
       const result = compiler.compile(config, fields)
@@ -30,7 +30,7 @@ describe("Компилятор — Строгая типизация", () => {
 
     test("должен компилировать superposition с полем enum<string>", () => {
       const compiler = new RulesCompiler()
-      const fields = { role: { type: FieldType.U32, options: { enumValues: ["A", "B"] } } }
+      const fields = [[0, { fieldId: 0, type: FieldType.U32, enumValues: ["A", "B"] }]]
       const config = { S1: null }
 
       const result = compiler.compile(config, fields)
@@ -42,10 +42,10 @@ describe("Компилятор — Строгая типизация", () => {
   describe("Кодирование значений в байт-коде", () => {
     test("оператор 'in' должен кодировать ENUM как индексы", () => {
       const compiler = new RulesCompiler()
-      const fields = { role: { type: FieldType.U32, options: { enumValues: ["IDLE", "WALK", "RUN"] } } }
+      const fields = [[0, { fieldId: 0, type: FieldType.U32, enumValues: ["IDLE", "WALK", "RUN"] }]]
       const config = {
         IDLE: {
-          MOVING: { role: { in: ["WALK", "RUN"] } }, // WALK->1, RUN->2
+          MOVING: { 0: { in: ["WALK", "RUN"] } }, // WALK->1, RUN->2
         },
         MOVING: null,
       }
@@ -77,11 +77,11 @@ describe("Компилятор — Строгая типизация", () => {
 
     test("оператор 'in' должен кодировать number через bitcast float→u32", () => {
       const compiler = new RulesCompiler()
-      const fields = { temp: { type: FieldType.F32 } }
+      const fields = [[0, { fieldId: 0, type: FieldType.F32 }]]
       const vals = [36.6, 40.0]
       const config = {
         S1: {
-          S2: { temp: { in: vals } },
+          S2: { 0: { in: vals } },
         },
         S2: null,
       }
@@ -111,10 +111,10 @@ describe("Компилятор — Строгая типизация", () => {
     test("оператор 'include' должен кодировать значение элемента массива", () => {
       const compiler = new RulesCompiler()
       // Инвентарь с числовыми предметами
-      const fields = { items: { type: FieldType.ARRAY_PTR, options: { elementType: "number" } } }
+      const fields = [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "number" }]]
       const config = {
         IDLE: {
-          EQUIP: { items: { include: 555 } },
+          EQUIP: { 0: { include: 555 } },
         },
         EQUIP: null,
       }
@@ -138,9 +138,9 @@ describe("Компилятор — Строгая типизация", () => {
 
     test("оператор 'isEmpty' должен кодировать boolean как 0/1", () => {
       const compiler = new RulesCompiler()
-      const fields = { tags: { type: FieldType.ARRAY_PTR, options: { elementType: "string" } } }
+      const fields = [[0, { fieldId: 0, type: FieldType.ARRAY_PTR, elementType: "string" }]]
       const config = {
-        S1: { S2: { tags: { isEmpty: true } } },
+        S1: { S2: { 0: { isEmpty: true } } },
         S2: null,
       }
 

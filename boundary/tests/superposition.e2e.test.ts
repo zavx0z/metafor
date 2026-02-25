@@ -18,29 +18,29 @@ describe("Boundary — E2E тесты для индивидуальных суп
       const boundary = new Boundary()
 
       const warriorSuperposition = {
-        IDLE: { COMBAT: { hp: { gt: 80 } } },
+        IDLE: { COMBAT: { 0: { gt: 80 } } },
         COMBAT: null,
       }
 
       const mageSuperposition = {
-        IDLE: { MEDITATE: { mana: { lt: 20 } } },
+        IDLE: { MEDITATE: { 1: { lt: 20 } } },
         MEDITATE: null,
       }
 
       const scoutSuperposition = {
-        IDLE: { SCOUT: { hp: { gt: 30 } } },
+        IDLE: { SCOUT: { 0: { gt: 30 } } },
         SCOUT: null,
       }
 
       await boundary.write({
-        fields: {
-          hp: { type: FieldType.F32 },
-          mana: { type: FieldType.F32 },
-        },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.F32 }],
+          [1, { fieldId: 1, type: FieldType.F32 }],
+        ],
         branes: [
-          { state: "IDLE", params: { hp: 90, mana: 50 }, superposition: warriorSuperposition },
-          { state: "IDLE", params: { hp: 50, mana: 10 }, superposition: mageSuperposition },
-          { state: "IDLE", params: { hp: 60, mana: 30 }, superposition: scoutSuperposition },
+          { state: "IDLE", params: [[0, 90], [1, 50]], superposition: warriorSuperposition },
+          { state: "IDLE", params: [[0, 50], [1, 10]], superposition: mageSuperposition },
+          { state: "IDLE", params: [[0, 60], [1, 30]], superposition: scoutSuperposition },
         ],
       })
 
@@ -58,20 +58,20 @@ describe("Boundary — E2E тесты для индивидуальных суп
       const boundary = new Boundary()
 
       const lowThresholdSuperposition = {
-        IDLE: { ACTIVE: { hp: { gt: 30 } } },
+        IDLE: { ACTIVE: { 0: { gt: 30 } } },
         ACTIVE: null,
       }
 
       const highThresholdSuperposition = {
-        IDLE: { ACTIVE: { hp: { gt: 70 } } },
+        IDLE: { ACTIVE: { 0: { gt: 70 } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { hp: { type: FieldType.F32 } },
+        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
         branes: [
-          { state: "IDLE", params: { hp: 50 }, superposition: lowThresholdSuperposition },
-          { state: "IDLE", params: { hp: 50 }, superposition: highThresholdSuperposition },
+          { state: "IDLE", params: [[0, 50]], superposition: lowThresholdSuperposition },
+          { state: "IDLE", params: [[0, 50]], superposition: highThresholdSuperposition },
         ],
       })
 
@@ -86,26 +86,26 @@ describe("Boundary — E2E тесты для индивидуальных суп
       const boundary = new Boundary()
 
       const gtSuperposition = {
-        IDLE: { ACTIVE: { hp: { gt: 50 } } },
+        IDLE: { ACTIVE: { 0: { gt: 50 } } },
         ACTIVE: null,
       }
 
       const gteSuperposition = {
-        IDLE: { ACTIVE: { hp: { gte: 50 } } },
+        IDLE: { ACTIVE: { 0: { gte: 50 } } },
         ACTIVE: null,
       }
 
       const ltSuperposition = {
-        IDLE: { ACTIVE: { hp: { lt: 50 } } },
+        IDLE: { ACTIVE: { 0: { lt: 50 } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { hp: { type: FieldType.F32 } },
+        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
         branes: [
-          { state: "IDLE", params: { hp: 50 }, superposition: gtSuperposition },
-          { state: "IDLE", params: { hp: 50 }, superposition: gteSuperposition },
-          { state: "IDLE", params: { hp: 50 }, superposition: ltSuperposition },
+          { state: "IDLE", params: [[0, 50]], superposition: gtSuperposition },
+          { state: "IDLE", params: [[0, 50]], superposition: gteSuperposition },
+          { state: "IDLE", params: [[0, 50]], superposition: ltSuperposition },
         ],
       })
 
@@ -123,22 +123,22 @@ describe("Boundary — E2E тесты для индивидуальных суп
       const boundary = new Boundary()
 
       const aggressiveSuperposition = {
-        IDLE: { ATTACK: { hp: { gt: 50 } } },
-        ATTACK: { VICTORY: { hp: { gt: 90 } } },
+        IDLE: { ATTACK: { 0: { gt: 50 } } },
+        ATTACK: { VICTORY: { 0: { gt: 90 } } },
         VICTORY: null,
       }
 
       const defensiveSuperposition = {
-        IDLE: { DEFEND: { hp: { lte: 50 } } },
-        DEFEND: { FORTIFY: { hp: { lte: 20 } } },
+        IDLE: { DEFEND: { 0: { lte: 50 } } },
+        DEFEND: { FORTIFY: { 0: { lte: 20 } } },
         FORTIFY: null,
       }
 
       await boundary.write({
-        fields: { hp: { type: FieldType.F32 } },
+        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
         branes: [
-          { state: "IDLE", params: { hp: 95 }, superposition: aggressiveSuperposition },
-          { state: "IDLE", params: { hp: 15 }, superposition: defensiveSuperposition },
+          { state: "IDLE", params: [[0, 95]], superposition: aggressiveSuperposition },
+          { state: "IDLE", params: [[0, 15]], superposition: defensiveSuperposition },
         ],
       })
 
@@ -156,35 +156,35 @@ describe("Boundary — E2E тесты для индивидуальных суп
       const boundary = new Boundary()
 
       const numericSuperposition = {
-        IDLE: { ACTIVE: { hp: { gt: 50 } } },
+        IDLE: { ACTIVE: { 0: { gt: 50 } } },
         ACTIVE: null,
       }
 
       const booleanSuperposition = {
-        IDLE: { ACTIVE: { isAlive: true } },
+        IDLE: { ACTIVE: { 2: true } },
         ACTIVE: null,
       }
 
       const multiConditionSuperposition = {
         IDLE: {
           ACTIVE: {
-            hp: { gt: 30 },
-            mana: { gt: 20 },
+            0: { gt: 30 },
+            1: { gt: 20 },
           },
         },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: {
-          hp: { type: FieldType.F32 },
-          mana: { type: FieldType.F32 },
-          isAlive: { type: FieldType.BOOL },
-        },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.F32 }],
+          [1, { fieldId: 1, type: FieldType.F32 }],
+          [2, { fieldId: 2, type: FieldType.BOOL }],
+        ],
         branes: [
-          { state: "IDLE", params: { hp: 60, mana: 0, isAlive: false }, superposition: numericSuperposition },
-          { state: "IDLE", params: { hp: 0, mana: 0, isAlive: true }, superposition: booleanSuperposition },
-          { state: "IDLE", params: { hp: 40, mana: 30, isAlive: false }, superposition: multiConditionSuperposition },
+          { state: "IDLE", params: [[0, 60], [1, 0], [2, false]], superposition: numericSuperposition },
+          { state: "IDLE", params: [[0, 0], [1, 0], [2, true]], superposition: booleanSuperposition },
+          { state: "IDLE", params: [[0, 40], [1, 30], [2, false]], superposition: multiConditionSuperposition },
         ],
       })
 
@@ -202,20 +202,20 @@ describe("Boundary — E2E тесты для индивидуальных суп
       const boundary = new Boundary()
 
       const superposition1 = {
-        IDLE: { ACTIVE: { hp: { gt: 50 } } },
+        IDLE: { ACTIVE: { 0: { gt: 50 } } },
         ACTIVE: null,
       }
 
       const superposition2 = {
-        IDLE: { ACTIVE: { hp: { gt: 70 } } },
+        IDLE: { ACTIVE: { 0: { gt: 70 } } },
         ACTIVE: null,
       }
 
       await boundary.write({
-        fields: { hp: { type: FieldType.F32 } },
+        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
         branes: [
-          { state: "IDLE", params: { hp: 60 }, superposition: superposition1 },
-          { state: "IDLE", params: { hp: 60 }, superposition: superposition2 },
+          { state: "IDLE", params: [[0, 60]], superposition: superposition1 },
+          { state: "IDLE", params: [[0, 60]], superposition: superposition2 },
         ],
       })
 
@@ -232,26 +232,26 @@ describe("Boundary — E2E тесты для индивидуальных суп
       const boundary = new Boundary()
 
       const unit1Superposition = {
-        IDLE: { PHASE1: { hp: { gt: 80 } } },
-        PHASE1: { PHASE2: { hp: { gt: 60 } } },
-        PHASE2: { FINAL: { hp: { gt: 40 } } },
+        IDLE: { PHASE1: { 0: { gt: 80 } } },
+        PHASE1: { PHASE2: { 0: { gt: 60 } } },
+        PHASE2: { FINAL: { 0: { gt: 40 } } },
         FINAL: null,
       }
 
       const unit2Superposition = {
-        IDLE: { STAGE_A: { mana: { lt: 50 } } },
-        STAGE_A: { STAGE_B: { mana: { lt: 20 } } },
+        IDLE: { STAGE_A: { 1: { lt: 50 } } },
+        STAGE_A: { STAGE_B: { 1: { lt: 20 } } },
         STAGE_B: null,
       }
 
       await boundary.write({
-        fields: {
-          hp: { type: FieldType.F32 },
-          mana: { type: FieldType.F32 },
-        },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.F32 }],
+          [1, { fieldId: 1, type: FieldType.F32 }],
+        ],
         branes: [
-          { state: "IDLE", params: { hp: 90, mana: 100 }, superposition: unit1Superposition },
-          { state: "IDLE", params: { hp: 100, mana: 10 }, superposition: unit2Superposition },
+          { state: "IDLE", params: [[0, 90], [1, 100]], superposition: unit1Superposition },
+          { state: "IDLE", params: [[0, 100], [1, 10]], superposition: unit2Superposition },
         ],
       })
 

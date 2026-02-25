@@ -13,19 +13,19 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
 
       const superposition = {
         GROUND: {
-          AIR: { mode: { in: [3] } }, // FLY
-          MOVING: { mode: { in: [1, 2] } }, // WALK, RUN
+          AIR: { 0: { in: [3] } }, // FLY
+          MOVING: { 0: { in: [1, 2] } }, // WALK, RUN
         },
         AIR: null,
         MOVING: null,
       }
 
       await boundary.write({
-        fields: { mode: { type: FieldType.F32 } },
+        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
         branes: [
-          { state: "GROUND", params: { mode: 1 }, superposition }, // WALK -> MOVING
-          { state: "GROUND", params: { mode: 3 }, superposition }, // FLY -> AIR
-          { state: "GROUND", params: { mode: 0 }, superposition }, // IDLE -> остаётся
+          { state: "GROUND", params: [[0, 1]], superposition }, // WALK -> MOVING
+          { state: "GROUND", params: [[0, 3]], superposition }, // FLY -> AIR
+          { state: "GROUND", params: [[0, 0]], superposition }, // IDLE -> остаётся
         ],
       })
 
@@ -42,17 +42,17 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
 
       const superposition = {
         NORMAL: {
-          CRITICAL: { temperature: { in: [36.6, 40.0] } },
+          CRITICAL: { 0: { in: [36.6, 40.0] } },
         },
         CRITICAL: null,
       }
 
       await boundary.write({
-        fields: { temperature: { type: FieldType.F32 } },
+        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
         branes: [
-          { state: "NORMAL", params: { temperature: 36.6 }, superposition },
-          { state: "NORMAL", params: { temperature: 37.0 }, superposition },
-          { state: "NORMAL", params: { temperature: 40.0 }, superposition },
+          { state: "NORMAL", params: [[0, 36.6]], superposition },
+          { state: "NORMAL", params: [[0, 37.0]], superposition },
+          { state: "NORMAL", params: [[0, 40.0]], superposition },
         ],
       })
 
@@ -71,16 +71,16 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
 
       const superposition = {
         LOBBY: {
-          GAME: { role: { notIn: [0] } }, // 0 = Spectator (not playing)
+          GAME: { 0: { notIn: [0] } }, // 0 = Spectator (not playing)
         },
         GAME: null,
       }
 
       await boundary.write({
-        fields: { role: { type: FieldType.F32 } },
+        fields: [[0, { fieldId: 0, type: FieldType.F32 }]],
         branes: [
-          { state: "LOBBY", params: { role: 1 }, superposition }, // Player -> GAME
-          { state: "LOBBY", params: { role: 0 }, superposition }, // Spectator -> LOBBY
+          { state: "LOBBY", params: [[0, 1]], superposition }, // Player -> GAME
+          { state: "LOBBY", params: [[0, 0]], superposition }, // Spectator -> LOBBY
         ],
       })
 
@@ -99,19 +99,22 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
       const superposition = {
         START: {
           WIN: {
-            score: { gt: 100 },
-            badge: { in: [5, 7] }, // 5=Gold, 7=Platinum
+            0: { gt: 100 },
+            1: { in: [5, 7] }, // 5=Gold, 7=Platinum
           },
         },
         WIN: null,
       }
 
       await boundary.write({
-        fields: { score: { type: FieldType.F32 }, badge: { type: FieldType.F32 } },
+        fields: [
+          [0, { fieldId: 0, type: FieldType.F32 }],
+          [1, { fieldId: 1, type: FieldType.F32 }],
+        ],
         branes: [
-          { state: "START", params: { score: 150, badge: 5 }, superposition }, // OK
-          { state: "START", params: { score: 150, badge: 1 }, superposition }, // Значок не подходит
-          { state: "START", params: { score: 50, badge: 7 }, superposition }, // Очки не подходят
+          { state: "START", params: [[0, 150], [1, 5]], superposition }, // OK
+          { state: "START", params: [[0, 150], [1, 1]], superposition }, // Значок не подходит
+          { state: "START", params: [[0, 50], [1, 7]], superposition }, // Очки не подходят
         ],
       })
 
