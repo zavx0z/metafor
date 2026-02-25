@@ -16,6 +16,7 @@ import type {
   UuidToIndexStore,
 } from "./monad.t"
 import type { Action, Actions, MonadConfig } from "./types"
+import { convertAllFields } from "./field"
 
 // ==================== Внутреннее состояние ====================
 
@@ -96,19 +97,18 @@ export async function updateBoundary(): Promise<void> {
     return
   }
 
-  // Получаем fields из первой монады
+  // Преобразуем поля первой монады в готовые типы
   const firstFields = _fields.values().next().value
   if (!firstFields) {
     throw new Error("No monads registered")
   }
+  const convertedFields = convertAllFields(firstFields)
 
   // Создаём Boundary если его нет, иначе очищаем существующий
-  if (!_boundary.current) {
-    _boundary.current = new Boundary()
-  } else {
-    _boundary.current.clear()
-  }
-  await _boundary.current.write({ fields: firstFields, branes: allBranes })
+  if (!_boundary.current) _boundary.current = new Boundary()
+  else _boundary.current.clear()
+
+  await _boundary.current.write({ fields: convertedFields, branes: allBranes })
 
   // Строим маппинги по индексу
   _uuidToIndex.clear()

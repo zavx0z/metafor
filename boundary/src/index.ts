@@ -37,16 +37,18 @@ import { RulesCompiler } from "./compiler/RulesCompiler"
 import { BraneManager, FieldType, FieldRegistry, type FieldTypeValue } from "./core"
 import { resetStringAtlas, getStringAtlas } from "./strings"
 import { GPU } from "./gpu/device"
-import type { DebugOptions, BoundaryConfig } from "./index.t"
+import type { DebugOptions, BoundaryConfigWithTypes, RegisteredFieldConfig } from "./index.t"
 
 export { GPU }
+export { FieldType, type FieldTypeValue } from "./core"
 export type {
   FieldDefinition,
   FieldsDefinition,
   Superposition,
   BraneDefinition,
   DebugOptions,
-  BoundaryConfig,
+  BoundaryConfigWithTypes,
+  RegisteredFieldConfig,
   BraneIndex,
 } from "./index.t"
 
@@ -130,7 +132,7 @@ export class Boundary {
    *
    * @throws {Error} Если тип поля не распознан.
    */
-  async write(config: BoundaryConfig) {
+  async write(config: BoundaryConfigWithTypes) {
     const debug = this.isDebugEnabled.bind(this)
 
     if (debug("fields")) {
@@ -140,46 +142,14 @@ export class Boundary {
     this.clear()
 
     const registry = FieldRegistry.getInstance()
-    for (const [name, def] of Object.entries(config.fields)) {
-      const defTyped = def as { type?: string; values?: any[] } | string
-      const typeStr = typeof defTyped === "string" ? defTyped : defTyped.type
-      let fieldType: FieldTypeValue
-      let elementType: string | undefined
-      const enumValues = typeof defTyped !== "string" && "values" in defTyped ? defTyped.values : undefined
 
-      switch (typeStr) {
-        case "number":
-          fieldType = FieldType.F32
-          break
-        case "boolean":
-          fieldType = FieldType.BOOL
-          break
-        case "string":
-          fieldType = FieldType.STRING_PTR
-          break
-        case "array<string>":
-          fieldType = FieldType.ARRAY_PTR
-          elementType = "string"
-          break
-        case "array<number>":
-          fieldType = FieldType.ARRAY_PTR
-          elementType = "number"
-          break
-        case "enum<string>":
-        case "enum<number>":
-          fieldType = FieldType.U32
-          break
-        default:
-          throw new Error(`Unknown brane field type: '${typeStr}' for field '${name}'`)
-      }
+    // Конфигурация с готовыми типами
+    const typedFields = config.fields as Record<string, RegisteredFieldConfig>
+    for (const [name, field] of Object.entries(typedFields)) {
       if (!registry.has(name)) {
-        const registerOptions = {
-          ...(elementType !== undefined ? { elementType } : {}),
-          ...(enumValues !== undefined ? { enumValues } : {}),
-        }
-        registry.register(name, fieldType, registerOptions)
+        registry.register(name, field.type, field.options ?? {})
         if (debug("fields")) {
-          console.log(`[Boundary] Registered field: ${name} = ${fieldType}`, registerOptions)
+          console.log(`[Boundary] Registered field: ${name} = ${field.type}`, field.options ?? {})
         }
       }
     }
@@ -301,7 +271,7 @@ export class Boundary {
 }
 
 // Экспорты для совместимости
-export { FieldType, FieldRegistry } from "./core"
+export { FieldRegistry } from "./core"
 export { BraneManager, type BraneInfo, type EntangledBraneInfo } from "./core/BraneManager"
 export { HeapAllocator, type AllocResult } from "./memory"
 export { BraneBuilder, BlockUtils, packMeta, unpackMeta, encodeString, decodeString } from "./memory"

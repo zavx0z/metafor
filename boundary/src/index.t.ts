@@ -82,16 +82,30 @@ export interface DebugOptions {
 }
 
 /**
- * Конфигурация полевой границы.
+ * Зарегистрированное поле с готовым числовым типом.
+ * Используется для передачи готовых данных в FieldRegistry.
+ */
+export interface RegisteredFieldConfig {
+  /** Числовой тип для GPU (FieldType.F32, FieldType.U32, etc.) */
+  type: FieldTypeValue
+  /** Опции для массивов и enum */
+  options?: {
+    elementType?: string
+    enumValues?: any[]
+  }
+}
+
+/**
+ * Конфигурация полевой границы с готовыми типами.
  *
  * @remarks
  * Boundary управляет двумя компонентами:
- * - fields — статика: схема типов полей для GPU
+ * - fields — статика: схема типов полей для GPU (уже преобразована)
  * - branes — динамика: массив бран с params, state, superposition
  */
-export interface BoundaryConfig {
-  /** Схема типов полей (общая для всех бран). Технические типы для GPU. */
-  fields: FieldsDefinition
+export interface BoundaryConfigWithTypes {
+  /** Схема типов полей с готовыми числовыми типами */
+  fields: Record<string, RegisteredFieldConfig>
   /** Массив бран — возмущений в поле. */
   branes: BraneDefinition[]
 }

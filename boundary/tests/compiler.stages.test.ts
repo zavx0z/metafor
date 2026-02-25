@@ -1,47 +1,48 @@
 import { test, expect, describe } from "bun:test"
 import { RulesCompiler } from "../src/compiler/RulesCompiler"
 import { OP } from "../src/opcodes"
+import { FieldType } from "../src/index"
 
-describe("Компилятор (Этапы 2 и 3) — Строгая типизация", () => {
-  describe("Парсинг типов", () => {
-    test("array<number> должен компилироваться корректно", () => {
+describe("Компилятор — Строгая типизация", () => {
+  describe("Регистрация полей", () => {
+    test("должен компилировать superposition с полем array<number>", () => {
       const compiler = new RulesCompiler()
-      const schema = { vals: { type: "array<number>" } }
+      const fields = { vals: { type: FieldType.ARRAY_PTR, options: { elementType: "number" } } }
       const config = { S1: null }
 
-      const result = compiler.compile(config, schema)
+      const result = compiler.compile(config, fields)
 
       // Проверяем, что байткод сгенерирован
       expect(result.bytecode).toBeInstanceOf(Uint32Array)
       expect(result.bytecode.length).toBeGreaterThan(0)
     })
 
-    test("array<string> должен компилироваться корректно", () => {
+    test("должен компилировать superposition с полем array<string>", () => {
       const compiler = new RulesCompiler()
-      const schema = { ids: { type: "array<string>" } }
+      const fields = { ids: { type: FieldType.ARRAY_PTR, options: { elementType: "string" } } }
       const config = { S1: null }
 
-      const result = compiler.compile(config, schema)
+      const result = compiler.compile(config, fields)
 
       expect(result.bytecode).toBeInstanceOf(Uint32Array)
       expect(result.bytecode.length).toBeGreaterThan(0)
     })
 
-    test("enum<string> должен компилироваться корректно", () => {
+    test("должен компилировать superposition с полем enum<string>", () => {
       const compiler = new RulesCompiler()
-      const schema = { role: { type: "enum<string>", values: ["A", "B"] } }
+      const fields = { role: { type: FieldType.U32, options: { enumValues: ["A", "B"] } } }
       const config = { S1: null }
 
-      const result = compiler.compile(config, schema)
+      const result = compiler.compile(config, fields)
       expect(result.bytecode).toBeInstanceOf(Uint32Array)
       expect(result.bytecode.length).toBeGreaterThan(0)
     })
   })
 
-  describe("Кодирование значений (Этап 3)", () => {
+  describe("Кодирование значений в байт-коде", () => {
     test("оператор 'in' должен кодировать ENUM как индексы", () => {
       const compiler = new RulesCompiler()
-      const schema = { role: { type: "enum<string>", values: ["IDLE", "WALK", "RUN"] } }
+      const fields = { role: { type: FieldType.U32, options: { enumValues: ["IDLE", "WALK", "RUN"] } } }
       const config = {
         IDLE: {
           MOVING: { role: { in: ["WALK", "RUN"] } }, // WALK->1, RUN->2
@@ -49,7 +50,7 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
         MOVING: null,
       }
 
-      const result = compiler.compile(config, schema)
+      const result = compiler.compile(config, fields)
       const bc = Array.from(result.bytecode)
 
       // Ищем IN (6)
@@ -74,9 +75,9 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
 
     })
 
-    test("number список должен кодироваться через bitcast", () => {
+    test("оператор 'in' должен кодировать number через bitcast float→u32", () => {
       const compiler = new RulesCompiler()
-      const schema = { temp: { type: "number" } }
+      const fields = { temp: { type: FieldType.F32 } }
       const vals = [36.6, 40.0]
       const config = {
         S1: {
@@ -85,7 +86,7 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
         S2: null,
       }
 
-      const result = compiler.compile(config, schema)
+      const result = compiler.compile(config, fields)
       const bc = Array.from(result.bytecode)
 
       // Ищем IN
@@ -107,10 +108,10 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
       expect(floatView[0]).toBeCloseTo(36.6)
     })
 
-    test("оператор 'include' должен генерировать OP.INCLUDE", () => {
+    test("оператор 'include' должен кодировать значение элемента массива", () => {
       const compiler = new RulesCompiler()
       // Инвентарь с числовыми предметами
-      const schema = { items: { type: "array<number>" } }
+      const fields = { items: { type: FieldType.ARRAY_PTR, options: { elementType: "number" } } }
       const config = {
         IDLE: {
           EQUIP: { items: { include: 555 } },
@@ -118,7 +119,7 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
         EQUIP: null,
       }
 
-      const result = compiler.compile(config, schema)
+      const result = compiler.compile(config, fields)
       const bc = Array.from(result.bytecode)
 
       // Ищем [ARRAY_TYPE, IDX, OP.INCLUDE, VAL]
@@ -135,15 +136,15 @@ describe("Компилятор (Этапы 2 и 3) — Строгая типиз
       expect(found).toBe(true)
     })
 
-    test("оператор 'isEmpty' должен принимать boolean", () => {
+    test("оператор 'isEmpty' должен кодировать boolean как 0/1", () => {
       const compiler = new RulesCompiler()
-      const schema = { tags: { type: "array<string>" } }
+      const fields = { tags: { type: FieldType.ARRAY_PTR, options: { elementType: "string" } } }
       const config = {
         S1: { S2: { tags: { isEmpty: true } } },
         S2: null,
       }
 
-      const result = compiler.compile(config, schema)
+      const result = compiler.compile(config, fields)
       const bc = Array.from(result.bytecode)
 
       let found = false

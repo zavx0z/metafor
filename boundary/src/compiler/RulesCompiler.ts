@@ -1,5 +1,5 @@
 import { OP, TYPE } from "../opcodes"
-import type { CompiledRules, CompiledFieldRules, CompiledEnsemble } from "../index.t"
+import type { CompiledRules, CompiledFieldRules, CompiledEnsemble, RegisteredFieldConfig } from "../index.t"
 import { FieldRegistry, FieldType, type FieldTypeValue } from "../core/FieldRegistry"
 import { fieldTypeToBytecodeType } from "../utils/typeBridge"
 import { getStringAtlas } from "../strings/StringAtlas"
@@ -15,7 +15,7 @@ type Superposition = Record<string, Transitions | null | undefined>
 /**
  * Транслятор JSON-правил в байт-код для кастомной VM на GPU.
  *
- * ### Архитектура байт-кода (v2.x):
+ * ### Архитектура байт-кода:
  *
  * **Структура памяти (линейный массив u32):**
  * 1. Таблица состояний (State Table) — массив указателей на блоки состояний.
@@ -103,26 +103,27 @@ export class RulesCompiler {
    */
   compile(
     superposition: Superposition,
-    branes: Record<string, any> = {},
+    fieldsSchema: Record<string, any> = {},
     options: { preserveRegistry?: boolean } = {},
   ): CompiledRules {
     this.bytecode = []
     this.states = Object.keys(superposition)
     this.fields = {}
 
-    // Вместо SoA fieldMap используем FieldRegistry для получения field_id
     // Поля должны быть уже зарегистрированы через Boundary.write()
-    // Если схема передана, регистрируем поля, но не строим SoA маппинг
-    if (Object.keys(branes).length > 0) {
-      if (!options.preserveRegistry) {
-        FieldRegistry.clear()
-      }
-      this.registerFieldsFromSchema(branes)
-    } else {
-      // Поля должны быть уже зарегистрированы
-      this.validateFieldsFromSuperposition(superposition)
-      this.loadFieldsFromRegistry()
+    // Или переданы через fieldsSchema для тестов
+    if (!options.preserveRegistry) {
+      FieldRegistry.clear()
     }
+    
+    // Регистрируем поля из схемы если передана
+    if (Object.keys(fieldsSchema).length > 0) {
+      this.registerFieldsFromSchema(fieldsSchema)
+    }
+    
+    // Загружаем поля из Registry
+    this.loadFieldsFromRegistry()
+    
     // 1. Резервируем место для таблицы состояний
     const stateTableOffset = this.bytecode.length
     // Заглушка для смещения каждого состояния
@@ -188,43 +189,21 @@ export class RulesCompiler {
     }
   }
 
-  private registerFieldsFromSchema(schema: Record<string, any>) {
+  private registerFieldsFromSchema(schema: Record<string, RegisteredFieldConfig>) {
     // Используем глобальный реестр для регистрации полей
     const registry = FieldRegistry.getInstance()
 
     for (const [name, def] of Object.entries(schema)) {
-      const defTyped = def as { type?: string; values?: any[] } | string
-      const typeStr = typeof defTyped === "string" ? defTyped : defTyped.type
       let fieldType: FieldTypeValue
       let elementType: string | undefined
       let enumValues: any[] | undefined = undefined
 
-      // Маппинг человекопонятных типов -> FieldType
-      switch (typeStr) {
-        case "number":
-          fieldType = FieldType.F32
-          break
-        case "boolean":
-          fieldType = FieldType.BOOL
-          break
-        case "string":
-          fieldType = FieldType.STRING_PTR
-          break
-        case "array<string>":
-          fieldType = FieldType.ARRAY_PTR
-          elementType = "string"
-          break
-        case "array<number>":
-          fieldType = FieldType.ARRAY_PTR
-          elementType = "number"
-          break
-        case "enum<string>":
-        case "enum<number>":
-          fieldType = FieldType.U32
-          enumValues = typeof defTyped !== "string" && "values" in defTyped ? defTyped.values : []
-          break
-        default:
-          throw new Error(`Unknown field type: ${typeStr}`)
+      // Числовой формат: { type: FieldType.F32, options?: {...} }
+      fieldType = def.type
+      
+      if (def.options) {
+        elementType = def.options.elementType
+        enumValues = def.options.enumValues
       }
 
       // Регистрируем поле, если еще не зарегистрировано
@@ -556,8 +535,7 @@ export class RulesCompiler {
   ): CompiledEnsemble {
     const { debug = false } = options
 
-    // Очищаем реестр перед первой компиляцией
-    FieldRegistry.clear()
+    // Поля должны быть уже зарегистрированы в FieldRegistry перед вызовом compileEnsemble
 
     if (debug) {
       console.log("[RulesCompiler] Compiling ensemble with", superpositions.length, "superpositions")

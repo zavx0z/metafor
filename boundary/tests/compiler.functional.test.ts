@@ -1,6 +1,7 @@
 import { test, expect, describe } from "bun:test"
 import { RulesCompiler } from "../src/compiler/RulesCompiler"
 import { OP, TYPE } from "../src/opcodes"
+import { FieldType } from "../src/index"
 
 /**
  * Функциональные тесты компилятора правил.
@@ -22,9 +23,9 @@ describe("Компилятор правил — функциональные т�
         IDLE: { DEAD: { hp: { lte: 0 } } },
         DEAD: null, // ← обязательно объявляем состояние-цель!
       }
-      const schema = { hp: { type: "number" } }
+      const fields = { hp: { type: FieldType.F32 } }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
 
       // Ищем в байткоде оператор OP.LTE (значение 5)
@@ -43,9 +44,9 @@ describe("Компилятор правил — функциональные т�
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null, // ← объявляем цель перехода
       }
-      const schema = { hp: { type: "number" } }
+      const fields = { hp: { type: FieldType.F32 } }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
 
       const hasGT = bytecodeArray.includes(OP.GT)
@@ -61,9 +62,9 @@ describe("Компилятор правил — функциональные т�
         IDLE: { PATROL: { hp: { gte: 50 } } },
         PATROL: null,
       }
-      const schema = { hp: "number" }
+      const fields = { hp: { type: FieldType.F32 } }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
 
       const hasGTE = bytecodeArray.includes(OP.GTE)
@@ -79,9 +80,9 @@ describe("Компилятор правил — функциональные т�
         PATROL: { IDLE: { mana: { lt: 10 } } },
         IDLE: null,
       }
-      const schema = { mana: { type: "number" } }
+      const fields = { mana: { type: FieldType.F32 } }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
 
       const hasLT = bytecodeArray.includes(OP.LT)
@@ -97,9 +98,9 @@ describe("Компилятор правил — функциональные т�
         PATROL: { COMBAT: { isAlive: { eq: true } } },
         COMBAT: null,
       }
-      const schema = { isAlive: { type: "boolean" } }
+      const fields = { isAlive: { type: FieldType.BOOL } }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
 
       const hasEQ = bytecodeArray.includes(OP.EQ)
@@ -115,9 +116,9 @@ describe("Компилятор правил — функциональные т�
         ACTIVE: { IDLE: { isAlive: { neq: false } } },
         IDLE: null,
       }
-      const schema = { isAlive: { type: "boolean" } }
+      const fields = { isAlive: { type: FieldType.BOOL } }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
 
       const hasNEQ = bytecodeArray.includes(OP.NEQ)
@@ -135,9 +136,9 @@ describe("Компилятор правил — функциональные т�
         IDLE: { DEAD: { hp: { lte: 0.0 } } },
         DEAD: null,
       }
-      const schema = { hp: "number" }
+      const fields = { hp: { type: FieldType.F32 } }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
 
       // Находим в байткоде закодированное значение 0.0 для типа FLOAT
@@ -162,8 +163,8 @@ describe("Компилятор правил — функциональные т�
         IDLE: { ACTIVE: { isAlive: { eq: true } } },
         ACTIVE: null,
       }
-      const schema = { isAlive: "boolean" }
-      const result = compiler.compile(superposition, schema)
+      const fields = { isAlive: { type: FieldType.BOOL } }
+      const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
       // Для булевых значений используется тип BOOL (2)
       // Ищем последовательность: type=2 (BOOL), fieldIdx, op=0 (EQ), value=1
@@ -184,8 +185,8 @@ describe("Компилятор правил — функциональные т�
         ACTIVE: { DEAD: { isAlive: { eq: false } } },
         DEAD: null,
       }
-      const schema = { isAlive: "boolean" }
-      const result = compiler.compile(superposition, schema)
+      const fields = { isAlive: { type: FieldType.BOOL } }
+      const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
       let encodedValue = 0
       for (let i = 0; i < bytecodeArray.length - 3; i++) {
@@ -208,9 +209,9 @@ describe("Компилятор правил — функциональные т�
         PATROL: { IDLE: { mana: { lt: 10 } } },
         DEAD: null,
       }
-      const schema = { hp: { type: "number" }, mana: { type: "number" } }
+      const fields = { hp: { type: FieldType.F32 }, mana: { type: FieldType.F32 } }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
 
       // Таблица состояний начинается с индекса 0 и имеет длину = количеству состояний (3)
       // Каждый элемент таблицы — это смещение (указатель) на блок условий для этого состояния
@@ -237,9 +238,9 @@ describe("Компилятор правил — функциональные т�
         PATROL: { IDLE: { mana: { lt: 10 } } },
         DEAD: null,
       }
-      const schema = { hp: "number", mana: "number" }
+      const fields = { hp: { type: FieldType.F32 }, mana: { type: FieldType.F32 } }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
 
       // stateMap: { "IDLE": 0, "PATROL": 1, "DEAD": 2 }
       expect(result.stateMap["IDLE"]).toBe(0)
@@ -262,9 +263,9 @@ describe("Компилятор правил — функциональные т�
         PATROL: null,
         DEAD: null,
       }
-      const schema = { hp: "number" }
+      const fields = { hp: { type: FieldType.F32 } }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
 
       // Для состояния IDLE (индекс 0) в таблице состояний должен быть указатель на его блок
       const idleBlockPtr = result.bytecode[0]!
@@ -286,9 +287,9 @@ describe("Компилятор правил — функциональные т�
         PATROL: null,
         DEAD: null,
       }
-      const schema = { hp: "number" }
+      const fields = { hp: { type: FieldType.F32 } }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
 
       const idleBlockPtr = result.bytecode[0]!
       const transitionCount = result.bytecode[idleBlockPtr]!
@@ -318,9 +319,9 @@ describe("Компилятор правил — функциональные т�
         },
         PATROL: null,
       }
-      const schema = { hp: "number" }
+      const fields = { hp: { type: FieldType.F32 } }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
 
       // Находим блок условий для перехода IDLE -> PATROL
       const idleBlockPtr = result.bytecode[0]!
@@ -342,9 +343,9 @@ describe("Компилятор правил — функциональные т�
         },
         PATROL: null,
       }
-      const schema = { hp: "number" }
+      const fields = { hp: { type: FieldType.F32 } }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
 
       // Находим блок условий для перехода IDLE -> PATROL
       const idleBlockPtr = result.bytecode[0]!
@@ -380,9 +381,9 @@ describe("Компилятор правил — функциональные т�
         },
         COMBAT: null,
       }
-      const schema = { hp: "number", mana: "number" }
+      const fields = { hp: { type: FieldType.F32 }, mana: { type: FieldType.F32 } }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
 
       // Находим блок условий для перехода IDLE -> COMBAT
       const idleBlockPtr = result.bytecode[0]!
@@ -421,7 +422,7 @@ describe("Компилятор правил — функциональные т�
     test("поля должны быть зарегистрированы в GlobalFieldRegistry", () => {
       const compiler = new RulesCompiler()
 
-      const schema = {
+      const fields = {
         hp: "number",
         mana: "number",
         isAlive: "boolean",
@@ -433,7 +434,7 @@ describe("Компилятор правил — функциональные т�
         PATROL: null,
       }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
 
       // Проверяем, что байткод сгенерирован корректно
       expect(result.bytecode).toBeInstanceOf(Uint32Array)
@@ -445,13 +446,13 @@ describe("Компилятор правил — функциональные т�
     test("поля типа 'number' должны компилироваться корректно", () => {
       const compiler = new RulesCompiler()
 
-      const schema = { hp: "number", mana: "number" }
+      const fields = { hp: { type: FieldType.F32 }, mana: { type: FieldType.F32 } }
       const superposition = {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
       }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
 
       // Проверяем наличие оператора GT в байткоде
       const bytecodeArray = Array.from(result.bytecode)
@@ -463,12 +464,12 @@ describe("Компилятор правил — функциональные т�
 
     test("поля типа 'boolean' должны компилироваться корректно", () => {
       const compiler = new RulesCompiler()
-      const schema = { isAlive: "boolean" }
+      const fields = { isAlive: { type: FieldType.BOOL } }
       const superposition = {
         IDLE: { ACTIVE: { isAlive: { eq: true } } },
         ACTIVE: null,
       }
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
       
       // Проверяем наличие оператора EQ в байткоде
       const bytecodeArray = Array.from(result.bytecode)
@@ -487,9 +488,9 @@ describe("Компилятор правил — функциональные т�
         START: { END: { val: { notGt: 10 } } },
         END: null,
       }
-      const schema = { val: "number" }
+      const fields = { val: "number" }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
 
       // notGt: 10 → !> 10 → <= 10 → OP.LTE
       const bytecodeArray = Array.from(result.bytecode)
@@ -506,9 +507,9 @@ describe("Компилятор правил — функциональные т�
         START: { END: { val: { notLt: 5 } } },
         END: null,
       }
-      const schema = { val: "number" }
+      const fields = { val: "number" }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
 
       // notLt: 5 → !< 5 → >= 5 → OP.GTE
       const bytecodeArray = Array.from(result.bytecode)
@@ -525,9 +526,9 @@ describe("Компилятор правил — функциональные т�
         START: { END: { val: { notGte: 20 } } },
         END: null,
       }
-      const schema = { val: "number" }
+      const fields = { val: "number" }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
 
       // notGte: 20 → !>= 20 → < 20 → OP.LT
       const bytecodeArray = Array.from(result.bytecode)
@@ -544,9 +545,9 @@ describe("Компилятор правил — функциональные т�
         START: { END: { val: { notLte: 0 } } },
         END: null,
       }
-      const schema = { val: "number" }
+      const fields = { val: "number" }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
 
       // notLte: 0 → !<= 0 → > 0 → OP.GT
       const bytecodeArray = Array.from(result.bytecode)
@@ -563,9 +564,9 @@ describe("Компилятор правил — функциональные т�
         START: { END: { val: { between: [6, 9] } } },
         END: null,
       }
-      const schema = { val: "number" }
+      const fields = { val: "number" }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
 
       const bytecodeArray = Array.from(result.bytecode)
 
@@ -598,13 +599,13 @@ describe("Компилятор правил — функциональные т�
         },
         DEAD: null,
       }
-      const schema = {
+      const fields = {
         hp: "number",
         mana: "number",
         isAlive: "boolean",
       }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
 
       // Проверяем тип результата
       expect(result.bytecode).toBeInstanceOf(Uint32Array)
@@ -639,13 +640,13 @@ describe("Компилятор правил — функциональные т�
         },
         DEAD: null,
       }
-      const schema = {
+      const fields = {
         hp: "number",
         mana: "number",
         isAlive: "boolean",
       }
 
-      const result = compiler.compile(superposition, schema)
+      const result = compiler.compile(superposition, fields)
       const bytecodeArray = Array.from(result.bytecode)
 
       // Проверяем наличие всех операторов из конфигурации

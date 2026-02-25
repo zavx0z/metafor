@@ -1,6 +1,6 @@
 import { test, expect, describe, beforeAll } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
-import { Boundary, GPU } from "../../src/index"
+import { Boundary, GPU, FieldType } from "../../src/index"
 
 describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
   beforeAll(async () => {
@@ -20,10 +20,10 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: { name: { type: "string" } },
+        fields: { name: { type: FieldType.STRING_PTR } },
         branes: [
-          { id: "q1", state: "IDLE", params: { name: "hero" }, superposition },
-          { id: "q2", state: "IDLE", params: { name: "monster" }, superposition },
+          { state: "IDLE", params: { name: "hero" }, superposition },
+          { state: "IDLE", params: { name: "monster" }, superposition },
         ],
       })
 
@@ -45,10 +45,10 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: { name: { type: "string" } },
+        fields: { name: { type: FieldType.STRING_PTR } },
         branes: [
-          { id: "q1", state: "IDLE", params: { name: "enemy" }, superposition },
-          { id: "q2", state: "IDLE", params: { name: "ally" }, superposition },
+          { state: "IDLE", params: { name: "enemy" }, superposition },
+          { state: "IDLE", params: { name: "ally" }, superposition },
         ],
       })
 
@@ -70,11 +70,11 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: { role: { type: "string" } },
+        fields: { role: { type: FieldType.STRING_PTR } },
         branes: [
-          { id: "q1", state: "IDLE", params: { role: "warrior" }, superposition },
-          { id: "q2", state: "IDLE", params: { role: "mage" }, superposition },
-          { id: "q3", state: "IDLE", params: { role: "healer" }, superposition },
+          { state: "IDLE", params: { role: "warrior" }, superposition },
+          { state: "IDLE", params: { role: "mage" }, superposition },
+          { state: "IDLE", params: { role: "healer" }, superposition },
         ],
       })
 
@@ -97,8 +97,8 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: { role: { type: "string" } },
-        branes: [{ id: "q1", state: "IDLE", params: { role: "healer" }, superposition }],
+        fields: { role: { type: FieldType.STRING_PTR } },
+        branes: [{ state: "IDLE", params: { role: "healer" }, superposition }],
       })
 
       boundary.updateBraneField(0, "role", "warrior")
@@ -119,11 +119,11 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: { role: { type: "string" } },
+        fields: { role: { type: FieldType.STRING_PTR } },
         branes: [
-          { id: "q1", state: "IDLE", params: { role: "enemy" }, superposition },
-          { id: "q2", state: "IDLE", params: { role: "boss" }, superposition },
-          { id: "q3", state: "IDLE", params: { role: "ally" }, superposition },
+          { state: "IDLE", params: { role: "enemy" }, superposition },
+          { state: "IDLE", params: { role: "boss" }, superposition },
+          { state: "IDLE", params: { role: "ally" }, superposition },
         ],
       })
 
@@ -146,10 +146,10 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: { name: { type: "string" } },
+        fields: { name: { type: FieldType.STRING_PTR } },
         branes: [
-          { id: "q1", state: "IDLE", params: { name: "" }, superposition },
-          { id: "q2", state: "IDLE", params: { name: "hero" }, superposition },
+          { state: "IDLE", params: { name: "" }, superposition },
+          { state: "IDLE", params: { name: "hero" }, superposition },
         ],
       })
 
@@ -171,10 +171,10 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: { code: { type: "string" } },
+        fields: { code: { type: FieldType.STRING_PTR } },
         branes: [
-          { id: "q1", state: "IDLE", params: { code: "test-123_@#" }, superposition },
-          { id: "q2", state: "IDLE", params: { code: "test-123" }, superposition },
+          { state: "IDLE", params: { code: "test-123_@#" }, superposition },
+          { state: "IDLE", params: { code: "test-123" }, superposition },
         ],
       })
 
@@ -196,11 +196,11 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
       }
 
       await boundary.write({
-        fields: { name: { type: "string" } },
+        fields: { name: { type: FieldType.STRING_PTR } },
         branes: [
-          { id: "q1", state: "IDLE", params: { name: "Hero" }, superposition },
-          { id: "q2", state: "IDLE", params: { name: "hero" }, superposition },
-          { id: "q3", state: "IDLE", params: { name: "HERO" }, superposition },
+          { state: "IDLE", params: { name: "Hero" }, superposition },
+          { state: "IDLE", params: { name: "hero" }, superposition },
+          { state: "IDLE", params: { name: "HERO" }, superposition },
         ],
       })
 

@@ -2,6 +2,7 @@ import { test, expect, describe, beforeEach } from "bun:test"
 import { RulesCompiler } from "../src/compiler/RulesCompiler"
 import { OP } from "../src/opcodes"
 import { FieldRegistry } from "../src/core/FieldRegistry"
+import { FieldType } from "../src/index"
 
 /**
  * Функциональные тесты компиляции индивидуальных суперпозиций.
@@ -29,9 +30,9 @@ describe("Компиляция индивидуальных суперпозиц
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
       }
-      const schema = { hp: "number" }
+      const fields = { hp: { type: FieldType.F32 } }
 
-      const result = compiler.compileSingle(superposition, schema)
+      const result = compiler.compileSingle(superposition, fields)
 
       expect(result.bytecode).toBeInstanceOf(Uint32Array)
       expect(result.bytecode.length).toBeGreaterThan(0)
@@ -52,10 +53,10 @@ describe("Компиляция индивидуальных суперпозиц
         MEDITATE: null,
       }
 
-      const schema = { hp: "number", mana: "number" }
+      const fields = { hp: { type: FieldType.F32 }, mana: { type: FieldType.F32 } }
 
-      const result1 = compiler.compileSingle(superposition1, schema)
-      const result2 = compiler.compileSingle(superposition2, schema, { preserveRegistry: true })
+      const result1 = compiler.compileSingle(superposition1, fields)
+      const result2 = compiler.compileSingle(superposition2, fields, { preserveRegistry: true })
 
       // Разные stateMap
       expect(result1.stateMap).toEqual({ IDLE: 0, COMBAT: 1 })
@@ -75,9 +76,9 @@ describe("Компиляция индивидуальных суперпозиц
         { IDLE: { ACTIVE: { hp: { gt: 50 } } }, ACTIVE: null },
         { IDLE: { PATROL: { mana: { lt: 10 } } }, PATROL: null },
       ]
-      const schema = { hp: "number", mana: "number" }
+      const fields = { hp: { type: FieldType.F32 }, mana: { type: FieldType.F32 } }
 
-      const result = compiler.compileEnsemble(superpositions, schema)
+      const result = compiler.compileEnsemble(superpositions, fields)
 
       // Проверяем структуру результата
       expect(result.bytecode).toBeInstanceOf(Uint32Array)
@@ -99,9 +100,9 @@ describe("Компиляция индивидуальных суперпозиц
         { IDLE: { COMBAT: { hp: { gt: 80 } } }, COMBAT: { VICTORY: { hp: { gt: 90 } } }, VICTORY: null },
         { IDLE: { DEFEND: { hp: { lte: 50 } } }, DEFEND: { FORTIFY: { hp: { lte: 20 } } }, FORTIFY: null },
       ]
-      const schema = { hp: "number" }
+      const fields = { hp: { type: FieldType.F32 } }
 
-      const result = compiler.compileEnsemble(superpositions, schema)
+      const result = compiler.compileEnsemble(superpositions, fields)
 
       // Поле 0: IDLE=0, COMBAT=1, VICTORY=2
       expect(result.stateMaps[0]).toEqual({ IDLE: 0, COMBAT: 1, VICTORY: 2 })
@@ -120,9 +121,9 @@ describe("Компиляция индивидуальных суперпозиц
         { IDLE: { B: { hp: { gt: 20 } } }, B: null },
         { IDLE: { C: { hp: { gt: 30 } } }, C: null },
       ]
-      const schema = { hp: "number" }
+      const fields = { hp: { type: FieldType.F32 } }
 
-      const result = compiler.compileEnsemble(superpositions, schema)
+      const result = compiler.compileEnsemble(superpositions, fields)
 
       expect(result.bytecodeOffsets[0]).toBe(0)
       expect(result.bytecodeOffsets[1]).toBeGreaterThan(0)
@@ -150,9 +151,9 @@ describe("Компиляция индивидуальных суперпозиц
         ACTIVE: null,
       }
 
-      const schema = { hp: "number" }
+      const fields = { hp: { type: FieldType.F32 } }
 
-      const result = compiler.compileEnsemble([superposition0, superposition1], schema)
+      const result = compiler.compileEnsemble([superposition0, superposition1], fields)
 
       // Оба stateMap должны быть одинаковыми (IDLE=0, ACTIVE=1)
       expect(result.stateMaps[0]).toEqual({ IDLE: 0, ACTIVE: 1 })
@@ -199,9 +200,9 @@ describe("Компиляция индивидуальных суперпозиц
         DEAD: null,
       }
 
-      const schema = { hp: "number", mana: "number", isAlive: "boolean" }
+      const fields = { hp: "number", mana: "number", isAlive: "boolean" }
 
-      const result = compiler.compileEnsemble([superposition0, superposition1, superposition2], schema)
+      const result = compiler.compileEnsemble([superposition0, superposition1, superposition2], fields)
 
       expect(result.stateMaps.length).toBe(3)
       expect(result.stateMaps[0]).toEqual({ IDLE: 0, ACTIVE: 1 })
@@ -222,9 +223,9 @@ describe("Компиляция индивидуальных суперпозиц
         COMBAT: null,
       }
 
-      const schema = { hp: "number", mana: "number" }
+      const fields = { hp: { type: FieldType.F32 }, mana: { type: FieldType.F32 } }
 
-      const result = compiler.compileSingle(superposition, schema)
+      const result = compiler.compileSingle(superposition, fields)
 
       // Проверяем наличие обоих операторов GT в bytecode
       const bc = Array.from(result.bytecode)
@@ -252,9 +253,9 @@ describe("Компиляция индивидуальных суперпозиц
         DEAD: null,
       }
 
-      const schema = { hp: "number" }
+      const fields = { hp: { type: FieldType.F32 } }
 
-      const result = compiler.compileSingle(superposition, schema)
+      const result = compiler.compileSingle(superposition, fields)
 
       expect(result.stateMap).toEqual({ DEAD: 0 })
       expect(result.reverseStateMap).toEqual(["DEAD"])
@@ -277,9 +278,9 @@ describe("Компиляция индивидуальных суперпозиц
         RECOVER: null,
       }
 
-      const schema = { hp: "number", mana: "number" }
+      const fields = { hp: { type: FieldType.F32 }, mana: { type: FieldType.F32 } }
 
-      const result = compiler.compileEnsemble([warriorSuperposition, mageSuperposition], schema)
+      const result = compiler.compileEnsemble([warriorSuperposition, mageSuperposition], fields)
 
       // Разные наборы состояний
       expect(Object.keys(result.stateMaps[0]!)).toEqual(["IDLE", "ATTACK", "VICTORY"])

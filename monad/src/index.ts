@@ -24,3 +24,5 @@ export type {
   UuidToIndexStore,
   IndexToUuidStore,
 } from "./monad.t"
+export { convertField, convertAllFields } from "./field"
+export type { FieldRegisterOptions, RegisteredField } from "./field"
