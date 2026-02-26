@@ -10,10 +10,10 @@ export {
   updateMonad,
   updateBoundary,
   onStateChange,
-} from "./monad"
+} from "./src/monad"
 
-export type { MonadConfig } from "./types"
-export type { Brane, Action, Update, Actions } from "./types"
+export type { MonadConfig } from "./src/types"
+export type { Brane, Action, Update, Actions } from "./src/types"
 export type {
   MonadId,
   FieldsStore,
@@ -23,6 +23,6 @@ export type {
   StatesStore,
   UuidToIndexStore,
   IndexToUuidStore,
-} from "./monad.t"
-export { convertField } from "./field"
+} from "./src/monad.t"
+export { convertField } from "./src/field"
 export type { Field } from "@metafor/boundary"

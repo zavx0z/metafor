@@ -5,15 +5,16 @@
   "type": "module",
   "private": true,
   "workspaces": [
-    "./boundary",
-    "./meta",
-    "./atom",
-    "./infra/*",
-    "./build",
-    "./monad",
-    "./create-metafor",
-    "./zavx0z/*",
-    "fixture"
+    "boundary",
+    "meta",
+    "atom",
+    "infra/*",
+    "build",
+    "monad",
+    "create-metafor",
+    "zavx0z/*",
+    "fixture",
+    "bulk/*"
   ],
   "devDependencies": {
     "@types/node": "^25.3.0",

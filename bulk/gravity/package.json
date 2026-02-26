@@ -1,0 +1,14 @@
+{
+  "name": "gravity",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@metafor/meta": "workspace:*",
+    "@metafor/build": "workspace:*",
+    "@metafor/monad": "workspace:*"
+  },
+  "scripts": {
+    "example": "bun run ./examples/server.ts"
+  }
+}
