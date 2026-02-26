@@ -33,9 +33,9 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 1]], superposition },  // 1 in [1,3,5] → WALK
-          { initialStateIndex: 0, states, params: [[0, 4]], superposition },  // 4 in [2,4,6] → FLY
-          { initialStateIndex: 0, states, params: [[0, 0]], superposition },  // 0 не в списках → GROUND
+          { state: 0, states, params: [[0, 1]], superposition },  // 1 in [1,3,5] → WALK
+          { state: 0, states, params: [[0, 4]], superposition },  // 4 in [2,4,6] → FLY
+          { state: 0, states, params: [[0, 0]], superposition },  // 0 не в списках → GROUND
         ],
       })
 
@@ -63,9 +63,9 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 36.6]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 37.0]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 40.0]], superposition },
+          { state: 0, states, params: [[0, 36.6]], superposition },
+          { state: 0, states, params: [[0, 37.0]], superposition },
+          { state: 0, states, params: [[0, 40.0]], superposition },
         ],
       })
 
@@ -94,8 +94,8 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 1]], superposition },   // GAME (1 не в [0,2])
-          { initialStateIndex: 0, states, params: [[0, 0]], superposition },   // LOBBY (0 в [0,2])
+          { state: 0, states, params: [[0, 1]], superposition },   // GAME (1 не в [0,2])
+          { state: 0, states, params: [[0, 0]], superposition },   // LOBBY (0 в [0,2])
         ],
       })
 
@@ -132,9 +132,9 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
           [1, { type: FieldType.F32 }],
         ],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 150], [1, 5]], superposition },   // READY
-          { initialStateIndex: 0, states, params: [[0, 150], [1, 1]], superposition },   // START (badge не в списке)
-          { initialStateIndex: 0, states, params: [[0, 50], [1, 7]], superposition },    // START (score < 100)
+          { state: 0, states, params: [[0, 150], [1, 5]], superposition },   // READY
+          { state: 0, states, params: [[0, 150], [1, 1]], superposition },   // START (badge не в списке)
+          { state: 0, states, params: [[0, 50], [1, 7]], superposition },    // START (score < 100)
         ],
       })
 

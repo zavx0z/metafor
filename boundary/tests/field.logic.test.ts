@@ -44,8 +44,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
           [2, { type: FieldType.BOOL }],
         ],
         branes: [
-          { initialStateIndex: 0, states: defaultStates, params: [[0, 100], [1, 100], [2, true]], superposition: defaultSuperposition },
-          { initialStateIndex: 0, states: defaultStates, params: [[0, 0], [1, 50], [2, false]], superposition: defaultSuperposition },
+          { state: 0, states: defaultStates, params: [[0, 100], [1, 100], [2, true]], superposition: defaultSuperposition },
+          { state: 0, states: defaultStates, params: [[0, 0], [1, 50], [2, false]], superposition: defaultSuperposition },
         ],
       })
 
@@ -68,8 +68,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 100]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition },
+          { state: 0, states, params: [[0, 100]], superposition },
+          { state: 0, states, params: [[0, 50]], superposition },
         ],
       })
 
@@ -92,8 +92,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 49]], superposition },
+          { state: 0, states, params: [[0, 50]], superposition },
+          { state: 0, states, params: [[0, 49]], superposition },
         ],
       })
 
@@ -116,8 +116,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 49]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition },
+          { state: 0, states, params: [[0, 49]], superposition },
+          { state: 0, states, params: [[0, 50]], superposition },
         ],
       })
 
@@ -142,8 +142,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, true]], superposition },
-          { initialStateIndex: 0, states, params: [[0, false]], superposition },
+          { state: 0, states, params: [[0, true]], superposition },
+          { state: 0, states, params: [[0, false]], superposition },
         ],
       })
 
@@ -166,8 +166,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, false]], superposition },
-          { initialStateIndex: 0, states, params: [[0, true]], superposition },
+          { state: 0, states, params: [[0, false]], superposition },
+          { state: 0, states, params: [[0, true]], superposition },
         ],
       })
 
@@ -203,9 +203,9 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
           [1, { type: FieldType.F32 }],
         ],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 100], [1, 50]], superposition },   // hp=100>50, mana=50>20 → COMBAT
-          { initialStateIndex: 0, states, params: [[0, 100], [1, 10]], superposition },   // hp=100>50, mana=10 не >20 → IDLE
-          { initialStateIndex: 0, states, params: [[0, 30], [1, 50]], superposition },    // hp=30 не >50, mana=50>20 → IDLE
+          { state: 0, states, params: [[0, 100], [1, 50]], superposition },   // hp=100>50, mana=50>20 → COMBAT
+          { state: 0, states, params: [[0, 100], [1, 10]], superposition },   // hp=100>50, mana=10 не >20 → IDLE
+          { state: 0, states, params: [[0, 30], [1, 50]], superposition },    // hp=30 не >50, mana=50>20 → IDLE
         ],
       })
 
@@ -230,7 +230,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
-        branes: [{ initialStateIndex: 0, states, params: [[0, 100]], superposition }],
+        branes: [{ state: 0, states, params: [[0, 100]], superposition }],
       })
 
       boundary.updateBraneField(0, 0, 0)  // hp = 0
@@ -251,7 +251,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
-        branes: [{ initialStateIndex: 0, states, params: [[0, 100]], superposition }],
+        branes: [{ state: 0, states, params: [[0, 100]], superposition }],
       })
 
       boundary.updateBraneField(0, 0, 50)  // hp = 50 (не > 50)
@@ -278,7 +278,7 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
           [0, { type: FieldType.F32 }],
           [1, { type: FieldType.F32 }],
         ],
-        branes: [{ initialStateIndex: 0, states, params: [[0, 100], [1, 5]], superposition }],
+        branes: [{ state: 0, states, params: [[0, 100], [1, 5]], superposition }],
       })
 
       boundary.step()  // IDLE → PATROL (hp=100>50)
@@ -302,9 +302,9 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 100]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 200]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 0]], superposition },
+          { state: 0, states, params: [[0, 100]], superposition },
+          { state: 0, states, params: [[0, 200]], superposition },
+          { state: 0, states, params: [[0, 0]], superposition },
         ],
       })
 
@@ -328,8 +328,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 100]], superposition },   // IDLE, hp=100
-          { initialStateIndex: 1, states, params: [[0, 30]], superposition },    // ACTIVE, hp=30
+          { state: 0, states, params: [[0, 100]], superposition },   // IDLE, hp=100
+          { state: 1, states, params: [[0, 30]], superposition },    // ACTIVE, hp=30
         ],
       })
 
@@ -373,9 +373,9 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
           [1, { type: FieldType.F32 }],
         ],
         branes: [
-          { initialStateIndex: 0, states: warriorStates, params: [[0, 90], [1, 50]], superposition: warriorSuperposition },
-          { initialStateIndex: 0, states: mageStates, params: [[0, 50], [1, 10]], superposition: mageSuperposition },
-          { initialStateIndex: 0, states: scoutStates, params: [[0, 60], [1, 30]], superposition: scoutSuperposition },
+          { state: 0, states: warriorStates, params: [[0, 90], [1, 50]], superposition: warriorSuperposition },
+          { state: 0, states: mageStates, params: [[0, 50], [1, 10]], superposition: mageSuperposition },
+          { state: 0, states: scoutStates, params: [[0, 60], [1, 30]], superposition: scoutSuperposition },
         ],
       })
 
@@ -407,8 +407,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition: lowThresholdSuperposition },
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition: highThresholdSuperposition },
+          { state: 0, states, params: [[0, 50]], superposition: lowThresholdSuperposition },
+          { state: 0, states, params: [[0, 50]], superposition: highThresholdSuperposition },
         ],
       })
 
@@ -441,8 +441,8 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states: aggressiveStates, params: [[0, 95]], superposition: aggressiveSuperposition },
-          { initialStateIndex: 0, states: defensiveStates, params: [[0, 15]], superposition: defensiveSuperposition },
+          { state: 0, states: aggressiveStates, params: [[0, 95]], superposition: aggressiveSuperposition },
+          { state: 0, states: defensiveStates, params: [[0, 15]], superposition: defensiveSuperposition },
         ],
       })
 
@@ -494,9 +494,9 @@ describe("Boundary — Тесты с bun-webgpu (нативный API)", () => {
           [2, { type: FieldType.BOOL }],
         ],
         branes: [
-          { initialStateIndex: 0, states: numericStates, params: [[0, 60], [1, 0], [2, false]], superposition: numericSuperposition },
-          { initialStateIndex: 0, states: booleanStates, params: [[0, 0], [1, 0], [2, true]], superposition: booleanSuperposition },
-          { initialStateIndex: 0, states: multiConditionStates, params: [[0, 40], [1, 30], [2, false]], superposition: multiConditionSuperposition },
+          { state: 0, states: numericStates, params: [[0, 60], [1, 0], [2, false]], superposition: numericSuperposition },
+          { state: 0, states: booleanStates, params: [[0, 0], [1, 0], [2, true]], superposition: booleanSuperposition },
+          { state: 0, states: multiConditionStates, params: [[0, 40], [1, 30], [2, false]], superposition: multiConditionSuperposition },
         ],
       })
 

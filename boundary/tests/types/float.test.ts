@@ -28,9 +28,9 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 42]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 41]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 43]], superposition },
+          { state: 0, states, params: [[0, 42]], superposition },
+          { state: 0, states, params: [[0, 41]], superposition },
+          { state: 0, states, params: [[0, 43]], superposition },
         ],
       })
 
@@ -54,8 +54,8 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, -10]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 10]], superposition },
+          { state: 0, states, params: [[0, -10]], superposition },
+          { state: 0, states, params: [[0, 10]], superposition },
         ],
       })
 
@@ -78,8 +78,8 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 3.14]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 3.15]], superposition },
+          { state: 0, states, params: [[0, 3.14]], superposition },
+          { state: 0, states, params: [[0, 3.15]], superposition },
         ],
       })
 
@@ -102,8 +102,8 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 0]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 0.001]], superposition },
+          { state: 0, states, params: [[0, 0]], superposition },
+          { state: 0, states, params: [[0, 0.001]], superposition },
         ],
       })
 
@@ -128,9 +128,9 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 42]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 41]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 43]], superposition },
+          { state: 0, states, params: [[0, 42]], superposition },
+          { state: 0, states, params: [[0, 41]], superposition },
+          { state: 0, states, params: [[0, 43]], superposition },
         ],
       })
 
@@ -154,8 +154,8 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 0]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 1]], superposition },
+          { state: 0, states, params: [[0, 0]], superposition },
+          { state: 0, states, params: [[0, 1]], superposition },
         ],
       })
 
@@ -178,8 +178,8 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 100]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 99]], superposition },
+          { state: 0, states, params: [[0, 100]], superposition },
+          { state: 0, states, params: [[0, 99]], superposition },
         ],
       })
 
@@ -204,8 +204,8 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 100]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 99]], superposition },
+          { state: 0, states, params: [[0, 100]], superposition },
+          { state: 0, states, params: [[0, 99]], superposition },
         ],
       })
 
@@ -230,9 +230,9 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, -5]], superposition },
-          { initialStateIndex: 0, states, params: [[0, -10]], superposition },
-          { initialStateIndex: 0, states, params: [[0, -15]], superposition },
+          { state: 0, states, params: [[0, -5]], superposition },
+          { state: 0, states, params: [[0, -10]], superposition },
+          { state: 0, states, params: [[0, -15]], superposition },
         ],
       })
 
@@ -258,8 +258,8 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 49]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition },
+          { state: 0, states, params: [[0, 49]], superposition },
+          { state: 0, states, params: [[0, 50]], superposition },
         ],
       })
 
@@ -282,9 +282,9 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, -10]], superposition },
-          { initialStateIndex: 0, states, params: [[0, -5]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 0]], superposition },
+          { state: 0, states, params: [[0, -10]], superposition },
+          { state: 0, states, params: [[0, -5]], superposition },
+          { state: 0, states, params: [[0, 0]], superposition },
         ],
       })
 
@@ -310,9 +310,9 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 49]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 51]], superposition },
+          { state: 0, states, params: [[0, 49]], superposition },
+          { state: 0, states, params: [[0, 50]], superposition },
+          { state: 0, states, params: [[0, 51]], superposition },
         ],
       })
 
@@ -338,9 +338,9 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 49]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 51]], superposition },
+          { state: 0, states, params: [[0, 49]], superposition },
+          { state: 0, states, params: [[0, 50]], superposition },
+          { state: 0, states, params: [[0, 51]], superposition },
         ],
       })
 
@@ -366,10 +366,10 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 10]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 20]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 30]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 15]], superposition },
+          { state: 0, states, params: [[0, 10]], superposition },
+          { state: 0, states, params: [[0, 20]], superposition },
+          { state: 0, states, params: [[0, 30]], superposition },
+          { state: 0, states, params: [[0, 15]], superposition },
         ],
       })
 
@@ -394,7 +394,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 10]], superposition },
+          { state: 0, states, params: [[0, 10]], superposition },
         ],
       })
 
@@ -418,9 +418,9 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 10]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 15]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 25]], superposition },
+          { state: 0, states, params: [[0, 10]], superposition },
+          { state: 0, states, params: [[0, 15]], superposition },
+          { state: 0, states, params: [[0, 25]], superposition },
         ],
       })
 
@@ -446,9 +446,9 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 9]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 15]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 25]], superposition },
+          { state: 0, states, params: [[0, 9]], superposition },
+          { state: 0, states, params: [[0, 15]], superposition },
+          { state: 0, states, params: [[0, 25]], superposition },
         ],
       })
 
@@ -474,9 +474,9 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 49]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 51]], superposition },
+          { state: 0, states, params: [[0, 49]], superposition },
+          { state: 0, states, params: [[0, 50]], superposition },
+          { state: 0, states, params: [[0, 51]], superposition },
         ],
       })
 
@@ -500,9 +500,9 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 49]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 51]], superposition },
+          { state: 0, states, params: [[0, 49]], superposition },
+          { state: 0, states, params: [[0, 50]], superposition },
+          { state: 0, states, params: [[0, 51]], superposition },
         ],
       })
 
@@ -526,9 +526,9 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 49]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 51]], superposition },
+          { state: 0, states, params: [[0, 49]], superposition },
+          { state: 0, states, params: [[0, 50]], superposition },
+          { state: 0, states, params: [[0, 51]], superposition },
         ],
       })
 
@@ -552,9 +552,9 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 49]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 51]], superposition },
+          { state: 0, states, params: [[0, 49]], superposition },
+          { state: 0, states, params: [[0, 50]], superposition },
+          { state: 0, states, params: [[0, 51]], superposition },
         ],
       })
 
@@ -591,9 +591,9 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
           [1, { type: FieldType.F32 }],
         ],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 9], [1, 15]], superposition },    // 9 не >= 10
-          { initialStateIndex: 0, states, params: [[0, 15], [1, 15]], superposition },   // 15>=10 И 15<=20
-          { initialStateIndex: 0, states, params: [[0, 15], [1, 21]], superposition },   // 21 не <= 20
+          { state: 0, states, params: [[0, 9], [1, 15]], superposition },    // 9 не >= 10
+          { state: 0, states, params: [[0, 15], [1, 15]], superposition },   // 15>=10 И 15<=20
+          { state: 0, states, params: [[0, 15], [1, 21]], superposition },   // 21 не <= 20
         ],
       })
 
@@ -618,7 +618,7 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
-        branes: [{ initialStateIndex: 0, states, params: [[0, 10]], superposition }],
+        branes: [{ state: 0, states, params: [[0, 10]], superposition }],
       })
 
       boundary.updateBraneField(0, 0, 50)

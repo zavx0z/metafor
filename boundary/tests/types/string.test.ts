@@ -28,8 +28,8 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.STRING_PTR }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, "hero"]], superposition },
-          { initialStateIndex: 0, states, params: [[0, "monster"]], superposition },
+          { state: 0, states, params: [[0, "hero"]], superposition },
+          { state: 0, states, params: [[0, "monster"]], superposition },
         ],
       })
 
@@ -54,8 +54,8 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.STRING_PTR }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, "enemy"]], superposition },
-          { initialStateIndex: 0, states, params: [[0, "ally"]], superposition },
+          { state: 0, states, params: [[0, "enemy"]], superposition },
+          { state: 0, states, params: [[0, "ally"]], superposition },
         ],
       })
 
@@ -80,9 +80,9 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.STRING_PTR }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, "warrior"]], superposition },
-          { initialStateIndex: 0, states, params: [[0, "mage"]], superposition },
-          { initialStateIndex: 0, states, params: [[0, "healer"]], superposition },
+          { state: 0, states, params: [[0, "warrior"]], superposition },
+          { state: 0, states, params: [[0, "mage"]], superposition },
+          { state: 0, states, params: [[0, "healer"]], superposition },
         ],
       })
 
@@ -107,7 +107,7 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
 
       await boundary.write({
         fields: [[0, { type: FieldType.STRING_PTR }]],
-        branes: [{ initialStateIndex: 0, states, params: [[0, "warrior"]], superposition }],
+        branes: [{ state: 0, states, params: [[0, "warrior"]], superposition }],
       })
 
       boundary.updateBraneField(0, 0, "healer")
@@ -131,9 +131,9 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.STRING_PTR }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, "enemy"]], superposition },
-          { initialStateIndex: 0, states, params: [[0, "boss"]], superposition },
-          { initialStateIndex: 0, states, params: [[0, "ally"]], superposition },
+          { state: 0, states, params: [[0, "enemy"]], superposition },
+          { state: 0, states, params: [[0, "boss"]], superposition },
+          { state: 0, states, params: [[0, "ally"]], superposition },
         ],
       })
 
@@ -159,8 +159,8 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.STRING_PTR }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, ""]], superposition },
-          { initialStateIndex: 0, states, params: [[0, "hero"]], superposition },
+          { state: 0, states, params: [[0, ""]], superposition },
+          { state: 0, states, params: [[0, "hero"]], superposition },
         ],
       })
 
@@ -185,8 +185,8 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.STRING_PTR }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, "test-123_@"]], superposition },
-          { initialStateIndex: 0, states, params: [[0, "test-123"]], superposition },
+          { state: 0, states, params: [[0, "test-123_@"]], superposition },
+          { state: 0, states, params: [[0, "test-123"]], superposition },
         ],
       })
 
@@ -211,9 +211,9 @@ describe("Boundary - тип STRING (строка) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.STRING_PTR }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, "Hero"]], superposition },
-          { initialStateIndex: 0, states, params: [[0, "hero"]], superposition },
-          { initialStateIndex: 0, states, params: [[0, "HERO"]], superposition },
+          { state: 0, states, params: [[0, "Hero"]], superposition },
+          { state: 0, states, params: [[0, "hero"]], superposition },
+          { state: 0, states, params: [[0, "HERO"]], superposition },
         ],
       })
 

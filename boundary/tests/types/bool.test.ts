@@ -28,8 +28,8 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, true]], superposition },
-          { initialStateIndex: 0, states, params: [[0, false]], superposition },
+          { state: 0, states, params: [[0, true]], superposition },
+          { state: 0, states, params: [[0, false]], superposition },
         ],
       })
 
@@ -52,8 +52,8 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, false]], superposition },
-          { initialStateIndex: 0, states, params: [[0, true]], superposition },
+          { state: 0, states, params: [[0, false]], superposition },
+          { state: 0, states, params: [[0, true]], superposition },
         ],
       })
 
@@ -78,8 +78,8 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, true]], superposition },
-          { initialStateIndex: 0, states, params: [[0, false]], superposition },
+          { state: 0, states, params: [[0, true]], superposition },
+          { state: 0, states, params: [[0, false]], superposition },
         ],
       })
 
@@ -102,8 +102,8 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, false]], superposition },
-          { initialStateIndex: 0, states, params: [[0, true]], superposition },
+          { state: 0, states, params: [[0, false]], superposition },
+          { state: 0, states, params: [[0, true]], superposition },
         ],
       })
 
@@ -128,8 +128,8 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, true]], superposition },
-          { initialStateIndex: 0, states, params: [[0, false]], superposition },
+          { state: 0, states, params: [[0, true]], superposition },
+          { state: 0, states, params: [[0, false]], superposition },
         ],
       })
 
@@ -152,8 +152,8 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, false]], superposition },
-          { initialStateIndex: 0, states, params: [[0, true]], superposition },
+          { state: 0, states, params: [[0, false]], superposition },
+          { state: 0, states, params: [[0, true]], superposition },
         ],
       })
 
@@ -189,9 +189,9 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
           [1, { type: FieldType.BOOL }],
         ],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, true], [1, true]], superposition },
-          { initialStateIndex: 0, states, params: [[0, true], [1, false]], superposition },
-          { initialStateIndex: 0, states, params: [[0, false], [1, true]], superposition },
+          { state: 0, states, params: [[0, true], [1, true]], superposition },
+          { state: 0, states, params: [[0, true], [1, false]], superposition },
+          { state: 0, states, params: [[0, false], [1, true]], superposition },
         ],
       })
 
@@ -226,8 +226,8 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
           [1, { type: FieldType.BOOL }],
         ],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, true], [1, false]], superposition },
-          { initialStateIndex: 0, states, params: [[0, false], [1, true]], superposition },
+          { state: 0, states, params: [[0, true], [1, false]], superposition },
+          { state: 0, states, params: [[0, false], [1, true]], superposition },
         ],
       })
 
@@ -251,7 +251,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
-        branes: [{ initialStateIndex: 0, states, params: [[0, false]], superposition }],
+        branes: [{ state: 0, states, params: [[0, false]], superposition }],
       })
 
       boundary.updateBraneField(0, 0, true)
@@ -272,7 +272,7 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
 
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
-        branes: [{ initialStateIndex: 0, states, params: [[0, true]], superposition }],
+        branes: [{ state: 0, states, params: [[0, true]], superposition }],
       })
 
       boundary.updateBraneField(0, 0, false)
@@ -307,9 +307,9 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
           [1, { type: FieldType.BOOL }],
         ],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 100], [1, true]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 100], [1, false]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 30], [1, true]], superposition },
+          { state: 0, states, params: [[0, 100], [1, true]], superposition },
+          { state: 0, states, params: [[0, 100], [1, false]], superposition },
+          { state: 0, states, params: [[0, 30], [1, true]], superposition },
         ],
       })
 

@@ -2,7 +2,6 @@
  * Типы и интерфейсы для Boundary.
  */
 
-
 /**
  * Индекс браны в массиве Boundary.
  *
@@ -98,7 +97,7 @@ export type Superposition = NumericSuperposition
  * @remarks
  * Брана содержит:
  * - params — значения полей (данные) в формате кортежей
- * - initialStateIndex — индекс начального состояния в массиве states
+ * - state — индекс начального состояния в массиве states
  * - states — имена состояний для reverse-маппинга (хранятся в Boundary)
  * - superposition — граф переходов с числовыми ID состояний
  */
@@ -106,7 +105,7 @@ export interface BraneDefinition {
   /** Значения полей браны в формате кортежей [[index, value], ...]. */
   params: ValueTuple[]
   /** Индекс начального состояния в массиве states. */
-  initialStateIndex: number
+  state: number
   /** Имена состояний для reverse-маппинга. */
   states: string[]
   /** Суперпозиция — граф переходов с числовыми ID состояний. */
@@ -237,7 +236,7 @@ export interface CompiledEnsemble {
    * reverseStateMaps[i] — маппинг ID в имена для поля i.
    */
   reverseStateMaps: string[][]
-}/**
+} /**
  * Типы полей для GPU.
  *
  * @packageDocumentation
@@ -259,4 +258,3 @@ export interface Field {
   elementType?: string
   enumValues?: any[]
 }
-

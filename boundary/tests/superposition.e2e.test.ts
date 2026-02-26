@@ -47,9 +47,9 @@ describe("Boundary — E2E тесты для индивидуальных суп
           [1, { type: FieldType.F32 }],
         ],
         branes: [
-          { initialStateIndex: 0, states: warriorStates, params: [[0, 90], [1, 50]], superposition: warriorSuperposition },
-          { initialStateIndex: 0, states: mageStates, params: [[0, 50], [1, 10]], superposition: mageSuperposition },
-          { initialStateIndex: 0, states: scoutStates, params: [[0, 60], [1, 30]], superposition: scoutSuperposition },
+          { state: 0, states: warriorStates, params: [[0, 90], [1, 50]], superposition: warriorSuperposition },
+          { state: 0, states: mageStates, params: [[0, 50], [1, 10]], superposition: mageSuperposition },
+          { state: 0, states: scoutStates, params: [[0, 60], [1, 30]], superposition: scoutSuperposition },
         ],
       })
 
@@ -83,8 +83,8 @@ describe("Boundary — E2E тесты для индивидуальных суп
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition: lowThresholdSuperposition },
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition: highThresholdSuperposition },
+          { state: 0, states, params: [[0, 50]], superposition: lowThresholdSuperposition },
+          { state: 0, states, params: [[0, 50]], superposition: highThresholdSuperposition },
         ],
       })
 
@@ -122,9 +122,9 @@ describe("Boundary — E2E тесты для индивидуальных суп
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition: gtSuperposition },
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition: gteSuperposition },
-          { initialStateIndex: 0, states, params: [[0, 50]], superposition: ltSuperposition },
+          { state: 0, states, params: [[0, 50]], superposition: gtSuperposition },
+          { state: 0, states, params: [[0, 50]], superposition: gteSuperposition },
+          { state: 0, states, params: [[0, 50]], superposition: ltSuperposition },
         ],
       })
 
@@ -160,8 +160,8 @@ describe("Boundary — E2E тесты для индивидуальных суп
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states: aggressiveStates, params: [[0, 95]], superposition: aggressiveSuperposition },
-          { initialStateIndex: 0, states: defensiveStates, params: [[0, 15]], superposition: defensiveSuperposition },
+          { state: 0, states: aggressiveStates, params: [[0, 95]], superposition: aggressiveSuperposition },
+          { state: 0, states: defensiveStates, params: [[0, 15]], superposition: defensiveSuperposition },
         ],
       })
 
@@ -215,9 +215,9 @@ describe("Boundary — E2E тесты для индивидуальных суп
           [2, { type: FieldType.BOOL }],
         ],
         branes: [
-          { initialStateIndex: 0, states: numericStates, params: [[0, 60], [1, 0], [2, false]], superposition: numericSuperposition },
-          { initialStateIndex: 0, states: booleanStates, params: [[0, 0], [1, 0], [2, true]], superposition: booleanSuperposition },
-          { initialStateIndex: 0, states: multiConditionStates, params: [[0, 40], [1, 30], [2, false]], superposition: multiConditionSuperposition },
+          { state: 0, states: numericStates, params: [[0, 60], [1, 0], [2, false]], superposition: numericSuperposition },
+          { state: 0, states: booleanStates, params: [[0, 0], [1, 0], [2, true]], superposition: booleanSuperposition },
+          { state: 0, states: multiConditionStates, params: [[0, 40], [1, 30], [2, false]], superposition: multiConditionSuperposition },
         ],
       })
 
@@ -251,8 +251,8 @@ describe("Boundary — E2E тесты для индивидуальных суп
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 60]], superposition: superposition1 },
-          { initialStateIndex: 0, states, params: [[0, 60]], superposition: superposition2 },
+          { state: 0, states, params: [[0, 60]], superposition: superposition1 },
+          { state: 0, states, params: [[0, 60]], superposition: superposition2 },
         ],
       })
 
@@ -290,8 +290,8 @@ describe("Boundary — E2E тесты для индивидуальных суп
           [1, { type: FieldType.F32 }],
         ],
         branes: [
-          { initialStateIndex: 0, states: unit1States, params: [[0, 90], [1, 10]], superposition: unit1Superposition },  // hp=90>80, mana=10<20
-          { initialStateIndex: 0, states: unit2States, params: [[0, 30], [1, 5]], superposition: unit2Superposition },   // hp=30<=50, mana=5<10
+          { state: 0, states: unit1States, params: [[0, 90], [1, 10]], superposition: unit1Superposition },  // hp=90>80, mana=10<20
+          { state: 0, states: unit2States, params: [[0, 30], [1, 5]], superposition: unit2Superposition },   // hp=30<=50, mana=5<10
         ],
       })
 

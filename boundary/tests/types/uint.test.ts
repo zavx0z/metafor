@@ -31,9 +31,9 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "DEAD"] }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, "ACTIVE"]], superposition },
-          { initialStateIndex: 0, states, params: [[0, "IDLE"]], superposition },
-          { initialStateIndex: 0, states, params: [[0, "DEAD"]], superposition },
+          { state: 0, states, params: [[0, "ACTIVE"]], superposition },
+          { state: 0, states, params: [[0, "IDLE"]], superposition },
+          { state: 0, states, params: [[0, "DEAD"]], superposition },
         ],
       })
 
@@ -57,9 +57,9 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.U32, enumValues: [1, 2, 3] }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, 2]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 1]], superposition },
-          { initialStateIndex: 0, states, params: [[0, 3]], superposition },
+          { state: 0, states, params: [[0, 2]], superposition },
+          { state: 0, states, params: [[0, 1]], superposition },
+          { state: 0, states, params: [[0, 3]], superposition },
         ],
       })
 
@@ -85,9 +85,9 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "DEAD"] }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, "IDLE"]], superposition },
-          { initialStateIndex: 0, states, params: [[0, "ACTIVE"]], superposition },
-          { initialStateIndex: 0, states, params: [[0, "DEAD"]], superposition },
+          { state: 0, states, params: [[0, "IDLE"]], superposition },
+          { state: 0, states, params: [[0, "ACTIVE"]], superposition },
+          { state: 0, states, params: [[0, "DEAD"]], superposition },
         ],
       })
 
@@ -113,8 +113,8 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "DEAD"] }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, "DEAD"]], superposition },   // индекс 2 > 1
-          { initialStateIndex: 0, states, params: [[0, "IDLE"]], superposition },    // индекс 0 не > 1
+          { state: 0, states, params: [[0, "DEAD"]], superposition },   // индекс 2 > 1
+          { state: 0, states, params: [[0, "IDLE"]], superposition },    // индекс 0 не > 1
         ],
       })
 
@@ -139,8 +139,8 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "DEAD"] }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, "IDLE"]], superposition },   // индекс 0 < 1
-          { initialStateIndex: 0, states, params: [[0, "DEAD"]], superposition },    // индекс 2 не < 1
+          { state: 0, states, params: [[0, "IDLE"]], superposition },   // индекс 0 < 1
+          { state: 0, states, params: [[0, "DEAD"]], superposition },    // индекс 2 не < 1
         ],
       })
 
@@ -165,8 +165,8 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "DEAD"] }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, "ACTIVE"]], superposition },  // индекс 1 >= 1
-          { initialStateIndex: 0, states, params: [[0, "IDLE"]], superposition },    // индекс 0 не >= 1
+          { state: 0, states, params: [[0, "ACTIVE"]], superposition },  // индекс 1 >= 1
+          { state: 0, states, params: [[0, "IDLE"]], superposition },    // индекс 0 не >= 1
         ],
       })
 
@@ -191,8 +191,8 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "DEAD"] }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, "IDLE"]], superposition },    // индекс 0 <= 1
-          { initialStateIndex: 0, states, params: [[0, "DEAD"]], superposition },    // индекс 2 не <= 1
+          { state: 0, states, params: [[0, "IDLE"]], superposition },    // индекс 0 <= 1
+          { state: 0, states, params: [[0, "DEAD"]], superposition },    // индекс 2 не <= 1
         ],
       })
 
@@ -217,8 +217,8 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "DEAD"] }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, "ACTIVE"]], superposition },
-          { initialStateIndex: 0, states, params: [[0, "IDLE"]], superposition },
+          { state: 0, states, params: [[0, "ACTIVE"]], superposition },
+          { state: 0, states, params: [[0, "IDLE"]], superposition },
         ],
       })
 
@@ -243,8 +243,8 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "DEAD"] }]],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, "ACTIVE"]], superposition },
-          { initialStateIndex: 0, states, params: [[0, "IDLE"]], superposition },
+          { state: 0, states, params: [[0, "ACTIVE"]], superposition },
+          { state: 0, states, params: [[0, "IDLE"]], superposition },
         ],
       })
 
@@ -280,9 +280,9 @@ describe("Boundary - тип UINT (enum) с bun-webgpu", () => {
           [1, { type: FieldType.U32, enumValues: ["IDLE", "ACTIVE", "DEAD"] }],
         ],
         branes: [
-          { initialStateIndex: 0, states, params: [[0, "ACTIVE"], [1, "ACTIVE"]], superposition },  // 1>0 И 1<2
-          { initialStateIndex: 0, states, params: [[0, "IDLE"], [1, "IDLE"]], superposition },      // 0 не > 0
-          { initialStateIndex: 0, states, params: [[0, "DEAD"], [1, "DEAD"]], superposition },      // 2 не < 2
+          { state: 0, states, params: [[0, "ACTIVE"], [1, "ACTIVE"]], superposition },  // 1>0 И 1<2
+          { state: 0, states, params: [[0, "IDLE"], [1, "IDLE"]], superposition },      // 0 не > 0
+          { state: 0, states, params: [[0, "DEAD"], [1, "DEAD"]], superposition },      // 2 не < 2
         ],
       })
 
