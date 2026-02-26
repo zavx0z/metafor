@@ -46,12 +46,24 @@ export interface EntangledBraneInfo {
 }
 
 export interface BraneManagerConfig {
-  /** Размер кучи в u32 словах. По умолчанию 16384. */
-  heapSize?: number
-  /** Количество зарезервированных слов в начале кучи. По умолчанию 1. */
-  reserveFirst?: number
-  /** Включить debug-логирование. */
-  debug?: boolean
+/** Размер кучи в u32 словах. По умолчанию 16384. */
+heapSize?: number
+/** Количество зарезервированных слов в начале кучи. По умолчанию 1. */
+reserveFirst?: number
+/** Включить debug-логирование. */
+debug?: boolean
+}
+
+/**
+* Отложенное освобождение памяти.
+*/
+interface PendingFree {
+/** Смещение освобождаемого блока */
+offset: number
+/** Размер освобождаемого блока */
+size: number
+/** Освободить после шага эволюции */
+afterStep: boolean
 }
 
 export class BraneManager {
@@ -62,9 +74,11 @@ export class BraneManager {
   private entangledBranes: Map<number, EntangledBraneInfo> = new Map()
   private nextBraneId: number = 0
   private nextEntangledId: number = 0
-  private heapData: Uint32Array
-  private heapDirty: boolean = false
-  private debug: boolean = false
+private heapData: Uint32Array
+private heapDirty: boolean = false
+private debug: boolean = false
+/** Список отложенных освобождений памяти */
+private pendingFrees: PendingFree[] = []
 
   constructor(
     public readonly device: GPUDevice,
@@ -305,42 +319,50 @@ export class BraneManager {
         this.heapData[absoluteOffset + 1] = meta.hash
         break
       }
-      case FieldType.ARRAY_PTR: {
-        const oldOffset = this.heapData[absoluteOffset]!
-        const oldLength = this.heapData[absoluteOffset + 1]!
-        if (!Array.isArray(newValue)) {
-          throw new Error(`Expected array for field '${fieldId}'`)
-        }
-        const elementType = field.elementType
-        const values = newValue as unknown[]
-        const newWordCount = values.length + 1
-        const newBlock = this.allocator.alloc(newWordCount)
-        if (!newBlock) {
-          throw new Error(`Not enough memory for array`)
-        }
-        const arrayView = new Uint32Array(newBlock.size)
-        arrayView[0] = values.length
-        for (let i = 0; i < values.length; i++) {
-          const item = values[i]
-          if (elementType === "float" || elementType === "number") {
-            const buf = new Float32Array([Number(item)])
-            arrayView[i + 1] = new Uint32Array(buf.buffer)[0]!
-          } else if (elementType === "integer" || elementType === "boolean") {
-            arrayView[i + 1] = Number(item)
-          } else if (elementType === "string") {
-            const atlas = getStringAtlas()
-            const stringId = atlas.intern(String(item))
-            arrayView[i + 1] = stringId
-          } else {
-            arrayView[i + 1] = Number(item)
-          }
-        }
-        this.heapData.set(arrayView, newBlock.offset)
-        brane.extraAllocs.push({ offset: newBlock.offset, size: newBlock.size })
-        this.heapData[absoluteOffset] = newBlock.offset
-        this.heapData[absoluteOffset + 1] = values.length
-        break
-      }
+case FieldType.ARRAY_PTR: {
+const oldOffset = this.heapData[absoluteOffset]!
+const oldLength = this.heapData[absoluteOffset + 1]!
+if (!Array.isArray(newValue)) {
+throw new Error(`Expected array for field '${fieldId}'`)
+}
+// Добавляем старую аллокацию в список отложенного освобождения
+if (oldOffset > 0 && oldLength > 0) {
+this.pendingFrees.push({
+offset: oldOffset,
+size: oldLength + 1, // +1 для заголовка длины
+afterStep: true
+})
+}
+const elementType = field.elementType
+const values = newValue as unknown[]
+const newWordCount = values.length + 1
+const newBlock = this.allocator.alloc(newWordCount)
+if (!newBlock) {
+throw new Error(`Not enough memory for array`)
+}
+const arrayView = new Uint32Array(newBlock.size)
+arrayView[0] = values.length
+for (let i = 0; i < values.length; i++) {
+const item = values[i]
+if (elementType === "float" || elementType === "number") {
+const buf = new Float32Array([Number(item)])
+arrayView[i + 1] = new Uint32Array(buf.buffer)[0]!
+} else if (elementType === "integer" || elementType === "boolean") {
+arrayView[i + 1] = Number(item)
+} else if (elementType === "string") {
+const atlas = getStringAtlas()
+const stringId = atlas.intern(String(item))
+arrayView[i + 1] = stringId
+} else {
+arrayView[i + 1] = Number(item)
+}
+}
+this.heapData.set(arrayView, newBlock.offset)
+brane.extraAllocs.push({ offset: newBlock.offset, size: newBlock.size })
+this.heapData[absoluteOffset] = newBlock.offset
+this.heapData[absoluteOffset + 1] = values.length
+break
+}
       default:
         throw new Error(`Unsupported field type: ${field.type}`)
     }
@@ -420,22 +442,63 @@ export class BraneManager {
    * - Очищает heap (заполняет нулями).
    * - Сбрасывает аллокатор.
    */
-  clear(): void {
-    this.fields.clear()
-    this.branes.clear()
-    this.entangledBranes.clear()
-    this.nextBraneId = 0
-    this.nextEntangledId = 0
-    this.heapData.fill(0)
-    this.allocator.clear()
-    this.heapDirty = false
-  }
+clear(): void {
+this.fields.clear()
+this.branes.clear()
+this.entangledBranes.clear()
+this.nextBraneId = 0
+this.nextEntangledId = 0
+this.heapData.fill(0)
+this.allocator.clear()
+this.pendingFrees = []
+this.heapDirty = false
+}
 
   getBraneInfo(braneId: number): BraneInfo | undefined {
     return this.branes.get(braneId)
   }
 
-  getEnsemble(): BraneInfo[] {
-    return Array.from(this.branes.values())
-  }
+getEnsemble(): BraneInfo[] {
+return Array.from(this.branes.values())
+}
+
+/**
+* Обрабатывает отложенные освобождения памяти.
+* Вызывается после каждого шага эволюции.
+*/
+processPendingFrees(): void {
+const toFree = this.pendingFrees.filter(f => f.afterStep)
+for (const free of toFree) {
+this.allocator.free(free.offset, free.size)
+}
+this.pendingFrees = this.pendingFrees.filter(f => !f.afterStep)
+if (this.debug && toFree.length > 0) {
+console.log(`[BraneManager] Processed ${toFree.length} pending frees`)
+}
+}
+
+/**
+* Получает статистику использования памяти.
+*/
+getMemoryStats(): {
+used: number
+free: number
+pendingFrees: number
+extraAllocs: number
+} {
+const extraAllocs = Array.from(this.branes.values()).reduce(
+(sum, b) => sum + b.extraAllocs.length,
+0
+)
+const used = Array.from(this.branes.values()).reduce(
+(sum, b) => sum + b.blockSize + b.extraAllocs.reduce((s, a) => s + a.size, 0),
+0
+)
+return {
+used,
+free: this.allocator.getFreeList().reduce((s, b) => s + b.size, 0),
+pendingFrees: this.pendingFrees.length,
+extraAllocs
+}
+}
 }

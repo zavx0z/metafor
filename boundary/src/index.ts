@@ -235,13 +235,15 @@ export class Boundary {
     )
   }
 
-  /**
-   * Выполняет один шаг эволюции (compute pass).
-   * После вызова новые состояния доступны через {@link getStates}.
-   */
-  step() {
-    this.backend.run()
-  }
+/**
+* Выполняет один шаг эволюции (compute pass).
+* После вызова новые состояния доступны через {@link getStates}.
+*/
+step() {
+this.backend.run()
+// Обрабатываем отложенные освобождения памяти
+this.braneManager.processPendingFrees()
+}
 
   /**
    * Читает текущие состояния бран из GPU.
@@ -255,30 +257,44 @@ export class Boundary {
     return Array.from(raw).map((id, i) => this.reverseStateMaps[i]![id]!)
   }
 
-  /**
-   * Обновляет значение поля браны в heap.
-   *
-   * @remarks
-   * **Side Effect:** Если изменился размер heap, отправляет новые данные на GPU.
-   *
-   * @param braneIndex - Индекс браны в массиве конфигурации `[0..branes.length-1]`.
-   * @param fieldId - Индекс поля.
-   * @param value - Новое значение (тип должен соответствовать схеме fields).
-   *
-   * @throws {Error} Если braneIndex вне диапазона.
-   */
-  updateBraneField(braneIndex: number, fieldId: number, value: unknown): void {
-    const braneId = this.braneIds[braneIndex]
-    if (braneId === undefined) {
-      throw new Error(`Unknown brane index: ${braneIndex}`)
-    }
-    this.braneManager.updateBraneField(braneId, fieldId, value)
-    if (this.braneManager.isHeapDirty()) {
-      const { heap } = this.braneManager.getGPUBuffers()
-      this.backend.updateHeap(heap)
-      this.braneManager.clearDirtyFlag()
-    }
-  }
+/**
+* Обновляет значение поля браны в heap.
+*
+* @remarks
+* **Side Effect:** Если изменился размер heap, отправляет новые данные на GPU.
+*
+* @param braneIndex - Индекс браны в массиве конфигурации `[0..branes.length-1]`.
+* @param fieldId - Индекс поля.
+* @param value - Новое значение (тип должен соответствовать схеме fields).
+*
+* @throws {Error} Если braneIndex вне диапазона.
+*/
+updateBraneField(braneIndex: number, fieldId: number, value: unknown): void {
+const braneId = this.braneIds[braneIndex]
+if (braneId === undefined) {
+throw new Error(`Unknown brane index: ${braneIndex}`)
+}
+this.braneManager.updateBraneField(braneId, fieldId, value)
+if (this.braneManager.isHeapDirty()) {
+const { heap } = this.braneManager.getGPUBuffers()
+this.backend.updateHeap(heap)
+this.braneManager.clearDirtyFlag()
+}
+}
+
+/**
+* Получает статистику использования памяти.
+*
+* @returns Статистика памяти
+*/
+getMemoryStats(): {
+used: number
+free: number
+pendingFrees: number
+extraAllocs: number
+} {
+return this.braneManager.getMemoryStats()
+}
 }
 
 // Экспорты для совместимости

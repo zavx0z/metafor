@@ -91,7 +91,7 @@ free(offset: number, size: number): void {
 
 ---
 
-## ✅ Решение (workaround)
+## ✅ Решение
 
 ### Изменения в `BraneManager.ts`
 
@@ -103,100 +103,57 @@ const reserveFirst = config.reserveFirst ?? 1024 // Было: 1
 
 Это предотвращает использование адресов `[1-1024]` для динамических аллокаций.
 
-**2. Удалено освобождение памяти для массивов:**
+**2. Отложенное освобождение памяти для массивов:**
 
 ```typescript
+// При обновлении массива:
 case FieldType.ARRAY_PTR: {
-  // ❌ БЫЛО:
-  // if (oldOffset > 0) {
-  //   this.allocator.free(oldOffset, oldWordCount)
-  //   brane.extraAllocs.splice(idx, 1)
-  // }
+  const oldOffset = this.heapData[absoluteOffset]!
+  const oldLength = this.heapData[absoluteOffset + 1]!
   
-  // ✅ СТАЛО:
-  const newBlock = this.allocator.alloc(newWordCount)
-  brane.extraAllocs.push({ offset: newBlock.offset, size: newBlock.size })
-  // ...
-}
-```
-
----
-
-## ⚠️ Известные ограничения
-
-### Утечка памяти
-
-Текущее решение приводит к **утечке памяти** при частом обновлении массивов:
-
-```typescript
-// Каждый вызов создаёт новую аллокацию
-await updateMonad(id, { tags: ["a"] })      // +1 аллокация
-await updateMonad(id, { tags: ["a", "b"] }) // +1 аллокация (старая не освобождена)
-await updateMonad(id, { tags: ["c"] })      // +1 аллокация (две старые не освобождены)
-```
-
-**Почему это работает в тестах:**
-
-- `HeapAllocator` очищается при вызове `clear()`
-- Тесты вызывают `_resetState()` в `afterEach()`
-
-**Почему это проблема для продакшена:**
-
-- Долгоживущие монады будут накапливать утечки
-- Фиксированный размер кучи (`16384` слов) может быть исчерпан
-
----
-
-## 🔧 Будущие улучшения
-
-### Вариант 1: Отложенное освобождение
-
-```typescript
-private pendingFrees: Array<{ offset: number; size: number }> = []
-
-updateBraneField() {
-  // Добавляем в список отложенных
-  this.pendingFrees.push({ offset: oldOffset, size: oldWordCount })
-}
-
-step() {
-  // Освобождаем после шага эволюции
-  this.pendingFrees.forEach(({ offset, size }) => 
-    this.allocator.free(offset, size)
-  )
-  this.pendingFrees = []
-}
-```
-
-### Вариант 2: Раздельные аллокаторы
-
-```typescript
-private headerAllocator: HeapAllocator  // Для заголовков (reserveFirst=1024)
-private dynamicAllocator: HeapAllocator // Для данных (reserveFirst=0)
-```
-
-### Вариант 3: Reuse аллокаций
-
-```typescript
-// Если новый размер <= старого, используем ту же память
-if (newWordCount <= oldWordCount) {
-  // Обновляем данные на месте
-  this.heapData.set(arrayView, oldOffset)
-} else {
+  // Добавляем в список отложенных освобождений
+  if (oldOffset > 0 && oldLength > 0) {
+    this.pendingFrees.push({
+      offset: oldOffset,
+      size: oldLength + 1,
+      afterStep: true  // Освободить ПОСЛЕ шага эволюции
+    })
+  }
+  
   // Аллоцируем новую память
   const newBlock = this.allocator.alloc(newWordCount)
   // ...
 }
-```
 
-### Вариант 4: Garbage Collection
-
-```typescript
-compact() {
-  // Перемещаем все активные аллокации в начало кучи
-  // Освобождаем всё после последней активной
+// После шага эволюции:
+processPendingFrees(): void {
+  const toFree = this.pendingFrees.filter(f => f.afterStep)
+  for (const free of toFree) {
+    this.allocator.free(free.offset, free.size)
+  }
+  this.pendingFrees = this.pendingFrees.filter(f => !f.afterStep)
 }
 ```
+
+**3. Вызов в `Boundary.step()`:**
+
+```typescript
+step() {
+  this.backend.run()
+  this.braneManager.processPendingFrees()  // ← Освобождение памяти
+}
+```
+
+---
+
+## ✅ Результат
+
+### Утечка памяти устранена
+
+- Старая память освобождается **после шага эволюции**
+- Шейдер успевает прочитать данные до освобождения
+- `HeapAllocator` корректно объединяет освободившиеся блоки
+- Долгоживущие монады **не накапливают** утечки
 
 ---
 
