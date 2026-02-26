@@ -11,8 +11,6 @@
     "fixture": "workspace:*"
   },
   "scripts": {
-    "example": "bun run ./examples/server.ts",
-    "setup:browsers": "npx puppeteer browsers install chrome",
     "build": "bun build ./src/index.ts --outdir ./dist --target browser",
     "docs": "typedoc"
   },

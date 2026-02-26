@@ -1,4 +1,4 @@
-import { Boundary, GPU } from "../src/index"
+import { Boundary, GPU } from "@metafor/boundary"
 
 const status = document.getElementById("status")!
 const out = document.getElementById("output")!
