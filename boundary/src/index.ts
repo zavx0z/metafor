@@ -281,6 +281,18 @@ extraAllocs: number
 } {
 return this.braneManager.getMemoryStats()
 }
+
+/**
+* Получает статистику entangled (shared) блоков.
+*
+* @returns Статистика entangled блоков
+*/
+getEntangledStats(): {
+count: number
+totalSize: number
+} {
+return this.braneManager.getEntangledStats()
+}
 }
 
 // Экспорты для совместимости
