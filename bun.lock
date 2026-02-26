@@ -49,6 +49,14 @@
         "@metafor/monad": "workspace:*",
       },
     },
+    "bulk/inflation": {
+      "name": "inflation",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+        "@metafor/monad": "workspace:*",
+      },
+    },
     "create-metafor": {
       "name": "create-metafor",
       "version": "1.0.41",
@@ -554,6 +562,8 @@
     "https-proxy-agent": ["https-proxy-agent@7.0.6", "https://registry.yarnpkg.com/https-proxy-agent/-/https-proxy-agent-7.0.6.tgz", { "dependencies": { "agent-base": "^7.1.2", "debug": "4" } }, "sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw=="],
 
     "import-fresh": ["import-fresh@3.3.1", "https://registry.yarnpkg.com/import-fresh/-/import-fresh-3.3.1.tgz", { "dependencies": { "parent-module": "^1.0.0", "resolve-from": "^4.0.0" } }, "sha512-TR3KfrTZTYLPB6jUjfx6MF9WcWrHL9su5TObK4ZkYgBdWKPOFoSoQIdEuTuR82pmtxH2spWG9h6etwfr1pLBqQ=="],
+
+    "inflation": ["inflation@workspace:bulk/inflation"],
 
     "ip-address": ["ip-address@10.1.0", "https://registry.yarnpkg.com/ip-address/-/ip-address-10.1.0.tgz", {}, "sha512-XXADHxXmvT9+CRxhXg56LJovE+bmWnEWB78LB83VZTprKTmaC5QfruXocxzTZ2Kl0DNwKuBdlIhjL8LeY8Sf8Q=="],
 

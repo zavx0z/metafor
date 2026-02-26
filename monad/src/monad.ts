@@ -163,7 +163,7 @@ export async function updateBoundary(): Promise<void> {
 
     return {
       params: paramsTuples,
-      initialStateIndex,
+      state: initialStateIndex,
       states: converted.states,
       superposition: converted.boundary,
     }
@@ -184,6 +184,41 @@ export async function updateBoundary(): Promise<void> {
   monadIds.forEach((monadId, i) => {
     _uuidToIndex.set(monadId, i)
     _indexToUuid.set(i, monadId)
+  })
+
+  // Выполняем шаг эволюции сразу после инициализации
+  _boundary.current.step()
+
+  // Получаем новые состояния (индексы) и делаем reverse-маппинг
+  const stateIndices = await _boundary.current.getStates()
+  stateIndices.forEach((stateIndex, i) => {
+    const monadId = _indexToUuid.get(i)
+    if (!monadId) return
+
+    // Reverse-маппинг: индекс → имя состояния
+    const stateMap = _stateMaps.get(monadId)
+    if (!stateMap) {
+      throw new Error(`State map not found for monad ${monadId}`)
+    }
+    const current = stateMap[stateIndex]!
+
+    const old = _states.get(monadId)
+    if (old !== undefined && current !== old) {
+      _states.set(monadId, current)
+
+      // Автоматически выполняем действие для нового состояния
+      const actions = _actions.get(monadId)
+      const action = actions?.[current]
+      if (action) {
+        const params = _monadParams.get(monadId)
+        if (params) {
+          action(params)
+        }
+      }
+
+      // Вызываем callback
+      _onStateChange.current?.(monadId, old, current)
+    }
   })
 }
 
