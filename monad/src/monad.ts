@@ -226,11 +226,18 @@ export async function updateMonad(id: MonadId, fields: Record<string, unknown>):
 
   _boundary.current.step()
 
-  // Получаем новые состояния и обрабатываем изменения
-  const states = await _boundary.current.getStates()
-  states.forEach((current, i) => {
+  // Получаем новые состояния (индексы) и делаем reverse-маппинг
+  const stateIndices = await _boundary.current.getStates()
+  stateIndices.forEach((stateIndex, i) => {
     const monadId = _indexToUuid.get(i)
     if (!monadId) return
+
+    // Reverse-маппинг: индекс → имя состояния
+    const stateMap = _stateMaps.get(monadId)
+    if (!stateMap) {
+      throw new Error(`State map not found for monad ${monadId}`)
+    }
+    const current = stateMap[stateIndex]!
 
     const old = _states.get(monadId)
     if (old !== undefined && current !== old) {

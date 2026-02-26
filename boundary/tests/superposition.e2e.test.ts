@@ -17,7 +17,6 @@ describe("Boundary — E2E тесты для индивидуальных суп
 
   describe("Поля с разными состояниями", () => {
     test("каждое поле переходит в целевое состояние", async () => {
-      const warriorStates = ["IDLE", "COMBAT"]
       const warriorSuperposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { gt: 80 } } }],
@@ -25,7 +24,6 @@ describe("Boundary — E2E тесты для индивидуальных суп
         ],
       }
 
-      const mageStates = ["IDLE", "MEDITATE"]
       const mageSuperposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 1: { lt: 20 } } }],
@@ -33,7 +31,6 @@ describe("Boundary — E2E тесты для индивидуальных суп
         ],
       }
 
-      const scoutStates = ["IDLE", "SCOUT"]
       const scoutSuperposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { gt: 30 } } }],
@@ -47,25 +44,23 @@ describe("Boundary — E2E тесты для индивидуальных суп
           [1, { type: FieldType.F32 }],
         ],
         branes: [
-          { state: 0, states: warriorStates, params: [[0, 90], [1, 50]], superposition: warriorSuperposition },
-          { state: 0, states: mageStates, params: [[0, 50], [1, 10]], superposition: mageSuperposition },
-          { state: 0, states: scoutStates, params: [[0, 60], [1, 30]], superposition: scoutSuperposition },
+          { state: 0, params: [[0, 90], [1, 50]], superposition: warriorSuperposition },
+          { state: 0, params: [[0, 50], [1, 10]], superposition: mageSuperposition },
+          { state: 0, params: [[0, 60], [1, 30]], superposition: scoutSuperposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("COMBAT")
-      expect(resultStates[1]).toBe("MEDITATE")
-      expect(resultStates[2]).toBe("SCOUT")
+      expect(resultStates[0]).toBe(1)  // COMBAT (индекс 1)
+      expect(resultStates[1]).toBe(1)  // MEDITATE (индекс 1)
+      expect(resultStates[2]).toBe(1)  // SCOUT (индекс 1)
     })
   })
 
   describe("Поля с разными условиями перехода", () => {
     test("разные пороги для одного перехода", async () => {
-      const states = ["IDLE", "ACTIVE"]
-
       const lowThresholdSuperposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { gt: 30 } } }],
@@ -83,21 +78,19 @@ describe("Boundary — E2E тесты для индивидуальных суп
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 50]], superposition: lowThresholdSuperposition },
-          { state: 0, states, params: [[0, 50]], superposition: highThresholdSuperposition },
+          { state: 0, params: [[0, 50]], superposition: lowThresholdSuperposition },
+          { state: 0, params: [[0, 50]], superposition: highThresholdSuperposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("ACTIVE")
-      expect(resultStates[1]).toBe("IDLE")
+      expect(resultStates[0]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[1]).toBe(0)  // IDLE (индекс 0)
     })
 
     test("разные операторы сравнения", async () => {
-      const states = ["IDLE", "ACTIVE"]
-
       const gtSuperposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { gt: 50 } } }],
@@ -122,24 +115,23 @@ describe("Boundary — E2E тесты для индивидуальных суп
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 50]], superposition: gtSuperposition },
-          { state: 0, states, params: [[0, 50]], superposition: gteSuperposition },
-          { state: 0, states, params: [[0, 50]], superposition: ltSuperposition },
+          { state: 0, params: [[0, 50]], superposition: gtSuperposition },
+          { state: 0, params: [[0, 50]], superposition: gteSuperposition },
+          { state: 0, params: [[0, 50]], superposition: ltSuperposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("IDLE")   // 50 не > 50
-      expect(resultStates[1]).toBe("ACTIVE") // 50 >= 50
-      expect(resultStates[2]).toBe("IDLE")   // 50 не < 50
+      expect(resultStates[0]).toBe(0)  // IDLE (индекс 0) — 50 не > 50
+      expect(resultStates[1]).toBe(1)  // ACTIVE (индекс 1) — 50 >= 50
+      expect(resultStates[2]).toBe(0)  // IDLE (индекс 0) — 50 не < 50
     })
   })
 
   describe("Поля с полностью разными конечными автоматами", () => {
     test("агрессивный против защитного юнита", async () => {
-      const aggressiveStates = ["IDLE", "ATTACK", "VICTORY"]
       const aggressiveSuperposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { gt: 50 } } }],
@@ -148,7 +140,6 @@ describe("Boundary — E2E тесты для индивидуальных суп
         ],
       }
 
-      const defensiveStates = ["IDLE", "DEFEND", "FORTIFY"]
       const defensiveSuperposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { lte: 50 } } }],
@@ -160,8 +151,8 @@ describe("Boundary — E2E тесты для индивидуальных суп
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states: aggressiveStates, params: [[0, 95]], superposition: aggressiveSuperposition },
-          { state: 0, states: defensiveStates, params: [[0, 15]], superposition: defensiveSuperposition },
+          { state: 0, params: [[0, 95]], superposition: aggressiveSuperposition },
+          { state: 0, params: [[0, 15]], superposition: defensiveSuperposition },
         ],
       })
 
@@ -169,14 +160,13 @@ describe("Boundary — E2E тесты для индивидуальных суп
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("VICTORY")
-      expect(resultStates[1]).toBe("FORTIFY")
+      expect(resultStates[0]).toBe(2)  // VICTORY (индекс 2)
+      expect(resultStates[1]).toBe(2)  // FORTIFY (индекс 2)
     })
   })
 
   describe("Разные типы условий", () => {
     test("числовые, логические и множественные условия", async () => {
-      const numericStates = ["IDLE", "ACTIVE"]
       const numericSuperposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { gt: 50 } } }],
@@ -184,7 +174,6 @@ describe("Boundary — E2E тесты для индивидуальных суп
         ],
       }
 
-      const booleanStates = ["IDLE", "ACTIVE"]
       const booleanSuperposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 2: true } }],
@@ -192,7 +181,6 @@ describe("Boundary — E2E тесты для индивидуальных суп
         ],
       }
 
-      const multiConditionStates = ["IDLE", "ACTIVE"]
       const multiConditionSuperposition: NumericSuperposition = {
         transitions: [
           [
@@ -215,25 +203,23 @@ describe("Boundary — E2E тесты для индивидуальных суп
           [2, { type: FieldType.BOOL }],
         ],
         branes: [
-          { state: 0, states: numericStates, params: [[0, 60], [1, 0], [2, false]], superposition: numericSuperposition },
-          { state: 0, states: booleanStates, params: [[0, 0], [1, 0], [2, true]], superposition: booleanSuperposition },
-          { state: 0, states: multiConditionStates, params: [[0, 40], [1, 30], [2, false]], superposition: multiConditionSuperposition },
+          { state: 0, params: [[0, 60], [1, 0], [2, false]], superposition: numericSuperposition },
+          { state: 0, params: [[0, 0], [1, 0], [2, true]], superposition: booleanSuperposition },
+          { state: 0, params: [[0, 40], [1, 30], [2, false]], superposition: multiConditionSuperposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("ACTIVE")
-      expect(resultStates[1]).toBe("ACTIVE")
-      expect(resultStates[2]).toBe("ACTIVE")
+      expect(resultStates[0]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[1]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[2]).toBe(1)  // ACTIVE (индекс 1)
     })
   })
 
   describe("Обновление браны с индивидуальной суперпозицией", () => {
     test("разные начальные значения с разными порогами", async () => {
-      const states = ["IDLE", "ACTIVE"]
-
       const superposition1: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { gt: 50 } } }],
@@ -251,22 +237,21 @@ describe("Boundary — E2E тесты для индивидуальных суп
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 60]], superposition: superposition1 },
-          { state: 0, states, params: [[0, 60]], superposition: superposition2 },
+          { state: 0, params: [[0, 60]], superposition: superposition1 },
+          { state: 0, params: [[0, 60]], superposition: superposition2 },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("ACTIVE")
-      expect(resultStates[1]).toBe("IDLE")
+      expect(resultStates[0]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[1]).toBe(0)  // IDLE (индекс 0)
     })
   })
 
   describe("Многошаговая симуляция", () => {
     test("каждое поле следует своему пути состояний", async () => {
-      const unit1States = ["IDLE", "PATROL", "COMBAT"]
       const unit1Superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { gt: 80 } } }],
@@ -275,7 +260,6 @@ describe("Boundary — E2E тесты для индивидуальных суп
         ],
       }
 
-      const unit2States = ["IDLE", "DEFEND", "RETREAT"]
       const unit2Superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { lte: 50 } } }],
@@ -290,8 +274,8 @@ describe("Boundary — E2E тесты для индивидуальных суп
           [1, { type: FieldType.F32 }],
         ],
         branes: [
-          { state: 0, states: unit1States, params: [[0, 90], [1, 10]], superposition: unit1Superposition },  // hp=90>80, mana=10<20
-          { state: 0, states: unit2States, params: [[0, 30], [1, 5]], superposition: unit2Superposition },   // hp=30<=50, mana=5<10
+          { state: 0, params: [[0, 90], [1, 10]], superposition: unit1Superposition },  // hp=90>80, mana=10<20
+          { state: 0, params: [[0, 30], [1, 5]], superposition: unit2Superposition },   // hp=30<=50, mana=5<10
         ],
       })
 
@@ -299,8 +283,8 @@ describe("Boundary — E2E тесты для индивидуальных суп
       boundary.step()  // unit1: PATROL→COMBAT, unit2: DEFEND→RETREAT
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("COMBAT")
-      expect(resultStates[1]).toBe("RETREAT")
+      expect(resultStates[0]).toBe(2)  // COMBAT (индекс 2)
+      expect(resultStates[1]).toBe(2)  // RETREAT (индекс 2)
     })
   })
 })

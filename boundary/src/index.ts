@@ -85,8 +85,6 @@ export class Boundary {
   private backend: GPUBackend
   private compiler = new RulesCompiler()
   private braneManager: BraneManager
-  private stateMaps: Record<string, number>[] = []
-  private reverseStateMaps: string[][] = []
   private braneIds: number[] = []
   private debugOptions: DebugOptions | null = null
 
@@ -116,8 +114,6 @@ export class Boundary {
     resetStringAtlas()
     this.braneManager.clear()
     this.backend.clear()
-    this.stateMaps = []
-    this.reverseStateMaps = []
     this.braneIds = []
   }
 
@@ -177,17 +173,8 @@ export class Boundary {
       config.fields,
       { debug: debug("compiler") },
     )
-    
-    // Используем states из branes для reverse-маппинга
-    this.reverseStateMaps = config.branes.map((b) => b.states)
-    this.stateMaps = compiled.stateMaps
 
-    if (debug("compiler")) {
-      console.log("[Boundary] Compiled bytecode:", compiled.bytecode.length, "words")
-      console.log("[Boundary] State maps:", this.stateMaps)
-    }
-
-    // Initial states из branes.initialStateIndex
+    // Initial states из branes.state
     const states = new Uint32Array(config.branes.map((b) => b.state))
 
     if (debug("branes")) {
@@ -250,11 +237,10 @@ this.braneManager.processPendingFrees()
    *
    * **Внимание:** Асинхронная операция с синхронизацией CPU/GPU (медленно).
    *
-   * @returns Массив имён состояний (по индексу браны).
+   * @returns Массив числовых ID состояний (по индексу браны).
    */
-  async getStates(): Promise<string[]> {
-    const raw = await this.backend.read()
-    return Array.from(raw).map((id, i) => this.reverseStateMaps[i]![id]!)
+  async getStates(): Promise<Uint32Array> {
+    return await this.backend.read()
   }
 
 /**

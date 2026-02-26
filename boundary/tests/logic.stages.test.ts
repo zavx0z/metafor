@@ -17,7 +17,6 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
 
   describe("Оператор IN (Списки)", () => {
     test("должен перейти, если значение в списке (int/enum)", async () => {
-      const states = ["GROUND", "WALK", "FLY", "AIR"]
       const superposition: NumericSuperposition = {
         transitions: [
           [
@@ -33,22 +32,21 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 1]], superposition },  // 1 in [1,3,5] → WALK
-          { state: 0, states, params: [[0, 4]], superposition },  // 4 in [2,4,6] → FLY
-          { state: 0, states, params: [[0, 0]], superposition },  // 0 не в списках → GROUND
+          { state: 0, params: [[0, 1]], superposition },  // 1 in [1,3,5] → WALK
+          { state: 0, params: [[0, 4]], superposition },  // 4 in [2,4,6] → FLY
+          { state: 0, params: [[0, 0]], superposition },  // 0 не в списках → GROUND
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("WALK")
-      expect(resultStates[1]).toBe("FLY")
-      expect(resultStates[2]).toBe("GROUND")
+      expect(resultStates[0]).toBe(1)  // WALK (индекс 1)
+      expect(resultStates[1]).toBe(2)  // FLY (индекс 2)
+      expect(resultStates[2]).toBe(0)  // GROUND (индекс 0)
     })
 
     test("должен перейти, если float-значение в списке", async () => {
-      const states = ["NORMAL", "WARNING", "CRITICAL"]
       const superposition: NumericSuperposition = {
         transitions: [
           [
@@ -63,24 +61,23 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 36.6]], superposition },
-          { state: 0, states, params: [[0, 37.0]], superposition },
-          { state: 0, states, params: [[0, 40.0]], superposition },
+          { state: 0, params: [[0, 36.6]], superposition },
+          { state: 0, params: [[0, 37.0]], superposition },
+          { state: 0, params: [[0, 40.0]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("WARNING")
-      expect(resultStates[1]).toBe("WARNING")
-      expect(resultStates[2]).toBe("CRITICAL")
+      expect(resultStates[0]).toBe(1)  // WARNING (индекс 1)
+      expect(resultStates[1]).toBe(1)  // WARNING (индекс 1)
+      expect(resultStates[2]).toBe(2)  // CRITICAL (индекс 2)
     })
   })
 
   describe("Оператор NOT_IN (Исключение)", () => {
     test("должен перейти, если значение НЕ в списке", async () => {
-      const states = ["LOBBY", "GAME", "SPECTATOR"]
       const superposition: NumericSuperposition = {
         transitions: [
           [
@@ -94,22 +91,21 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 1]], superposition },   // GAME (1 не в [0,2])
-          { state: 0, states, params: [[0, 0]], superposition },   // LOBBY (0 в [0,2])
+          { state: 0, params: [[0, 1]], superposition },   // GAME (1 не в [0,2])
+          { state: 0, params: [[0, 0]], superposition },   // LOBBY (0 в [0,2])
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("GAME")
-      expect(resultStates[1]).toBe("LOBBY")
+      expect(resultStates[0]).toBe(1)  // GAME (индекс 1)
+      expect(resultStates[1]).toBe(0)  // LOBBY (индекс 0)
     })
   })
 
   describe("Комбинированные условия", () => {
     test("должен работать с комбинацией диапазонов и списков", async () => {
-      const states = ["START", "READY", "BLOCKED"]
       const superposition: NumericSuperposition = {
         transitions: [
           [
@@ -132,18 +128,18 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
           [1, { type: FieldType.F32 }],
         ],
         branes: [
-          { state: 0, states, params: [[0, 150], [1, 5]], superposition },   // READY
-          { state: 0, states, params: [[0, 150], [1, 1]], superposition },   // START (badge не в списке)
-          { state: 0, states, params: [[0, 50], [1, 7]], superposition },    // START (score < 100)
+          { state: 0, params: [[0, 150], [1, 5]], superposition },   // READY
+          { state: 0, params: [[0, 150], [1, 1]], superposition },   // START (badge не в списке)
+          { state: 0, params: [[0, 50], [1, 7]], superposition },    // START (score < 100)
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("READY")
-      expect(resultStates[1]).toBe("START")
-      expect(resultStates[2]).toBe("START")
+      expect(resultStates[0]).toBe(1)  // READY (индекс 1)
+      expect(resultStates[1]).toBe(0)  // START (индекс 0)
+      expect(resultStates[2]).toBe(0)  // START (индекс 0)
     })
   })
 })

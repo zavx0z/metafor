@@ -17,7 +17,6 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
 
   describe("Оператор EQ (равно)", () => {
     test("должен выполнить переход, когда значение равно указанному", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { eq: 42 } } }],
@@ -28,22 +27,21 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 42]], superposition },
-          { state: 0, states, params: [[0, 41]], superposition },
-          { state: 0, states, params: [[0, 43]], superposition },
+          { state: 0, params: [[0, 42]], superposition },
+          { state: 0, params: [[0, 41]], superposition },
+          { state: 0, params: [[0, 43]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("ACTIVE")
-      expect(resultStates[1]).toBe("IDLE")
-      expect(resultStates[2]).toBe("IDLE")
+      expect(resultStates[0]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[1]).toBe(0)  // IDLE (индекс 0)
+      expect(resultStates[2]).toBe(0)  // IDLE (индекс 0)
     })
 
     test("должен работать с отрицательными числами", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { eq: -10 } } }],
@@ -54,20 +52,19 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, -10]], superposition },
-          { state: 0, states, params: [[0, 10]], superposition },
+          { state: 0, params: [[0, -10]], superposition },
+          { state: 0, params: [[0, 10]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("ACTIVE")
-      expect(resultStates[1]).toBe("IDLE")
+      expect(resultStates[0]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[1]).toBe(0)  // IDLE (индекс 0)
     })
 
     test("должен работать с дробными числами", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { eq: 3.14 } } }],
@@ -78,20 +75,19 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 3.14]], superposition },
-          { state: 0, states, params: [[0, 3.15]], superposition },
+          { state: 0, params: [[0, 3.14]], superposition },
+          { state: 0, params: [[0, 3.15]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("ACTIVE")
-      expect(resultStates[1]).toBe("IDLE")
+      expect(resultStates[0]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[1]).toBe(0)  // IDLE (индекс 0)
     })
 
     test("должен работать с нулём", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { eq: 0 } } }],
@@ -102,22 +98,21 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 0]], superposition },
-          { state: 0, states, params: [[0, 0.001]], superposition },
+          { state: 0, params: [[0, 0]], superposition },
+          { state: 0, params: [[0, 0.001]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("ACTIVE")
-      expect(resultStates[1]).toBe("IDLE")
+      expect(resultStates[0]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[1]).toBe(0)  // IDLE (индекс 0)
     })
   })
 
   describe("Оператор NEQ (не равно)", () => {
     test("должен выполнить переход, когда значение не равно указанному", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { neq: 42 } } }],
@@ -128,22 +123,21 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 42]], superposition },
-          { state: 0, states, params: [[0, 41]], superposition },
-          { state: 0, states, params: [[0, 43]], superposition },
+          { state: 0, params: [[0, 42]], superposition },
+          { state: 0, params: [[0, 41]], superposition },
+          { state: 0, params: [[0, 43]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("IDLE")
-      expect(resultStates[1]).toBe("ACTIVE")
-      expect(resultStates[2]).toBe("ACTIVE")
+      expect(resultStates[0]).toBe(0)  // IDLE (индекс 0)
+      expect(resultStates[1]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[2]).toBe(1)  // ACTIVE (индекс 1)
     })
 
     test("должен работать с алиасом 'ne'", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { ne: 0 } } }],
@@ -154,20 +148,19 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 0]], superposition },
-          { state: 0, states, params: [[0, 1]], superposition },
+          { state: 0, params: [[0, 0]], superposition },
+          { state: 0, params: [[0, 1]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("IDLE")
-      expect(resultStates[1]).toBe("ACTIVE")
+      expect(resultStates[0]).toBe(0)  // IDLE (индекс 0)
+      expect(resultStates[1]).toBe(1)  // ACTIVE (индекс 1)
     })
 
     test("должен работать с алиасом 'notEq'", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { notEq: 100 } } }],
@@ -178,22 +171,21 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 100]], superposition },
-          { state: 0, states, params: [[0, 99]], superposition },
+          { state: 0, params: [[0, 100]], superposition },
+          { state: 0, params: [[0, 99]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("IDLE")
-      expect(resultStates[1]).toBe("ACTIVE")
+      expect(resultStates[0]).toBe(0)  // IDLE (индекс 0)
+      expect(resultStates[1]).toBe(1)  // ACTIVE (индекс 1)
     })
   })
 
   describe("Оператор GT (больше)", () => {
     test("должен выполнить переход, когда значение больше указанного", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { gt: 100 } } }],
@@ -204,22 +196,21 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 100]], superposition },
-          { state: 0, states, params: [[0, 99]], superposition },
+          { state: 0, params: [[0, 100]], superposition },
+          { state: 0, params: [[0, 99]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("IDLE")
-      expect(resultStates[1]).toBe("IDLE")
+      expect(resultStates[0]).toBe(0)  // IDLE (индекс 0)
+      expect(resultStates[1]).toBe(0)  // IDLE (индекс 0)
     })
   })
 
   describe("Оператор GT (больше) с отрицательными числами", () => {
     test("должен работать с отрицательными числами", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { gt: -10 } } }],
@@ -230,24 +221,23 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, -5]], superposition },
-          { state: 0, states, params: [[0, -10]], superposition },
-          { state: 0, states, params: [[0, -15]], superposition },
+          { state: 0, params: [[0, -5]], superposition },
+          { state: 0, params: [[0, -10]], superposition },
+          { state: 0, params: [[0, -15]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("ACTIVE")  // -5 > -10
-      expect(resultStates[1]).toBe("IDLE")    // -10 не > -10
-      expect(resultStates[2]).toBe("IDLE")    // -15 не > -10
+      expect(resultStates[0]).toBe(1)  // ACTIVE (индекс 1) — -5 > -10
+      expect(resultStates[1]).toBe(0)  // IDLE (индекс 0) — -10 не > -10
+      expect(resultStates[2]).toBe(0)  // IDLE (индекс 0) — -15 не > -10
     })
   })
 
   describe("Оператор LT (меньше)", () => {
     test("должен выполнить переход, когда значение меньше указанного", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { lt: 50 } } }],
@@ -258,20 +248,19 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 49]], superposition },
-          { state: 0, states, params: [[0, 50]], superposition },
+          { state: 0, params: [[0, 49]], superposition },
+          { state: 0, params: [[0, 50]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("ACTIVE")
-      expect(resultStates[1]).toBe("IDLE")
+      expect(resultStates[0]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[1]).toBe(0)  // IDLE (индекс 0)
     })
 
     test("должен работать с отрицательными числами", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { lt: -5 } } }],
@@ -282,24 +271,23 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, -10]], superposition },
-          { state: 0, states, params: [[0, -5]], superposition },
-          { state: 0, states, params: [[0, 0]], superposition },
+          { state: 0, params: [[0, -10]], superposition },
+          { state: 0, params: [[0, -5]], superposition },
+          { state: 0, params: [[0, 0]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("ACTIVE")  // -10 < -5
-      expect(resultStates[1]).toBe("IDLE")    // -5 не < -5
-      expect(resultStates[2]).toBe("IDLE")    // 0 не < -5
+      expect(resultStates[0]).toBe(1)  // ACTIVE (индекс 1) — -10 < -5
+      expect(resultStates[1]).toBe(0)  // IDLE (индекс 0) — -5 не < -5
+      expect(resultStates[2]).toBe(0)  // IDLE (индекс 0) — 0 не < -5
     })
   })
 
   describe("Оператор GTE (больше или равно)", () => {
     test("должен выполнить переход, когда значение больше или равно указанному", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { gte: 50 } } }],
@@ -310,24 +298,23 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 49]], superposition },
-          { state: 0, states, params: [[0, 50]], superposition },
-          { state: 0, states, params: [[0, 51]], superposition },
+          { state: 0, params: [[0, 49]], superposition },
+          { state: 0, params: [[0, 50]], superposition },
+          { state: 0, params: [[0, 51]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("IDLE")
-      expect(resultStates[1]).toBe("ACTIVE")
-      expect(resultStates[2]).toBe("ACTIVE")
+      expect(resultStates[0]).toBe(0)  // IDLE (индекс 0)
+      expect(resultStates[1]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[2]).toBe(1)  // ACTIVE (индекс 1)
     })
   })
 
   describe("Оператор LTE (меньше или равно)", () => {
     test("должен выполнить переход, когда значение меньше или равно указанному", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { lte: 50 } } }],
@@ -338,24 +325,23 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 49]], superposition },
-          { state: 0, states, params: [[0, 50]], superposition },
-          { state: 0, states, params: [[0, 51]], superposition },
+          { state: 0, params: [[0, 49]], superposition },
+          { state: 0, params: [[0, 50]], superposition },
+          { state: 0, params: [[0, 51]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("ACTIVE")
-      expect(resultStates[1]).toBe("ACTIVE")
-      expect(resultStates[2]).toBe("IDLE")
+      expect(resultStates[0]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[1]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[2]).toBe(0)  // IDLE (индекс 0)
     })
   })
 
   describe("Оператор IN (в списке)", () => {
     test("должен выполнить переход, если значение в списке", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { in: [10, 20, 30] } } }],
@@ -366,24 +352,23 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 10]], superposition },
-          { state: 0, states, params: [[0, 20]], superposition },
-          { state: 0, states, params: [[0, 30]], superposition },
-          { state: 0, states, params: [[0, 15]], superposition },
+          { state: 0, params: [[0, 10]], superposition },
+          { state: 0, params: [[0, 20]], superposition },
+          { state: 0, params: [[0, 30]], superposition },
+          { state: 0, params: [[0, 15]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("ACTIVE")
-      expect(resultStates[1]).toBe("ACTIVE")
-      expect(resultStates[2]).toBe("ACTIVE")
-      expect(resultStates[3]).toBe("IDLE")
+      expect(resultStates[0]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[1]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[2]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[3]).toBe(0)  // IDLE (индекс 0)
     })
 
     test("должен работать с пустым списком", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { in: [] } } }],
@@ -394,20 +379,19 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 10]], superposition },
+          { state: 0, params: [[0, 10]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("IDLE")
+      expect(resultStates[0]).toBe(0)  // IDLE (индекс 0)
     })
   })
 
   describe("Оператор NOT_IN (не в списке)", () => {
     test("должен выполнить переход, если значение не в списке", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { notIn: [10, 20] } } }],
@@ -418,24 +402,23 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 10]], superposition },
-          { state: 0, states, params: [[0, 15]], superposition },
-          { state: 0, states, params: [[0, 25]], superposition },
+          { state: 0, params: [[0, 10]], superposition },
+          { state: 0, params: [[0, 15]], superposition },
+          { state: 0, params: [[0, 25]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("IDLE")
-      expect(resultStates[1]).toBe("ACTIVE")
-      expect(resultStates[2]).toBe("ACTIVE")
+      expect(resultStates[0]).toBe(0)  // IDLE (индекс 0)
+      expect(resultStates[1]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[2]).toBe(1)  // ACTIVE (индекс 1)
     })
   })
 
   describe("Составные условия (between)", () => {
     test("должен выполнить переход, если значение в диапазоне", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { between: [10, 20] } } }],
@@ -446,24 +429,23 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 9]], superposition },
-          { state: 0, states, params: [[0, 15]], superposition },
-          { state: 0, states, params: [[0, 25]], superposition },
+          { state: 0, params: [[0, 9]], superposition },
+          { state: 0, params: [[0, 15]], superposition },
+          { state: 0, params: [[0, 25]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("IDLE")
-      expect(resultStates[1]).toBe("ACTIVE")
-      expect(resultStates[2]).toBe("IDLE")
+      expect(resultStates[0]).toBe(0)  // IDLE (индекс 0)
+      expect(resultStates[1]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[2]).toBe(0)  // IDLE (индекс 0)
     })
   })
 
   describe("Отрицательные условия (notGt, notGte, notLt, notLte)", () => {
     test("notGt должен быть эквивалентен lte", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { notGt: 50 } } }],  // ! > 50 == <= 50
@@ -474,22 +456,21 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 49]], superposition },
-          { state: 0, states, params: [[0, 50]], superposition },
-          { state: 0, states, params: [[0, 51]], superposition },
+          { state: 0, params: [[0, 49]], superposition },
+          { state: 0, params: [[0, 50]], superposition },
+          { state: 0, params: [[0, 51]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("ACTIVE")
-      expect(resultStates[1]).toBe("ACTIVE")
-      expect(resultStates[2]).toBe("IDLE")
+      expect(resultStates[0]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[1]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[2]).toBe(0)  // IDLE (индекс 0)
     })
 
     test("notGte должен быть эквивалентен lt", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { notGte: 50 } } }],  // ! >= 50 == < 50
@@ -500,22 +481,21 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 49]], superposition },
-          { state: 0, states, params: [[0, 50]], superposition },
-          { state: 0, states, params: [[0, 51]], superposition },
+          { state: 0, params: [[0, 49]], superposition },
+          { state: 0, params: [[0, 50]], superposition },
+          { state: 0, params: [[0, 51]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("ACTIVE")
-      expect(resultStates[1]).toBe("IDLE")
-      expect(resultStates[2]).toBe("IDLE")
+      expect(resultStates[0]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[1]).toBe(0)  // IDLE (индекс 0)
+      expect(resultStates[2]).toBe(0)  // IDLE (индекс 0)
     })
 
     test("notLt должен быть эквивалентен gte", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { notLt: 50 } } }],  // ! < 50 == >= 50
@@ -526,22 +506,21 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 49]], superposition },
-          { state: 0, states, params: [[0, 50]], superposition },
-          { state: 0, states, params: [[0, 51]], superposition },
+          { state: 0, params: [[0, 49]], superposition },
+          { state: 0, params: [[0, 50]], superposition },
+          { state: 0, params: [[0, 51]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("IDLE")
-      expect(resultStates[1]).toBe("ACTIVE")
-      expect(resultStates[2]).toBe("ACTIVE")
+      expect(resultStates[0]).toBe(0)  // IDLE (индекс 0)
+      expect(resultStates[1]).toBe(1)  // ACTIVE (индекс 1)
+      expect(resultStates[2]).toBe(1)  // ACTIVE (индекс 1)
     })
 
     test("notLte должен быть эквивалентен gt", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { notLte: 50 } } }],  // ! <= 50 == > 50
@@ -552,24 +531,23 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { state: 0, states, params: [[0, 49]], superposition },
-          { state: 0, states, params: [[0, 50]], superposition },
-          { state: 0, states, params: [[0, 51]], superposition },
+          { state: 0, params: [[0, 49]], superposition },
+          { state: 0, params: [[0, 50]], superposition },
+          { state: 0, params: [[0, 51]], superposition },
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("IDLE")
-      expect(resultStates[1]).toBe("IDLE")
-      expect(resultStates[2]).toBe("ACTIVE")
+      expect(resultStates[0]).toBe(0)  // IDLE (индекс 0)
+      expect(resultStates[1]).toBe(0)  // IDLE (индекс 0)
+      expect(resultStates[2]).toBe(1)  // ACTIVE (индекс 1)
     })
   })
 
   describe("Множественные условия", () => {
     test("должен выполнить переход, когда все условия для одного поля выполнены (логика И)", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [
@@ -591,24 +569,23 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
           [1, { type: FieldType.F32 }],
         ],
         branes: [
-          { state: 0, states, params: [[0, 9], [1, 15]], superposition },    // 9 не >= 10
-          { state: 0, states, params: [[0, 15], [1, 15]], superposition },   // 15>=10 И 15<=20
-          { state: 0, states, params: [[0, 15], [1, 21]], superposition },   // 21 не <= 20
+          { state: 0, params: [[0, 9], [1, 15]], superposition },    // 9 не >= 10
+          { state: 0, params: [[0, 15], [1, 15]], superposition },   // 15>=10 И 15<=20
+          { state: 0, params: [[0, 15], [1, 21]], superposition },   // 21 не <= 20
         ],
       })
 
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("IDLE")   // 9 не >= 10
-      expect(resultStates[1]).toBe("ACTIVE") // 15>=10 И 15<=20
-      expect(resultStates[2]).toBe("IDLE")   // 21 не <= 20
+      expect(resultStates[0]).toBe(0)  // IDLE (индекс 0) — 9 не >= 10
+      expect(resultStates[1]).toBe(1)  // ACTIVE (индекс 1) — 15>=10 И 15<=20
+      expect(resultStates[2]).toBe(0)  // IDLE (индекс 0) — 21 не <= 20
     })
   })
 
   describe("Обновление числовых значений", () => {
     test("должен выполнить переход после обновления значения", async () => {
-      const states = ["IDLE", "ACTIVE"]
       const superposition: NumericSuperposition = {
         transitions: [
           [{ to: 1, conditions: { 0: { gt: 30 } } }],
@@ -618,14 +595,14 @@ describe("Boundary - тип FLOAT (число) с bun-webgpu", () => {
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
-        branes: [{ state: 0, states, params: [[0, 10]], superposition }],
+        branes: [{ state: 0, params: [[0, 10]], superposition }],
       })
 
       boundary.updateBraneField(0, 0, 50)
       boundary.step()
       const resultStates = await boundary.getStates()
 
-      expect(resultStates[0]).toBe("ACTIVE")
+      expect(resultStates[0]).toBe(1)  // ACTIVE (индекс 1)
     })
   })
 })

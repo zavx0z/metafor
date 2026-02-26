@@ -61,6 +61,8 @@ export interface Transition {
  * Гарантирует порядок переходов через массив вместо объекта.
  * Boundary работает только с индексами, не зная имён состояний.
  * Имена состояний хранятся в Monad для reverse-маппинга.
+ * Boundary.getStates() возвращает индексы состояний (Uint32Array).
+ * Monad делает reverse-маппинг индексов в имена через _stateMaps.
  *
  * @example
  * ```typescript
@@ -97,17 +99,14 @@ export type Superposition = NumericSuperposition
  * @remarks
  * Брана содержит:
  * - params — значения полей (данные) в формате кортежей
- * - state — индекс начального состояния в массиве states
- * - states — имена состояний для reverse-маппинга (хранятся в Boundary)
+ * - state — индекс начального состояния
  * - superposition — граф переходов с числовыми ID состояний
  */
 export interface BraneDefinition {
   /** Значения полей браны в формате кортежей [[index, value], ...]. */
   params: ValueTuple[]
-  /** Индекс начального состояния в массиве states. */
+  /** Индекс начального состояния. */
   state: number
-  /** Имена состояний для reverse-маппинга. */
-  states: string[]
   /** Суперпозиция — граф переходов с числовыми ID состояний. */
   superposition: NumericSuperposition
 }
