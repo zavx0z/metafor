@@ -194,7 +194,7 @@ describe("Monad — Строковые переходы", () => {
 
       const id = createMonad({
         fields: { role: { type: "string" } },
-        params: { role: "" },
+        params: { role: "enemy" },
         state: "UNDEFINED",
         superposition: {
           UNDEFINED: { ALLY: { role: { notIn: ["enemy", "neutral"] } } },

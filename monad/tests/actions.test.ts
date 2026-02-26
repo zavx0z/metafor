@@ -26,7 +26,7 @@ describe("Monad — Действия (actions)", () => {
 
     const id = createMonad({
       fields: { hp: { type: "number" } },
-      params: { hp: 100 },
+      params: { hp: 30 },
       state: "IDLE",
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
@@ -53,7 +53,7 @@ describe("Monad — Действия (actions)", () => {
 
     const id = createMonad({
       fields: { hp: { type: "number" }, mana: { type: "number" } },
-      params: { hp: 100, mana: 50 },
+      params: { hp: 30, mana: 50 },
       state: "IDLE",
       superposition: {
         IDLE: { COMBAT: { hp: { gt: 50 } } },

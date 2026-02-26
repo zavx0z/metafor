@@ -34,7 +34,7 @@ describe("Monad — Смешанные переходы", () => {
 
       const id = createMonad({
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
-        params: { hp: 100, isAlive: true },
+        params: { hp: 30, isAlive: true },
         state: "IDLE",
         superposition: {
           IDLE: {

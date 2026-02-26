@@ -130,7 +130,7 @@ describe("Monad — Array переходы (TDD)", () => {
 
       const id = createMonad({
         fields: { tags: { type: "array<string>" } },
-        params: { tags: [] },
+        params: { tags: ["blocked"] },
         state: "CHECKING",
         superposition: {
           CHECKING: { ALLOWED: { tags: { notInclude: "blocked" } } },
@@ -141,7 +141,6 @@ describe("Monad — Array переходы (TDD)", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { tags: ["blocked"] })
 
       expect(resultStates).toEqual([])
     })

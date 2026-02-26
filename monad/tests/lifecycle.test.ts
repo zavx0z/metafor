@@ -35,7 +35,7 @@ describe("Monad — Жизненный цикл", () => {
 
     const id = createMonad({
       fields: { hp: { type: "number" } },
-      params: { hp: 100 },
+      params: { hp: 30 },
       state: "IDLE",
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },

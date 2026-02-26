@@ -114,7 +114,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
 
       const id1 = createMonad({
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
-        params: { hp: 100, isAlive: true },
+        params: { hp: 30, isAlive: true },
         state: "IDLE",
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },  // Переход по hp (локальное)
@@ -190,7 +190,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       // Монада 1: hp=100, isAlive=true, role="warrior"
       const id1 = createMonad({
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" }, role: { type: "string" }, mana: { type: "number" } },
-        params: { hp: 100, isAlive: true, role: "warrior", mana: 50 },
+        params: { hp: 100, isAlive: true, role: "warrior", mana: 10 },
         state: "IDLE",
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },  // Переход по mana (локальное)
@@ -201,10 +201,10 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         },
       })
 
-      // Монада 2: hp=100, isAlive=true, role="warrior" (идентичные → shared)
+      // Монада 2: hp=100, isAlive=true, role="warrior" (идентичные → shared), mana=5 (локальное)
       const id2 = createMonad({
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" }, role: { type: "string" }, mana: { type: "number" } },
-        params: { hp: 100, isAlive: true, role: "warrior", mana: 10 },  // mana разное → локальное
+        params: { hp: 100, isAlive: true, role: "warrior", mana: 5 },  // mana разное → локальное
         state: "IDLE",
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
@@ -226,10 +226,10 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
     it("должен передать mixed local + shared поля в action", async () => {
       const capturedParams: Record<string, unknown>[] = []
 
-      // Монада 1: hp=100 (shared), mana=50 (local)
+      // Монада 1: hp=100 (shared), mana=10 (local)
       const id1 = createMonad({
         fields: { hp: { type: "number" }, mana: { type: "number" } },
-        params: { hp: 100, mana: 50 },
+        params: { hp: 100, mana: 10 },
         state: "IDLE",
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
@@ -240,10 +240,10 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         },
       })
 
-      // Монада 2: hp=100 (shared), mana=10 (local)
+      // Монада 2: hp=100 (shared), mana=5 (local)
       const id2 = createMonad({
         fields: { hp: { type: "number" }, mana: { type: "number" } },
-        params: { hp: 100, mana: 10 },
+        params: { hp: 100, mana: 5 },
         state: "IDLE",
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
