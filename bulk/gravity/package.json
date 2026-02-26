@@ -9,6 +9,7 @@
     "@metafor/monad": "workspace:*"
   },
   "scripts": {
-    "example": "bun run ./examples/server.ts"
+    "example": "bun run ./examples/server.ts",
+    "build": "metafor-build src/meta.ts --out meta.json"
   }
 }
