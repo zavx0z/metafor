@@ -174,7 +174,11 @@ export class RulesCompiler {
    */
   private compileNumeric(superposition: NumericSuperposition): CompiledFieldRules {
     this.bytecode = []
-    this.states = superposition.states
+    
+    // Восстанавливаем states из количества переходов
+    // states[i] = "STATE_" + i (Boundary не знает имён, только индексы)
+    const numStates = superposition.transitions.length
+    this.states = Array.from({ length: numStates }, (_, i) => `STATE_${i}`)
 
     // 1. Таблица состояний
     const stateTableOffset = this.bytecode.length

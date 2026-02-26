@@ -175,8 +175,10 @@ export class Boundary {
       config.fields,
       { debug: debug("compiler") },
     )
+    
+    // Используем states из branes для reverse-маппинга
+    this.reverseStateMaps = config.branes.map((b) => b.states)
     this.stateMaps = compiled.stateMaps
-    this.reverseStateMaps = compiled.reverseStateMaps
 
     if (debug("compiler")) {
       console.log("[Boundary] Compiled bytecode:", compiled.bytecode.length, "words")

@@ -1,7 +1,7 @@
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import { Boundary, GPU, FieldType } from "../../src/index"
-import { toNumericSuperposition } from "../numeric.helper"
+import type { NumericSuperposition } from "../../src/index.t"
 
 describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () => {
   let boundary: Boundary
@@ -15,160 +15,173 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
     boundary.clear()
   })
 
-  describe("Прямое значение true", () => {
+  describe("Прямое значение", () => {
     test("должен выполнить переход, когда значение равно true", async () => {
-      
-
-      const superposition = toNumericSuperposition({
-        IDLE: { ACTIVE: { 0: true } },
-        ACTIVE: null,
-      })
+      const states = ["IDLE", "ACTIVE"]
+      const superposition: NumericSuperposition = {
+        transitions: [
+          [{ to: 1, conditions: { 0: true } }],
+          [null],
+        ],
+      }
 
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
         branes: [
-          { initialStateIndex: 0, params: [[0, true]], superposition },
-          { initialStateIndex: 0, params: [[0, false]], superposition },
+          { initialStateIndex: 0, states, params: [[0, true]], superposition },
+          { initialStateIndex: 0, states, params: [[0, false]], superposition },
         ],
       })
 
       boundary.step()
-      const states = await boundary.getStates()
+      const resultStates = await boundary.getStates()
 
-      expect(states[0]).toBe("ACTIVE")
-      expect(states[1]).toBe("IDLE")
+      expect(resultStates[0]).toBe("ACTIVE")
+      expect(resultStates[1]).toBe("IDLE")
     })
-  })
 
-  describe("Прямое значение false", () => {
     test("должен выполнить переход, когда значение равно false", async () => {
-      
-
-      const superposition = toNumericSuperposition({
-        IDLE: { DEAD: { 0: false } },
-        DEAD: null,
-      })
+      const states = ["IDLE", "ACTIVE"]
+      const superposition: NumericSuperposition = {
+        transitions: [
+          [{ to: 1, conditions: { 0: false } }],
+          [null],
+        ],
+      }
 
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
         branes: [
-          { initialStateIndex: 0, params: [[0, false]], superposition },
-          { initialStateIndex: 0, params: [[0, true]], superposition },
+          { initialStateIndex: 0, states, params: [[0, false]], superposition },
+          { initialStateIndex: 0, states, params: [[0, true]], superposition },
         ],
       })
 
       boundary.step()
-      const states = await boundary.getStates()
+      const resultStates = await boundary.getStates()
 
-      expect(states[0]).toBe("DEAD")
-      expect(states[1]).toBe("IDLE")
+      expect(resultStates[0]).toBe("ACTIVE")
+      expect(resultStates[1]).toBe("IDLE")
     })
   })
 
   describe("Оператор EQ (равно)", () => {
     test("должен выполнить переход, когда значение равно true", async () => {
-      
-
-      const superposition = toNumericSuperposition({
-        IDLE: { ACTIVE: { 0: { eq: true } } },
-        ACTIVE: null,
-      })
+      const states = ["IDLE", "ACTIVE"]
+      const superposition: NumericSuperposition = {
+        transitions: [
+          [{ to: 1, conditions: { 0: { eq: true } } }],
+          [null],
+        ],
+      }
 
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
         branes: [
-          { initialStateIndex: 0, params: [[0, true]], superposition },
-          { initialStateIndex: 0, params: [[0, false]], superposition },
+          { initialStateIndex: 0, states, params: [[0, true]], superposition },
+          { initialStateIndex: 0, states, params: [[0, false]], superposition },
         ],
       })
 
       boundary.step()
-      const states = await boundary.getStates()
+      const resultStates = await boundary.getStates()
 
-      expect(states[0]).toBe("ACTIVE")
-      expect(states[1]).toBe("IDLE")
+      expect(resultStates[0]).toBe("ACTIVE")
+      expect(resultStates[1]).toBe("IDLE")
     })
 
     test("должен выполнить переход, когда значение равно false", async () => {
-
-
-      const superposition = toNumericSuperposition({
-        IDLE: { DEAD: { 0: { eq: false } } },
-        DEAD: null,
-      })
+      const states = ["IDLE", "ACTIVE"]
+      const superposition: NumericSuperposition = {
+        transitions: [
+          [{ to: 1, conditions: { 0: { eq: false } } }],
+          [null],
+        ],
+      }
 
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
         branes: [
-          { initialStateIndex: 0, params: [[0, false]], superposition },
-          { initialStateIndex: 0, params: [[0, true]], superposition },
+          { initialStateIndex: 0, states, params: [[0, false]], superposition },
+          { initialStateIndex: 0, states, params: [[0, true]], superposition },
         ],
       })
 
       boundary.step()
-      const states = await boundary.getStates()
+      const resultStates = await boundary.getStates()
 
-      expect(states[0]).toBe("DEAD")
-      expect(states[1]).toBe("IDLE")
+      expect(resultStates[0]).toBe("ACTIVE")
+      expect(resultStates[1]).toBe("IDLE")
     })
   })
 
   describe("Оператор NEQ (не равно)", () => {
     test("должен выполнить переход, когда значение не равно true", async () => {
-      
-
-      const superposition = toNumericSuperposition({
-        IDLE: { DEAD: { 0: { neq: true } } },
-        DEAD: null,
-      })
+      const states = ["IDLE", "ACTIVE"]
+      const superposition: NumericSuperposition = {
+        transitions: [
+          [{ to: 1, conditions: { 0: { neq: true } } }],
+          [null],
+        ],
+      }
 
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
         branes: [
-          { initialStateIndex: 0, params: [[0, true]], superposition },
-          { initialStateIndex: 0, params: [[0, false]], superposition },
+          { initialStateIndex: 0, states, params: [[0, true]], superposition },
+          { initialStateIndex: 0, states, params: [[0, false]], superposition },
         ],
       })
 
       boundary.step()
-      const states = await boundary.getStates()
+      const resultStates = await boundary.getStates()
 
-      expect(states[0]).toBe("IDLE")
-      expect(states[1]).toBe("DEAD")
+      expect(resultStates[0]).toBe("IDLE")
+      expect(resultStates[1]).toBe("ACTIVE")
     })
 
     test("должен выполнить переход, когда значение не равно false", async () => {
-
-
-      const superposition = toNumericSuperposition({
-        IDLE: { ACTIVE: { 0: { neq: false } } },
-        ACTIVE: null,
-      })
+      const states = ["IDLE", "ACTIVE"]
+      const superposition: NumericSuperposition = {
+        transitions: [
+          [{ to: 1, conditions: { 0: { neq: false } } }],
+          [null],
+        ],
+      }
 
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
         branes: [
-          { initialStateIndex: 0, params: [[0, false]], superposition },
-          { initialStateIndex: 0, params: [[0, true]], superposition },
+          { initialStateIndex: 0, states, params: [[0, false]], superposition },
+          { initialStateIndex: 0, states, params: [[0, true]], superposition },
         ],
       })
 
       boundary.step()
-      const states = await boundary.getStates()
+      const resultStates = await boundary.getStates()
 
-      expect(states[0]).toBe("IDLE")
-      expect(states[1]).toBe("ACTIVE")
+      expect(resultStates[0]).toBe("IDLE")
+      expect(resultStates[1]).toBe("ACTIVE")
     })
   })
 
   describe("Множественные логические условия", () => {
     test("должен выполнить переход, когда все условия выполнены (И)", async () => {
-      
-
-      const superposition = toNumericSuperposition({
-        IDLE: { ACTIVE: { 0: true, 1: true } },
-        ACTIVE: null,
-      })
+      const states = ["IDLE", "ACTIVE"]
+      const superposition: NumericSuperposition = {
+        transitions: [
+          [
+            {
+              to: 1,
+              conditions: {
+                0: true,       // flag1 === true
+                1: { eq: true }, // flag2 === true
+              },
+            },
+          ],
+          [null],
+        ],
+      }
 
       await boundary.write({
         fields: [
@@ -176,29 +189,36 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
           [1, { type: FieldType.BOOL }],
         ],
         branes: [
-          { initialStateIndex: 0, params: [[0, true], [1, true]], superposition },
-          { initialStateIndex: 0, params: [[0, true], [1, false]], superposition },
-          { initialStateIndex: 0, params: [[0, false], [1, true]], superposition },
-          { initialStateIndex: 0, params: [[0, false], [1, false]], superposition },
+          { initialStateIndex: 0, states, params: [[0, true], [1, true]], superposition },
+          { initialStateIndex: 0, states, params: [[0, true], [1, false]], superposition },
+          { initialStateIndex: 0, states, params: [[0, false], [1, true]], superposition },
         ],
       })
 
       boundary.step()
-      const states = await boundary.getStates()
+      const resultStates = await boundary.getStates()
 
-      expect(states[0]).toBe("ACTIVE")
-      expect(states[1]).toBe("IDLE")
-      expect(states[2]).toBe("IDLE")
-      expect(states[3]).toBe("IDLE")
+      expect(resultStates[0]).toBe("ACTIVE")
+      expect(resultStates[1]).toBe("IDLE")
+      expect(resultStates[2]).toBe("IDLE")
     })
 
     test("должен выполнить переход с разными комбинациями логических значений", async () => {
-      
-
-      const superposition = toNumericSuperposition({
-        IDLE: { ACTIVE: { 0: true, 1: false } },
-        ACTIVE: null,
-      })
+      const states = ["IDLE", "ACTIVE"]
+      const superposition: NumericSuperposition = {
+        transitions: [
+          [
+            {
+              to: 1,
+              conditions: {
+                0: true,
+                1: false,
+              },
+            },
+          ],
+          [null],
+        ],
+      }
 
       await boundary.write({
         fields: [
@@ -206,92 +226,99 @@ describe("Boundary - тип BOOLEAN (логический) с bun-webgpu", () =>
           [1, { type: FieldType.BOOL }],
         ],
         branes: [
-          { initialStateIndex: 0, params: [[0, true], [1, false]], superposition },
-          { initialStateIndex: 0, params: [[0, true], [1, true]], superposition },
-          { initialStateIndex: 0, params: [[0, false], [1, false]], superposition },
+          { initialStateIndex: 0, states, params: [[0, true], [1, false]], superposition },
+          { initialStateIndex: 0, states, params: [[0, false], [1, true]], superposition },
         ],
       })
 
       boundary.step()
-      const states = await boundary.getStates()
+      const resultStates = await boundary.getStates()
 
-      expect(states[0]).toBe("ACTIVE")
-      expect(states[1]).toBe("IDLE")
-      expect(states[2]).toBe("IDLE")
+      expect(resultStates[0]).toBe("ACTIVE")
+      expect(resultStates[1]).toBe("IDLE")
     })
   })
 
   describe("Обновление логических значений", () => {
     test("должен выполнить переход после обновления значения на true", async () => {
-      
-
-      const superposition = toNumericSuperposition({
-        IDLE: { ACTIVE: { 0: true } },
-        ACTIVE: null,
-      })
+      const states = ["IDLE", "ACTIVE"]
+      const superposition: NumericSuperposition = {
+        transitions: [
+          [{ to: 1, conditions: { 0: true } }],
+          [null],
+        ],
+      }
 
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
-        branes: [{ initialStateIndex: 0, params: [[0, false]], superposition }],
+        branes: [{ initialStateIndex: 0, states, params: [[0, false]], superposition }],
       })
 
       boundary.updateBraneField(0, 0, true)
       boundary.step()
-      const states = await boundary.getStates()
+      const resultStates = await boundary.getStates()
 
-      expect(states[0]).toBe("ACTIVE")
+      expect(resultStates[0]).toBe("ACTIVE")
     })
 
     test("должен выполнить переход после обновления значения на false", async () => {
-
-
-      const superposition = toNumericSuperposition({
-        IDLE: { DEAD: { 0: false } },
-        DEAD: null,
-      })
+      const states = ["IDLE", "ACTIVE"]
+      const superposition: NumericSuperposition = {
+        transitions: [
+          [{ to: 1, conditions: { 0: false } }],
+          [null],
+        ],
+      }
 
       await boundary.write({
         fields: [[0, { type: FieldType.BOOL }]],
-        branes: [{ initialStateIndex: 0, params: [[0, true]], superposition }],
+        branes: [{ initialStateIndex: 0, states, params: [[0, true]], superposition }],
       })
 
       boundary.updateBraneField(0, 0, false)
       boundary.step()
-      const states = await boundary.getStates()
+      const resultStates = await boundary.getStates()
 
-      expect(states[0]).toBe("DEAD")
+      expect(resultStates[0]).toBe("ACTIVE")
     })
   })
 
   describe("Смешанные условия (логическое + число)", () => {
     test("должен выполнить переход, когда оба условия разных типов выполнены", async () => {
-      
-
-      const superposition = toNumericSuperposition({
-        IDLE: { COMBAT: { 0: true, 1: { gt: 50 } } },
-        COMBAT: null,
-      })
+      const states = ["IDLE", "ACTIVE"]
+      const superposition: NumericSuperposition = {
+        transitions: [
+          [
+            {
+              to: 1,
+              conditions: {
+                0: { gt: 50 },   // hp > 50
+                1: true,         // isAlive === true
+              },
+            },
+          ],
+          [null],
+        ],
+      }
 
       await boundary.write({
         fields: [
-          [0, { type: FieldType.BOOL }],
-          [1, { type: FieldType.F32 }],
+          [0, { type: FieldType.F32 }],
+          [1, { type: FieldType.BOOL }],
         ],
         branes: [
-          { initialStateIndex: 0, params: [[0, true], [1, 100]], superposition },
-          { initialStateIndex: 0, params: [[0, true], [1, 30]], superposition },
-          { initialStateIndex: 0, params: [[0, false], [1, 100]], superposition },
-          { initialStateIndex: 0, params: [[0, false], [1, 30]], superposition },
+          { initialStateIndex: 0, states, params: [[0, 100], [1, true]], superposition },
+          { initialStateIndex: 0, states, params: [[0, 100], [1, false]], superposition },
+          { initialStateIndex: 0, states, params: [[0, 30], [1, true]], superposition },
         ],
       })
 
       boundary.step()
-      const states = await boundary.getStates()
+      const resultStates = await boundary.getStates()
 
-      expect(states[0]).toBe("COMBAT")
-      expect(states[1]).toBe("IDLE")
-      expect(states[2]).toBe("IDLE")
-      expect(states[3]).toBe("IDLE")
+      expect(resultStates[0]).toBe("ACTIVE")
+      expect(resultStates[1]).toBe("IDLE")
+      expect(resultStates[2]).toBe("IDLE")
     })
   })
 })

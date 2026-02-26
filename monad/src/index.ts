@@ -26,4 +26,3 @@ export type {
 } from "./monad.t"
 export { convertField } from "./field"
 export type { Field } from "@metafor/boundary"
-export { convertSuperpositionToIndices } from "./superposition"

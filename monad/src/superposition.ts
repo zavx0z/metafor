@@ -8,6 +8,16 @@ import type { NumericSuperposition, Transition } from "@metafor/boundary"
 import type { Superposition } from "./types"
 
 /**
+ * Результат конвертации суперпозиции.
+ */
+export interface ConvertedSuperposition {
+  /** Имена состояний для reverse-маппинга (хранятся в Monad). */
+  states: string[]
+  /** Суперпозиция для Boundary (только индексы). */
+  boundary: NumericSuperposition
+}
+
+/**
  * Конвертирует суперпозицию уровня MONAD в суперпозицию уровня BOUNDARY.
  *
  * @remarks
@@ -16,7 +26,7 @@ import type { Superposition } from "./types"
  *
  * @param superposition - Формат MONAD: { IDLE: { PATROL: { hp: { gt: 50 } } } }
  * @param fieldNameIndex - Маппинг имён полей в индексы.
- * @returns NumericSuperposition с числовыми ID состояний и полей.
+ * @returns ConvertedSuperposition с states для Monad и boundary для Boundary.
  *
  * @example
  * ```typescript
@@ -25,9 +35,9 @@ import type { Superposition } from "./types"
  *   PATROL: null
  * }
  * const fieldNameIndex = new Map([["hp", 0]])
- * const boundarySuperposition = convertToNumeric(superposition, fieldNameIndex)
- * // boundarySuperposition = {
- * //   states: ["IDLE", "PATROL"],
+ * const result = convertToNumeric(superposition, fieldNameIndex)
+ * // result.states = ["IDLE", "PATROL"]
+ * // result.boundary = {
  * //   transitions: [
  * //     [{ to: 1, conditions: { 0: { gt: 50 } } }],
  * //     [null]
@@ -38,7 +48,7 @@ import type { Superposition } from "./types"
 export function convertToNumeric(
   superposition: Superposition,
   fieldNameIndex: Map<string, number>
-): NumericSuperposition {
+): ConvertedSuperposition {
   const states = Object.keys(superposition)
   const stateIndex = new Map<string, number>()
   states.forEach((name, i) => stateIndex.set(name, i))
@@ -81,6 +91,6 @@ export function convertToNumeric(
 
   return {
     states,
-    transitions,
+    boundary: { transitions },
   }
 }

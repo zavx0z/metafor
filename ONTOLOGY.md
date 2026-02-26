@@ -121,12 +121,12 @@
 | Уровень | Формат | Почему |
 | ------- | ------ | ------ |
 | **MONAD** | `Superposition` (имена) | **Семантика.** Монада — это сущность с намерениями. Имена (`"IDLE"`, `"PATROL"`, `"hp"`) несут *смысл* для разработчика и DSL. |
-| **BOUNDARY** | `NumericSuperposition` (индексы) | **Вычисления.** Boundary — это полевой уровень. Индексы (`0`, `1`, `2`) эффективны для GPU и не требуют маппинга строк. |
+| **BOUNDARY** | `NumericSuperposition` (индексы) | **Вычисления.** Boundary — это полевой уровень. Индексы (`0`, `1`, `2`) эффективны для GPU. Имена состояний хранятся в Monad для reverse-маппинга. |
 | **BULK** | Визуальные формы | **Проявление.** Bulk — это царство форм. Агенты и визуализация требуют конкретных представлений (3D-модели, спрайты, цвета). |
 
 ### MONAD → BOUNDARY: Конвертация суперпозиции
 
-**Конвертер:** `convertToNumeric(monadSuperposition, fieldNameIndex)`
+**Конвертер:** `convertToNumeric(superposition, fieldNameIndex)`
 
 **Что происходит:**
 
@@ -141,12 +141,27 @@
 
 // BOUNDARY (вычисления)
 {
-  states: ["IDLE", "PATROL"],
   transitions: [
-    [{ to: 1, conditions: { 0: { gt: 50 } } }],
-    [null]
+    [{ to: 1, conditions: { 0: { gt: 50 } } }],  // Из IDLE → PATROL
+    [null]                                        // PATROL — терминальное
   ]
 }
+```
+
+**Reverse-маппинг (BOUNDARY → MONAD):**
+
+Boundary возвращает индексы состояний: `[0, 1, 2]`
+
+Monad хранит свою мапу для обратного преобразования:
+
+```typescript
+// Monad хранит: states: ["IDLE", "PATROL", "DEAD"]
+const states = ["IDLE", "PATROL", "DEAD"]
+const indices = [0, 2, 1]  // от Boundary
+
+// Reverse-маппинг:
+states.filter((_, i) => indices.includes(i))
+// → ["IDLE", "DEAD", "PATROL"]
 ```
 
 **Ключевой принцип:** Boundary не знает имён состояний — только индексы для GPU-вычислений. MONAD определяет *смысл* состояний, BOUNDARY вычисляет *переходы* между ними.

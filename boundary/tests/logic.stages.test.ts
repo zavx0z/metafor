@@ -1,7 +1,7 @@
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import { Boundary, GPU, FieldType } from "../src/index"
-import { toNumericSuperposition } from "./numeric.helper"
+import type { NumericSuperposition } from "../src/index.t"
 
 describe("Boundary — Логические стадии (bun-webgpu)", () => {
   let boundary: Boundary
@@ -17,102 +17,114 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
 
   describe("Оператор IN (Списки)", () => {
     test("должен перейти, если значение в списке (int/enum)", async () => {
-      
-
-      const superposition = toNumericSuperposition({
-        GROUND: {
-          AIR: { 0: { in: [3] } }, // FLY
-          MOVING: { 0: { in: [1, 2] } }, // WALK, RUN
-        },
-        AIR: null,
-        MOVING: null,
-      })
+      const states = ["GROUND", "WALK", "FLY", "AIR"]
+      const superposition: NumericSuperposition = {
+        transitions: [
+          [
+            { to: 1, conditions: { 0: { in: [1, 3, 5] } } },  // GROUND → WALK если type in [1,3,5]
+            { to: 2, conditions: { 0: { in: [2, 4, 6] } } },  // GROUND → FLY если type in [2,4,6]
+          ],
+          [null],  // WALK — терминальное
+          [null],  // FLY — терминальное
+          [null],  // AIR — терминальное
+        ],
+      }
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, params: [[0, 1]], superposition }, // WALK -> MOVING
-          { initialStateIndex: 0, params: [[0, 3]], superposition }, // FLY -> AIR
-          { initialStateIndex: 0, params: [[0, 0]], superposition }, // IDLE -> остаётся
+          { initialStateIndex: 0, states, params: [[0, 1]], superposition },  // 1 in [1,3,5] → WALK
+          { initialStateIndex: 0, states, params: [[0, 4]], superposition },  // 4 in [2,4,6] → FLY
+          { initialStateIndex: 0, states, params: [[0, 0]], superposition },  // 0 не в списках → GROUND
         ],
       })
 
       boundary.step()
-      const states = await boundary.getStates()
+      const resultStates = await boundary.getStates()
 
-      expect(states[0]).toBe("MOVING")
-      expect(states[1]).toBe("AIR")
-      expect(states[2]).toBe("GROUND")
+      expect(resultStates[0]).toBe("WALK")
+      expect(resultStates[1]).toBe("FLY")
+      expect(resultStates[2]).toBe("GROUND")
     })
 
     test("должен перейти, если float-значение в списке", async () => {
-      
-
-      const superposition = toNumericSuperposition({
-        NORMAL: {
-          CRITICAL: { 0: { in: [36.6, 40.0] } },
-        },
-        CRITICAL: null,
-      })
+      const states = ["NORMAL", "WARNING", "CRITICAL"]
+      const superposition: NumericSuperposition = {
+        transitions: [
+          [
+            { to: 1, conditions: { 0: { in: [36.6, 37.0] } } },  // NORMAL → WARNING
+            { to: 2, conditions: { 0: { in: [38.0, 39.0, 40.0] } } },  // NORMAL → CRITICAL
+          ],
+          [null],
+          [null],
+        ],
+      }
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, params: [[0, 36.6]], superposition },
-          { initialStateIndex: 0, params: [[0, 37.0]], superposition },
-          { initialStateIndex: 0, params: [[0, 40.0]], superposition },
+          { initialStateIndex: 0, states, params: [[0, 36.6]], superposition },
+          { initialStateIndex: 0, states, params: [[0, 37.0]], superposition },
+          { initialStateIndex: 0, states, params: [[0, 40.0]], superposition },
         ],
       })
 
       boundary.step()
-      const states = await boundary.getStates()
+      const resultStates = await boundary.getStates()
 
-      expect(states[0]).toBe("CRITICAL") // 36.6 найдено
-      expect(states[1]).toBe("NORMAL") // 37.0 не найдено
-      expect(states[2]).toBe("CRITICAL") // 40.0 найдено
+      expect(resultStates[0]).toBe("WARNING")
+      expect(resultStates[1]).toBe("WARNING")
+      expect(resultStates[2]).toBe("CRITICAL")
     })
   })
 
   describe("Оператор NOT_IN (Исключение)", () => {
     test("должен перейти, если значение НЕ в списке", async () => {
-      
-
-      const superposition = toNumericSuperposition({
-        LOBBY: {
-          GAME: { 0: { notIn: [0] } }, // 0 = Spectator (not playing)
-        },
-        GAME: null,
-      })
+      const states = ["LOBBY", "GAME", "SPECTATOR"]
+      const superposition: NumericSuperposition = {
+        transitions: [
+          [
+            { to: 1, conditions: { 0: { notIn: [0, 2] } } },  // LOBBY → GAME если players NOT IN [0,2]
+          ],
+          [null],
+          [null],
+        ],
+      }
 
       await boundary.write({
         fields: [[0, { type: FieldType.F32 }]],
         branes: [
-          { initialStateIndex: 0, params: [[0, 1]], superposition }, // Player -> GAME
-          { initialStateIndex: 0, params: [[0, 0]], superposition }, // Spectator -> LOBBY
+          { initialStateIndex: 0, states, params: [[0, 1]], superposition },   // GAME (1 не в [0,2])
+          { initialStateIndex: 0, states, params: [[0, 0]], superposition },   // LOBBY (0 в [0,2])
         ],
       })
 
       boundary.step()
-      const states = await boundary.getStates()
+      const resultStates = await boundary.getStates()
 
-      expect(states[0]).toBe("GAME")
-      expect(states[1]).toBe("LOBBY")
+      expect(resultStates[0]).toBe("GAME")
+      expect(resultStates[1]).toBe("LOBBY")
     })
   })
 
   describe("Комбинированные условия", () => {
     test("должен работать с комбинацией диапазонов и списков", async () => {
-      
-
-      const superposition = toNumericSuperposition({
-        START: {
-          WIN: {
-            0: { gt: 100 },
-            1: { in: [5, 7] }, // 5=Gold, 7=Platinum
-          },
-        },
-        WIN: null,
-      })
+      const states = ["START", "READY", "BLOCKED"]
+      const superposition: NumericSuperposition = {
+        transitions: [
+          [
+            {
+              to: 1,
+              conditions: {
+                0: { gte: 100 },  // score >= 100
+                1: { in: [5, 7, 10] },  // badge IN [5,7,10]
+              },
+            },
+          ],
+          [null],
+          [null],
+        ],
+      }
 
       await boundary.write({
         fields: [
@@ -120,18 +132,18 @@ describe("Boundary — Логические стадии (bun-webgpu)", () => {
           [1, { type: FieldType.F32 }],
         ],
         branes: [
-          { initialStateIndex: 0, params: [[0, 150], [1, 5]], superposition }, // OK
-          { initialStateIndex: 0, params: [[0, 150], [1, 1]], superposition }, // Значок не подходит
-          { initialStateIndex: 0, params: [[0, 50], [1, 7]], superposition }, // Очки не подходят
+          { initialStateIndex: 0, states, params: [[0, 150], [1, 5]], superposition },   // READY
+          { initialStateIndex: 0, states, params: [[0, 150], [1, 1]], superposition },   // START (badge не в списке)
+          { initialStateIndex: 0, states, params: [[0, 50], [1, 7]], superposition },    // START (score < 100)
         ],
       })
 
       boundary.step()
-      const states = await boundary.getStates()
+      const resultStates = await boundary.getStates()
 
-      expect(states[0]).toBe("WIN")
-      expect(states[1]).toBe("START")
-      expect(states[2]).toBe("START")
+      expect(resultStates[0]).toBe("READY")
+      expect(resultStates[1]).toBe("START")
+      expect(resultStates[2]).toBe("START")
     })
   })
 })

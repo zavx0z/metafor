@@ -49,7 +49,7 @@ export type FieldsDefinition = Record<string, FieldDefinition>
  * Переход между состояниями в числовой суперпозиции.
  */
 export interface Transition {
-  /** Индекс целевого состояния в массиве states. */
+  /** Индекс целевого состояния. */
   to: number
   /** Условия перехода: индекс поля → условие. */
   conditions: Record<number, any>
@@ -61,11 +61,11 @@ export interface Transition {
  * @remarks
  * Гарантирует порядок переходов через массив вместо объекта.
  * Boundary работает только с индексами, не зная имён состояний.
+ * Имена состояний хранятся в Monad для reverse-маппинга.
  *
  * @example
  * ```typescript
  * {
- *   states: ["IDLE", "PATROL", "DEAD"],
  *   transitions: [
  *     [  // Из IDLE (индекс 0)
  *       { to: 1, conditions: { 0: { gt: 50 } } },   // → PATROL (приоритет 1)
@@ -78,8 +78,6 @@ export interface Transition {
  * ```
  */
 export interface NumericSuperposition {
-  /** Имена состояний для маппинга имён ↔ индексы. */
-  states: string[]
   /**
    * Массив переходов по индексам состояний.
    * transitions[fromIndex] = массив переходов из этого состояния.
@@ -101,6 +99,7 @@ export type Superposition = NumericSuperposition
  * Брана содержит:
  * - params — значения полей (данные) в формате кортежей
  * - initialStateIndex — индекс начального состояния в массиве states
+ * - states — имена состояний для reverse-маппинга (хранятся в Boundary)
  * - superposition — граф переходов с числовыми ID состояний
  */
 export interface BraneDefinition {
@@ -108,6 +107,8 @@ export interface BraneDefinition {
   params: ValueTuple[]
   /** Индекс начального состояния в массиве states. */
   initialStateIndex: number
+  /** Имена состояний для reverse-маппинга. */
+  states: string[]
   /** Суперпозиция — граф переходов с числовыми ID состояний. */
   superposition: NumericSuperposition
 }

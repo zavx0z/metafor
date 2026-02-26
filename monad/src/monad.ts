@@ -13,7 +13,7 @@ import type {
   SuperpositionsStore,
   UuidToIndexStore,
 } from "./monad.t"
-import type { MonadConfig, Superposition } from "./types"
+import type { MonadConfig } from "./types"
 import { convertField } from "./field"
 import { convertToNumeric } from "./superposition"
 
@@ -30,6 +30,7 @@ const _states: StatesStore = new Map()
 const _monadParams: Map<MonadId, Record<string, unknown>> = new Map()
 const _uuidToIndex: UuidToIndexStore = new Map()
 const _indexToUuid: IndexToUuidStore = new Map()
+const _stateMaps: Map<MonadId, string[]> = new Map() // states для reverse-маппинга
 const _onStateChange: { current: ((monadId: MonadId, old: string, current: string) => void) | null } = { current: null }
 const _monadIds: Set<MonadId> = new Set()
 let _nextFieldIndex = 0
@@ -47,6 +48,7 @@ export function _resetState(): void {
   _monadParams.clear()
   _uuidToIndex.clear()
   _indexToUuid.clear()
+  _stateMaps.clear()
   _onStateChange.current = null
   _monadIds.clear()
   _nextFieldIndex = 0
@@ -148,10 +150,13 @@ export async function updateBoundary(): Promise<void> {
     })
 
     const monadSuperposition = _superpositions.get(monadId)!
-    const boundarySuperposition = convertToNumeric(monadSuperposition, _fieldNameIndex)
-    
+    const converted = convertToNumeric(monadSuperposition, _fieldNameIndex)
+
+    // Сохраняем states для reverse-маппинга
+    _stateMaps.set(monadId, converted.states)
+
     // Находим индекс начального состояния
-    const initialStateIndex = boundarySuperposition.states.indexOf(_states.get(monadId)!)
+    const initialStateIndex = converted.states.indexOf(_states.get(monadId)!)
     if (initialStateIndex === -1) {
       throw new Error(`State '${_states.get(monadId)}' not found in superposition`)
     }
@@ -159,7 +164,8 @@ export async function updateBoundary(): Promise<void> {
     return {
       params: paramsTuples,
       initialStateIndex,
-      superposition: boundarySuperposition,
+      states: converted.states,
+      superposition: converted.boundary,
     }
   })
 
