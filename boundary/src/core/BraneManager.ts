@@ -29,6 +29,7 @@ import { HeapAllocator } from "../memory/HeapAllocator"
 import { BraneBuilder, BlockUtils } from "../memory/BraneBuilder"
 import { getStringAtlas } from "../strings/StringAtlas"
 import type { FieldTuple, ValueTuple } from "../index.t"
+import { prepareEnsembleData, type EntangledPreparation } from "./EntangledAnalyzer"
 
 export interface BraneInfo {
   braneId: number
@@ -110,95 +111,40 @@ export class BraneManager {
       console.log("[BraneManager] Creating ensemble with", params.length, "branes")
     }
 
-    const componentUsage = new Map<number, Set<number>>()
-    params.forEach((braneParams, idx) => {
-      braneParams.forEach(([fieldId]) => {
-        if (!componentUsage.has(fieldId)) componentUsage.set(fieldId, new Set())
-        componentUsage.get(fieldId)!.add(idx)
-      })
-    })
-
-    const valueEquals = (left: unknown, right: unknown): boolean => {
-      if (Array.isArray(left) && Array.isArray(right)) {
-        if (left.length !== right.length) return false
-        return left.every((value, idx) => Object.is(value, right[idx]))
-      }
-      return Object.is(left, right)
-    }
-
-    const entangledGroups = new Map<string, Set<number>>()
-    componentUsage.forEach((braneIndicesSet: Set<number>, fieldId: number) => {
-      if (braneIndicesSet.size < 2) return
-      const key = Array.from(braneIndicesSet).sort().join(",")
-      const ids = Array.from(braneIndicesSet)
-      const brane0Params = params[ids[0]!]!
-      let firstValue: unknown = undefined
-      for (let i = 0; i < brane0Params.length; i++) {
-        if (brane0Params[i]![0] === fieldId) {
-          firstValue = brane0Params[i]![1]
-          break
-        }
-      }
-      if (firstValue === undefined) return
-      let allSame = true
-      for (let i = 1; i < ids.length && allSame; i++) {
-        const braneParams = params[ids[i]!]!
-        let found = false
-        for (let j = 0; j < braneParams.length; j++) {
-          if (braneParams[j]![0] === fieldId) {
-            if (!valueEquals(braneParams[j]![1], firstValue)) {
-              allSame = false
-            }
-            found = true
-            break
-          }
-        }
-        if (!found) allSame = false
-      }
-      if (!allSame) return
-      if (!entangledGroups.has(key)) {
-        entangledGroups.set(key, new Set())
-      }
-      entangledGroups.get(key)!.add(fieldId)
-    })
+    // Подготовка данных (чистая функция, без side effects)
+    const preparation: EntangledPreparation = prepareEnsembleData(params)
 
     if (this.debug) {
-      console.log("[BraneManager] Found", entangledGroups.size, "entangled groups")
+      console.log("[BraneManager] Found", preparation.entangledBraneIds.size, "entangled groups")
     }
 
-    const entangledBraneIds = new Map<string, number>()
-    entangledGroups.forEach((fieldIds, key) => {
-      const braneIndices = key.split(",").map((value) => Number(value))
-      const firstBraneIdx = braneIndices[0]!
-      const braneParams = params[firstBraneIdx]!
-      const filteredParams = braneParams.filter(([fid]) => fieldIds.has(fid))
-      const entangledId = this.createEntangledBrane(filteredParams)
-      entangledBraneIds.set(key, entangledId)
+    // Создаём entangled блоки из готовых данных
+    const virtualToRealId = new Map<number, number>()
+    preparation.entangledFields.forEach((entangledParams, key) => {
+      const virtualId = preparation.entangledBraneIds.get(key)!
+      if (this.debug) {
+        console.log(
+          "[BraneManager] Creating entangled brane with fields:",
+          entangledParams.map(([fid]) => fid),
+        )
+      }
+      const entangledId = this.createEntangledBrane(entangledParams)
+      virtualToRealId.set(virtualId, entangledId)
     })
 
+    // Создаём браны с готовыми маппингами
     const braneIds: number[] = []
-    params.forEach((braneParams, idx) => {
-      const entangledIds: number[] = []
-      const usedGroupKeys = new Set<string>()
-      const localBrane: ValueTuple[] = []
-
-      braneParams.forEach(([fieldId, value]) => {
-        const ids = componentUsage.get(fieldId)!
-        if (ids.size < 2) {
-          localBrane.push([fieldId, value])
-          return
-        }
-        const key = Array.from(ids).sort().join(",")
-        if (!entangledBraneIds.has(key)) {
-          localBrane.push([fieldId, value])
-          return
-        }
-        if (!usedGroupKeys.has(key)) {
-          entangledIds.push(entangledBraneIds.get(key)!)
-          usedGroupKeys.add(key)
-        }
-      })
-
+    params.forEach((_, idx) => {
+      const entangledIds = preparation.braneEntangledMap[idx]!.map((virtualId) => virtualToRealId.get(virtualId)!)
+      const localBrane = preparation.localFields[idx]!
+      if (this.debug) {
+        console.log(
+          "[BraneManager] Creating brane with fields:",
+          localBrane.map(([fid]) => fid),
+          "entangledIds:",
+          entangledIds,
+        )
+      }
       const braneId = this.createBrane(localBrane, entangledIds)
       braneIds.push(braneId)
     })
@@ -211,19 +157,17 @@ export class BraneManager {
   }
 
   createEntangledBrane(params: ValueTuple[]): number {
-    if (this.debug) {
+    if (this.debug)
       console.log(
         "[BraneManager] Creating entangled brane with fields:",
         params.map(([fid]) => fid),
       )
-    }
+
     const result = this.builder.build(params, this.fields, { sharedPtrs: [] })
     const entangledId = this.nextEntangledId++
     this.heapData.set(result.blockView, result.blockPtr)
     for (const alloc of result.extraAllocs) {
-      if (alloc.data) {
-        this.heapData.set(alloc.data, alloc.offset)
-      }
+      if (alloc.data) this.heapData.set(alloc.data, alloc.offset)
     }
     const entangledInfo: EntangledBraneInfo = {
       id: entangledId,
@@ -233,35 +177,31 @@ export class BraneManager {
     }
     this.entangledBranes.set(entangledId, entangledInfo)
     this.heapDirty = true
-    if (this.debug) {
+    if (this.debug)
       console.log(`[BraneManager] Entangled brane created: id=${entangledId}, blockPtr=${result.blockPtr}`)
-    }
+
     return entangledId
   }
 
   createBrane(params: ValueTuple[], entangledBraneIds: number[] = []): number {
-    if (this.debug) {
+    if (this.debug)
       console.log(
         "[BraneManager] Creating brane with fields:",
         params.map(([fid]) => fid),
         "entangledIds:",
         entangledBraneIds,
       )
-    }
+
     const sharedPtrs = entangledBraneIds.map((id) => {
       const entangled = this.entangledBranes.get(id)
-      if (!entangled) {
-        throw new Error(`Entangled brane with ID ${id} not found`)
-      }
+      if (!entangled) throw new Error(`Entangled brane with ID ${id} not found`)
+
       return entangled.blockPtr
     })
     const result = this.builder.build(params, this.fields, { sharedPtrs })
     this.heapData.set(result.blockView, result.blockPtr)
-    for (const alloc of result.extraAllocs) {
-      if (alloc.data) {
-        this.heapData.set(alloc.data, alloc.offset)
-      }
-    }
+    for (const alloc of result.extraAllocs) if (alloc.data) this.heapData.set(alloc.data, alloc.offset)
+
     const braneId = this.nextBraneId++
     const braneInfo: BraneInfo = {
       braneId,
@@ -272,9 +212,8 @@ export class BraneManager {
     }
     this.branes.set(braneId, braneInfo)
     this.heapDirty = true
-    if (this.debug) {
-      console.log(`[BraneManager] Brane created: id=${braneId}, blockPtr=${result.blockPtr}`)
-    }
+    if (this.debug) console.log(`[BraneManager] Brane created: id=${braneId}, blockPtr=${result.blockPtr}`)
+
     return braneId
   }
 
@@ -379,12 +318,10 @@ export class BraneManager {
 
   deleteBrane(braneId: number): void {
     const brane = this.branes.get(braneId)
-    if (!brane) {
-      throw new Error(`Brane with ID ${braneId} not found`)
-    }
-    for (const alloc of brane.extraAllocs) {
-      this.allocator.free(alloc.offset, alloc.size)
-    }
+    if (!brane) throw new Error(`Brane with ID ${braneId} not found`)
+
+    for (const alloc of brane.extraAllocs) this.allocator.free(alloc.offset, alloc.size)
+
     this.allocator.free(brane.blockPtr, brane.blockSize)
     this.branes.delete(braneId)
     this.heapDirty = true

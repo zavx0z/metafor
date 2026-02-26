@@ -137,10 +137,10 @@ describe("Boundary — Entangled Branes (shared блоки)", () => {
       boundary.step()
       const states = await boundary.getStates()
 
-      // Обе браны должны перейти в состояние 1, потому что mana < 30 проверяется для каждой браны отдельно
-      // hp и isAlive shared, но mana local
-      expect(states[0]).toBe(1) // mana=50 не < 30... стоп, 50 > 30, должно быть 0
-      expect(states[1]).toBe(1) // mana=10 < 30 → 1
+      // mana=50 не < 30 → брана 0 остаётся в 0
+      // mana=10 < 30 → брана 1 переходит в 1
+      expect(states[0]).toBe(0) // Не перешёл (mana=50)
+      expect(states[1]).toBe(1) // Перешёл (mana=10)
     })
   })
 
