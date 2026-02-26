@@ -71,7 +71,7 @@ export class BraneManager {
     config: BraneManagerConfig = {},
   ) {
     const heapSize = config.heapSize ?? 16384
-    const reserveFirst = config.reserveFirst ?? 1
+    const reserveFirst = config.reserveFirst ?? 1024 // Резервируем больше памяти для заголовков бран
     this.debug = config.debug ?? false
     this.allocator = new HeapAllocator(heapSize, reserveFirst)
     this.builder = new BraneBuilder(this.debug)
@@ -308,14 +308,6 @@ export class BraneManager {
       case FieldType.ARRAY_PTR: {
         const oldOffset = this.heapData[absoluteOffset]!
         const oldLength = this.heapData[absoluteOffset + 1]!
-        if (oldOffset > 0) {
-          const oldWordCount = oldLength + 1
-          this.allocator.free(oldOffset, oldWordCount)
-          const idx = brane.extraAllocs.findIndex((a) => a.offset === oldOffset)
-          if (idx >= 0) {
-            brane.extraAllocs.splice(idx, 1)
-          }
-        }
         if (!Array.isArray(newValue)) {
           throw new Error(`Expected array for field '${fieldId}'`)
         }

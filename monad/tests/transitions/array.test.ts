@@ -46,9 +46,6 @@ describe("Monad — Array переходы (TDD)", () => {
 
       await updateBoundary()
 
-      // Debug: проверяем что поле tags существует
-      console.log("updateMonad called with:", { tags: [] })
-
       // tags=[] → не переходит
       await updateMonad(id, { tags: [] })
       expect(resultStates).toEqual([])
@@ -324,8 +321,7 @@ describe("Monad — Array переходы (TDD)", () => {
         state: "IDLE",
         superposition: {
           IDLE: { CRITICAL: {
-            tags: { length: { gt: 2 } },
-            tags: { include: "urgent" },
+            tags: { length: { gt: 2 }, include: "urgent" },
           } },
           CRITICAL: null,
         },

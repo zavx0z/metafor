@@ -51,6 +51,8 @@ export type {
   FieldTuple,
   ValueTuple,
   BraneIndex,
+  NumericSuperposition,
+  Transition,
 } from "./index.t"
 
 /**
