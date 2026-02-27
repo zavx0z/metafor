@@ -77,7 +77,7 @@ export async function write(data: Data): Promise<void> {
   }
   resetMatrix()
 
-  // 1. Сброс StringAtlas
+  // 1. Сброс StringAtlas ПЕРЕД компиляцией
   resetStringAtlas()
 
   // 2. Сохраняем поля
@@ -100,14 +100,18 @@ export async function write(data: Data): Promise<void> {
   // 6. Построение маппинга бран (чистая функция)
   const braneMapping = buildBraneMapping(params, entangledBraneIds, entangledAnalysis)
 
-  // 7. Компиляция суперпозиций (чистая функция)
+  // 7. Компиляция суперпозиций (чистая функция) — интернирует строки из IN списков
   const compiledRules = compileEnsemble(data.branes, fields)
   bytecodeOffsets = compiledRules.bytecodeOffsets
 
-  // 8. Построение heap (чистая функция)
+  // 8. Построение heap — интернирует строки из params
   const fieldTypes = new Map<number, number>()
+  const fieldEnums = new Map<number, any[]>()
   fields.forEach((field, idx) => {
     fieldTypes.set(idx, fieldTypeToBytecodeType(field.type))
+    if (field.enum !== undefined) {
+      fieldEnums.set(idx, field.enum)
+    }
   })
 
   const heapInput = {
@@ -115,10 +119,20 @@ export async function write(data: Data): Promise<void> {
     braneEntangledMap: braneMapping.braneEntangledMap,
     entangledFields: braneMapping.entangledFields,
     fieldTypes,
+    fieldEnums,
   }
   const heapLayout = buildHeap(heapInput)
-  heap = heapLayout.heap
+  let heapData = heapLayout.heap
   braneBlockPtrs = heapLayout.blockPtrs
+
+  // Резервируем место в конце heap для динамических аллокаций (ARRAY)
+  // Оставляем 1024 слова для ARRAY данных
+  const arrayReserve = 1024
+  const actualHeapSize = heapData.length + arrayReserve
+  const extendedHeap = new Uint32Array(actualHeapSize)
+  extendedHeap.set(heapData)
+  heapData = extendedHeap
+  heapAllocOffset = heapData.length - arrayReserve  // Начало зоны для ARRAY
 
   // 9. Начальные состояния
   initialStates = new Uint32Array(data.branes.map((b) => b.state))
@@ -134,11 +148,14 @@ export async function write(data: Data): Promise<void> {
       bytecodeOffsets: compiledRules.bytecodeOffsets,
       states: initialStates,
       braneDescriptors: buildBraneDescriptors(braneBlockPtrs, compiledRules.bytecodeOffsets),
-      heap,
+      heap: heapData,
     },
     atlasExport,
     false,
   )
+
+  // Сохраняем heap в глобальной переменной
+  heap = heapData
 
   // 11. НЕ делаем step() после инициализации — это делает update()
 }
@@ -189,6 +206,20 @@ export async function update(
   if (field.enum !== undefined) {
     context.enum = field.enum
   }
+  // Для массивов добавляем subType
+  if (field.elementType !== undefined) {
+    switch (field.elementType) {
+      case "number":
+        context.subType = TYPE.FLOAT
+        break
+      case "string":
+        context.subType = TYPE.STRING
+        break
+      case "boolean":
+        context.subType = TYPE.BOOL
+        break
+    }
+  }
 
   let encodedValue: number
   let encodedValue2: number = 0  // Для STRING (hash) и ARRAY (reserved)
@@ -212,8 +243,7 @@ export async function update(
     // Записываем длину
     heap[heapAllocOffset] = arr.length
     // Кодируем и записываем элементы
-    const elementType = field.elementType === 'string' ? TYPE.STRING :
-                       field.elementType === 'number' ? TYPE.FLOAT : TYPE.UINT
+    const elementType = context.subType ?? TYPE.FLOAT
     for (let i = 0; i < arr.length; i++) {
       const itemCtx: EncodingContext = { type: elementType }
       const encodedItem = encodeValue(arr[i], itemCtx)

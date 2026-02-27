@@ -61,4 +61,6 @@ export interface HeapInput {
   entangledFields: Map<string, [number, unknown][]>
   /** Типы полей: [fieldIndex, type][] */
   fieldTypes: Map<number, number>
+  /** Enum значения для полей: [fieldIndex, enumValues][] */
+  fieldEnums?: Map<number, any[]>
 }

@@ -8,7 +8,7 @@
  */
 
 import { parseCondition } from "./condition"
-import { OP } from "./opcodes"
+import { OP, TYPE } from "./opcodes"
 import { encodeValue, fieldTypeToBytecodeType } from "./params"
 import type { Field } from "./index.t"
 import type { Collapse } from "./index.t"
@@ -145,6 +145,7 @@ export function compileSuperposition(
  * Компилирует условия перехода в массив проверок.
  *
  * Для операторов IN/NOT_IN создаёт кучу со списком значений.
+ * Для STRING элементов в списках — интернирует и сохраняет string_id.
  *
  * @param conditions - Record<fieldIndex, condition>
  * @param fields - Определение полей для кодирования
@@ -201,6 +202,20 @@ export function compileConditions(
     if (field?.enum !== undefined) {
       ctx.enum = field.enum
     }
+    // Для массивов добавляем subType
+    if (field?.elementType !== undefined) {
+      switch (field.elementType) {
+        case "number":
+          ctx.subType = TYPE.FLOAT
+          break
+        case "string":
+          ctx.subType = TYPE.STRING
+          break
+        case "boolean":
+          ctx.subType = TYPE.BOOL
+          break
+      }
+    }
 
     // Для IN/NOT_IN — создаём кучу со списком
     if (Array.isArray(check.val) && (check.op === OP.IN || check.op === OP.NOT_IN)) {
@@ -208,8 +223,22 @@ export function compileConditions(
       const ptr = heapOffset
       heap.push(check.val.length)  // count
       for (const v of check.val) {
-        const encoded = encodeValue(v, ctx)
-        heap.push(encoded)
+        // Для STRING элементов в списке — интернируем и получаем string_id
+        if (check.fieldType === TYPE.STRING && typeof v === "string") {
+          const encoded = encodeValue(v, ctx)  // encodeValue вернёт string_id
+          heap.push(encoded)
+        }
+        // Для ENUM элементов в списке — конвертируем в индекс
+        else if (ctx.enum !== undefined && typeof v === "string") {
+          const idx = ctx.enum.indexOf(v)
+          if (idx === -1) {
+            throw new Error(`Value '${v}' not found in enum: [${ctx.enum}]`)
+          }
+          heap.push(idx)
+        } else {
+          const encoded = encodeValue(v, ctx)
+          heap.push(encoded)
+        }
       }
       // Обновляем heapOffset для следующей кучи
       heapOffset += 1 + check.val.length
@@ -220,7 +249,22 @@ export function compileConditions(
         valEncoded: ptr,
       })
     } else {
-      const valEncoded = encodeValue(check.val, ctx)
+      // Для ENUM строк в условиях типа gt: "MAGE" — конвертируем в индекс
+      let valToEncode = check.val
+      if (ctx.enum !== undefined && typeof check.val === "string") {
+        const idx = ctx.enum.indexOf(check.val)
+        if (idx === -1) {
+          throw new Error(`Value '${check.val}' not found in enum: [${ctx.enum}]`)
+        }
+        valToEncode = idx
+      }
+      // Для ARRAY операторов (INCLUDE, NOT_INCLUDE) используем subType для кодирования скаляра
+      let encodeCtx = ctx
+      if (check.fieldType === TYPE.ARRAY && ctx.subType !== undefined && 
+          (check.op === OP.INCLUDE || check.op === OP.NOT_INCLUDE)) {
+        encodeCtx = { type: ctx.subType }
+      }
+      const valEncoded = encodeValue(valToEncode, encodeCtx)
       instructions.push({
         fieldType: check.fieldType,
         fieldIndex: check.fieldIndex,

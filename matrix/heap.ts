@@ -13,6 +13,9 @@
  */
 import type { PackedMeta, FieldMeta, HeapBlock, HeapLayout, HeapInput } from "./heap.t"
 import { TYPE } from "./opcodes"
+import { getStringAtlas } from "./StringAtlas"
+import { encodeValue, encodeValueWithPair } from "./params"
+import type { EncodingContext } from "./params.t"
 
 /**
  * Упаковать метаданные поля в одно 32-битное слово.
@@ -100,7 +103,7 @@ function getFieldSize(fieldType: number): number {
  * ```
  */
 export function buildHeap(input: HeapInput): HeapLayout {
-  const { localFields, braneEntangledMap, entangledFields, fieldTypes } = input
+  const { localFields, braneEntangledMap, entangledFields, fieldTypes, fieldEnums } = input
 
   // Собираем все блоки: сначала entangled, потом branes
   const allBlocks: [number, unknown][][] = []
@@ -155,7 +158,7 @@ export function buildHeap(input: HeapInput): HeapLayout {
   for (let i = 0; i < entangledKeys.length; i++) {
     const fields = entangledFields.get(entangledKeys[i]!)!
     const blockPtr = blockPtrs[i]!
-    writeBlock(heap, blockPtr, fields, fieldTypes, [])
+    writeBlock(heap, blockPtr, fields, fieldTypes, [], fieldEnums)
   }
 
   // Заполняем brane блоки
@@ -164,7 +167,7 @@ export function buildHeap(input: HeapInput): HeapLayout {
     const blockPtr = braneBlockPtrs[i]!
     const entangledIds = braneEntangledMap[i]!
     const entangledPtrs = entangledIds.map((id) => blockPtrs[id]!)
-    writeBlock(heap, blockPtr, fields, fieldTypes, entangledPtrs)
+    writeBlock(heap, blockPtr, fields, fieldTypes, entangledPtrs, fieldEnums)
   }
 
   return {
@@ -222,6 +225,7 @@ function writeBlock(
   fields: [number, unknown][],
   fieldTypes: Map<number, number>,
   entangledPtrs: number[],
+  fieldEnums?: Map<number, any[]>,
 ): void {
   const localCount = fields.length
   const entangledCount = entangledPtrs.length
@@ -245,8 +249,22 @@ function writeBlock(
     heap[headerIndex++] = fieldId
     heap[headerIndex++] = packMeta(fieldType, fieldSize, bodyOffset - blockPtr)
 
-    // Значение
-    writeValue(heap, bodyOffset, fieldType, value)
+    // Значение — используем encodeValue с enum контекстом
+    const enumValues = fieldEnums?.get(fieldId)
+    const ctx: EncodingContext = { type: fieldType }
+    if (enumValues !== undefined) {
+      ctx.enum = enumValues
+    }
+
+    // Для STRING и ARRAY используем encodeValueWithPair
+    if (fieldType === TYPE.STRING || fieldType === TYPE.ARRAY) {
+      const { value1, value2 } = encodeValueWithPair(value, ctx, heap, bodyOffset)
+      heap[bodyOffset] = value1
+      heap[bodyOffset + 1] = value2
+    } else {
+      const encoded = encodeValue(value, ctx)
+      heap[bodyOffset] = encoded
+    }
     bodyOffset += fieldSize
   }
 
@@ -257,48 +275,37 @@ function writeBlock(
 }
 
 /**
- * Записать значение в heap.
+ * Записать закодированное значение в heap.
+ * Получает уже закодированное значение из encodeValue.
  */
 function writeValue(
   heap: Uint32Array,
   offset: number,
   fieldType: number,
-  value: unknown,
+  encodedValue: number,
 ): void {
   switch (fieldType) {
-    case TYPE.FLOAT: {
-      const view = new DataView(heap.buffer)
-      view.setFloat32(offset * 4, Number(value), true)
-      break
-    }
+    case TYPE.FLOAT:
     case TYPE.UINT:
     case TYPE.BOOL:
-      heap[offset] = Number(value)
+      // Для скаляров encodedValue — это готовое значение
+      heap[offset] = encodedValue
       break
-    case TYPE.STRING: {
-      // STRING: value — это string_id из StringAtlas
-      const stringId = typeof value === 'string' ? getStringAtlas().intern(value) : Number(value)
-      heap[offset] = stringId
-      const atlas = getStringAtlas()
-      const meta = atlas.getMeta(stringId)
-      heap[offset + 1] = meta ? meta.hash : 0
+    case TYPE.STRING:
+      // STRING: encodedValue = string_id, но нам также нужен hash
+      // Для простоты записываем только string_id (hash будет записан отдельно)
+      heap[offset] = encodedValue
+      // Hash должен быть записан в offset + 1, но encodeValue возвращает только одно значение
+      // Поэтому для STRING нужно использовать encodeValueWithPair
+      heap[offset + 1] = 0  // placeholder для hash
       break
-    }
-    case TYPE.ARRAY: {
-      // ARRAY: value — это массив, записываем [length, item1, item2, ...]
-      if (Array.isArray(value)) {
-        const arr = value as unknown[]
-        heap[offset] = arr.length
-        for (let i = 0; i < arr.length; i++) {
-          heap[offset + 1 + i] = Number(arr[i])
-        }
-      } else {
-        heap[offset] = 0  // null array
-      }
+    case TYPE.ARRAY:
+      // ARRAY: encodedValue = pointer в heap
+      heap[offset] = encodedValue
+      heap[offset + 1] = 0  // reserved
       break
-    }
     default:
-      heap[offset] = Number(value)
+      heap[offset] = encodedValue
   }
 }
 
