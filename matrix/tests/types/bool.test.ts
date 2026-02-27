@@ -5,7 +5,7 @@ import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import { write, update, resetMatrix } from "../../index"
 import { GPU } from "../../gpu/device"
-import { FieldType } from "../../index.t"
+import { FieldType, type Collapse } from "../../index.t"
 import { resetStringAtlas } from "../../StringAtlas"
 
 describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
@@ -20,56 +20,56 @@ describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
 
   describe("Прямое значение", () => {
     test("должен выполнить переход, когда значение равно true", async () => {
-      const collapses = [[[1, { 0: true }]], [null]]
+      const collapses: Collapse[][] = [[[1, { 0: true }]], [null]]
       await write({
         fields: [{ type: FieldType.BOOL }],
         branes: [{ state: 0, params: [[0, false]], collapses }],
       })
-      const resultStates = await update(0, 0, true)
+      const resultStates = await update([[0, [{ fieldIndex: 0, value: true }]]])
       expect(resultStates[0]?.[1]).toBe(1)
     })
 
     test("должен выполнить переход, когда значение равно false", async () => {
-      const collapses = [[[1, { 0: false }]], [null]]
+      const collapses: Collapse[][] = [[[1, { 0: false }]], [null]]
       await write({
         fields: [{ type: FieldType.BOOL }],
         branes: [{ state: 0, params: [[0, true]], collapses }],
       })
-      const resultStates = await update(0, 0, false)
+      const resultStates = await update([[0, [{ fieldIndex: 0, value: false }]]])
       expect(resultStates[0]?.[1]).toBe(1)
     })
   })
 
   describe("Оператор EQ (равно)", () => {
     test("должен выполнить переход, когда значение равно true", async () => {
-      const collapses = [[[1, { 0: { eq: true } }]], [null]]
+      const collapses: Collapse[][] = [[[1, { 0: { eq: true } }]], [null]]
       await write({
         fields: [{ type: FieldType.BOOL }],
         branes: [{ state: 0, params: [[0, false]], collapses }],
       })
-      const resultStates = await update(0, 0, true)
+      const resultStates = await update([[0, [{ fieldIndex: 0, value: true }]]])
       expect(resultStates[0]?.[1]).toBe(1)
     })
 
     test("должен выполнить переход, когда значение равно false", async () => {
-      const collapses = [[[1, { 0: { eq: false } }]], [null]]
+      const collapses: Collapse[][] = [[[1, { 0: { eq: false } }]], [null]]
       await write({
         fields: [{ type: FieldType.BOOL }],
         branes: [{ state: 0, params: [[0, true]], collapses }],
       })
-      const resultStates = await update(0, 0, false)
+      const resultStates = await update([[0, [{ fieldIndex: 0, value: false }]]])
       expect(resultStates[0]?.[1]).toBe(1)
     })
   })
 
   describe("Оператор NEQ (не равно)", () => {
     test("должен выполнить переход, когда значение не равно true", async () => {
-      const collapses = [[[1, { 0: { neq: true } }]], [null]]
+      const collapses: Collapse[][] = [[[1, { 0: { neq: true } }]], [null]]
       await write({
         fields: [{ type: FieldType.BOOL }],
         branes: [{ state: 0, params: [[0, true]], collapses }],
       })
-      const resultStates = await update(0, 0, false)
+      const resultStates = await update([[0, [{ fieldIndex: 0, value: false }]]])
       expect(resultStates[0]?.[1]).toBe(1)
     })
   })

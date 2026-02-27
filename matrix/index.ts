@@ -444,7 +444,7 @@ export async function write(data: Data): Promise<void> {
 }
 
 /**
- * Обновляет поле браны и возвращает новые состояния.
+ * Обновляет поля бран и возвращает новые состояния.
  *
  * @remarks
  * **Side Effects:**
@@ -455,134 +455,34 @@ export async function write(data: Data): Promise<void> {
  *
  * **Потокобезопасность:**
  * - Функция использует mutex для предотвращения конкурентных вызовов
- * - При одновременных вызовах второй будет ожидать завершения первого
  *
  * **ARRAY поля:**
  * - Данные массивов хранятся во временной зоне heap
  * - **После каждого `update()` зона очищается** (данные массива не сохраняются)
- * - Для сохранения массива нужно явно передать его в следующем `update()`
  *
- * @param braneIndex - Индекс браны
- * @param fieldIndex - Индекс поля
- * @param value - Новое значение
- * @returns Массив состояний: [[braneIndex, state], ...]
- */
-export async function update(
-  braneIndex: number,
-  fieldIndex: number,
-  value: unknown,
-): Promise<[number, number][]> {
-  // Блокировка mutex для предотвращения конкурентных вызовов
-  // Если уже выполняется update(), ждём его завершения
-  if (updateMutex) {
-    await updateMutex
-  }
-
-  // Создаём promise для текущей операции (захват mutex)
-  let resolveMutex: (() => void) | undefined
-  updateMutex = new Promise<void>((resolve) => {
-    resolveMutex = resolve
-  })
-
-  try {
-    if (!backend || !heap || !initialStates) {
-      throw new Error("Matrix not initialized. Call write() first.")
-    }
-
-    if (braneIndex < 0 || braneIndex >= braneCount) {
-      throw new Error(`Brane index out of range: ${braneIndex}`)
-    }
-
-    // Этап 1: Поиск смещения поля
-    const blockPtr = braneBlockPtrs[braneIndex]!
-    const fieldOffset = findFieldOffsetInHeap(heap, blockPtr, fieldIndex)
-
-    if (fieldOffset === null) {
-      throw new Error(`Field ${fieldIndex} not found in brane ${braneIndex}`)
-    }
-
-    // Этап 2: Кодирование значения
-    const field = fields[fieldIndex]
-    if (!field) {
-      throw new Error(`Field ${fieldIndex} not defined`)
-    }
-
-    const encoded = encodeFieldUpdate(value, field)
-
-    // Этап 3: Обновление heap (локально)
-    const fieldType = fieldTypeToBytecodeType(field.type)
-    writeValueToHeap(heap, fieldOffset, fieldType, encoded.value1, encoded.value2)
-
-    // Этап 4: Частичная запись в GPU
-    // Для ARRAY: передаём pointer + данные массива
-    // Для STRING: передаём string_id + hash
-    // Для скаляров: передаём 1 слово
-    if (fieldType === TYPE.ARRAY && Array.isArray(value)) {
-      // Передаём pointer и reserved (2 слова)
-      backend.updateHeapFields([{ offset: fieldOffset, value1: encoded.value1, value2: encoded.value2 }])
-      // Передаём данные массива: [length, item1, item2, ...]
-      const arrayData = heap!.slice(encoded.value1, encoded.value1 + 1 + (value as unknown[]).length)
-      const arrayUpdates = Array.from(arrayData).map((val, idx) => ({
-        offset: encoded.value1 + idx,
-        value1: val,
-      }))
-      backend.updateHeapFields(arrayUpdates)
-    } else if (fieldType === TYPE.STRING) {
-      backend.updateHeapFields([{ offset: fieldOffset, value1: encoded.value1, value2: encoded.value2 }])
-    } else {
-      backend.updateHeapFields([{ offset: fieldOffset, value1: encoded.value1 }])
-    }
-
-    // Этап 5: GPU step + read
-    backend.run()
-    const states = await backend.read()
-
-    // Этап 6: Сброс зоны аллокации ARRAY для следующего шага
-    // Данные массива записываются в резервную зону heap, которая очищается после каждого шага
-    heapAllocOffset = heap.length - arrayReserveSize
-    arrayDataInvalidated = true  // Помечаем, что данные ARRAY невалидны
-
-    // Этап 7: Форматирование результата
-    return Array.from(states).map((state, idx) => [idx, state])
-  } finally {
-    // Освобождение mutex
-    resolveMutex?.()
-  }
-}
-
-/**
- * Обновление нескольких полей браны за один GPU-синк.
- *
- * @remarks
- * **Производительность:**
- * - Один вызов `updateHeapFields()` для всех изменений
- * - Один вызов `run()` для GPU-эволюции
- * - В 100-1000 раз эффективнее нескольких `update()` для массовых обновлений
- *
- * **ARRAY поля:**
- * - Данные массивов хранятся во временной зоне heap
- * - **После каждого `updateMany()` зона очищается** (данные массива не сохраняются)
- *
- * **Потокобезопасность:**
- * - Функция использует mutex для предотвращения конкурентных вызовов
- *
- * @param braneIndex - Индекс браны
- * @param updates - Массив обновлений: `[{ fieldIndex, value }, ...]`
+ * @param updates - Массив обновлений: `[[braneIndex, [{ fieldIndex, value }, ...]], ...]`
  * @returns Массив состояний: `[[braneIndex, state], ...]`
  *
  * @example
  * ```typescript
- * // Обновление 3 полей за один GPU-синк
- * await updateMany(0, [
- *   { fieldIndex: 0, value: 100 },   // hp
- *   { fieldIndex: 1, value: true },  // active
- *   { fieldIndex: 2, value: "hero" }, // name (STRING)
+ * // Обновление одного поля одной браны
+ * await update([[0, [{ fieldIndex: 0, value: 100 }]]])
+ *
+ * // Обновление нескольких полей одной браны
+ * await update([[0, [
+ *   { fieldIndex: 0, value: 100 },
+ *   { fieldIndex: 1, value: true },
+ * ]]])
+ *
+ * // Обновление нескольких бран
+ * await update([
+ *   [0, [{ fieldIndex: 0, value: 100 }]],
+ *   [1, [{ fieldIndex: 0, value: 50 }]],
  * ])
  * ```
  */
-export async function updateMany(
-  braneIndex: number,
-  updates: Array<{ fieldIndex: number; value: unknown }>,
+export async function update(
+  updates: Array<[braneIndex: number, fieldUpdates: Array<{ fieldIndex: number; value: unknown }> ]>,
 ): Promise<[number, number][]> {
   // Блокировка mutex для предотвращения конкурентных вызовов
   if (updateMutex) {
@@ -600,53 +500,58 @@ export async function updateMany(
       throw new Error("Matrix not initialized. Call write() first.")
     }
 
-    if (braneIndex < 0 || braneIndex >= braneCount) {
-      throw new Error(`Brane index out of range: ${braneIndex}`)
-    }
+    // Этап 1: Кодирование всех обновлений для всех бран
+    const allHeapUpdates: Array<{ offset: number; value1: number; value2?: number }> = []
 
-    const blockPtr = braneBlockPtrs[braneIndex]!
-
-    // Этап 1: Кодирование всех обновлений
-    const heapUpdates: Array<{ offset: number; value1: number; value2?: number }> = []
-
-    for (const { fieldIndex, value } of updates) {
-      // Поиск смещения поля
-      const fieldOffset = findFieldOffsetInHeap(heap, blockPtr, fieldIndex)
-      if (fieldOffset === null) {
-        throw new Error(`Field ${fieldIndex} not found in brane ${braneIndex}`)
+    for (const [braneIndex, fieldUpdates] of updates) {
+      if (braneIndex < 0 || braneIndex >= braneCount) {
+        throw new Error(`Brane index out of range: ${braneIndex}`)
       }
 
-      // Получение определения поля
-      const field = fields[fieldIndex]
-      if (!field) {
-        throw new Error(`Field ${fieldIndex} not defined`)
-      }
+      const blockPtr = braneBlockPtrs[braneIndex]!
 
-      // Кодирование значения
-      const encoded = encodeFieldUpdate(value, field)
-      const fieldType = fieldTypeToBytecodeType(field.type)
-
-      // Добавление в список обновлений
-      // Для ARRAY: передаём pointer + данные массива
-      // Для STRING: передаём string_id + hash
-      // Для скаляров: передаём 1 слово
-      if (fieldType === TYPE.ARRAY && Array.isArray(value)) {
-        // Pointer и reserved
-        heapUpdates.push({ offset: fieldOffset, value1: encoded.value1, value2: encoded.value2 })
-        // Данные массива: [length, item1, item2, ...]
-        const arrayData = heap!.slice(encoded.value1, encoded.value1 + 1 + (value as unknown[]).length)
-        for (let i = 0; i < arrayData.length; i++) {
-          heapUpdates.push({ offset: encoded.value1 + i, value1: arrayData[i]! })
+      for (const { fieldIndex, value } of fieldUpdates) {
+        // Поиск смещения поля
+        const fieldOffset = findFieldOffsetInHeap(heap, blockPtr, fieldIndex)
+        if (fieldOffset === null) {
+          throw new Error(`Field ${fieldIndex} not found in brane ${braneIndex}`)
         }
-      } else if (fieldType === TYPE.STRING) {
-        heapUpdates.push({ offset: fieldOffset, value1: encoded.value1, value2: encoded.value2 })
-      } else {
-        heapUpdates.push({ offset: fieldOffset, value1: encoded.value1 })
+
+        // Получение определения поля
+        const field = fields[fieldIndex]
+        if (!field) {
+          throw new Error(`Field ${fieldIndex} not defined`)
+        }
+
+        // Кодирование значения
+        const encoded = encodeFieldUpdate(value, field)
+        const fieldType = fieldTypeToBytecodeType(field.type)
+
+        // Обновление heap (локально)
+        writeValueToHeap(heap, fieldOffset, fieldType, encoded.value1, encoded.value2)
+
+        // Добавление в список обновлений GPU
+        // Для ARRAY: передаём pointer + данные массива
+        // Для STRING: передаём string_id + hash
+        // Для скаляров: передаём 1 слово
+        if (fieldType === TYPE.ARRAY && Array.isArray(value)) {
+          // Pointer и reserved
+          allHeapUpdates.push({ offset: fieldOffset, value1: encoded.value1, value2: encoded.value2 })
+          // Данные массива: [length, item1, item2, ...]
+          const arrayData = heap!.slice(encoded.value1, encoded.value1 + 1 + (value as unknown[]).length)
+          for (let i = 0; i < arrayData.length; i++) {
+            allHeapUpdates.push({ offset: encoded.value1 + i, value1: arrayData[i]! })
+          }
+        } else if (fieldType === TYPE.STRING) {
+          allHeapUpdates.push({ offset: fieldOffset, value1: encoded.value1, value2: encoded.value2 })
+        } else {
+          allHeapUpdates.push({ offset: fieldOffset, value1: encoded.value1 })
+        }
       }
     }
 
-    // Этап 2: Частичная запись в GPU (только изменённые поля)
-    backend.updateHeapFields(heapUpdates)
+    // Этап 2: Частичная запись в GPU (все изменения за раз)
+    backend.updateHeapFields(allHeapUpdates)
 
     // Этап 3: GPU step + read
     backend.run()

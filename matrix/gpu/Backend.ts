@@ -167,27 +167,12 @@ export class GPUBackend {
   }
 
   /**
-   * Обновляет heap-буфер на GPU.
-   *
-   * @param heap - Новые данные кучи (должны соответствовать размеру буфера).
-   *
-   * @deprecated Используйте `updateHeapFields()` для частичной записи.
-   * Этот метод передаёт ВЕСЬ буфер (10KB-1MB), что неэффективно.
-   */
-  updateHeap(heap: Uint32Array) {
-    if (!this.buffers.heap) {
-      throw new Error("Buffers are not initialized")
-    }
-    this.device.queue.writeBuffer(this.buffers.heap, 0, heap as Uint32Array<ArrayBuffer>)
-  }
-
-  /**
    * Частично обновляет поля в heap-буфере на GPU.
    *
    * @remarks
    * **Производительность:**
    * - Передаёт только изменённые слова (4-8 байт на поле)
-   * - В 100-1000 раз эффективнее `updateHeap()` для 1 поля
+   * - В 100-1000 раз эффективнее полной записи буфера
    *
    * @param updates - Массив обновлений полей.
    *

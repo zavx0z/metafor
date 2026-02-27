@@ -33,7 +33,7 @@ describe("matrix — Логические стадии (bun-webgpu)", () => {
           { state: 0, params: [[0, 0]], collapses },   // 0 not in [1,3,5] → state 0
         ],
       })
-      const resultStates = await update(0, 0, 1)
+      const resultStates = await update([[0, [{ fieldIndex: 0, value: 1 }]]])
       expect(resultStates[0]?.[1]).toBe(1)
       expect(resultStates[1]?.[1]).toBe(0)
       expect(resultStates[2]?.[1]).toBe(0)
@@ -52,7 +52,7 @@ describe("matrix — Логические стадии (bun-webgpu)", () => {
           { state: 0, params: [[0, 40.0]], collapses },  // 40.0 not in [36.6,37.0] → state 0
         ],
       })
-      const resultStates = await update(0, 0, 36.6)
+      const resultStates = await update([[0, [{ fieldIndex: 0, value: 36.6 }]]])
       expect(resultStates[0]?.[1]).toBe(1)
       expect(resultStates[1]?.[1]).toBe(1)
       expect(resultStates[2]?.[1]).toBe(0)
@@ -73,7 +73,7 @@ describe("matrix — Логические стадии (bun-webgpu)", () => {
           { state: 0, params: [[0, 0]], collapses },
         ],
       })
-      const resultStates = await update(0, 0, 1)
+      const resultStates = await update([[0, [{ fieldIndex: 0, value: 1 }]]])
       expect(resultStates[0]?.[1]).toBe(1)
       expect(resultStates[1]?.[1]).toBe(0)
     })
@@ -94,7 +94,7 @@ describe("matrix — Логические стадии (bun-webgpu)", () => {
           { state: 0, params: [[0, 50], [1, 7]], collapses },
         ],
       })
-      const resultStates = await update(0, 0, 150)
+      const resultStates = await update([[0, [{ fieldIndex: 0, value: 150 }]]])
       expect(resultStates[0]?.[1]).toBe(1)
       expect(resultStates[1]?.[1]).toBe(0)
       expect(resultStates[2]?.[1]).toBe(0)

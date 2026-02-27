@@ -48,7 +48,7 @@ describe("write / update — базовые переходы", () => {
       ],
     })
 
-    const states = await update(0, 0, 100)
+    const states = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
     // Брана 0: hp=100 > 50 → состояние 1
     // Брана 1: hp=50 не > 50 → состояние 0
     expect(states[0]).toEqual([0, 1])
@@ -71,10 +71,10 @@ describe("write / update — базовые переходы", () => {
       ],
     })
 
-    const states1 = await update(0, 0, 100)
+    const states1 = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
     expect(states1[0]?.[1]).toBe(1) // PATROL
 
-    const states2 = await update(0, 0, 0)
+    const states2 = await update([[0, [{ fieldIndex: 0, value: 0 }]]])
     expect(states2[0]?.[1]).toBe(2) // DEAD
   })
 
@@ -101,7 +101,7 @@ describe("write / update — базовые переходы", () => {
       ],
     })
 
-    const states = await update(0, 0, 50)
+    const states = await update([[0, [{ fieldIndex: 0, value: 50 }]]])
     expect(states[0]?.[1]).toBe(1) // 50 >= 50 → переход
     expect(states[1]?.[1]).toBe(0) // 49 не >= 50 → нет перехода
   })
@@ -139,7 +139,7 @@ describe("write / update — логические условия", () => {
       ],
     })
 
-    const states = await update(0, 0, true)
+    const states = await update([[0, [{ fieldIndex: 0, value: true }]]])
     expect(states[0]?.[1]).toBe(1) // true → переход
     expect(states[1]?.[1]).toBe(0) // false → нет перехода
   })
@@ -159,7 +159,7 @@ describe("write / update — логические условия", () => {
       ],
     })
 
-    const states = await update(0, 0, false)
+    const states = await update([[0, [{ fieldIndex: 0, value: false }]]])
     expect(states[0]?.[1]).toBe(1)
   })
 })
@@ -218,7 +218,7 @@ describe("write / update — множественные условия", () => {
       ],
     })
 
-    const states = await update(0, 0, 100)
+    const states = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
     expect(states[0]?.[1]).toBe(1) // hp=100>50 И mana=50>20 → переход
     expect(states[1]?.[1]).toBe(0) // hp=100>50 НО mana=10 не >20 → нет перехода
   })
@@ -260,7 +260,7 @@ describe("write / update — entangled группы", () => {
     })
 
     // Просто проверяем что write() проходит без ошибок
-    const states = await update(0, 0, 100)
+    const states = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
     expect(states).toHaveLength(2)
   })
 
@@ -300,7 +300,7 @@ describe("write / update — entangled группы", () => {
     })
 
     // Обновляем брану 1: mana=50 → mana=20 (< 30, теперь должен перейти)
-    const states = await update(1, 1, 20)
+    const states = await update([[1, [{ fieldIndex: 1, value: 20 }]]])
     expect(states[0]?.[1]).toBe(1) // брана 0: mana=10 < 30 → переход
     expect(states[1]?.[1]).toBe(1) // брана 1: mana=20 < 30 → переход
   })
@@ -338,11 +338,11 @@ describe("write / update — многошаговая эволюция", () => {
     })
 
     // Шаг 1: IDLE → PATROL (hp=100>50)
-    const states1 = await update(0, 0, 100)
+    const states1 = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
     expect(states1[0]?.[1]).toBe(1)
 
     // Шаг 2: PATROL → COMBAT (mana=5<10)
-    const states2 = await update(0, 1, 5)
+    const states2 = await update([[0, [{ fieldIndex: 1, value: 5 }]]])
     expect(states2[0]?.[1]).toBe(2)
   })
 })
@@ -357,7 +357,7 @@ describe("write / update — ошибки", () => {
   })
 
   test("должен бросить ошибку при update() до write()", async () => {
-    await expect(update(0, 0, 100)).rejects.toThrow("Matrix not initialized")
+    await expect(update([[0, [{ fieldIndex: 0, value: 100 }]]])).rejects.toThrow("Matrix not initialized")
   })
 
   test("должен бросить ошибку при неверном индексе браны", async () => {
@@ -366,6 +366,6 @@ describe("write / update — ошибки", () => {
       branes: [{ params: [[0, 100]], state: 0, collapses: [[null as any]] }],
     })
 
-    await expect(update(999, 0, 100)).rejects.toThrow("Brane index out of range")
+    await expect(update([[999, [{ fieldIndex: 0, value: 100 }]]])).rejects.toThrow("Brane index out of range")
   })
 })

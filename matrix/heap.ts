@@ -11,7 +11,7 @@
  *
  * @packageDocumentation
  */
-import type { PackedMeta, FieldMeta, HeapBlock, HeapLayout, type HeapInput } from "./heap.t"
+import type { PackedMeta, FieldMeta, HeapBlock, HeapLayout, HeapInput } from "./heap.t"
 import { TYPE } from "./opcodes"
 import { getStringAtlas } from "./StringAtlas"
 
