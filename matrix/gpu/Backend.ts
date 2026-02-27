@@ -74,7 +74,6 @@ export class GPUBackend {
     this.buffers.uniforms = this.createBuffer(uniforms, GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST)
 
     // StringAtlas buffers for string interning
-    // Минимальный размер буфера - 1 элемент (WebGPU не позволяет пустые буферы)
     const registryData = atlasExport.registry.length > 0 ? atlasExport.registry : new Uint32Array(1)
     const heapData = atlasExport.heap.length > 0 ? atlasExport.heap : new Uint32Array(1)
     this.buffers.stringRegistry = this.createStorageBuffer(registryData)
@@ -89,7 +88,7 @@ export class GPUBackend {
     })
 
     if (enableDebug) {
-      console.log("[GPUBackend] Creating BindGroup with", 9, "entries")
+      console.log("[GPUBackend] Creating BindGroup with 9 entries")
     }
     this.bindGroup = this.device.createBindGroup({
       layout: this.pipeline.getBindGroupLayout(0),

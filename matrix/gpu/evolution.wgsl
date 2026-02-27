@@ -1,6 +1,6 @@
 /**
- * Compute-шейдер эволюции полей.
- * 
+ * Compute-шейдер эволюции полей (v2 — с поддержкой STRING/ARRAY).
+ *
  * Вычисляет переходы между состояниями суперпозиции на основе правил,
  * закодированных в байт-коде. Каждый поток GPU обрабатывает одно поле.
  * 
@@ -88,67 +88,42 @@ fn get_string_pointer(string_id: u32) -> u32 {
 
 /**
  * Двухступенчатое сравнение строк.
- * 
- * 1. Быстрое сравнение хэшей (большинство случаев)
- * 2. При совпадении хэшей - посимвольное сравнение для гарантии корректности
- * 
- * @param id_a - ID первой строки
- * @param id_b - ID второй строки
- * @returns true если строки равны
  */
 fn string_equals(id_a: u32, id_b: u32) -> bool {
-  // Быстрый путь: одинаковые ID = одинаковые строки
   if (id_a == id_b) {
     return true;
   }
-  
-  // Быстрое сравнение хэшей
   let hash_a = get_string_hash(id_a);
   let hash_b = get_string_hash(id_b);
-  
   if (hash_a != hash_b) {
     return false;
   }
-  
-  // Хэши совпали - нужна полная проверка
-  // Это редкий случай (коллизия хэшей), но критичный для корректности
   let len_a = get_string_length(id_a);
   let len_b = get_string_length(id_b);
-  
   if (len_a != len_b) {
     return false;
   }
-  
-  // Посимвольное сравнение
   let ptr_a = get_string_pointer(id_a);
   let ptr_b = get_string_pointer(id_b);
-  
   for (var i = 0u; i < len_a; i = i + 1u) {
     if (string_heap[ptr_a + i] != string_heap[ptr_b + i]) {
       return false;
     }
   }
-  
   return true;
 }
 
 /**
  * Проверить, входит ли строка в список строк.
- * 
- * @param string_id - ID строки для проверки
- * @param abs_list_ptr - Абсолютный указатель на список в bytecode: [count, id1, id2, ...]
- * @returns true если строка найдена в списке
  */
 fn string_in_list(string_id: u32, abs_list_ptr: u32) -> bool {
   let count = bytecode[abs_list_ptr];
-  
   for (var i = 0u; i < count; i = i + 1u) {
     let list_string_id = bytecode[abs_list_ptr + 1u + i];
     if (string_equals(string_id, list_string_id)) {
       return true;
     }
   }
-  
   return false;
 }
 
@@ -330,27 +305,27 @@ fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, cond_val
 
   // Строковые операции (TYPE.STRING = 3)
   if (field_type == 3u) {
-    // EQ / NEQ для строк
+    // val_a_raw = string_id из heap
+    // val_b_raw = string_id из bytecode (для EQ/NEQ) или ptr на список (для IN/NOT_IN)
+    
+    // EQ / NEQ для строк — используем полное сравнение строк
     if (op == 0u) {
-      // EQ
       return string_equals(val_a_raw, val_b_raw);
     }
     if (op == 1u) {
-      // NEQ
       return !string_equals(val_a_raw, val_b_raw);
     }
-    
+
     // IN / NOT_IN для строк
     if (op == 6u || op == 7u) {
       let abs_list_ptr = cond_values_base + val_b_raw;
       let found = string_in_list(val_a_raw, abs_list_ptr);
-      // IN = 6, NOT_IN = 7
       if (op == 6u) {
         return found;
       }
       return !found;
     }
-    
+
     // Строки не поддерживают >, <, >=, <=
     return false;
   }
