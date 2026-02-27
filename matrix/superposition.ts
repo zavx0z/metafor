@@ -8,11 +8,27 @@
  */
 
 import { parseCondition } from "./condition"
+import { OP } from "./opcodes"
 import { encodeValue, fieldTypeToBytecodeType } from "./params"
 import type { Field } from "./index.t"
 import type { Collapse } from "./index.t"
 import type { FieldBytecode, CompiledRules } from "./superposition.t"
 import type { EncodingContext } from "./params.t"
+
+/**
+ * Результат компиляции условий с кучей для списков.
+ */
+export interface CompiledConditionsResult {
+  /** Инструкции условий. */
+  instructions: Array<{
+    fieldType: number
+    fieldIndex: number
+    op: number
+    valEncoded: number  // Для IN/NOT_IN — указатель на кучу
+  }>
+  /** Куча для списков (IN/NOT_IN): [count, item1, item2, ...]. */
+  heap: number[]
+}
 
 /**
  * Компилирует одну суперпозицию в байт-код.
@@ -22,6 +38,7 @@ import type { EncodingContext } from "./params.t"
  * Индексы:  [0, 1, ...]              [N, N+1, ...]                [...]
  *           [state_ptr_0, ...]       [tr_count, target, cond_ptr] [cond_count, type, ...]
  *           ↑ state table            ↑ state blocks               ↑ condition blocks
+ *                                      + heap для списков IN/NOT_IN
  * ```
  *
  * @param collapses - Граф переходов: collapses[fromState][transitionIndex] = [targetState, conditions]
@@ -33,67 +50,90 @@ export function compileSuperposition(
   fields: Field[]
 ): FieldBytecode {
   const numStates = collapses.length
-  
-  // === PASS 1: Собираем condition blocks и считаем размеры ===
-  const condBlocks: number[][] = []
-  const stateTransitionsCount: number[] = []  // количество transition для каждого состояния
-  
+
+  // === PASS 1: Собираем condition blocks с кучами ===
+  const condBlocksData: { instructions: number[], heap: number[] }[] = []
+  const stateTransitionsCount: number[] = []
+
   for (const stateTransitions of collapses) {
     const trCount = stateTransitions.filter(t => t !== null).length
     stateTransitionsCount.push(trCount)
-    
+
     for (const collapse of stateTransitions) {
       if (collapse === null) continue
       const [, conditions] = collapse
-      
-      const condChecks = compileConditions(conditions, fields)
-      const condBlock: number[] = [condChecks.length]
-      for (const check of condChecks) {
-        condBlock.push(check.fieldType)
-        condBlock.push(check.fieldIndex)
-        condBlock.push(check.op)
-        condBlock.push(check.valEncoded)
+
+      const { instructions, heap } = compileConditions(conditions, fields)
+
+      // Собираем instructions в плоский массив
+      const instrFlat: number[] = [instructions.length]  // cond_count
+      for (const instr of instructions) {
+        instrFlat.push(instr.fieldType)
+        instrFlat.push(instr.fieldIndex)
+        instrFlat.push(instr.op)
+        instrFlat.push(instr.valEncoded)
       }
-      condBlocks.push(condBlock)
+
+      condBlocksData.push({ instructions: instrFlat, heap })
     }
   }
-  
+
   // Вычисляем смещения секций
   const stateTableLength = numStates
-  const stateBlocksLength = stateTransitionsCount.reduce((sum, trCount) => sum + 1 + trCount * 2, 0)
+  // Для каждого состояния: 1 (tr_count) + trCount * 2 (target + cond_ptr)
+  // Для null transition тоже добавляем 2 placeholder
+  const stateBlocksLength = collapses.reduce((sum, transitions) => {
+    const trCount = transitions.filter(t => t !== null).length
+    const nullCount = transitions.filter(t => t === null).length
+    return sum + 1 + trCount * 2 + nullCount * 2
+  }, 0)
   const condBlocksStart = stateTableLength + stateBlocksLength
-  
+
+  // Считаем полные размеры condition blocks (instructions + heap)
+  const condBlockSizes = condBlocksData.map(b => b.instructions.length + b.heap.length)
+
   // === PASS 2: Строим state table и state blocks с правильными указателями ===
   const statePtrs: number[] = []
   const stateBlocks: number[] = []
-  
+
   let condBlockIdx = 0
   let condBlockOffset = condBlocksStart
-  
+
   for (let s = 0; s < numStates; s++) {
     // state_ptr — абсолютное смещение в bytecode (относительно начала)
+    // stateBlocksStart = stateTableLength + текущая длина stateBlocks
     const stateBlockStart = stateTableLength + stateBlocks.length
     statePtrs.push(stateBlockStart)
-    
+
     const transitions = collapses[s]!
     const trCount = stateTransitionsCount[s]!
     stateBlocks.push(trCount)
-    
+
     for (const collapse of transitions) {
-      if (collapse === null) continue
-      
+      if (collapse === null) {
+        stateBlocks.push(0)  // target placeholder
+        stateBlocks.push(0)  // cond_ptr placeholder
+        continue
+      }
+
       const [targetState] = collapse
       stateBlocks.push(targetState)
       stateBlocks.push(condBlockOffset)
-      
+
       // Переходим к следующему condition block
-      condBlockOffset += condBlocks[condBlockIdx]!.length
+      condBlockOffset += condBlockSizes[condBlockIdx]!
       condBlockIdx++
     }
   }
 
-  // === PASS 3: Собираем финальный массив ===
-  const finalBytecode = [...statePtrs, ...stateBlocks, ...condBlocks.flat()]
+  // === PASS 3: Собираем финальный bytecode ===
+  const finalBytecode = [...statePtrs, ...stateBlocks]
+
+  // Добавляем condition blocks с кучами
+  for (const block of condBlocksData) {
+    finalBytecode.push(...block.instructions)
+    finalBytecode.push(...block.heap)
+  }
 
   return {
     bytecode: new Uint32Array(finalBytecode),
@@ -104,24 +144,30 @@ export function compileSuperposition(
 /**
  * Компилирует условия перехода в массив проверок.
  *
+ * Для операторов IN/NOT_IN создаёт кучу со списком значений.
+ *
  * @param conditions - Record<fieldIndex, condition>
  * @param fields - Определение полей для кодирования
- * @returns Массив готовых инструкций для байт-кода
+ * @returns Инструкции и куча для списков
  */
 export function compileConditions(
   conditions: Record<number, any>,
   fields: Field[]
-): Array<{
-  fieldType: number
-  fieldIndex: number
-  op: number
-  valEncoded: number
-}> {
-  const result: Array<{
+): CompiledConditionsResult {
+  const instructions: Array<{
     fieldType: number
     fieldIndex: number
     op: number
     valEncoded: number
+  }> = []
+  const heap: number[] = []
+
+  // Сначала собираем все проверки чтобы посчитать totalInstructionsSize
+  const allChecks: Array<{
+    fieldIndex: number
+    fieldType: number
+    op: number
+    val: any
   }> = []
 
   for (const [fieldIndexStr, cond] of Object.entries(conditions)) {
@@ -133,22 +179,58 @@ export function compileConditions(
     const fieldType = fieldTypeToBytecodeType(field.type)
 
     for (const check of checks) {
-      const ctx: EncodingContext = { type: fieldType }
-      if (field.enum !== undefined) {
-        ctx.enum = field.enum
-      }
-      const valEncoded = encodeValue(check.val, ctx)
-
-      result.push({
-        fieldType,
+      allChecks.push({
         fieldIndex,
+        fieldType,
+        op: check.op,
+        val: check.val,
+      })
+    }
+  }
+
+  // Считаем размер инструкций (4 слова на каждую)
+  const totalInstructionsSize = allChecks.length * 4
+
+  // Куча начинается после всех инструкций
+  let heapOffset = totalInstructionsSize
+
+  // Генерируем инструкции с правильными указателями
+  for (const check of allChecks) {
+    const ctx: EncodingContext = { type: check.fieldType }
+    const field = fields[check.fieldIndex]
+    if (field?.enum !== undefined) {
+      ctx.enum = field.enum
+    }
+
+    // Для IN/NOT_IN — создаём кучу со списком
+    if (Array.isArray(check.val) && (check.op === OP.IN || check.op === OP.NOT_IN)) {
+      // ptr — смещение от базы инструкций до кучи
+      const ptr = heapOffset
+      heap.push(check.val.length)  // count
+      for (const v of check.val) {
+        const encoded = encodeValue(v, ctx)
+        heap.push(encoded)
+      }
+      // Обновляем heapOffset для следующей кучи
+      heapOffset += 1 + check.val.length
+      instructions.push({
+        fieldType: check.fieldType,
+        fieldIndex: check.fieldIndex,
+        op: check.op,
+        valEncoded: ptr,
+      })
+    } else {
+      const valEncoded = encodeValue(check.val, ctx)
+      instructions.push({
+        fieldType: check.fieldType,
+        fieldIndex: check.fieldIndex,
         op: check.op,
         valEncoded,
       })
     }
   }
 
-  return result
+  return { instructions, heap }
 }
 
 /**
