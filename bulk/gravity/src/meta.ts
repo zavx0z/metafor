@@ -1,5 +1,3 @@
-import "@metafor/meta"
-
 export default MetaFor("gravity", {
   desc: "Gravity",
 })

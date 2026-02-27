@@ -3,6 +3,7 @@ import { watch } from "fs"
 import { dirname, basename, join, isAbsolute } from "path"
 import { pathToFileURL } from "url"
 import { convertMetaToMonadJson } from "./monadJson"
+import "@metafor/meta"
 
 
 // Обработка аргументов командной строки
