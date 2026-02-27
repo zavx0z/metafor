@@ -22,7 +22,7 @@ export type FieldTypeValue = (typeof FieldType)[keyof typeof FieldType]
 export interface Field {
   type: FieldTypeValue
   elementType?: "number" | "string" | "boolean"
-  enumValues?: any[]
+  enum?: any[]
 }
 
 /**
