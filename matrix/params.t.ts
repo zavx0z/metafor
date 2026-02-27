@@ -3,9 +3,6 @@
  * @packageDocumentation
  */
 
-import { TYPE } from "./opcodes"
-import { FieldType, type FieldTypeValue } from "./index.t"
-
 /**
  * Контекст кодирования для поля.
  * Используется при кодировании значений в байт-код.

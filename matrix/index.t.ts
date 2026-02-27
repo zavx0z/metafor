@@ -27,11 +27,11 @@ export interface Field {
 
 /**
  * Collapse — переход между состояниями.
- * Формат: [targetState, conditions]
+ * Формат: [targetState, conditions] или null для терминального состояния.
  * - targetState: индекс целевого состояния
  * - conditions: Record<fieldIndex, condition>
  */
-export type Collapse = [number, Record<number, any>]
+export type Collapse = [number, Record<number, any>] | null
 
 /**
  * Brane — возмущение квантового поля.
