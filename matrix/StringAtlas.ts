@@ -239,6 +239,12 @@ export class StringAtlas {
  *
  * **Не храните string_id между вызовами `write()`!**
  *
+ * ## Потокобезопасность
+ *
+ * - `getStringAtlas()` **не является потокобезопасной** функцией
+ * - При параллельных вызовах `write()`/`update()` возможна гонка за состояние атласа
+ * - **Гарантия:** `write()` и `update()` используют mutex, поэтому вызываются последовательно
+ *
  * @example
  * ```ts
  * // Правильно:
@@ -249,6 +255,11 @@ export class StringAtlas {
  * const id = atlas.intern("hello")  // id = 0
  * await write(...)  // Сброс! id больше не валиден
  * const states = await update(0, 0, id)  // ❌ Ошибка: id устарел
+ *
+ * // Опасно: параллельные вызовы
+ * Promise.all([update(0, 0, "a"), update(1, 0, "b")])  // ❌ Гонка за атлас
+ * await update(0, 0, "a")  // ✅ Последовательно
+ * await update(1, 0, "b")
  * ```
  */
 let globalAtlas: StringAtlas | null = null

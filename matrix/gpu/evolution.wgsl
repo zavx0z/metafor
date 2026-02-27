@@ -285,10 +285,10 @@ fn get_field_value_recursive(brane_index: u32, target_field_id: u32) -> f32 {
 
       if (field_type == 0u) {
         // F32
-        return bitcast<f32>(heap[entangled_result.w]);
+        return bitcast<f32>(heap_safe(entangled_result.w));
       }
 
-      return f32(heap[entangled_result.w]);
+      return f32(heap_safe(entangled_result.w));
     }
 
     i = i + 1u;

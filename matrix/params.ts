@@ -30,8 +30,18 @@ export interface EncodedValueResult {
 /**
  * Кодирует значение в пару 32-битных целых чисел для GPU.
  *
- * **Внимание:** Для TYPE.STRING вызывает `getStringAtlas().intern()` — side effect.
- * Использовать **только внутри `prepareData()`** или `encodeFieldUpdate()`.
+ * ## Side Effects
+ *
+ * **Для TYPE.STRING:** Вызывает `getStringAtlas().intern()` — изменяет глобальное состояние атласа.
+ * **Для TYPE.ARRAY:** Может изменять heap при аллокации (в `encodeFieldUpdate()`).
+ *
+ * **Нарушение fp.md п.1:** Эта функция **не является чистой** из-за интернирования строк.
+ *
+ * ## Где использовать
+ *
+ * - ✅ Внутри `prepareData()` — для кодирования начальных значений
+ * - ✅ Внутри `encodeFieldUpdate()` — для кодирования обновлений
+ * - ❌ В чистых функциях — может вызвать неожиданные side effects
  *
  * @param value - Значение для кодирования.
  * @param context - Контекст кодирования (тип, enumValues).
@@ -49,7 +59,7 @@ export interface EncodedValueResult {
  * // Enum → индекс
  * encodeValue("MAGE", { type: TYPE.UINT, enum: ["WARRIOR", "MAGE", "ROGUE"] }) → { value1: 1, value2: 0 }
  *
- * // String → string_id + hash (интернирует строку)
+ * // String → string_id + hash (интернирует строку — side effect!)
  * encodeValue("hello", { type: TYPE.STRING }) → { value1: 42, value2: hash }
  *
  * // Array → pointer + reserved
