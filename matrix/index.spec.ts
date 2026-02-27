@@ -20,7 +20,7 @@ beforeAll(async () => (GPU._device = await setupDevice()))
 
 test("write — инициализирует 1 брану с 1 полем", async () => {
   await write({
-    fields: [[0, { type: FieldType.F32 }]],
+    fields: [{ type: FieldType.F32 }],
     branes: [
       {
         params: [[0, 100]],
@@ -39,7 +39,7 @@ test("write — инициализирует 1 брану с 1 полем", asyn
 
 test("update — возвращает [[braneIndex, state], ...]", async () => {
   await write({
-    fields: [[0, { type: FieldType.F32 }]],
+    fields: [{ type: FieldType.F32 }],
     branes: [
       {
         params: [[0, 100]],

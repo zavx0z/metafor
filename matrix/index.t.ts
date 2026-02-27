@@ -49,8 +49,8 @@ export interface Brane {
  * Data — конфигурация для write().
  */
 export interface Data {
-  /** Поля: [fieldIndex, Field][] */
-  fields: [number, Field][]
+  /** Поля: индекс = позиция в массиве */
+  fields: Field[]
   /** Браны. */
   branes: Brane[]
 }
