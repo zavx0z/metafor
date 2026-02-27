@@ -11,7 +11,7 @@
  * import { write, update } from "@metafor/matrix"
  *
  * await write({
- *   fields: [[0, { type: FieldType.F32 }]],
+ *   fields: [{ type: FieldType.F32 }],
  *   branes: [{ params: [[0, 100]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null]] }]
  * })
  *
@@ -22,7 +22,7 @@
 import { GPUBackend } from "./gpu/Backend"
 import { GPU } from "./gpu/device"
 import { getStringAtlas, resetStringAtlas } from "./StringAtlas"
-import type { Data, Brane } from "./index.t"
+import type { Data, Brane, Field } from "./index.t"
 
 // ============================================================================
 // ГЛОБАЛЬНОЕ СОСТОЯНИЕ МОДУЛЯ
@@ -30,7 +30,7 @@ import type { Data, Brane } from "./index.t"
 
 let backend: GPUBackend | null = null
 let heap: Uint32Array | null = null
-let fields: Array<{ type: number; elementType?: string; enumValues?: any[] }> = []
+let fields: Field[] = []
 let braneBlockPtrs: number[] = []
 let bytecodeOffsets: number[] = []
 let braneCount: number = 0
