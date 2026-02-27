@@ -275,11 +275,28 @@ function writeValue(
     case TYPE.BOOL:
       heap[offset] = Number(value)
       break
-    case TYPE.STRING:
-      // StringId уже закодирован в params.ts
-      heap[offset] = Number(value)
-      heap[offset + 1] = 0 // hash placeholder (заполняется в StringAtlas)
+    case TYPE.STRING: {
+      // STRING: value — это string_id из StringAtlas
+      const stringId = typeof value === 'string' ? getStringAtlas().intern(value) : Number(value)
+      heap[offset] = stringId
+      const atlas = getStringAtlas()
+      const meta = atlas.getMeta(stringId)
+      heap[offset + 1] = meta ? meta.hash : 0
       break
+    }
+    case TYPE.ARRAY: {
+      // ARRAY: value — это массив, записываем [length, item1, item2, ...]
+      if (Array.isArray(value)) {
+        const arr = value as unknown[]
+        heap[offset] = arr.length
+        for (let i = 0; i < arr.length; i++) {
+          heap[offset + 1 + i] = Number(arr[i])
+        }
+      } else {
+        heap[offset] = 0  // null array
+      }
+      break
+    }
     default:
       heap[offset] = Number(value)
   }

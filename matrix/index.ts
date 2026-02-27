@@ -39,6 +39,7 @@ let braneBlockPtrs: number[] = []
 let bytecodeOffsets: Uint32Array | null = null
 let braneCount: number = 0
 let initialStates: Uint32Array | null = null
+let heapAllocOffset: number = 0  // Для динамических аллокаций (ARRAY)
 
 /**
  * Сбрасывает состояние модуля (для тестов).
@@ -52,6 +53,7 @@ export function resetMatrix(): void {
   bytecodeOffsets = null
   braneCount = 0
   initialStates = null
+  heapAllocOffset = 0
 }
 
 // ============================================================================
@@ -187,7 +189,33 @@ export async function update(
   if (field.enum !== undefined) {
     context.enum = field.enum
   }
-  const encodedValue = encodeValue(value, context)
+
+  let encodedValue: number
+  let arrayData: Uint32Array | null = null
+
+  // Для ARRAY — аллоцируем место в heap и кодируем элементы
+  if (fieldType === TYPE.ARRAY && Array.isArray(value)) {
+    const arr = value as unknown[]
+    // Аллоцируем: [length, item1, item2, ...]
+    const arraySize = 1 + arr.length
+    if (heapAllocOffset + arraySize > heap.length) {
+      throw new Error(`Heap overflow: need ${heapAllocOffset + arraySize}, have ${heap.length}`)
+    }
+    // Записываем длину
+    heap[heapAllocOffset] = arr.length
+    // Кодируем и записываем элементы
+    const elementType = field.elementType === 'string' ? TYPE.STRING :
+                       field.elementType === 'number' ? TYPE.FLOAT : TYPE.UINT
+    for (let i = 0; i < arr.length; i++) {
+      const itemCtx: EncodingContext = { type: elementType }
+      const encodedItem = encodeValue(arr[i], itemCtx)
+      heap[heapAllocOffset + 1 + i] = encodedItem
+    }
+    encodedValue = heapAllocOffset  // pointer to array data
+    heapAllocOffset += arraySize
+  } else {
+    encodedValue = encodeValue(value, context)
+  }
 
   // 3. Обновляем heap
   writeValueToHeap(heap, fieldOffset, fieldType, encodedValue)
@@ -265,12 +293,29 @@ function writeValueToHeap(
       break
     case TYPE.UINT:
     case TYPE.BOOL:
-    case TYPE.STRING:
       heapData[offset] = encodedValue
-      if (fieldType === TYPE.STRING) {
-        heapData[offset + 1] = 0 // hash placeholder
+      break
+    case TYPE.STRING: {
+      // STRING: encodedValue = string_id из StringAtlas
+      // Формат в heap: [string_id, hash_placeholder]
+      heapData[offset] = encodedValue
+      // Hash вычисляется в StringAtlas при intern()
+      const atlas = getStringAtlas()
+      const meta = atlas.getMeta(encodedValue)
+      if (meta) {
+        heapData[offset + 1] = meta.hash
+      } else {
+        heapData[offset + 1] = 0
       }
       break
+    }
+    case TYPE.ARRAY: {
+      // ARRAY: encodedValue = pointer в heap
+      // Формат в heap: [length, item1, item2, ...]
+      // pointer уже указывает на данные в heap
+      heapData[offset] = encodedValue
+      break
+    }
     default:
       heapData[offset] = encodedValue
   }
