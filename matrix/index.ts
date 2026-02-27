@@ -191,10 +191,18 @@ export async function update(
   }
 
   let encodedValue: number
-  let arrayData: Uint32Array | null = null
+  let encodedValue2: number = 0  // Для STRING (hash) и ARRAY (reserved)
 
+  // Для STRING — интернируем и получаем hash
+  if (fieldType === TYPE.STRING && typeof value === 'string') {
+    const atlas = getStringAtlas()
+    const stringId = atlas.intern(value)
+    const meta = atlas.getMeta(stringId)
+    encodedValue = stringId
+    encodedValue2 = meta ? meta.hash : 0
+  }
   // Для ARRAY — аллоцируем место в heap и кодируем элементы
-  if (fieldType === TYPE.ARRAY && Array.isArray(value)) {
+  else if (fieldType === TYPE.ARRAY && Array.isArray(value)) {
     const arr = value as unknown[]
     // Аллоцируем: [length, item1, item2, ...]
     const arraySize = 1 + arr.length
@@ -212,13 +220,14 @@ export async function update(
       heap[heapAllocOffset + 1 + i] = encodedItem
     }
     encodedValue = heapAllocOffset  // pointer to array data
+    encodedValue2 = 0  // reserved
     heapAllocOffset += arraySize
   } else {
     encodedValue = encodeValue(value, context)
   }
 
   // 3. Обновляем heap
-  writeValueToHeap(heap, fieldOffset, fieldType, encodedValue)
+  writeValueToHeap(heap, fieldOffset, fieldType, encodedValue, encodedValue2)
 
   // 4. Отправляем обновлённый heap на GPU
   backend.updateHeap(heap)
@@ -285,6 +294,7 @@ function writeValueToHeap(
   offset: number,
   fieldType: number,
   encodedValue: number,
+  encodedValue2: number = 0,
 ): void {
   switch (fieldType) {
     case TYPE.FLOAT:
@@ -296,24 +306,18 @@ function writeValueToHeap(
       heapData[offset] = encodedValue
       break
     case TYPE.STRING: {
-      // STRING: encodedValue = string_id из StringAtlas
-      // Формат в heap: [string_id, hash_placeholder]
+      // STRING: encodedValue = string_id, encodedValue2 = hash
+      // Формат в heap: [string_id, hash]
       heapData[offset] = encodedValue
-      // Hash вычисляется в StringAtlas при intern()
-      const atlas = getStringAtlas()
-      const meta = atlas.getMeta(encodedValue)
-      if (meta) {
-        heapData[offset + 1] = meta.hash
-      } else {
-        heapData[offset + 1] = 0
-      }
+      heapData[offset + 1] = encodedValue2
       break
     }
     case TYPE.ARRAY: {
-      // ARRAY: encodedValue = pointer в heap
-      // Формат в heap: [length, item1, item2, ...]
-      // pointer уже указывает на данные в heap
+      // ARRAY: encodedValue = pointer в heap, encodedValue2 = reserved
+      // Формат в heap: [pointer, reserved]
+      // Данные массива: [length, item1, item2, ...] хранятся отдельно
       heapData[offset] = encodedValue
+      heapData[offset + 1] = encodedValue2
       break
     }
     default:

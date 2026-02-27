@@ -1,0 +1,122 @@
+/**
+ * Тесты для типа FLOAT.
+ */
+import { test, expect, describe, beforeAll, afterEach } from "bun:test"
+import { setupDevice } from "fixture/bunWebGPU"
+import { write, update, resetMatrix } from "../../index"
+import { GPU } from "../../gpu/device"
+import { FieldType } from "../../index.t"
+import { resetStringAtlas } from "../../StringAtlas"
+
+describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
+  beforeAll(async () => {
+    GPU._device = await setupDevice()
+  })
+
+  afterEach(() => {
+    resetStringAtlas()
+    resetMatrix()
+  })
+
+  describe("Оператор EQ (равно)", () => {
+    test("должен выполнить переход, когда значение равно указанному", async () => {
+      const collapses = [[[1, { 0: { eq: 42 } }]], [null]]
+      await write({
+        fields: [{ type: FieldType.F32 }],
+        branes: [{ state: 0, params: [[0, 0]], collapses }],
+      })
+      const resultStates = await update(0, 0, 42)
+      expect(resultStates[0]?.[1]).toBe(1)
+    })
+
+    test("должен работать с отрицательными числами", async () => {
+      const collapses = [[[1, { 0: { eq: -10 } }]], [null]]
+      await write({
+        fields: [{ type: FieldType.F32 }],
+        branes: [{ state: 0, params: [[0, 0]], collapses }],
+      })
+      const resultStates = await update(0, 0, -10)
+      expect(resultStates[0]?.[1]).toBe(1)
+    })
+
+    test("должен работать с дробными числами", async () => {
+      const collapses = [[[1, { 0: { eq: 3.14 } }]], [null]]
+      await write({
+        fields: [{ type: FieldType.F32 }],
+        branes: [{ state: 0, params: [[0, 0]], collapses }],
+      })
+      const resultStates = await update(0, 0, 3.14)
+      expect(resultStates[0]?.[1]).toBe(1)
+    })
+
+    test("должен работать с нулём", async () => {
+      const collapses = [[[1, { 0: { eq: 0 } }]], [null]]
+      await write({
+        fields: [{ type: FieldType.F32 }],
+        branes: [{ state: 0, params: [[0, 1]], collapses }],
+      })
+      const resultStates = await update(0, 0, 0)
+      expect(resultStates[0]?.[1]).toBe(1)
+    })
+  })
+
+  describe("Оператор NEQ (не равно)", () => {
+    test("должен выполнить переход, когда значение не равно указанному", async () => {
+      const collapses = [[[1, { 0: { neq: 42 } }]], [null]]
+      await write({
+        fields: [{ type: FieldType.F32 }],
+        branes: [{ state: 0, params: [[0, 0]], collapses }],
+      })
+      const resultStates = await update(0, 0, 41)
+      expect(resultStates[0]?.[1]).toBe(1)
+    })
+  })
+
+  describe("Оператор GT (больше)", () => {
+    test("должен выполнить переход, когда значение больше указанного", async () => {
+      const collapses = [[[1, { 0: { gt: 100 } }]], [null]]
+      await write({
+        fields: [{ type: FieldType.F32 }],
+        branes: [{ state: 0, params: [[0, 0]], collapses }],
+      })
+      const resultStates = await update(0, 0, 101)
+      expect(resultStates[0]?.[1]).toBe(1)
+    })
+  })
+
+  describe("Оператор LT (меньше)", () => {
+    test("должен выполнить переход, когда значение меньше указанного", async () => {
+      const collapses = [[[1, { 0: { lt: 50 } }]], [null]]
+      await write({
+        fields: [{ type: FieldType.F32 }],
+        branes: [{ state: 0, params: [[0, 0]], collapses }],
+      })
+      const resultStates = await update(0, 0, 49)
+      expect(resultStates[0]?.[1]).toBe(1)
+    })
+  })
+
+  describe("Оператор GTE (больше или равно)", () => {
+    test("должен выполнить переход, когда значение больше или равно", async () => {
+      const collapses = [[[1, { 0: { gte: 50 } }]], [null]]
+      await write({
+        fields: [{ type: FieldType.F32 }],
+        branes: [{ state: 0, params: [[0, 0]], collapses }],
+      })
+      const resultStates = await update(0, 0, 50)
+      expect(resultStates[0]?.[1]).toBe(1)
+    })
+  })
+
+  describe("Оператор LTE (меньше или равно)", () => {
+    test("должен выполнить переход, когда значение меньше или равно", async () => {
+      const collapses = [[[1, { 0: { lte: 50 } }]], [null]]
+      await write({
+        fields: [{ type: FieldType.F32 }],
+        branes: [{ state: 0, params: [[0, 0]], collapses }],
+      })
+      const resultStates = await update(0, 0, 50)
+      expect(resultStates[0]?.[1]).toBe(1)
+    })
+  })
+})
