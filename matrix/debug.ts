@@ -238,3 +238,143 @@ export async function dumpMatrix(
   const { getStringAtlas } = await import('./StringAtlas')
   dumpStringAtlas(getStringAtlas())
 }
+
+/**
+ * Статистика heap.
+ */
+export interface HeapStats {
+  /** Общий размер heap в словах */
+  totalSize: number
+  /** Занято словами */
+  usedSize: number
+  /** Резерв для ARRAY в словах */
+  arrayReserve: number
+  /** Свободно словами */
+  freeSize: number
+  /** Процент использования */
+  utilization: number
+}
+
+/**
+ * Получить статистику heap.
+ *
+ * @param heap - Heap данные
+ * @param blockPtrs - Смещения блоков бран
+ * @returns Статистика использования heap
+ *
+ * @example
+ * ```typescript
+ * const stats = getHeapStats(heap, braneBlockPtrs)
+ * console.log(`Heap: ${stats.utilization.toFixed(1)}% used`)
+ * ```
+ */
+export function getHeapStats(
+  heap: Uint32Array,
+  blockPtrs: number[],
+): HeapStats {
+  const totalSize = heap.length
+  const arrayReserveStart = totalSize - (heap[totalSize - 1] ?? 0)
+
+  // Считаем занятые блоки
+  let usedSize = 0
+  for (const blockPtr of blockPtrs) {
+    const localCount = heap[blockPtr] ?? 0
+    const entangledCount = heap[blockPtr + 1] ?? 0
+
+    // Заголовок: 2 слова
+    // Дескрипторы: localCount * 2 слова
+    // Указатели: entangledCount слова
+    // Значения: считаем по packed_meta
+    let valueWords = 0
+    for (let i = 0; i < localCount; i++) {
+      const descOffset = 2 + i * 2
+      const packedMeta = heap[descOffset + 1] ?? 0
+      const size = (packedMeta >>> 16) & 0xFF
+      valueWords += size
+    }
+
+    const blockSize = 2 + localCount * 2 + entangledCount + valueWords
+    usedSize += blockSize
+  }
+
+  const freeSize = totalSize - usedSize - arrayReserveStart
+  const utilization = (usedSize / totalSize) * 100
+
+  return {
+    totalSize,
+    usedSize,
+    arrayReserve: arrayReserveStart,
+    freeSize,
+    utilization,
+  }
+}
+
+/**
+ * Визуализация bytecode в виде строки.
+ *
+ * @param bytecode - Bytecode данные
+ * @param offset - Смещение начала bytecode
+ * @returns Текстовое представление bytecode
+ *
+ * @example
+ * ```typescript
+ * const viz = visualizeBytecode(bytecode, bytecodeOffsets[0]!)
+ * console.log(viz)
+ * ```
+ */
+export function visualizeBytecode(bytecode: Uint32Array, offset: number): string {
+  const lines: string[] = []
+
+  const firstStatePtr = bytecode[offset] ?? 0
+  const stateTableSize = (firstStatePtr - offset) / 4
+
+  lines.push(`Bytecode @ ${offset} (states: ${stateTableSize})`)
+  lines.push('')
+
+  for (let stateIdx = 0; stateIdx < stateTableSize; stateIdx++) {
+    const statePtrOffset = offset + stateIdx
+    const statePtr = bytecode[statePtrOffset] ?? 0
+
+    lines.push(`State ${stateIdx} (ptr=${statePtr}):`)
+
+    if (statePtr === 0) {
+      lines.push('  [terminal]')
+      continue
+    }
+
+    const trCount = bytecode[statePtr] ?? 0
+
+    for (let trIdx = 0; trIdx < trCount; trIdx++) {
+      const trOffset = statePtr + 1 + trIdx * 2
+      const target = bytecode[trOffset] ?? 0
+      const condPtr = bytecode[trOffset + 1] ?? 0
+
+      lines.push(`  → State ${target}`)
+
+      if (condPtr === 0) continue
+
+      const condCount = bytecode[condPtr] ?? 0
+      const conditions: string[] = []
+
+      for (let condIdx = 0; condIdx < condCount; condIdx++) {
+        const condOffset = condPtr + 1 + condIdx * 4
+        const type = bytecode[condOffset] ?? 0
+        const fieldId = bytecode[condOffset + 1] ?? 0
+        const op = bytecode[condOffset + 2] ?? 0
+        const valEncoded = bytecode[condOffset + 3] ?? 0
+
+        const typeName = getTypeName(type)
+        const opName = getOpName(op)
+        const valDecoded = type === 0 ? bitcastToF32(valEncoded) : valEncoded
+
+        conditions.push(`f${fieldId} ${opName} ${valDecoded}`)
+      }
+
+      if (conditions.length > 0) {
+        lines.push(`    if: ${conditions.join(' && ')}`)
+      }
+    }
+  }
+
+  return lines.join('\n')
+}
