@@ -9,23 +9,19 @@
 
 import { parseCondition } from "./condition"
 import { OP, TYPE } from "./opcodes"
-import { encodeValue, fieldTypeToBytecodeType } from "./params"
+import { encodeValue, encodeValueWithPair, fieldTypeToBytecodeType } from "./params"
 import type { Field } from "./index.t"
 import type { Collapse } from "./index.t"
-import type { FieldBytecode, CompiledRules } from "./superposition.t"
+import type { FieldBytecode, CompiledRules, ConditionInstruction } from "./superposition.t"
 import type { EncodingContext } from "./params.t"
+import type { ParsedCheck } from "./condition.t"
 
 /**
  * Результат компиляции условий с кучей для списков.
  */
 export interface CompiledConditionsResult {
   /** Инструкции условий. */
-  instructions: Array<{
-    fieldType: number
-    fieldIndex: number
-    op: number
-    valEncoded: number  // Для IN/NOT_IN — указатель на кучу
-  }>
+  instructions: ConditionInstruction[]
   /** Куча для списков (IN/NOT_IN): [count, item1, item2, ...]. */
   heap: number[]
 }
@@ -147,7 +143,7 @@ export function compileSuperposition(
  * Для операторов IN/NOT_IN создаёт кучу со списком значений.
  * Для STRING элементов в списках — интернирует и сохраняет string_id.
  *
- * @param conditions - Record<fieldIndex, condition>
+ * @param conditions - Record<fieldIndex, condition> (сырые условия)
  * @param fields - Определение полей для кодирования
  * @returns Инструкции и куча для списков
  */
@@ -155,12 +151,7 @@ export function compileConditions(
   conditions: Record<number, any>,
   fields: Field[]
 ): CompiledConditionsResult {
-  const instructions: Array<{
-    fieldType: number
-    fieldIndex: number
-    op: number
-    valEncoded: number
-  }> = []
+  const instructions: ConditionInstruction[] = []
   const heap: number[] = []
 
   // Сначала собираем все проверки чтобы посчитать totalInstructionsSize
@@ -217,27 +208,28 @@ export function compileConditions(
       }
     }
 
+    let valEncoded: number
+
     // Для IN/NOT_IN — создаём кучу со списком
     if (Array.isArray(check.val) && (check.op === OP.IN || check.op === OP.NOT_IN)) {
       // ptr — смещение от базы инструкций до кучи
       const ptr = heapOffset
       heap.push(check.val.length)  // count
       for (const v of check.val) {
-        // Для STRING элементов в списке — интернируем и получаем string_id
-        if (check.fieldType === TYPE.STRING && typeof v === "string") {
-          const encoded = encodeValue(v, ctx)  // encodeValue вернёт string_id
-          heap.push(encoded)
-        }
-        // Для ENUM элементов в списке — конвертируем в индекс
-        else if (ctx.enum !== undefined && typeof v === "string") {
+        // Для ENUM элементов в списке — конвертируем в индекс и кодируем
+        if (ctx.enum !== undefined && typeof v === "string") {
           const idx = ctx.enum.indexOf(v)
           if (idx === -1) {
             throw new Error(`Value '${v}' not found in enum: [${ctx.enum}]`)
           }
-          heap.push(idx)
+          heap.push(encodeValue(idx, ctx))
+        }
+        // Для STRING элементов в списке — используем encodeValueWithPair
+        else if (check.fieldType === TYPE.STRING && typeof v === "string") {
+          const { value1 } = encodeValueWithPair(v, ctx)
+          heap.push(value1)
         } else {
-          const encoded = encodeValue(v, ctx)
-          heap.push(encoded)
+          heap.push(encodeValue(v, ctx))
         }
       }
       // Обновляем heapOffset для следующей кучи
@@ -249,22 +241,29 @@ export function compileConditions(
         valEncoded: ptr,
       })
     } else {
-      // Для ENUM строк в условиях типа gt: "MAGE" — конвертируем в индекс
-      let valToEncode = check.val
-      if (ctx.enum !== undefined && typeof check.val === "string") {
-        const idx = ctx.enum.indexOf(check.val)
-        if (idx === -1) {
-          throw new Error(`Value '${check.val}' not found in enum: [${ctx.enum}]`)
+      // Для STRING — используем encodeValueWithPair (возвращает string_id)
+      if (check.fieldType === TYPE.STRING && typeof check.val === "string") {
+        const { value1 } = encodeValueWithPair(check.val, ctx)
+        valEncoded = value1
+      } else {
+        // Для ENUM строк в условиях типа gt: "MAGE" — конвертируем в индекс
+        let valToEncode = check.val
+        if (ctx.enum !== undefined && typeof check.val === "string") {
+          const idx = ctx.enum.indexOf(check.val)
+          if (idx === -1) {
+            throw new Error(`Value '${check.val}' not found in enum: [${ctx.enum}]`)
+          }
+          valToEncode = idx
         }
-        valToEncode = idx
+        // Для ARRAY операторов (INCLUDE, NOT_INCLUDE) используем subType для кодирования скаляра
+        let encodeCtx = ctx
+        if (check.fieldType === TYPE.ARRAY && ctx.subType !== undefined &&
+            (check.op === OP.INCLUDE || check.op === OP.NOT_INCLUDE)) {
+          encodeCtx = { type: ctx.subType }
+        }
+        valEncoded = encodeValue(valToEncode, encodeCtx)
       }
-      // Для ARRAY операторов (INCLUDE, NOT_INCLUDE) используем subType для кодирования скаляра
-      let encodeCtx = ctx
-      if (check.fieldType === TYPE.ARRAY && ctx.subType !== undefined && 
-          (check.op === OP.INCLUDE || check.op === OP.NOT_INCLUDE)) {
-        encodeCtx = { type: ctx.subType }
-      }
-      const valEncoded = encodeValue(valToEncode, encodeCtx)
+      
       instructions.push({
         fieldType: check.fieldType,
         fieldIndex: check.fieldIndex,

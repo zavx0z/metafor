@@ -23,8 +23,10 @@ import { GPU } from "./gpu/device"
 import { getStringAtlas, resetStringAtlas, type StringAtlasExport } from "./StringAtlas"
 import { findEntangledGroups, buildBraneMapping } from "./entangled"
 import { buildHeap, findFieldOffset } from "./heap"
+import type { HeapInput } from "./heap.t"
 import { compileEnsemble } from "./superposition"
-import { encodeValue, fieldTypeToBytecodeType } from "./params"
+import type { CompiledRules } from "./superposition.t"
+import { encodeValue, encodeValueWithPair, fieldTypeToBytecodeType } from "./params"
 import type { EncodingContext } from "./params.t"
 import type { Data, Brane, Field } from "./index.t"
 import { TYPE } from "./opcodes"
@@ -60,6 +62,128 @@ export function resetMatrix(): void {
 // ЭКСПОРТ: 2 ФУНКЦИИ
 // ============================================================================
 /**
+ * Подготовленные данные для GPU.
+ */
+interface PreparedData {
+  fieldTypes: Map<number, number>
+  fieldMeta: Map<number, { fieldType: number; fieldSize: number }>
+  encodedEntangledFields: Map<string, [number, number][]>
+  encodedLocalFields: [number, number][][]
+  heapInput: HeapInput
+  heapData: Uint32Array
+  heapLayout: { blockPtrs: number[] }
+  compiledRules: CompiledRules
+  initialStates: Uint32Array
+}
+
+/**
+ * Этап 1: Подготовка данных (кодирование, компиляция).
+ *
+ * @remarks
+ * **Чистая функция:** Не имеет side effects.
+ *
+ * @param data - Конфигурация полей и бран
+ * @returns Подготовленные данные для GPU
+ */
+function prepareData(data: Data): PreparedData {
+  // Сброс StringAtlas ПЕРЕД компиляцией
+  resetStringAtlas()
+
+  // Извлекаем params из бран для анализа entangled
+  const params = data.branes.map((b) => b.params)
+
+  // Анализ entangled групп (чистая функция)
+  const entangledAnalysis = findEntangledGroups(params)
+
+  // Создаём маппинг entangledBraneIds
+  const entangledBraneIds = new Map<string, number>()
+  let nextEntangledId = 0
+  entangledAnalysis.entangledGroups.forEach((_, key) => {
+    entangledBraneIds.set(key, nextEntangledId++)
+  })
+
+  // Построение маппинга бран (чистая функция)
+  const braneMapping = buildBraneMapping(params, entangledBraneIds, entangledAnalysis)
+
+  // Компиляция суперпозиций (чистая функция) — интернирует строки из IN списков
+  const compiledRules = compileEnsemble(data.branes, data.fields)
+
+  // Подготовка метаданных полей
+  const fieldTypes = new Map<number, number>()
+  const fieldMeta = new Map<number, { fieldType: number; fieldSize: number }>()
+  data.fields.forEach((field, idx) => {
+    const fieldType = fieldTypeToBytecodeType(field.type)
+    fieldTypes.set(idx, fieldType)
+    const fieldSize = fieldType === TYPE.STRING || fieldType === TYPE.ARRAY ? 2 : 1
+    fieldMeta.set(idx, { fieldType, fieldSize })
+  })
+
+  // Кодирование entangled полей (принцип готового формата данных)
+  const encodedEntangledFields = new Map<string, [number, number][]>()
+  for (const [key, fields] of braneMapping.entangledFields.entries()) {
+    const encoded = fields.map(([fieldIndex, value]) => {
+      const meta = fieldMeta.get(fieldIndex)!
+      const field = data.fields[fieldIndex]
+      const ctx: EncodingContext = { type: meta.fieldType }
+      if (field?.enum !== undefined) {
+        ctx.enum = field.enum
+      }
+      const encodedValue = encodeFieldValue(value, ctx)
+      return [fieldIndex, encodedValue] as [number, number]
+    })
+    encodedEntangledFields.set(key, encoded)
+  }
+
+  // Кодирование local полей (принцип готового формата данных)
+  const encodedLocalFields = braneMapping.localFields.map(braneFields =>
+    braneFields.map(([fieldIndex, value]) => {
+      const meta = fieldMeta.get(fieldIndex)!
+      const field = data.fields[fieldIndex]
+      const ctx: EncodingContext = { type: meta.fieldType }
+      if (field?.enum !== undefined) {
+        ctx.enum = field.enum
+      }
+      const encodedValue = encodeFieldValue(value, ctx)
+      return [fieldIndex, encodedValue] as [number, number]
+    })
+  )
+
+  // Построение heap с уже закодированными значениями
+  const heapInput = {
+    localFields: encodedLocalFields,
+    braneEntangledMap: braneMapping.braneEntangledMap,
+    entangledFields: encodedEntangledFields,
+    fieldTypes,
+    fieldMeta,
+  }
+  const heapLayout = buildHeap(heapInput)
+  let heapData = heapLayout.heap
+
+  // Резервируем место в конце heap для динамических аллокаций (ARRAY)
+  // Оставляем 1024 слова для ARRAY данных
+  const arrayReserve = 1024
+  const actualHeapSize = heapData.length + arrayReserve
+  const extendedHeap = new Uint32Array(actualHeapSize)
+  extendedHeap.set(heapData)
+  heapData = extendedHeap
+
+  // Начальные состояния
+  const initialStates = new Uint32Array(data.branes.map((b) => b.state))
+
+  return {
+    fieldTypes,
+    fieldMeta,
+    encodedEntangledFields,
+    encodedLocalFields,
+    heapInput,
+    heapData,
+    heapLayout,
+    compiledRules,
+    initialStates,
+  }
+}
+
+/**
  * Инициализирует матрицу (загружает данные на GPU).
  *
  * @remarks
@@ -77,87 +201,39 @@ export async function write(data: Data): Promise<void> {
   }
   resetMatrix()
 
-  // 1. Сброс StringAtlas ПЕРЕД компиляцией
-  resetStringAtlas()
+  // Этап 1: Подготовка данных
+  const prepared = prepareData(data)
 
-  // 2. Сохраняем поля
+  // Сохраняем глобальное состояние
   fields = data.fields
   braneCount = data.branes.length
+  bytecodeOffsets = prepared.compiledRules.bytecodeOffsets
+  heap = prepared.heapData
+  heapAllocOffset = heap.length - 1024  // Начало зоны для ARRAY
+  braneBlockPtrs = prepared.heapLayout.blockPtrs
+  initialStates = prepared.initialStates
 
-  // 3. Извлекаем params из бран для анализа entangled
-  const params = data.branes.map((b) => b.params)
-
-  // 4. Анализ entangled групп (чистая функция)
-  const entangledAnalysis = findEntangledGroups(params)
-
-  // 5. Создаём маппинг entangledBraneIds
-  const entangledBraneIds = new Map<string, number>()
-  let nextEntangledId = 0
-  entangledAnalysis.entangledGroups.forEach((_, key) => {
-    entangledBraneIds.set(key, nextEntangledId++)
-  })
-
-  // 6. Построение маппинга бран (чистая функция)
-  const braneMapping = buildBraneMapping(params, entangledBraneIds, entangledAnalysis)
-
-  // 7. Компиляция суперпозиций (чистая функция) — интернирует строки из IN списков
-  const compiledRules = compileEnsemble(data.branes, fields)
-  bytecodeOffsets = compiledRules.bytecodeOffsets
-
-  // 8. Построение heap — интернирует строки из params
-  const fieldTypes = new Map<number, number>()
-  const fieldEnums = new Map<number, any[]>()
-  fields.forEach((field, idx) => {
-    fieldTypes.set(idx, fieldTypeToBytecodeType(field.type))
-    if (field.enum !== undefined) {
-      fieldEnums.set(idx, field.enum)
-    }
-  })
-
-  const heapInput = {
-    localFields: braneMapping.localFields,
-    braneEntangledMap: braneMapping.braneEntangledMap,
-    entangledFields: braneMapping.entangledFields,
-    fieldTypes,
-    fieldEnums,
-  }
-  const heapLayout = buildHeap(heapInput)
-  let heapData = heapLayout.heap
-  braneBlockPtrs = heapLayout.blockPtrs
-
-  // Резервируем место в конце heap для динамических аллокаций (ARRAY)
-  // Оставляем 1024 слова для ARRAY данных
-  const arrayReserve = 1024
-  const actualHeapSize = heapData.length + arrayReserve
-  const extendedHeap = new Uint32Array(actualHeapSize)
-  extendedHeap.set(heapData)
-  heapData = extendedHeap
-  heapAllocOffset = heapData.length - arrayReserve  // Начало зоны для ARRAY
-
-  // 9. Начальные состояния
-  initialStates = new Uint32Array(data.branes.map((b) => b.state))
-
-  // 10. Инициализация GPU
+  // Этап 2: Инициализация GPU
   backend = new GPUBackend(GPU.device)
 
   const atlasExport = getStringAtlas().export()
   await backend.init(
     {
       braneCount,
-      bytecode: compiledRules.bytecode,
-      bytecodeOffsets: compiledRules.bytecodeOffsets,
-      states: initialStates,
-      braneDescriptors: buildBraneDescriptors(braneBlockPtrs, compiledRules.bytecodeOffsets),
-      heap: heapData,
+      bytecode: prepared.compiledRules.bytecode,
+      bytecodeOffsets: prepared.compiledRules.bytecodeOffsets,
+      states: prepared.initialStates,
+      braneDescriptors: buildBraneDescriptors(braneBlockPtrs, prepared.compiledRules.bytecodeOffsets),
+      heap: prepared.heapData,
     },
     atlasExport,
     false,
   )
 
   // Сохраняем heap в глобальной переменной
-  heap = heapData
+  heap = prepared.heapData
 
-  // 11. НЕ делаем step() после инициализации — это делает update()
+  // НЕ делаем step() после инициализации — это делает update()
 }
 
 /**
@@ -226,11 +302,9 @@ export async function update(
 
   // Для STRING — интернируем и получаем hash
   if (fieldType === TYPE.STRING && typeof value === 'string') {
-    const atlas = getStringAtlas()
-    const stringId = atlas.intern(value)
-    const meta = atlas.getMeta(stringId)
-    encodedValue = stringId
-    encodedValue2 = meta ? meta.hash : 0
+    const { value1, value2 } = encodeValueWithPair(value, context)
+    encodedValue = value1
+    encodedValue2 = value2
   }
   // Для ARRAY — аллоцируем место в heap и кодируем элементы
   else if (fieldType === TYPE.ARRAY && Array.isArray(value)) {
@@ -246,8 +320,7 @@ export async function update(
     const elementType = context.subType ?? TYPE.FLOAT
     for (let i = 0; i < arr.length; i++) {
       const itemCtx: EncodingContext = { type: elementType }
-      const encodedItem = encodeValue(arr[i], itemCtx)
-      heap[heapAllocOffset + 1 + i] = encodedItem
+      heap[heapAllocOffset + 1 + i] = encodeValue(arr[i], itemCtx)
     }
     encodedValue = heapAllocOffset  // pointer to array data
     encodedValue2 = 0  // reserved
@@ -353,4 +426,27 @@ function writeValueToHeap(
     default:
       heapData[offset] = encodedValue
   }
+}
+
+/**
+ * Закодировать значение поля для heap.
+ *
+ * @param value - Значение для кодирования
+ * @param ctx - Контекст кодирования
+ * @returns Закодированное значение (value1 из EncodedValueResult для STRING/ARRAY)
+ */
+function encodeFieldValue(
+  value: unknown,
+  ctx: EncodingContext,
+): number {
+  const fieldType = ctx.type
+  
+  // Для STRING и ARRAY используем encodeValueWithPair
+  if (fieldType === TYPE.STRING || fieldType === TYPE.ARRAY) {
+    const { value1 } = encodeValueWithPair(value, ctx)
+    return value1
+  }
+  
+  // Для скаляров используем encodeValue
+  return encodeValue(value, ctx)
 }

@@ -53,14 +53,14 @@ export interface HeapLayout {
  * Входные данные для построения heap.
  */
 export interface HeapInput {
-  /** Локальные поля для каждой браны: [[fieldIndex, value], ...][] */
-  localFields: [number, unknown][][]
+  /** Локальные поля для каждой браны: [[fieldIndex, encodedValue], ...][] */
+  localFields: [number, number][][]
   /** Маппинг брана → ID entangled блоков: number[][] */
   braneEntangledMap: number[][]
-  /** Поля для каждого entangled блока: ключ → [[fieldIndex, value], ...] */
-  entangledFields: Map<string, [number, unknown][]>
+  /** Поля для каждого entangled блока: ключ → [[fieldIndex, encodedValue], ...] */
+  entangledFields: Map<string, [number, number][]>
   /** Типы полей: [fieldIndex, type][] */
   fieldTypes: Map<number, number>
-  /** Enum значения для полей: [fieldIndex, enumValues][] */
-  fieldEnums?: Map<number, any[]>
+  /** Метаданные полей: [fieldIndex, {fieldType, fieldSize}][] (опционально, вычисляется из fieldTypes) */
+  fieldMeta?: Map<number, { fieldType: number; fieldSize: number }>
 }

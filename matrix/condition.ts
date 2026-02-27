@@ -70,7 +70,7 @@ export function parseCondition(cond: ConditionValue): ParsedCheck[] {
         checks.push({ op: OP.NOT_INCLUDE, val: value })
         break
       case "length":
-        parseLengthCondition(v, checks)
+        checks.push(...parseLengthCondition(v))
         break
       case "isEmpty":
         checks.push({ op: OP.IS_EMPTY, val: value })
@@ -104,13 +104,14 @@ export function parseCondition(cond: ConditionValue): ParsedCheck[] {
  * Парсит условие на длину массива.
  *
  * @param v - Значение условия (число или объект с операторами).
- * @param checks - Массив для добавления результатов.
+ * @returns Массив проверок.
  */
-function parseLengthCondition(v: any, checks: ParsedCheck[]): void {
+function parseLengthCondition(v: any): ParsedCheck[] {
   if (typeof v === "number") {
-    checks.push({ op: OP.LENGTH, val: v })
-    return
+    return [{ op: OP.LENGTH, val: v }]
   }
+
+  const checks: ParsedCheck[] = []
 
   if (typeof v === "object" && v !== null) {
     for (const [lengthOp, lengthVal] of Object.entries(v)) {
@@ -134,4 +135,6 @@ function parseLengthCondition(v: any, checks: ParsedCheck[]): void {
       }
     }
   }
+
+  return checks
 }

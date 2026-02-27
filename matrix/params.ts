@@ -28,10 +28,10 @@ export interface EncodedValueResult {
 }
 
 /**
- * Кодирует значение в 32-битное целое число для GPU.
+ * Кодирует скалярное значение в 32-битное целое число для GPU.
  *
  * @param value - Значение для кодирования.
- * @param context - Контекст кодирования (тип, enumValues, subType).
+ * @param context - Контекст кодирования (тип, enumValues).
  * @returns Закодированное 32-битное число.
  * @throws {Error} Если значение не найдено в enum.
  *
@@ -45,9 +45,6 @@ export interface EncodedValueResult {
  *
  * // Enum → индекс
  * encodeValue("MAGE", { type: TYPE.UINT, enum: ["WARRIOR", "MAGE", "ROGUE"] }) → 1
- *
- * // String → ID в StringAtlas
- * encodeValue("hello", { type: TYPE.STRING }) → 42
  * ```
  */
 export function encodeValue(value: unknown, context: EncodingContext): number {
@@ -76,14 +73,7 @@ export function encodeValue(value: unknown, context: EncodingContext): number {
     return value ? 1 : 0
   }
 
-  // 4. Строки → интернирование через StringAtlas
-  if (typeof value === "string") {
-    const atlas = getStringAtlas()
-    const stringId = atlas.intern(value)
-    return stringId
-  }
-
-  // 5. UINT / default
+  // 4. UINT / default
   return Number(value)
 }
 
@@ -92,16 +82,21 @@ export function encodeValue(value: unknown, context: EncodingContext): number {
  *
  * @param value - Значение для кодирования.
  * @param context - Контекст кодирования.
- * @param heap - Heap для аллокации ARRAY (опционально).
- * @param heapOffset - Текущий offset в heap для ARRAY (опционально).
  * @returns EncodedValueResult с value1 и value2.
- * @throws {Error} Если значение не найдено в enum или heap переполнен.
+ * @throws {Error} Если значение не найдено в enum или неверный тип.
+ *
+ * @example
+ * ```typescript
+ * // String → string_id + hash
+ * encodeValueWithPair("hello", { type: TYPE.STRING }) → { value1: 42, value2: hash }
+ *
+ * // Array → pointer + reserved
+ * encodeValueWithPair([], { type: TYPE.ARRAY }) → { value1: 0, value2: 0 }
+ * ```
  */
 export function encodeValueWithPair(
   value: unknown,
   context: EncodingContext,
-  heap?: Uint32Array,
-  heapOffset?: number,
 ): EncodedValueResult {
   // 1. ENUM
   if (context.enum) {
@@ -145,12 +140,12 @@ export function encodeValueWithPair(
       throw new Error(`Expected array for TYPE.ARRAY, got ${typeof value}`)
     }
     const arr = value as unknown[]
-    
+
     // Для пустого массива возвращаем pointer=0
     if (arr.length === 0) {
       return { value1: 0, value2: 0 }
     }
-    
+
     // Для не-пустого массива — ошибка, нужно использовать update()
     throw new Error("Non-empty array initialization not supported. Use update() instead.")
   }
