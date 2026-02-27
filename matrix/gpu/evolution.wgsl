@@ -167,6 +167,7 @@ fn get_entangled_count(block_ptr: u32) -> u32 {
 
 fn find_field(block_ptr: u32, target_field_id: u32) -> vec4<u32> {
   let local_count = heap[block_ptr];
+  // Дескрипторы полей начинаются сразу после заголовка (2 слова)
   let header_base = block_ptr + 2u;
 
   var i: u32 = 0u;
@@ -208,6 +209,7 @@ fn get_field_value_recursive(brane_index: u32, target_field_id: u32) -> f32 {
   }
 
   // Если не нашли, ищем в entangled блоках
+  let local_count = heap[block_ptr];
   let entangled_count = heap[block_ptr + 1u];
 
   var i: u32 = 0u;
@@ -216,8 +218,8 @@ fn get_field_value_recursive(brane_index: u32, target_field_id: u32) -> f32 {
       break;
     }
 
-    // Получаем указатель на entangled блок (после заголовка)
-    let entangled_ptrs_offset = block_ptr + 2u + get_local_field_count(block_ptr) * 2u;
+    // Получаем указатель на entangled блок (после заголовка + field descriptors)
+    let entangled_ptrs_offset = block_ptr + 2u + local_count * 2u;
     let entangled_ptr = heap[entangled_ptrs_offset + i];
 
     if (entangled_ptr == 0u) {
@@ -258,6 +260,7 @@ fn get_field_value_raw(brane_index: u32, target_field_id: u32) -> u32 {
   }
 
   // Если не нашли, ищем в entangled блоках
+  let local_count = heap[block_ptr];
   let entangled_count = heap[block_ptr + 1u];
 
   var i: u32 = 0u;
@@ -266,8 +269,8 @@ fn get_field_value_raw(brane_index: u32, target_field_id: u32) -> u32 {
       break;
     }
 
-    // Получаем указатель на entangled блок (после заголовка)
-    let entangled_ptrs_offset = block_ptr + 2u + get_local_field_count(block_ptr) * 2u;
+    // Получаем указатель на entangled блок (после заголовка + field descriptors)
+    let entangled_ptrs_offset = block_ptr + 2u + local_count * 2u;
     let entangled_ptr = heap[entangled_ptrs_offset + i];
 
     if (entangled_ptr == 0u) {

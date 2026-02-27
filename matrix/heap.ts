@@ -82,6 +82,8 @@ function getFieldSize(fieldType: number): number {
  * @remarks
  * **Чистая функция:** Не имеет side effects, не зависит от состояния.
  *
+ * Слово 0 резервируется как null pointer (аналогично boundary/).
+ *
  * @param input - Входные данные: localFields, entangledFields, fieldTypes
  * @returns HeapLayout с плоским heap и метаданными блоков
  *
@@ -94,7 +96,7 @@ function getFieldSize(fieldType: number): number {
  *   fieldTypes: new Map([[0, TYPE.FLOAT], [1, TYPE.BOOL]]),
  * })
  * // layout.heap: Uint32Array с данными
- * // layout.blockPtrs: [0]
+ * // layout.blockPtrs: [8] (начинается после null pointer)
  * ```
  */
 export function buildHeap(input: HeapInput): HeapLayout {
@@ -121,9 +123,10 @@ export function buildHeap(input: HeapInput): HeapLayout {
   })
 
   // Рассчитываем размеры блоков и смещения
+  // Слово 0 резервируется как null pointer
   const blockSizes: number[] = []
   const blockPtrs: number[] = []
-  let currentPtr = 0
+  let currentPtr = 1  // Начинаем с 1, 0 = null
 
   // Сначала entangled блоки
   for (let i = 0; i < entangledKeys.length; i++) {
@@ -173,6 +176,12 @@ export function buildHeap(input: HeapInput): HeapLayout {
 
 /**
  * Рассчитать размер блока в словах.
+ *
+ * Формат блока (как в boundary/):
+ * [local_count, entangled_count] — заголовок (2 слова)
+ * [...field_descriptors] — дескрипторы полей (localCount * 2 слова)
+ * [...entangled_ptrs] — указатели на entangled блоки (entangledCount слов)
+ * [...values] — значения полей (сумма fieldSize слов)
  */
 function calculateBlockSize(
   fields: [number, unknown][],
@@ -180,20 +189,32 @@ function calculateBlockSize(
   entangledCount: number,
 ): number {
   const localCount = fields.length
-  const headerWords = 2 + localCount * 2 // [local_count, entangled_count] + [field_id, meta] * N
+  
+  // Заголовок: [local_count, entangled_count]
+  const headerWords = 2
+  
+  // Дескрипторы полей: [field_id, meta] * localCount
+  const descriptorWords = localCount * 2
+  
+  // Указатели на entangled блоки
   const entangledPtrsWords = entangledCount
-
-  let bodyWords = entangledPtrsWords
+  
+  // Значения полей
+  let valueWords = 0
   fields.forEach(([fieldId]) => {
     const fieldType = fieldTypes.get(fieldId) ?? TYPE.UINT
-    bodyWords += getFieldSize(fieldType)
+    valueWords += getFieldSize(fieldType)
   })
-
-  return headerWords + bodyWords
+  
+  return headerWords + descriptorWords + entangledPtrsWords + valueWords
 }
 
 /**
  * Записать блок в heap.
+ *
+ * Формат блока (как в boundary/):
+ * [local_count, entangled_count, ...field_descriptors, ...entangled_ptrs, ...values]
+ * где field_descriptors: [field_id, packed_meta] * local_count
  */
 function writeBlock(
   heap: Uint32Array,
@@ -209,15 +230,14 @@ function writeBlock(
   heap[blockPtr] = localCount
   heap[blockPtr + 1] = entangledCount
 
-  // Указатели на entangled блоки (сразу после заголовка)
-  for (let i = 0; i < entangledCount; i++) {
-    heap[blockPtr + 2 + i] = entangledPtrs[i] ?? 0
-  }
+  // Дескрипторы полей (сразу после заголовка)
+  let headerIndex = blockPtr + 2
+  // entangled pointers идут после дескрипторов
+  const entangledPtrsOffset = blockPtr + 2 + localCount * 2
+  // значения идут после entangled pointers
+  let bodyOffset = entangledPtrsOffset + entangledCount
 
-  // Дескрипторы полей (после entangled pointers)
-  let headerIndex = 2 + entangledCount
-  let bodyOffset = blockPtr + 2 + entangledCount + localCount * 2
-
+  // Записываем дескрипторы полей
   for (const [fieldId, value] of fields) {
     const fieldType = fieldTypes.get(fieldId) ?? TYPE.UINT
     const fieldSize = getFieldSize(fieldType)
@@ -228,6 +248,11 @@ function writeBlock(
     // Значение
     writeValue(heap, bodyOffset, fieldType, value)
     bodyOffset += fieldSize
+  }
+
+  // Записываем entangled pointers (после дескрипторов)
+  for (let i = 0; i < entangledCount; i++) {
+    heap[entangledPtrsOffset + i] = entangledPtrs[i] ?? 0
   }
 }
 
@@ -266,6 +291,9 @@ function writeValue(
  * @remarks
  * **Чистая функция:** Не имеет side effects.
  *
+ * Формат блока (как в boundary/):
+ * [local_count, entangled_count, ...field_descriptors, ...entangled_ptrs, ...values]
+ *
  * @param heap - Heap данные
  * @param blockPtr - Смещение блока в heap
  * @param targetFieldId - Индекс искомого поля
@@ -286,8 +314,11 @@ export function findFieldOffset(
 ): number | null {
   const localCount = heap[blockPtr]!
 
+  // Дескрипторы полей начинаются сразу после заголовка (2 слова)
+  const descBase = blockPtr + 2
+
   for (let i = 0; i < localCount; i++) {
-    const descOffset = blockPtr + 2 + i * 2
+    const descOffset = descBase + i * 2
     const fieldId = heap[descOffset]!
 
     if (fieldId === targetFieldId) {

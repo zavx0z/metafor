@@ -40,6 +40,20 @@ let bytecodeOffsets: Uint32Array | null = null
 let braneCount: number = 0
 let initialStates: Uint32Array | null = null
 
+/**
+ * Сбрасывает состояние модуля (для тестов).
+ * @internal
+ */
+export function resetMatrix(): void {
+  backend = null
+  heap = null
+  fields = []
+  braneBlockPtrs = []
+  bytecodeOffsets = null
+  braneCount = 0
+  initialStates = null
+}
+
 // ============================================================================
 // ЭКСПОРТ: 2 ФУНКЦИИ
 // ============================================================================
@@ -50,11 +64,17 @@ let initialStates: Uint32Array | null = null
  * **Side Effects:**
  * - Сбрасывает StringAtlas
  * - Аллоцирует GPU-буферы
- * - Выполняет первый step() автоматически
+ * - НЕ выполняет step() автоматически (это делает update())
  *
  * @param data - Конфигурация полей и бран
  */
 export async function write(data: Data): Promise<void> {
+  // 0. Сброс предыдущего состояния (если есть)
+  if (backend) {
+    backend.clear()
+  }
+  resetMatrix()
+
   // 1. Сброс StringAtlas
   resetStringAtlas()
 
@@ -118,8 +138,7 @@ export async function write(data: Data): Promise<void> {
     false,
   )
 
-  // 11. Автоматический step после инициализации
-  backend.run()
+  // 11. НЕ делаем step() после инициализации — это делает update()
 }
 
 /**
@@ -240,11 +259,10 @@ function writeValueToHeap(
   encodedValue: number,
 ): void {
   switch (fieldType) {
-    case TYPE.FLOAT: {
-      const view = new DataView(heapData.buffer)
-      view.setFloat32(offset * 4, encodedValue, true)
+    case TYPE.FLOAT:
+      // encodedValue — это битовое представление float в u32
+      heapData[offset] = encodedValue
       break
-    }
     case TYPE.UINT:
     case TYPE.BOOL:
     case TYPE.STRING:

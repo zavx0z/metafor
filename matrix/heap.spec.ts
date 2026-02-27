@@ -79,7 +79,9 @@ describe("buildHeap — построение кучи", () => {
     }
     const result = buildHeap(input)
 
-    expect(result.heap.length).toBe(0)
+    // Слово 0 резервируется как null pointer
+    expect(result.heap.length).toBe(1)
+    expect(result.heap[0]).toBe(0)  // null pointer
     expect(result.blockPtrs).toHaveLength(0)
   })
 })

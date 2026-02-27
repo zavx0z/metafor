@@ -17,6 +17,13 @@ import type { EncodingContext } from "./params.t"
 /**
  * Компилирует одну суперпозицию в байт-код.
  *
+ * Формат bytecode (как в boundary/):
+ * ```
+ * Индексы:  [0, 1, ...]              [N, N+1, ...]                [...]
+ *           [state_ptr_0, ...]       [tr_count, target, cond_ptr] [cond_count, type, ...]
+ *           ↑ state table            ↑ state blocks               ↑ condition blocks
+ * ```
+ *
  * @param collapses - Граф переходов: collapses[fromState][transitionIndex] = [targetState, conditions]
  * @param fields - Определение полей для кодирования значений
  * @returns Байт-код и смещение для GPU
@@ -25,46 +32,68 @@ export function compileSuperposition(
   collapses: Collapse[][],
   fields: Field[]
 ): FieldBytecode {
-  const bytecode: number[] = []
-  const statePtrs: number[] = []
-
-  // 1. Сначала собираем указатели на состояния (заполним позже)
-  for (let s = 0; s < collapses.length; s++) {
-    statePtrs.push(0) // placeholder
+  const numStates = collapses.length
+  
+  // === PASS 1: Собираем condition blocks и считаем размеры ===
+  const condBlocks: number[][] = []
+  const stateTransitionsCount: number[] = []  // количество transition для каждого состояния
+  
+  for (const stateTransitions of collapses) {
+    const trCount = stateTransitions.filter(t => t !== null).length
+    stateTransitionsCount.push(trCount)
+    
+    for (const collapse of stateTransitions) {
+      if (collapse === null) continue
+      const [, conditions] = collapse
+      
+      const condChecks = compileConditions(conditions, fields)
+      const condBlock: number[] = [condChecks.length]
+      for (const check of condChecks) {
+        condBlock.push(check.fieldType)
+        condBlock.push(check.fieldIndex)
+        condBlock.push(check.op)
+        condBlock.push(check.valEncoded)
+      }
+      condBlocks.push(condBlock)
+    }
   }
-
-  // 2. Компилируем каждое состояние
-  for (let s = 0; s < collapses.length; s++) {
-    const stateStart = bytecode.length
-    statePtrs[s] = stateStart
-
+  
+  // Вычисляем смещения секций
+  const stateTableLength = numStates
+  const stateBlocksLength = stateTransitionsCount.reduce((sum, trCount) => sum + 1 + trCount * 2, 0)
+  const condBlocksStart = stateTableLength + stateBlocksLength
+  
+  // === PASS 2: Строим state table и state blocks с правильными указателями ===
+  const statePtrs: number[] = []
+  const stateBlocks: number[] = []
+  
+  let condBlockIdx = 0
+  let condBlockOffset = condBlocksStart
+  
+  for (let s = 0; s < numStates; s++) {
+    // state_ptr — абсолютное смещение в bytecode (относительно начала)
+    const stateBlockStart = stateTableLength + stateBlocks.length
+    statePtrs.push(stateBlockStart)
+    
     const transitions = collapses[s]!
-    bytecode.push(transitions.filter(t => t !== null).length) // tr_count
-
+    const trCount = stateTransitionsCount[s]!
+    stateBlocks.push(trCount)
+    
     for (const collapse of transitions) {
       if (collapse === null) continue
-
-      const [targetState, conditions] = collapse
-      bytecode.push(targetState)
-
-      // Компилируем условия
-      const condStart = bytecode.length
-      bytecode.push(0) // cond_count placeholder
-
-      const condChecks = compileConditions(conditions, fields)
-      bytecode[condStart] = condChecks.length // записываем cond_count
-
-      for (const check of condChecks) {
-        bytecode.push(check.fieldType)
-        bytecode.push(check.fieldIndex)
-        bytecode.push(check.op)
-        bytecode.push(check.valEncoded)
-      }
+      
+      const [targetState] = collapse
+      stateBlocks.push(targetState)
+      stateBlocks.push(condBlockOffset)
+      
+      // Переходим к следующему condition block
+      condBlockOffset += condBlocks[condBlockIdx]!.length
+      condBlockIdx++
     }
   }
 
-  // 3. Вставляем указатели на состояния в начало
-  const finalBytecode = [...statePtrs, ...bytecode]
+  // === PASS 3: Собираем финальный массив ===
+  const finalBytecode = [...statePtrs, ...stateBlocks, ...condBlocks.flat()]
 
   return {
     bytecode: new Uint32Array(finalBytecode),

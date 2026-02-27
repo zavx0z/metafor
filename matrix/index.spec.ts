@@ -3,7 +3,7 @@
  * По образцу boundary/tests/field.logic.test.ts и boundary/tests/types/*.test.ts
  */
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
-import { write, update } from "./index"
+import { write, update, resetMatrix } from "./index"
 import { GPU } from "./gpu/device"
 import { setupDevice } from "fixture/bunWebGPU"
 import { FieldType } from "./index.t"
@@ -22,6 +22,7 @@ beforeAll(async () => {
 describe("write / update — базовые переходы", () => {
   afterEach(() => {
     resetStringAtlas()
+    resetMatrix()
   })
 
   test("должен перейти из IDLE в PATROL при hp > 50", async () => {
@@ -112,6 +113,7 @@ describe("write / update — базовые переходы", () => {
 describe("write / update — логические условия", () => {
   afterEach(() => {
     resetStringAtlas()
+    resetMatrix()
   })
 
   test("должен перейти при isAlive === true", async () => {
@@ -168,6 +170,7 @@ describe("write / update — логические условия", () => {
 describe("write / update — множественные условия", () => {
   afterEach(() => {
     resetStringAtlas()
+    resetMatrix()
   })
 
   test("должен перейти при выполнении обоих условий (hp > 50 И mana > 20)", async () => {
@@ -227,6 +230,7 @@ describe("write / update — множественные условия", () => {
 describe("write / update — entangled группы", () => {
   afterEach(() => {
     resetStringAtlas()
+    resetMatrix()
   })
 
   test("должен создать entangled блок для одинаковых значений", async () => {
@@ -271,7 +275,7 @@ describe("write / update — entangled группы", () => {
         {
           params: [
             [0, 100],
-            [1, 50],
+            [1, 10],  // mana=10 < 30 → должен перейти
             [2, true],
           ],
           state: 0,
@@ -283,7 +287,7 @@ describe("write / update — entangled группы", () => {
         {
           params: [
             [0, 100],
-            [1, 10],
+            [1, 50],  // mana=50 не < 30 → не должен перейти
             [2, true],
           ],
           state: 0,
@@ -295,9 +299,10 @@ describe("write / update — entangled группы", () => {
       ],
     })
 
-    const states = await update(0, 1, 10)
-    expect(states[0]?.[1]).toBe(0) // mana=50 не < 30 → нет перехода
-    expect(states[1]?.[1]).toBe(1) // mana=10 < 30 → переход
+    // Обновляем брану 1: mana=50 → mana=20 (< 30, теперь должен перейти)
+    const states = await update(1, 1, 20)
+    expect(states[0]?.[1]).toBe(1) // брана 0: mana=10 < 30 → переход
+    expect(states[1]?.[1]).toBe(1) // брана 1: mana=20 < 30 → переход
   })
 })
 
@@ -307,6 +312,7 @@ describe("write / update — entangled группы", () => {
 describe("write / update — многошаговая эволюция", () => {
   afterEach(() => {
     resetStringAtlas()
+    resetMatrix()
   })
 
   test("должен пройти через несколько состояний", async () => {
@@ -347,6 +353,7 @@ describe("write / update — многошаговая эволюция", () => {
 describe("write / update — ошибки", () => {
   afterEach(() => {
     resetStringAtlas()
+    resetMatrix()
   })
 
   test("должен бросить ошибку при update() до write()", async () => {
