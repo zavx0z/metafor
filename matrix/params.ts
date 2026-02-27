@@ -5,7 +5,7 @@
  * Поддерживает:
  * - Float32 bitcast для чисел с плавающей точкой
  * - Кодирование enum в индексы
- * - Интернирование строк через StringAtlas (возвращает string_id)
+ * - Интернирование строк через StringAtlas (возвращает string_id + hash)
  * - Кодирование массивов (возвращает pointer в heap)
  *
  * @packageDocumentation
@@ -17,89 +17,53 @@ import { getStringAtlas } from "./StringAtlas"
 import type { EncodingContext } from "./params.t"
 
 /**
- * Результат кодирования значения для STRING и ARRAY.
- * Эти типы требуют двух слов: pointer + hash/reserved.
+ * Результат кодирования значения.
+ * Для скаляров value2 = 0, для STRING/ARRAY value2 содержит hash/reserved.
  */
 export interface EncodedValueResult {
-  /** Первое слово: string_id (для STRING) или pointer в heap (для ARRAY). */
+  /** Первое слово: encoded value (scalar, string_id, pointer). */
   value1: number
-  /** Второе слово: hash (для STRING) или reserved (для ARRAY). */
+  /** Второе слово: 0 для скаляров, hash для STRING, reserved для ARRAY. */
   value2: number
 }
 
 /**
- * Кодирует скалярное значение в 32-битное целое число для GPU.
+ * Кодирует значение в пару 32-битных целых чисел для GPU.
+ *
+ * **Внимание:** Для TYPE.STRING вызывает `getStringAtlas().intern()` — side effect.
+ * Использовать **только внутри `prepareData()`** или `encodeFieldUpdate()`.
  *
  * @param value - Значение для кодирования.
  * @param context - Контекст кодирования (тип, enumValues).
- * @returns Закодированное 32-битное число.
- * @throws {Error} Если значение не найдено в enum.
- *
- * @example
- * ```typescript
- * // Float → bitcast
- * encodeValue(3.14, { type: TYPE.FLOAT }) → 0x4048F5C3
- *
- * // Bool → 0/1
- * encodeValue(true, { type: TYPE.BOOL }) → 1
- *
- * // Enum → индекс
- * encodeValue("MAGE", { type: TYPE.UINT, enum: ["WARRIOR", "MAGE", "ROGUE"] }) → 1
- * ```
- */
-export function encodeValue(value: unknown, context: EncodingContext): number {
-  // 1. Обработка ENUM: превращаем значение в индекс
-  if (context.enum) {
-    // Если значение уже число (индекс), возвращаем его
-    if (typeof value === "number") {
-      return value
-    }
-    // Если значение строка — ищем индекс
-    const idx = context.enum.indexOf(value)
-    if (idx === -1) {
-      throw new Error(`Value '${value}' not found in enum: [${context.enum}]`)
-    }
-    return idx
-  }
-
-  // 2. Float → bitcast в Uint32
-  if (context.type === TYPE.FLOAT) {
-    const buf = new Float32Array([Number(value)])
-    return new Uint32Array(buf.buffer)[0]!
-  }
-
-  // 3. Bool → 0/1
-  if (context.type === TYPE.BOOL) {
-    return value ? 1 : 0
-  }
-
-  // 4. UINT / default
-  return Number(value)
-}
-
-/**
- * Кодирует значение с возвратом двух слов для STRING и ARRAY.
- *
- * @param value - Значение для кодирования.
- * @param context - Контекст кодирования.
  * @returns EncodedValueResult с value1 и value2.
  * @throws {Error} Если значение не найдено в enum или неверный тип.
  *
  * @example
  * ```typescript
- * // String → string_id + hash
- * encodeValueWithPair("hello", { type: TYPE.STRING }) → { value1: 42, value2: hash }
+ * // Float → bitcast
+ * encodeValue(3.14, { type: TYPE.FLOAT }) → { value1: 0x4048F5C3, value2: 0 }
+ *
+ * // Bool → 0/1
+ * encodeValue(true, { type: TYPE.BOOL }) → { value1: 1, value2: 0 }
+ *
+ * // Enum → индекс
+ * encodeValue("MAGE", { type: TYPE.UINT, enum: ["WARRIOR", "MAGE", "ROGUE"] }) → { value1: 1, value2: 0 }
+ *
+ * // String → string_id + hash (интернирует строку)
+ * encodeValue("hello", { type: TYPE.STRING }) → { value1: 42, value2: hash }
  *
  * // Array → pointer + reserved
- * encodeValueWithPair([], { type: TYPE.ARRAY }) → { value1: 0, value2: 0 }
+ * encodeValue([], { type: TYPE.ARRAY }) → { value1: 0, value2: 0 }
  * ```
  */
-export function encodeValueWithPair(
-  value: unknown,
-  context: EncodingContext,
-): EncodedValueResult {
+export function encodeValue(value: unknown, context: EncodingContext): EncodedValueResult {
   // 1. ENUM
   if (context.enum) {
+    // Если значение уже число (индекс) — возвращаем его
+    if (typeof value === "number") {
+      return { value1: value, value2: 0 }
+    }
+    // Если значение строка — ищем индекс
     const idx = context.enum.indexOf(value)
     if (idx === -1) {
       throw new Error(`Value '${value}' not found in enum: [${context.enum}]`)

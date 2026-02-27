@@ -11,17 +11,17 @@ describe("encodeValue — кодирование значений", () => {
 
   test("должен кодировать float через bitcast", () => {
     const result = encodeValue(3.14, { type: TYPE.FLOAT })
-    expect(result).toBe(floatToUint(3.14))
+    expect(result.value1).toBe(floatToUint(3.14))
   })
 
   test("должен кодировать отрицательные float", () => {
     const result = encodeValue(-10.5, { type: TYPE.FLOAT })
-    expect(result).toBe(floatToUint(-10.5))
+    expect(result.value1).toBe(floatToUint(-10.5))
   })
 
   test("должен кодировать bool как 0/1", () => {
-    expect(encodeValue(true, { type: TYPE.BOOL })).toBe(1)
-    expect(encodeValue(false, { type: TYPE.BOOL })).toBe(0)
+    expect(encodeValue(true, { type: TYPE.BOOL }).value1).toBe(1)
+    expect(encodeValue(false, { type: TYPE.BOOL }).value1).toBe(0)
   })
 
   test("должен кодировать enum как индекс", () => {
@@ -29,7 +29,7 @@ describe("encodeValue — кодирование значений", () => {
       type: TYPE.UINT,
       enum: ["WARRIOR", "MAGE", "ROGUE"],
     })
-    expect(result).toBe(1)
+    expect(result.value1).toBe(1)
   })
 
   test("должен бросать ошибку для неизвестного enum значения", () => {
@@ -44,12 +44,12 @@ describe("encodeValue — кодирование значений", () => {
   test("должен интернировать строки через StringAtlas", () => {
     const result1 = encodeValue("hero", { type: TYPE.STRING })
     const result2 = encodeValue("hero", { type: TYPE.STRING })
-    expect(result1).toBe(result2) // Одинаковый ID для одинаковой строки
+    expect(result1.value1).toBe(result2.value1) // Одинаковый ID для одинаковой строки
   })
 
   test("должен кодировать числа как UINT", () => {
-    expect(encodeValue(42, { type: TYPE.UINT })).toBe(42)
-    expect(encodeValue(100, { type: TYPE.UINT })).toBe(100)
+    expect(encodeValue(42, { type: TYPE.UINT }).value1).toBe(42)
+    expect(encodeValue(100, { type: TYPE.UINT }).value1).toBe(100)
   })
 })
 

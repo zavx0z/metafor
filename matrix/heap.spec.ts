@@ -34,10 +34,13 @@ describe("packMeta / unpackMeta — упаковка метаданных", () =
 describe("buildHeap — построение кучи", () => {
   test("должен построить heap для 1 браны с 2 local полями", () => {
     const input = {
-      localFields: [[[0, 100], [1, 1]] as [number, unknown][]], // брана 0: hp=100 (F32), active=true (BOOL)
+      localFields: [[[0, 100], [1, 1]] as [number, number][]], // брана 0: hp=100 (F32), active=true (BOOL)
       braneEntangledMap: [[]],
       entangledFields: new Map(),
-      fieldTypes: new Map([[0, TYPE.FLOAT], [1, TYPE.BOOL]]),
+      fieldMeta: new Map([
+        [0, { fieldType: TYPE.FLOAT, fieldSize: 1 }],
+        [1, { fieldType: TYPE.BOOL, fieldSize: 1 }],
+      ]),
     }
     const result = buildHeap(input)
 
@@ -51,17 +54,20 @@ describe("buildHeap — построение кучи", () => {
   })
 
   test("должен построить heap с entangled ссылками", () => {
-    const entangledFields = new Map<string, [number, unknown][]>([
-      ["0,1", [[0, 100]] as [number, unknown][]], // поле 0 (hp) shared для бран 0 и 1
+    const entangledFields = new Map<string, [number, number][]>([
+      ["0,1", [[0, 100]] as [number, number][]], // поле 0 (hp) shared для бран 0 и 1
     ])
     const input = {
       localFields: [
-        [[1, 50]] as [number, unknown][], // брана 0: mana=50 (local)
-        [[1, 10]] as [number, unknown][], // брана 1: mana=10 (local)
+        [[1, 50]] as [number, number][], // брана 0: mana=50 (local)
+        [[1, 10]] as [number, number][], // брана 1: mana=10 (local)
       ],
       braneEntangledMap: [[0], [0]], // обе ссылаются на entangled блок 0
       entangledFields,
-      fieldTypes: new Map([[0, TYPE.FLOAT], [1, TYPE.FLOAT]]),
+      fieldMeta: new Map([
+        [0, { fieldType: TYPE.FLOAT, fieldSize: 1 }],
+        [1, { fieldType: TYPE.FLOAT, fieldSize: 1 }],
+      ]),
     }
     const result = buildHeap(input)
 
@@ -72,10 +78,10 @@ describe("buildHeap — построение кучи", () => {
 
   test("должен построить пустой heap для пустого входа", () => {
     const input = {
-      localFields: [] as [number, unknown][][],
+      localFields: [] as [number, number][][],
       braneEntangledMap: [],
       entangledFields: new Map(),
-      fieldTypes: new Map(),
+      fieldMeta: new Map(),
     }
     const result = buildHeap(input)
 
@@ -89,10 +95,13 @@ describe("buildHeap — построение кучи", () => {
 describe("findFieldOffset — поиск смещения поля", () => {
   test("должен найти смещение поля в блоке", () => {
     const input = {
-      localFields: [[[0, 100], [1, 1]] as [number, unknown][]],
+      localFields: [[[0, 100], [1, 1]] as [number, number][]],
       braneEntangledMap: [[]],
       entangledFields: new Map(),
-      fieldTypes: new Map([[0, TYPE.FLOAT], [1, TYPE.BOOL]]),
+      fieldMeta: new Map([
+        [0, { fieldType: TYPE.FLOAT, fieldSize: 1 }],
+        [1, { fieldType: TYPE.BOOL, fieldSize: 1 }],
+      ]),
     }
     const result = buildHeap(input)
     const blockPtr = result.blockPtrs[0]!
@@ -108,10 +117,10 @@ describe("findFieldOffset — поиск смещения поля", () => {
 
   test("должен вернуть null для несуществующего поля", () => {
     const input = {
-      localFields: [[[0, 100]] as [number, unknown][]],
+      localFields: [[[0, 100]] as [number, number][]],
       braneEntangledMap: [[]],
       entangledFields: new Map(),
-      fieldTypes: new Map([[0, TYPE.FLOAT]]),
+      fieldMeta: new Map([[0, { fieldType: TYPE.FLOAT, fieldSize: 1 }]]),
     }
     const result = buildHeap(input)
     const blockPtr = result.blockPtrs[0]!

@@ -9,7 +9,7 @@
 
 import { parseCondition } from "./condition"
 import { OP, TYPE } from "./opcodes"
-import { encodeValue, encodeValueWithPair, fieldTypeToBytecodeType } from "./params"
+import { encodeValue, fieldTypeToBytecodeType } from "./params"
 import type { Field } from "./index.t"
 import type { Collapse } from "./index.t"
 import type { FieldBytecode, CompiledRules, ConditionInstruction } from "./superposition.t"
@@ -59,7 +59,13 @@ export function compileSuperposition(
       if (collapse === null) continue
       const [, conditions] = collapse
 
-      const { instructions, heap } = compileConditions(conditions, fields)
+      // Парсим условия перед компиляцией (принцип готового формата данных)
+      const parsedChecks = Object.entries(conditions).map(([fieldIdxStr, condValue]) => ({
+        fieldIndex: Number(fieldIdxStr),
+        checks: parseCondition(condValue),
+      }))
+
+      const { instructions, heap } = compileParsedConditions(parsedChecks, fields)
 
       // Собираем instructions в плоский массив
       const instrFlat: number[] = [instructions.length]  // cond_count
@@ -138,17 +144,54 @@ export function compileSuperposition(
 }
 
 /**
- * Компилирует условия перехода в массив проверок.
+ * Определяет контекст кодирования для операторов массивов.
+ *
+ * ## Логика выбора контекста:
+ *
+ * | Оператор | Контекст |
+ * | -------- | -------- |
+ * | INCLUDE, NOT_INCLUDE | subType элемента массива |
+ * | LENGTH, IS_EMPTY | UINT (сравнение длины) |
+ * | GT, LT, GTE, LTE, EQ, NEQ | UINT (сравнение длины) |
+ *
+ * @param ctx - Исходный контекст поля (с subType для массивов)
+ * @param op - Код операции
+ * @param fieldType - Тип поля
+ * @returns Контекст для кодирования значения в байт-код
+ */
+function getArrayEncodingContext(
+  ctx: EncodingContext,
+  op: number,
+  fieldType: number,
+): EncodingContext {
+  if (fieldType !== TYPE.ARRAY) {
+    return ctx
+  }
+
+  // Для INCLUDE/NOT_INCLUDE используем subType элемента
+  if (
+    ctx.subType !== undefined &&
+    (op === OP.INCLUDE || op === OP.NOT_INCLUDE)
+  ) {
+    return { type: ctx.subType }
+  }
+
+  // Для LENGTH, IS_EMPTY и сравнений длины — UINT
+  return { type: TYPE.UINT }
+}
+
+/**
+ * Компилирует распарсенные условия перехода в массив проверок.
  *
  * Для операторов IN/NOT_IN создаёт кучу со списком значений.
  * Для STRING элементов в списках — интернирует и сохраняет string_id.
  *
- * @param conditions - Record<fieldIndex, condition> (сырые условия)
+ * @param parsedChecks - Массив распарсенных проверок: { fieldIndex, checks }
  * @param fields - Определение полей для кодирования
  * @returns Инструкции и куча для списков
  */
-export function compileConditions(
-  conditions: Record<number, any>,
+export function compileParsedConditions(
+  parsedChecks: Array<{ fieldIndex: number; checks: ParsedCheck[] }>,
   fields: Field[]
 ): CompiledConditionsResult {
   const instructions: ConditionInstruction[] = []
@@ -162,12 +205,10 @@ export function compileConditions(
     val: any
   }> = []
 
-  for (const [fieldIndexStr, cond] of Object.entries(conditions)) {
-    const fieldIndex = Number(fieldIndexStr)
+  for (const { fieldIndex, checks } of parsedChecks) {
     const field = fields[fieldIndex]
     if (!field) continue
 
-    const checks = parseCondition(cond)
     const fieldType = fieldTypeToBytecodeType(field.type)
 
     for (const check of checks) {
@@ -222,14 +263,13 @@ export function compileConditions(
           if (idx === -1) {
             throw new Error(`Value '${v}' not found in enum: [${ctx.enum}]`)
           }
-          heap.push(encodeValue(idx, ctx))
+          heap.push(encodeValue(idx, ctx).value1)
         }
-        // Для STRING элементов в списке — используем encodeValueWithPair
+        // Для STRING элементов в списке — используем encodeValue
         else if (check.fieldType === TYPE.STRING && typeof v === "string") {
-          const { value1 } = encodeValueWithPair(v, ctx)
-          heap.push(value1)
+          heap.push(encodeValue(v, ctx).value1)
         } else {
-          heap.push(encodeValue(v, ctx))
+          heap.push(encodeValue(v, ctx).value1)
         }
       }
       // Обновляем heapOffset для следующей кучи
@@ -241,27 +281,23 @@ export function compileConditions(
         valEncoded: ptr,
       })
     } else {
-      // Для STRING — используем encodeValueWithPair (возвращает string_id)
+      // Для STRING — используем encodeValue (возвращает string_id)
       if (check.fieldType === TYPE.STRING && typeof check.val === "string") {
-        const { value1 } = encodeValueWithPair(check.val, ctx)
-        valEncoded = value1
+        valEncoded = encodeValue(check.val, ctx).value1
       } else {
+        // Для ARRAY операторов используем специальный контекст
+        const encodeCtx = getArrayEncodingContext(ctx, check.op, check.fieldType)
+
         // Для ENUM строк в условиях типа gt: "MAGE" — конвертируем в индекс
         let valToEncode = check.val
-        if (ctx.enum !== undefined && typeof check.val === "string") {
-          const idx = ctx.enum.indexOf(check.val)
+        if (encodeCtx.enum !== undefined && typeof check.val === "string") {
+          const idx = encodeCtx.enum.indexOf(check.val)
           if (idx === -1) {
-            throw new Error(`Value '${check.val}' not found in enum: [${ctx.enum}]`)
+            throw new Error(`Value '${check.val}' not found in enum: [${encodeCtx.enum}]`)
           }
           valToEncode = idx
         }
-        // Для ARRAY операторов (INCLUDE, NOT_INCLUDE) используем subType для кодирования скаляра
-        let encodeCtx = ctx
-        if (check.fieldType === TYPE.ARRAY && ctx.subType !== undefined &&
-            (check.op === OP.INCLUDE || check.op === OP.NOT_INCLUDE)) {
-          encodeCtx = { type: ctx.subType }
-        }
-        valEncoded = encodeValue(valToEncode, encodeCtx)
+        valEncoded = encodeValue(valToEncode, encodeCtx).value1
       }
       
       instructions.push({
@@ -274,6 +310,26 @@ export function compileConditions(
   }
 
   return { instructions, heap }
+}
+
+/**
+ * Компилирует условия перехода в массив проверок.
+ *
+ * Обёртка для тестов — парсит сырые условия и вызывает compileParsedConditions().
+ *
+ * @param conditions - Record<fieldIndex, condition> (сырые условия)
+ * @param fields - Определение полей для кодирования
+ * @returns Инструкции и куча для списков
+ */
+export function compileConditions(
+  conditions: Record<number, any>,
+  fields: Field[]
+): CompiledConditionsResult {
+  const parsedChecks = Object.entries(conditions).map(([fieldIdxStr, condValue]) => ({
+    fieldIndex: Number(fieldIdxStr),
+    checks: parseCondition(condValue),
+  }))
+  return compileParsedConditions(parsedChecks, fields)
 }
 
 /**

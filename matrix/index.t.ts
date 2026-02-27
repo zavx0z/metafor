@@ -17,6 +17,19 @@ export const FieldType = {
 export type FieldTypeValue = (typeof FieldType)[keyof typeof FieldType]
 
 /**
+ * Допустимые значения параметра браны.
+ * Union type для строгой типизации вместо `unknown`.
+ */
+export type BraneParamValue =
+  | number
+  | boolean
+  | string
+  | null
+  | number[]
+  | boolean[]
+  | string[]
+
+/**
  * Поле — схема данных для GPU.
  */
 export interface Field {
@@ -38,7 +51,7 @@ export type Collapse = [number, Record<number, any>] | null
  */
 export interface Brane {
   /** Значения полей: [fieldIndex, value][] */
-  params: [number, unknown][]
+  params: [number, BraneParamValue][]
   /** Начальное состояние (индекс). */
   state: number
   /** Граф переходов. */

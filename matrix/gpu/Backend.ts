@@ -11,7 +11,7 @@ import type { BackendInitParams } from "./Backend.t"
  * * Диспетчеризация команд `dispatchWorkgroups`.
  * * Синхронизация данных VRAM <-> RAM (Readback).
  *
- * ### Формат braneDescriptors (v2.x):
+ * ### Формат braneDescriptors:
  * ```
  * braneDescriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
  * ```

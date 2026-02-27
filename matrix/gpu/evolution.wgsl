@@ -3,24 +3,40 @@
  *
  * Вычисляет переходы между состояниями суперпозиции на основе правил,
  * закодированных в байт-коде. Каждый поток GPU обрабатывает одно поле.
- * 
+ *
  * **Терминология:**
  * - **Field (Поле)** — квантовое поле с браной и суперпозицией
  * - **Brane (Брана)** — данные поля в куче (heap)
  * - **Superposition** — граф возможных переходов между состояниями
  * - **State** — текущее наблюдаемое состояние поля
- * 
+ *
  * **Формат Uniform-буфера:**
  * Структура занимает ровно 16 байт (4 × u32),
  * что соответствует минимальному требованию WebGPU для uniform buffers.
  * Padding-поля обязательны — GPU ожидает кратность 16 байтам.
- * 
+ *
  * @see https://www.w3.org/TR/WGSL/#alignment-and-size
  */
+
+// ============================================================================
+// КОНСТАНТЫ
+// ============================================================================
+/** Размер uniform-буфера в u32 (16 байт / 4 = 4 слова). */
+const UNIFORM_SIZE: u32 = 4u;
+
+/** Размер workgroup для compute shader. */
+const WORKGROUP_SIZE: u32 = 64u;
+
+/** Padding для выравнивания uniform-буфера до 16 байт. */
+const UNIFORM_PADDING: u32 = 3u;
+
+// ============================================================================
+// UNIFORM STRUCT
+// ============================================================================
 struct Uniforms {
   /**
    * Количество полей (field) в текущем батче.
-   * 
+   *
    * Используется в `main()` для защиты от out-of-bounds доступа:
    * compute-шейдер запускается с фиксированным числом workgroups,
    * и потоки с `id.x >= braneCount` досрочно завершаются.
@@ -54,6 +70,61 @@ var<storage, read> string_registry: array<u32>;
 var<storage, read> string_heap: array<u32>;
 
 // ============================================================================
+// ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ БЕЗОПАСНОГО ДОСТУПА
+// ============================================================================
+
+/**
+ * Безопасный доступ к heap с проверкой границ.
+ * Возвращает 0 при out-of-bounds доступе.
+ */
+fn heap_safe(index: u32) -> u32 {
+  if (index >= arrayLength(&heap)) {
+    return 0u;
+  }
+  return heap[index];
+}
+
+/**
+ * Безопасный доступ к brane_descriptors с проверкой границ.
+ */
+fn brane_descriptors_safe(index: u32) -> u32 {
+  if (index >= arrayLength(&brane_descriptors)) {
+    return 0u;
+  }
+  return brane_descriptors[index];
+}
+
+/**
+ * Безопасный доступ к string_registry с проверкой границ.
+ */
+fn string_registry_safe(index: u32) -> u32 {
+  if (index >= arrayLength(&string_registry)) {
+    return 0u;
+  }
+  return string_registry[index];
+}
+
+/**
+ * Безопасный доступ к string_heap с проверкой границ.
+ */
+fn string_heap_safe(index: u32) -> u32 {
+  if (index >= arrayLength(&string_heap)) {
+    return 0u;
+  }
+  return string_heap[index];
+}
+
+/**
+ * Безопасный доступ к bytecode с проверкой границ.
+ */
+fn bytecode_safe(index: u32) -> u32 {
+  if (index >= arrayLength(&bytecode)) {
+    return 0u;
+  }
+  return bytecode[index];
+}
+
+// ============================================================================
 // Вспомогательные функции для работы с кучей (из браны)
 // ============================================================================
 
@@ -67,7 +138,7 @@ var<storage, read> string_heap: array<u32>;
  */
 fn get_string_hash(string_id: u32) -> u32 {
   let registry_index = string_id * 3u + 2u;
-  return string_registry[registry_index];
+  return string_registry_safe(registry_index);
 }
 
 /**
@@ -75,7 +146,7 @@ fn get_string_hash(string_id: u32) -> u32 {
  */
 fn get_string_length(string_id: u32) -> u32 {
   let registry_index = string_id * 3u + 1u;
-  return string_registry[registry_index];
+  return string_registry_safe(registry_index);
 }
 
 /**
@@ -83,11 +154,13 @@ fn get_string_length(string_id: u32) -> u32 {
  */
 fn get_string_pointer(string_id: u32) -> u32 {
   let registry_index = string_id * 3u;
-  return string_registry[registry_index];
+  return string_registry_safe(registry_index);
 }
 
 /**
  * Двухступенчатое сравнение строк.
+ *
+ * Использует флаг вместо раннего выхода для предотвращения thread divergence на GPU.
  */
 fn string_equals(id_a: u32, id_b: u32) -> bool {
   if (id_a == id_b) {
@@ -105,21 +178,24 @@ fn string_equals(id_a: u32, id_b: u32) -> bool {
   }
   let ptr_a = get_string_pointer(id_a);
   let ptr_b = get_string_pointer(id_b);
+
+  // Используем флаг вместо раннего return для предотвращения thread divergence
+  var equal = true;
   for (var i = 0u; i < len_a; i = i + 1u) {
-    if (string_heap[ptr_a + i] != string_heap[ptr_b + i]) {
-      return false;
+    if (string_heap_safe(ptr_a + i) != string_heap_safe(ptr_b + i)) {
+      equal = false;
     }
   }
-  return true;
+  return equal;
 }
 
 /**
  * Проверить, входит ли строка в список строк.
  */
 fn string_in_list(string_id: u32, abs_list_ptr: u32) -> bool {
-  let count = bytecode[abs_list_ptr];
+  let count = bytecode_safe(abs_list_ptr);
   for (var i = 0u; i < count; i = i + 1u) {
-    let list_string_id = bytecode[abs_list_ptr + 1u + i];
+    let list_string_id = bytecode_safe(abs_list_ptr + 1u + i);
     if (string_equals(string_id, list_string_id)) {
       return true;
     }
@@ -129,19 +205,19 @@ fn string_in_list(string_id: u32, abs_list_ptr: u32) -> bool {
 
 fn get_field_block_ptr(brane_index: u32) -> u32 {
   // brane_descriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
-  return brane_descriptors[brane_index * 2u];
+  return brane_descriptors_safe(brane_index * 2u);
 }
 
 fn get_local_field_count(block_ptr: u32) -> u32 {
-  return heap[block_ptr];
+  return heap_safe(block_ptr);
 }
 
 fn get_entangled_count(block_ptr: u32) -> u32 {
-  return heap[block_ptr + 1u];
+  return heap_safe(block_ptr + 1u);
 }
 
 fn find_field(block_ptr: u32, target_field_id: u32) -> vec4<u32> {
-  let local_count = heap[block_ptr];
+  let local_count = heap_safe(block_ptr);
   // Дескрипторы полей начинаются сразу после заголовка (2 слова)
   let header_base = block_ptr + 2u;
 
@@ -151,8 +227,8 @@ fn find_field(block_ptr: u32, target_field_id: u32) -> vec4<u32> {
       break;
     }
 
-    let field_id = heap[header_base + i * 2u];
-    let meta_data = heap[header_base + i * 2u + 1u];
+    let field_id = heap_safe(header_base + i * 2u);
+    let meta_data = heap_safe(header_base + i * 2u + 1u);
 
     if (field_id == target_field_id) {
       let offset_words = meta_data & 0xFFFFu;
@@ -177,15 +253,15 @@ fn get_field_value_recursive(brane_index: u32, target_field_id: u32) -> f32 {
 
     if (field_type == 0u) {
       // F32
-      return bitcast<f32>(heap[result.w]);
+      return bitcast<f32>(heap_safe(result.w));
     }
 
-    return f32(heap[result.w]);
+    return f32(heap_safe(result.w));
   }
 
   // Если не нашли, ищем в entangled блоках
-  let local_count = heap[block_ptr];
-  let entangled_count = heap[block_ptr + 1u];
+  let local_count = heap_safe(block_ptr);
+  let entangled_count = heap_safe(block_ptr + 1u);
 
   var i: u32 = 0u;
   loop {
@@ -195,7 +271,7 @@ fn get_field_value_recursive(brane_index: u32, target_field_id: u32) -> f32 {
 
     // Получаем указатель на entangled блок (после заголовка + field descriptors)
     let entangled_ptrs_offset = block_ptr + 2u + local_count * 2u;
-    let entangled_ptr = heap[entangled_ptrs_offset + i];
+    let entangled_ptr = heap_safe(entangled_ptrs_offset + i);
 
     if (entangled_ptr == 0u) {
       i = i + 1u;
@@ -231,12 +307,12 @@ fn get_field_value_raw(brane_index: u32, target_field_id: u32) -> u32 {
   let result = find_field(block_ptr, target_field_id);
 
   if (result.x == 1u) {
-    return heap[result.w];
+    return heap_safe(result.w);
   }
 
   // Если не нашли, ищем в entangled блоках
-  let local_count = heap[block_ptr];
-  let entangled_count = heap[block_ptr + 1u];
+  let local_count = heap_safe(block_ptr);
+  let entangled_count = heap_safe(block_ptr + 1u);
 
   var i: u32 = 0u;
   loop {
@@ -246,7 +322,7 @@ fn get_field_value_raw(brane_index: u32, target_field_id: u32) -> u32 {
 
     // Получаем указатель на entangled блок (после заголовка + field descriptors)
     let entangled_ptrs_offset = block_ptr + 2u + local_count * 2u;
-    let entangled_ptr = heap[entangled_ptrs_offset + i];
+    let entangled_ptr = heap_safe(entangled_ptrs_offset + i);
 
     if (entangled_ptr == 0u) {
       i = i + 1u;
@@ -255,7 +331,7 @@ fn get_field_value_raw(brane_index: u32, target_field_id: u32) -> u32 {
 
     let entangled_result = find_field(entangled_ptr, target_field_id);
     if (entangled_result.x == 1u) {
-      return heap[entangled_result.w];
+      return heap_safe(entangled_result.w);
     }
 
     i = i + 1u;
@@ -283,7 +359,7 @@ fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, cond_val
   // op: EQ/NEQ/GT/LT/GTE/LTE, val_b_raw: ожидаемая длина.
   if (field_type == 4u && op <= 5u) {
     let heap_ptr = val_a_raw;
-    let len = select(0u, heap[heap_ptr], heap_ptr != 0u);
+    let len = select(0u, heap_safe(heap_ptr), heap_ptr != 0u);
 
     if (op == 0u) {
       return len == val_b_raw;
@@ -307,7 +383,7 @@ fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, cond_val
   if (field_type == 3u) {
     // val_a_raw = string_id из heap
     // val_b_raw = string_id из bytecode (для EQ/NEQ) или ptr на список (для IN/NOT_IN)
-    
+
     // EQ / NEQ для строк — используем полное сравнение строк
     if (op == 0u) {
       return string_equals(val_a_raw, val_b_raw);
@@ -329,7 +405,7 @@ fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, cond_val
     // Строки не поддерживают >, <, >=, <=
     return false;
   }
-  
+
   // Базовые скалярные сравнения (FLOAT, UINT, BOOL)
   if (op <= 5u) {
     var val_a = f32(val_a_raw);
@@ -363,10 +439,10 @@ fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, cond_val
   // val_b_raw — указатель на список в байткоде: [count, item1, item2...]
   if (op == 6u || op == 7u) {
     let abs_list_ptr = cond_values_base + val_b_raw;
-    let count = bytecode[abs_list_ptr];
+    let count = bytecode_safe(abs_list_ptr);
     var found = false;
     for (var i = 0u; i < count; i = i + 1u) {
-      let item_raw = bytecode[abs_list_ptr + 1u + i];
+      let item_raw = bytecode_safe(abs_list_ptr + 1u + i);
       var item_val = f32(item_raw);
       var val_a = f32(val_a_raw);
       if (field_type == 0u) {
@@ -405,7 +481,7 @@ fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, cond_val
       }
       return false;
     }
-    let len = heap[heap_ptr];
+    let len = heap_safe(heap_ptr);
     if (op == 10u) {
       return len == val_b_raw;
       // LENGTH.
@@ -420,7 +496,7 @@ fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, cond_val
       // INCLUDE / NOT_INCLUDE: линейный поиск в куче.
       var found = false;
       for (var i = 0u; i < len; i = i + 1u) {
-        let item_raw = heap[heap_ptr + 1u + i];
+        let item_raw = heap_safe(heap_ptr + 1u + i);
         if (item_raw == val_b_raw) {
           found = true;
           break;
@@ -440,6 +516,7 @@ fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, cond_val
   return false;
 }
 
+// WORKGROUP_SIZE = 64 (константа определена выше, но @workgroup_size требует literal)
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
   let idx = id.x;

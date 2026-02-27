@@ -228,12 +228,35 @@ export class StringAtlas {
 
 /**
  * Глобальный экземпляр StringAtlas.
- * Используется для интернирования строк во всей системе.
+ *
+ * ## Lifecycle
+ *
+ * - Создаётся лениво при первом вызове `getStringAtlas()`
+ * - **Сбрасывается** при каждом вызове `write()` через `resetStringAtlas()`
+ * - Все string_id, полученные до `write()`, становятся невалидными после сброса
+ *
+ * ## Предупреждение
+ *
+ * **Не храните string_id между вызовами `write()`!**
+ *
+ * @example
+ * ```ts
+ * // Правильно:
+ * await write({ fields: [...], branes: [...] })  // Сбрасывает атлас
+ * const states = await update(0, 0, "new string")  // Интернирует заново
+ *
+ * // Неправильно:
+ * const id = atlas.intern("hello")  // id = 0
+ * await write(...)  // Сброс! id больше не валиден
+ * const states = await update(0, 0, id)  // ❌ Ошибка: id устарел
+ * ```
  */
 let globalAtlas: StringAtlas | null = null
 
 /**
  * Получает глобальный экземпляр StringAtlas.
+ *
+ * @returns Глобальный атлас для интернирования строк
  */
 export function getStringAtlas(): StringAtlas {
   if (!globalAtlas) {
@@ -243,7 +266,10 @@ export function getStringAtlas(): StringAtlas {
 }
 
 /**
- * Сбрасывает глобальный атлас (для тестов).
+ * Сбрасывает глобальный атлас (для тестов и `write()`).
+ *
+ * **Side Effect:** Все ранее интернированные string_id становятся невалидными.
+ * Вызывается автоматически в `write()` перед инициализацией новых данных.
  */
 export function resetStringAtlas(): void {
   globalAtlas = null

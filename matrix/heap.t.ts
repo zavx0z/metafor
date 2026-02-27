@@ -59,8 +59,6 @@ export interface HeapInput {
   braneEntangledMap: number[][]
   /** Поля для каждого entangled блока: ключ → [[fieldIndex, encodedValue], ...] */
   entangledFields: Map<string, [number, number][]>
-  /** Типы полей: [fieldIndex, type][] */
-  fieldTypes: Map<number, number>
-  /** Метаданные полей: [fieldIndex, {fieldType, fieldSize}][] (опционально, вычисляется из fieldTypes) */
-  fieldMeta?: Map<number, { fieldType: number; fieldSize: number }>
+  /** Метаданные полей: [fieldIndex, {fieldType, fieldSize}][] (обязательно) */
+  fieldMeta: Map<number, { fieldType: number; fieldSize: number }>
 }

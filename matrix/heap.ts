@@ -94,16 +94,7 @@ export function unpackMeta(packed: PackedMeta): FieldMeta {
  * ```
  */
 export function buildHeap(input: HeapInput): HeapLayout {
-  const { localFields, braneEntangledMap, entangledFields, fieldTypes } = input
-  
-  // Вычисляем fieldMeta из fieldTypes если не передан
-  const fieldMeta = input.fieldMeta ?? new Map<number, { fieldType: number; fieldSize: number }>()
-  if (!input.fieldMeta) {
-    fieldTypes.forEach((fieldType, fieldIndex) => {
-      const fieldSize = fieldType === TYPE.STRING || fieldType === TYPE.ARRAY ? 2 : 1
-      fieldMeta.set(fieldIndex, { fieldType, fieldSize })
-    })
-  }
+  const { localFields, braneEntangledMap, entangledFields, fieldMeta } = input
 
   // Собираем все блоки: сначала entangled, потом branes
   const allBlocks: [number, number][][] = []  // [fieldIndex, encodedValue]
@@ -154,11 +145,11 @@ export function buildHeap(input: HeapInput): HeapLayout {
   // Создаём heap
   const heap = new Uint32Array(currentPtr)
 
-  // Заполняем entangled блоки
+  // Заполняем entangled блоки (entangled_count = 0)
   for (let i = 0; i < entangledKeys.length; i++) {
     const fields = entangledFields.get(entangledKeys[i]!)!
     const blockPtr = blockPtrs[i]!
-    writeBlock(heap, blockPtr, fields, fieldTypes, [], fieldMeta)
+    writeBlock(heap, blockPtr, fields, [], fieldMeta)
   }
 
   // Заполняем brane блоки
@@ -167,7 +158,7 @@ export function buildHeap(input: HeapInput): HeapLayout {
     const blockPtr = braneBlockPtrs[i]!
     const entangledIds = braneEntangledMap[i]!
     const entangledPtrs = entangledIds.map((id) => blockPtrs[id]!)
-    writeBlock(heap, blockPtr, fields, fieldTypes, entangledPtrs, fieldMeta)
+    writeBlock(heap, blockPtr, fields, entangledPtrs, fieldMeta)
   }
 
   return {
@@ -219,11 +210,10 @@ function calculateBlockSizeEncoded(
  *
  * Формат блока (как в boundary/):
  * [local_count, entangled_count, ...field_descriptors, ...entangled_ptrs, ...values]
- * 
+ *
  * @param heap - Heap данные
  * @param blockPtr - Смещение блока
  * @param fields - Поля с уже закодированными значениями: [fieldIndex, encodedValue][]
- * @param fieldTypes - Типы полей
  * @param entangledPtrs - Указатели на entangled блоки
  * @param fieldMeta - Метаданные полей: [fieldIndex, {fieldType, fieldSize}][]
  */
@@ -231,7 +221,6 @@ function writeBlock(
   heap: Uint32Array,
   blockPtr: number,
   fields: [number, number][],  // [fieldIndex, encodedValue]
-  fieldTypes: Map<number, number>,
   entangledPtrs: number[],
   fieldMeta: Map<number, { fieldType: number; fieldSize: number }>,
 ): void {
