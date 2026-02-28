@@ -123,6 +123,14 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
     if (context.allocateHeap && context.heap) {
       const arraySize = 1 + arr.length  // [length, item1, item2, ...]
       const ptr = context.allocateHeap(arraySize)
+      
+      // Проверка переполнения heap
+      if (ptr + arraySize > context.heap.length) {
+        throw new Error(
+          `Heap overflow: ARRAY allocation at ${ptr} with size ${arraySize} exceeds heap length ${context.heap.length}`
+        )
+      }
+      
       // Записываем длину
       context.heap[ptr] = arr.length
       // Кодируем и записываем элементы

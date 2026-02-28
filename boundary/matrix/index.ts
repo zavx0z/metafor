@@ -460,21 +460,33 @@ function prepareData(data: Data): PreparedData {
 }
 
 /**
- * Инициализирует матрицу (загружает данные на GPU).
+ * Инициализирует матрицу (загружает данные на GPU) и возвращает начальные состояния.
  *
  * @remarks
  * **Side Effects:**
  * - Сбрасывает StringAtlas
  * - Аллоцирует GPU-буферы
- * - НЕ выполняет step() автоматически (это делает update())
+ * - Выполняет step() для установки начальных состояний
+ * - Возвращает изменённые состояния после инициализации
  *
  * **Потокобезопасность:**
  * - Функция использует mutex для предотвращения конкурентных вызовов
  * - При одновременных вызовах второй будет ожидать завершения первого
  *
  * @param data - Конфигурация полей и бран
+ * @returns Массив изменённых состояний: `[[braneIndex, newState], ...]`
+ *
+ * @example
+ * ```typescript
+ * // Инициализация с возвратом начальных состояний
+ * const initialStates = await write({
+ *   fields: [{ type: FieldType.F32 }],
+ *   branes: [{ params: [[0, 100]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null]] }],
+ * })
+ * // initialStates = [[0, 1]] — брана 0 перешла в состояние 1 (100 > 50)
+ * ```
  */
-export async function write(data: Data): Promise<void> {
+export async function write(data: Data): Promise<[number, number][]> {
   // Блокировка mutex для предотвращения конкурентных вызовов
   if (writeMutex) {
     await writeMutex
@@ -533,7 +545,7 @@ export async function write(data: Data): Promise<void> {
 
     // Делаем step() после инициализации для установки начальных состояний
     backend.run()
-    const _ = await backend.readChanges()  // Читаем состояния после инициализации
+    return await backend.readChanges()  // Возвращаем состояния после инициализации
   } finally {
     // Освобождение mutex
     resolveMutex?.()

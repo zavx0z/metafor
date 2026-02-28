@@ -26,7 +26,7 @@ describe("write / update — базовые переходы", () => {
   })
 
   test("должен перейти из IDLE в PATROL при hp > 50", async () => {
-    await write({
+    const initialStates = await write({
       fields: [{ type: FieldType.F32 }],
       branes: [
         {
@@ -49,6 +49,9 @@ describe("write / update — базовые переходы", () => {
         },
       ],
     })
+    
+    // После write() нет переходов (0 ≤ 50, 50 не > 50)
+    expect(initialStates).toEqual([])
 
     const states = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
     // Брана 0: hp=100 > 50 → состояние 1 (изменение)
@@ -57,7 +60,7 @@ describe("write / update — базовые переходы", () => {
   })
 
   test("должен перейти из IDLE в DEAD при hp <= 0", async () => {
-    await write({
+    const initialStates = await write({
       fields: [{ type: FieldType.F32 }],
       branes: [
         {
@@ -72,14 +75,17 @@ describe("write / update — базовые переходы", () => {
         },
       ],
     })
+    
+    // После write() state=1 (PATROL)
+    expect(initialStates).toContainEqual([0, 1])
 
-    // После write() state=1 (PATROL), update с hp=0 → DEAD
+    // update с hp=0 → DEAD
     const states1 = await update([[0, [{ fieldIndex: 0, value: 0 }]]])
     expect(states1).toContainEqual([0, 2]) // DEAD
   })
 
   test("должен работать с gte (больше или равно)", async () => {
-    await write({
+    const initialStates = await write({
       fields: [{ type: FieldType.F32 }],
       branes: [
         {
@@ -93,6 +99,9 @@ describe("write / update — базовые переходы", () => {
         },
       ],
     })
+    
+    // После write() нет переходов
+    expect(initialStates).toEqual([])
 
     const states = await update([[0, [{ fieldIndex: 0, value: 50 }]]])  // 50 >= 50 → переход
     expect(states).toContainEqual([0, 1])
@@ -109,7 +118,7 @@ describe("write / update — логические условия", () => {
   })
 
   test("должен перейти при isAlive === true", async () => {
-    await write({
+    const initialStates = await write({
       fields: [{ type: FieldType.BOOL }],
       branes: [
         {
@@ -123,13 +132,16 @@ describe("write / update — логические условия", () => {
         },
       ],
     })
+    
+    // После write() нет переходов
+    expect(initialStates).toEqual([])
 
     const states = await update([[0, [{ fieldIndex: 0, value: true }]]])
     expect(states).toContainEqual([0, 1])
   })
 
   test("должен перейти при isAlive === false", async () => {
-    await write({
+    const initialStates = await write({
       fields: [{ type: FieldType.BOOL }],
       branes: [
         {
@@ -143,6 +155,9 @@ describe("write / update — логические условия", () => {
         },
       ],
     })
+    
+    // После write() нет переходов
+    expect(initialStates).toEqual([])
 
     const states = await update([[0, [{ fieldIndex: 0, value: false }]]])
     expect(states).toContainEqual([0, 1])
@@ -159,7 +174,7 @@ describe("write / update — множественные условия", () => {
   })
 
   test("должен перейти при выполнении обоих условий (hp > 50 И mana > 20)", async () => {
-    await write({
+    const initialStates = await write({
       fields: [{ type: FieldType.F32 }, { type: FieldType.F32 }],
       branes: [
         {
@@ -184,6 +199,9 @@ describe("write / update — множественные условия", () => {
         },
       ],
     })
+    
+    // После write() нет переходов
+    expect(initialStates).toEqual([])
 
     const states = await update([[0, [
       { fieldIndex: 0, value: 100 },  // hp=100>50
@@ -203,7 +221,7 @@ describe("write / update — entangled группы", () => {
   })
 
   test("должен создать entangled блок для одинаковых значений", async () => {
-    await write({
+    const initialStates = await write({
       fields: [
         { type: FieldType.F32 }, // hp (local - разные значения)
         { type: FieldType.BOOL }, // isAlive (entangled - одинаковые значения)
@@ -223,6 +241,9 @@ describe("write / update — entangled группы", () => {
         },
       ],
     })
+    
+    // После write() нет переходов
+    expect(initialStates).toEqual([])
 
     // update с isAlive=true → переход
     const states = await update([[0, [{ fieldIndex: 1, value: true }]]])
@@ -230,7 +251,7 @@ describe("write / update — entangled группы", () => {
   })
 
   test("должен работать с mixed: local + entangled поля", async () => {
-    await write({
+    const initialStates = await write({
       fields: [
         { type: FieldType.F32 }, // hp (shared)
         { type: FieldType.F32 }, // mana (local)
@@ -263,8 +284,10 @@ describe("write / update — entangled группы", () => {
         },
       ],
     })
-
+    
     // После write(): брана 0 mana=10<30 → state=1, брана 1 mana=50 не <30 → state=0
+    expect(initialStates).toContainEqual([0, 1])  // Брана 0 перешла
+
     // Обновляем брану 1: mana=50 → mana=20 (< 30, теперь должен перейти)
     const states = await update([[1, [{ fieldIndex: 1, value: 20 }]]])
     expect(states).toContainEqual([1, 1])  // Брана 1 изменилась
@@ -281,7 +304,7 @@ describe("write / update — многошаговая эволюция", () => {
   })
 
   test("должен пройти через несколько состояний", async () => {
-    await write({
+    const initialStates = await write({
       fields: [
         { type: FieldType.F32 },
         { type: FieldType.F32 },
@@ -301,8 +324,10 @@ describe("write / update — многошаговая эволюция", () => {
         },
       ],
     })
-
+    
     // После write() state=0 (hp=0 ≤ 50)
+    expect(initialStates).toEqual([])
+
     // Шаг 1: IDLE → PATROL (hp=100>50)
     const states1 = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
     expect(states1).toContainEqual([0, 1])
