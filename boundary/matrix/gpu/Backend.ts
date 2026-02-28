@@ -1,26 +1,28 @@
-import shaderSource from "./evolution.wgsl" with { type: "text" }
-import type { StringAtlasExport } from "../StringAtlas"
-import type { BackendInitParams } from "./Backend.t"
-
 /**
- * Драйвер WebGPU. Управляет ресурсами видеопамяти (VRAM).
+ * GPU Backend — драйвер WebGPU для выполнения вычислений на видеокарте.
+ *
+ * @packageDocumentation
  *
  * **Ответственность:**
- * * Аллокация и инициализация `GPUBuffer` (Storage/Uniform).
- * * Создание `ComputePipeline` и `BindGroup`.
- * * Диспетчеризация команд `dispatchWorkgroups`.
- * * Синхронизация данных VRAM <-> RAM (Readback).
+ * - Аллокация и инициализация GPUBuffer (Storage/Uniform)
+ * - Создание ComputePipeline и BindGroup
+ * - Диспетчеризация команд dispatchWorkgroups
+ * - Синхронизация данных VRAM <-> RAM (Readback)
  *
  * ### Формат braneDescriptors:
- * ```
+ * ```text
  * braneDescriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
  * ```
  * Каждое поле имеет два значения:
  * - `block_ptr` — указатель на блок браны в куче
  * - `bytecode_offset` — смещение начала bytecode в буфере bytecode
  *
- * @internal Используется только внутри `Boundary`.
+ * @internal Используется только внутри Boundary.
  */
+import shaderSource from "./evolution.wgsl" with { type: "text" }
+import type { StringAtlasExport } from "../StringAtlas"
+import type { BackendInitParams } from "./Backend.t"
+
 export class GPUBackend {
   protected readonly device: GPUDevice
   private pipeline: GPUComputePipeline | null = null
@@ -125,9 +127,15 @@ export class GPUBackend {
 
   /**
    * Выполняет Compute Pass.
-   * 1. Сбрасывает dirtyFlags в 0
-   * 2. Диспетчеризует задачи (Workgroups).
-   * 3. Шейдер пишет состояния напрямую в states и отмечает dirtyFlags.
+   *
+   * **Алгоритм:**
+   * 1. Сбрасывает dirtyFlags в 0 (для отслеживания изменений в этом кадре)
+   * 2. Диспетчеризует задачи (Workgroups) — по 1 на брану
+   * 3. WGSL-шейдер обновляет states in-place и устанавливает dirtyFlags для изменённых бран
+   *
+   * **Производительность:**
+   * - `dispatchWorkgroups(Math.ceil(count / 64))` — рабочая группа 64 потока
+   * - states обновляется напрямую в GPU-памяти (без копирования)
    */
   run() {
     if (!this.pipeline || !this.bindGroup) return

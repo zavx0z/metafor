@@ -1,7 +1,10 @@
 import type { StringMeta, StringId, StringAtlasExport } from "./StringAtlas.t"
 export type { StringAtlasExport }
+
 /**
  * StringAtlas — система интернирования строк для высокопроизводительной работы на GPU.
+ *
+ * @packageDocumentation
  *
  * ## Архитектура
  *

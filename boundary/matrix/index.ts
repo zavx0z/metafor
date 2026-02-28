@@ -1,21 +1,46 @@
 /**
  * matrix — функциональное API для GPU-эволюции суперпозиций.
  *
- * Архитектура:
- * - 2 функции: write(), update()
- * - step() вызывается автоматически внутри
- * - update() возвращает состояния [[braneIndex, state], ...]
+ * @packageDocumentation
+ *
+ * ## Архитектура
+ *
+ * Модуль реализует конвейер данных для выполнения FSM на GPU:
+ *
+ * 1. **write()** — инициализация:
+ *    - Валидация входных данных
+ *    - Кодирование значений (StringAtlas, heap)
+ *    - Компиляция суперпозиций в bytecode
+ *    - Загрузка данных на GPU
+ *
+ * 2. **update()** — эволюция:
+ *    - Кодирование обновлений полей
+ *    - Частичная запись в GPU (только изменённые слова)
+ *    - Выполнение compute shader
+ *    - Чтение изменённых состояний (dirty flags)
+ *
+ * ## Принцип работы
+ *
+ * Каждая брана — это набор полей в heap с индивидуальным bytecode FSM.
+ * Compute shader выполняет все переходы параллельно (1 поток на брану).
  *
  * @example
- * ```ts
+ * ```typescript
  * import { write, update } from "@metafor/matrix"
+ * import { FieldType } from "@metafor/matrix"
  *
+ * // Инициализация
  * await write({
  *   fields: [{ type: FieldType.F32 }],
- *   branes: [{ params: [[0, 100]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null]] }]
+ *   branes: [{
+ *     params: [[0, 100]],
+ *     state: 0,
+ *     collapses: [[[1, { 0: { gt: 50 } }]], [null]],
+ *   }],
  * })
  *
- * const states = await update(0, 0, 30)  // [[0, 0], [1, 1], ...]
+ * // Эволюция
+ * const changes = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
  * ```
  */
 import { GPUBackend } from "./gpu/Backend"
@@ -174,16 +199,57 @@ function validateData(data: Data): void {
     })
   })
 }
+
+/**
+ * Глобальное состояние модуля (fp.md п.5).
+ * Сбрасывается при вызове `resetMatrix()`.
+ */
 let backend: GPUBackend | null = null
+
+/**
+ * Heap данные. Содержит блоки бран + резерв для ARRAY аллокаций.
+ */
 let heap: Uint32Array | null = null
+
+/**
+ * Определение полей из последнего вызова `write()`.
+ */
 let fields: Field[] = []
+
+/**
+ * Смещения блоков бран в heap.
+ */
 let braneBlockPtrs: number[] = []
+
+/**
+ * Смещения bytecode для каждой браны.
+ */
 let bytecodeOffsets: Uint32Array | null = null
+
+/**
+ * Количество бран в текущей конфигурации.
+ */
 let braneCount: number = 0
+
+/**
+ * Начальные состояния бран.
+ */
 let initialStates: Uint32Array | null = null
-let heapAllocOffset: number = 0  // Для динамических аллокаций (ARRAY)
-let arrayReserveSize: number = 0  // Размер резервированной зоны для ARRAY
-let arrayDataInvalidated = false  // Флаг: данные ARRAY невалидны после update()
+
+/**
+ * Смещение для динамических аллокаций ARRAY в heap.
+ */
+let heapAllocOffset: number = 0
+
+/**
+ * Размер резервированной зоны для ARRAY в heap.
+ */
+let arrayReserveSize: number = 0
+
+/**
+ * Флаг: данные ARRAY невалидны после update().
+ */
+let arrayDataInvalidated = false
 
 /**
  * Mutex для предотвращения конкурентных вызовов update().

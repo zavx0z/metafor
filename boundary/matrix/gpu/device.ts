@@ -1,3 +1,23 @@
+/**
+ * GPU Device — глобальное WebGPU устройство для boundary.
+ *
+ * @packageDocumentation
+ *
+ * **Инициализация:**
+ * - Ленивая: при первом импорте модуля
+ * - Автоматическая: `navigator.gpu.requestAdapter()`
+ *
+ * **Использование:**
+ * ```typescript
+ * import { GPU } from "./device"
+ * const device = GPU.device  // Может выбросить Error если GPU недоступен
+ * ```
+ */
+
+/**
+ * Глобальное GPU-устройство (fp.md п.5).
+ * Инициализируется лениво при загрузке модуля.
+ */
 let device: GPUDevice | null = null
 
 if (navigator.gpu) {
