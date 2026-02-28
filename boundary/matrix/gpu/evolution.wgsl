@@ -55,19 +55,19 @@ var<storage, read> brane_descriptors: array<u32>;
 @group(0) @binding(1)
 var<storage, read> heap: array<u32>;
 @group(0) @binding(2)
-var<storage, read> states: array<u32>;
+var<storage, read_write> states: array<u32>;  // ← read_write для in-place обновления
 @group(0) @binding(3)
-var<storage, read_write> newStates: array<u32>;
-@group(0) @binding(4)
 var<storage, read> bytecode: array<u32>;
-@group(0) @binding(5)
+@group(0) @binding(4)
 var<uniform> u: Uniforms;
-@group(0) @binding(6)
+@group(0) @binding(5)
 var<storage, read> bytecode_offsets: array<u32>;
-@group(0) @binding(7)
+@group(0) @binding(6)
 var<storage, read> string_registry: array<u32>;
-@group(0) @binding(8)
+@group(0) @binding(7)
 var<storage, read> string_heap: array<u32>;
+@group(0) @binding(8)
+var<storage, read_write> dirty_flags: array<atomic<u32>>;  // ← атомарные флаги изменений
 
 // ============================================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ БЕЗОПАСНОГО ДОСТУПА
@@ -550,7 +550,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
       let op = bytecode[c_base + 2u];
       let val_encoded = bytecode[c_base + 3u];
       let real_val_raw = get_field_value_raw(idx, target_field_id);
-      
+
       let cond_values_base = bytecode_base + cond_ptr + 1u;
       if (!check_cond(op, field_type, real_val_raw, val_encoded, cond_values_base)) {
         passed = false;
@@ -564,5 +564,11 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     }
   }
 
-  newStates[idx] = next_state;
+  // In-place обновление состояния
+  states[idx] = next_state;
+
+  // Атомарная установка флага изменения
+  if (next_state != current_state) {
+    atomicStore(&dirty_flags[idx], 1u);
+  }
 }

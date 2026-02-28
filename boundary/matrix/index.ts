@@ -307,16 +307,6 @@ function prepareData(data: Data): PreparedData {
     })
   )
 
-  // Построение heap с уже закодированными значениями
-  const heapInput = {
-    localFields: encodedLocalFields,
-    braneEntangledMap: braneMapping.braneEntangledMap,
-    entangledFields: encodedEntangledFields,
-    fieldMeta,
-  }
-  const heapLayout = buildHeap(heapInput)
-  let heapData = heapLayout.heap
-
   // Динамический расчёт резерва для ARRAY на основе входных данных
   // Формула: сумма максимальных размеров массивов для всех ARRAY_PTR полей
   // Минимальный резерв: 256 слов (1KB) для небольших массивов
@@ -340,6 +330,17 @@ function prepareData(data: Data): PreparedData {
   // Добавляем буфер 2x для будущих update() операций
   arrayReserve *= 2
 
+  // Построение heap с уже закодированными значениями
+  const heapInput = {
+    localFields: encodedLocalFields,
+    braneEntangledMap: braneMapping.braneEntangledMap,
+    entangledFields: encodedEntangledFields,
+    fieldMeta,
+  }
+  const heapLayout = buildHeap(heapInput)
+  let heapData = heapLayout.heap
+
+  // Расширяем heap с учётом резерва для ARRAY
   const actualHeapSize = heapData.length + arrayReserve
   const extendedHeap = new Uint32Array(actualHeapSize)
   extendedHeap.set(heapData)
@@ -348,16 +349,110 @@ function prepareData(data: Data): PreparedData {
   // Сохраняем размер резерва для использования в update()
   const arrayReserveSize = arrayReserve
 
+  // Аллокация массивов из params (после создания extendedHeap)
+  let heapAllocOffset = heapData.length - arrayReserveSize
+
+  // Функция аллокации для encodeValue
+  const allocateHeap = (size: number): number => {
+    const ptr = heapAllocOffset
+    heapAllocOffset += size
+    return ptr
+  }
+
+  // Перекодируем local поля с ARRAY (теперь с allocateHeap)
+  const finalEncodedLocalFields = braneMapping.localFields.map(braneFields =>
+    braneFields.map(([fieldIndex, value]) => {
+      const meta = fieldMeta.get(fieldIndex)!
+      const field = data.fields[fieldIndex]
+      const ctx: EncodingContext = {
+        type: meta.fieldType,
+        allocateHeap,
+        heap: heapData,
+      }
+      if (field?.enum !== undefined) {
+        ctx.enum = field.enum
+      }
+      if (field?.elementType !== undefined) {
+        switch (field.elementType) {
+          case "number":
+            ctx.subType = TYPE.FLOAT
+            break
+          case "string":
+            ctx.subType = TYPE.STRING
+            break
+          case "boolean":
+            ctx.subType = TYPE.BOOL
+            break
+        }
+      }
+      const encodedValue = encodeFieldValue(value, ctx)
+      return [fieldIndex, encodedValue] as [number, number]
+    })
+  )
+
+  // Обновляем heapInput с финальными закодированными полями
+  const finalHeapInput = {
+    localFields: finalEncodedLocalFields,
+    braneEntangledMap: braneMapping.braneEntangledMap,
+    entangledFields: encodedEntangledFields,
+    fieldMeta,
+  }
+  const finalHeapLayout = buildHeap(finalHeapInput)
+  heapData.set(finalHeapLayout.heap)
+
+  // Перекодируем entangled поля с ARRAY (теперь с allocateHeap)
+  const finalEncodedEntangledFields = new Map<string, [number, number][]>()
+  for (const [key, fields] of braneMapping.entangledFields.entries()) {
+    const encoded = fields.map(([fieldIndex, value]) => {
+      const meta = fieldMeta.get(fieldIndex)!
+      const field = data.fields[fieldIndex]
+      const ctx: EncodingContext = {
+        type: meta.fieldType,
+        allocateHeap,
+        heap: heapData,
+      }
+      if (field?.enum !== undefined) {
+        ctx.enum = field.enum
+      }
+      if (field?.elementType !== undefined) {
+        switch (field.elementType) {
+          case "number":
+            ctx.subType = TYPE.FLOAT
+            break
+          case "string":
+            ctx.subType = TYPE.STRING
+            break
+          case "boolean":
+            ctx.subType = TYPE.BOOL
+            break
+        }
+      }
+      const encodedValue = encodeFieldValue(value, ctx)
+      return [fieldIndex, encodedValue] as [number, number]
+    })
+    finalEncodedEntangledFields.set(key, encoded)
+  }
+
+  // Финальное построение heap с entangled ARRAY
+  const ultimateHeapInput = {
+    localFields: finalEncodedLocalFields,
+    braneEntangledMap: braneMapping.braneEntangledMap,
+    entangledFields: finalEncodedEntangledFields,
+    fieldMeta,
+  }
+  const ultimateHeapLayout = buildHeap(ultimateHeapInput)
+  heapData.set(ultimateHeapLayout.heap)
+
   // Начальные состояния
   const initialStates = new Uint32Array(data.branes.map((b) => b.state))
 
   return {
     fieldMeta,
-    encodedEntangledFields,
-    encodedLocalFields,
-    heapInput,
+    encodedEntangledFields: finalEncodedEntangledFields,
+    encodedLocalFields: finalEncodedLocalFields,
+    heapInput: ultimateHeapInput,
     heapData,
-    heapLayout,
+    heapLayout: ultimateHeapLayout,
     compiledRules,
     initialStates,
     arrayReserveSize,
@@ -438,7 +533,7 @@ export async function write(data: Data): Promise<void> {
 
     // Делаем step() после инициализации для установки начальных состояний
     backend.run()
-    const _ = await backend.read()  // Читаем состояния после инициализации
+    const _ = await backend.readChanges()  // Читаем состояния после инициализации
   } finally {
     // Освобождение mutex
     resolveMutex?.()
@@ -557,14 +652,14 @@ export async function update(
 
     // Этап 3: GPU step + read
     backend.run()
-    const states = await backend.read()
+    const changes = await backend.readChanges()
 
     // Этап 4: Сброс зоны аллокации ARRAY
     heapAllocOffset = heap.length - arrayReserveSize
     arrayDataInvalidated = true  // Помечаем, что данные ARRAY невалидны
 
-    // Этап 5: Форматирование результата
-    return Array.from(states).map((state, idx) => [idx, state])
+    // Этап 5: Возвращаем только изменённые состояния
+    return changes
   } finally {
     // Освобождение mutex
     resolveMutex?.()

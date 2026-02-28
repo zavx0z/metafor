@@ -14,6 +14,15 @@ export interface EncodingContext {
   subType?: number
   /** Значения enum (для enum-типов). */
   enum?: any[]
+  /**
+   * Callback для аллокации места в heap (для ARRAY).
+   * Возвращает индекс в heap для записи данных массива.
+   */
+  allocateHeap?: (size: number) => number
+  /**
+   * Ссылка на heap для записи данных (для ARRAY).
+   */
+  heap?: Uint32Array
 }
 
 /**

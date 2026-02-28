@@ -107,8 +107,7 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
   }
 
   // 5. ARRAY → pointer в heap + reserved (0)
-  // Для инициализации params поддерживаем только пустые массивы (pointer=0)
-  // Для не-пустых массивов используется update() с аллокацией в heap
+  // Если предоставлен allocateHeap — аллоцируем место и записываем данные
   if (context.type === TYPE.ARRAY) {
     if (!Array.isArray(value)) {
       throw new Error(`Expected array for TYPE.ARRAY, got ${typeof value}`)
@@ -120,8 +119,24 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
       return { value1: 0, value2: 0 }
     }
 
-    // Для не-пустого массива — ошибка, нужно использовать update()
-    throw new Error("Non-empty array initialization not supported. Use update() instead.")
+    // Если есть allocateHeap и heap — аллоцируем и записываем
+    if (context.allocateHeap && context.heap) {
+      const arraySize = 1 + arr.length  // [length, item1, item2, ...]
+      const ptr = context.allocateHeap(arraySize)
+      // Записываем длину
+      context.heap[ptr] = arr.length
+      // Кодируем и записываем элементы
+      const elementType = context.subType ?? TYPE.FLOAT
+      for (let i = 0; i < arr.length; i++) {
+        const itemCtx: EncodingContext = { type: elementType }
+        context.heap[ptr + 1 + i] = encodeValue(arr[i], itemCtx).value1
+      }
+      return { value1: ptr, value2: 0 }
+    }
+
+    // Без allocateHeap — возвращаем 0 (данные будут записаны позже через update())
+    // Это позволяет использовать write() с пустыми массивами, а update() для инициализации
+    return { value1: 0, value2: 0 }
   }
 
   // 6. UINT / default

@@ -21,12 +21,13 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
   describe("Оператор EQ (равно)", () => {
     test("должен выполнить переход, когда значение равно указанному", async () => {
       const collapses: Collapse[][] = [[[1, { 0: { eq: 42 } }]], [null]]
+      // Начальное значение 0 ≠ 42, поэтому после write() state=0
       await write({
         fields: [{ type: FieldType.F32 }],
         branes: [{ state: 0, params: [[0, 0]], collapses }],
       })
       const resultStates = await update([[0, [{ fieldIndex: 0, value: 42 }]]])
-      expect(resultStates[0]?.[1]).toBe(1)
+      expect(resultStates).toContainEqual([0, 1])
     })
 
     test("должен работать с отрицательными числами", async () => {
@@ -36,7 +37,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
         branes: [{ state: 0, params: [[0, 0]], collapses }],
       })
       const resultStates = await update([[0, [{ fieldIndex: 0, value: -10 }]]])
-      expect(resultStates[0]?.[1]).toBe(1)
+      expect(resultStates).toContainEqual([0, 1])
     })
 
     test("должен работать с дробными числами", async () => {
@@ -46,77 +47,83 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
         branes: [{ state: 0, params: [[0, 0]], collapses }],
       })
       const resultStates = await update([[0, [{ fieldIndex: 0, value: 3.14 }]]])
-      expect(resultStates[0]?.[1]).toBe(1)
+      expect(resultStates).toContainEqual([0, 1])
     })
 
     test("должен работать с нулём", async () => {
       const collapses: Collapse[][] = [[[1, { 0: { eq: 0 } }]], [null]]
+      // Начальное значение 1 ≠ 0, поэтому после write() state=0
       await write({
         fields: [{ type: FieldType.F32 }],
         branes: [{ state: 0, params: [[0, 1]], collapses }],
       })
       const resultStates = await update([[0, [{ fieldIndex: 0, value: 0 }]]])
-      expect(resultStates[0]?.[1]).toBe(1)
+      expect(resultStates).toContainEqual([0, 1])
     })
   })
 
   describe("Оператор NEQ (не равно)", () => {
     test("должен выполнить переход, когда значение не равно указанному", async () => {
       const collapses: Collapse[][] = [[[1, { 0: { neq: 42 } }]], [null]]
+      // Начальное значение 42 = 42, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.F32 }],
-        branes: [{ state: 0, params: [[0, 0]], collapses }],
+        branes: [{ state: 0, params: [[0, 42]], collapses }],
       })
       const resultStates = await update([[0, [{ fieldIndex: 0, value: 41 }]]])
-      expect(resultStates[0]?.[1]).toBe(1)
+      expect(resultStates).toContainEqual([0, 1])
     })
   })
 
   describe("Оператор GT (больше)", () => {
     test("должен выполнить переход, когда значение больше указанного", async () => {
       const collapses: Collapse[][] = [[[1, { 0: { gt: 100 } }]], [null]]
+      // Начальное значение 50 ≤ 100, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.F32 }],
-        branes: [{ state: 0, params: [[0, 0]], collapses }],
+        branes: [{ state: 0, params: [[0, 50]], collapses }],
       })
       const resultStates = await update([[0, [{ fieldIndex: 0, value: 101 }]]])
-      expect(resultStates[0]?.[1]).toBe(1)
+      expect(resultStates).toContainEqual([0, 1])
     })
   })
 
   describe("Оператор LT (меньше)", () => {
     test("должен выполнить переход, когда значение меньше указанного", async () => {
       const collapses: Collapse[][] = [[[1, { 0: { lt: 50 } }]], [null]]
+      // Начальное значение 100 ≥ 50, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.F32 }],
-        branes: [{ state: 0, params: [[0, 0]], collapses }],
+        branes: [{ state: 0, params: [[0, 100]], collapses }],
       })
       const resultStates = await update([[0, [{ fieldIndex: 0, value: 49 }]]])
-      expect(resultStates[0]?.[1]).toBe(1)
+      expect(resultStates).toContainEqual([0, 1])
     })
   })
 
   describe("Оператор GTE (больше или равно)", () => {
     test("должен выполнить переход, когда значение больше или равно", async () => {
       const collapses: Collapse[][] = [[[1, { 0: { gte: 50 } }]], [null]]
+      // Начальное значение 0 < 50, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.F32 }],
         branes: [{ state: 0, params: [[0, 0]], collapses }],
       })
       const resultStates = await update([[0, [{ fieldIndex: 0, value: 50 }]]])
-      expect(resultStates[0]?.[1]).toBe(1)
+      expect(resultStates).toContainEqual([0, 1])
     })
   })
 
   describe("Оператор LTE (меньше или равно)", () => {
     test("должен выполнить переход, когда значение меньше или равно", async () => {
       const collapses: Collapse[][] = [[[1, { 0: { lte: 50 } }]], [null]]
+      // Начальное значение 100 > 50, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.F32 }],
-        branes: [{ state: 0, params: [[0, 0]], collapses }],
+        branes: [{ state: 0, params: [[0, 100]], collapses }],
       })
       const resultStates = await update([[0, [{ fieldIndex: 0, value: 50 }]]])
-      expect(resultStates[0]?.[1]).toBe(1)
+      expect(resultStates).toContainEqual([0, 1])
     })
   })
 })

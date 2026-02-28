@@ -26,7 +26,7 @@ describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
         branes: [{ state: 0, params: [[0, false]], collapses }],
       })
       const resultStates = await update([[0, [{ fieldIndex: 0, value: true }]]])
-      expect(resultStates[0]?.[1]).toBe(1)
+      expect(resultStates).toContainEqual([0, 1])
     })
 
     test("должен выполнить переход, когда значение равно false", async () => {
@@ -36,7 +36,7 @@ describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
         branes: [{ state: 0, params: [[0, true]], collapses }],
       })
       const resultStates = await update([[0, [{ fieldIndex: 0, value: false }]]])
-      expect(resultStates[0]?.[1]).toBe(1)
+      expect(resultStates).toContainEqual([0, 1])
     })
   })
 
@@ -48,7 +48,7 @@ describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
         branes: [{ state: 0, params: [[0, false]], collapses }],
       })
       const resultStates = await update([[0, [{ fieldIndex: 0, value: true }]]])
-      expect(resultStates[0]?.[1]).toBe(1)
+      expect(resultStates).toContainEqual([0, 1])
     })
 
     test("должен выполнить переход, когда значение равно false", async () => {
@@ -58,7 +58,7 @@ describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
         branes: [{ state: 0, params: [[0, true]], collapses }],
       })
       const resultStates = await update([[0, [{ fieldIndex: 0, value: false }]]])
-      expect(resultStates[0]?.[1]).toBe(1)
+      expect(resultStates).toContainEqual([0, 1])
     })
   })
 
@@ -70,7 +70,7 @@ describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
         branes: [{ state: 0, params: [[0, true]], collapses }],
       })
       const resultStates = await update([[0, [{ fieldIndex: 0, value: false }]]])
-      expect(resultStates[0]?.[1]).toBe(1)
+      expect(resultStates).toContainEqual([0, 1])
     })
   })
 })

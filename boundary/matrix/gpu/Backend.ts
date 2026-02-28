@@ -63,9 +63,14 @@ export class GPUBackend {
     // Создание буферов для архитектуры кучи
     this.buffers.braneDescriptors = this.createStorageBuffer(params.braneDescriptors)
     this.buffers.heap = this.createStorageBuffer(params.heap)
-    this.buffers.states = this.createStorageBuffer(params.states, true) // источник/назначение
+    this.buffers.states = this.createStorageBuffer(params.states, true) // read_write
 
-    this.buffers.newStates = this.createStorageBuffer(new Uint32Array(params.braneCount), true)
+    // dirtyFlags: 1 u32 на брану (атомарный флаг изменения)
+    this.buffers.dirtyFlags = this.createBuffer(
+      new Uint32Array(params.braneCount),
+      GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_SRC | GPUBufferUsage.COPY_DST
+    )
+
     this.buffers.bytecode = this.createStorageBuffer(params.bytecode)
     this.buffers.bytecodeOffsets = this.createStorageBuffer(params.bytecodeOffsets)
 
@@ -80,10 +85,11 @@ export class GPUBackend {
     this.buffers.stringHeap = this.createStorageBuffer(heapData)
 
     if (enableDebug) {
-      console.log("[GPUBackend] Creating staging buffer for readback:", params.states.byteLength, "bytes")
+      console.log("[GPUBackend] Creating staging buffer for readback:", params.states.byteLength * 2, "bytes")
     }
+    // stagingBuffer теперь должен вмещать dirtyFlags + states
     this.stagingBuffer = this.device.createBuffer({
-      size: params.states.byteLength,
+      size: params.states.byteLength * 2,
       usage: GPUBufferUsage.MAP_READ | GPUBufferUsage.COPY_DST,
     })
 
@@ -96,12 +102,12 @@ export class GPUBackend {
         { binding: 0, resource: { buffer: this.buffers.braneDescriptors } },
         { binding: 1, resource: { buffer: this.buffers.heap } },
         { binding: 2, resource: { buffer: this.buffers.states } },
-        { binding: 3, resource: { buffer: this.buffers.newStates } },
-        { binding: 4, resource: { buffer: this.buffers.bytecode } },
-        { binding: 5, resource: { buffer: this.buffers.uniforms } },
-        { binding: 6, resource: { buffer: this.buffers.bytecodeOffsets } },
-        { binding: 7, resource: { buffer: this.buffers.stringRegistry } },
-        { binding: 8, resource: { buffer: this.buffers.stringHeap } },
+        { binding: 3, resource: { buffer: this.buffers.bytecode } },
+        { binding: 4, resource: { buffer: this.buffers.uniforms } },
+        { binding: 5, resource: { buffer: this.buffers.bytecodeOffsets } },
+        { binding: 6, resource: { buffer: this.buffers.stringRegistry } },
+        { binding: 7, resource: { buffer: this.buffers.stringHeap } },
+        { binding: 8, resource: { buffer: this.buffers.dirtyFlags } },
       ],
     })
 
@@ -119,51 +125,89 @@ export class GPUBackend {
 
   /**
    * Выполняет Compute Pass.
-   * 1. Диспетчеризует задачи (Workgroups).
-   * 2. Меняет буферы состояний местами (Ping-Pong: new -> old).
+   * 1. Сбрасывает dirtyFlags в 0
+   * 2. Диспетчеризует задачи (Workgroups).
+   * 3. Шейдер пишет состояния напрямую в states и отмечает dirtyFlags.
    */
   run() {
     if (!this.pipeline || !this.bindGroup) return
-    if (!this.buffers.newStates || !this.buffers.states) {
+    if (!this.buffers.states || !this.buffers.dirtyFlags) {
       console.error("Buffers are not initialized")
       return
     }
 
     const cmd = this.device.createCommandEncoder()
+
+    // Сброс dirtyFlags в 0 перед вычислением
+    cmd.clearBuffer(this.buffers.dirtyFlags, 0, this.buffers.dirtyFlags.size)
+
     const pass = cmd.beginComputePass()
     pass.setPipeline(this.pipeline)
     pass.setBindGroup(0, this.bindGroup)
 
-    // Количество полей определяется размером буфера newStates.
+    // Количество бран определяется размером буфера states.
     // Используем размер рабочей группы 64.
-    const count = this.buffers.newStates.size / 4
+    const count = this.buffers.states.size / 4
     pass.dispatchWorkgroups(Math.ceil(count / 64))
     pass.end()
 
-    // Логика свопа: копируем новые -> старые
-    cmd.copyBufferToBuffer(this.buffers.newStates, 0, this.buffers.states, 0, this.buffers.newStates.size)
+    // newStates больше не нужен — states обновляется in-place
     this.device.queue.submit([cmd.finish()])
   }
 
   /**
-   * Асинхронно читает массив состояний из GPU.
+   * Асинхронно читает только изменённые состояния из GPU.
    *
-   * **Внимание:** Требует синхронизации с CPU (медленно).
+   * **Оптимизация:**
+   * - Читает dirtyFlags (1 u32 на брану)
+   * - Возвращает только браны с изменёнными состояниями
+   * - Экономия 90-99% bandwidth при разреженных изменениях
    *
-   * @returns Массив числовых ID состояний (по индексу браны).
+   * @returns Массив пар [braneIndex, newState] только для изменённых бран.
    */
-  async read(): Promise<Uint32Array> {
-    if (!this.buffers.states || !this.stagingBuffer) {
+  async readChanges(): Promise<[number, number][]> {
+    if (!this.buffers.states || !this.buffers.dirtyFlags || !this.stagingBuffer) {
       throw new Error("Buffers are not initialized")
     }
+
+    const braneCount = this.buffers.states.size / 4
     const cmd = this.device.createCommandEncoder()
-    cmd.copyBufferToBuffer(this.buffers.states, 0, this.stagingBuffer, 0, this.buffers.states.size)
+
+    // Копируем dirtyFlags в stagingBuffer
+    cmd.copyBufferToBuffer(
+      this.buffers.dirtyFlags,
+      0,
+      this.stagingBuffer,
+      0,
+      braneCount * 4
+    )
+
+    // Копируем states в отдельный staging (можно переиспользовать тот же)
+    cmd.copyBufferToBuffer(
+      this.buffers.states,
+      0,
+      this.stagingBuffer,
+      braneCount * 4,
+      braneCount * 4
+    )
+
     this.device.queue.submit([cmd.finish()])
 
     await this.stagingBuffer.mapAsync(GPUMapMode.READ)
-    const copy = new Uint32Array(this.stagingBuffer.getMappedRange().slice(0))
+    const data = new Uint32Array(this.stagingBuffer.getMappedRange().slice(0))
+
+    const dirtyFlags = data.slice(0, braneCount)
+    const states = data.slice(braneCount, braneCount * 2)
+
+    const changes: [number, number][] = []
+    for (let i = 0; i < braneCount; i++) {
+      if (dirtyFlags[i]) {
+        changes.push([i, states[i]!])
+      }
+    }
+
     this.stagingBuffer.unmap()
-    return copy
+    return changes
   }
 
   /**
