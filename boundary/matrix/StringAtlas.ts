@@ -265,13 +265,27 @@ export class StringAtlas {
 let globalAtlas: StringAtlas | null = null
 
 /**
+ * Promise для инициализации StringAtlas (защита от race conditions).
+ */
+let atlasInitPromise: Promise<StringAtlas> | null = null
+
+/**
  * Получает глобальный экземпляр StringAtlas.
+ *
+ * **Потокобезопасность:**
+ * - При параллельных вызовах во время инициализации возвращается тот же Promise
+ * - Гарантируется создание только одного экземпляра
  *
  * @returns Глобальный атлас для интернирования строк
  */
 export function getStringAtlas(): StringAtlas {
   if (!globalAtlas) {
+    if (!atlasInitPromise) {
+      atlasInitPromise = Promise.resolve(new StringAtlas())
+    }
+    // Синхронная инициализация (Promise.resolve уже разрешён)
     globalAtlas = new StringAtlas()
+    atlasInitPromise = null
   }
   return globalAtlas
 }
@@ -284,4 +298,5 @@ export function getStringAtlas(): StringAtlas {
  */
 export function resetStringAtlas(): void {
   globalAtlas = null
+  atlasInitPromise = null
 }

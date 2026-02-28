@@ -728,13 +728,12 @@ function encodeFieldUpdate(
   }
   // Для ARRAY — аллоцируем место в heap и кодируем элементы
   else if (fieldType === TYPE.ARRAY && Array.isArray(value)) {
-    // Предупреждение: данные ARRAY были сброшены после предыдущего update()
+    // Валидация: данные ARRAY были сброшены после предыдущего update()
     if (arrayDataInvalidated) {
-      console.warn(
-        `⚠️  ARRAY field: данные массива были сброшены после предыдущего update(). ` +
+      throw new Error(
+        `ARRAY field ${field.type}: данные массива были сброшены после предыдущего update(). ` +
         `Передавайте массив явно при каждом update().`
       )
-      arrayDataInvalidated = false  // Сбрасываем флаг после предупреждения
     }
 
     const arr = value as unknown[]

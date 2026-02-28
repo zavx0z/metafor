@@ -6,28 +6,38 @@
 
 import { unpackMeta } from "./heap"
 import type { StringAtlas } from "./StringAtlas"
+import type {
+  HeapStats,
+  HeapBlockDump,
+  FieldDump,
+  BytecodeDump,
+  StateDump,
+  TransitionDump,
+  ConditionDump,
+  StringAtlasDump,
+  StringDump,
+  MatrixDump,
+} from "./debug.t"
 
 /**
  * Дамп блока heap.
  *
  * @param heap - Heap данные
  * @param blockPtr - Смещение блока в heap
+ * @returns Структурированный дамп блока
  *
  * @example
  * ```typescript
  * const blockPtr = braneBlockPtrs[0]!
- * dumpHeap(heap, blockPtr)
- * // Block @ 1, local=2, entangled=0
- * //   Field 0: type=0(FLOAT), size=1, offset=4
- * //   Field 1: type=2(BOOL), size=1, offset=5
+ * const dump = dumpHeap(heap, blockPtr)
+ * console.log(`Block @ ${dump.blockPtr}, local=${dump.localCount}`)
  * ```
  */
-export function dumpHeap(heap: Uint32Array, blockPtr: number): void {
+export function dumpHeap(heap: Uint32Array, blockPtr: number): HeapBlockDump {
   const localCount = heap[blockPtr] ?? 0
   const entangledCount = heap[blockPtr + 1] ?? 0
 
-  console.log(`Block @ ${blockPtr}, local=${localCount}, entangled=${entangledCount}`)
-
+  const fields: FieldDump[] = []
   for (let i = 0; i < localCount; i++) {
     const descOffset = 2 + i * 2
     const fieldId = heap[descOffset] ?? 0
@@ -35,17 +45,29 @@ export function dumpHeap(heap: Uint32Array, blockPtr: number): void {
 
     const { type, size, offset } = unpackMeta(packedMeta)
 
-    const typeName = getTypeName(type)
-    console.log(`  Field ${fieldId}: type=${type}(${typeName}), size=${size}, offset=${offset}`)
+    fields.push({
+      fieldId,
+      type,
+      typeName: getTypeName(type),
+      size,
+      offset,
+    })
   }
 
+  const entangledPointers: number[] = []
   if (entangledCount > 0) {
     const entangledPtrsOffset = 2 + localCount * 2
-    console.log(`  Entangled pointers:`)
     for (let i = 0; i < entangledCount; i++) {
-      const ptr = heap[entangledPtrsOffset + i] ?? 0
-      console.log(`    [${i}] @ ${ptr}`)
+      entangledPointers.push(heap[entangledPtrsOffset + i] ?? 0)
     }
+  }
+
+  return {
+    blockPtr,
+    localCount,
+    entangledCount,
+    fields,
+    entangledPointers,
   }
 }
 
@@ -54,67 +76,84 @@ export function dumpHeap(heap: Uint32Array, blockPtr: number): void {
  *
  * @param bytecode - Bytecode данные
  * @param offset - Смещение начала bytecode для этой браны
+ * @returns Структурированный дамп bytecode
  *
  * @example
  * ```typescript
  * const offset = bytecodeOffsets[0]!
- * dumpBytecode(bytecode, offset)
- * // Bytecode @ 0
- * //   State 0: ptr=4, transitions=1
- * //     Transition 0: target=1, conditions=1
- * //       Cond 0: type=0(FLOAT), field=0, op=2(GT), val=50.0
+ * const dump = dumpBytecode(bytecode, offset)
+ * console.log(`States: ${dump.stateTableSize}`)
  * ```
  */
-export function dumpBytecode(bytecode: Uint32Array, offset: number): void {
-  console.log(`Bytecode @ ${offset}`)
-
-  // State table size определяется по первому state_ptr
-  // Формат: state_ptr[0], state_ptr[1], ...
-  // Размер таблицы = state_ptr[0] / 4 (так как первый блок начинается после таблицы)
+export function dumpBytecode(bytecode: Uint32Array, offset: number): BytecodeDump {
   const firstStatePtr = bytecode[offset] ?? 0
-  const stateTableSize = (firstStatePtr - offset) / 4
+  // stateTableSize = количество состояний = firstStatePtr - offset
+  // (так как state_ptr[i] — абсолютное смещение, и state table занимает firstStatePtr - offset слов)
+  const stateTableSize = firstStatePtr - offset
 
-  console.log(`  State table size: ${stateTableSize}`)
+  const states: StateDump[] = []
 
   for (let stateIdx = 0; stateIdx < stateTableSize; stateIdx++) {
     const statePtrOffset = offset + stateIdx
     const statePtr = bytecode[statePtrOffset] ?? 0
 
-    console.log(`  State ${stateIdx}: ptr=${statePtr}`)
+    const isTerminal = statePtr === 0
+    const transitions: TransitionDump[] = []
 
-    if (statePtr === 0) continue
+    if (!isTerminal) {
+      const trCount = bytecode[statePtr] ?? 0
 
-    // State block: [tr_count, target[0], cond_ptr[0], ...]
-    const trCount = bytecode[statePtr] ?? 0
-    console.log(`    transitions=${trCount}`)
+      for (let trIdx = 0; trIdx < trCount; trIdx++) {
+        const trOffset = statePtr + 1 + trIdx * 2
+        const target = bytecode[trOffset] ?? 0
+        const condPtr = bytecode[trOffset + 1] ?? 0
 
-    for (let trIdx = 0; trIdx < trCount; trIdx++) {
-      const trOffset = statePtr + 1 + trIdx * 2
-      const target = bytecode[trOffset] ?? 0
-      const condPtr = bytecode[trOffset + 1] ?? 0
+        const conditions: ConditionDump[] = []
+        if (condPtr !== 0) {
+          const condCount = bytecode[condPtr] ?? 0
 
-      console.log(`    Transition ${trIdx}: target=${target}, cond_ptr=${condPtr}`)
+          for (let condIdx = 0; condIdx < condCount; condIdx++) {
+            const condOffset = condPtr + 1 + condIdx * 4
+            const type = bytecode[condOffset] ?? 0
+            const fieldId = bytecode[condOffset + 1] ?? 0
+            const op = bytecode[condOffset + 2] ?? 0
+            const valEncoded = bytecode[condOffset + 3] ?? 0
 
-      if (condPtr === 0) continue
+            conditions.push({
+              conditionIdx: condIdx,
+              type,
+              typeName: getTypeName(type),
+              fieldId,
+              op,
+              opName: getOpName(op),
+              valEncoded,
+              valDecoded: type === 0 ? bitcastToF32(valEncoded) : valEncoded,
+            })
+          }
+        }
 
-      // Condition block: [cond_count, type, field_id, op, val_encoded, ...]
-      const condCount = bytecode[condPtr] ?? 0
-      console.log(`      conditions=${condCount}`)
-
-      for (let condIdx = 0; condIdx < condCount; condIdx++) {
-        const condOffset = condPtr + 1 + condIdx * 4
-        const type = bytecode[condOffset] ?? 0
-        const fieldId = bytecode[condOffset + 1] ?? 0
-        const op = bytecode[condOffset + 2] ?? 0
-        const valEncoded = bytecode[condOffset + 3] ?? 0
-
-        const typeName = getTypeName(type)
-        const opName = getOpName(op)
-        const valDecoded = type === 0 ? bitcastToF32(valEncoded) : valEncoded
-
-        console.log(`        Cond ${condIdx}: type=${type}(${typeName}), field=${fieldId}, op=${op}(${opName}), val=${valDecoded}`)
+        transitions.push({
+          transitionIdx: trIdx,
+          target,
+          condPtr,
+          conditions,
+        })
       }
     }
+
+    states.push({
+      stateIdx,
+      statePtr,
+      transitionCount: transitions.length,
+      transitions,
+      isTerminal,
+    })
+  }
+
+  return {
+    offset,
+    stateTableSize,
+    states,
   }
 }
 
@@ -122,20 +161,18 @@ export function dumpBytecode(bytecode: Uint32Array, offset: number): void {
  * Дамп StringAtlas.
  *
  * @param atlas - StringAtlas для дампа
+ * @returns Структурированный дамп атласа
  *
  * @example
  * ```typescript
  * const atlas = getStringAtlas()
- * dumpStringAtlas(atlas)
- * // StringAtlas: 3 strings
- * //   [0] "hero" (len=4, hash=0x1a2b3c4d)
- * //   [1] "monster" (len=7, hash=0x5e6f7a8b)
+ * const dump = dumpStringAtlas(atlas)
+ * console.log(`Strings: ${dump.count}`)
  * ```
  */
-export function dumpStringAtlas(atlas: StringAtlas): void {
+export function dumpStringAtlas(atlas: StringAtlas): StringAtlasDump {
   const exported = atlas.export()
-
-  console.log(`StringAtlas: ${exported.count} strings`)
+  const strings: StringDump[] = []
 
   for (let i = 0; i < exported.count; i++) {
     const ptr = exported.registry[i * 3] ?? 0
@@ -148,7 +185,18 @@ export function dumpStringAtlas(atlas: StringAtlas): void {
     }
     const str = String.fromCodePoint(...codePoints)
 
-    console.log(`  [${i}] "${str}" (len=${len}, hash=0x${hash.toString(16).padStart(8, '0')})`)
+    strings.push({
+      id: i,
+      value: str,
+      length: len,
+      hash,
+      pointer: ptr,
+    })
+  }
+
+  return {
+    count: exported.count,
+    strings,
   }
 }
 
@@ -157,11 +205,11 @@ export function dumpStringAtlas(atlas: StringAtlas): void {
  */
 function getTypeName(type: number): string {
   const names: Record<number, string> = {
-    0: 'FLOAT',
-    1: 'UINT',
-    2: 'BOOL',
-    3: 'STRING',
-    4: 'ARRAY',
+    0: "FLOAT",
+    1: "UINT",
+    2: "BOOL",
+    3: "STRING",
+    4: "ARRAY",
   }
   return names[type] ?? `UNKNOWN(${type})`
 }
@@ -171,18 +219,18 @@ function getTypeName(type: number): string {
  */
 function getOpName(op: number): string {
   const names: Record<number, string> = {
-    0: 'EQ',
-    1: 'NEQ',
-    2: 'GT',
-    3: 'LT',
-    4: 'GTE',
-    5: 'LTE',
-    6: 'IN',
-    7: 'NOT_IN',
-    8: 'INCLUDE',
-    9: 'NOT_INCLUDE',
-    10: 'LENGTH',
-    11: 'IS_EMPTY',
+    0: "EQ",
+    1: "NEQ",
+    2: "GT",
+    3: "LT",
+    4: "GTE",
+    5: "LTE",
+    6: "IN",
+    7: "NOT_IN",
+    8: "INCLUDE",
+    9: "NOT_INCLUDE",
+    10: "LENGTH",
+    11: "IS_EMPTY",
   }
   return names[op] ?? `UNKNOWN(${op})`
 }
@@ -202,14 +250,15 @@ function bitcastToF32(value: number): number {
  * @param bytecode - Bytecode данные
  * @param bytecodeOffsets - Смещения bytecode для каждой браны
  * @param braneBlockPtrs - Смещения блоков бран в heap
+ * @returns Полный дамп Matrix
  *
  * @example
  * ```typescript
  * import { dumpMatrix } from "@metafor/matrix/debug"
  *
  * // После write()
- * await write(data)
- * await dumpMatrix(heap, bytecode, bytecodeOffsets, braneBlockPtrs)
+ * const dump = await dumpMatrix(heap, bytecode, bytecodeOffsets, braneBlockPtrs)
+ * console.log(`Branes: ${dump.braneCount}`)
  * ```
  */
 export async function dumpMatrix(
@@ -217,42 +266,30 @@ export async function dumpMatrix(
   bytecode: Uint32Array,
   bytecodeOffsets: Uint32Array,
   braneBlockPtrs: number[],
-): Promise<void> {
-  console.log('=== MATRIX DEBUG DUMP ===\n')
-
-  console.log(`Branes: ${braneBlockPtrs.length}\n`)
+): Promise<MatrixDump> {
+  const heapBlocks: HeapBlockDump[] = []
+  const bytecodeDumps: BytecodeDump[] = []
 
   for (let i = 0; i < braneBlockPtrs.length; i++) {
-    console.log(`=== BRANE ${i} ===\n`)
-
-    console.log('--- HEAP BLOCK ---')
-    dumpHeap(heap, braneBlockPtrs[i]!)
-    console.log()
-
-    console.log('--- BYTECODE ---')
-    dumpBytecode(bytecode, bytecodeOffsets[i]!)
-    console.log()
+    heapBlocks.push(dumpHeap(heap, braneBlockPtrs[i]!))
+    bytecodeDumps.push(dumpBytecode(bytecode, bytecodeOffsets[i]!))
   }
 
-  console.log('=== STRING ATLAS ===\n')
-  const { getStringAtlas } = await import('./StringAtlas')
-  dumpStringAtlas(getStringAtlas())
-}
+  let stringAtlas: StringAtlasDump | null = null
+  try {
+    const { getStringAtlas } = await import("./StringAtlas")
+    stringAtlas = dumpStringAtlas(getStringAtlas())
+  } catch {
+    // StringAtlas может быть не доступен
+  }
 
-/**
- * Статистика heap.
- */
-export interface HeapStats {
-  /** Общий размер heap в словах */
-  totalSize: number
-  /** Занято словами */
-  usedSize: number
-  /** Резерв для ARRAY в словах */
-  arrayReserve: number
-  /** Свободно словами */
-  freeSize: number
-  /** Процент использования */
-  utilization: number
+  return {
+    braneCount: braneBlockPtrs.length,
+    heapBlocks,
+    bytecodeDumps,
+    stringAtlas,
+    heapStats: getHeapStats(heap, braneBlockPtrs),
+  }
 }
 
 /**
@@ -289,7 +326,7 @@ export function getHeapStats(
     for (let i = 0; i < localCount; i++) {
       const descOffset = 2 + i * 2
       const packedMeta = heap[descOffset + 1] ?? 0
-      const size = (packedMeta >>> 16) & 0xFF
+      const size = (packedMeta >>> 16) & 0xff
       valueWords += size
     }
 
@@ -326,10 +363,10 @@ export function visualizeBytecode(bytecode: Uint32Array, offset: number): string
   const lines: string[] = []
 
   const firstStatePtr = bytecode[offset] ?? 0
-  const stateTableSize = (firstStatePtr - offset) / 4
+  const stateTableSize = firstStatePtr - offset
 
   lines.push(`Bytecode @ ${offset} (states: ${stateTableSize})`)
-  lines.push('')
+  lines.push("")
 
   for (let stateIdx = 0; stateIdx < stateTableSize; stateIdx++) {
     const statePtrOffset = offset + stateIdx
@@ -338,7 +375,7 @@ export function visualizeBytecode(bytecode: Uint32Array, offset: number): string
     lines.push(`State ${stateIdx} (ptr=${statePtr}):`)
 
     if (statePtr === 0) {
-      lines.push('  [terminal]')
+      lines.push("  [terminal]")
       continue
     }
 
@@ -371,10 +408,10 @@ export function visualizeBytecode(bytecode: Uint32Array, offset: number): string
       }
 
       if (conditions.length > 0) {
-        lines.push(`    if: ${conditions.join(' && ')}`)
+        lines.push(`    if: ${conditions.join(" && ")}`)
       }
     }
   }
 
-  return lines.join('\n')
+  return lines.join("\n")
 }

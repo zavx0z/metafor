@@ -335,6 +335,9 @@ export function compileConditions(
 /**
  * Компилирует ансамбль суперпозиций всех бран.
  *
+ * **Side Effects:** Вызывает `encodeValue()` для строк в IN-списках,
+ * что интернирует строки в глобальный StringAtlas.
+ *
  * @param branes - Массив бран с их суперпозициями
  * @param fields - Общие определения полей
  * @returns Объединённый байт-код и смещения
