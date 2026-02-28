@@ -4,8 +4,6 @@
  * @packageDocumentation
  */
 
-import { getStringAtlas } from "@boundary/atlas"
-import { getMatrixState, _restoreFromState } from "@boundary/matrix"
 import type { MatrixState, DeserializedState } from "./format.t"
 import { MAGIC_NUMBER, FORMAT_VERSION, SectionType } from "./format.t"
 
@@ -16,17 +14,14 @@ import { MAGIC_NUMBER, FORMAT_VERSION, SectionType } from "./format.t"
  * @returns Uint8Array с бинарными данными
  */
 export function serializeMatrix(state: MatrixState): Uint8Array {
-  const atlas = getStringAtlas()
-  const atlasExport = atlas.exportData()
-
   // Подготовка данных
   const sections = [
     { type: SectionType.HEAP, data: state.heap },
     { type: SectionType.BYTECODE, data: state.bytecode },
     { type: SectionType.BYTECODE_OFFSETS, data: state.bytecodeOffsets },
     { type: SectionType.STATES, data: state.states },
-    { type: SectionType.STRING_REGISTRY, data: atlasExport.registry },
-    { type: SectionType.STRING_HEAP, data: atlasExport.heap },
+    { type: SectionType.STRING_REGISTRY, data: state.stringRegistry },
+    { type: SectionType.STRING_HEAP, data: state.stringHeap },
     { type: SectionType.FIELDS, data: new Uint8Array(Buffer.from(JSON.stringify(state.fields))) },
     { type: SectionType.METADATA, data: new Uint8Array(Buffer.from(JSON.stringify(state.metadata))) },
   ]
