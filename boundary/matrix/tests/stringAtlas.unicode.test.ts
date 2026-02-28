@@ -46,7 +46,7 @@ describe("StringAtlas — Unicode и корректность интерниро
     const atlas = new StringAtlas()
     atlas.intern("alpha")
     atlas.intern("βета")
-    const exported = atlas.export()
+    const exported = atlas.exportData()
     expect(exported.count).toBe(2)
     expect(exported.registry.length).toBe(6)
   })

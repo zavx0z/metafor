@@ -171,7 +171,7 @@ export function dumpBytecode(bytecode: Uint32Array, offset: number): BytecodeDum
  * ```
  */
 export function dumpStringAtlas(atlas: StringAtlas): StringAtlasDump {
-  const exported = atlas.export()
+  const exported = atlas.exportData()
   const strings: StringDump[] = []
 
   for (let i = 0; i < exported.count; i++) {

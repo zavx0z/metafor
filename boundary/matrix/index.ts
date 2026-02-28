@@ -592,7 +592,7 @@ export async function write(data: Data): Promise<[number, number][]> {
     // Этап 3: Инициализация GPU
     backend = new GPUBackend(GPU.device)
 
-    const atlasExport = getStringAtlas().export()
+    const atlasExport = getStringAtlas().exportData()
     await backend.init(
       {
         braneCount,

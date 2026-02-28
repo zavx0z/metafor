@@ -36,7 +36,7 @@ export type { StringAtlasExport }
  * const id3 = atlas.intern("monster") // Новый ID
  *
  * // Экспорт для GPU
- * const gpu = atlas.export()
+ * const gpu = atlas.exportData()
  * device.createBuffer({ size: gpu.registry.byteLength }, gpu.registry)
  * ```
  */
@@ -142,7 +142,7 @@ export class StringAtlas {
    *
    * @returns Плоские массивы для storage buffers
    */
-  export(): StringAtlasExport {
+  exportData(): StringAtlasExport {
     // Реестр: [ptr0, len0, hash0, ptr1, len1, hash1, ...]
     const registry = new Uint32Array(this.stringRegistry.length * 3)
     for (let i = 0; i < this.stringRegistry.length; i++) {

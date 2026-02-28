@@ -10,7 +10,7 @@
  */
 
 import { describe, it, expect, beforeEach } from "bun:test"
-import { StringAtlas } from "./StringAtlas"
+import { StringAtlas } from "./index"
 
 describe("StringAtlas", () => {
   let atlas: StringAtlas
@@ -211,6 +211,53 @@ describe("StringAtlas", () => {
       expect(exportData.count).toBe(2)
       expect(exportData.registry.length).toBe(2 * 3) // 3 u32 на строку
       expect(exportData.heap.length).toBeGreaterThan(0)
+    })
+  })
+
+  describe("Параллельные вызовы", () => {
+    /**
+     * Тест на потокобезопасность intern().
+     *
+     * StringAtlas не является потокобезопасным — при параллельных вызовах
+     * возможна гонка за состояние (stringRegistry, stringHeap, stringMap).
+     *
+     * Этот тест проверяет, что:
+     * - Нет исключений при параллельных вызовах
+     * - Все строки корректно интернированы
+     * - ID уникальны для разных строк
+     *
+     * ⚠️ В production параллельные вызовы должны защищаться mutex на уровне
+     * write()/update() (см. boundary/matrix/index.ts).
+     */
+    it("должен корректно обрабатывать параллельные вызовы intern()", async () => {
+      const testAtlas = new StringAtlas()
+      const strings = ["a", "b", "c", "d", "e", "f", "g", "h"]
+      const results = await Promise.all(strings.map((s) => testAtlas.intern(s)))
+
+      // Все ID должны быть уникальны (нет коллизий)
+      const uniqueIds = new Set(results)
+      expect(uniqueIds.size).toBe(strings.length)
+
+      // Все строки должны быть доступны
+      results.forEach((id, index) => {
+        expect(testAtlas.getString(id)).toBe(strings[index])
+      })
+    })
+
+    it("должен возвращать одинаковый ID при параллельных вызовах с одинаковой строкой", async () => {
+      const testAtlas = new StringAtlas()
+      const results = await Promise.all([
+        testAtlas.intern("same"),
+        testAtlas.intern("same"),
+        testAtlas.intern("same"),
+      ])
+
+      // Все должны вернуть один и тот же ID
+      expect(results[0]).toBe(results[1])
+      expect(results[1]).toBe(results[2])
+
+      // Счётчик должен быть 1 (строка интернирована один раз)
+      expect(testAtlas.count).toBe(1)
     })
   })
 
