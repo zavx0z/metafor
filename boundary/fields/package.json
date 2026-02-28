@@ -10,7 +10,9 @@
   },
   "private": true,
   "dependencies": {
-    "@boundary/atlas": "workspace:*"
+    "@boundary/atlas": "workspace:*",
+    "@boundary/matrix": "workspace:*",
+    "@boundary/dump": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest"

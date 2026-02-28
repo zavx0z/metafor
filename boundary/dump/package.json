@@ -1,8 +1,17 @@
 {
   "name": "@boundary/dump",
-  "module": "index.ts",
+  "version": "0.0.1",
   "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./types": "./format.t.ts"
+  },
   "private": true,
+  "dependencies": {
+    "@boundary/atlas": "workspace:*",
+    "@boundary/matrix": "workspace:*"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },

@@ -4,8 +4,8 @@
  * @packageDocumentation
  */
 
-import { unpackMeta } from "./heap"
-import type { StringAtlas } from "./StringAtlas"
+import { unpackMeta, TYPE, OP } from "@boundary/fields"
+import type { StringAtlas } from "@boundary/atlas"
 import type {
   HeapStats,
   HeapBlockDump,
@@ -277,7 +277,7 @@ export async function dumpMatrix(
 
   let stringAtlas: StringAtlasDump | null = null
   try {
-    const { getStringAtlas } = await import("./StringAtlas")
+    const { getStringAtlas } = await import("@boundary/atlas")
     stringAtlas = dumpStringAtlas(getStringAtlas())
   } catch {
     // StringAtlas может быть не доступен

@@ -12,6 +12,7 @@
  */
 
 import { describe, it, expect } from "bun:test"
+import { getStringAtlas, resetStringAtlas, type StringAtlasExport } from "@boundary/atlas"
 import {
   dumpHeap,
   dumpBytecode,
@@ -20,9 +21,9 @@ import {
   visualizeBytecode,
   dumpMatrix,
 } from "./debug"
-import { StringAtlas } from "./StringAtlas"
-import { packMeta } from "./heap"
-import { TYPE, OP } from "./opcodes"
+import { StringAtlas } from "@boundary/atlas"
+import { packMeta } from "@boundary/fields"
+import { TYPE, OP } from "@boundary/fields"
 
 describe("debug — утилиты отладки", () => {
   describe("dumpHeap()", () => {

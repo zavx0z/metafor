@@ -3,11 +3,12 @@
  * По образцу boundary/tests/field.logic.test.ts и boundary/tests/types/*.test.ts
  */
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
-import { write, update, resetMatrix } from "./index"
-import { GPU } from "./gpu/device"
+import { write, update } from "@boundary/fields"
+import { resetMatrix } from "@boundary/matrix"
+import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
-import { FieldType } from "./index.t"
-import { resetStringAtlas } from "./StringAtlas"
+import { FieldType } from "@boundary/fields"
+import { resetStringAtlas } from "@boundary/atlas"
 
 // ============================================================================
 // SETUP: GPU один раз перед всеми тестами

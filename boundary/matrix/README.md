@@ -803,7 +803,7 @@ dumpStringAtlas(atlas)
 ### Дамп dirtyFlags
 
 ```typescript
-import { GPU } from "./gpu/device"
+import { GPU } from "./device"
 
 const device = GPU._device
 const dirtyFlags = await device.queue.readBuffer(backend.buffers.dirtyFlags)

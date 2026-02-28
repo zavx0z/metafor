@@ -20,8 +20,8 @@
  * @internal Используется только внутри Boundary.
  */
 import shaderSource from "./evolution.wgsl" with { type: "text" }
-import type { StringAtlasExport } from "../StringAtlas"
-import type { BackendInitParams } from "./Backend.t"
+import type { StringAtlasExport } from "@boundary/atlas"
+import type { BackendInitParams } from "./backend.t"
 
 export class GPUBackend {
   protected readonly device: GPUDevice

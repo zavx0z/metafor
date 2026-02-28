@@ -2,8 +2,8 @@
  * Тесты для validateData.
  */
 import { test, expect, describe } from "bun:test"
-import { validateData } from "./validate"
-import { FieldType, type Data } from "./index.t"
+import { validateData } from "../validate"
+import { FieldType, type Data } from "../index.t"
 
 describe("validateData — валидация входных данных", () => {
   test("должен принимать валидные данные", () => {
@@ -46,7 +46,7 @@ describe("validateData — валидация входных данных", () =
         state: 0,
         collapses: [[null]],
       }],
-    } as Data
+    } as unknown as Data
     expect(() => validateData(data)).toThrow("invalid type")
   })
 

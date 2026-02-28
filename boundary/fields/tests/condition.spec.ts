@@ -1,6 +1,16 @@
+/**
+ * Тесты для модуля parseCondition.
+ *
+ * Проверяет парсинг всех видов условий:
+ * - Простые скалярные условия
+ * - Операторы сравнения
+ * - Массивы и length условия
+ * - Инвертированные операторы
+ */
+
 import { test, expect, describe } from "bun:test"
-import { parseCondition } from "./condition"
-import { OP } from "./opcodes"
+import { parseCondition } from "../condition"
+import { OP } from "../opcodes"
 
 describe("parseCondition — парсинг условий", () => {
   test("должен парсить простое числовое условие", () => {

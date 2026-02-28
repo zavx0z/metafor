@@ -3,10 +3,11 @@
  */
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
-import { write, update, resetMatrix } from "../../index"
-import { GPU } from "../../gpu/device"
-import { FieldType, type Collapse } from "../../index.t"
-import { resetStringAtlas } from "../../StringAtlas"
+import { write, update } from "@boundary/fields"
+import { resetMatrix } from "@boundary/matrix"
+import { GPU } from "@boundary/matrix"
+import { FieldType, type Collapse } from "@boundary/fields"
+import { resetStringAtlas } from "@boundary/atlas"
 
 describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
   beforeAll(async () => {

@@ -21,7 +21,6 @@
  * ```typescript
  * import { write, update } from "@boundary/fields"
  * import { FieldType } from "@boundary/fields"
- * import { getMatrixState, initMatrixGPU } from "@boundary/matrix"
  *
  * // Инициализация
  * await write({
@@ -38,17 +37,30 @@
  * ```
  */
 
+import { getStringAtlas, resetStringAtlas } from "@boundary/atlas"
+import {
+  _initMatrix,
+  _stepMatrix,
+  _readMatrixChanges,
+  _updateMatrixHeap,
+  resetMatrix,
+  getMatrixState,
+  _getBackend,
+} from "@boundary/matrix"
+import { serializeMatrix, deserializeMatrix } from "@boundary/dump"
+
 import { validateData } from "./validate"
 import { prepareData, type PreparedData } from "./prepare"
-import { buildHeap, findFieldOffset } from "./heap"
+import { buildHeap, findFieldOffset, packMeta, unpackMeta } from "./heap"
 import type { HeapInput } from "./heap.t"
 import { compileEnsemble, compileSuperposition, compileParsedConditions } from "./superposition"
 import type { CompiledRules } from "./superposition.t"
-import { encodeValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "./params"
+import { encodeValue, encodeFieldValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "./params"
 import type { EncodingContext } from "./params.t"
 import { findEntangledGroups, buildBraneMapping } from "./entangled"
 import { parseCondition } from "./condition"
 import { OP, TYPE } from "./opcodes"
+import type { Data, Field } from "./index.t"
 
 export {
   // Основное API
@@ -57,6 +69,8 @@ export {
   // Heap
   buildHeap,
   findFieldOffset,
+  packMeta,
+  unpackMeta,
   // Superposition
   compileEnsemble,
   compileSuperposition,
@@ -75,6 +89,8 @@ export {
   // Opcodes
   OP,
   TYPE,
+  // Matrix state
+  getMatrixState,
 }
 
 export type {
@@ -100,64 +116,334 @@ export type {
 // ============================================================================
 
 /**
- * Глобальное состояние модуля.
- * Сбрасывается при вызове `resetFields()`.
+ * Определение полей из последнего вызова `write()`.
  */
-let state: {
-  heap: Uint32Array | null
-  fields: import("./index.t").Field[]
-  braneBlockPtrs: number[]
-  bytecodeOffsets: Uint32Array | null
-  braneCount: number
-  initialStates: Uint32Array | null
-  heapAllocOffset: number
-  arrayReserveSize: number
-  arrayDataInvalidated: boolean
-  prepared: PreparedData | null
-} = {
-  heap: null,
-  fields: [],
-  braneBlockPtrs: [],
-  bytecodeOffsets: null,
-  braneCount: 0,
-  initialStates: null,
-  heapAllocOffset: 0,
-  arrayReserveSize: 0,
-  arrayDataInvalidated: false,
-  prepared: null,
-}
+let fields: import("./index.t").Field[] = []
+
+/**
+ * Mutex для предотвращения конкурентных вызовов write().
+ */
+let writeMutex: Promise<void> | null = null
+
+/**
+ * Mutex для предотвращения конкурентных вызовов update().
+ */
+let updateMutex: Promise<void> | null = null
 
 /**
  * Сбрасывает состояние модуля (для тестов).
  * @internal
  */
-export function resetFields(): void {
-  state = {
-    heap: null,
-    fields: [],
-    braneBlockPtrs: [],
-    bytecodeOffsets: null,
-    braneCount: 0,
-    initialStates: null,
-    heapAllocOffset: 0,
-    arrayReserveSize: 0,
-    arrayDataInvalidated: false,
-    prepared: null,
+export function reset(): void {
+  fields = []
+  writeMutex = null
+  updateMutex = null
+  resetMatrix()
+  resetStringAtlas()
+}
+
+// ============================================================================
+// ОСНОВНОЕ API: write() и update()
+// ============================================================================
+
+/**
+ * Инициализирует матрицу (загружает данные на GPU) и возвращает начальные состояния.
+ *
+ * @remarks
+ * **Side Effects:**
+ * - Сбрасывает StringAtlas
+ * - Аллоцирует GPU-буферы
+ * - Выполняет step() для установки начальных состояний
+ * - Возвращает изменённые состояния после инициализации
+ *
+ * **Потокобезопасность:**
+ * - Функция использует mutex для предотвращения конкурентных вызовов
+ * - При одновременных вызовах второй будет ожидать завершения первого
+ *
+ * @param data - Конфигурация полей и бран
+ * @returns Массив изменённых состояний: `[[braneIndex, newState], ...]`
+ *
+ * @example
+ * ```typescript
+ * // Инициализация с возвратом начальных состояний
+ * const initialStates = await write({
+ *   fields: [{ type: FieldType.F32 }],
+ *   branes: [{ params: [[0, 100]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null]] }],
+ * })
+ * // initialStates = [[0, 1]] — брана 0 перешла в состояние 1 (100 > 50)
+ * ```
+ */
+export async function write(data: Data): Promise<[number, number][]> {
+  // Блокировка mutex для предотвращения конкурентных вызовов
+  if (writeMutex) {
+    await writeMutex
+  }
+
+  // Создаём promise для текущей операции (захват mutex)
+  let resolveMutex: (() => void) | undefined
+  writeMutex = new Promise<void>((resolve) => {
+    resolveMutex = resolve
+  })
+
+  try {
+    // 0. Валидация входных данных
+    validateData(data)
+
+    // 1. Сброс предыдущего состояния
+    reset()
+    resetStringAtlas() // Side effect перед prepareData()
+
+    // 2. Подготовка данных (с side effects для интернирования строк)
+    const prepared = prepareData(data)
+
+    // 3. Сохраняем глобальное состояние
+    fields = data.fields
+
+    // 4. Инициализация GPU
+    const atlasExport = getStringAtlas().exportData()
+    await _initMatrix(
+      {
+        bytecode: prepared.compiledRules.bytecode,
+        bytecodeOffsets: prepared.compiledRules.bytecodeOffsets,
+        states: prepared.initialStates,
+        braneDescriptors: buildBraneDescriptors(prepared.heapLayout.blockPtrs, prepared.compiledRules.bytecodeOffsets),
+        heap: prepared.heapData,
+      },
+      atlasExport,
+      prepared.heapLayout.blockPtrs,
+      prepared.arrayReserveSize,
+    )
+
+    // 5. Выполняем step() после инициализации
+    _stepMatrix()
+
+    // 6. Возвращаем состояния после инициализации
+    return await _readMatrixChanges()
+  } finally {
+    // Освобождение mutex
+    resolveMutex?.()
   }
 }
 
 /**
- * Получает текущее состояние модуля.
+ * Обновляет поля бран и возвращает новые состояния.
  *
- * @returns Глобальное состояние
+ * @remarks
+ * **Side Effects:**
+ * - Обновляет heap
+ * - Выполняет step() автоматически
+ * - Читает состояния из GPU
+ * - Сбрасывает heapAllocOffset после шага (для повторного использования зоны ARRAY)
+ *
+ * **Потокобезопасность:**
+ * - Функция использует mutex для предотвращения конкурентных вызовов
+ *
+ * **ARRAY поля:**
+ * - Данные массивов хранятся во временной зоне heap
+ * - **После каждого `update()` зона очищается** (данные массива не сохраняются)
+ *
+ * @param updates - Массив обновлений: `[[braneIndex, [{ fieldIndex, value }, ...]], ...]`
+ * @returns Массив состояний: `[[braneIndex, state], ...]`
+ *
+ * @example
+ * ```typescript
+ * // Обновление одного поля одной браны
+ * await update([[0, [{ fieldIndex: 0, value: 100 }]]])
+ *
+ * // Обновление нескольких полей одной браны
+ * await update([[0, [
+ *   { fieldIndex: 0, value: 100 },
+ *   { fieldIndex: 1, value: true },
+ * ]]])
+ *
+ * // Обновление нескольких бран
+ * await update([
+ *   [0, [{ fieldIndex: 0, value: 100 }]],
+ *   [1, [{ fieldIndex: 0, value: 50 }]],
+ * ])
+ * ```
  */
-export function getFieldsState(): typeof state {
-  return state
+export async function update(
+  updates: Array<[braneIndex: number, fieldUpdates: Array<{ fieldIndex: number; value: unknown }> ]>,
+): Promise<[number, number][]> {
+  // Блокировка mutex для предотвращения конкурентных вызовов
+  if (updateMutex) {
+    await updateMutex
+  }
+
+  // Создаём promise для текущей операции (захват mutex)
+  let resolveMutex: (() => void) | undefined
+  updateMutex = new Promise<void>((resolve) => {
+    resolveMutex = resolve
+  })
+
+  try {
+    const state = getMatrixState()
+    if (!state.heap || !state.initialStates) {
+      throw new Error("Matrix not initialized. Call write() first.")
+    }
+
+    const { heap, braneBlockPtrs, arrayReserveSize } = state
+
+    // Этап 1: Кодирование всех обновлений для всех бран
+    const allHeapUpdates: Array<{ offset: number; value1: number; value2?: number }> = []
+
+    for (const [braneIndex, fieldUpdates] of updates) {
+      if (braneIndex < 0 || braneIndex >= state.braneCount) {
+        throw new Error(`Brane index out of range: ${braneIndex}`)
+      }
+
+      const blockPtr = braneBlockPtrs[braneIndex]!
+
+      for (const { fieldIndex, value } of fieldUpdates) {
+        // Поиск смещения поля
+        const fieldOffset = findFieldOffsetInHeap(heap, blockPtr, fieldIndex)
+        if (fieldOffset === null) {
+          throw new Error(`Field ${fieldIndex} not found in brane ${braneIndex}`)
+        }
+
+        // Получение определения поля
+        const field = fields[fieldIndex]
+        if (!field) {
+          throw new Error(`Field ${fieldIndex} not defined`)
+        }
+
+        // Кодирование значения
+        const encoded = encodeFieldUpdate(value, field, heap, state)
+        const fieldType = fieldTypeToBytecodeType(field.type)
+
+        // Обновление heap (локально)
+        writeValueToHeap(heap, fieldOffset, fieldType, encoded.value1, encoded.value2)
+
+        // Добавление в список обновлений GPU
+        if (fieldType === TYPE.ARRAY && Array.isArray(value)) {
+          // Pointer и reserved
+          allHeapUpdates.push({ offset: fieldOffset, value1: encoded.value1, value2: encoded.value2 })
+          // Данные массива: [length, item1, item2, ...]
+          const arrayData = heap.slice(encoded.value1, encoded.value1 + 1 + (value as unknown[]).length)
+          for (let i = 0; i < arrayData.length; i++) {
+            allHeapUpdates.push({ offset: encoded.value1 + i, value1: arrayData[i]! })
+          }
+        } else if (fieldType === TYPE.STRING) {
+          allHeapUpdates.push({ offset: fieldOffset, value1: encoded.value1, value2: encoded.value2 })
+        } else {
+          allHeapUpdates.push({ offset: fieldOffset, value1: encoded.value1 })
+        }
+      }
+    }
+
+    // Этап 2: Частичная запись в GPU (все изменения за раз)
+    _updateMatrixHeap(allHeapUpdates)
+
+    // Этап 3: GPU step + read
+    _stepMatrix()
+    const changes = await _readMatrixChanges()
+
+    // Этап 4: Сброс зоны аллокации ARRAY
+    // Этап 5: Возвращаем только изменённые состояния
+    return changes
+  } finally {
+    // Освобождение mutex
+    resolveMutex?.()
+  }
 }
 
 // ============================================================================
 // ВСПОМОГАТЕЛЬНЫЕ ФУНКЦИИ
 // ============================================================================
+
+/**
+ * Результат кодирования обновления поля.
+ */
+interface EncodedFieldUpdate {
+  value1: number
+  value2: number
+}
+
+/**
+ * Этап 2: Кодирование значения для обновления поля.
+ *
+ * @param value - Новое значение
+ * @param field - Определение поля
+ * @param heap - Heap данные
+ * @param state - Текущее состояние matrix
+ * @returns Закодированное значение (value1, value2)
+ */
+function encodeFieldUpdate(
+  value: unknown,
+  field: Field,
+  heap: Uint32Array,
+  state: ReturnType<typeof getMatrixState>,
+): EncodedFieldUpdate {
+  const fieldType = fieldTypeToBytecodeType(field.type)
+  const context: EncodingContext = { type: fieldType }
+  if (field.enum !== undefined) {
+    context.enum = field.enum
+  }
+  // Для массивов добавляем subType
+  if (field.elementType !== undefined) {
+    switch (field.elementType) {
+      case "number":
+        context.subType = TYPE.FLOAT
+        break
+      case "string":
+        context.subType = TYPE.STRING
+        break
+      case "boolean":
+        context.subType = TYPE.BOOL
+        break
+    }
+  }
+
+  let value1: number
+  let value2 = 0 // Для STRING (hash) и ARRAY (reserved)
+
+  // Для STRING — интернируем и получаем hash
+  if (fieldType === TYPE.STRING && typeof value === "string") {
+    const encoded = encodeValue(value, context)
+    value1 = encoded.value1
+    value2 = encoded.value2
+  }
+  // Для ARRAY — аллоцируем место в heap и кодируем элементы
+  else if (fieldType === TYPE.ARRAY && Array.isArray(value)) {
+    const arr = value as unknown[]
+    // Аллоцируем: [length, item1, item2, ...]
+    const arraySize = 1 + arr.length
+    const heapAllocOffset = state.heapAllocOffset
+
+    if (heapAllocOffset + arraySize > heap.length) {
+      throw new Error(`Heap overflow: need ${heapAllocOffset + arraySize}, have ${heap.length}`)
+    }
+
+    // Записываем длину
+    heap[heapAllocOffset] = arr.length
+    // Кодируем и записываем элементы
+    const elementType = context.subType ?? TYPE.FLOAT
+    for (let i = 0; i < arr.length; i++) {
+      const itemCtx: EncodingContext = { type: elementType }
+      heap[heapAllocOffset + 1 + i] = encodeValue(arr[i], itemCtx).value1
+    }
+
+    value1 = heapAllocOffset // pointer to array data
+    value2 = 0 // reserved
+  } else {
+    value1 = encodeValue(value, context).value1
+  }
+
+  return { value1, value2 }
+}
+
+/**
+ * Построить braneDescriptors: [block_ptr0, bytecode_offset0, ...]
+ */
+function buildBraneDescriptors(blockPtrs: number[], offsets: Uint32Array): Uint32Array {
+  const descriptors = new Uint32Array(blockPtrs.length * 2)
+  for (let i = 0; i < blockPtrs.length; i++) {
+    descriptors[i * 2] = blockPtrs[i] ?? 0
+    descriptors[i * 2 + 1] = offsets[i] ?? 0
+  }
+  return descriptors
+}
 
 /**
  * Найти смещение поля в heap для браны.
@@ -172,7 +458,28 @@ export function findFieldOffsetInHeap(
   blockPtr: number,
   fieldIndex: number,
 ): number | null {
-  return findFieldOffset(heap, blockPtr, fieldIndex)
+  // Ищем в локальных полях
+  const localOffset = findFieldOffset(heap, blockPtr, fieldIndex)
+  if (localOffset !== null) {
+    return localOffset
+  }
+
+  // Ищем в entangled блоках
+  const localCount = heap[blockPtr] ?? 0
+  const entangledCount = heap[blockPtr + 1] ?? 0
+  const entangledPtrsOffset = blockPtr + 2 + localCount * 2
+
+  for (let i = 0; i < entangledCount; i++) {
+    const entangledPtr = heap[entangledPtrsOffset + i] ?? 0
+    if (entangledPtr === 0) continue
+
+    const entangledOffset = findFieldOffset(heap, entangledPtr, fieldIndex)
+    if (entangledOffset !== null) {
+      return entangledOffset
+    }
+  }
+
+  return null
 }
 
 /**

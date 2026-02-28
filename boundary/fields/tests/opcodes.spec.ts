@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "bun:test"
-import { OP, TYPE } from "./opcodes"
+import { OP, TYPE } from "../opcodes"
 
 describe("OP (коды операций)", () => {
   it("должен содержать все коды операций", () => {
@@ -27,7 +27,7 @@ describe("OP (коды операций)", () => {
   })
 
   it("должен иметь последовательные значения", () => {
-    const values = Object.values(OP)
+    const values = Object.values(OP) as number[]
     for (let i = 0; i < values.length; i++) {
       expect(values[i]).toBe(i)
     }
@@ -44,7 +44,7 @@ describe("TYPE (типы данных)", () => {
   })
 
   it("должен иметь последовательные значения", () => {
-    const values = Object.values(TYPE)
+    const values = Object.values(TYPE) as number[]
     for (let i = 0; i < values.length; i++) {
       expect(values[i]).toBe(i)
     }

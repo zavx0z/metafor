@@ -2,7 +2,7 @@
  * Тесты StringAtlas Unicode.
  */
 import { describe, expect, test } from "bun:test"
-import { StringAtlas } from "../StringAtlas"
+import { StringAtlas } from "./index"
 
 describe("StringAtlas — Unicode и корректность интернирования", () => {
   test("интернирует эквивалентные NFC/NFD строки в один StringId", () => {

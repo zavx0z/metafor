@@ -10,9 +10,9 @@
  */
 
 import { test, expect, describe, beforeEach } from "bun:test"
-import { encodeValue, encodeFieldValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "./params"
-import { TYPE } from "./opcodes"
-import { FieldType } from "./index.t"
+import { encodeValue, encodeFieldValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "../params"
+import { TYPE } from "../opcodes"
+import { FieldType } from "../index.t"
 import { resetStringAtlas } from "@boundary/atlas"
 
 describe("encodeValue — кодирование значений", () => {

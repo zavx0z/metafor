@@ -35,6 +35,11 @@
     },
     "boundary/dump": {
       "name": "@boundary/dump",
+      "version": "0.0.1",
+      "dependencies": {
+        "@boundary/atlas": "workspace:*",
+        "@boundary/matrix": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "latest",
       },
@@ -47,6 +52,8 @@
       "version": "0.0.1",
       "dependencies": {
         "@boundary/atlas": "workspace:*",
+        "@boundary/dump": "workspace:*",
+        "@boundary/matrix": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -57,11 +64,16 @@
     },
     "boundary/matrix": {
       "name": "@boundary/matrix",
+      "version": "0.0.1",
+      "dependencies": {
+        "@boundary/atlas": "workspace:*",
+        "@boundary/fields": "workspace:*",
+      },
       "devDependencies": {
         "@types/bun": "latest",
       },
       "peerDependencies": {
-        "typescript": "^5.9.3",
+        "typescript": "^5",
       },
     },
     "boundary/monad": {

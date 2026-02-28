@@ -2,8 +2,8 @@
  * Тесты для модуля heap — построение кучи и поиск полей.
  */
 import { test, expect, describe } from "bun:test"
-import { packMeta, unpackMeta, buildHeap, findFieldOffset } from "./heap"
-import { TYPE } from "./opcodes"
+import { packMeta, unpackMeta, buildHeap, findFieldOffset } from "../heap"
+import { TYPE } from "../opcodes"
 
 describe("packMeta / unpackMeta — упаковка метаданных", () => {
   test("должен упаковать и распаковать метаданные поля", () => {

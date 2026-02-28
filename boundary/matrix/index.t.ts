@@ -1,69 +1,40 @@
 /**
- * Типы для API matrix.
+ * Типы для matrix — GPU runtime.
+ *
  * @packageDocumentation
  */
 
-/**
- * Определение типа поля для GPU.
- */
-export const FieldType = {
-  F32: 0,
-  U32: 1,
-  BOOL: 2,
-  STRING_PTR: 3,
-  ARRAY_PTR: 4,
-} as const
-
-export type FieldTypeValue = (typeof FieldType)[keyof typeof FieldType]
+import type { BackendInitParams } from "./backend.t"
+import type { FieldType, Brane, Data, Collapse } from "@boundary/fields"
 
 /**
- * Допустимые значения параметра браны.
- * Union type для строгой типизации вместо `unknown`.
+ * Состояние модуля matrix.
  */
-export type BraneParamValue =
-  | number
-  | boolean
-  | string
-  | null
-  | number[]
-  | boolean[]
-  | string[]
-
-/**
- * Поле — схема данных для GPU.
- */
-export interface Field {
-  type: FieldTypeValue
-  elementType?: "number" | "string" | "boolean"
-  enum?: any[]
+export interface MatrixState {
+  /** Heap данные. Содержит блоки бран + резерв для ARRAY аллокаций. */
+  heap: Uint32Array | null
+  /** Смещения блоков бран в heap. */
+  braneBlockPtrs: number[]
+  /** Смещения bytecode для каждой браны. */
+  bytecodeOffsets: Uint32Array | null
+  /** Количество бран в текущей конфигурации. */
+  braneCount: number
+  /** Начальные состояния бран. */
+  initialStates: Uint32Array | null
+  /** Смещение для динамических аллокаций ARRAY в heap. */
+  heapAllocOffset: number
+  /** Размер резервированной зоны для ARRAY в heap. */
+  arrayReserveSize: number
+  /** Флаг: данные ARRAY невалидны после update(). */
+  arrayDataInvalidated: boolean
 }
 
 /**
- * Collapse — переход между состояниями.
- * Формат: [targetState, conditions] или null для терминального состояния.
- * - targetState: индекс целевого состояния
- * - conditions: Record<fieldIndex, condition>
+ * Параметры инициализации GPU.
  */
-export type Collapse = [number, Record<number, any>] | null
+export type { BackendInitParams }
 
 /**
- * Brane — возмущение квантового поля.
+ * Ре-экспорт типов из @boundary/fields.
  */
-export interface Brane {
-  /** Значения полей: [fieldIndex, value][] */
-  params: [number, BraneParamValue][]
-  /** Начальное состояние (индекс). */
-  state: number
-  /** Граф переходов. */
-  collapses: Collapse[][]
-}
-
-/**
- * Data — конфигурация для write().
- */
-export interface Data {
-  /** Поля: индекс = позиция в массиве */
-  fields: Field[]
-  /** Браны. */
-  branes: Brane[]
-}
+export type { FieldType, Brane, Data, Collapse }

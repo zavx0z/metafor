@@ -2,8 +2,8 @@
  * Тесты для модуля entangled — анализ запутанных групп бран.
  */
 import { test, expect, describe } from "bun:test"
-import { findEntangledGroups, buildBraneMapping } from "./entangled"
-import type { EntangledGroup } from "./entangled.t"
+import { findEntangledGroups, buildBraneMapping } from "../entangled"
+import type { EntangledGroup } from "../entangled.t"
 
 describe("findEntangledGroups — поиск запутанных групп", () => {
   test("должен найти entangled группу для идентичных бран", () => {
