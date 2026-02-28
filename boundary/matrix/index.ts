@@ -436,7 +436,9 @@ export async function write(data: Data): Promise<void> {
     // Сохраняем heap в глобальной переменной
     heap = prepared.heapData
 
-    // НЕ делаем step() после инициализации — это делает update()
+    // Делаем step() после инициализации для установки начальных состояний
+    backend.run()
+    const _ = await backend.read()  // Читаем состояния после инициализации
   } finally {
     // Освобождение mutex
     resolveMutex?.()

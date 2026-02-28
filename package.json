@@ -5,12 +5,11 @@
   "type": "module",
   "private": true,
   "workspaces": [
-    "boundary",
+    "boundary/*",
     "meta",
     "atom",
     "infra/*",
     "build",
-    "monad",
     "create-metafor",
     "zavx0z/*",
     "fixture",

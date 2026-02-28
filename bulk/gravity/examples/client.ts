@@ -1,4 +1,4 @@
-import { createMonad, updateBoundary, updateMonad, onStateChange } from "@metafor/monad"
+import { createMonad, updateBoundary, updateMonad, onStateChange } from "@boundary/monad"
 
 const status = document.getElementById("status")!
 const out = document.getElementById("output")!

@@ -23,13 +23,27 @@
         "@zavx0z/context": "2.3.1",
       },
     },
-    "boundary": {
-      "name": "@metafor/boundary",
-      "version": "0.1.0",
+    "boundary/matrix": {
+      "name": "@boundary/matrix",
       "devDependencies": {
+        "@types/bun": "latest",
+      },
+      "peerDependencies": {
+        "typescript": "^5.9.3",
+      },
+    },
+    "boundary/monad": {
+      "name": "@boundary/monad",
+      "dependencies": {
+        "@boundary/matrix": "*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
         "@webgpu/types": "^0.1.32",
-        "@zavx0z/context": "^2.3.1",
-        "fixture": "workspace:*",
+        "bun-webgpu": "^0.1.5",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
       },
     },
     "build": {
@@ -44,17 +58,9 @@
     "bulk/gravity": {
       "name": "gravity",
       "devDependencies": {
+        "@boundary/monad": "workspace:*",
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
-        "@metafor/monad": "workspace:*",
-      },
-    },
-    "bulk/inflation": {
-      "name": "inflation",
-      "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
-        "@metafor/monad": "workspace:*",
       },
     },
     "create-metafor": {
@@ -108,20 +114,6 @@
       "devDependencies": {
         "@zavx0z/context": "^2.3.0",
         "@zavx0z/template": "^2.6.1",
-      },
-    },
-    "monad": {
-      "name": "@metafor/monad",
-      "dependencies": {
-        "@metafor/boundary": "*",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "@webgpu/types": "^0.1.32",
-        "bun-webgpu": "^0.1.5",
-      },
-      "peerDependencies": {
-        "typescript": "^5",
       },
     },
     "zavx0z/git": {
@@ -349,13 +341,15 @@
 
     "@babel/helper-validator-identifier": ["@babel/helper-validator-identifier@7.28.5", "https://registry.yarnpkg.com/@babel/helper-validator-identifier/-/helper-validator-identifier-7.28.5.tgz", {}, "sha512-qSs4ifwzKJSV39ucNjsvc6WVHs6b7S03sOh2OcHF9UHfVPqWWALUsNUVzhSBiItjRZoLHx7nIarVjqKVusUZ1Q=="],
 
+    "@boundary/matrix": ["@boundary/matrix@workspace:boundary/matrix"],
+
+    "@boundary/monad": ["@boundary/monad@workspace:boundary/monad"],
+
     "@dimforge/rapier3d-compat": ["@dimforge/rapier3d-compat@0.12.0", "https://registry.yarnpkg.com/@dimforge/rapier3d-compat/-/rapier3d-compat-0.12.0.tgz", {}, "sha512-uekIGetywIgopfD97oDL5PfeezkFpNhwlzlaEYNOA0N6ghdsOvh/HYjSMek5Q2O1PYvRSDFcqFVJl4r4ZBwOow=="],
 
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.22.0", "https://registry.yarnpkg.com/@gerrit0/mini-shiki/-/mini-shiki-3.22.0.tgz", { "dependencies": { "@shikijs/engine-oniguruma": "^3.22.0", "@shikijs/langs": "^3.22.0", "@shikijs/themes": "^3.22.0", "@shikijs/types": "^3.22.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-jMpciqEVUBKE1QwU64S4saNMzpsSza6diNCk4MWAeCxO2+LFi2FIFmL2S0VDLzEJCxuvCbU783xi8Hp/gkM5CQ=="],
 
     "@metafor/atom": ["@metafor/atom@workspace:atom"],
-
-    "@metafor/boundary": ["@metafor/boundary@workspace:boundary"],
 
     "@metafor/build": ["@metafor/build@workspace:build"],
 
@@ -364,8 +358,6 @@
     "@metafor/mesh": ["@metafor/mesh@workspace:infra/mesh"],
 
     "@metafor/meta": ["@metafor/meta@workspace:meta"],
-
-    "@metafor/monad": ["@metafor/monad@workspace:monad"],
 
     "@metafor/virtual": ["@metafor/virtual@workspace:infra/virtual"],
 
@@ -562,8 +554,6 @@
     "https-proxy-agent": ["https-proxy-agent@7.0.6", "https://registry.yarnpkg.com/https-proxy-agent/-/https-proxy-agent-7.0.6.tgz", { "dependencies": { "agent-base": "^7.1.2", "debug": "4" } }, "sha512-vK9P5/iUfdl95AI+JVyUuIcVtd4ofvtrOr3HNtM2yxC9bnMbEdp3x01OhQNnjb8IJYi38VlTE3mBXwcfvywuSw=="],
 
     "import-fresh": ["import-fresh@3.3.1", "https://registry.yarnpkg.com/import-fresh/-/import-fresh-3.3.1.tgz", { "dependencies": { "parent-module": "^1.0.0", "resolve-from": "^4.0.0" } }, "sha512-TR3KfrTZTYLPB6jUjfx6MF9WcWrHL9su5TObK4ZkYgBdWKPOFoSoQIdEuTuR82pmtxH2spWG9h6etwfr1pLBqQ=="],
-
-    "inflation": ["inflation@workspace:bulk/inflation"],
 
     "ip-address": ["ip-address@10.1.0", "https://registry.yarnpkg.com/ip-address/-/ip-address-10.1.0.tgz", {}, "sha512-XXADHxXmvT9+CRxhXg56LJovE+bmWnEWB78LB83VZTprKTmaC5QfruXocxzTZ2Kl0DNwKuBdlIhjL8LeY8Sf8Q=="],
 

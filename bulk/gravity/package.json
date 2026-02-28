@@ -6,7 +6,7 @@
   "devDependencies": {
     "@metafor/meta": "workspace:*",
     "@metafor/build": "workspace:*",
-    "@metafor/monad": "workspace:*"
+    "@boundary/monad": "workspace:*"
   },
   "scripts": {
     "example": "bun run ./examples/server.ts",

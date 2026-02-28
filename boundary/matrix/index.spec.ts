@@ -337,12 +337,13 @@ describe("write / update — многошаговая эволюция", () => {
       ],
     })
 
-    // Шаг 1: IDLE → PATROL (hp=100>50)
-    const states1 = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
-    expect(states1[0]?.[1]).toBe(1)
+    // После write() step() уже выполнился: hp=100>50 → state=1 (PATROL)
+    // Шаг 1: PATROL → COMBAT (mana=5<10)
+    const states1 = await update([[0, [{ fieldIndex: 1, value: 5 }]]])
+    expect(states1[0]?.[1]).toBe(2)
 
-    // Шаг 2: PATROL → COMBAT (mana=5<10)
-    const states2 = await update([[0, [{ fieldIndex: 1, value: 5 }]]])
+    // Шаг 2: COMBAT — терминальное состояние (остаётся в 2)
+    const states2 = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
     expect(states2[0]?.[1]).toBe(2)
   })
 })

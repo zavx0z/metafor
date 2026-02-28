@@ -107,12 +107,14 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
 
     test("не должен выполнить переход, когда массив не пустой", async () => {
       const collapses: Collapse[][] = [[[1, { 0: { isEmpty: true } }]], [null]]
+      // write() с пустым массивом: isEmpty=true → переход в state=1 (терминальное)
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
+      // update с непустым массивом: остаёмся в state=1 (терминальное)
       const resultStates = await update([[0, [{ fieldIndex: 0, value: [1] }]]])
-      expect(resultStates[0]?.[1]).toBe(0)
+      expect(resultStates[0]?.[1]).toBe(1)
     })
   })
 

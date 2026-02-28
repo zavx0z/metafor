@@ -1,5 +1,5 @@
 {
-  "name": "matrix",
+  "name": "@boundary/matrix",
   "module": "index.ts",
   "type": "module",
   "private": true,
@@ -7,6 +7,6 @@
     "@types/bun": "latest"
   },
   "peerDependencies": {
-    "typescript": "^5"
+    "typescript": "^5.9.3"
   }
 }

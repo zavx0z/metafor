@@ -1,10 +1,10 @@
 {
-  "name": "@metafor/monad",
+  "name": "@boundary/monad",
   "module": "src/index.ts",
   "type": "module",
   "private": true,
   "dependencies": {
-    "@metafor/boundary": "*"
+    "@boundary/matrix": "*"
   },
   "devDependencies": {
     "@types/bun": "latest",
