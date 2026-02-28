@@ -8,8 +8,18 @@
  * Низкоуровневый GPU-драйвер:
  * - `GPUBackend` — класс для управления GPU-ресурсами
  * - `GPU` — глобальное GPU-устройство
- * - `getMatrixState()` — получение текущего состояния
- * - `_restoreFromState()` — восстановление состояния (для десериализации)
+ * - `_initMatrix()` — инициализация GPU
+ * - `_stepMatrix()` — выполнение шага
+ * - `_readMatrixChanges()` — чтение изменений
+ * - `_updateMatrixHeap()` — обновление heap на GPU
+ *
+ * ## Состояние
+ *
+ * Хранит только необходимое для координации с GPU:
+ * - `backend` — GPU-ресурсы
+ * - `heap` — для поиска смещений полей
+ * - `braneBlockPtrs` — для update()
+ * - `heapAllocOffset`, `arrayReserveSize`, `arrayDataInvalidated` — tracking ARRAY
  *
  * ## Чего НЕ делает
  *
@@ -19,24 +29,19 @@
  *
  * @example
  * ```typescript
- * import { GPUBackend, GPU, getMatrixState } from "@boundary/matrix"
+ * import { GPUBackend, GPU, _initMatrix, _stepMatrix } from "@boundary/matrix"
  *
  * // Инициализация GPU
- * const backend = new GPUBackend(GPU.device)
- * await backend.init({ ... }, atlasExport)
+ * await _initMatrix({ ... }, atlasExport, blockPtrs, reserveSize)
  *
  * // Выполнение шага
- * backend.run()
- * const changes = await backend.readChanges()
- *
- * // Получение состояния
- * const state = getMatrixState()
+ * _stepMatrix()
+ * const changes = await _readMatrixChanges()
  * ```
  */
 
 import { GPUBackend } from "./backend"
 import { GPU } from "./device"
-import type { MatrixState } from "./index.t"
 
 // ============================================================================
 // ГЛОБАЛЬНОЕ СОСТОЯНИЕ (fp.md п.5)
@@ -48,29 +53,14 @@ import type { MatrixState } from "./index.t"
 let backend: GPUBackend | null = null
 
 /**
- * Heap данные. Содержит блоки бран + резерв для ARRAY аллокаций.
+ * Heap данные — только для поиска смещений полей и сериализации.
  */
 let heap: Uint32Array | null = null
 
 /**
- * Смещения блоков бран в heap.
+ * Смещения блоков бран в heap — для update().
  */
 let braneBlockPtrs: number[] = []
-
-/**
- * Смещения bytecode для каждой браны.
- */
-let bytecodeOffsets: Uint32Array | null = null
-
-/**
- * Количество бран в текущей конфигурации.
- */
-let braneCount: number = 0
-
-/**
- * Начальные состояния бран.
- */
-let initialStates: Uint32Array | null = null
 
 /**
  * Смещение для динамических аллокаций ARRAY в heap.
@@ -103,9 +93,6 @@ export function resetMatrix(): void {
   }
   heap = null
   braneBlockPtrs = []
-  bytecodeOffsets = null
-  braneCount = 0
-  initialStates = null
   heapAllocOffset = 0
   arrayReserveSize = 0
   arrayDataInvalidated = false
@@ -113,17 +100,25 @@ export function resetMatrix(): void {
 }
 
 /**
- * Получает текущее состояние модуля.
+ * Состояние Matrix для сериализации.
+ */
+export interface MatrixStateExport {
+  heap: Uint32Array
+  braneBlockPtrs: number[]
+  heapAllocOffset: number
+  arrayReserveSize: number
+  arrayDataInvalidated: boolean
+}
+
+/**
+ * Получает текущее состояние модуля для сериализации.
  *
  * @returns Текущее состояние matrix
  */
-export function getMatrixState(): MatrixState {
+export function getMatrixState(): MatrixStateExport {
   return {
-    heap,
+    heap: heap!,
     braneBlockPtrs,
-    bytecodeOffsets,
-    braneCount,
-    initialStates,
     heapAllocOffset,
     arrayReserveSize,
     arrayDataInvalidated,
@@ -136,12 +131,9 @@ export function getMatrixState(): MatrixState {
  * @param state - Состояние для восстановления
  * @internal
  */
-export function _restoreFromState(state: MatrixState): void {
+export function _restoreFromState(state: MatrixStateExport): void {
   heap = state.heap
   braneBlockPtrs = state.braneBlockPtrs
-  bytecodeOffsets = state.bytecodeOffsets
-  braneCount = state.braneCount
-  initialStates = state.initialStates
   heapAllocOffset = state.heapAllocOffset
   arrayReserveSize = state.arrayReserveSize
   arrayDataInvalidated = state.arrayDataInvalidated
@@ -191,10 +183,7 @@ export async function _initMatrix(
     )
 
     heap = params.heap
-    braneCount = params.states.length
-    bytecodeOffsets = params.bytecodeOffsets
     braneBlockPtrs = blockPtrs
-    initialStates = params.states
     arrayReserveSize = reserveSize
     heapAllocOffset = heap.length - reserveSize
     arrayDataInvalidated = false
@@ -252,6 +241,6 @@ export function _getBackend(): GPUBackend | null {
 }
 
 // Ре-экспорт типов и GPU
-export type { MatrixState } from "./index.t"
 export { GPUBackend } from "./backend"
 export { GPU } from "./device"
+export type { BackendInitParams } from "./backend.t"

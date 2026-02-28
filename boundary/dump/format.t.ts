@@ -48,6 +48,15 @@ export interface SectionDescriptor {
 
 /**
  * Состояние Matrix для сериализации.
+ *
+ * Содержит только данные, необходимые для восстановления:
+ * - heap — данные полей бран
+ * - bytecode — FSM правила
+ * - bytecodeOffsets — смещения правил для каждой браны
+ * - states — начальные состояния
+ * - stringRegistry/stringHeap — интернированные строки
+ * - fields — определения полей
+ * - metadata — служебные данные
  */
 export interface MatrixState {
   heap: Uint32Array
@@ -67,17 +76,4 @@ export interface MatrixState {
 /**
  * Результат десериализации.
  */
-export interface DeserializedState {
-  heap: Uint32Array
-  bytecode: Uint32Array
-  bytecodeOffsets: Uint32Array
-  states: Uint32Array
-  stringRegistry: Uint32Array
-  stringHeap: Uint32Array
-  fields: unknown[]
-  metadata: {
-    arrayReserveSize: number
-    heapAllocOffset: number
-    braneBlockPtrs: number[]
-  }
-}
+export type DeserializedState = MatrixState

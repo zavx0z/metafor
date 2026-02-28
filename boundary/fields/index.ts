@@ -44,10 +44,10 @@ import {
   _readMatrixChanges,
   _updateMatrixHeap,
   resetMatrix,
-  getMatrixState,
-  _getBackend,
+  getMatrixState as getMatrixRuntimeState,
 } from "@boundary/matrix"
 import { serializeMatrix, deserializeMatrix } from "@boundary/dump"
+import type { MatrixState as DumpMatrixState } from "@boundary/dump"
 
 import { validateData } from "./validate"
 import { prepareData, type PreparedData } from "./prepare"
@@ -89,7 +89,8 @@ export {
   // Opcodes
   OP,
   TYPE,
-  // Matrix state
+  // Internal
+  reset,
   getMatrixState,
 }
 
@@ -118,7 +119,22 @@ export type {
 /**
  * Определение полей из последнего вызова `write()`.
  */
-let fields: import("./index.t").Field[] = []
+let fields: Field[] = []
+
+/**
+ * Bytecode правила из последнего вызова `write()`.
+ */
+let bytecode: Uint32Array | null = null
+
+/**
+ * Bytecode offsets из последнего вызова `write()`.
+ */
+let bytecodeOffsets: Uint32Array | null = null
+
+/**
+ * Начальные состояния из последнего вызова `write()`.
+ */
+let initialStates: Uint32Array | null = null
 
 /**
  * Mutex для предотвращения конкурентных вызовов write().
@@ -134,12 +150,59 @@ let updateMutex: Promise<void> | null = null
  * Сбрасывает состояние модуля (для тестов).
  * @internal
  */
-export function reset(): void {
+function reset(): void {
   fields = []
+  bytecode = null
+  bytecodeOffsets = null
+  initialStates = null
   writeMutex = null
   updateMutex = null
   resetMatrix()
   resetStringAtlas()
+}
+
+/**
+ * Внутреннее состояние для сериализации.
+ */
+interface MatrixStateInternal {
+  heap: Uint32Array
+  bytecode: Uint32Array
+  bytecodeOffsets: Uint32Array
+  states: Uint32Array
+  stringRegistry: Uint32Array
+  stringHeap: Uint32Array
+  fields: Field[]
+  metadata: {
+    arrayReserveSize: number
+    heapAllocOffset: number
+    braneBlockPtrs: number[]
+  }
+}
+
+/**
+ * Получает полное состояние матрицы для сериализации.
+ *
+ * @returns Состояние для serializeMatrix()
+ */
+function getMatrixState(): MatrixStateInternal {
+  const runtimeState = getMatrixRuntimeState()
+  const atlas = getStringAtlas()
+  const atlasExport = atlas.exportData()
+
+  return {
+    heap: runtimeState.heap,
+    bytecode: bytecode!,
+    bytecodeOffsets: bytecodeOffsets!,
+    states: initialStates!,
+    stringRegistry: atlasExport.registry,
+    stringHeap: atlasExport.heap,
+    fields,
+    metadata: {
+      arrayReserveSize: runtimeState.arrayReserveSize,
+      heapAllocOffset: runtimeState.heapAllocOffset,
+      braneBlockPtrs: runtimeState.braneBlockPtrs,
+    },
+  }
 }
 
 // ============================================================================
@@ -198,6 +261,9 @@ export async function write(data: Data): Promise<[number, number][]> {
 
     // 3. Сохраняем глобальное состояние
     fields = data.fields
+    bytecode = prepared.compiledRules.bytecode
+    bytecodeOffsets = prepared.compiledRules.bytecodeOffsets
+    initialStates = prepared.initialStates
 
     // 4. Инициализация GPU
     const atlasExport = getStringAtlas().exportData()
@@ -278,8 +344,8 @@ export async function update(
   })
 
   try {
-    const state = getMatrixState()
-    if (!state.heap || !state.initialStates) {
+    const state = getMatrixRuntimeState()
+    if (!state.heap) {
       throw new Error("Matrix not initialized. Call write() first.")
     }
 
@@ -289,7 +355,7 @@ export async function update(
     const allHeapUpdates: Array<{ offset: number; value1: number; value2?: number }> = []
 
     for (const [braneIndex, fieldUpdates] of updates) {
-      if (braneIndex < 0 || braneIndex >= state.braneCount) {
+      if (braneIndex < 0 || braneIndex >= braneBlockPtrs.length) {
         throw new Error(`Brane index out of range: ${braneIndex}`)
       }
 
@@ -339,8 +405,6 @@ export async function update(
     _stepMatrix()
     const changes = await _readMatrixChanges()
 
-    // Этап 4: Сброс зоны аллокации ARRAY
-    // Этап 5: Возвращаем только изменённые состояния
     return changes
   } finally {
     // Освобождение mutex
@@ -373,7 +437,7 @@ function encodeFieldUpdate(
   value: unknown,
   field: Field,
   heap: Uint32Array,
-  state: ReturnType<typeof getMatrixState>,
+  state: ReturnType<typeof getMatrixRuntimeState>,
 ): EncodedFieldUpdate {
   const fieldType = fieldTypeToBytecodeType(field.type)
   const context: EncodingContext = { type: fieldType }

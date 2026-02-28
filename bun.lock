@@ -67,7 +67,6 @@
       "version": "0.0.1",
       "dependencies": {
         "@boundary/atlas": "workspace:*",
-        "@boundary/fields": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",

@@ -5,13 +5,11 @@
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
-    "./types": "./index.t.ts",
     "./gpu": "./backend.ts"
   },
   "private": true,
   "dependencies": {
-    "@boundary/atlas": "workspace:*",
-    "@boundary/fields": "workspace:*"
+    "@boundary/atlas": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest"
