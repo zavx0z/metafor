@@ -1,8 +1,17 @@
 {
   "name": "@boundary/fields",
-  "module": "index.ts",
+  "version": "0.0.1",
   "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./types": "./index.t.ts",
+    "./opcodes": "./opcodes.ts"
+  },
   "private": true,
+  "dependencies": {
+    "@boundary/atlas": "workspace:*"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },
