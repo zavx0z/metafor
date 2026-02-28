@@ -4,7 +4,37 @@
  * @packageDocumentation
  */
 
-import type { FieldsDefinition, NumericSuperposition, BraneIndex } from "@metafor/boundary"
+import type { Field, Data, Collapse } from "@boundary/fields"
+
+/**
+ * Индекс браны в Boundary (позиция в массиве).
+ */
+export type BraneIndex = number
+
+/**
+ * Определение поля на уровне MONAD (семантика).
+ */
+export interface FieldsDefinition {
+  [fieldName: string]: {
+    type: "number" | "boolean" | "string" | "array<number>" | "array<string>" | "enum<string>" | "enum<number>"
+    values?: any[]
+  }
+}
+
+/**
+ * Числовая суперпозиция для BOUNDARY (индексы).
+ */
+export interface NumericSuperposition {
+  transitions: Array<Array<Transition | null>>
+}
+
+/**
+ * Переход между состояниями.
+ */
+export interface Transition {
+  to: number
+  conditions: Record<number, any>
+}
 import type { Actions, Superposition } from "./types"
 
 /**

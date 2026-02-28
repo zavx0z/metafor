@@ -4,7 +4,9 @@
   "type": "module",
   "private": true,
   "dependencies": {
-    "@boundary/matrix": "*"
+    "@boundary/fields": "workspace:*",
+    "@boundary/matrix": "workspace:*",
+    "@boundary/atlas": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest",

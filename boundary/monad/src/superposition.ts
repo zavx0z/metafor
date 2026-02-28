@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import type { NumericSuperposition, Transition } from "@metafor/boundary"
+import type { Collapse } from "@boundary/fields"
 import type { Superposition } from "./types"
 
 /**
@@ -14,7 +14,9 @@ export interface ConvertedSuperposition {
   /** Имена состояний для reverse-маппинга (хранятся в Monad). */
   states: string[]
   /** Суперпозиция для Boundary (только индексы). */
-  boundary: NumericSuperposition
+  boundary: {
+    transitions: Array<Array<Collapse | null>>
+  }
 }
 
 /**
@@ -53,7 +55,7 @@ export function convertToNumeric(
   const stateIndex = new Map<string, number>()
   states.forEach((name, i) => stateIndex.set(name, i))
 
-  const transitions: Array<Array<Transition | null>> = []
+  const transitions: Array<Array<Collapse | null>> = []
 
   for (const fromState of states) {
     const transObj = superposition[fromState]
@@ -62,35 +64,33 @@ export function convertToNumeric(
       continue
     }
 
-    const fromTransitions: Array<Transition | null> = []
-
-    for (const [toState, conditions] of Object.entries(transObj)) {
-      const toIdx = stateIndex.get(toState)
-      if (toIdx === undefined) {
-        throw new Error(`Unknown state: ${toState}`)
+const fromTransitions: Array<Collapse | null> = []
+for (const [toState, conditions] of Object.entries(transObj)) {
+  const toIdx = stateIndex.get(toState)
+  if (toIdx === undefined) {
+    throw new Error(`Unknown state: ${toState}`)
+  }
+  if (!conditions) {
+    fromTransitions.push(null)
+  } else {
+    // Конвертируем имена полей → индексы
+    const converted: Record<number, any> = {}
+    for (const [fieldName, cond] of Object.entries(conditions)) {
+      const fieldIdx = fieldNameIndex.get(fieldName)
+      if (fieldIdx === undefined) {
+        throw new Error(`Field '${fieldName}' not found`)
       }
-
-      if (!conditions) {
-        fromTransitions.push({ to: toIdx, conditions: {} })
-      } else {
-        // Конвертируем имена полей → индексы
-        const converted: Record<number, any> = {}
-        for (const [fieldName, cond] of Object.entries(conditions)) {
-          const fieldIdx = fieldNameIndex.get(fieldName)
-          if (fieldIdx === undefined) {
-            throw new Error(`Field '${fieldName}' not found`)
-          }
-          converted[fieldIdx] = cond
-        }
-        fromTransitions.push({ to: toIdx, conditions: converted })
-      }
+      converted[fieldIdx] = cond
     }
+    fromTransitions.push([toIdx, converted])
+  }
+}
 
     transitions.push(fromTransitions)
   }
 
-  return {
-    states,
-    boundary: { transitions },
-  }
+return {
+  states,
+  boundary: { transitions },
+}
 }

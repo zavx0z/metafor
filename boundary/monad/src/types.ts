@@ -4,7 +4,12 @@
  * @packageDocumentation
  */
 
-import type { FieldsDefinition, NumericSuperposition } from "@metafor/boundary"
+import type { FieldDefinition } from "./field"
+
+/**
+ * Карта определений полей для монады.
+ */
+export type FieldsDefinition = Record<string, FieldDefinition>
 
 /**
  * Суперпозиция — граф переходов между состояниями.
@@ -69,7 +74,7 @@ export interface MonadConfig {
   fields: FieldsDefinition
   params: Record<string, unknown>
   state: string
-  superposition: MonadSuperposition
+  superposition: Superposition
   actions: Actions
 }
 

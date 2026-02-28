@@ -25,4 +25,5 @@ export type {
   IndexToUuidStore,
 } from "./src/monad.t"
 export { convertField } from "./src/field"
-export type { Field } from "@metafor/boundary"
+export type { Field, FieldType, BraneParamValue } from "@boundary/fields"
+export type { FieldDefinition, FieldsDefinition } from "./src/field"

@@ -4,8 +4,20 @@
  * @packageDocumentation
  */
 
-import { FieldType, type FieldDefinition, type FieldTypeValue } from "@metafor/boundary"
-import type { Field } from "@metafor/boundary"
+import { FieldType, type Field, type FieldTypeValue } from "@boundary/fields"
+
+/**
+ * Определение поля на уровне MONAD (семантика).
+ */
+export interface FieldDefinition {
+  type: "number" | "boolean" | "string" | "array<number>" | "array<string>" | "enum<string>" | "enum<number>"
+  values?: any[]
+}
+
+/**
+ * Карта определений полей для монады.
+ */
+export type FieldsDefinition = Record<string, FieldDefinition>
 
 /**
  * Преобразует определение поля из строкового типа в числовой.
@@ -19,7 +31,7 @@ export function convertField(def: FieldDefinition): Field {
   const enumValues = typeof defTyped !== "string" && "values" in defTyped ? defTyped.values : undefined
 
   let fieldType: FieldTypeValue
-  let elementType: string | undefined
+  let elementType: "string" | "number" | "boolean" | undefined
 
   switch (typeStr) {
     case "number":
@@ -50,6 +62,6 @@ export function convertField(def: FieldDefinition): Field {
   return {
     type: fieldType,
     ...(elementType !== undefined ? { elementType } : {}),
-    ...(enumValues !== undefined ? { enumValues } : {}),
+    ...(enumValues !== undefined ? { enum: enumValues } : {}),
   }
 }

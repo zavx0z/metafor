@@ -5,7 +5,7 @@ import {
   updateBoundary,
   _resetState,
 } from "../src/monad"
-import { GPU } from "@metafor/boundary"
+import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 
 beforeAll(async () => {
