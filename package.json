@@ -8,9 +8,9 @@
     "boundary/*",
     "force/*",
     "dsl/*",
-    "zavx0z/*",
     "fixture",
-    "bulk/*"
+    "bulk/*",
+    "meta/*"
   ],
   "devDependencies": {
     "@types/node": "^25.3.0",
