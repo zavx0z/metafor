@@ -2,7 +2,7 @@ import "@metafor/meta"
 
 export default MetaFor("{{name}}", { desc: "{{description}}" })
   .context((t) => ({
-    error: t.string.optional({ label: "{{errorLabel}}" }),
+    error: field.string.optional({ label: "{{errorLabel}}" }),
   }))
   .states({})
   .mass(() => ({}))

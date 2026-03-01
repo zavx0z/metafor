@@ -6,11 +6,7 @@
   "private": true,
   "workspaces": [
     "boundary/*",
-    "meta",
-    "atom",
-    "infra/*",
-    "build",
-    "create-metafor",
+    "dsl/*",
     "zavx0z/*",
     "fixture",
     "bulk/*"
@@ -28,7 +24,7 @@
   },
   "scripts": {
     "upd": "bun update --latest && bun i",
-    "clear": "bun run --parallel --filter '*' clear",
+    "clear": "rm -rf node_modules && bun run --parallel --filter '*' clear",
     "typegen": "bun --filter @metafor/meta typegen",
     "build": "bun --filter @metafor/meta build",
     "space:build": "bun build metafor.ts --outdir ./dist --sourcemap=linked",

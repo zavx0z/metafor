@@ -2,8 +2,8 @@ import "@metafor/meta"
 
 export default MetaFor("git-submodule", { desc: "Git submodule — управление субмодулями" })
   .context((t) => ({
-    operation: t.enum("submodule").optional({ label: "Тип операции" }),
-    args: t.string.optional({ label: "Аргументы" }),
+    operation: field.enum("submodule").optional({ label: "Тип операции" }),
+    args: field.string.optional({ label: "Аргументы" }),
   }))
   .states({})
   .mass(() => ({}))

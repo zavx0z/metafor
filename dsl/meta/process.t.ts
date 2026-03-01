@@ -1,21 +1,139 @@
-import type { Schema, Update } from "@zavx0z/context"
-import type { Mass } from "../atom/gravity.t"
-import type { ProcessChain, ActionParams, Process } from "../atom/src/processes.t"
+import type { Schema, Update, Values } from "@zavx0z/context"
+import type { Mass, Self } from "./metafor.t"
+
+/**
+ * Конфигурация одного процесса
+ *
+ * Содержит основную функцию action и опциональные обработчики success/error.
+ * Также может содержать метаданные label и desc.
+ *
+ * @template C - схема контекста автомата
+ * @template Res - возвращаемый тип результата action
+ *
+ * @example
+ * ```typescript
+ * const process: Process<MyContext, { userId: number }> = {
+ *   label: "Авторизация",
+ *   desc: "Процесс входа пользователя",
+ *   action: async ({ fields, mass, fields, self, destroy }) => {
+ *     // Логика авторизации с доступом ко всем параметрам
+ *     // destroy() доступен для уничтожения атома
+ *     return { userId: 123 }
+ *   },
+ *   success: ({ update, data }) => {
+ *     update({ userId: data.userId, isAuthenticated: true })
+ *   },
+ *   error: ({ update, error }) => {
+ *     update({ error: error.message })
+ *   }
+ * }
+ * ```
+ */
+export type Process<ɸ extends Schema = Schema, m extends Mass = Mass, Res = any> = {
+  type: ProcessType.ACTION | ProcessType.FINALLY
+  /** Основная функция процесса */
+  action: (params: ActionParams<ɸ, m>) => Res | Promise<Res>
+  /** Обработчик успешного завершения */
+  success?: (params: { update: Update<ɸ>; data: Res }) => void
+  /** Обработчик ошибки */
+  error?: (params: { update: Update<ɸ>; error: Error }) => void
+  /** Название процесса для документации */
+  label?: string
+  /** Описание процесса для документации */
+  desc?: string
+}
+
+/**
+ * Параметры для action
+ * @template C - схема полей автомата
+ * @template M - тип массы автомата
+ */
+export type ActionParams<ɸ extends Schema, m extends Mass> = {
+  /** Поля */
+  fields: Values<ɸ>
+  /** Масса */
+  mass: m
+  /** Схема полей */
+  schema: ɸ
+  /** Полный идентификатор атома */
+  self: Self
+}
+
+/**
+ * Chain API для создания процесса с опциональными параметрами label и desc.
+ * Позволяет удобно и строго типизировано описывать обработчики процессов автомата.
+ *
+ * @template C - схема контекста автомата
+ * @template Res - возвращаемый тип результата action
+ *
+ * @example
+ * ```typescript
+ * const chain = process({
+ *   label: "my_process",
+ *   desc: "Описание процесса"
+ * })
+ *   .action(({ context }) => ({ name: fields.name }))
+ *   .success(({ update, data }) => update({ name: data.name }))
+ *   .error(({ update, error }) => update({ name: error.message }))
+ *
+ * chain.getResult() // { action, success, error, label?, desc? }
+ * ```
+ */
+export type ProcessChain<ɸ extends Schema, m extends Mass> = {
+  /**
+   * Добавляет основную функцию процесса.
+   *
+   * Функция может быть как синхронной, так и асинхронной.
+   * При выбросе исключения вызывается обработчик error.
+   * При успешном выполнении вызывается обработчик success.
+   *
+   * @param fn - функция процесса, вызываемая автоматом
+   * @returns цепочку для дальнейшего конфигурирования
+   *
+   * @example
+   * ```typescript
+   * // Синхронная функция
+   * .action(({ context }) => {
+   *   if (!fields.email) {
+   *     throw new Error('Email обязателен')
+   *   }
+   *   return { isValid: true }
+   * })
+   *
+   * // Асинхронная функция
+   * .action(async ({ context }) => {
+   *   const response = await fetch('/api/data', {
+   *     method: 'POST',
+   *     body: JSON.stringify(context)
+   *   })
+   *   return await response.json()
+   * })
+   *
+   * // Предпочтительный формат action с Promise
+   * .action(({ mass }) => new Promise((resolve, reject) => {
+   *   // асинхронная логика
+   *   resolve({ success: true })
+   * }))
+   * ```
+   */
+  action: <Res>(fn: (params: ActionParams<ɸ, m>) => Res | Promise<Res>) => ActionChain<ɸ, m, Res>
+}
 
 /**
  * Тип билдера для декларации набора процессов автомата.
  *
  * Позволяет создавать типизированные процессы с удобным API.
  *
- * @template C - схема контекста автомата
- * @template S - строковые ключи состояний/процессов
+ * @template ɸ - схема полей автомата
+ * @template 𝛴 - строковые ключи состояний/процессов
+ * @template m - тип mass объекта
  * @param process - фабрика для создания цепочки ProcessChain
  * @returns объект, где ключи — имена процессов, а значения — цепочки ActionChain
  */
-export type ProcessesDeclaration<C extends Schema = Schema, 𝛴 extends string = string, m extends Mass = Mass> = (
+export type ProcessesDeclaration<ɸ extends Schema = Schema, 𝛴 extends string = string, m extends Mass = Mass> = (
   process: (config?: ProcessConfig) => ProcessChain<ɸ, m>,
-  destroy: (config?: DestroyConfig) => DestroyChain<ɸ, m>
-) => Partial<Record<S, ActionChain<ɸ, m, any> | DestroyChain<ɸ, m>>>
+  destroy: (config?: DestroyConfig) => DestroyChain<ɸ, m>,
+) => Partial<Record<𝛴, ActionChain<ɸ, m, any> | DestroyChain<ɸ, m>>>
 
 /**
  * Обработчик действия процесса.
@@ -94,15 +212,15 @@ export interface ProcessConfig extends BaseProcessConfig {}
 /**
  * Специальный тип для destroy-процессов
  */
-export type DestroyChain<C extends Schema = Schema, m extends Mass = Mass> = {
-  before: (handler: ({ mass }: { mass: I }) => void | Promise<void>) => DestroyChain<ɸ, m>
+export type DestroyChain<ɸ extends Schema = Schema, m extends Mass = Mass> = {
+  before: (handler: ({ mass }: { mass: m }) => void | Promise<void>) => DestroyChain<ɸ, m>
 }
 
 /**
  * Цепочка для декларации action с типобезопасной поддержкой success и error.
  * Позволяет удобно и строго типизировано описывать обработчики процессов автомата.
  *
- * @template C - схема контекста автомата
+ * @template ɸ - схема полей автомата
  * @template Res - возвращаемый тип результата action
  *
  * @example
@@ -118,16 +236,16 @@ export type DestroyChain<C extends Schema = Schema, m extends Mass = Mass> = {
  * chain.getResult() // { action, success, error }
  * ```
  */
-export type ActionChain<C extends Schema, m extends Mass, Res> = {
+export type ActionChain<ɸ extends Schema, m extends Mass, Res> = {
   /**
    * Основная функция процесса, вызывается автоматом.
    *
    * Получает полный набор параметров для выполнения процесса и должна вернуть результат или выбросить исключение.
    *
    * @param params - объект с параметрами процесса:
-   *   - `context` - текущий контекст атома
+   *   - `fields` - текущие поля атома
    *   - `mass` - масса атома для сложных данных и зависимостей от среды
-   *   - `fields` - схема контекста для валидации и установки значений по умолчанию
+   *   - `fields` - схема полей для валидации и установки значений по умолчанию
    *   - `self` - полный идентификатор атома
    *   - `destroy` - функция для уничтожения атома
    * @returns результат процесса (может быть промисом)
@@ -135,7 +253,7 @@ export type ActionChain<C extends Schema, m extends Mass, Res> = {
    * @example
    * ```typescript
    * action: ({ fields, mass, fields, self, destroy }) => {
-   *   // Доступ к контексту
+   *   // Доступ к полям
    *   console.log(fields.email, fields.password)
    *
    *   // Доступ к массе
@@ -238,5 +356,5 @@ export type ActionChain<C extends Schema, m extends Mass, Res> = {
    * // }
    * ```
    */
-  getResult: () => Process<C, M, Res>
+  getResult: () => Process<ɸ, m, Res>
 }

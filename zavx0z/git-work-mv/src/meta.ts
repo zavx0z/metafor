@@ -2,7 +2,7 @@ import "@metafor/meta"
 
 export default MetaFor("git-work-mv", { desc: "Git work-mv — команда git" })
   .context((t) => ({
-    error: t.string.optional({ label: "Ошибка" }),
+    error: field.string.optional({ label: "Ошибка" }),
   }))
   .states({})
   .mass(() => ({}))

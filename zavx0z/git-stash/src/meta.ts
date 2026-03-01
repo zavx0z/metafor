@@ -2,8 +2,8 @@ import "@metafor/meta"
 
 export default MetaFor("git-stash", { desc: "Git stash — отложенные изменения" })
   .context((t) => ({
-    operation: t.enum("stash").optional({ label: "Тип операции" }),
-    args: t.string.optional({ label: "Аргументы" }),
+    operation: field.enum("stash").optional({ label: "Тип операции" }),
+    args: field.string.optional({ label: "Аргументы" }),
   }))
   .states({})
   .mass(() => ({}))

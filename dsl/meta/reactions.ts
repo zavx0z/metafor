@@ -1,14 +1,11 @@
 import type { Schema, Values } from "@zavx0z/context"
-import type { Mass } from "../atom/gravity.t"
-import type { ReactionFilterConditions } from "../atom/src/condition.t"
-import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction } from "./reactions.t"
-import type { Self } from "./metafor"
+import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction, ReactionFilterConditions } from "./reactions.t"
 import { extractFields, normalizeFunctionString, updateAppendArg } from "./parser/func"
-import { Initiator } from "../atom/em.t"
+import { Initiator, type Mass, type Self } from "./metafor.t"
 export type { ReactionsDeclaration, ReactionsSchema }
 
-export const reactionsSchema = <C extends Schema, 𝛴 extends string, m extends Mass = {}>(
-  builder: ReactionsDeclaration<C, S, M>
+export const reactionsSchema = <ɸ extends Schema, 𝛴 extends string, m extends Mass = {}>(
+  builder: ReactionsDeclaration<ɸ, 𝛴, m>
 ): ReactionsSchema | null => {
   const reactions: Record<string, any> = {}
   const superposition: Record<string, string[]> = {}
@@ -16,7 +13,7 @@ export const reactionsSchema = <C extends Schema, 𝛴 extends string, m extends
 
   const chainResult = builder((config?: { label?: string; desc?: string }) => ({
     filter: (filter: (params: { self: Self; fields: Values<ɸ> }) => ReactionFilterConditions) => ({
-      equal: (update: ReactionAction<C, S, M>) => {
+      equal: (update: ReactionAction<ɸ, 𝛴, m>) => {
         const { read, write } = extractFields(update)
         const label = config?.label || ""
         const desc = config?.desc
@@ -39,14 +36,14 @@ export const reactionsSchema = <C extends Schema, 𝛴 extends string, m extends
           update,
           filter: () => true,
           ...(desc && { desc }),
-          registerStates: (list: S[]) => {
+          registerStates: (list: 𝛴[]) => {
             for (const state of list) {
               const key = state as unknown as string
               if (!superposition[key]) superposition[key] = []
               superposition[key].push(String(id))
             }
           },
-        } as unknown as Reaction<C, S, M> & { registerStates: (list: S[]) => void }
+        } as unknown as Reaction<ɸ, 𝛴, m> & { registerStates: (list: 𝛴[]) => void }
       },
     }),
   }))

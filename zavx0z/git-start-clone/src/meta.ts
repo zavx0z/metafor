@@ -2,7 +2,7 @@ import "@metafor/meta"
 
 export default MetaFor("git-start-clone", { desc: "Git start-clone — команда git" })
   .context((t) => ({
-    error: t.string.optional({ label: "Ошибка" }),
+    error: field.string.optional({ label: "Ошибка" }),
   }))
   .states({})
   .mass(() => ({}))

@@ -35,21 +35,21 @@
  * @example
  * ```typescript
  * export default MetaFor("user-profile")
- *   .fields((types) => ({
- *     userId: types.number.required(0),
- *     userName: types.string.required(""),
- *     isLoading: types.boolean.required(false),
+ *   .fields((field) => ({
+ *     userId: field.number.required(0),
+ *     userName: field.string.required(""),
+ *     isLoading: field.boolean.required(false),
  *   }))
- *   .states({
+ *   .superposition({
  *     idle: { loading: {} },
  *     loading: { success: {}, error: {} },
  *     success: { idle: {} },
  *     error: { idle: {} },
  *   })
- *   .core({ users: [] })
+ *   .mass({ users: [] })
  *   .processes((process) => ({
  *     loadUser: process()
- *       .action(async ({ context }) => {
+ *       .action(async ({ fields }) => {
  *         const response = await fetch(`/api/users/${fields.userId}`)
  *         return await response.json()
  *       })
@@ -69,8 +69,8 @@
  *         .equal(({ update }) => update({ isLoading: true }))
  *     ]
  *   ])
- *   .view({
- *     render: ({ fields, html, update }) => html`
+ *   .bulk({
+ *     gravity: ({ fields, html, update }) => html`
  *       <div>
  *         <h1>${fields.userName}</h1>
  *         <button onclick=${() => update({ isLoading: true })}>
@@ -85,15 +85,15 @@
  */
 import { contextSchema, type Schema, type Types as Fields } from "@zavx0z/context"
 import { parse, type NodeLogical, type NodeMeta, type Node as NodeType } from "@zavx0z/template"
-import type { Mass } from "../atom/gravity.t"
+
 
 import { validateNoUnconditionalCycles, type Superposition } from "./states"
 import { reactionsSchema, type ReactionsDeclaration } from "./reactions"
 import { processesSchema, type ProcessesDeclaration } from "./process"
 import { serializeStyle } from "./style"
 
-import type { MetaForConfig, MetaFor, BulkDeclaration, Meta } from "./metafor.t"
-import type { Self } from "../atom/atom"
+import type { MetaForConfig, MetaFor, BulkDeclaration, Meta, Mass, Self } from "./metafor.t"
+
 
 export type { MetaFor, Meta, Self, Superposition, NodeMeta, NodeType, NodeLogical }
 

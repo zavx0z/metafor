@@ -2,12 +2,12 @@
  * @packageDocumentation
  * Модуль для преобразования MetaFor DSL в формат JSON для monad.
  *
- * Преобразует декларативное описание атома (context, states, processes, reactions, view, mass)
+ * Преобразует декларативное описание атома (fields, superposition, processes, reactions, bulk, mass)
  * в промежуточный JSON-формат, который используется для инициализации monad и boundary.
  */
 
-import type { ParsedProcess, ParsedDestroy } from "../meta/process.t"
-import type { ReactionsSchema } from "../meta/reactions.t"
+import type { ParsedProcess, ParsedDestroy } from "@metafor/meta/process.t"
+import type { ReactionsSchema } from "@metafor/meta/reactions.t"
 import type { Node as ParseNode } from "@zavx0z/template"
 
 /**
@@ -15,17 +15,17 @@ import type { Node as ParseNode } from "@zavx0z/template"
  * Содержит все компоненты декларации атома.
  */
 type MetaLike = Record<string, any> & {
-  /** Схема контекста с типами полей и значениями по умолчанию */
-  context?: Record<string, any>
+  /** Схема полей с типами и значениями по умолчанию */
+  fields?: Record<string, any>
   /** Граф переходов состояний (суперпозиция) */
-  states?: Record<string, any>
+  superposition?: Record<string, any>
   /** Процессы с обработчиками action/success/error */
   processes?: Record<string, any>
   /** Реакции на события других атомов */
   reactions?: ReactionsSchema | null
-  /** Представление (render/style) */
-  render?: ParseNode[]
-  style?: string
+  /** Bulk-конфигурация (gravity/view) */
+  gravity?: ParseNode[]
+  view?: string
   /** Масса для сложных данных и зависимостей от среды */
   mass?: Record<string, any>
 }
@@ -100,7 +100,7 @@ export interface ViewJson {
  * - **superposition** — граф переходов состояний
  * - **processes** — процессы с обработчиками (action/success/error)
  * - **reactions** — реакции на события других атомов
- * - **bulk** — bulk-конфигурация (gravity/style) для BULK уровня
+ * - **bulk** — bulk-конфигурация (gravity/view) для BULK уровня
  * - **mass** — масса для сложных данных и зависимостей от среды
  *
  * @example
@@ -236,11 +236,11 @@ function inferArrayElementTypeFromDefault(value: unknown): ArrayElementType | un
 }
 
 /**
- * Извлекает из исходного кода типы элементов для массивов, объявленных через t.array.required<Type>(...).
+ * Извлекает из исходного кода типы элементов для массивов, объявленных через field.array.required<Type>(...).
  */
 export function extractArrayElementTypesFromSource(sourceText: string): Record<string, ArrayElementType> {
   const result: Record<string, ArrayElementType> = {}
-  const re = /([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*t\s*\.\s*array\s*\.\s*(?:required|optional)\s*<\s*(string|number)\s*>\s*\(/g
+  const re = /([A-Za-z_$][A-Za-z0-9_$]*)\s*:\s*field\s*\.\s*array\s*\.\s*(?:required|optional)\s*<\s*(string|number)\s*>\s*\(/g
 
   for (const match of [...sourceText.matchAll(re)]) {
     const fieldName = match[1]
@@ -266,7 +266,7 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
  * - **superposition** — граф переходов состояний
  * - **processes** — процессы с обработчиками (action/success/error/before)
  * - **reactions** — реакции на события других атомов
- * - **bulk** — bulk-конфигурация (gravity/style) для BULK уровня
+ * - **bulk** — bulk-конфигурация (gravity/view) для BULK уровня
  * - **mass** — масса для сложных данных и зависимостей от среды
  *
  * @param meta - Исходный объект MetaFor со всеми компонентами
@@ -276,7 +276,7 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
  * @example
  * ```typescript
  * const meta = MetaFor("git")
- *   .fields((t) => ({ src: t.string.required("./tmp/edit.json") }))
+ *   .fields((field) => ({ src: field.string.required("./tmp/edit.json") }))
  *   .superposition({ коммит: { завершено: {} }, завершено: null })
  *   .mass({ history: [] })
  *   .processes((process, destroy) => ({
@@ -292,13 +292,13 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
 export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): MonadJson {
   const inputFields = meta?.fields
   if (!inputFields || typeof inputFields !== "object") {
-    throw new Error("context не найден или не является объектом")
+    throw new Error("fields не найден или не является объектом")
   }
 
   const arrayElementTypesFromSource = sourceText ? extractArrayElementTypesFromSource(sourceText) : {}
   const fields: Record<string, FieldDefinitionJson> = {}
 
-  // Преобразуем context → fields, обогащая типы массивов и enum
+  // Преобразуем fields, обогащая типы массивов и enum
   for (const [fieldName, rawDef] of Object.entries(inputFields)) {
     if (!rawDef || typeof rawDef !== "object") {
       fields[fieldName] = rawDef as FieldDefinitionJson
@@ -316,7 +316,7 @@ export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): Mon
       if (!elementType) {
         throw new Error(
           `Не удалось вывести тип элементов массива для компоненты '${fieldName}'. ` +
-            `Добавь generic: t.array.required<number>([]) / t.array.required<string>([]) или задай непустой default.`,
+            `Добавь generic: field.array.required<number>([]) / field.array.required<string>([]) или задай непустой default.`,
         )
       }
 

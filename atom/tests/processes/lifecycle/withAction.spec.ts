@@ -5,8 +5,8 @@ import { Initiator } from "../../../em.ts"
 
 describe.skip("MetaFor: инициализация с действиями", async () => {
   const hex = MetaFor("test-with-action")
-    .fields((t) => ({
-      value: t.string.optional("ctx_1", { label: "Value" }),
+    .fields((field) => ({
+      value: field.string.optional("ctx_1", { label: "Value" }),
     }))
     .superposition({
       state_1: { state_2: { value: "ctx_2" } },

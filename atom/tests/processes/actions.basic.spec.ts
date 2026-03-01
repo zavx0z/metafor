@@ -4,9 +4,9 @@ import { processesSchema, type ProcessesSchema } from "../../../meta/process.ts"
 import { contextSchema } from "@zavx0z/context"
 
 test("Базовый chain API для действий", () => {
-  const schema = contextSchema((t) => ({
-    name: t.string.required("anon"),
-    age: t.number.required(18),
+  const schema = contextSchema((field) => ({
+    name: field.string.required("anon"),
+    age: field.number.required(18),
   }))
 
   const processes = processesFromSchema(

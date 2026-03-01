@@ -2,8 +2,8 @@ import "@metafor/meta"
 
 export default MetaFor("git-collaborate", { desc: "Git collaborate — команды совместной работы (fetch, pull, push, remote)" })
   .context((t) => ({
-    operation: t.enum("fetch", "pull", "push", "remote").optional({ label: "Тип операции" }),
-    args: t.string.optional({ label: "Аргументы" }),
+    operation: field.enum("fetch", "pull", "push", "remote").optional({ label: "Тип операции" }),
+    args: field.string.optional({ label: "Аргументы" }),
   }))
   .states({})
   .mass(() => ({}))

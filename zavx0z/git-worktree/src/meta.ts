@@ -2,8 +2,8 @@ import "@metafor/meta"
 
 export default MetaFor("git-worktree", { desc: "Git worktree — управление рабочими деревьями" })
   .context((t) => ({
-    operation: t.enum("worktree").optional({ label: "Тип операции" }),
-    args: t.string.optional({ label: "Аргументы" }),
+    operation: field.enum("worktree").optional({ label: "Тип операции" }),
+    args: field.string.optional({ label: "Аргументы" }),
   }))
   .states({})
   .mass(() => ({}))

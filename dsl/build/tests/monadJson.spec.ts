@@ -3,11 +3,11 @@ import { convertMetaToMonadJson, extractArrayElementTypesFromSource } from "../m
 import "@metafor/meta"
 
 describe("convertMetaToMonadJson", () => {
-  test("должен преобразовать context в fields с сохранением всех данных", () => {
+  test("должен преобразовать fields с сохранением всех данных", () => {
     const meta = MetaFor("test")
-      .fields((t) => ({
-        name: t.string.required("Anonymous", { label: "Имя" }),
-        age: t.number.optional(0),
+      .fields((field) => ({
+        name: field.string.required("Anonymous", { label: "Имя" }),
+        age: field.number.optional(0),
       }))
       .superposition({
         idle: { loading: {} },
@@ -40,16 +40,16 @@ describe("convertMetaToMonadJson", () => {
   test("должен преобразовать array с generic типом из исходного кода", () => {
     const sourceText = `
       const meta = MetaFor("test")
-        .fields((t) => ({
-          tags: t.array.required<string>([]),
-          numbers: t.array.required<number>([1, 2, 3])
+        .fields((field) => ({
+          tags: field.array.required<string>([]),
+          numbers: field.array.required<number>([1, 2, 3])
         }))
     `
 
     const meta = MetaFor("test")
-      .fields((t) => ({
-        tags: t.array.required<string>([]),
-        numbers: t.array.required<number>([1, 2, 3]),
+      .fields((field) => ({
+        tags: field.array.required<string>([]),
+        numbers: field.array.required<number>([1, 2, 3]),
       }))
       .superposition({ idle: null })
       .mass()
@@ -65,9 +65,9 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать array с generic типом из default значения", () => {
     const meta = MetaFor("test")
-      .fields((t) => ({
-        tags: t.array.required<string>(["tag1", "tag2"]),
-        numbers: t.array.required<number>([1, 2, 3]),
+      .fields((field) => ({
+        tags: field.array.required<string>(["tag1", "tag2"]),
+        numbers: field.array.required<number>([1, 2, 3]),
       }))
       .superposition({ idle: null })
       .mass()
@@ -83,8 +83,8 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен выбросить ошибку если не удалось вывести тип массива", () => {
     const meta = MetaFor("test")
-      .fields((t) => ({
-        items: t.array.required([]),
+      .fields((field) => ({
+        items: field.array.required([]),
       }))
       .superposition({ idle: null })
       .mass()
@@ -99,8 +99,8 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать enum с string значениями", () => {
     const meta = MetaFor("test")
-      .fields((t) => ({
-        status: t.enum("active", "inactive").required("active"),
+      .fields((field) => ({
+        status: field.enum("active", "inactive").required("active"),
       }))
       .superposition({ idle: null })
       .mass()
@@ -120,8 +120,8 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать enum с number значениями", () => {
     const meta = MetaFor("test")
-      .fields((t) => ({
-        level: t.enum(1, 2, 3).required(1),
+      .fields((field) => ({
+        level: field.enum(1, 2, 3).required(1),
       }))
       .superposition({ idle: null })
       .mass()
@@ -141,9 +141,9 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен выбросить ошибку если enum пустой", () => {
     const meta = MetaFor("test")
-      .fields((t) => ({
+      .fields((field) => ({
         // @ts-ignore - пустой enum для теста
-        status: t.enum().required("active"),
+        status: field.enum().required("active"),
       }))
       .superposition({ idle: null })
       .mass()
@@ -158,8 +158,8 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать states в superposition", () => {
     const meta = MetaFor("test")
-      .fields((t) => ({
-        name: t.string.required(""),
+      .fields((field) => ({
+        name: field.string.required(""),
       }))
       .superposition({
         idle: { loading: {} },
@@ -184,13 +184,13 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен включить processes если есть", () => {
     const meta = MetaFor("test")
-      .fields((t) => ({
-        name: t.string.required(""),
+      .fields((field) => ({
+        name: field.string.required(""),
       }))
       .superposition({ idle: null })
       .mass()
       .processes((process) => ({
-        idle: process().action(({ context }) => Promise.resolve({})),
+        idle: process().action(({ fields }) => Promise.resolve({})),
       }))
       .reactions()
       .bulk()
@@ -204,8 +204,8 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен включить reactions если есть", () => {
     const meta = MetaFor("test")
-      .fields((t) => ({
-        name: t.string.required(""),
+      .fields((field) => ({
+        name: field.string.required(""),
       }))
       .superposition({ idle: null })
       .mass()
@@ -227,23 +227,23 @@ describe("convertMetaToMonadJson", () => {
     expect(result.reactions!.superposition).toBeDefined()
   })
 
-  test("должен выбросить ошибку если context не найден", () => {
+  test("должен выбросить ошибку если fields не найден", () => {
     const meta = {
       name: "test",
       superposition: { idle: null },
     }
 
     expect(() => convertMetaToMonadJson(meta as any)).toThrow(
-      "context не найден или не является объектом"
+      "fields не найден или не является объектом"
     )
   })
 
   test("должен преобразовать простые типы без изменений", () => {
     const meta = MetaFor("test")
-      .fields((t) => ({
-        name: t.string.required(""),
-        age: t.number.optional(0),
-        active: t.boolean.required(true),
+      .fields((field) => ({
+        name: field.string.required(""),
+        age: field.number.optional(0),
+        active: field.boolean.required(true),
       }))
       .superposition({ idle: null })
       .mass()
@@ -262,8 +262,8 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать processes с action/success/error", () => {
     const meta = MetaFor("test")
-      .fields((t) => ({
-        value: t.number.required(0),
+      .fields((field) => ({
+        value: field.number.required(0),
       }))
       .superposition({ idle: { done: {} }, done: null })
       .mass()
@@ -308,8 +308,8 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать destroy процесс", () => {
     const meta = MetaFor("test")
-      .fields((t) => ({
-        value: t.number.required(0),
+      .fields((field) => ({
+        value: field.number.required(0),
       }))
       .superposition({ idle: { done: {} }, done: null })
       .mass()
@@ -333,9 +333,9 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать reactions с filter и equal", () => {
     const meta = MetaFor("test")
-      .fields((t) => ({
-        value: t.number.required(0),
-        isActive: t.boolean.required(false),
+      .fields((field) => ({
+        value: field.number.required(0),
+        isActive: field.boolean.required(false),
       }))
       .superposition({ idle: { active: {} }, active: null })
       .mass()
@@ -344,7 +344,7 @@ describe("convertMetaToMonadJson", () => {
         [
           ["idle"],
           reaction({ label: "Value Update", desc: "Обновление значения" })
-            .filter(({ self, context }) => ({
+            .filter(({ self, fields }) => ({
               meta: "source",
               value: { gt: 0 },
             }))
@@ -361,7 +361,7 @@ describe("convertMetaToMonadJson", () => {
     const reaction = result.reactions!.reactions["0"]
     expect(reaction!.label).toBe("Value Update")
     expect(reaction!.desc).toBe("Обновление значения")
-    expect(reaction!.cond).toContain("({ self, context }) =>")
+    expect(reaction!.cond).toContain("({ self, fields }) =>")
     expect(reaction!.src).toContain("({ update, patch }) =>")
     expect(reaction!.write).toEqual(["value"])
     expect(result.reactions!.superposition.idle).toEqual(["0"])
@@ -369,8 +369,8 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать view с render и style", () => {
     const meta = MetaFor("test")
-      .fields((t) => ({
-        label: t.string.required("Test"),
+      .fields((field) => ({
+        label: field.string.required("Test"),
       }))
       .superposition({ idle: null })
       .mass()
@@ -406,8 +406,8 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать core с данными", () => {
     const meta = MetaFor("test")
-      .fields((t) => ({
-        value: t.number.required(0),
+      .fields((field) => ({
+        value: field.number.required(0),
       }))
       .superposition({ idle: null })
       .mass({
@@ -434,15 +434,15 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать полный атом со всеми компонентами", () => {
     const meta = MetaFor("complete")
-      .fields((t) => ({
-        name: t.string.required("Test", { label: "Название" }),
-        count: t.number.required(0),
+      .fields((field) => ({
+        name: field.string.required("Test", { label: "Название" }),
+        count: field.number.required(0),
       }))
       .superposition({ idle: { done: {} }, done: null })
       .mass({ data: [] as string[] })
       .processes((process) => ({
         idle: process({ label: "Process" })
-          .action(({ context }) => context.count)
+          .action(({ fields }) => fields.count)
           .success(({ update, data }) => update({ count: data as number })),
       }))
       .reactions((reaction) => [
@@ -454,7 +454,7 @@ describe("convertMetaToMonadJson", () => {
         ],
       ])
       .bulk({
-        gravity: ({ context, html }) => html`<div>${context.name}</div>`,
+        gravity: ({ fields, html }) => html`<div>${fields.name}</div>`,
         view: ({ css }) => css`div { color: red; }`,
       })
 
@@ -471,13 +471,13 @@ describe("convertMetaToMonadJson", () => {
 })
 
 describe("extractArrayElementTypesFromSource", () => {
-  test("должен извлечь типы элементов из t.array.required<Type>", () => {
+  test("должен извлечь типы элементов из field.array.required<Type>", () => {
     const sourceText = `
       const meta = MetaFor("test")
-        .fields((t) => ({
-          tags: t.array.required<string>([]),
-          numbers: t.array.required<number>([1, 2, 3]),
-          items: t.array.optional<string>([])
+        .fields((field) => ({
+          tags: field.array.required<string>([]),
+          numbers: field.array.required<number>([1, 2, 3]),
+          items: field.array.optional<string>([])
         }))
     `
 
@@ -493,9 +493,9 @@ describe("extractArrayElementTypesFromSource", () => {
   test("должен вернуть пустой объект если нет объявлений массивов", () => {
     const sourceText = `
       const meta = MetaFor("test")
-        .fields((t) => ({
-          name: t.string.required(""),
-          age: t.number.required(0)
+        .fields((field) => ({
+          name: field.string.required(""),
+          age: field.number.required(0)
         }))
     `
 
@@ -507,8 +507,8 @@ describe("extractArrayElementTypesFromSource", () => {
   test("должен обработать несколько объявлений в одной строке", () => {
     const sourceText = `
       const meta = MetaFor("test")
-        .fields((t) => ({
-          tags: t.array.required<string>([]), numbers: t.array.required<number>([])
+        .fields((field) => ({
+          tags: field.array.required<string>([]), numbers: field.array.required<number>([])
         }))
     `
 

@@ -154,8 +154,8 @@ export abstract class Strong extends Weak {
    * const atom = Atom.fromSchema({
    *   meta: {
    *     name: "counter",
-   *     context: contextSchema((t) => ({
-   *       value: t.number.required(0)
+   *     context: contextSchema((field) => ({
+   *       value: field.number.required(0)
    *     })),
    *     states: { idle: {} },
    *     processes: {},

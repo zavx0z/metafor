@@ -3,11 +3,11 @@ import { contextSchema, type Update, type Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
 import { reactionsSchema } from "../../../meta/reactions"
 
-const schema = contextSchema((t) => ({
-  value: t.number.required(0),
-  name: t.string.required(""),
-  isActive: t.boolean.required(false),
-  tags: t.array.required([]),
+const schema = contextSchema((field) => ({
+  value: field.number.required(0),
+  name: field.string.required(""),
+  isActive: field.boolean.required(false),
+  tags: field.array.required([]),
 }))
 type Ctx = typeof schema
 type State = "idle" | "active"

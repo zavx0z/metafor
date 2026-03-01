@@ -4,11 +4,11 @@ import { processesSchema, type ProcessesSchema } from "../../../meta/process.ts"
 import { contextSchema } from "@zavx0z/context"
 
 test("Полный пример с destroy", () => {
-  const schema = contextSchema((t) => ({
-    children: t.number.optional(),
-    current: t.number.optional(),
-    process: t.array.optional() as any,
-    error: t.string.optional(),
+  const schema = contextSchema((field) => ({
+    children: field.number.optional(),
+    current: field.number.optional(),
+    process: field.array.optional() as any,
+    error: field.string.optional(),
   }))
   const coreSchema = { child: [] }
 

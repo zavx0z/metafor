@@ -5,7 +5,7 @@ export default MetaFor("git-history", { desc: "Git history — команды у
     operation: t
       .enum("switch", "checkout", "commit", "reset", "revert", "bisect", "repair")
       .optional({ label: "Тип операции" }),
-    args: t.string.optional({ label: "Аргументы" }),
+    args: field.string.optional({ label: "Аргументы" }),
   }))
   .states({})
   .mass(() => ({}))

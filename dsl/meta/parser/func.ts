@@ -1,5 +1,5 @@
 import type { Schema } from "@zavx0z/context"
-import type { Mass } from "../../atom/gravity.t"
+import type { Mass } from "../metafor.t"
 import type { ReactionAction } from "../reactions.t"
 
 const PATTERN_UPDATE = /\bupdate\s*\(\s*({[\s\S]*?})\s*\)/g
@@ -117,7 +117,7 @@ export function parseFunction(fn: Function, allowWrite: boolean = true) {
 /**
  * Анализирует функцию update для извлечения полей
  */
-export function extractFields<C extends Schema, 𝛴 extends string, m extends Mass>(reaction: ReactionAction<C, S, M>) {
+export function extractFields<ɸ extends Schema, 𝛴 extends string, m extends Mass>(reaction: ReactionAction<ɸ, 𝛴, m>) {
   const updateStr = reaction.toString()
   const read: string[] = []
   const write: string[] = []

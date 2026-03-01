@@ -1,12 +1,12 @@
 import "@metafor/meta"
 
 const meta = MetaFor("git")
-  .context((t) => ({
-    src: t.string.required("./tmp/edit.json", { label: "JSON-patch путь" }),
-    patches: t.array.required<string>([], { label: "разделенные патчи" }),
-    isLoading: t.boolean.required(false, { label: "Флаг загрузки" }),
+  .fields((field) => ({
+    src: field.string.required("./tmp/edit.json", { label: "JSON-patch путь" }),
+    patches: field.array.required<string>([], { label: "разделенные патчи" }),
+    isLoading: field.boolean.required(false, { label: "Флаг загрузки" }),
   }))
-  .states({
+  .superposition({
     коммит: {
       завершено: { isLoading: false },
       ошибка: { isLoading: true },
@@ -14,14 +14,14 @@ const meta = MetaFor("git")
     завершено: null,
     ошибка: { коммит: {} },
   })
-  .core({
+  .mass({
     history: [] as string[],
     lastError: null as string | null,
   })
   .processes((process, destroy) => ({
     коммит: process({ label: "Коммит", desc: "Процесс коммита изменений" })
-      .action(({ context }) => {
-        console.log("Коммит:", context.src)
+      .action(({ fields }) => {
+        console.log("Коммит:", fields.src)
         return { success: true }
       })
       .success(({ update, data }) => {
@@ -37,7 +37,7 @@ const meta = MetaFor("git")
     [
       ["коммит"],
       reaction({ label: "Обработка сообщений", desc: "Реагирует на внешние события" })
-        .filter(({ self, context }) => ({
+        .filter(({ self, fields }) => ({
           meta: "user",
           value: { gt: 0 },
         }))
@@ -47,12 +47,12 @@ const meta = MetaFor("git")
         }),
     ],
   ])
-  .view({
-    render: ({ context, state, html }) =>
-      html`${state === "коммит" && html`<meta-for src="meta/status.js" context=${{ message: "Коммит в процессе...", src: context.src }}></meta-for>`}
-        ${state === "завершено" && html`<meta-for src="meta/success.js" context=${{ message: "Готово!", patches: context.patches }}></meta-for>`}
-        ${state === "ошибка" && html`<meta-for src="meta/error.js" context=${{ error: "Ошибка коммита" }}></meta-for>`}`,
-    style: ({ css }) => css``,
+  .bulk({
+    gravity: ({ fields, state, html }) =>
+      html`${state === "коммит" && html`<meta-for src="meta/status.js" fields=${{ message: "Коммит в процессе...", src: fields.src }}></meta-for>`}
+        ${state === "завершено" && html`<meta-for src="meta/success.js" fields=${{ message: "Готово!", patches: fields.patches }}></meta-for>`}
+        ${state === "ошибка" && html`<meta-for src="meta/error.js" fields=${{ error: "Ошибка коммита" }}></meta-for>`}`,
+    view: ({ css }) => css``,
   })
 
 export default meta

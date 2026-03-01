@@ -8,7 +8,7 @@ type State = "idle" | "active"
 describe("Фильтрация по fields.process с in", () => {
   it("фильтр atom in fields.process должен работать", () => {
     const mass: { called: boolean } = { called: false }
-    const fields = contextSchema((t) => ({ process: t.array.required(["user-1", "user-2", "admin-1"]) }))
+    const fields = contextSchema((field) => ({ process: field.array.required(["user-1", "user-2", "admin-1"]) }))
 
     const registry = reactionsFromSchema(
       reactionsSchema<typeof fields, State, { called: boolean }>((reaction) => [
@@ -47,7 +47,7 @@ describe("Фильтрация по fields.process с in", () => {
 
   it("фильтр atom in fields.process НЕ должен сработать для неизвестного atom", () => {
     const mass: { called: boolean } = { called: false }
-    const fields = contextSchema((t) => ({ process: t.array.required(["user-1", "user-2", "admin-1"]) }))
+    const fields = contextSchema((field) => ({ process: field.array.required(["user-1", "user-2", "admin-1"]) }))
 
     const registry = reactionsFromSchema(
       reactionsSchema<typeof fields, State, { called: boolean }>((reaction) => [
@@ -85,7 +85,7 @@ describe("Фильтрация по fields.process с in", () => {
 
   it("фильтр atom in fields.process НЕ должен сработать при неверном path", () => {
     const mass: { called: boolean } = { called: false }
-    const fields = contextSchema((t) => ({ process: t.array.required(["user-1", "user-2", "admin-1"]) }))
+    const fields = contextSchema((field) => ({ process: field.array.required(["user-1", "user-2", "admin-1"]) }))
 
     const registry = reactionsFromSchema(
       reactionsSchema<typeof fields, State, { called: boolean }>((reaction) => [
@@ -122,7 +122,7 @@ describe("Фильтрация по fields.process с in", () => {
 
   it("фильтр atom in fields.process НЕ должен сработать при неверном value", () => {
     const mass: { called: boolean } = { called: false }
-    const fields = contextSchema((t) => ({ process: t.array.required(["user-1", "user-2", "admin-1"]) }))
+    const fields = contextSchema((field) => ({ process: field.array.required(["user-1", "user-2", "admin-1"]) }))
 
     const registry = reactionsFromSchema(
       reactionsSchema<typeof fields, State, { called: boolean }>((reaction) => [

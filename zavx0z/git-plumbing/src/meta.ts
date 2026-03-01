@@ -2,7 +2,7 @@ import "@metafor/meta"
 
 export default MetaFor("git-plumbing", { desc: "Git plumbing — низкоуровневые команды" })
   .context((t) => ({
-    operation: t.enum(
+    operation: field.enum(
       "cat-file", "check-attr", "check-ignore", "check-mailmap", "commit-graph",
       "commit-tree", "count-objects", "diff-files", "diff-index", "diff-tree",
       "fast-export", "fast-import", "filter-branch", "fsck", "gitfile",
@@ -10,7 +10,7 @@ export default MetaFor("git-plumbing", { desc: "Git plumbing — низкоур�
       "rev-list", "rev-parse", "show-ref", "symbolic-ref", "unpack-objects",
       "update-index", "update-ref", "verify-commit", "verify-pack", "verify-tag"
     ).optional({ label: "Тип операции" }),
-    args: t.string.optional({ label: "Аргументы" }),
+    args: field.string.optional({ label: "Аргументы" }),
   }))
   .states({})
   .mass(() => ({}))

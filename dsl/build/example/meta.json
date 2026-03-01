@@ -40,7 +40,7 @@
       "label": "Коммит",
       "desc": "Процесс коммита изменений",
       "action": {
-        "src": "({ context }) => {\n    console.log(\"\\u041A\\u043E\\u043C\\u043C\\u0438\\u0442:\", context.src);\n    return { success: true };\n  }",
+        "src": "({ fields }) => {\n    console.log(\"\\u041A\\u043E\\u043C\\u043C\\u0438\\u0442:\", fields.src);\n    return { success: true };\n  }",
         "read": [
           "src"
         ]
@@ -74,7 +74,7 @@
       "0": {
         "label": "Обработка сообщений",
         "desc": "Реагирует на внешние события",
-        "cond": "({ self, context }) => ({\n      meta: \"user\",\n      value: { gt: 0 }\n    })",
+        "cond": "({ self, fields }) => ({\n      meta: \"user\",\n      value: { gt: 0 }\n    })",
         "read": [
           "isLoading"
         ],
@@ -84,14 +84,14 @@
         "src": "({ update, patch }) => {\n      update({ isLoading: true }, \"r:0\");\n      console.log(\"\\u041F\\u043E\\u043B\\u0443\\u0447\\u0435\\u043D\\u043E \\u0441\\u043E\\u043E\\u0431\\u0449\\u0435\\u043D\\u0438\\u0435:\", patch.value);\n    }"
       }
     },
-    "states": {
+    "superposition": {
       "коммит": [
         "0"
       ]
     }
   },
-  "view": {
-    "render": [
+  "bulk": {
+    "gravity": [
       {
         "type": "log",
         "data": "/state",
@@ -103,8 +103,8 @@
             "string": {
               "src": "meta/status.js"
             },
-            "context": {
-              "data": "/context/src",
+            "fields": {
+              "data": "/fields/src",
               "expr": "{ message: \"\\u041A\\u043E\\u043C\\u043C\\u0438\\u0442 \\u0432 \\u043F\\u0440\\u043E\\u0446\\u0435\\u0441\\u0441\\u0435...\", src: _[0] }"
             }
           }
@@ -121,8 +121,8 @@
             "string": {
               "src": "meta/success.js"
             },
-            "context": {
-              "data": "/context/patches",
+            "fields": {
+              "data": "/fields/patches",
               "expr": "{ message: \"\\u0413\\u043E\\u0442\\u043E\\u0432\\u043E!\", patches: _[0] }"
             }
           }
@@ -139,13 +139,13 @@
             "string": {
               "src": "meta/error.js"
             },
-            "context": "{ error: \"\\u041E\\u0448\\u0438\\u0431\\u043A\\u0430 \\u043A\\u043E\\u043C\\u043C\\u0438\\u0442\\u0430\" }"
+            "fields": "{ error: \"\\u041E\\u0448\\u0438\\u0431\\u043A\\u0430 \\u043A\\u043E\\u043C\\u043C\\u0438\\u0442\\u0430\" }"
           }
         ]
       }
     ]
   },
-  "core": {
+  "mass": {
     "history": [],
     "lastError": null
   }

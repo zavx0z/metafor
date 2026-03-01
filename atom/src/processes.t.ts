@@ -20,11 +20,9 @@
  * @module Processes
  */
 
-import type { Schema, Values } from "@zavx0z/context"
+import type { Schema, Update, Values } from "@zavx0z/context"
 import type { Mass } from "../gravity"
 import type { Destroy } from "../field"
-import type { Atom, Self } from "../atom"
-import type { ActionChain, ProcessType } from "../../meta/process.t"
 
 export type Processes<C extends Schema = Schema, 𝛴 extends string = string, m extends Mass = Mass> = {
   get: (name: S) => Process<ɸ, m> | undefined
@@ -98,13 +96,13 @@ export type ProcessChain<C extends Schema, m extends Mass> = {
  * @template C - схема полей автомата
  * @template M - тип массы автомата
  */
-export type ActionParams<C extends Schema, m extends Mass> = {
+export type ActionParams<ɸ extends Schema, m extends Mass> = {
   /** Поля */
   fields: Values<ɸ>
   /** Масса */
   mass: M
   /** Схема полей */
-  schema: C
+  schema: ɸ
   /** Полный идентификатор атома */
   self: Self
 }
@@ -137,14 +135,14 @@ export type ActionParams<C extends Schema, m extends Mass> = {
  * }
  * ```
  */
-export type Process<C extends Schema = Schema, m extends Mass = Mass, Res = any> = {
+export type Process<ɸ extends Schema = Schema, m extends Mass = Mass, Res = any> = {
   type: ProcessType.ACTION | ProcessType.FINALLY
   /** Основная функция процесса */
   action: (params: ActionParams<ɸ, m>) => Res | Promise<Res>
   /** Обработчик успешного завершения */
-  success?: (params: { update: Atom["evaluate"]; data: Res }) => void
+  success?: (params: { update: Update<ɸ>; data: Res }) => void
   /** Обработчик ошибки */
-  error?: (params: { update: Atom["evaluate"]; error: Error }) => void
+  error?: (params: { update: Update<ɸ>; error: Error }) => void
   /** Название процесса для документации */
   label?: string
   /** Описание процесса для документации */

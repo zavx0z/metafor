@@ -1,11 +1,4 @@
-/**
- * Типы для состояний и переходов
- * @packageDocumentation
- * @module States
- */
-
-import type { Schema, Values, SchemaType } from "@zavx0z/context"
-
+import type { Schema, SchemaType, Values } from "@zavx0z/context"
 /** 
  * # Условия для булевых значений (required)
   
@@ -444,14 +437,14 @@ export type CondArrayRequired<T = any> =
       every?: T extends number
         ? { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number }
         : T extends string
-        ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
-        : never
+          ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
+          : never
       /** Хотя бы один элемент удовлетворяет условию */
       some?: T extends number
         ? { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number }
         : T extends string
-        ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
-        : never
+          ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
+          : never
       /** Является ли массив пустым */
       isEmpty?: boolean
     }
@@ -502,14 +495,14 @@ export type CondArrayOptional<T = any> =
       every?: T extends number
         ? { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number }
         : T extends string
-        ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
-        : never
+          ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
+          : never
       /** Хотя бы один элемент удовлетворяет условию */
       some?: T extends number
         ? { gt?: number; gte?: number; lt?: number; lte?: number; eq?: number }
         : T extends string
-        ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
-        : never
+          ? { include?: string; startsWith?: string; endsWith?: string; pattern?: RegExp }
+          : never
       /** Является ли массив пустым */
       isEmpty?: boolean
     }
@@ -520,16 +513,16 @@ export type CondArrayOptional<T = any> =
 export type Condition<T> = T extends boolean
   ? CondBooleanRequired
   : T extends string
-  ? CondStringRequired
-  : T extends number
-  ? CondNumberRequired
-  : T extends (infer U)[]
-  ? CondArrayRequired<U>
-  : T extends readonly (infer U)[]
-  ? CondArrayRequired<U>
-  : T extends object
-  ? { includeKey?: string }
-  : never
+    ? CondStringRequired
+    : T extends number
+      ? CondNumberRequired
+      : T extends (infer U)[]
+        ? CondArrayRequired<U>
+        : T extends readonly (infer U)[]
+          ? CondArrayRequired<U>
+          : T extends object
+            ? { includeKey?: string }
+            : never
 
 /**
  * Условие для опционального поля контекста
@@ -537,19 +530,18 @@ export type Condition<T> = T extends boolean
 export type ConditionOptional<T> = T extends boolean
   ? CondBooleanOptional
   : T extends string
-  ? CondStringOptional
-  : T extends number
-  ? CondNumberOptional
-  : T extends (infer U)[]
-  ? CondArrayOptional<U>
-  : T extends readonly (infer U)[]
-  ? CondArrayOptional<U>
-  : T extends null
-  ? null
-  : T extends object
-  ? { includeKey?: string }
-  : never
-
+    ? CondStringOptional
+    : T extends number
+      ? CondNumberOptional
+      : T extends (infer U)[]
+        ? CondArrayOptional<U>
+        : T extends readonly (infer U)[]
+          ? CondArrayOptional<U>
+          : T extends null
+            ? null
+            : T extends object
+              ? { includeKey?: string }
+              : never
 /**
  * Условие контекстного поля
  */
@@ -558,10 +550,10 @@ export type Wave<ɸ extends Schema = Schema> = {
     ? Condition<Values<ɸ>[K]>
     : ConditionOptional<Values<ɸ>[K]>
 }
-
 /**
  * Состояние в которое можно перейти с условиями
  */
 export type Transitions<To extends string = string, ɸ extends Schema = Schema> = {
   [K in To]?: Wave<ɸ>
 }
+export type Superposition<𝛴 extends string = string, ɸ extends Schema = Schema> = Record<𝛴, Transitions<𝛴, ɸ> | null>

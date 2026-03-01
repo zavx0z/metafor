@@ -40,6 +40,7 @@
     "fixture/**/*.ts"
   ],
   "exclude": [
+    "./atom/**/*",
     "**/dist-test/*",
     "**/script/**/*",
     "docs",

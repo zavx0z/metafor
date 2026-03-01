@@ -3,15 +3,15 @@ import { test, describe, expect } from "bun:test"
 import { messagesFixture } from "../../../infra/test/fixture/message.ts"
 describe.skip("async process", async () => {
   const hex = MetaFor("websocket")
-    .fields((t) => ({
-      timeStampConnecting: t.number.optional({ label: "Время начала подключения" }),
-      timeStampConnected: t.number.optional({ label: "Время подключения" }),
-      timeStampDisconnected: t.number.optional({ label: "Время отключения" }),
-      maxAttempts: t.number.required(5, { label: "Максимальное количество попыток переподключения" }),
-      remainingAttempts: t.number.required(0, { label: "Оставшиеся попытки переподключения" }),
-      reconnectDelay: t.number.required(1000, { label: "Базовая задержка переподключения" }),
-      reconnectDelayMultiplier: t.number.required(1.5, { label: "Множитель задержки переподключения" }),
-      error: t.string.optional({ label: "Ошибка соединения" }),
+    .fields((field) => ({
+      timeStampConnecting: field.number.optional({ label: "Время начала подключения" }),
+      timeStampConnected: field.number.optional({ label: "Время подключения" }),
+      timeStampDisconnected: field.number.optional({ label: "Время отключения" }),
+      maxAttempts: field.number.required(5, { label: "Максимальное количество попыток переподключения" }),
+      remainingAttempts: field.number.required(0, { label: "Оставшиеся попытки переподключения" }),
+      reconnectDelay: field.number.required(1000, { label: "Базовая задержка переподключения" }),
+      reconnectDelayMultiplier: field.number.required(1.5, { label: "Множитель задержки переподключения" }),
+      error: field.string.optional({ label: "Ошибка соединения" }),
     }))
     .superposition({
       отключен: {

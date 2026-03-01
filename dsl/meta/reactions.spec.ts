@@ -4,11 +4,11 @@ import { contextSchema } from "@zavx0z/context"
 import { reactionsSchema } from "./reactions"
 
 describe("схема реакций", () => {
-  const schema = contextSchema((t) => ({
-    value: t.number.required(0),
-    name: t.string.required(""),
-    isActive: t.boolean.required(false),
-    tags: t.array.required([]),
+  const schema = contextSchema((field) => ({
+    value: field.number.required(0),
+    name: field.string.required(""),
+    isActive: field.boolean.required(false),
+    tags: field.array.required([]),
   }))
   type State = "idle" | "active" | "error"
 

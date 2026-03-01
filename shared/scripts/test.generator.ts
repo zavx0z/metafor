@@ -352,13 +352,13 @@ describe.todo("${label}", () => {
   const container = document.createElement("div")
 
   const { context, schema, update } = new Context((t) => ({
-    string: t.string.required(""),
-    number: t.number.required(0),
-    boolean: t.boolean.required(false),
-    numberArray: t.array.required([0, 1, 2]),
-    stringArray: t.array.required(["a", "b", "c"]),
-    numberEnum: t.enum(0, 1, 2).required(0),
-    stringEnum: t.enum("a", "b", "c").required("a"),
+    string: field.string.required(""),
+    number: field.number.required(0),
+    boolean: field.boolean.required(false),
+    numberArray: field.array.required([0, 1, 2]),
+    stringArray: field.array.required(["a", "b", "c"]),
+    numberEnum: field.enum(0, 1, 2).required(0),
+    stringEnum: field.enum("a", "b", "c").required("a"),
   }))
   const core = {} as const
   const state = "initial" as const

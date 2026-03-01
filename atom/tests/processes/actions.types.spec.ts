@@ -4,7 +4,7 @@ import { processesSchema, type ProcessesSchema } from "../../../meta/process.ts"
 import { contextSchema } from "@zavx0z/context"
 
 test("Строгая типизация действий", () => {
-  const schema = contextSchema((t) => ({ name: t.string.required("anon") }))
+  const schema = contextSchema((field) => ({ name: field.string.required("anon") }))
   const processes = processesFromSchema(
     processesSchema<typeof schema, "guest", {}>((process) => ({
       guest: process()

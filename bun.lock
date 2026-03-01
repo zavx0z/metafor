@@ -16,13 +16,6 @@
         "typescript": "^5.9.3",
       },
     },
-    "atom": {
-      "name": "@metafor/atom",
-      "version": "0.4.6",
-      "dependencies": {
-        "@zavx0z/context": "2.3.1",
-      },
-    },
     "boundary/atlas": {
       "name": "@boundary/atlas",
       "version": "0.0.1",
@@ -78,7 +71,9 @@
     "boundary/monad": {
       "name": "@boundary/monad",
       "dependencies": {
-        "@boundary/matrix": "*",
+        "@boundary/atlas": "workspace:*",
+        "@boundary/fields": "workspace:*",
+        "@boundary/matrix": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -89,7 +84,15 @@
         "typescript": "^5",
       },
     },
-    "build": {
+    "bulk/gravity": {
+      "name": "@bulk/gravity",
+      "devDependencies": {
+        "@boundary/monad": "workspace:*",
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "dsl/build": {
       "name": "@metafor/build",
       "bin": {
         "metafor-build": "./cli.ts",
@@ -98,19 +101,12 @@
         "typescript": "^5",
       },
     },
-    "bulk/gravity": {
-      "name": "gravity",
+    "dsl/meta": {
+      "name": "@metafor/meta",
+      "version": "0.4.1",
       "devDependencies": {
-        "@boundary/monad": "workspace:*",
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
-      },
-    },
-    "create-metafor": {
-      "name": "create-metafor",
-      "version": "1.0.41",
-      "bin": {
-        "create-metafor": "dist/cli.js",
+        "@zavx0z/context": "^2.3.0",
+        "@zavx0z/template": "^2.6.1",
       },
     },
     "fixture": {
@@ -123,48 +119,9 @@
         "typescript": "^5",
       },
     },
-    "infra/inspect": {
-      "name": "@metafor/inspect",
-      "version": "0.4.1",
-      "devDependencies": {
-        "@metafor/atom": "workspace:*",
-      },
-    },
-    "infra/mesh": {
-      "name": "@metafor/mesh",
-      "dependencies": {
-        "@types/three": "^0.182.0",
-        "three": "^0.182.0",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "@types/three": "^0.182.0",
-      },
-    },
-    "infra/virtual": {
-      "name": "@metafor/virtual",
-      "version": "0.4.0",
-      "devDependencies": {
-        "@metafor/atom": "workspace:*",
-      },
-      "peerDependencies": {
-        "typescript": "^5",
-      },
-    },
-    "meta": {
-      "name": "@metafor/meta",
-      "version": "0.4.1",
-      "devDependencies": {
-        "@zavx0z/context": "^2.3.0",
-        "@zavx0z/template": "^2.6.1",
-      },
-    },
     "zavx0z/git": {
       "name": "@zavx0z/git",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -173,9 +130,6 @@
     "zavx0z/git-collaborate": {
       "name": "@zavx0z/git-collaborate",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -184,9 +138,6 @@
     "zavx0z/git-config": {
       "name": "@zavx0z/git-config",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -195,9 +146,6 @@
     "zavx0z/git-error": {
       "name": "@zavx0z/git-error",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -206,9 +154,6 @@
     "zavx0z/git-examine": {
       "name": "@zavx0z/git-examine",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -217,9 +162,6 @@
     "zavx0z/git-history": {
       "name": "@zavx0z/git-history",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -228,9 +170,6 @@
     "zavx0z/git-history-commit": {
       "name": "@zavx0z/git-history-commit",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -239,9 +178,6 @@
     "zavx0z/git-plumbing": {
       "name": "@zavx0z/git-plumbing",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -250,9 +186,6 @@
     "zavx0z/git-start": {
       "name": "@zavx0z/git-start",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -261,9 +194,6 @@
     "zavx0z/git-start-clone": {
       "name": "@zavx0z/git-start-clone",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -272,9 +202,6 @@
     "zavx0z/git-start-init": {
       "name": "@zavx0z/git-start-init",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -283,9 +210,6 @@
     "zavx0z/git-stash": {
       "name": "@zavx0z/git-stash",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -294,9 +218,6 @@
     "zavx0z/git-submodule": {
       "name": "@zavx0z/git-submodule",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -305,9 +226,6 @@
     "zavx0z/git-work-add": {
       "name": "@zavx0z/git-work-add",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -316,9 +234,6 @@
     "zavx0z/git-work-clean": {
       "name": "@zavx0z/git-work-clean",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -327,9 +242,6 @@
     "zavx0z/git-work-mv": {
       "name": "@zavx0z/git-work-mv",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -338,9 +250,6 @@
     "zavx0z/git-work-restore": {
       "name": "@zavx0z/git-work-restore",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -349,9 +258,6 @@
     "zavx0z/git-work-rm": {
       "name": "@zavx0z/git-work-rm",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -360,9 +266,6 @@
     "zavx0z/git-work-sparse-checkout": {
       "name": "@zavx0z/git-work-sparse-checkout",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/meta": "workspace:*",
       },
@@ -370,9 +273,6 @@
     "zavx0z/git-worktree": {
       "name": "@zavx0z/git-worktree",
       "version": "0.1.0",
-      "dependencies": {
-        "@metafor/build": "link:@metafor/build",
-      },
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -394,21 +294,13 @@
 
     "@boundary/monad": ["@boundary/monad@workspace:boundary/monad"],
 
-    "@dimforge/rapier3d-compat": ["@dimforge/rapier3d-compat@0.12.0", "https://registry.yarnpkg.com/@dimforge/rapier3d-compat/-/rapier3d-compat-0.12.0.tgz", {}, "sha512-uekIGetywIgopfD97oDL5PfeezkFpNhwlzlaEYNOA0N6ghdsOvh/HYjSMek5Q2O1PYvRSDFcqFVJl4r4ZBwOow=="],
+    "@bulk/gravity": ["@bulk/gravity@workspace:bulk/gravity"],
 
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.22.0", "https://registry.yarnpkg.com/@gerrit0/mini-shiki/-/mini-shiki-3.22.0.tgz", { "dependencies": { "@shikijs/engine-oniguruma": "^3.22.0", "@shikijs/langs": "^3.22.0", "@shikijs/themes": "^3.22.0", "@shikijs/types": "^3.22.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-jMpciqEVUBKE1QwU64S4saNMzpsSza6diNCk4MWAeCxO2+LFi2FIFmL2S0VDLzEJCxuvCbU783xi8Hp/gkM5CQ=="],
 
-    "@metafor/atom": ["@metafor/atom@workspace:atom"],
+    "@metafor/build": ["@metafor/build@workspace:dsl/build"],
 
-    "@metafor/build": ["@metafor/build@workspace:build"],
-
-    "@metafor/inspect": ["@metafor/inspect@workspace:infra/inspect"],
-
-    "@metafor/mesh": ["@metafor/mesh@workspace:infra/mesh"],
-
-    "@metafor/meta": ["@metafor/meta@workspace:meta"],
-
-    "@metafor/virtual": ["@metafor/virtual@workspace:infra/virtual"],
+    "@metafor/meta": ["@metafor/meta@workspace:dsl/meta"],
 
     "@puppeteer/browsers": ["@puppeteer/browsers@2.12.0", "https://registry.yarnpkg.com/@puppeteer/browsers/-/browsers-2.12.0.tgz", { "dependencies": { "debug": "^4.4.3", "extract-zip": "^2.0.1", "progress": "^2.0.3", "proxy-agent": "^6.5.0", "semver": "^7.7.3", "tar-fs": "^3.1.1", "yargs": "^17.7.2" }, "bin": { "browsers": "lib/cjs/main-cli.js" } }, "sha512-Xuq42yxcQJ54ti8ZHNzF5snFvtpgXzNToJ1bXUGQRaiO8t+B6UM8sTUJfvV+AJnqtkJU/7hdy6nbKyA12aHtRw=="],
 
@@ -424,8 +316,6 @@
 
     "@tootallnate/quickjs-emscripten": ["@tootallnate/quickjs-emscripten@0.23.0", "https://registry.yarnpkg.com/@tootallnate/quickjs-emscripten/-/quickjs-emscripten-0.23.0.tgz", {}, "sha512-C5Mc6rdnsaJDjO3UpGW/CQTHtCKaYlScZTly4JIu97Jxo/odCiH0ITnDXSJPTOrEKk/ycSZ0AOgTmkDtkOsvIA=="],
 
-    "@tweenjs/tween.js": ["@tweenjs/tween.js@23.1.3", "https://registry.yarnpkg.com/@tweenjs/tween.js/-/tween.js-23.1.3.tgz", {}, "sha512-vJmvvwFxYuGnF2axRtPYocag6Clbb5YS7kLL+SO/TeVFzHqDIWrNKYtcsPMibjDx9O+bu+psAy9NKfWklassUA=="],
-
     "@types/bun": ["@types/bun@1.3.9", "https://registry.yarnpkg.com/@types/bun/-/bun-1.3.9.tgz", { "dependencies": { "bun-types": "1.3.9" } }, "sha512-KQ571yULOdWJiMH+RIWIOZ7B2RXQGpL1YQrBtLIV3FqDcCu6FsbFUBwhdKUlCKUpS3PJDsHlJ1QKlpxoVR+xtw=="],
 
     "@types/hast": ["@types/hast@3.0.4", "https://registry.yarnpkg.com/@types/hast/-/hast-3.0.4.tgz", { "dependencies": { "@types/unist": "*" } }, "sha512-WPs+bbQw5aCj+x6laNGWLH3wviHtoCv/P3+otBhbOhJgG8qtpdAMlTCxLtsTWA7LH1Oh/bFCHsBn0TPS5m30EQ=="],
@@ -434,13 +324,7 @@
 
     "@types/puppeteer": ["@types/puppeteer@5.4.7", "https://registry.yarnpkg.com/@types/puppeteer/-/puppeteer-5.4.7.tgz", { "dependencies": { "@types/node": "*" } }, "sha512-JdGWZZYL0vKapXF4oQTC5hLVNfOgdPrqeZ1BiQnGk5cB7HeE91EWUiTdVSdQPobRN8rIcdffjiOgCYJ/S8QrnQ=="],
 
-    "@types/stats.js": ["@types/stats.js@0.17.4", "https://registry.yarnpkg.com/@types/stats.js/-/stats.js-0.17.4.tgz", {}, "sha512-jIBvWWShCvlBqBNIZt0KAshWpvSjhkwkEu4ZUcASoAvhmrgAUI2t1dXrjSL4xXVLB4FznPrIsX3nKXFl/Dt4vA=="],
-
-    "@types/three": ["@types/three@0.182.0", "https://registry.yarnpkg.com/@types/three/-/three-0.182.0.tgz", { "dependencies": { "@dimforge/rapier3d-compat": "~0.12.0", "@tweenjs/tween.js": "~23.1.3", "@types/stats.js": "*", "@types/webxr": ">=0.5.17", "@webgpu/types": "*", "fflate": "~0.8.2", "meshoptimizer": "~0.22.0" } }, "sha512-WByN9V3Sbwbe2OkWuSGyoqQO8Du6yhYaXtXLoA5FkKTUJorZ+yOHBZ35zUUPQXlAKABZmbYp5oAqpA4RBjtJ/Q=="],
-
     "@types/unist": ["@types/unist@3.0.3", "https://registry.yarnpkg.com/@types/unist/-/unist-3.0.3.tgz", {}, "sha512-ko/gIFJRv177XgZsZcBwnqJN5x/Gien8qNOn0D5bQU/zAzVf9Zt3BlcUiLqhV9y4ARk0GbT3tnUiPNgnTXzc/Q=="],
-
-    "@types/webxr": ["@types/webxr@0.5.24", "https://registry.yarnpkg.com/@types/webxr/-/webxr-0.5.24.tgz", {}, "sha512-h8fgEd/DpoS9CBrjEQXR+dIDraopAEfu4wYVNY2tEPwk60stPWhvZMf4Foo5FakuQ7HFZoa8WceaWFervK2Ovg=="],
 
     "@types/yauzl": ["@types/yauzl@2.10.3", "https://registry.yarnpkg.com/@types/yauzl/-/yauzl-2.10.3.tgz", { "dependencies": { "@types/node": "*" } }, "sha512-oJoftv0LSuaDZE3Le4DbKX+KS9G36NzOeSap90UIK0yMA/NhKJhqlSGtNDORNRaIbQfzjXDrQa0ytJ6mNRGz/Q=="],
 
@@ -546,8 +430,6 @@
 
     "cosmiconfig": ["cosmiconfig@9.0.0", "https://registry.yarnpkg.com/cosmiconfig/-/cosmiconfig-9.0.0.tgz", { "dependencies": { "env-paths": "^2.2.1", "import-fresh": "^3.3.0", "js-yaml": "^4.1.0", "parse-json": "^5.2.0" }, "peerDependencies": { "typescript": ">=4.9.5" }, "optionalPeers": ["typescript"] }, "sha512-itvL5h8RETACmOTFc4UfIyB2RfEHi71Ax6E/PivVxq9NseKbOWpeyHEOIbmAw1rs8Ak0VursQNww7lf7YtUwzg=="],
 
-    "create-metafor": ["create-metafor@workspace:create-metafor"],
-
     "data-uri-to-buffer": ["data-uri-to-buffer@6.0.2", "https://registry.yarnpkg.com/data-uri-to-buffer/-/data-uri-to-buffer-6.0.2.tgz", {}, "sha512-7hvf7/GW8e86rW0ptuwS3OcBGDjIi6SZva7hCyWC0yYry2cOPmLIjXAUHI6DK2HsnwJd9ifmt57i8eV2n4YNpw=="],
 
     "debug": ["debug@4.4.3", "https://registry.yarnpkg.com/debug/-/debug-4.4.3.tgz", { "dependencies": { "ms": "^2.1.3" } }, "sha512-RGwwWnwQvkVfavKVt22FGLw+xYSdzARwm0ru6DhTVA3umU5hZc28V3kO4stgYryrTlLpuvgI9GiijltAjNbcqA=="],
@@ -586,8 +468,6 @@
 
     "fd-slicer": ["fd-slicer@1.1.0", "https://registry.yarnpkg.com/fd-slicer/-/fd-slicer-1.1.0.tgz", { "dependencies": { "pend": "~1.2.0" } }, "sha512-cE1qsB/VwyQozZ+q1dGxR8LBYNZeofhEdUNGSMbQD3Gw2lAzX9Zb3uIU6Ebc/Fmyjo9AWWfnn0AUCHqtevs/8g=="],
 
-    "fflate": ["fflate@0.8.2", "https://registry.yarnpkg.com/fflate/-/fflate-0.8.2.tgz", {}, "sha512-cPJU47OaAoCbg0pBvzsgpTPhmhqI5eJjh/JIu8tPj5q+T7iLvW/JAYUqmE7KOB4R1ZyEhzBaIQpQpardBF5z8A=="],
-
     "fixture": ["fixture@workspace:fixture"],
 
     "get-caller-file": ["get-caller-file@2.0.5", "https://registry.yarnpkg.com/get-caller-file/-/get-caller-file-2.0.5.tgz", {}, "sha512-DyFP3BM/3YHTQOCUL/w0OZHR0lpKeGrxotcHWcqNEdnltqFwXVfhEBQ94eIo34AfQpo0rGki4cyIiftY06h2Fg=="],
@@ -595,8 +475,6 @@
     "get-stream": ["get-stream@5.2.0", "https://registry.yarnpkg.com/get-stream/-/get-stream-5.2.0.tgz", { "dependencies": { "pump": "^3.0.0" } }, "sha512-nBF+F1rAZVCu/p7rjzgA+Yb4lfYXrpl7a6VmJrU8wF9I1CKvP/QwPNZHnOlwbTkY6dvtFIzFMSyQXbLoTQPRpA=="],
 
     "get-uri": ["get-uri@6.0.5", "https://registry.yarnpkg.com/get-uri/-/get-uri-6.0.5.tgz", { "dependencies": { "basic-ftp": "^5.0.2", "data-uri-to-buffer": "^6.0.2", "debug": "^4.3.4" } }, "sha512-b1O07XYq8eRuVzBNgJLstU6FYc1tS6wnMtF1I1D9lE8LxZSOGZ7LhxN54yPP6mGw5f2CkXY2BQUL9Fx41qvcIg=="],
-
-    "gravity": ["gravity@workspace:bulk/gravity"],
 
     "http-proxy-agent": ["http-proxy-agent@7.0.2", "https://registry.yarnpkg.com/http-proxy-agent/-/http-proxy-agent-7.0.2.tgz", { "dependencies": { "agent-base": "^7.1.0", "debug": "^4.3.4" } }, "sha512-T1gkAiYYDWYx3V5Bmyu7HcfcvL7mUrTWiM6yOfa3PIphViJ/gFPbvidQ+veqSOHci/PxBcDabeUNCzpOODJZig=="],
 
@@ -627,8 +505,6 @@
     "markdown-it": ["markdown-it@14.1.0", "https://registry.yarnpkg.com/markdown-it/-/markdown-it-14.1.0.tgz", { "dependencies": { "argparse": "^2.0.1", "entities": "^4.4.0", "linkify-it": "^5.0.0", "mdurl": "^2.0.0", "punycode.js": "^2.3.1", "uc.micro": "^2.1.0" }, "bin": { "markdown-it": "bin/markdown-it.mjs" } }, "sha512-a54IwgWPaeBCAAsv13YgmALOF1elABB08FxO9i+r4VFk5Vl4pKokRPeX8u5TCgSsPi6ec1otfLjdOpVcgbpshg=="],
 
     "mdurl": ["mdurl@2.0.0", "https://registry.yarnpkg.com/mdurl/-/mdurl-2.0.0.tgz", {}, "sha512-Lf+9+2r+Tdp5wXDXC4PcIBjTDtq4UKjCPMQhKIuzpJNW0b96kVqSwW0bT7FhRSfmAiFYgP+SCRvdrDozfh0U5w=="],
-
-    "meshoptimizer": ["meshoptimizer@0.22.0", "https://registry.yarnpkg.com/meshoptimizer/-/meshoptimizer-0.22.0.tgz", {}, "sha512-IebiK79sqIy+E4EgOr+CAw+Ke8hAspXKzBd0JdgEmPHiAwmvEj2S4h1rfvo+o/BnfEYd/jAOg5IeeIjzlzSnDg=="],
 
     "minimatch": ["minimatch@9.0.5", "https://registry.yarnpkg.com/minimatch/-/minimatch-9.0.5.tgz", { "dependencies": { "brace-expansion": "^2.0.1" } }, "sha512-G6T0ZX48xgozx7587koeX9Ys2NYy6Gmv//P89sEte9V9whIapMNF4idKxnW2QtCcLiTWlb/wfCabAtAFWhhBow=="],
 
@@ -692,8 +568,6 @@
 
     "text-decoder": ["text-decoder@1.2.3", "https://registry.yarnpkg.com/text-decoder/-/text-decoder-1.2.3.tgz", { "dependencies": { "b4a": "^1.6.4" } }, "sha512-3/o9z3X0X0fTupwsYvR03pJ/DjWuqqrfwBgTQzdWDiQSm9KitAyz/9WqsT2JQW7KV2m+bC2ol/zqpW37NHxLaA=="],
 
-    "three": ["three@0.182.0", "https://registry.yarnpkg.com/three/-/three-0.182.0.tgz", {}, "sha512-GbHabT+Irv+ihI1/f5kIIsZ+Ef9Sl5A1Y7imvS5RQjWgtTPfPnZ43JmlYI7NtCRDK9zir20lQpfg8/9Yd02OvQ=="],
-
     "tslib": ["tslib@2.8.1", "https://registry.yarnpkg.com/tslib/-/tslib-2.8.1.tgz", {}, "sha512-oJFu94HQb+KVduSUQL7wnpmqnfmLsOA/nAh6b6EH0wCEoK0/mPeXU6c3wKDV83MkOuHPRHtSXKKU99IBazS/2w=="],
 
     "typed-query-selector": ["typed-query-selector@2.12.0", "https://registry.yarnpkg.com/typed-query-selector/-/typed-query-selector-2.12.0.tgz", {}, "sha512-SbklCd1F0EiZOyPiW192rrHZzZ5sBijB6xM+cpmrwDqObvdtunOHHIk9fCGsoK5JVIYXoyEp4iEdE3upFH3PAg=="],
@@ -731,46 +605,6 @@
     "@types/puppeteer/@types/node": ["@types/node@24.0.12", "https://registry.yarnpkg.com/@types/node/-/node-24.0.12.tgz", { "dependencies": { "undici-types": "~7.8.0" } }, "sha512-LtOrbvDf5ndC9Xi+4QZjVL0woFymF/xSTKZKPgrrl7H7XoeDvnD+E2IclKVDyaK9UM756W/3BXqSU+JEHopA9g=="],
 
     "@types/yauzl/@types/node": ["@types/node@24.0.12", "https://registry.yarnpkg.com/@types/node/-/node-24.0.12.tgz", { "dependencies": { "undici-types": "~7.8.0" } }, "sha512-LtOrbvDf5ndC9Xi+4QZjVL0woFymF/xSTKZKPgrrl7H7XoeDvnD+E2IclKVDyaK9UM756W/3BXqSU+JEHopA9g=="],
-
-    "@zavx0z/git/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-collaborate/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-config/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-error/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-examine/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-history/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-history-commit/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-plumbing/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-start/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-start-clone/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-start-init/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-stash/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-submodule/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-work-add/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-work-clean/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-work-mv/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-work-restore/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-work-rm/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-work-sparse-checkout/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
-
-    "@zavx0z/git-worktree/@metafor/build": ["@metafor/build@link:@metafor/build", { "bin": { "metafor-build": "./cli.ts" } }],
 
     "bun-types/@types/node": ["@types/node@24.0.12", "https://registry.yarnpkg.com/@types/node/-/node-24.0.12.tgz", { "dependencies": { "undici-types": "~7.8.0" } }, "sha512-LtOrbvDf5ndC9Xi+4QZjVL0woFymF/xSTKZKPgrrl7H7XoeDvnD+E2IclKVDyaK9UM756W/3BXqSU+JEHopA9g=="],
 

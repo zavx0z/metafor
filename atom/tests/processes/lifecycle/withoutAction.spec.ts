@@ -5,8 +5,8 @@ import { messagesFixture } from "../../../../infra/test/fixture/message.ts"
 
 describe.skip("MetaFor: инициализация без действия", async () => {
   const meta = MetaFor("test-without-action")
-    .fields((t) => ({
-      value: t.string.optional("ctx_1"),
+    .fields((field) => ({
+      value: field.string.optional("ctx_1"),
     }))
     .superposition({
       state_1: { state_2: { value: "ctx_1" } },

@@ -2,17 +2,17 @@ import "@metafor/meta"
 
 export default MetaFor("git-history-commit", { desc: "Git commit — создание коммита" })
   .context((t) => ({
-    args: t.string.optional({ label: "Аргументы" }),
-    all: t.boolean.optional({ label: "Все файлы (-a)" }),
-    message: t.string.optional({ label: "Сообщение (-m)" }),
-    amend: t.boolean.optional({ label: "Исправить (--amend)" }),
-    signoff: t.boolean.optional({ label: "Подпись (-s)" }),
-    noVerify: t.boolean.optional({ label: "Без проверки (-n)" }),
-    dryRun: t.boolean.optional({ label: "Пробный запуск (--dry-run)" }),
-    verbose: t.boolean.optional({ label: "Подробно (-v)" }),
-    edit: t.boolean.optional({ label: "Редактировать (-e)" }),
-    error: t.string.optional({ label: "Ошибка" }),
-    dryRunOutput: t.string.optional({ label: "Результат пробного запуска" }),
+    args: field.string.optional({ label: "Аргументы" }),
+    all: field.boolean.optional({ label: "Все файлы (-a)" }),
+    message: field.string.optional({ label: "Сообщение (-m)" }),
+    amend: field.boolean.optional({ label: "Исправить (--amend)" }),
+    signoff: field.boolean.optional({ label: "Подпись (-s)" }),
+    noVerify: field.boolean.optional({ label: "Без проверки (-n)" }),
+    dryRun: field.boolean.optional({ label: "Пробный запуск (--dry-run)" }),
+    verbose: field.boolean.optional({ label: "Подробно (-v)" }),
+    edit: field.boolean.optional({ label: "Редактировать (-e)" }),
+    error: field.string.optional({ label: "Ошибка" }),
+    dryRunOutput: field.string.optional({ label: "Результат пробного запуска" }),
   }))
   .states({
     "парсинг опций": {

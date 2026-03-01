@@ -3,10 +3,10 @@ import { reactionsFromSchema } from "../../src/reactions.ts"
 import { contextSchema } from "@zavx0z/context"
 
 describe("deserializeReactions", () => {
-  const schema = contextSchema((t) => ({
-    value: t.number.required(0),
-    name: t.string.required(""),
-    isActive: t.boolean.required(false),
+  const schema = contextSchema((field) => ({
+    value: field.number.required(0),
+    name: field.string.required(""),
+    isActive: field.boolean.required(false),
   }))
   type C = typeof schema
   type S = "idle" | "active" | "error"

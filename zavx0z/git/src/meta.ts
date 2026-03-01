@@ -2,7 +2,7 @@ import "@metafor/meta"
 
 export default MetaFor("git", { desc: "Git — распределённая система управления версиями" })
   .context((t) => ({
-    operation: t.enum(
+    operation: field.enum(
       "start",
       "work",
       "examine",
@@ -14,9 +14,9 @@ export default MetaFor("git", { desc: "Git — распределённая си
       "config",
       "plumbing",
     ).optional({ label: "Тип операции" }),
-    error: t.string.optional({ label: "Ошибка" }),
-    command: t.string.optional({ label: "Команда" }),
-    args: t.string.optional({ label: "Аргументы" }),
+    error: field.string.optional({ label: "Ошибка" }),
+    command: field.string.optional({ label: "Команда" }),
+    args: field.string.optional({ label: "Аргументы" }),
   }))
   .states({
     "получение команды": {
