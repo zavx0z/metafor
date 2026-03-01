@@ -33,7 +33,7 @@
  * })
  *
  * // Эволюция
- * const changes = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
+ * const changes = await update([[0, [[0, 100]]]])
  * ```
  */
 
@@ -315,32 +315,32 @@ export async function write(data: Data): Promise<[number, number][]> {
  * - `lock: undefined` — не менять текущий lock флаг
  * - Lock флаг сохраняется между вызовами до явной смены
  *
- * @param updates - Массив обновлений: `[[braneIndex, fieldUpdates, lock?], ...]`
+ * @param updates - Массив обновлений: `[[braneIndex, [[fieldIndex, value], ...], lock?], ...]`
  * @returns Массив состояний: `[[braneIndex, state], ...]`
  *
  * @example
  * ```typescript
  * // Обновление одного поля одной браны
- * await update([[0, [{ fieldIndex: 0, value: 100 }]]])
+ * await update([[0, [[0, 100]]]])
  *
  * // Обновление с блокировкой
- * await update([[0, [{ fieldIndex: 0, value: 100 }], true]])
+ * await update([[0, [[0, 100]], true]])
  *
  * // Разблокировать без изменения полей
  * await update([[0, [], false]])
  *
  * // Несколько бран с разной блокировкой
  * await update([
- *   [0, [{ fieldIndex: 0, value: 100 }], true],   // Заблокировать
- *   [1, [{ fieldIndex: 0, value: 50 }]],          // lock не меняется
- *   [2, [{ fieldIndex: 0, value: 30 }], false],   // Разблокировать
+ *   [0, [[0, 100]], true],   // Заблокировать
+ *   [1, [[0, 50]]],          // lock не меняется
+ *   [2, [[0, 30]], false],   // Разблокировать
  * ])
  * ```
  */
 export async function update(
   updates: Array<[
     braneIndex: number,
-    fieldUpdates: Array<{ fieldIndex: number; value: unknown }>,
+    fieldUpdates: Array<[fieldIndex: number, value: unknown]>,
     lock?: boolean
   ]>,
 ): Promise<[number, number][]> {
@@ -379,7 +379,7 @@ export async function update(
         allHeapUpdates.push({ offset: blockPtr + 2, value1: lock ? 1 : 0 })
       }
 
-      for (const { fieldIndex, value } of fieldUpdates) {
+      for (const [fieldIndex, value] of fieldUpdates) {
         // Поиск смещения поля
         const fieldOffset = findFieldOffsetInHeap(heap, blockPtr, fieldIndex)
         if (fieldOffset === null) {

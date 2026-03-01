@@ -252,20 +252,20 @@ export class StringAtlas {
  * ```ts
  * // Правильно:
  * await write({ fields: [...], branes: [...] })  // Сбрасывает атлас
- * const states = await update([[0, [{ fieldIndex: 0, value: "new string" }]]])  // Интернирует заново
+ * const states = await update([[0, [[0, "new string"]]]])  // Интернирует заново
  *
  * // Неправильно:
  * const id = atlas.intern("hello")  // id = 0
  * await write(...)  // Сброс! id больше не валиден
- * const states = await update([[0, [{ fieldIndex: 0, value: id }]]])  // ❌ Ошибка: id устарел
+ * const states = await update([[0, [[0, id]]]])  // ❌ Ошибка: id устарел
  *
  * // Опасно: параллельные вызовы
  * Promise.all([
- *   update([[0, [{ fieldIndex: 0, value: "a" }]]]),
- *   update([[1, [{ fieldIndex: 0, value: "b" }]]])
+ *   update([[0, [[0, "a"]]]]),
+ *   update([[1, [[0, "b"]]]])
  * ])  // ❌ Гонка за атлас
- * await update([[0, [{ fieldIndex: 0, value: "a" }]]])  // ✅ Последовательно
- * await update([[1, [{ fieldIndex: 0, value: "b" }]]])
+ * await update([[0, [[0, "a"]]]])  // ✅ Последовательно
+ * await update([[1, [[0, "b"]]]])
  * ```
  */
 let globalAtlas: StringAtlas | null = null

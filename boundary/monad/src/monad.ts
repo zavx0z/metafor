@@ -279,7 +279,7 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<void> {
     return
   }
 
-  const allUpdates: Array<[number, Array<{ fieldIndex: number; value: unknown }>, boolean?]> = []
+  const allUpdates: Array<[number, Array<[number, unknown]>, boolean?]> = []
 
   for (const { id, fields = {}, lock } of updates) {
     const index = _uuidToIndex.get(id)
@@ -299,7 +299,7 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<void> {
       if (fieldIndex === undefined) {
         throw new Error(`Field '${name}' not found`)
       }
-      return { fieldIndex, value }
+      return [fieldIndex, value] as [number, unknown]
     })
 
     // Добавляем обновление: [braneIndex, fieldUpdates, lock?]

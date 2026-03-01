@@ -27,7 +27,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: [1, 3, 5, 7] }]]])
+      const resultStates = await update([[0, [[0, [1, 3, 5, 7]]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
 
@@ -37,7 +37,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: [1, 2, 3] }]]])
+      const resultStates = await update([[0, [[0, [1, 2, 3]]]]])
       expect(resultStates).toEqual([])
     })
   })
@@ -51,7 +51,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: [1, 2, 3] }]]])
+      const resultStates = await update([[0, [[0, [1, 2, 3]]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
 
@@ -63,7 +63,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: [1, 5, 10] }]]])
+      const resultStates = await update([[0, [[0, [1, 5, 10]]]]])
       expect(resultStates).toEqual([])
     })
   })
@@ -76,7 +76,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: [1, 2, 3] }]]])
+      const resultStates = await update([[0, [[0, [1, 2, 3]]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
 
@@ -87,7 +87,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: [1, 2, 3, 4] }]]])
+      const resultStates = await update([[0, [[0, [1, 2, 3, 4]]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
 
@@ -100,7 +100,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
       // update с массивом длины 3: length:lte:3 = TRUE, но state уже 1 (терминальное)
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: [1, 2, 3] }]]])
+      const resultStates = await update([[0, [[0, [1, 2, 3]]]]])
       expect(resultStates).toEqual([])  // Уже в терминальном состоянии
     })
   })
@@ -114,7 +114,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
       // update с непустым массивом: state уже 1 (терминальное)
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: [1] }]]])
+      const resultStates = await update([[0, [[0, [1]]]]])
       expect(resultStates).toEqual([])  // Уже в терминальном состоянии
     })
 
@@ -125,7 +125,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: [1] }]]])
+      const resultStates = await update([[0, [[0, [1]]]]])
       expect(resultStates).toEqual([])  // Уже в терминальном состоянии
     })
   })
@@ -137,7 +137,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "string" }],
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: ["warrior", "mage", "hero"] }]]])
+      const resultStates = await update([[0, [[0, ["warrior", "mage", "hero"]]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
 
@@ -147,7 +147,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "string" }],
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: ["alpha", "beta"] }]]])
+      const resultStates = await update([[0, [[0, ["alpha", "beta"]]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
   })
@@ -160,7 +160,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: [1, 5, 10] }]]])
+      const resultStates = await update([[0, [[0, [1, 5, 10]]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
   })
@@ -174,7 +174,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
         branes: [{ state: 0, params: [[0, [1, 2, 3]]], collapses }],
       })
       // После write() state=1 (терминальное), update не меняет
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: [1, 2, 3] }]]])
+      const resultStates = await update([[0, [[0, [1, 2, 3]]]]])
       expect(resultStates).toEqual([])  // Уже в терминальном состоянии
     })
 
@@ -186,7 +186,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
         branes: [{ state: 0, params: [[0, ["warrior", "hero"]]], collapses }],
       })
       // После write() state=1 (терминальное)
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: ["mage"] }]]])
+      const resultStates = await update([[0, [[0, ["mage"]]]]])
       expect(resultStates).toEqual([])  // Уже в терминальном состоянии
     })
 
@@ -198,7 +198,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
       // После write() state=1 (терминальное)
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: [1] }]]])
+      const resultStates = await update([[0, [[0, [1]]]]])
       expect(resultStates).toEqual([])  // Уже в терминальном состоянии
     })
   })

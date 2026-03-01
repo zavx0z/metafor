@@ -27,7 +27,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
         fields: [{ type: FieldType.F32 }],
         branes: [{ state: 0, params: [[0, 0]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: 42 }]]])
+      const resultStates = await update([[0, [[0, 42]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
 
@@ -37,7 +37,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
         fields: [{ type: FieldType.F32 }],
         branes: [{ state: 0, params: [[0, 0]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: -10 }]]])
+      const resultStates = await update([[0, [[0, -10]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
 
@@ -47,7 +47,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
         fields: [{ type: FieldType.F32 }],
         branes: [{ state: 0, params: [[0, 0]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: 3.14 }]]])
+      const resultStates = await update([[0, [[0, 3.14]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
 
@@ -58,7 +58,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
         fields: [{ type: FieldType.F32 }],
         branes: [{ state: 0, params: [[0, 1]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: 0 }]]])
+      const resultStates = await update([[0, [[0, 0]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
   })
@@ -71,7 +71,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
         fields: [{ type: FieldType.F32 }],
         branes: [{ state: 0, params: [[0, 42]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: 41 }]]])
+      const resultStates = await update([[0, [[0, 41]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
   })
@@ -84,7 +84,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
         fields: [{ type: FieldType.F32 }],
         branes: [{ state: 0, params: [[0, 50]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: 101 }]]])
+      const resultStates = await update([[0, [[0, 101]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
   })
@@ -97,7 +97,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
         fields: [{ type: FieldType.F32 }],
         branes: [{ state: 0, params: [[0, 100]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: 49 }]]])
+      const resultStates = await update([[0, [[0, 49]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
   })
@@ -110,7 +110,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
         fields: [{ type: FieldType.F32 }],
         branes: [{ state: 0, params: [[0, 0]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: 50 }]]])
+      const resultStates = await update([[0, [[0, 50]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
   })
@@ -123,7 +123,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
         fields: [{ type: FieldType.F32 }],
         branes: [{ state: 0, params: [[0, 100]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: 50 }]]])
+      const resultStates = await update([[0, [[0, 50]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
   })

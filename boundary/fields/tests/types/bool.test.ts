@@ -26,7 +26,7 @@ describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
         fields: [{ type: FieldType.BOOL }],
         branes: [{ state: 0, params: [[0, false]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: true }]]])
+      const resultStates = await update([[0, [[0, true]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
 
@@ -36,7 +36,7 @@ describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
         fields: [{ type: FieldType.BOOL }],
         branes: [{ state: 0, params: [[0, true]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: false }]]])
+      const resultStates = await update([[0, [[0, false]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
   })
@@ -48,7 +48,7 @@ describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
         fields: [{ type: FieldType.BOOL }],
         branes: [{ state: 0, params: [[0, false]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: true }]]])
+      const resultStates = await update([[0, [[0, true]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
 
@@ -58,7 +58,7 @@ describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
         fields: [{ type: FieldType.BOOL }],
         branes: [{ state: 0, params: [[0, true]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: false }]]])
+      const resultStates = await update([[0, [[0, false]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
   })
@@ -70,7 +70,7 @@ describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
         fields: [{ type: FieldType.BOOL }],
         branes: [{ state: 0, params: [[0, true]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: false }]]])
+      const resultStates = await update([[0, [[0, false]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
   })

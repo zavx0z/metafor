@@ -35,7 +35,7 @@ describe("matrix — Логические стадии (bun-webgpu)", () => {
           { state: 0, params: [[0, 0]], collapses },
         ],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: 1 }]]])
+      const resultStates = await update([[0, [[0, 1]]]])
       expect(resultStates).toContainEqual([0, 1])  // Брана 0: 1 in [1,3,5] → переход
     })
 
@@ -53,7 +53,7 @@ describe("matrix — Логические стадии (bun-webgpu)", () => {
           { state: 0, params: [[0, 0]], collapses },
         ],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: 36.6 }]]])
+      const resultStates = await update([[0, [[0, 36.6]]]])
       expect(resultStates).toContainEqual([0, 1])  // Брана 0: 36.6 in [36.6,37.0] → переход
     })
   })
@@ -73,7 +73,7 @@ describe("matrix — Логические стадии (bun-webgpu)", () => {
           { state: 0, params: [[0, 0]], collapses },
         ],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: 1 }]]])
+      const resultStates = await update([[0, [[0, 1]]]])
       expect(resultStates).toContainEqual([0, 1])  // Брана 0: 1 notIn [0,2] → переход
     })
   })
@@ -95,8 +95,8 @@ describe("matrix — Логические стадии (bun-webgpu)", () => {
         ],
       })
       const resultStates = await update([[0, [
-        { fieldIndex: 0, value: 150 },  // hp=150>=100
-        { fieldIndex: 1, value: 5 },    // mana=5 in [5,7,10] → переход
+        [0, 150],  // hp=150>=100
+        [1, 5],    // mana=5 in [5,7,10] → переход
       ]]])
       expect(resultStates).toContainEqual([0, 1])
     })

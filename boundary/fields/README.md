@@ -25,26 +25,26 @@ const initialStates = await write({
 import { update } from "@boundary/fields"
 
 // Обновление полей
-await update([[0, [{ fieldIndex: 0, value: 100 }]]])
+await update([[0, [[0, 100]]]])
 
 // С блокировкой переходов
-await update([[0, [{ fieldIndex: 0, value: 100 }], true]])
+await update([[0, [[0, 100]], true]])
 
 // Разблокировать
-await update([[0, [{ fieldIndex: 0, value: 100 }], false]])
+await update([[0, [], false]])
 ```
 
 ## Блокировка переходов
 
 ```typescript
 // Заблокировать брану на один update()
-await update([[0, [{ fieldIndex: 0, value: 100 }], true]])
+await update([[0, [[0, 100]], true]])
 
 // Lock флаг сохраняется до явной смены
-await update([[0, [{ fieldIndex: 0, value: 100 }]]])  // Всё ещё заблокирована
+await update([[0, [[0, 100]]]])  // Всё ещё заблокирована
 
 // Разблокировать
-await update([[0, [{ fieldIndex: 0, value: 100 }], false]])
+await update([[0, [], false]])
 ```
 
 ## Тесты

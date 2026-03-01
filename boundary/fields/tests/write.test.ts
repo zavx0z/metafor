@@ -145,7 +145,7 @@ describe("write() — возврат начальных состояний", () 
     expect(initialStates).toContainEqual([0, 1])
     
     // update с hp=0 → переход в state=2 (DEAD)
-    const nextStates = await update([[0, [{ fieldIndex: 0, value: 0 }]]])
+    const nextStates = await update([[0, [[0, 0]]]])
     expect(nextStates).toContainEqual([0, 2])
   })
 

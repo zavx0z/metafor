@@ -54,7 +54,7 @@ describe("write / update — базовые переходы", () => {
     // После write() нет переходов (0 ≤ 50, 50 не > 50)
     expect(initialStates).toEqual([])
 
-    const states = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
+    const states = await update([[0, [[0, 100]]]])
     // Брана 0: hp=100 > 50 → состояние 1 (изменение)
     // Брана 1: hp=50 не > 50 → состояние 0 (без изменений, не в результате)
     expect(states).toContainEqual([0, 1])
@@ -81,7 +81,7 @@ describe("write / update — базовые переходы", () => {
     expect(initialStates).toContainEqual([0, 1])
 
     // update с hp=0 → DEAD
-    const states1 = await update([[0, [{ fieldIndex: 0, value: 0 }]]])
+    const states1 = await update([[0, [[0, 0]]]])
     expect(states1).toContainEqual([0, 2]) // DEAD
   })
 
@@ -104,7 +104,7 @@ describe("write / update — базовые переходы", () => {
     // После write() нет переходов
     expect(initialStates).toEqual([])
 
-    const states = await update([[0, [{ fieldIndex: 0, value: 50 }]]])  // 50 >= 50 → переход
+    const states = await update([[0, [[0, 50]]]])  // 50 >= 50 → переход
     expect(states).toContainEqual([0, 1])
   })
 })
@@ -137,7 +137,7 @@ describe("write / update — логические условия", () => {
     // После write() нет переходов
     expect(initialStates).toEqual([])
 
-    const states = await update([[0, [{ fieldIndex: 0, value: true }]]])
+    const states = await update([[0, [[0, true]]]])
     expect(states).toContainEqual([0, 1])
   })
 
@@ -160,7 +160,7 @@ describe("write / update — логические условия", () => {
     // После write() нет переходов
     expect(initialStates).toEqual([])
 
-    const states = await update([[0, [{ fieldIndex: 0, value: false }]]])
+    const states = await update([[0, [[0, false]]]])
     expect(states).toContainEqual([0, 1])
   })
 })
@@ -205,8 +205,8 @@ describe("write / update — множественные условия", () => {
     expect(initialStates).toEqual([])
 
     const states = await update([[0, [
-      { fieldIndex: 0, value: 100 },  // hp=100>50
-      { fieldIndex: 1, value: 50 },   // mana=50>20 → переход
+      [0, 100],  // hp=100>50
+      [1, 50],   // mana=50>20 → переход
     ]]])
     expect(states).toContainEqual([0, 1])
   })
@@ -247,7 +247,7 @@ describe("write / update — entangled группы", () => {
     expect(initialStates).toEqual([])
 
     // update с isAlive=true → переход
-    const states = await update([[0, [{ fieldIndex: 1, value: true }]]])
+    const states = await update([[0, [[1, true]]]])
     expect(states).toContainEqual([0, 1])
   })
 
@@ -290,7 +290,7 @@ describe("write / update — entangled группы", () => {
     expect(initialStates).toContainEqual([0, 1])  // Брана 0 перешла
 
     // Обновляем брану 1: mana=50 → mana=20 (< 30, теперь должен перейти)
-    const states = await update([[1, [{ fieldIndex: 1, value: 20 }]]])
+    const states = await update([[1, [[1, 20]]]])
     expect(states).toContainEqual([1, 1])  // Брана 1 изменилась
   })
 })
@@ -330,15 +330,15 @@ describe("write / update — многошаговая эволюция", () => {
     expect(initialStates).toEqual([])
 
     // Шаг 1: IDLE → PATROL (hp=100>50)
-    const states1 = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
+    const states1 = await update([[0, [[0, 100]]]])
     expect(states1).toContainEqual([0, 1])
 
     // Шаг 2: PATROL → COMBAT (mana=5<10)
-    const states2 = await update([[0, [{ fieldIndex: 1, value: 5 }]]])
+    const states2 = await update([[0, [[1, 5]]]])
     expect(states2).toContainEqual([0, 2])
 
     // Шаг 3: COMBAT — терминальное состояние (остаётся в 2)
-    const states3 = await update([[0, [{ fieldIndex: 0, value: 0 }]]])
+    const states3 = await update([[0, [[0, 0]]]])
     expect(states3).toEqual([])  // Нет изменений, терминальное состояние
   })
 })
@@ -353,7 +353,7 @@ describe("write / update — ошибки", () => {
   })
 
   test("должен бросить ошибку при update() до write()", async () => {
-    await expect(update([[0, [{ fieldIndex: 0, value: 100 }]]])).rejects.toThrow("Matrix not initialized")
+    await expect(update([[0, [[0, 100]]]])).rejects.toThrow("Matrix not initialized")
   })
 
   test("должен бросить ошибку при неверном индексе браны", async () => {
@@ -362,7 +362,7 @@ describe("write / update — ошибки", () => {
       branes: [{ params: [[0, 100]], state: 0, collapses: [[null as any]] }],
     })
 
-    await expect(update([[999, [{ fieldIndex: 0, value: 100 }]]])).rejects.toThrow("Brane index out of range")
+    await expect(update([[999, [[0, 100]]]])).rejects.toThrow("Brane index out of range")
   })
 })
 
@@ -395,16 +395,16 @@ describe("write / update — параллельные вызовы", () => {
     })
 
     // update() для браны 0 — должна измениться (0 → 1)
-    const result1 = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
+    const result1 = await update([[0, [[0, 100]]]])
     expect(result1).toContainEqual([0, 1])
 
     // update() для браны 0 с новым значением — должна остаться в состоянии 1
-    const result2 = await update([[0, [{ fieldIndex: 0, value: 200 }]]])
+    const result2 = await update([[0, [[0, 200]]]])
     // Состояние не изменилось (уже 1), поэтому результат пустой
     expect(result2).toEqual([])
 
     // update() для браны 0 с меньшим значением — должна остаться в состоянии 1 (терминальное)
-    const result3 = await update([[0, [{ fieldIndex: 0, value: 0 }]]])
+    const result3 = await update([[0, [[0, 0]]]])
     // Состояние не изменилось (терминальное состояние 1)
     expect(result3).toEqual([])
   })
@@ -425,8 +425,8 @@ describe("write / update — параллельные вызовы", () => {
     })
 
     // Запускаем два update() параллельно
-    const promise1 = update([[0, [{ fieldIndex: 0, value: 100 }]]])
-    const promise2 = update([[0, [{ fieldIndex: 0, value: 200 }]]])
+    const promise1 = update([[0, [[0, 100]]]])
+    const promise2 = update([[0, [[0, 200]]]])
 
     const [result1, result2] = await Promise.all([promise1, promise2])
 
@@ -456,7 +456,7 @@ describe("write / update — параллельные вызовы", () => {
     expect(initialStates).toEqual([])
 
     // update() должен работать с инициализированными данными
-    const states = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
+    const states = await update([[0, [[0, 100]]]])
     expect(states).toContainEqual([0, 1])
 
     // write() сбрасывает состояние
@@ -470,7 +470,7 @@ describe("write / update — параллельные вызовы", () => {
     expect(newInitialStates).toEqual([])
 
     // update() после write() должен работать корректно
-    const states2 = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
+    const states2 = await update([[0, [[0, 100]]]])
     expect(states2).toContainEqual([0, 1])
   })
 })
@@ -503,7 +503,7 @@ describe("write / update — ARRAY поля", () => {
     })
 
     // Первый update() с массивом — должен работать
-    const states1 = await update([[0, [{ fieldIndex: 0, value: [1, 2, 3, 4, 5] }]]])
+    const states1 = await update([[0, [[0, [1, 2, 3, 4, 5]]]]])
     expect(states1).toContainEqual([0, 1])
 
     // Второй update() без передачи массива — должен выбросить ошибку
@@ -529,7 +529,7 @@ describe("write / update — ARRAY поля", () => {
 
     // После write() с непустым массивом нет переходов
     // update с пустым массивом должен триггерить isEmpty условие
-    const states = await update([[0, [{ fieldIndex: 0, value: [] }]]])
+    const states = await update([[0, [[0, []]]]])
     expect(states).toContainEqual([0, 1])
   })
 })
@@ -554,7 +554,7 @@ describe("update() с блокировкой переходов", () => {
     })
 
     // Блокируем брану 0
-    const changes = await update([[0, [{ fieldIndex: 0, value: 100 }], true]])
+    const changes = await update([[0, [[0, 100]], true]])
 
     // Состояние не изменилось (блокировка)
     expect(changes).toHaveLength(0)
@@ -571,10 +571,10 @@ describe("update() с блокировкой переходов", () => {
     })
 
     // Update 1: блокировка + изменение поля
-    await update([[0, [{ fieldIndex: 0, value: 100 }], true]])
+    await update([[0, [[0, 100]], true]])
 
     // Update 2: lock всё ещё установлен — перехода не будет
-    const changes = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
+    const changes = await update([[0, [[0, 100]]]])
 
     expect(changes).toHaveLength(0)  // Состояние не изменилось
 
@@ -594,7 +594,7 @@ describe("update() с блокировкой переходов", () => {
     })
 
     // Блокировка + обновление поля
-    await update([[0, [{ fieldIndex: 0, value: 100 }], true]])
+    await update([[0, [[0, 100]], true]])
 
     // Разблокировка (FSM проверит переход по текущим данным)
     const changes = await update([[0, [], false]])
@@ -614,8 +614,8 @@ describe("update() с блокировкой переходов", () => {
     // После write() нет переходов (30 не > 50)
     // Блокируем брану 0, обновляем обе до 100
     const changes = await update([
-      [0, [{ fieldIndex: 0, value: 100 }], true],   // Заблокировать
-      [1, [{ fieldIndex: 0, value: 100 }]],         // Без блокировки
+      [0, [[0, 100]], true],   // Заблокировать
+      [1, [[0, 100]]],         // Без блокировки
     ])
 
     expect(changes).toEqual([[1, 1]])  // Только брана 1 изменилась
@@ -638,9 +638,9 @@ describe("update() с блокировкой переходов", () => {
     // После write() нет переходов (30 не > 50)
     // Блокируем браны 0 и 2, обновляем все до 100
     const changes = await update([
-      [0, [{ fieldIndex: 0, value: 100 }], true],   // Заблокировать
-      [1, [{ fieldIndex: 0, value: 100 }]],         // Без блокировки
-      [2, [{ fieldIndex: 0, value: 100 }], true],   // Заблокировать
+      [0, [[0, 100]], true],   // Заблокировать
+      [1, [[0, 100]]],         // Без блокировки
+      [2, [[0, 100]], true],   // Заблокировать
     ])
 
     expect(changes).toEqual([[1, 1]])  // Только брана 1 изменилась

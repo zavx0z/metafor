@@ -26,7 +26,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
         branes: [{ state: 0, params: [[0, "WARRIOR"]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: "MAGE" }]]])
+      const resultStates = await update([[0, [[0, "MAGE"]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
 
@@ -36,7 +36,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
         branes: [{ state: 0, params: [[0, "WARRIOR"]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: "ROGUE" }]]])
+      const resultStates = await update([[0, [[0, "ROGUE"]]]])
       expect(resultStates).toEqual([])
     })
   })
@@ -48,7 +48,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
         branes: [{ state: 0, params: [[0, "ROGUE"]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: "WARRIOR" }]]])
+      const resultStates = await update([[0, [[0, "WARRIOR"]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
   })
@@ -61,7 +61,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
         branes: [{ state: 0, params: [[0, "WARRIOR"]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: "MAGE" }]]])
+      const resultStates = await update([[0, [[0, "MAGE"]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
   })
@@ -74,7 +74,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
         branes: [{ state: 0, params: [[0, "ROGUE"]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: "WARRIOR" }]]])
+      const resultStates = await update([[0, [[0, "WARRIOR"]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
 
@@ -85,7 +85,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
         branes: [{ state: 0, params: [[0, "WARRIOR"]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: "ROGUE" }]]])
+      const resultStates = await update([[0, [[0, "ROGUE"]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
   })
@@ -98,7 +98,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
         branes: [{ state: 0, params: [[0, "WARRIOR"]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: "ROGUE" }]]])  // ROGUE=2 > WARRIOR=0
+      const resultStates = await update([[0, [[0, "ROGUE"]]]])  // ROGUE=2 > WARRIOR=0
       expect(resultStates).toContainEqual([0, 1])
     })
 
@@ -109,7 +109,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
         branes: [{ state: 0, params: [[0, "ROGUE"]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: "WARRIOR" }]]])  // WARRIOR=0 < ROGUE=2
+      const resultStates = await update([[0, [[0, "WARRIOR"]]]])  // WARRIOR=0 < ROGUE=2
       expect(resultStates).toContainEqual([0, 1])
     })
   })
@@ -129,7 +129,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
         branes: [{ state: 0, params: [[0, "WARRIOR"]], collapses }],
       })
-      await expect(update([[0, [{ fieldIndex: 0, value: "UNKNOWN" }]]])).rejects.toThrow("not found in enum")
+      await expect(update([[0, [[0, "UNKNOWN"]]]])).rejects.toThrow("not found in enum")
     })
   })
 })

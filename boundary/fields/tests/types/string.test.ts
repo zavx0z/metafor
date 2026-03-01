@@ -26,7 +26,7 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
         fields: [{ type: FieldType.STRING_PTR }],
         branes: [{ state: 0, params: [[0, ""]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: "hero" }]]])
+      const resultStates = await update([[0, [[0, "hero"]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
 
@@ -36,7 +36,7 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
         fields: [{ type: FieldType.STRING_PTR }],
         branes: [{ state: 0, params: [[0, ""]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: "monster" }]]])
+      const resultStates = await update([[0, [[0, "monster"]]]])
       expect(resultStates).toEqual([])
     })
   })
@@ -49,7 +49,7 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
         fields: [{ type: FieldType.STRING_PTR }],
         branes: [{ state: 0, params: [[0, "hero"]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: "monster" }]]])
+      const resultStates = await update([[0, [[0, "monster"]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
   })
@@ -64,7 +64,7 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
           { state: 0, params: [[0, "beta"]], collapses },
         ],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: "hero" }]]])
+      const resultStates = await update([[0, [[0, "hero"]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
 
@@ -74,7 +74,7 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
         fields: [{ type: FieldType.STRING_PTR }],
         branes: [{ state: 0, params: [[0, ""]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: "мир" }]]])
+      const resultStates = await update([[0, [[0, "мир"]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
 
@@ -84,7 +84,7 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
         fields: [{ type: FieldType.STRING_PTR }],
         branes: [{ state: 0, params: [[0, ""]], collapses }],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: "😂" }]]])
+      const resultStates = await update([[0, [[0, "😂"]]]])
       expect(resultStates).toContainEqual([0, 1])
     })
   })
@@ -100,7 +100,7 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
           { state: 0, params: [[0, "hero"]], collapses },
         ],
       })
-      const resultStates = await update([[0, [{ fieldIndex: 0, value: "warrior" }]]])
+      const resultStates = await update([[0, [[0, "warrior"]]]])
       expect(resultStates).toContainEqual([0, 1])  // "warrior" notIn ["hero","mage","rogue"] → переход
     })
   })
@@ -119,8 +119,8 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
         ],
       })
       const resultStates = await update([
-        [0, [{ fieldIndex: 0, value: "test" }]],
-        [1, [{ fieldIndex: 0, value: "test" }]],
+        [0, [[0, "test"]]],
+        [1, [[0, "test"]]],
       ])
       expect(resultStates).toContainEqual([0, 1])
       expect(resultStates).toContainEqual([1, 1])
