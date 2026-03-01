@@ -308,7 +308,16 @@ export async function write(data: Data): Promise<[number, number][]> {
  * - Данные массивов хранятся во временной зоне heap
  * - **После каждого `update()` зона очищается** (данные массива не сохраняются)
  *
+ * **Блокировка переходов:**
+ * - Параметр `lockedBranes` позволяет временно заблокировать FSM для отдельных бран
+ * - Блокировка действует только на один вызов `update()`
+ * - Заблокированная брана обновляет поля, но не меняет состояние
+ * - После выполнения `update()` блокировка автоматически снимается
+ *
  * @param updates - Массив обновлений: `[[braneIndex, [{ fieldIndex, value }, ...]], ...]`
+ * @param lockedBranes - Индексы бран для временной блокировки переходов.
+ *                       Блокировка действует только на этот вызов update().
+ *                       Автоматически сбрасывается после выполнения.
  * @returns Массив состояний: `[[braneIndex, state], ...]`
  *
  * @example
@@ -327,10 +336,17 @@ export async function write(data: Data): Promise<[number, number][]> {
  *   [0, [{ fieldIndex: 0, value: 100 }]],
  *   [1, [{ fieldIndex: 0, value: 50 }]],
  * ])
+ *
+ * // Блокировка переходов для браны 0 (состояние не изменится)
+ * await update([[0, [{ fieldIndex: 0, value: 100 }]]], [0])
+ *
+ * // Блокировка нескольких бран
+ * await update(updates, [0, 2, 5])
  * ```
  */
 export async function update(
   updates: Array<[braneIndex: number, fieldUpdates: Array<{ fieldIndex: number; value: unknown }> ]>,
+  lockedBranes?: number[],
 ): Promise<[number, number][]> {
   // Блокировка mutex для предотвращения конкурентных вызовов
   if (updateMutex) {
@@ -395,6 +411,18 @@ export async function update(
         } else {
           allHeapUpdates.push({ offset: fieldOffset, value1: encoded.value1 })
         }
+      }
+    }
+
+    // Этап 1.5: Запись флагов блокировки для указанных бран
+    if (lockedBranes && lockedBranes.length > 0) {
+      for (const braneIndex of lockedBranes) {
+        if (braneIndex < 0 || braneIndex >= braneBlockPtrs.length) {
+          throw new Error(`Brane index out of range: ${braneIndex}`)
+        }
+        const blockPtr = braneBlockPtrs[braneIndex]!
+        // Записываем lock = 1 (3-е слово заголовка)
+        allHeapUpdates.push({ offset: blockPtr + 2, value1: 1 })
       }
     }
 
@@ -531,7 +559,7 @@ export function findFieldOffsetInHeap(
   // Ищем в entangled блоках
   const localCount = heap[blockPtr] ?? 0
   const entangledCount = heap[blockPtr + 1] ?? 0
-  const entangledPtrsOffset = blockPtr + 2 + localCount * 2
+  const entangledPtrsOffset = blockPtr + 3 + localCount * 2  // +3 для заголовка (local_count, entangled_count, lock)
 
   for (let i = 0; i < entangledCount; i++) {
     const entangledPtr = heap[entangledPtrsOffset + i] ?? 0

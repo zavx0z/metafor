@@ -1,15 +1,28 @@
-# atlas
+# @boundary/atlas
 
-To install dependencies:
+Система интернирования строк для GPU.
 
-```bash
-bun install
+## API
+
+### `getStringAtlas(): StringAtlas`
+
+```typescript
+import { getStringAtlas } from "@boundary/atlas"
+
+const atlas = getStringAtlas()
+const { id, hash } = atlas.intern("example")
 ```
 
-To run:
+### `resetStringAtlas(): void`
 
-```bash
-bun run index.ts
+```typescript
+import { resetStringAtlas } from "@boundary/atlas"
+
+resetStringAtlas()
 ```
 
-This project was created using `bun init` in bun v1.3.10. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+## Тесты
+
+```bash
+bun test
+```

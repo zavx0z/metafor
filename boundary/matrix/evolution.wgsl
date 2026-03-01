@@ -53,7 +53,7 @@ struct Uniforms {
 @group(0) @binding(0)
 var<storage, read> brane_descriptors: array<u32>;
 @group(0) @binding(1)
-var<storage, read> heap: array<u32>;
+var<storage, read_write> heap: array<u32>;
 @group(0) @binding(2)
 var<storage, read_write> states: array<u32>;  // ← read_write для in-place обновления
 @group(0) @binding(3)
@@ -218,8 +218,8 @@ fn get_entangled_count(block_ptr: u32) -> u32 {
 
 fn find_field(block_ptr: u32, target_field_id: u32) -> vec4<u32> {
   let local_count = heap_safe(block_ptr);
-  // Дескрипторы полей начинаются сразу после заголовка (2 слова)
-  let header_base = block_ptr + 2u;
+  // Дескрипторы полей начинаются сразу после заголовка (3 слова: local_count, entangled_count, lock)
+  let header_base = block_ptr + 3u;
 
   var i: u32 = 0u;
   loop {
@@ -270,7 +270,7 @@ fn get_field_value_recursive(brane_index: u32, target_field_id: u32) -> f32 {
     }
 
     // Получаем указатель на entangled блок (после заголовка + field descriptors)
-    let entangled_ptrs_offset = block_ptr + 2u + local_count * 2u;
+    let entangled_ptrs_offset = block_ptr + 3u + local_count * 2u;
     let entangled_ptr = heap_safe(entangled_ptrs_offset + i);
 
     if (entangled_ptr == 0u) {
@@ -321,7 +321,7 @@ fn get_field_value_raw(brane_index: u32, target_field_id: u32) -> u32 {
     }
 
     // Получаем указатель на entangled блок (после заголовка + field descriptors)
-    let entangled_ptrs_offset = block_ptr + 2u + local_count * 2u;
+    let entangled_ptrs_offset = block_ptr + 3u + local_count * 2u;
     let entangled_ptr = heap_safe(entangled_ptrs_offset + i);
 
     if (entangled_ptr == 0u) {
@@ -524,12 +524,22 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     return;
   }
 
+  // Получаем указатель на блок браны
+  let block_ptr = brane_descriptors[idx * 2u];
+
+  // Проверка флага блокировки (3-е слово заголовка, после local_count и entangled_count)
+  let lock = heap_safe(block_ptr + 2u);
+  if (lock == 1u) {
+    // Сброс флага для следующего update()
+    heap[block_ptr + 2u] = 0u;
+    return;  // Пропустить переходы, состояние не менять
+  }
+
   let current_state = states[idx];
   var next_state = current_state;
 
-  // Получаем указатель на блок браны и смещение bytecode для этого поля
+  // Получаем смещение bytecode для этого поля
   // brane_descriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
-  let block_ptr = brane_descriptors[idx * 2u];
   let bytecode_base = bytecode_offsets[idx];
 
   // Таблица состояний всегда в начале bytecode (offset 0)

@@ -168,7 +168,16 @@ export function deleteMonad(id: MonadId): void {
 /**
  * Создаёт/пересоздаёт Boundary со всеми бранами через @boundary/fields.
  */
-export async function updateBoundary(): Promise<void> {
+export async function updateBoundary(): Promise<void>
+/**
+ * Создаёт/пересоздаёт Boundary с блокировкой переходов для указанных монад.
+ *
+ * @param lockedMonadIds - IDs монад для временной блокировки переходов.
+ *                         Блокировка действует только на этот вызов updateBoundary().
+ *                         Автоматически сбрасывается после выполнения.
+ */
+export async function updateBoundary(lockedMonadIds?: MonadId[]): Promise<void>
+export async function updateBoundary(lockedMonadIds?: MonadId[]): Promise<void> {
   const monadIds = Array.from(_monadIds)
   if (monadIds.length === 0) {
     return
@@ -236,32 +245,81 @@ export async function updateBoundary(): Promise<void> {
 }
 
 /**
- * Обновляет поля браны и выполняет шаг эволюции через @boundary/fields.
- *
- * @param id - {@link MonadId} монады.
- * @param fields - Новые значения полей.
- * @throws {Error} Если Boundary не инициализирован. Вызовите updateBoundary() перед updateMonad().
+ * Обновление одной или нескольких монад.
  */
-export async function updateMonad(id: MonadId, fields: Record<string, unknown>): Promise<void> {
-  const index = _uuidToIndex.get(id)
-  if (index === undefined) {
-    throw new Error(`Monad ${id} not found in boundary`)
+export interface MonadUpdate {
+  /** ID монады */
+  id: MonadId
+  /** Новые значения полей (пустой объект для разблокировки без изменений) */
+  fields?: Record<string, unknown>
+  /** Если true, блокирует переходы для этой монады на один вызов */
+  lock?: boolean
+}
+
+/**
+ * Обновляет поля бран и выполняет шаг эволюции через @boundary/fields.
+ *
+ * @param updates - Массив обновлений: `[{ id, fields, lock }, ...]`
+ * @throws {Error} Если Boundary не инициализирован. Вызовите updateBoundary() перед updateMonads().
+ *
+ * @example
+ * ```typescript
+ * // Обновить одну монаду
+ * await updateMonads([{ id: 'uuid', fields: { hp: 80 } }])
+ *
+ * // Обновить несколько монад
+ * await updateMonads([
+ *   { id: 'uuid1', fields: { hp: 80 } },
+ *   { id: 'uuid2', fields: { mana: 50 }, lock: true },  // с блокировкой
+ * ])
+ *
+ * // Разблокировать монаду без изменения полей
+ * await updateMonads([{ id: 'uuid', fields: {} }])
+ * ```
+ */
+export async function updateMonads(updates: MonadUpdate[]): Promise<void> {
+  if (updates.length === 0) {
+    return
   }
-  // Обновляем params монады
-  const monadParams = _monadParams.get(id)
-  if (monadParams) {
-    _monadParams.set(id, { ...monadParams, ...fields })
-  }
-  // Конвертируем в кортежи для update()
-  const fieldUpdates = Object.entries(fields).map(([name, value]) => {
-    const fieldIndex = _fieldNameIndex.get(name)
-    if (fieldIndex === undefined) {
-      throw new Error(`Field '${name}' not found`)
+
+  const allUpdates: Array<[number, Array<{ fieldIndex: number; value: unknown }>]> = []
+  const lockedBranes: number[] = []
+
+  for (const { id, fields = {}, lock } of updates) {
+    const index = _uuidToIndex.get(id)
+    if (index === undefined) {
+      throw new Error(`Monad ${id} not found in boundary`)
     }
-    return { fieldIndex, value }
-  })
+
+    // Обновляем params монады
+    const monadParams = _monadParams.get(id)
+    if (monadParams) {
+      _monadParams.set(id, { ...monadParams, ...fields })
+    }
+
+    // Конвертируем в кортежи для update()
+    const fieldUpdates = Object.entries(fields).map(([name, value]) => {
+      const fieldIndex = _fieldNameIndex.get(name)
+      if (fieldIndex === undefined) {
+        throw new Error(`Field '${name}' not found`)
+      }
+      return { fieldIndex, value }
+    })
+
+    // Добавляем обновление в список
+    if (fieldUpdates.length > 0) {
+      allUpdates.push([index, fieldUpdates])
+    }
+
+    // Добавляем в список заблокированных
+    if (lock) {
+      lockedBranes.push(index)
+    }
+  }
+
   // Вызываем @boundary/fields/update()
-  const stateChanges = await fieldsUpdate([[index, fieldUpdates]])
+  const stateChanges = await fieldsUpdate(allUpdates, lockedBranes.length > 0 ? lockedBranes : undefined)
+
   // Обрабатываем изменения состояний
   stateChanges.forEach(([braneIndex, stateIndex]) => {
     const monadId = _indexToUuid.get(braneIndex)
@@ -285,6 +343,14 @@ export async function updateMonad(id: MonadId, fields: Record<string, unknown>):
       _onStateChange.current?.(monadId, old, current)
     }
   })
+}
+
+/**
+ * @deprecated Используйте {@link updateMonads} вместо updateMonad.
+ * Обновляет поля одной монады.
+ */
+export async function updateMonad(id: MonadId, fields: Record<string, unknown>, locked?: boolean): Promise<void> {
+  await updateMonads([{ id, fields, lock: locked }])
 }
 
 /**

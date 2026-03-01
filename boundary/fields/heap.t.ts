@@ -39,6 +39,23 @@ export interface HeapBlock {
 }
 
 /**
+ * Заголовок блока браны в heap.
+ *
+ * Формат:
+ * - слово 0: local_count
+ * - слово 1: entangled_count
+ * - слово 2: lock (флаг блокировки переходов)
+ */
+export interface HeapBlockHeader {
+  /** Количество локальных полей */
+  localCount: number
+  /** Количество ссылок на entangled блоки */
+  entangledCount: number
+  /** Флаг блокировки переходов (0 = разблокирована, 1 = заблокирована) */
+  lock: number
+}
+
+/**
  * Результат построения всего heap для ансамбля бран.
  */
 export interface HeapLayout {

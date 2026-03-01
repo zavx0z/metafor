@@ -533,3 +533,125 @@ describe("write / update — ARRAY поля", () => {
     expect(states).toContainEqual([0, 1])
   })
 })
+
+// ============================================================================
+// ТЕСТЫ: Блокировка переходов (lockedBranes)
+// ============================================================================
+describe("update() с блокировкой переходов", () => {
+  afterEach(() => {
+    resetStringAtlas()
+    resetMatrix()
+  })
+
+  test("заблокированная брана не меняет состояние", async () => {
+    await write({
+      fields: [{ type: FieldType.F32 }],
+      branes: [{
+        params: [[0, 100]],
+        state: 0,
+        collapses: [[[1, { 0: { gt: 50 } }]], [null as any]],
+      }],
+    })
+
+    // Блокируем брану 0
+    const changes = await update([[0, [{ fieldIndex: 0, value: 100 }]]], [0])
+
+    // Состояние не изменилось (блокировка)
+    expect(changes).toHaveLength(0)
+  })
+
+  test("блокировка снимается автоматически", async () => {
+    await write({
+      fields: [{ type: FieldType.F32 }],
+      branes: [{
+        params: [[0, 30]],
+        state: 0,
+        collapses: [[[1, { 0: { gt: 50 } }]], [null as any]],
+      }],
+    })
+
+    // Update 1: блокировка + изменение поля
+    await update([[0, [{ fieldIndex: 0, value: 100 }]]], [0])
+
+    // Update 2: без блокировки — переход должен сработать
+    const changes = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
+
+    expect(changes).toEqual([[0, 1]])  // Состояние изменилось
+  })
+
+  test("поля обновляются даже при блокировке", async () => {
+    await write({
+      fields: [{ type: FieldType.F32 }],
+      branes: [{
+        params: [[0, 30]],
+        state: 0,
+        collapses: [[[1, { 0: { gt: 50 } }]], [null as any]],
+      }],
+    })
+
+    // Блокировка + обновление поля
+    await update([[0, [{ fieldIndex: 0, value: 100 }]]], [0])
+
+    // Снимаем блокировку — переход по новому значению
+    const changes = await update([])
+
+    expect(changes).toEqual([[0, 1]])  // 100 > 50 → переход
+  })
+
+  test("частичная блокировка нескольких бран", async () => {
+    await write({
+      fields: [{ type: FieldType.F32 }],
+      branes: [
+        { params: [[0, 30]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
+        { params: [[0, 30]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
+      ],
+    })
+
+    // После write() нет переходов (30 не > 50)
+    // Блокируем только брану 0, обновляем обе до 100
+    const changes = await update([
+      [0, [{ fieldIndex: 0, value: 100 }]],
+      [1, [{ fieldIndex: 0, value: 100 }]],
+    ], [0])
+
+    expect(changes).toEqual([[1, 1]])  // Только брана 1 изменилась
+  })
+
+  test("блокировка нескольких бран одновременно", async () => {
+    await write({
+      fields: [{ type: FieldType.F32 }],
+      branes: [
+        { params: [[0, 30]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
+        { params: [[0, 30]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
+        { params: [[0, 30]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
+      ],
+    })
+
+    // После write() нет переходов (30 не > 50)
+    // Блокируем браны 0 и 2, обновляем все до 100
+    const changes = await update([
+      [0, [{ fieldIndex: 0, value: 100 }]],
+      [1, [{ fieldIndex: 0, value: 100 }]],
+      [2, [{ fieldIndex: 0, value: 100 }]],
+    ], [0, 2])
+
+    expect(changes).toEqual([[1, 1]])  // Только брана 1 изменилась
+  })
+
+  test("блокировка без обновления полей", async () => {
+    await write({
+      fields: [{ type: FieldType.F32 }],
+      branes: [{
+        params: [[0, 100]],
+        state: 0,
+        collapses: [[[1, { 0: { gt: 50 } }]], [null as any]],
+      }],
+    })
+
+    // Блокировка без изменения полей
+    const changes = await update([], [0])
+
+    // Состояние не изменилось (блокировка)
+    expect(changes).toHaveLength(0)
+  })
+})

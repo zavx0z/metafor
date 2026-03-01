@@ -20,7 +20,7 @@ afterEach(() => {
   _createdMonadIds.length = 0
 })
 
-describe("Monad — Array переходы (TDD)", () => {
+describe("Monad — Array переходы", () => {
   const createStateChangeHandler = (resultStates: string[]) => {
     return (_id: string, _old: string, current: string) => {
       resultStates.push(current)

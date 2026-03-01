@@ -98,12 +98,12 @@ braneDescriptors = new Uint32Array([
 │ Brane Block (heap[block_ptr ... block_ptr + blockSize])        │
 ├────────────────────────────────────────────────────────────────┤
 │ HEADER                                                         │
-├───────────────┬───────────────┬───────────────┬────────────────┤
-│ local_count   │ entangled_cnt │ field_id[0]    │ packed_meta[0] │
-│ (u32)         │ (u32)         │ (u32)         │ (u32)          │
-├───────────────┴───────────────┴───────────────┴────────────────┤
-│ field_id[1]    │ packed_meta[1]  │ ...                          │
-│ (u32)         │ (u32)           │                              │
+├───────────────┬───────────────┬──────────┬─────────────────────┤
+│ local_count   │ entangled_cnt │ lock     │ field_id[0]         │
+│ (u32)         │ (u32)         │ (u32)    │ (u32)               │
+├───────────────┴───────────────┴──────────┴─────────────────────┤
+│ packed_meta[0]  │ field_id[1]   │ packed_meta[1]  │ ...        │
+│ (u32)           │ (u32)         │ (u32)           │            │
 ├────────────────────────────────────────────────────────────────┤
 │ BODY                                                           │
 ├───────────────┬───────────────┬───────────────┬────────────────┤
@@ -111,6 +111,16 @@ braneDescriptors = new Uint32Array([
 │ (u32)         │ (u32)         │ (...)         │ (...)          │
 └───────────────┴───────────────┴───────────────┴────────────────┘
 ```
+
+**Заголовок блока:**
+
+| Слово | Поле | Описание |
+| ----- | ---- | -------- |
+| 0 | `local_count` | Количество локальных полей |
+| 1 | `entangled_count` | Количество ссылок на entangled блоки |
+| 2 | `lock` | Флаг блокировки переходов (0 = разблокирована, 1 = заблокирована) |
+
+**Примечание:** Флаг `lock` устанавливается в `1` при вызове `update()` с параметром `lockedBranes`. После выполнения шейдера флаг автоматически сбрасывается в `0`.
 
 **Формат packed_meta:**
 
@@ -147,12 +157,13 @@ heap[offset]:
 
  0: 2           ← local_field_count = 2
  1: 0           ← entangled_count = 0
- 2: 0           ← field_id = 0 (hp)
- 3: 0x00010004  ← packed_meta: type=FLOAT(0), size=1, offset=4
- 4: 100.0       ← value: hp = 100.0 (битовое представление)
- 5: 1           ← field_id = 1 (active)
- 6: 0x00020005  ← packed_meta: type=BOOL(2), size=1, offset=5
- 7: 1           ← value: active = true
+ 2: 0           ← lock = 0 (разблокирована)
+ 3: 0           ← field_id = 0 (hp)
+ 4: 0x00010004  ← packed_meta: type=FLOAT(0), size=1, offset=4
+ 5: 100.0       ← value: hp = 100.0 (битовое представление)
+ 6: 1           ← field_id = 1 (active)
+ 7: 0x00020005  ← packed_meta: type=BOOL(2), size=1, offset=5
+ 8: 1           ← value: active = true
 ```
 
 **Строка в heap (STRING_PTR):**
@@ -577,7 +588,7 @@ async readChanges(): Promise<[number, number][]> {
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│ matrix.update(updates)                                  │
+│ matrix.update(updates, lockedBranes?)                   │
 ├─────────────────────────────────────────────────────────┤
 │ 1. encodeFieldUpdate(value, field)                       │
 │    ├─→ Для STRING: atlas.intern()                       │
@@ -586,13 +597,18 @@ async readChanges(): Promise<[number, number][]> {
 │ 2. writeValueToHeap()                                   │
 │    └─→ Обновление heap[fieldOffset]                      │
 │                                                         │
-│ 3. GPUBackend.updateHeapFields()                        │
+│ 3. Запись флагов блокировки (если есть lockedBranes)    │
+│    └─→ heap[block_ptr + 2] = 1 для каждой заблокированной│
+│                                                         │
+│ 4. GPUBackend.updateHeapFields()                        │
 │    └─→ writeBuffer(heap, offset, data)                  │
 │                                                         │
-│ 4. GPUBackend.run()                                     │
+│ 5. GPUBackend.run()                                     │
 │    ├─→ clearBuffer(dirtyFlags) ← Сброс флагов           │
 │    ├─→ dispatchWorkgroups()                             │
 │    │   └─→ evolution.wgsl: main()                       │
+│    │       ├─→ Проверка lock: heap[block_ptr + 2]       │
+│    │       ├─→ Если lock == 1: сброс в 0, return        │
 │    │       ├─→ Чтение states[idx]                       │
 │    │       ├─→ Чтение heap[block_ptr]                   │
 │    │       ├─→ Выполнение bytecode                      │
@@ -600,14 +616,14 @@ async readChanges(): Promise<[number, number][]> {
 │    │       └─→ atomicStore(&dirty_flags[idx], 1u)        │
 │    └─→ НЕТ копирования (in-place обновление)            │
 │                                                         │
-│ 5. GPUBackend.readChanges()                             │
+│ 6. GPUBackend.readChanges()                             │
 │    ├─→ copy(dirtyFlags → stagingBuffer)                 │
 │    ├─→ copy(states → stagingBuffer)                     │
 │    ├─→ mapAsync(stagingBuffer)                          │
 │    ├─→ Filter by dirtyFlags                             │
 │    └─→ return [[braneIndex, newState], ...]             │
 │                                                         │
-│ 6. Сброс heapAllocOffset                                │
+│ 7. Сброс heapAllocOffset                                │
 │    └─→ heapAllocOffset = heap.length - arrayReserveSize │
 │    └─→ arrayDataInvalidated = true                      │
 └─────────────────────────────────────────────────────────┘
@@ -839,6 +855,46 @@ await dumpMatrix(heap, bytecode, bytecodeOffsets, braneBlockPtrs)
 //   Field 0: type=0(FLOAT), size=1, offset=4
 // ...
 ```
+
+---
+
+## 🔒 Блокировка переходов
+
+Механизм временной остановки FSM для отдельных бран без блокировки обновления полей.
+
+### Принцип работы
+
+1. **Установка флага:** При вызове `update()` с параметром `lockedBranes` для указанных бран записывается `lock = 1` в слово 2 заголовка блока.
+
+2. **Проверка в шейдере:** `evolution.wgsl` проверяет флаг в начале `main()`:
+
+   ```wgsl
+   let lock = heap_safe(block_ptr + 2u);
+   if (lock == 1u) {
+       heap[block_ptr + 2u] = 0u;  // Сброс флага
+       return;  // Пропустить переходы
+   }
+   ```
+
+3. **Автосброс:** Флаг сбрасывается в `0` автоматически после выполнения шейдера.
+
+### API
+
+```typescript
+// Заблокировать браны 0 и 2 на один update()
+await update(updates, [0, 2])
+
+// Все браны разблокированы
+await update(updates)
+```
+
+### Применение
+
+| Сценарий | Описание |
+| -------- | -------- |
+| **Отладка** | Зафиксировать состояние и менять поля по одному |
+| **Пауза эволюции** | Временная остановка FSM для отдельных бран |
+| **Контроль времени** | Применять переходы только в определённые моменты |
 
 ---
 

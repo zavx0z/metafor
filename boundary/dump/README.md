@@ -1,15 +1,27 @@
-# dump
+# @boundary/dump
 
-To install dependencies:
+Сериализация и десериализация состояния Matrix.
 
-```bash
-bun install
+## API
+
+### `serializeMatrix(state): string`
+
+```typescript
+import { serializeMatrix } from "@boundary/dump"
+
+const json = serializeMatrix(state)
 ```
 
-To run:
+### `deserializeMatrix(json): MatrixState`
 
-```bash
-bun run index.ts
+```typescript
+import { deserializeMatrix } from "@boundary/dump"
+
+const state = deserializeMatrix(json)
 ```
 
-This project was created using `bun init` in bun v1.3.10. [Bun](https://bun.com) is a fast all-in-one JavaScript runtime.
+## Тесты
+
+```bash
+bun test
+```

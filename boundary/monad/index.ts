@@ -8,6 +8,7 @@ export {
   createMonad,
   deleteMonad,
   updateMonad,
+  updateMonads,
   updateBoundary,
   onStateChange,
 } from "./src/monad"
@@ -27,3 +28,4 @@ export type {
 export { convertField } from "./src/field"
 export type { Field, FieldType, BraneParamValue } from "@boundary/fields"
 export type { FieldDefinition, FieldsDefinition } from "./src/field"
+export type { MonadUpdate } from "./src/monad"

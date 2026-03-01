@@ -5,6 +5,7 @@
  * Каждый блок содержит:
  * - local_count: количество локальных полей
  * - entangled_count: количество ссылок на entangled блоки
+ * - lock: флаг блокировки переходов (1 слово)
  * - field_descriptors: [field_id, packed_meta] для каждого поля
  * - entangled_ptrs: указатели на entangled блоки
  * - values: значения полей
@@ -172,7 +173,7 @@ export function buildHeap(input: HeapInput): HeapLayout {
  * Рассчитать размер блока в словах.
  *
  * Формат блока (как в boundary/):
- * [local_count, entangled_count] — заголовок (2 слова)
+ * [local_count, entangled_count, lock] — заголовок (3 слова)
  * [...field_descriptors] — дескрипторы полей (localCount * 2 слова)
  * [...entangled_ptrs] — указатели на entangled блоки (entangledCount слов)
  * [...values] — значения полей (сумма fieldSize слов)
@@ -184,8 +185,8 @@ function calculateBlockSizeEncoded(
 ): number {
   const localCount = fields.length
 
-  // Заголовок: [local_count, entangled_count]
-  const headerWords = 2
+  // Заголовок: [local_count, entangled_count, lock]
+  const headerWords = 3
 
   // Дескрипторы полей: [field_id, meta] * localCount
   const descriptorWords = localCount * 2
@@ -209,7 +210,7 @@ function calculateBlockSizeEncoded(
  * Записать блок в heap.
  *
  * Формат блока (как в boundary/):
- * [local_count, entangled_count, ...field_descriptors, ...entangled_ptrs, ...values]
+ * [local_count, entangled_count, lock, ...field_descriptors, ...entangled_ptrs, ...values]
  *
  * @param heap - Heap данные
  * @param blockPtr - Смещение блока
@@ -227,14 +228,15 @@ function writeBlock(
   const localCount = fields.length
   const entangledCount = entangledPtrs.length
 
-  // Заголовок
+  // Заголовок: [local_count, entangled_count, lock]
   heap[blockPtr] = localCount
   heap[blockPtr + 1] = entangledCount
+  heap[blockPtr + 2] = 0  // lock = 0 (разблокирована по умолчанию)
 
   // Дескрипторы полей (сразу после заголовка)
-  let headerIndex = blockPtr + 2
+  let headerIndex = blockPtr + 3
   // entangled pointers идут после дескрипторов
-  const entangledPtrsOffset = blockPtr + 2 + localCount * 2
+  const entangledPtrsOffset = blockPtr + 3 + localCount * 2
   // значения идут после entangled pointers
   let bodyOffset = entangledPtrsOffset + entangledCount
 
@@ -266,7 +268,7 @@ function writeBlock(
  * **Чистая функция:** Не имеет side effects.
  *
  * Формат блока (как в boundary/):
- * [local_count, entangled_count, ...field_descriptors, ...entangled_ptrs, ...values]
+ * [local_count, entangled_count, lock, ...field_descriptors, ...entangled_ptrs, ...values]
  *
  * @param heap - Heap данные
  * @param blockPtr - Смещение блока в heap
@@ -288,8 +290,8 @@ export function findFieldOffset(
 ): number | null {
   const localCount = heap[blockPtr]!
 
-  // Дескрипторы полей начинаются сразу после заголовка (2 слова)
-  const descBase = blockPtr + 2
+  // Дескрипторы полей начинаются сразу после заголовка (3 слова)
+  const descBase = blockPtr + 3
 
   for (let i = 0; i < localCount; i++) {
     const descOffset = descBase + i * 2

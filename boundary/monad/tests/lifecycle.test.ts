@@ -3,6 +3,7 @@ import {
   createMonad,
   deleteMonad,
   updateMonad,
+  updateMonads,
   updateBoundary,
   onStateChange,
   _resetState,
@@ -144,5 +145,144 @@ describe("Monad — Жизненный цикл", () => {
 
     expect(callbackCounts.get(id1)).toBe(1)
     expect(callbackCounts.get(id2)).toBe(1)
+  })
+
+  it("должен блокировать переходы при lock=true в updateMonads()", async () => {
+    let stateChanged = false
+
+    onStateChange(() => {
+      stateChanged = true
+    })
+
+    const id = createMonad({
+      fields: { hp: { type: "number" } },
+      params: { hp: 30 },
+      state: "IDLE",
+      superposition: {
+        IDLE: { PATROL: { hp: { gt: 50 } } },
+        PATROL: null,
+      },
+      actions: {},
+    })
+    _createdMonadIds.push(id)
+
+    await updateBoundary()
+
+    // Обновляем hp с блокировкой → НЕ должен перейти в PATROL
+    await updateMonads([{ id, fields: { hp: 80 }, lock: true }])
+
+    expect(stateChanged).toBe(false)
+
+    // Обновляем hp без блокировки → должен перейти в PATROL
+    await updateMonads([{ id, fields: { hp: 80 } }])
+
+    expect(stateChanged).toBe(true)
+  })
+
+  it("должен обновлять поля даже при блокировке переходов", async () => {
+    const stateChanges: string[] = []
+
+    onStateChange((_, __, current) => {
+      stateChanges.push(current)
+    })
+
+    const id = createMonad({
+      fields: { hp: { type: "number" } },
+      params: { hp: 30 },
+      state: "IDLE",
+      superposition: {
+        IDLE: { PATROL: { hp: { gt: 50 } } },
+        PATROL: null,
+      },
+      actions: {},
+    })
+    _createdMonadIds.push(id)
+
+    await updateBoundary()
+
+    // Обновляем hp с блокировкой → поле обновлено, но переход не сработал
+    await updateMonads([{ id, fields: { hp: 80 }, lock: true }])
+
+    expect(stateChanges).toHaveLength(0)
+
+    // Теперь без блокировки → переход по обновлённому значению
+    await updateMonads([{ id, fields: {} }])
+
+    expect(stateChanges).toEqual(["PATROL"])
+  })
+
+  it("должен обновлять несколько монад за один вызов", async () => {
+    const stateChanges: Map<string, string> = new Map()
+
+    onStateChange((id, __, current) => {
+      stateChanges.set(id, current)
+    })
+
+    const id1 = createMonad({
+      fields: { hp: { type: "number" } },
+      params: { hp: 30 },
+      state: "IDLE",
+      superposition: {
+        IDLE: { PATROL: { hp: { gt: 50 } } },
+        PATROL: null,
+      },
+      actions: {},
+    })
+    _createdMonadIds.push(id1)
+
+    const id2 = createMonad({
+      fields: { mana: { type: "number" } },
+      params: { mana: 30 },
+      state: "IDLE",
+      superposition: {
+        IDLE: { COMBAT: { mana: { gt: 50 } } },
+        COMBAT: null,
+      },
+      actions: {},
+    })
+    _createdMonadIds.push(id2)
+
+    await updateBoundary()
+
+    // Обновляем обе монады: id1 с блокировкой, id2 без
+    await updateMonads([
+      { id: id1, fields: { hp: 80 }, lock: true },
+      { id: id2, fields: { mana: 80 } },
+    ])
+
+    // id1 заблокирован → нет изменений
+    // id2 разблокирован → переход в COMBAT
+    expect(stateChanges.get(id1)).toBeUndefined()
+    expect(stateChanges.get(id2)).toBe("COMBAT")
+  })
+
+  it("должен разблокировать монаду без изменения полей", async () => {
+    const stateChanges: string[] = []
+
+    onStateChange((_, __, current) => {
+      stateChanges.push(current)
+    })
+
+    const id = createMonad({
+      fields: { hp: { type: "number" } },
+      params: { hp: 30 },
+      state: "IDLE",
+      superposition: {
+        IDLE: { PATROL: { hp: { gt: 50 } } },
+        PATROL: null,
+      },
+      actions: {},
+    })
+    _createdMonadIds.push(id)
+
+    await updateBoundary()
+
+    // Обновляем hp с блокировкой
+    await updateMonads([{ id, fields: { hp: 80 }, lock: true }])
+    expect(stateChanges).toHaveLength(0)
+
+    // Разблокируем без изменения полей (fields: {})
+    await updateMonads([{ id, fields: {} }])
+    expect(stateChanges).toEqual(["PATROL"])
   })
 })
