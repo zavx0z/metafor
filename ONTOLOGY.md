@@ -96,8 +96,8 @@
 
 * Processes — намерения (action/success/error)
 * Reactions — отклики на события
-* States — граф переходов (decoherence)
-* **Superposition** — формат суперпозиции с именами состояний и полей
+* **Superposition** — граф переходов (decoherence) с именами состояний и полей
+* **Fields** — схема полей (примитивы: string, number, boolean, enum, array)
 
 ### BOUNDARY (поле)
 
@@ -108,7 +108,7 @@
 ### BULK (формы)
 
 * Agents — персонификации сил (Gravity, Electromagnetic...)
-* Render — визуализация и взаимодействие
+* **Gravity** — визуализация и взаимодействие (gravity/view)
 
 ---
 
@@ -155,12 +155,12 @@ Boundary возвращает индексы состояний: `[0, 1, 2]`
 Monad хранит свою мапу для обратного преобразования:
 
 ```typescript
-// Monad хранит: states: ["IDLE", "PATROL", "DEAD"]
-const states = ["IDLE", "PATROL", "DEAD"]
+// Monad хранит: superposition: ["IDLE", "PATROL", "DEAD"]
+const superposition = ["IDLE", "PATROL", "DEAD"]
 const indices = [0, 2, 1]  // от Boundary
 
 // Reverse-маппинг:
-states.filter((_, i) => indices.includes(i))
+superposition.filter((_, i) => indices.includes(i))
 // → ["IDLE", "DEAD", "PATROL"]
 ```
 
@@ -208,7 +208,7 @@ states.filter((_, i) => indices.includes(i))
 
 **Стало (разделение):**
 
-* **monad (сущность)** — MetaFor DSL, processes, reactions, states, Weak, Strong
+* **monad (сущность)** — MetaFor DSL, processes, reactions, superposition, Weak, Strong
 * **boundary (поле)** — Boundary GPU, BraneManager, RulesCompiler, StringAtlas
 * **bulk (формы)** — Atom, GravityAgent, ElectromagneticAgent, virtual, inspect
 
@@ -224,7 +224,7 @@ states.filter((_, i) => indices.includes(i))
 | **build** | Компилятор: преобразует MetaFor DSL → MonadJson |
 | **Fields (boundary)** | Технические типы для GPU: `{ type: FieldType.F32, options?: {...} }` |
 | **Fields (monad)** | Семантика для ИИ: `{ type, required, label, default }` |
-| **MonadJson** | Формат JSON для monad: `{ fields, superposition, processes, reactions }` |
+| **MonadJson** | Формат JSON для monad: `{ fields, superposition, processes, reactions, bulk }` |
 | **Superposition** | Формат суперпозиции уровня MONAD (имена состояний и полей). Несёт *смысл* для разработчика. |
 | **NumericSuperposition** | Формат суперпозиции уровня BOUNDARY (числовые индексы). Эффектен для GPU-вычислений. |
 | **convertToNumeric()** | Конвертер: `Superposition → NumericSuperposition`. Переводит смысл в индексы. |
@@ -233,6 +233,9 @@ states.filter((_, i) => indices.includes(i))
 | **superposition** | Все возможные состояния браны + граф переходов между ними |
 | **FieldType** | Числовые типы для GPU: `F32`, `BOOL`, `STRING_PTR`, `ARRAY_PTR`, `U32` |
 | **convertAllFields()** | Функция преобразования строковых типов в FieldType |
+| **Bulk** | Уровень проявления: gravity (визуализация) и view (стили) |
+| **Gravity** | Функция визуализации иерархии акторов через `<meta-for>` |
+| **View** | CSS-стили компонента |
 | **Голографический принцип** | Каждое событие содержит информацию о всей системе |
 | **Декогеренция** | Проверка условий перехода между состояниями |
 | **Импульс** | Событие изменения (JSON Patch) |
