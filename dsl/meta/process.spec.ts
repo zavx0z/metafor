@@ -10,15 +10,15 @@ describe("parseChainsObject — разные варианты chain", () => {
     type S = "onlyAction" | "onlySuccess" | "onlyError" | "allHandlers"
 
     const actions: ProcessesDeclaration<C, S, {}> = (process) => ({
-      onlyAction: process().action(({ fields }) => fields.foo),
+      onlyAction: process().action(({ value }) => value.foo),
       onlySuccess: process()
-        .action(({ fields }) => fields.foo)
+        .action(({ value }) => value.foo)
         .success(({ update, data }) => update({ foo: data })),
       onlyError: process()
-        .action(({ fields }) => fields.foo)
+        .action(({ value }) => value.foo)
         .error(({ update, error }) => update({ bar: 1 })),
       allHandlers: process()
-        .action(({ fields }) => fields.foo)
+        .action(({ value }) => value.foo)
         .success(({ update, data }) => update({ foo: data }))
         .error(({ update, error }) => update({ bar: 2 })),
     })
@@ -30,7 +30,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ fields }) => fields.foo",
+            "src": "({ value }) => value.foo",
           },
           "error": {
             "src": "({ update, error }) => update({ bar: 2 }, "e")",
@@ -51,7 +51,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ fields }) => fields.foo",
+            "src": "({ value }) => value.foo",
           },
           "type": "action",
         },
@@ -60,7 +60,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ fields }) => fields.foo",
+            "src": "({ value }) => value.foo",
           },
           "error": {
             "src": "({ update, error }) => update({ bar: 1 }, "e")",
@@ -75,7 +75,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ fields }) => fields.foo",
+            "src": "({ value }) => value.foo",
           },
           "success": {
             "src": "({ update, data }) => update({ foo: data }, "s")",
@@ -99,7 +99,7 @@ describe("parseChainsObject — разные варианты chain", () => {
   test("один процесс", () => {
     const schema = contextSchema((field) => ({ foo: field.string.required("a") }))
     const actions: ProcessesDeclaration<typeof schema, "single", {}> = (process) => ({
-      single: process().action(({ fields }) => fields.foo),
+      single: process().action(({ value }) => value.foo),
     })
     const snapshot = processesSchema(actions)
     expect(snapshot).toMatchInlineSnapshot(`
@@ -109,7 +109,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ fields }) => fields.foo",
+            "src": "({ value }) => value.foo",
           },
           "type": "action",
         },
@@ -120,8 +120,8 @@ describe("parseChainsObject — разные варианты chain", () => {
   test("несколько процессов", () => {
     const schema = contextSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
     const actions: ProcessesDeclaration<typeof schema, "first" | "second", {}> = (process) => ({
-      first: process().action(({ fields }) => fields.foo),
-      second: process().action(({ fields }) => fields.bar),
+      first: process().action(({ value }) => value.foo),
+      second: process().action(({ value }) => value.bar),
     })
     const snapshot = processesSchema(actions)
     expect(snapshot).toMatchInlineSnapshot(`
@@ -131,7 +131,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ fields }) => fields.foo",
+            "src": "({ value }) => value.foo",
           },
           "type": "action",
         },
@@ -140,7 +140,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "bar",
             ],
-            "src": "({ fields }) => fields.bar",
+            "src": "({ value }) => value.bar",
           },
           "type": "action",
         },
@@ -151,9 +151,9 @@ describe("parseChainsObject — разные варианты chain", () => {
   test("процессы с разными типами возвращаемых значений", () => {
     const schema = contextSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
     const actions: ProcessesDeclaration<typeof schema, "string" | "number" | "object", {}> = (process) => ({
-      string: process().action(({ fields }) => fields.foo),
-      number: process().action(({ fields }) => fields.bar),
-      object: process().action(({ fields }) => ({ foo: fields.foo, bar: fields.bar })),
+      string: process().action(({ value }) => value.foo),
+      number: process().action(({ value }) => value.bar),
+      object: process().action(({ value }) => ({ foo: value.foo, bar: value.bar })),
     })
     const snapshot = processesSchema(actions)
     expect(snapshot).toMatchInlineSnapshot(`
@@ -163,7 +163,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "bar",
             ],
-            "src": "({ fields }) => fields.bar",
+            "src": "({ value }) => value.bar",
           },
           "type": "action",
         },
@@ -173,7 +173,7 @@ describe("parseChainsObject — разные варианты chain", () => {
               "foo",
               "bar",
             ],
-            "src": "({ fields }) => ({ foo: fields.foo, bar: fields.bar })",
+            "src": "({ value }) => ({ foo: value.foo, bar: value.bar })",
           },
           "type": "action",
         },
@@ -182,7 +182,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ fields }) => fields.foo",
+            "src": "({ value }) => value.foo",
           },
           "type": "action",
         },
@@ -193,9 +193,9 @@ describe("parseChainsObject — разные варианты chain", () => {
   test("процессы с async функциями", () => {
     const schema = contextSchema((field) => ({ foo: field.string.required("a") }))
     const actions: ProcessesDeclaration<typeof schema, "async", {}> = (process) => ({
-      async: process().action(async ({ fields }) => {
+      async: process().action(async ({ value }) => {
         await new Promise((resolve) => setTimeout(resolve, 10))
-        return fields.foo
+        return value.foo
       }),
     })
     const snapshot = processesSchema(actions)
@@ -207,9 +207,9 @@ describe("parseChainsObject — разные варианты chain", () => {
               "foo",
             ],
             "src": 
-      "async ({ fields }) => {
+      "async ({ value }) => {
               await new Promise((resolve) => setTimeout(resolve, 10));
-              return fields.foo;
+              return value.foo;
             }"
       ,
           },
@@ -223,7 +223,7 @@ describe("parseChainsObject — разные варианты chain", () => {
     const schema = contextSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
     const actions: ProcessesDeclaration<typeof schema, "withHandlers", {}> = (process) => ({
       withHandlers: process()
-        .action(({ fields }) => fields.foo)
+        .action(({ value }) => value.foo)
         .success(({ update, data }) => update({ foo: data }))
         .error(({ update, error }) => update({ bar: 42 })),
     })
@@ -235,7 +235,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ fields }) => fields.foo",
+            "src": "({ value }) => value.foo",
           },
           "error": {
             "src": "({ update, error }) => update({ bar: 42 }, "e")",
@@ -259,7 +259,7 @@ describe("parseChainsObject — разные варианты chain", () => {
     const schema = contextSchema((field) => ({ foo: field.string.required("a") }))
     const actions: ProcessesDeclaration<typeof schema, "withMeta", {}> = (process) => ({
       withMeta: process({ label: "test_process", desc: "Test process description" }).action(
-        ({ fields }) => fields.foo
+        ({ value }) => value.foo
       ),
     })
     const snapshot = processesSchema(actions)
@@ -270,7 +270,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ fields }) => fields.foo",
+            "src": "({ value }) => value.foo",
           },
           "desc": "Test process description",
           "label": "test_process",
@@ -282,7 +282,7 @@ describe("parseChainsObject — разные варианты chain", () => {
 
   test("сохранение строкового представления action функции", () => {
     const schema = contextSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
-    const actionFn = ({ fields }: any) => fields.foo + fields.bar
+    const actionFn = ({ value }: any) => value.foo + value.bar
     const actions: ProcessesDeclaration<typeof schema, "sourceTest", {}> = (process) => ({
       sourceTest: process().action(actionFn),
     })
@@ -296,7 +296,7 @@ describe("parseChainsObject — разные варианты chain", () => {
 
   test("сохранение строкового представления всех обработчиков", () => {
     const schema = contextSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
-    const actionFn = ({ fields }: any) => fields.foo
+    const actionFn = ({ value }: any) => value.foo
     const successFn = ({ update, data }: any) => update({ result: data })
     const errorFn = ({ update, error }: any) => update({ error: error.message })
 
@@ -322,10 +322,10 @@ describe("parseChain — несколько chain", () => {
     const schema = contextSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
     const actions: ProcessesDeclaration<typeof schema, "first" | "second", {}> = (process) => ({
       first: process({ label: "Первый процесс", desc: "Обрабатывает foo" })
-        .action(({ fields }) => ({ foo: fields.foo }))
+        .action(({ value }) => ({ foo: value.foo }))
         .success(({ update, data }) => update({ foo: data.foo })),
       second: process({ label: "Второй процесс", desc: "Обрабатывает bar" })
-        .action(({ fields }) => ({ bar: fields.bar }))
+        .action(({ value }) => ({ bar: value.bar }))
         .error(({ update, error }) => update({ bar: 42 })),
     })
     const snapshot = processesSchema(actions)
@@ -336,7 +336,7 @@ describe("parseChain — несколько chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ fields }) => ({ foo: fields.foo })",
+            "src": "({ value }) => ({ foo: value.foo })",
           },
           "desc": "Обрабатывает foo",
           "label": "Первый процесс",
@@ -353,7 +353,7 @@ describe("parseChain — несколько chain", () => {
             "read": [
               "bar",
             ],
-            "src": "({ fields }) => ({ bar: fields.bar })",
+            "src": "({ value }) => ({ bar: value.bar })",
           },
           "desc": "Обрабатывает bar",
           "error": {
@@ -372,14 +372,14 @@ describe("parseChain — несколько chain", () => {
   test("смешанные типы процессов", () => {
     const schema = contextSchema((field) => ({ foo: field.string.required("a"), bar: field.number.required(0) }))
     const actions: ProcessesDeclaration<typeof schema, "simple" | "complex" | "async", {}> = (process) => ({
-      simple: process().action(({ fields }) => fields.foo),
+      simple: process().action(({ value }) => value.foo),
       complex: process()
-        .action(({ fields }) => ({ foo: fields.foo, bar: fields.bar }))
+        .action(({ value }) => ({ foo: value.foo, bar: value.bar }))
         .success(({ update, data }) => update({ foo: data.foo }))
         .error(({ update, error }) => update({ bar: 0 })),
-      async: process().action(async ({ fields }) => {
+      async: process().action(async ({ value }) => {
         await new Promise((resolve) => setTimeout(resolve, 10))
-        return fields.foo
+        return value.foo
       }),
     })
     const snapshot = processesSchema(actions)
@@ -391,9 +391,9 @@ describe("parseChain — несколько chain", () => {
               "foo",
             ],
             "src": 
-      "async ({ fields }) => {
+      "async ({ value }) => {
               await new Promise((resolve) => setTimeout(resolve, 10));
-              return fields.foo;
+              return value.foo;
             }"
       ,
           },
@@ -405,7 +405,7 @@ describe("parseChain — несколько chain", () => {
               "foo",
               "bar",
             ],
-            "src": "({ fields }) => ({ foo: fields.foo, bar: fields.bar })",
+            "src": "({ value }) => ({ foo: value.foo, bar: value.bar })",
           },
           "error": {
             "src": "({ update, error }) => update({ bar: 0 }, "e")",
@@ -426,7 +426,7 @@ describe("parseChain — несколько chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ fields }) => fields.foo",
+            "src": "({ value }) => value.foo",
           },
           "type": "action",
         },

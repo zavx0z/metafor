@@ -14,7 +14,7 @@
 import { TYPE } from "./opcodes"
 import { FieldType, type FieldTypeValue } from "./index.t"
 import { getStringAtlas } from "@boundary/atlas"
-import type { EncodingContext } from "./params.t"
+import type { EncodingContext } from "./values.t"
 
 /**
  * Результат кодирования значения.

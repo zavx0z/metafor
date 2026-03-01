@@ -20,13 +20,13 @@ export type { ProcessesDeclaration, ProcessesSchema }
  * @example
  * ```ts
  * const process = {
- *   action: ({ fields }) => fields.data,
+ *   action: ({ value }) => value.data,
  *   success: ({ update, data }) => update({ result: data }),
  *   error: ({ update, error }) => update({ error: error.message })
  * }
  * const result = parseProcess(process)
  * // => {
- * //   action: { read: ['data'], src: '({ fields }) => fields.data' },
+ * //   action: { read: ['data'], src: '({ value }) => value.data' },
  * //   success: { read: [], write: ['result'], src: '({ update, data }) => update({ result: data })' },
  * //   error: { read: [], write: ['error'], src: '({ update, error }) => update({ error: error.message })' }
  * // }
@@ -80,8 +80,8 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
  * @example
  * ```ts
  * const processes: ProcessesDeclaration<C, S, M> = (process) => ({
- *   loadUser: process({ label: "loadUser" }).action(({ fields }) => fetch(`/users/${fields.id}`)),
- *   saveData: process().action(({ fields, update }) => update({ saved: true }))
+ *   loadUser: process({ label: "loadUser" }).action(({ value }) => fetch(`/users/${value.id}`)),
+ *   saveData: process().action(({ value, update }) => update({ saved: true }))
  * }
  * const result = getSnapshotProcesses(processes)
  * // => {

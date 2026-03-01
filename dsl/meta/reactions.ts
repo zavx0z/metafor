@@ -12,7 +12,7 @@ export const reactionsSchema = <ɸ extends Schema, 𝛴 extends string, m extend
   let reactionAutoId = 0
 
   const chainResult = builder((config?: { label?: string; desc?: string }) => ({
-    filter: (filter: (params: { self: Self; fields: Values<ɸ> }) => ReactionFilterConditions) => ({
+    filter: (filter: (params: { self: Self; value: Values<ɸ> }) => ReactionFilterConditions) => ({
       equal: (update: ReactionAction<ɸ, 𝛴, m>) => {
         const { read, write } = extractFields(update)
         const label = config?.label || ""

@@ -63,7 +63,7 @@ export type Mass = Record<string, any>
 /**
  * MetaFor — фабрика для создания web-компонента-атома конечного автомата
  * @param name - имя атома (используется для создания тега `meta-${name}`)
- * @returns chain API: fields() -> superposition() -> mass() -> processes() -> reactions() -> bulk()
+ * @returns chain API: brane() -> superposition() -> mass() -> processes() -> reactions() -> bulk()
  *
  * **Важно:** Итоговый тег компонента формируется как `meta-${name}`,
  * где name — это имя компонента, переданное в конструктор.
@@ -72,7 +72,7 @@ export type Mass = Record<string, any>
  * Основной API MetaFor для создания компонентов
  *
  * Предоставляет цепочку методов для настройки компонента:
- * - `fields()` - определение типизированных полей
+ * - `brane()` - определение типизированных полей
  * - `superposition()` - определение суперпозиции состояний
  * - `mass()` - настройка массы для сложных данных и зависимостей от среды
  * - `processes()` - определение процессов (действий)
@@ -82,12 +82,12 @@ export type Mass = Record<string, any>
  * @example
  * ```typescript
  * const component = MetaFor("my-component")
- *   .fields((field) => ({ name: field.string.required("") }))
+ *   .brane((field) => ({ name: field.string.required("") }))
  *   .superposition({ idle: { loading: {} } })
  *   .mass({ users: [] })
  *   .processes((process) => ({ load: process().action(...) }))
  *   .reactions((reaction) => [...])
- *   .bulk({ gravity: ({ fields }) => html`<div>${fields.name}</div>` })
+ *   .bulk({ gravity: ({ value }) => html`<div>${value.name}</div>` })
  * ```
  */
 export type MetaFor = (
@@ -104,7 +104,7 @@ export type MetaFor = (
    *
    * @example
    * ```typescript
-   * .fields((field) => ({
+   * .brane((field) => ({
    *   userId: field.number.required(0),
    *   userName: field.string.required("Anonymous"),
    *   selectedIds: field.array.required([]),
@@ -170,7 +170,7 @@ export type MetaFor = (
          * ```ts
          * .processes(process => ({
          *   guest: process({ label: "guest_process", desc: "Процесс для гостя" })
-         *     .action(({ fields }) => { ... })
+         *     .action(({ value }) => { ... })
          *     .success(({ update, data }) => update({ ... }))
          *     .error(({ update, error }) => update({ ... })),
          *   // для других суперпозиций можно не указывать процесс, если он не требуется
@@ -197,10 +197,10 @@ export type MetaFor = (
            *   ["idle", "loading"], // Состояния, в которых активна реакция
            *   {
            *     filter: (args) => args.meta.tag === "roadmap" && args.impulses[0]?.op === "replace",
-           *     update: ({ update, fields, patch }) => {
+           *     update: ({ update, field, patch }) => {
            *       update({
            *         lastMessage: patch.value,
-           *         messageCount: fields.messageCount + 1
+           *         messageCount: field.messageCount + 1
            *       })
            *     },
            *     label: "Обработка сообщений от roadmap атома"
@@ -221,13 +221,13 @@ export type MetaFor = (
              * @example
              * ```typescript
              * const component = MetaFor("my-component")
-             *   .fields(...)
+             *   .brane(...)
              *   .superposition(...)
              *   .mass(...)
              *   .processes(...)
              *   .reactions(...)
              *   .bulk({
-             *     gravity: ({ fields, html }) => html`<div>${fields.label}</div>`,
+             *     gravity: ({ value, html }) => html`<div>${value.label}</div>`,
              *     view: ({ css }) => css`.container { color: blue; }`
              *   })
              *
@@ -253,17 +253,17 @@ declare global {
   /**
    * MetaFor — фабрика для создания web-компонента-атома конечного автомата
    * @param name - имя атома (используется для создания тега `meta-${name}`)
-   * @returns chain API: fields() -> superposition() -> mass() -> processes() -> reactions() -> bulk()
+   * @returns chain API: brane() -> superposition() -> mass() -> processes() -> reactions() -> bulk()
    *
    * **Важно:** Итоговый тег компонента формируется как `meta-${name}`,
    * где name — это имя компонента, переданное в конструктор.
    */
-  
+
   /**
    * Основной API MetaFor для создания компонентов
    *
    * Предоставляет цепочку методов для настройки компонента:
-   * - `fields()` - определение типизированных полей
+   * - `brane()` - определение типизированных полей
    * - `superposition()` - определение суперпозиции состояний
    * - `mass()` - настройка массы для сложных данных и зависимостей от среды
    * - `processes()` - определение процессов (действий)
@@ -273,12 +273,12 @@ declare global {
    * @example
    * ```typescript
    * const component = MetaFor("my-component")
-   *   .fields((field) => ({ name: field.string.required("") }))
+   *   .brane((field) => ({ name: field.string.required("") }))
    *   .superposition({ idle: { loading: {} } })
    *   .mass({ users: [] })
    *   .processes((process) => ({ load: process().action(...) }))
    *   .reactions((reaction) => [...])
-   *   .bulk({ gravity: ({ fields }) => html`<div>${fields.name}</div>` })
+   *   .bulk({ gravity: ({ field }) => html`<div>${field.name}</div>` })
    * ```
    */ // @ts-ignore
   var MetaFor: MetaFor
@@ -313,7 +313,7 @@ export type MetaForConfig = {
  * ## API
  * - `state` — текущее состояние для условий gravity
  * - `html` — шаблонизация для `<meta-for>` элементов
- * - `fields` — данные атома для передачи дочерним акторам
+ * - `field` — данные атома для передачи дочерним акторам
  * - `update` — функция обновления контекста
  * - `mass` — масса для сложных данных и зависимостей от среды
  *
@@ -327,8 +327,8 @@ export type MetaForConfig = {
  * `
  *
  * // Передача данных дочернему актору
- * gravity: ({ fields, html }) => html`
- *   <meta-for src="meta/child.js" fields=${{ data: fields.value }}></meta-for>
+ * gravity: ({ value, html }) => html`
+ *   <meta-for src="meta/child.js" fields=${{ data: value.value }}></meta-for>
  * `
  *
  * // Несколько акторов в иерархии
@@ -351,16 +351,16 @@ export type ViewDefinitionParams<ɸ extends Schema = Schema, m extends Mass = Ma
    */
   update: Update<ɸ>
   /**
-   * Текущие данные атома.
-   * Содержит все поля, определённые в `.fields(...)`.
+   * Текущие значения полей.
+   * Содержит все значения полей, определённых в `.brane(...)`.
    * Используется для передачи данных дочерним акторам.
    * @example
    * ```ts
-   * gravity: ({ fields, html }) => html`
-   *   <meta-for src="meta/child.js" fields=${{ value: fields.data }}></meta-for>
+   * gravity: ({ value, html }) => html`
+   *   <meta-for src="meta/child.js" fields=${{ value: value.data }}></meta-for>
    * `
    */
-  fields: Values<ɸ>
+  value: Values<ɸ>
   /**
    * Масса атома для сложных данных и зависимостей от среды.
    * Содержит объекты, массивы и структуры, которые не помещаются в контекст.
@@ -410,8 +410,8 @@ export interface BulkDeclaration<ɸ extends Schema, m extends Mass, 𝛴 extends
    * `
    *
    * // Передача данных
-   * gravity: ({ fields, html }) => html`
-   *   <meta-for src="meta/child.js" fields=${{ data: fields.value }}></meta-for>
+   * gravity: ({ value, html }) => html`
+   *   <meta-for src="meta/child.js" fields=${{ data: value.value }}></meta-for>
    * `
    *
    * // Статическая иерархия
@@ -452,7 +452,7 @@ export interface BulkDeclaration<ɸ extends Schema, m extends Mass, 𝛴 extends
  * ```typescript
  * const schema: Meta = {
  *   name: "user-profile",
- *   fields: { name: field.string.required("") },
+ *   brane: { name: field.string.required("") },
  *   superposition: { idle: { loading: {} } },
  *   mass: { users: [] }
  * }
@@ -469,8 +469,8 @@ export interface Meta<ɸ extends Schema = Schema, 𝛴 extends string = string, 
   processes?: ProcessesSchema
   /** Снимок реакций */
   reactions?: ReactionsSchema
-  /** Схема полей */
-  fields: ɸ
+  /** Схема полей brane */
+  brane: ɸ
   /** Сериализованная gravity как ParseNode[] из @zavx0z/template */
   gravity?: ParseNode[]
   /** View-стили компонента */

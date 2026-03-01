@@ -5,10 +5,10 @@ export default MetaFor("{{name}}", { desc: "{{description}}" })
     error: field.string.optional({ label: "{{errorLabel}}" }),
   }))
   .superposition({})
-  .mass(() => ({}))
+  .mass({})
   .processes(() => ({}))
   .reactions(() => [])
   .bulk({
-    gravity: ({ fields, mass, html }) => html``,
+    gravity: ({ value, mass, html }) => html``,
     view: ({ css }) => css``,
   })

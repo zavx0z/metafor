@@ -18,7 +18,7 @@
  * - Доступны в `Self` объекте: `{ meta, atom, path }`
  *
  * ### Расширенные фильтры реакций
- * - Доступ к контексту в функции `filter`: `filter(({ self, fields }) => ...)`
+ * - Доступ к параметрам в функции `filter`: `filter(({ self, value }) => ...)`
  * - Декларативные условия фильтрации с поддержкой сложных условий
  * - Фильтрация по meta, atom, path, op, value, timestamp
  *
@@ -35,7 +35,7 @@
  * @example
  * ```typescript
  * export default MetaFor("user-profile")
- *   .fields((field) => ({
+ *   .brane((field) => ({
  *     userId: field.number.required(0),
  *     userName: field.string.required(""),
  *     isLoading: field.boolean.required(false),
@@ -49,8 +49,8 @@
  *   .mass({ users: [] })
  *   .processes((process) => ({
  *     loadUser: process()
- *       .action(async ({ fields }) => {
- *         const response = await fetch(`/api/users/${fields.userId}`)
+ *       .action(async ({ value }) => {
+ *         const response = await fetch(`/api/users/${value.userId}`)
  *         return await response.json()
  *       })
  *       .success(({ update, data }) => {
@@ -61,7 +61,7 @@
  *     [
  *       ["idle"],
  *       reaction()
- *         .filter(({ self, fields }) => ({
+ *         .filter(({ self, value }) => ({
  *           meta: "user",
  *           atom: self.atom.split("/")[1] || "",
  *           value: { gt: 0 }
@@ -70,9 +70,9 @@
  *     ]
  *   ])
  *   .bulk({
- *     gravity: ({ fields, html, update }) => html`
+ *     gravity: ({ value, html, update }) => html`
  *       <div>
- *         <h1>${fields.userName}</h1>
+ *         <h1>${value.userName}</h1>
  *         <button onclick=${() => update({ isLoading: true })}>
  *           Загрузить
  *         </button>
@@ -123,7 +123,7 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
                       const reactions = reactionsSchema(reaction)
                       return {
                         bulk(bulk?: BulkDeclaration<ɸ, m, 𝛴>): Meta<ɸ, 𝛴, m> {
-                          const schema: Meta<ɸ, 𝛴, m> = { name, superposition, fields, mass: mass || ({} as m) }
+                          const schema: Meta<ɸ, 𝛴, m> = { name, superposition, brane: fields, mass: mass || ({} as m) }
                           if (desc) schema.desc = desc
                           if (bulk && "view" in bulk) schema.view = serializeStyle(bulk.view as any)
                           if (bulk && "gravity" in bulk) schema.gravity = parse(bulk.gravity as any)

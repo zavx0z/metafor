@@ -6,9 +6,9 @@ const PATTERN_UPDATE = /\bupdate\s*\(\s*({[\s\S]*?})\s*\)/g
 const PATTERN_ARROW = /^\s*(\([^)]+\))\s*=>/
 
 export const pattern = {
-  dot: /fields\.(\w+)/g,
-  destructParams: /fields:\s*{([^}]+)}/g,
-  destructBody: /(?:const|let|var)\s*{([^}]+)}\s*=\s*fields(?:\s*,\s*{([^}]+)}\s*=\s*fields)*/g,
+  dot: /value\.(\w+)/g,
+  destructParams: /value:\s*{([^}]+)}/g,
+  destructBody: /(?:const|let|var)\s*{([^}]+)}\s*=\s*value(?:\s*,\s*{([^}]+)}\s*=\s*value)*/g,
   update: /update\(\s*{([^}]+)}\s*\)/g,
 }
 export function updateAppendArg(funcString: string, arg: string) {
@@ -49,9 +49,9 @@ export function normalizeFunctionString(funcString: string): string {
  * Парсит функцию и извлекает информацию о полях, которые читаются и записываются.
  *
  * Анализирует код функции с помощью регулярных выражений для поиска:
- * - Доступа к полям через `fields.field`
- * - Деструктуризации параметров `{ field } = fields`
- * - Деструктуризации в теле функции `const { field } = fields`
+ * - Доступа к полям через `value.field`
+ * - Деструктуризации параметров `{ field } = value`
+ * - Деструктуризации в теле функции `const { field } = value`
  * - Вызовов `update({ field })`
  *
  * @param fn - функция для анализа
@@ -60,8 +60,8 @@ export function normalizeFunctionString(funcString: string): string {
  *
  * @example
  * ```ts
- * const fn = ({ fields, update }) => {
- *   const { name, age } = fields
+ * const fn = ({ value, update }) => {
+ *   const { name, age } = value
  *   update({ status: 'active' })
  * }
  * const result = parseFunction(fn)
@@ -122,11 +122,11 @@ export function extractFields<ɸ extends Schema, 𝛴 extends string, m extends 
   const read: string[] = []
   const write: string[] = []
 
-  // Извлекаем поля, которые читаются из fields
-  const fieldsMatches = updateStr.match(/fields\.(\w+)/g)
+  // Извлекаем поля, которые читаются из value
+  const fieldsMatches = updateStr.match(/value\.(\w+)/g)
   if (fieldsMatches) {
     for (const match of fieldsMatches) {
-      const field = match.replace("fields.", "")
+      const field = match.replace("value.", "")
       if (!read.includes(field)) {
         read.push(field)
       }

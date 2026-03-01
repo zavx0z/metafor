@@ -4,7 +4,7 @@
 import { describe, expect, test } from "bun:test"
 import { TYPE } from "../opcodes"
 import { FieldType } from "../index.t"
-import { fieldTypeToBytecodeType } from "../params"
+import { fieldTypeToBytecodeType } from "../values"
 
 describe("fieldTypeToBytecodeType", () => {
   test("маппит прямые соответствия FieldType -> TYPE", () => {

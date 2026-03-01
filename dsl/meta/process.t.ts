@@ -15,7 +15,7 @@ import type { Mass, Self } from "./metafor.t"
  * const process: Process<MyContext, { userId: number }> = {
  *   label: "Авторизация",
  *   desc: "Процесс входа пользователя",
- *   action: async ({ fields, mass, fields, self, destroy }) => {
+ *   action: async ({ value, mass, schema, self, destroy }) => {
  *     // Логика авторизации с доступом ко всем параметрам
  *     // destroy() доступен для уничтожения атома
  *     return { userId: 123 }
@@ -49,8 +49,8 @@ export type Process<ɸ extends Schema = Schema, m extends Mass = Mass, Res = any
  * @template M - тип массы автомата
  */
 export type ActionParams<ɸ extends Schema, m extends Mass> = {
-  /** Поля */
-  field: Values<ɸ>
+  /** Текущие значения полей */
+  value: Values<ɸ>
   /** Масса */
   mass: m
   /** Схема полей */
@@ -63,7 +63,7 @@ export type ActionParams<ɸ extends Schema, m extends Mass> = {
  * Chain API для создания процесса с опциональными параметрами label и desc.
  * Позволяет удобно и строго типизировано описывать обработчики процессов автомата.
  *
- * @template C - схема контекста автомата
+ * @template ɸ - схема контекста автомата
  * @template Res - возвращаемый тип результата action
  *
  * @example
@@ -72,7 +72,7 @@ export type ActionParams<ɸ extends Schema, m extends Mass> = {
  *   label: "my_process",
  *   desc: "Описание процесса"
  * })
- *   .action(({ context }) => ({ name: fields.name }))
+ *   .action(({ value }) => ({ name: value.name }))
  *   .success(({ update, data }) => update({ name: data.name }))
  *   .error(({ update, error }) => update({ name: error.message }))
  *
@@ -93,24 +93,24 @@ export type ProcessChain<ɸ extends Schema, m extends Mass> = {
    * @example
    * ```typescript
    * // Синхронная функция
-   * .action(({ context }) => {
-   *   if (!fields.email) {
+   * .action(({ value }) => {
+   *   if (!value.email) {
    *     throw new Error('Email обязателен')
    *   }
    *   return { isValid: true }
    * })
    *
    * // Асинхронная функция
-   * .action(async ({ context }) => {
+   * .action(async ({ value }) => {
    *   const response = await fetch('/api/data', {
    *     method: 'POST',
-   *     body: JSON.stringify(context)
+   *     body: JSON.stringify(value)
    *   })
    *   return await response.json()
    * })
    *
    * // Предпочтительный формат action с Promise
-   * .action(({ mass }) => new Promise((resolve, reject) => {
+   * .action(({ value, mass }) => new Promise((resolve, reject) => {
    *   // асинхронная логика
    *   resolve({ success: true })
    * }))
@@ -225,10 +225,10 @@ export type DestroyChain<ɸ extends Schema = Schema, m extends Mass = Mass> = {
  *
  * @example
  * ```typescript
- * const chain = action(({ fields, mass, fields, self, destroy }) => {
+ * const chain = action(({ value, mass, schema, self, destroy }) => {
  *   // Доступ ко всем параметрам процесса
  *   // destroy() доступен в процессах
- *   return { name: fields.name }
+ *   return { name: value.name }
  * })
  *   .success(({ update, data }) => update({ name: data.name }))
  *   .error(({ update, error }) => update({ name: error.message }))
@@ -243,24 +243,24 @@ export type ActionChain<ɸ extends Schema, m extends Mass, Res> = {
    * Получает полный набор параметров для выполнения процесса и должна вернуть результат или выбросить исключение.
    *
    * @param params - объект с параметрами процесса:
-   *   - `fields` - текущие поля атома
+   *   - `value` - текущие значения полей атома
    *   - `mass` - масса атома для сложных данных и зависимостей от среды
-   *   - `fields` - схема полей для валидации и установки значений по умолчанию
+   *   - `schema` - схема полей для валидации и установки значений по умолчанию
    *   - `self` - полный идентификатор атома
    *   - `destroy` - функция для уничтожения атома
    * @returns результат процесса (может быть промисом)
    *
    * @example
    * ```typescript
-   * action: ({ fields, mass, fields, self, destroy }) => {
+   * action: ({ value, mass, schema, self, destroy }) => {
    *   // Доступ к полям
-   *   console.log(fields.email, fields.password)
+   *   console.log(value.email, value.password)
    *
    *   // Доступ к массе
-   *   mass.users.push({ name: fields.name })
+   *   mass.users.push({ name: value.name })
    *
    *   // Доступ к схеме для валидации
-   *   const isValid = fields.email.validate(fields.email)
+   *   const isValid = schema.email.validate(value.email)
    *
    *   // destroy() доступен для уничтожения атома
    *   // self.meta, self.atom, self.path доступны

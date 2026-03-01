@@ -15,8 +15,8 @@ import type { Node as ParseNode } from "@zavx0z/template"
  * Содержит все компоненты декларации атома.
  */
 type MetaLike = Record<string, any> & {
-  /** Схема полей с типами и значениями по умолчанию */
-  fields?: Record<string, any>
+  /** Схема полей brane с типами и значениями по умолчанию */
+  brane?: Record<string, any>
   /** Граф переходов состояний (суперпозиция) */
   superposition?: Record<string, any>
   /** Процессы с обработчиками action/success/error */
@@ -123,7 +123,7 @@ export interface ViewJson {
  *     "коммит": {
  *       "type": "action",
  *       "action": {
- *         "src": "({ fields }) => { ... }",
+ *         "src": "({ value }) => { ... }",
  *         "read": ["src"]
  *       },
  *       "success": {
@@ -276,23 +276,23 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
  * @example
  * ```typescript
  * const meta = MetaFor("git")
- *   .fields((field) => ({ src: field.string.required("./tmp/edit.json") }))
+ *   .brane((field) => ({ src: field.string.required("./tmp/edit.json") }))
  *   .superposition({ коммит: { завершено: {} }, завершено: null })
  *   .mass({ history: [] })
  *   .processes((process, destroy) => ({
- *     коммит: process().action(({ fields }) => {}).success(({ update }) => update({ src: "" }))
+ *     коммит: process().action(({ value }) => {}).success(({ update }) => update({ src: "" }))
  *   }))
  *   .reactions()
- *   .bulk({ gravity: ({ fields, html }) => html`<div>${fields.src}</div>` })
+ *   .bulk({ gravity: ({ value, html }) => html`<div>${value.src}</div>` })
  *
  * const json = convertMetaToMonadJson(meta, sourceCode)
  * // => { name: "git", fields: {...}, superposition: {...}, processes: {...}, bulk: {...}, mass: {...} }
  * ```
  */
 export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): MonadJson {
-  const inputFields = meta?.fields
+  const inputFields = meta?.brane
   if (!inputFields || typeof inputFields !== "object") {
-    throw new Error("fields не найден или не является объектом")
+    throw new Error("brane не найден или не является объектом")
   }
 
   const arrayElementTypesFromSource = sourceText ? extractArrayElementTypesFromSource(sourceText) : {}

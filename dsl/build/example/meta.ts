@@ -1,7 +1,7 @@
 import "@metafor/meta"
 
 const meta = MetaFor("git")
-  .fields((field) => ({
+  .brane((field) => ({
     src: field.string.required("./tmp/edit.json", { label: "JSON-patch путь" }),
     patches: field.array.required<string>([], { label: "разделенные патчи" }),
     isLoading: field.boolean.required(false, { label: "Флаг загрузки" }),
@@ -20,8 +20,8 @@ const meta = MetaFor("git")
   })
   .processes((process, destroy) => ({
     коммит: process({ label: "Коммит", desc: "Процесс коммита изменений" })
-      .action(({ fields }) => {
-        console.log("Коммит:", fields.src)
+      .action(({ value }) => {
+        console.log("Коммит:", value.src)
         return { success: true }
       })
       .success(({ update, data }) => {
@@ -49,8 +49,8 @@ const meta = MetaFor("git")
   ])
   .bulk({
     gravity: ({ fields, state, html }) =>
-      html`${state === "коммит" && html`<meta-for src="meta/status.js" fields=${{ message: "Коммит в процессе...", src: fields.src }}></meta-for>`}
-        ${state === "завершено" && html`<meta-for src="meta/success.js" fields=${{ message: "Готово!", patches: fields.patches }}></meta-for>`}
+      html`${state === "коммит" && html`<meta-for src="meta/status.js" fields=${{ message: "Коммит в процессе...", src: value.src }}></meta-for>`}
+        ${state === "завершено" && html`<meta-for src="meta/success.js" fields=${{ message: "Готово!", patches: value.patches }}></meta-for>`}
         ${state === "ошибка" && html`<meta-for src="meta/error.js" fields=${{ error: "Ошибка коммита" }}></meta-for>`}`,
     view: ({ css }) => css``,
   })

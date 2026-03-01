@@ -9,11 +9,11 @@
 
 import { parseCondition } from "./condition"
 import { OP, TYPE } from "./opcodes"
-import { encodeValue, fieldTypeToBytecodeType } from "./params"
+import { encodeValue, fieldTypeToBytecodeType } from "./values"
 import type { Field } from "./index.t"
 import type { Collapse } from "./index.t"
 import type { FieldBytecode, CompiledRules, ConditionInstruction } from "./superposition.t"
-import type { EncodingContext } from "./params.t"
+import type { EncodingContext } from "./values.t"
 import type { ParsedCheck } from "./condition.t"
 
 /**

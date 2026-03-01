@@ -6,22 +6,22 @@
 import "@metafor/meta"
 
 export default MetaFor("<name>")
-  .fields((field) => ({ /* поля */ }))
+  .brane((field) => ({ /* поля */ }))
   .superposition({ /* граф переходов */ })
   .mass({})
   .processes((process, destroy) => ({}))
   .reactions((reaction) => [])
-  .bulk({ gravity: ({ state, fields, html }) => html`...`, view: ({css}) => css`...` })
+  .bulk({ gravity: ({ state, value, html }) => html`...`, view: ({css}) => css`...` })
 ```
 
-**Порядок вызовов:** `fields → superposition → mass → processes → reactions → bulk`
+**Порядок вызовов:** `brane → superposition → mass → processes → reactions → bulk`
 
 ---
 
-## fields — только примитивы
+## brane — только примитивы
 
 ```typescript
-.fields((field) => ({
+.brane((field) => ({
   name: field.string.required("Гость"),
   age: field.number.required(18)({ label: "Возраст" }),
   status: field.enum("draft", "published").optional({ label: "Статус" }),
@@ -40,12 +40,12 @@ export default MetaFor("<name>")
 **Примеры label:**
 
 ```typescript
-.fields((field) => ({
+.brane((field) => ({
   // ✅ Правильно: русский + опция
   message: field.string.optional({ label: "Сообщение (-m)" }),
   all: field.boolean.optional({ label: "Все файлы (-a)" }),
   amend: field.boolean.optional({ label: "Исправить (--amend)" }),
-  
+
   // ❌ Неправильно: английский
   message: field.string.optional({ label: "Commit message (-m)" }),
   all: field.boolean.optional({ label: "Commit all (-a)" }),
@@ -152,7 +152,7 @@ export default MetaFor("<name>")
 ```typescript
 .processes((process) => ({
   "определение операции": process()
-    .action(({ mass, fields }) => ({ operation: operation as NonNullable<typeof fields.operation>, command, args }))
+    .action(({ mass, value }) => ({ operation: operation as NonNullable<typeof value.operation>, command, args }))
     .success(({ update, data }) => update(data))
     .error(({ update, error }) => update({ error: error.message })),
   "выполнение": process()
@@ -190,7 +190,7 @@ export default MetaFor("<name>")
 ```typescript
 .processes((process) => ({
   "загрузка": process()
-    .action(async ({ fields, update }) => {
+    .action(async ({ value, update }) => {
       // ❌ Триггеры НЕ проверятся до завершения process
       update({ status: "loading" })  // Промежуточное обновление
       const data = await fetch(...)
@@ -230,8 +230,8 @@ export default MetaFor("<name>")
 ```typescript
 .processes((process, destroy) => ({
   loading: process({ label: "Загрузка" })
-    .action(async ({ fields, mass }) => {
-      const res = await fetch(`/api/${fields.id}`)
+    .action(async ({ value, mass }) => {
+      const res = await fetch(`/api/${value.id}`)
       return await res.json()
     })
     .success(({ update, data }) => update({ name: data.name }))
@@ -242,10 +242,10 @@ export default MetaFor("<name>")
 **Типизация возвращаемого значения:**
 
 ```typescript
-// ✅ Через NonNullable<typeof fields.field>
-.action(({ fields }) => {
+// ✅ Через NonNullable<typeof value.field>
+.action(({ value }) => {
   const group = getGroup(mass.command)
-  return { group: group as NonNullable<typeof fields.group> }
+  return { group: group as NonNullable<typeof value.group> }
 })
 
 // ❌ Не хардкодить строковый литерал
@@ -284,16 +284,16 @@ return { group: group as "start" | "work" | "examine" }
 
 ```typescript
 .bulk({
-  gravity: ({ fields, html }) => html`
-    ${fields.operation && html`
+  gravity: ({ value, html }) => html`
+    ${value.operation && html`
       <meta-for
-        src="zavx0z/git-${fields.operation}"
-        fields=${{ command: fields.command, args: fields.args }} />
+        src="zavx0z/git-${value.operation}"
+        fields=${{ command: value.command, args: value.args }} />
     `}
-    ${fields.error && html`
+    ${value.error && html`
       <meta-for
         src="zavx0z/git-error"
-        fields=${{ message: fields.error }} />
+        fields=${{ message: value.error }} />
     `}
   `,
   view: ({ css }) => css`.container { padding: 1rem; }`,
@@ -306,7 +306,7 @@ return { group: group as "start" | "work" | "examine" }
 - Поля передаются через атрибут `fields={{ ... }}`
 - Если fields === null, ничего не рендерится
 - Ошибки отображаются через отдельный актор
-- Пути динамические: `src="zavx0z/git-${fields.operation}"`
+- Пути динамические: `src="zavx0z/git-${value.operation}"`
 
 ---
 
@@ -316,7 +316,7 @@ return { group: group as "start" | "work" | "examine" }
 import "@metafor/meta"
 
 export default MetaFor("git")
-  .fields((field) => ({
+  .brane((field) => ({
     operation: field.enum("start", "work", "examine").optional({ label: "Тип операции" }),
     error: field.string.optional({ label: "Ошибка" }),
     command: field.string.optional({ label: "Команда" }),
@@ -346,8 +346,8 @@ export default MetaFor("git")
   })
   .processes((process) => ({
     "определение операции": process()
-      .action(({ mass, fields }) => {
-        const command = fields.command?.split(" ")[0]
+      .action(({ mass, value }) => {
+        const command = value.command?.split(" ")[0]
         let operation = null
         for (const [key, regex] of Object.entries(mass.patterns)) {
           if (regex.test(command)) {
@@ -356,7 +356,7 @@ export default MetaFor("git")
           }
         }
         if (!operation) throw new Error(`Неизвестная команда: ${command}`)
-        return { operation: operation as NonNullable<typeof fields.operation> }
+        return { operation: operation as NonNullable<typeof value.operation> }
       })
       .success(({ update, data }) => update(data))
       .error(({ update, error }) => update({ error: error.message })),
@@ -365,12 +365,12 @@ export default MetaFor("git")
       .success(({ update }) => update({ operation: null })),
   }))
   .bulk({
-    gravity: ({ fields, html }) => html`
-      ${fields.operation && html`
-        <meta-for src="zavx0z/git-${fields.operation}" fields=${{ command: fields.command }} />
+    gravity: ({ value, html }) => html`
+      ${value.operation && html`
+        <meta-for src="zavx0z/git-${value.operation}" fields=${{ command: value.command }} />
       `}
-      ${fields.error && html`
-        <meta-for src="zavx0z/git-error" fields=${{ message: fields.error }} />
+      ${value.error && html`
+        <meta-for src="zavx0z/git-error" fields=${{ message: value.error }} />
       `}
     `,
   })
@@ -415,8 +415,8 @@ export default MetaFor("git")
   })
   .processes((process) => ({
     "определение операции": process()
-      .action(({ mass, fields }) => {
-        const command = fields.command?.split(" ")[0]
+      .action(({ mass, value }) => {
+        const command = value.command?.split(" ")[0]
         let operation = null
         for (const [key, regex] of Object.entries(mass.patterns)) {
           if (regex.test(command)) {
@@ -425,13 +425,13 @@ export default MetaFor("git")
           }
         }
         if (!operation) throw new Error(`Неизвестная команда: ${command}`)
-        return { operation: operation as NonNullable<typeof fields.operation> }
+        return { operation: operation as NonNullable<typeof value.operation> }
       })
       .success(({ update, data }) => update({ operation: data.operation }))
   }))
 ```
 
-**Правило:** Все данные, функции, паттерны — только внутри `.mass()`, `.processes()`, `.fields()`.
+**Правило:** Все данные, функции, паттерны — только внутри `.mass()`, `.processes()`, `.brane()`.
 
 ---
 
@@ -469,12 +469,12 @@ zavx0z/git-work-add/     # команда add
 
 ```typescript
 .bulk({
-  gravity: ({ fields, html }) => html`
-    ${fields.operation === "start" && html`
-      <meta-for src="zavx0z/git-start" fields=${{ command: fields.command, args: fields.args }} />
+  gravity: ({ value, html }) => html`
+    ${value.operation === "start" && html`
+      <meta-for src="zavx0z/git-start" fields=${{ command: value.command, args: value.args }} />
     `}
-    ${fields.operation === "work" && html`
-      <meta-for src="zavx0z/git-work" fields=${{ command: fields.command, args: fields.args }} />
+    ${value.operation === "work" && html`
+      <meta-for src="zavx0z/git-work" fields=${{ command: value.command, args: value.args }} />
     `}
   `,
 })
@@ -485,7 +485,7 @@ zavx0z/git-work-add/     # команда add
 ```typescript
 // zavx0z/git/meta.ts
 export default MetaFor("git")
-  .fields((field) => ({
+  .brane((field) => ({
     operation: field.enum("start", "work").optional({ label: "Тип операции" }),
     command: field.string.optional({ label: "Команда" }),
     args: field.string.optional({ label: "Аргументы" }),
@@ -513,8 +513,8 @@ export default MetaFor("git")
   })
   .processes((process) => ({
     "определение операции": process()
-      .action(({ mass, fields }) => {
-        const command = fields.command?.split(" ")[0]
+      .action(({ mass, value }) => {
+        const command = value.command?.split(" ")[0]
         let operation = null
         for (const [key, regex] of Object.entries(mass.patterns)) {
           if (regex.test(command)) {
@@ -523,7 +523,7 @@ export default MetaFor("git")
           }
         }
         if (!operation) throw new Error(`Неизвестная команда: ${command}`)
-        return { operation: operation as NonNullable<typeof fields.operation> }
+        return { operation: operation as NonNullable<typeof value.operation> }
       })
       .success(({ update, data }) => update(data))
       .error(({ update, error }) => update({ error: error.message })),
@@ -532,12 +532,12 @@ export default MetaFor("git")
       .success(({ update }) => update({ operation: null })),
   }))
   .bulk({
-    gravity: ({ fields, html }) => html`
-      ${fields.operation === "start" && html`
-        <meta-for src="zavx0z/git-start" fields=${{ command: fields.command, args: fields.args }} />
+    gravity: ({ value, html }) => html`
+      ${value.operation === "start" && html`
+        <meta-for src="zavx0z/git-start" fields=${{ command: value.command, args: value.args }} />
       `}
-      ${fields.operation === "work" && html`
-        <meta-for src="zavx0z/git-work" fields=${{ command: fields.command, args: fields.args }} />
+      ${value.operation === "work" && html`
+        <meta-for src="zavx0z/git-work" fields=${{ command: value.command, args: value.args }} />
       `}
     `,
   })

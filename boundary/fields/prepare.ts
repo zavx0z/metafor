@@ -3,17 +3,14 @@
  *
  * @packageDocumentation
  */
-
-import { getStringAtlas } from "@boundary/atlas"
 import { findEntangledGroups, buildBraneMapping } from "./entangled"
 import { buildHeap } from "./heap"
 import type { HeapInput } from "./heap.t"
 import { compileEnsemble } from "./superposition"
 import type { CompiledRules } from "./superposition.t"
-import { encodeValue, fieldTypeToBytecodeType, encodeFieldValue } from "./params"
-import type { EncodingContext } from "./params.t"
-import type { Data, Brane, Field } from "./index.t"
-import { FieldType } from "./index.t"
+import { encodeValue, fieldTypeToBytecodeType, encodeFieldValue } from "./values"
+import type { EncodingContext } from "./values.t"
+import { FieldType, type Data } from "./index.t"
 import { TYPE } from "./opcodes"
 
 /**

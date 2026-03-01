@@ -23,7 +23,7 @@ describe("схема реакций", () => {
             path: "/context",
             value: 1,
           }))
-          .equal(({ update, fields }) => update({ value: fields.value + 1 })),
+          .equal(({ update, value }) => update({ value: value.value + 1 })),
       ],
       [
         ["error"],
@@ -90,7 +90,7 @@ describe("схема реакций", () => {
   })
 
   test("сохранение строкового представления функции equal", () => {
-    const updateFn = ({ update, fields }: any) => update({ value: fields.value * 2 })
+    const updateFn = ({ update, value }: any) => update({ value: value.value * 2 })
 
     const snapshot = reactionsSchema<typeof schema, State, {}>((reaction) => [
       [

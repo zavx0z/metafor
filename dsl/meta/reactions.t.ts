@@ -354,10 +354,10 @@ export type ReactionFilterConditions = {
  *   filter: ({ meta, patch }) => {
  *     return meta === "user" && patch.op === "replace"
  *   },
- *   update: ({ update, fields, patch }) => {
+ *   update: ({ update, value, patch }) => {
  *     update({
  *       lastMessage: patch.value,
- *       messageCount: fields.messageCount + 1
+ *       messageCount: value.messageCount + 1
  *     })
  *   }
  * }
@@ -417,16 +417,16 @@ export type ReactionsDeclaration<ɸ extends Schema, 𝛴 extends string, m exten
      * - `value` - значение патча (с поддержкой расширенных условий для строк, чисел, булевых, массивов)
      * - `timestamp` - временная метка события
      *
-     * Функция фильтра получает доступ к `self` (идентификатор актора) и `fields` (текущие поля),
+     * Функция фильтра получает доступ к `self` (идентификатор актора) и `value` (текущие значения полей),
      * что позволяет создавать динамические условия на основе состояния системы.
      *
-     * @param filter - Функция, принимающая `{ self, fields }` и возвращающая объект условий фильтрации
+     * @param filter - Функция, принимающая `{ self, value }` и возвращающая объект условий фильтрации
      * @returns Объект с методом `equal` для завершения цепочки создания реакции
      *
      * @example
      * ```typescript
      * reaction({ label: "Обработка сообщений" })
-     *   .filter(({ self, fields }) => ({
+     *   .filter(({ self, value }) => ({
      *     meta: "user",
      *     path: "/fields",
      *     value: { gt: 0 }
@@ -434,14 +434,14 @@ export type ReactionsDeclaration<ɸ extends Schema, 𝛴 extends string, m exten
      *   .equal(({ update, patch }) => update({ lastMessage: patch.value }))
      * ```
      */
-    filter: (filter: (params: { self: Self; fields: Values<ɸ> }) => ReactionFilterConditions) => {
+    filter: (filter: (params: { self: Self; value: Values<ɸ> }) => ReactionFilterConditions) => {
       /**
        * Добавляет функцию обработки события реакции
        *
        * Функция вызывается автоматически, когда все условия фильтра выполнены.
        * Получает полный доступ к параметрам события:
        * - `update` - функция для обновления полей
-       * - `fields` - текущие поля
+       * - `value` - текущие значения полей
        * - `mass` - mass объект для хранения состояния
        * - `meta` - название компонента-отправителя из MetaFor("label")
        * - `atom` - идентификатор актора-отправителя
@@ -458,11 +458,11 @@ export type ReactionsDeclaration<ɸ extends Schema, 𝛴 extends string, m exten
        *
        * @example
        * ```typescript
-       * .equal(({ update, fields, patch, mass }) => {
+       * .equal(({ update, value, patch, mass }) => {
        *   // Обновление контекста
        *   update({
        *     lastMessage: patch.value,
-       *     messageCount: fields.messageCount + 1
+       *     messageCount: value.messageCount + 1
        *   })
        *   // Работа с mass объектом
        *   mass.log.push({ message: patch.value, time: Date.now() })
@@ -524,7 +524,7 @@ export type ReactionsSchema = {
  * ```typescript
  * const updateFn: ReactionUpdate<MyContext, "idle" | "loading"> = ({
  *   update,    // Функция для обновления контекста
- *   fields,   // Текущий контекст
+ *   value,   // Текущие значения полей
  *   mass,      // Масса
  *   meta,      // имя meta
  *   atom,      // ID атома
@@ -536,7 +536,7 @@ export type ReactionsSchema = {
  *   // Обработка события
  *   update({
  *     lastMessage: patch.value,
- *     messageCount: fields.messageCount + 1
+ *     messageCount: value.messageCount + 1
  *   })
  * }
  * ```
@@ -545,8 +545,8 @@ export type ReactionsSchema = {
 export type ReactionAction<ɸ extends Schema, 𝛴 extends string, m extends Mass> = (args: {
   /** Функция для обновления полей */
   update: Update<ɸ>
-  /** Текущие поля */
-  field: Values<ɸ>
+  /** Текущие значения полей */
+  value: Values<ɸ>
   /** Масса */
   mass: m
   /** Название компонента-отправителя из MetaFor("label") */
