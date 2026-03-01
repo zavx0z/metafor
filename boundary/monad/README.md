@@ -48,8 +48,8 @@ await updateMonads([
 // С блокировкой переходов
 await updateMonads([{ id, fields: { hp: 80 }, lock: true }])
 
-// Разблокировать без изменений
-await updateMonads([{ id, fields: {} }])
+// Разблокировать
+await updateMonads([{ id, fields: { hp: 80 }, lock: false }])
 ```
 
 ### `onStateChange(callback): void`
@@ -76,8 +76,11 @@ deleteMonad(id)
 // Блокировать на один вызов
 await updateMonads([{ id, fields: { hp: 80 }, lock: true }])
 
-// Снять блокировку
-await updateMonads([{ id, fields: {} }])
+// Lock флаг сохраняется до явной смены
+await updateMonads([{ id, fields: { hp: 80 } }])  // Всё ещё заблокирована
+
+// Разблокировать
+await updateMonads([{ id, fields: { hp: 80 }, lock: false }])
 ```
 
 ## Тесты

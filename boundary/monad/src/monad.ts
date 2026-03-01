@@ -252,7 +252,7 @@ export interface MonadUpdate {
   id: MonadId
   /** Новые значения полей (пустой объект для разблокировки без изменений) */
   fields?: Record<string, unknown>
-  /** Если true, блокирует переходы для этой монады на один вызов */
+  /** Если true, блокирует переходы; если false — разблокирует; undefined — не менять */
   lock?: boolean
 }
 
@@ -267,14 +267,11 @@ export interface MonadUpdate {
  * // Обновить одну монаду
  * await updateMonads([{ id: 'uuid', fields: { hp: 80 } }])
  *
- * // Обновить несколько монад
- * await updateMonads([
- *   { id: 'uuid1', fields: { hp: 80 } },
- *   { id: 'uuid2', fields: { mana: 50 }, lock: true },  // с блокировкой
- * ])
+ * // Обновить с блокировкой
+ * await updateMonads([{ id: 'uuid', fields: { hp: 80 }, lock: true }])
  *
- * // Разблокировать монаду без изменения полей
- * await updateMonads([{ id: 'uuid', fields: {} }])
+ * // Разблокировать без изменения полей
+ * await updateMonads([{ id: 'uuid', fields: {}, lock: false }])
  * ```
  */
 export async function updateMonads(updates: MonadUpdate[]): Promise<void> {
@@ -282,8 +279,7 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<void> {
     return
   }
 
-  const allUpdates: Array<[number, Array<{ fieldIndex: number; value: unknown }>]> = []
-  const lockedBranes: number[] = []
+  const allUpdates: Array<[number, Array<{ fieldIndex: number; value: unknown }>, boolean?]> = []
 
   for (const { id, fields = {}, lock } of updates) {
     const index = _uuidToIndex.get(id)
@@ -306,19 +302,12 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<void> {
       return { fieldIndex, value }
     })
 
-    // Добавляем обновление в список
-    if (fieldUpdates.length > 0) {
-      allUpdates.push([index, fieldUpdates])
-    }
-
-    // Добавляем в список заблокированных
-    if (lock) {
-      lockedBranes.push(index)
-    }
+    // Добавляем обновление: [braneIndex, fieldUpdates, lock?]
+    allUpdates.push([index, fieldUpdates, lock])
   }
 
   // Вызываем @boundary/fields/update()
-  const stateChanges = await fieldsUpdate(allUpdates, lockedBranes.length > 0 ? lockedBranes : undefined)
+  const stateChanges = await fieldsUpdate(allUpdates)
 
   // Обрабатываем изменения состояний
   stateChanges.forEach(([braneIndex, stateIndex]) => {

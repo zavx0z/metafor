@@ -309,15 +309,13 @@ export async function write(data: Data): Promise<[number, number][]> {
  * - **После каждого `update()` зона очищается** (данные массива не сохраняются)
  *
  * **Блокировка переходов:**
- * - Параметр `lockedBranes` позволяет временно заблокировать FSM для отдельных бран
- * - Блокировка действует только на один вызов `update()`
- * - Заблокированная брана обновляет поля, но не меняет состояние
- * - После выполнения `update()` блокировка автоматически снимается
+ * - Третий элемент кортежа `lock` управляет блокировкой индивидуально для каждой браны
+ * - `lock: true` — заблокировать переходы (состояние не изменится)
+ * - `lock: false` — разблокировать переходы
+ * - `lock: undefined` — не менять текущий lock флаг
+ * - Lock флаг сохраняется между вызовами до явной смены
  *
- * @param updates - Массив обновлений: `[[braneIndex, [{ fieldIndex, value }, ...]], ...]`
- * @param lockedBranes - Индексы бран для временной блокировки переходов.
- *                       Блокировка действует только на этот вызов update().
- *                       Автоматически сбрасывается после выполнения.
+ * @param updates - Массив обновлений: `[[braneIndex, fieldUpdates, lock?], ...]`
  * @returns Массив состояний: `[[braneIndex, state], ...]`
  *
  * @example
@@ -325,28 +323,26 @@ export async function write(data: Data): Promise<[number, number][]> {
  * // Обновление одного поля одной браны
  * await update([[0, [{ fieldIndex: 0, value: 100 }]]])
  *
- * // Обновление нескольких полей одной браны
- * await update([[0, [
- *   { fieldIndex: 0, value: 100 },
- *   { fieldIndex: 1, value: true },
- * ]]])
+ * // Обновление с блокировкой
+ * await update([[0, [{ fieldIndex: 0, value: 100 }], true]])
  *
- * // Обновление нескольких бран
+ * // Разблокировать без изменения полей
+ * await update([[0, [], false]])
+ *
+ * // Несколько бран с разной блокировкой
  * await update([
- *   [0, [{ fieldIndex: 0, value: 100 }]],
- *   [1, [{ fieldIndex: 0, value: 50 }]],
+ *   [0, [{ fieldIndex: 0, value: 100 }], true],   // Заблокировать
+ *   [1, [{ fieldIndex: 0, value: 50 }]],          // lock не меняется
+ *   [2, [{ fieldIndex: 0, value: 30 }], false],   // Разблокировать
  * ])
- *
- * // Блокировка переходов для браны 0 (состояние не изменится)
- * await update([[0, [{ fieldIndex: 0, value: 100 }]]], [0])
- *
- * // Блокировка нескольких бран
- * await update(updates, [0, 2, 5])
  * ```
  */
 export async function update(
-  updates: Array<[braneIndex: number, fieldUpdates: Array<{ fieldIndex: number; value: unknown }> ]>,
-  lockedBranes?: number[],
+  updates: Array<[
+    braneIndex: number,
+    fieldUpdates: Array<{ fieldIndex: number; value: unknown }>,
+    lock?: boolean
+  ]>,
 ): Promise<[number, number][]> {
   // Блокировка mutex для предотвращения конкурентных вызовов
   if (updateMutex) {
@@ -370,12 +366,18 @@ export async function update(
     // Этап 1: Кодирование всех обновлений для всех бран
     const allHeapUpdates: Array<{ offset: number; value1: number; value2?: number }> = []
 
-    for (const [braneIndex, fieldUpdates] of updates) {
+    for (const [braneIndex, fieldUpdates, lock] of updates) {
       if (braneIndex < 0 || braneIndex >= braneBlockPtrs.length) {
         throw new Error(`Brane index out of range: ${braneIndex}`)
       }
 
       const blockPtr = braneBlockPtrs[braneIndex]!
+
+      // Обновление lock флага (если указан)
+      if (lock !== undefined) {
+        heap[blockPtr + 2] = lock ? 1 : 0
+        allHeapUpdates.push({ offset: blockPtr + 2, value1: lock ? 1 : 0 })
+      }
 
       for (const { fieldIndex, value } of fieldUpdates) {
         // Поиск смещения поля
@@ -411,18 +413,6 @@ export async function update(
         } else {
           allHeapUpdates.push({ offset: fieldOffset, value1: encoded.value1 })
         }
-      }
-    }
-
-    // Этап 1.5: Запись флагов блокировки для указанных бран
-    if (lockedBranes && lockedBranes.length > 0) {
-      for (const braneIndex of lockedBranes) {
-        if (braneIndex < 0 || braneIndex >= braneBlockPtrs.length) {
-          throw new Error(`Brane index out of range: ${braneIndex}`)
-        }
-        const blockPtr = braneBlockPtrs[braneIndex]!
-        // Записываем lock = 1 (3-е слово заголовка)
-        allHeapUpdates.push({ offset: blockPtr + 2, value1: 1 })
       }
     }
 

@@ -19,7 +19,7 @@ const initialStates = await write({
 })
 ```
 
-### `update(updates, lockedBranes?): Promise<[number, number][]>`
+### `update(updates): Promise<[number, number][]>`
 
 ```typescript
 import { update } from "@boundary/fields"
@@ -28,17 +28,23 @@ import { update } from "@boundary/fields"
 await update([[0, [{ fieldIndex: 0, value: 100 }]]])
 
 // С блокировкой переходов
-await update([[0, [{ fieldIndex: 0, value: 100 }]]], [0])
+await update([[0, [{ fieldIndex: 0, value: 100 }], true]])
+
+// Разблокировать
+await update([[0, [{ fieldIndex: 0, value: 100 }], false]])
 ```
 
 ## Блокировка переходов
 
 ```typescript
-// Заблокировать браны на один update()
-await update(updates, [0, 2])
+// Заблокировать брану на один update()
+await update([[0, [{ fieldIndex: 0, value: 100 }], true]])
 
-// Блокировка снимается автоматически
-await update(updates)
+// Lock флаг сохраняется до явной смены
+await update([[0, [{ fieldIndex: 0, value: 100 }]]])  // Всё ещё заблокирована
+
+// Разблокировать
+await update([[0, [{ fieldIndex: 0, value: 100 }], false]])
 ```
 
 ## Тесты

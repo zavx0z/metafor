@@ -535,7 +535,7 @@ describe("write / update — ARRAY поля", () => {
 })
 
 // ============================================================================
-// ТЕСТЫ: Блокировка переходов (lockedBranes)
+// ТЕСТЫ: Блокировка переходов (lock флаг)
 // ============================================================================
 describe("update() с блокировкой переходов", () => {
   afterEach(() => {
@@ -554,13 +554,13 @@ describe("update() с блокировкой переходов", () => {
     })
 
     // Блокируем брану 0
-    const changes = await update([[0, [{ fieldIndex: 0, value: 100 }]]], [0])
+    const changes = await update([[0, [{ fieldIndex: 0, value: 100 }], true]])
 
     // Состояние не изменилось (блокировка)
     expect(changes).toHaveLength(0)
   })
 
-  test("блокировка снимается автоматически", async () => {
+  test("блокировка сохраняется между вызовами", async () => {
     await write({
       fields: [{ type: FieldType.F32 }],
       branes: [{
@@ -571,12 +571,16 @@ describe("update() с блокировкой переходов", () => {
     })
 
     // Update 1: блокировка + изменение поля
-    await update([[0, [{ fieldIndex: 0, value: 100 }]]], [0])
+    await update([[0, [{ fieldIndex: 0, value: 100 }], true]])
 
-    // Update 2: без блокировки — переход должен сработать
+    // Update 2: lock всё ещё установлен — перехода не будет
     const changes = await update([[0, [{ fieldIndex: 0, value: 100 }]]])
 
-    expect(changes).toEqual([[0, 1]])  // Состояние изменилось
+    expect(changes).toHaveLength(0)  // Состояние не изменилось
+
+    // Update 3: разблокировка (FSM проверит переход по текущим данным)
+    const changes2 = await update([[0, [], false]])
+    expect(changes2).toEqual([[0, 1]])
   })
 
   test("поля обновляются даже при блокировке", async () => {
@@ -590,10 +594,10 @@ describe("update() с блокировкой переходов", () => {
     })
 
     // Блокировка + обновление поля
-    await update([[0, [{ fieldIndex: 0, value: 100 }]]], [0])
+    await update([[0, [{ fieldIndex: 0, value: 100 }], true]])
 
-    // Снимаем блокировку — переход по новому значению
-    const changes = await update([])
+    // Разблокировка (FSM проверит переход по текущим данным)
+    const changes = await update([[0, [], false]])
 
     expect(changes).toEqual([[0, 1]])  // 100 > 50 → переход
   })
@@ -608,13 +612,17 @@ describe("update() с блокировкой переходов", () => {
     })
 
     // После write() нет переходов (30 не > 50)
-    // Блокируем только брану 0, обновляем обе до 100
+    // Блокируем брану 0, обновляем обе до 100
     const changes = await update([
-      [0, [{ fieldIndex: 0, value: 100 }]],
-      [1, [{ fieldIndex: 0, value: 100 }]],
-    ], [0])
+      [0, [{ fieldIndex: 0, value: 100 }], true],   // Заблокировать
+      [1, [{ fieldIndex: 0, value: 100 }]],         // Без блокировки
+    ])
 
     expect(changes).toEqual([[1, 1]])  // Только брана 1 изменилась
+
+    // Разблокировать брану 0 (FSM проверит переход)
+    const changes2 = await update([[0, [], false]])
+    expect(changes2).toEqual([[0, 1]])
   })
 
   test("блокировка нескольких бран одновременно", async () => {
@@ -630,12 +638,19 @@ describe("update() с блокировкой переходов", () => {
     // После write() нет переходов (30 не > 50)
     // Блокируем браны 0 и 2, обновляем все до 100
     const changes = await update([
-      [0, [{ fieldIndex: 0, value: 100 }]],
-      [1, [{ fieldIndex: 0, value: 100 }]],
-      [2, [{ fieldIndex: 0, value: 100 }]],
-    ], [0, 2])
+      [0, [{ fieldIndex: 0, value: 100 }], true],   // Заблокировать
+      [1, [{ fieldIndex: 0, value: 100 }]],         // Без блокировки
+      [2, [{ fieldIndex: 0, value: 100 }], true],   // Заблокировать
+    ])
 
     expect(changes).toEqual([[1, 1]])  // Только брана 1 изменилась
+
+    // Разблокировать все (FSM проверит переход)
+    const changes2 = await update([
+      [0, [], false],
+      [2, [], false],
+    ])
+    expect(changes2).toEqual([[0, 1], [2, 1]])
   })
 
   test("блокировка без обновления полей", async () => {
@@ -649,7 +664,7 @@ describe("update() с блокировкой переходов", () => {
     })
 
     // Блокировка без изменения полей
-    const changes = await update([], [0])
+    const changes = await update([[0, [], true]])
 
     // Состояние не изменилось (блокировка)
     expect(changes).toHaveLength(0)

@@ -173,8 +173,8 @@ describe("Monad — Жизненный цикл", () => {
 
     expect(stateChanged).toBe(false)
 
-    // Обновляем hp без блокировки → должен перейти в PATROL
-    await updateMonads([{ id, fields: { hp: 80 } }])
+    // Разблокировка (FSM проверит переход по текущим данным)
+    await updateMonads([{ id, fields: {}, lock: false }])
 
     expect(stateChanged).toBe(true)
   })
@@ -205,55 +205,10 @@ describe("Monad — Жизненный цикл", () => {
 
     expect(stateChanges).toHaveLength(0)
 
-    // Теперь без блокировки → переход по обновлённому значению
-    await updateMonads([{ id, fields: {} }])
+    // Разблокировка (FSM проверит переход по текущим данным)
+    await updateMonads([{ id, fields: {}, lock: false }])
 
     expect(stateChanges).toEqual(["PATROL"])
-  })
-
-  it("должен обновлять несколько монад за один вызов", async () => {
-    const stateChanges: Map<string, string> = new Map()
-
-    onStateChange((id, __, current) => {
-      stateChanges.set(id, current)
-    })
-
-    const id1 = createMonad({
-      fields: { hp: { type: "number" } },
-      params: { hp: 30 },
-      state: "IDLE",
-      superposition: {
-        IDLE: { PATROL: { hp: { gt: 50 } } },
-        PATROL: null,
-      },
-      actions: {},
-    })
-    _createdMonadIds.push(id1)
-
-    const id2 = createMonad({
-      fields: { mana: { type: "number" } },
-      params: { mana: 30 },
-      state: "IDLE",
-      superposition: {
-        IDLE: { COMBAT: { mana: { gt: 50 } } },
-        COMBAT: null,
-      },
-      actions: {},
-    })
-    _createdMonadIds.push(id2)
-
-    await updateBoundary()
-
-    // Обновляем обе монады: id1 с блокировкой, id2 без
-    await updateMonads([
-      { id: id1, fields: { hp: 80 }, lock: true },
-      { id: id2, fields: { mana: 80 } },
-    ])
-
-    // id1 заблокирован → нет изменений
-    // id2 разблокирован → переход в COMBAT
-    expect(stateChanges.get(id1)).toBeUndefined()
-    expect(stateChanges.get(id2)).toBe("COMBAT")
   })
 
   it("должен разблокировать монаду без изменения полей", async () => {
@@ -281,8 +236,9 @@ describe("Monad — Жизненный цикл", () => {
     await updateMonads([{ id, fields: { hp: 80 }, lock: true }])
     expect(stateChanges).toHaveLength(0)
 
-    // Разблокируем без изменения полей (fields: {})
-    await updateMonads([{ id, fields: {} }])
+    // Разблокировка (FSM проверит переход по текущим данным)
+    await updateMonads([{ id, fields: {}, lock: false }])
+
     expect(stateChanges).toEqual(["PATROL"])
   })
 })

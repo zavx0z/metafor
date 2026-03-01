@@ -527,11 +527,9 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
   // Получаем указатель на блок браны
   let block_ptr = brane_descriptors[idx * 2u];
 
-  // Проверка флага блокировки (3-е слово заголовка, после local_count и entangled_count)
+  // Проверка флага блокировки (3-е слово заголовка)
   let lock = heap_safe(block_ptr + 2u);
   if (lock == 1u) {
-    // Сброс флага для следующего update()
-    heap[block_ptr + 2u] = 0u;
     return;  // Пропустить переходы, состояние не менять
   }
 

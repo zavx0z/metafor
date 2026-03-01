@@ -4,20 +4,32 @@
 
 ## API
 
-### `serializeMatrix(state): string`
+### `serializeMatrix(state): Uint8Array`
 
 ```typescript
 import { serializeMatrix } from "@boundary/dump"
 
-const json = serializeMatrix(state)
+const data = serializeMatrix(state)
 ```
 
-### `deserializeMatrix(json): MatrixState`
+### `deserializeMatrix(data): MatrixState`
 
 ```typescript
 import { deserializeMatrix } from "@boundary/dump"
 
-const state = deserializeMatrix(json)
+const state = deserializeMatrix(data)
+```
+
+## Пример
+
+```typescript
+import { serializeMatrix, deserializeMatrix } from "@boundary/dump"
+
+// Сохранение
+const data = serializeMatrix(state)
+
+// Восстановление (lock флаги восстанавливаются автоматически)
+const restored = deserializeMatrix(data)
 ```
 
 ## Тесты

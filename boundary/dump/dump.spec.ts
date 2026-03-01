@@ -110,4 +110,37 @@ describe("serializeMatrix / deserializeMatrix", () => {
     expect(deserialized.bytecode).toEqual(state.bytecode)
     expect(deserialized.metadata.braneBlockPtrs).toEqual(state.metadata.braneBlockPtrs)
   })
+
+  test("должен сохранять lock флаги при сериализации", () => {
+    // heap с 2 бранами: брана 0 заблокирована (lock=1), брана 1 разблокирована (lock=0)
+    const state: MatrixState = {
+      heap: new Uint32Array([
+        // Brane 0: local=1, entangled=0, lock=1
+        1, 0, 1, 0, 0x00010004, 100,
+        // Brane 1: local=1, entangled=0, lock=0
+        1, 0, 0, 0, 0x00010004, 200,
+      ]),
+      bytecode: new Uint32Array([1, 2, 3]),
+      bytecodeOffsets: new Uint32Array([0]),
+      states: new Uint32Array([0, 1]),
+      stringRegistry: new Uint32Array([]),
+      stringHeap: new Uint32Array([]),
+      fields: [{ type: 0 as const }],
+      metadata: {
+        arrayReserveSize: 0,
+        heapAllocOffset: 0,
+        braneBlockPtrs: [0, 6],
+      },
+    }
+
+    // Сериализовать
+    const serialized = serializeMatrix(state)
+
+    // Десериализовать
+    const deserialized = deserializeMatrix(serialized)
+
+    // Проверить lock флаги
+    expect(deserialized.heap[2]).toBe(1)   // Brane 0: lock=1
+    expect(deserialized.heap[8]).toBe(0)   // Brane 1: lock=0
+  })
 })
