@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach } from "bun:test"
 import {
   createMonad,
-  updateMonad,
+  updateMonads,
   updateBoundary,
   onStateChange,
   _resetState,
-} from "../../src/monad"
+} from "../../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 
@@ -45,7 +45,7 @@ describe("Monad — Enum переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { status: "active" })
+      await updateMonads([{ id: id, fields: { status: "active" } }])
 
       expect(resultStates).toEqual(["ACTIVE"])
     })
@@ -67,7 +67,7 @@ describe("Monad — Enum переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { status: "paused" })
+      await updateMonads([{ id: id, fields: { status: "paused" } }])
 
       expect(resultStates).toEqual([])
     })
@@ -91,7 +91,7 @@ describe("Monad — Enum переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { status: "active" })
+      await updateMonads([{ id: id, fields: { status: "active" } }])
 
       expect(resultStates).toEqual(["CHANGED"])
     })
@@ -115,7 +115,7 @@ describe("Monad — Enum переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { status: "paused" })
+      await updateMonads([{ id: id, fields: { status: "paused" } }])
 
       expect(resultStates).toEqual(["NOT_IDLE"])
     })
@@ -137,7 +137,7 @@ describe("Monad — Enum переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { status: "idle" })
+      await updateMonads([{ id: id, fields: { status: "idle" } }])
 
       expect(resultStates).toEqual([])
     })
@@ -161,7 +161,7 @@ describe("Monad — Enum переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { role: "ally" })
+      await updateMonads([{ id: id, fields: { role: "ally" } }])
 
       expect(resultStates).toEqual(["ALLY"])
     })
@@ -185,7 +185,7 @@ describe("Monad — Enum переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { priority: "high" })
+      await updateMonads([{ id: id, fields: { priority: "high" } }])
 
       expect(resultStates).toEqual(["URGENT"])
     })
@@ -207,7 +207,7 @@ describe("Monad — Enum переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { priority: "low" })
+      await updateMonads([{ id: id, fields: { priority: "low" } }])
 
       expect(resultStates).toEqual([])
     })

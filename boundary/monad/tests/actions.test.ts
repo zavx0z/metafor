@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeAll, afterEach } from "bun:test"
 import {
   createMonad,
-  updateMonad,
+  updateMonads,
   updateBoundary,
   _resetState,
-} from "../src/monad"
+} from "../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 
@@ -42,7 +42,7 @@ describe("Monad — Действия (actions)", () => {
     _createdMonadIds.push(id)
 
     await updateBoundary()
-    await updateMonad(id, { hp: 80 })
+    await updateMonads([{ id: id, fields: { hp: 80 } }])
 
     expect(executedActions).toEqual(["PATROL"])
     expect(actionParams[0]).toEqual({ hp: 80 })
@@ -68,7 +68,7 @@ describe("Monad — Действия (actions)", () => {
     _createdMonadIds.push(id)
 
     await updateBoundary()
-    await updateMonad(id, { hp: 80, mana: 30 })
+    await updateMonads([{ id: id, fields: { hp: 80, mana: 30 } }])
 
     expect(capturedParams).toEqual({ hp: 80, mana: 30 })
   })
@@ -101,15 +101,15 @@ describe("Monad — Действия (actions)", () => {
     await updateBoundary()
 
     // hp=100 > 50 → PATROL
-    await updateMonad(id, { hp: 100 })
+    await updateMonads([{ id: id, fields: { hp: 100 } }])
     expect(executedActions).toEqual(["PATROL"])
 
     // hp=15 <= 20 → IDLE
-    await updateMonad(id, { hp: 15 })
+    await updateMonads([{ id: id, fields: { hp: 15 } }])
     expect(executedActions).toEqual(["PATROL", "IDLE"])
 
     // hp=0 <= 0 → DEAD
-    await updateMonad(id, { hp: 0 })
+    await updateMonads([{ id: id, fields: { hp: 0 } }])
     expect(executedActions).toEqual(["PATROL", "IDLE", "DEAD"])
   })
 
@@ -135,11 +135,11 @@ describe("Monad — Действия (actions)", () => {
     await updateBoundary()
 
     // Переход в PATROL
-    await updateMonad(id, { hp: 80 })
+    await updateMonads([{ id: id, fields: { hp: 80 } }])
     expect(actionCallCount).toBe(1)
 
     // Остаётся в PATROL (action не должен выполниться снова)
-    await updateMonad(id, { hp: 90 })
+    await updateMonads([{ id: id, fields: { hp: 90 } }])
     expect(actionCallCount).toBe(1)
   })
 
@@ -167,15 +167,15 @@ describe("Monad — Действия (actions)", () => {
     await updateBoundary()
 
     // hp=100>80 → PATROL
-    await updateMonad(id, { hp: 100 })
+    await updateMonads([{ id: id, fields: { hp: 100 } }])
     expect(executedActions).toEqual(["PATROL"])
 
     // mana=10<20 → COMBAT
-    await updateMonad(id, { mana: 10 })
+    await updateMonads([{ id: id, fields: { mana: 10 } }])
     expect(executedActions).toEqual(["PATROL", "COMBAT"])
 
     // hp=0<=0 → DEAD
-    await updateMonad(id, { hp: 0 })
+    await updateMonads([{ id: id, fields: { hp: 0 } }])
     expect(executedActions).toEqual(["PATROL", "COMBAT", "DEAD"])
   })
 })

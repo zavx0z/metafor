@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach } from "bun:test"
 import {
   createMonad,
-  updateMonad,
+  updateMonads,
   updateBoundary,
   onStateChange,
   _resetState,
-} from "../../src/monad"
+} from "../../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 
@@ -45,7 +45,7 @@ describe("Monad — Булевы переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { isAlive: true })
+      await updateMonads([{ id: id, fields: { isAlive: true } }])
 
       expect(resultStates).toEqual(["ACTIVE"])
     })
@@ -67,7 +67,7 @@ describe("Monad — Булевы переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { isActive: false })
+      await updateMonads([{ id: id, fields: { isActive: false } }])
 
       expect(resultStates).toEqual(["INACTIVE"])
     })
@@ -91,7 +91,7 @@ describe("Monad — Булевы переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { isConnected: true })
+      await updateMonads([{ id: id, fields: { isConnected: true } }])
 
       expect(resultStates).toEqual(["CONNECTED"])
     })
@@ -113,7 +113,7 @@ describe("Monad — Булевы переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { isConnected: false })
+      await updateMonads([{ id: id, fields: { isConnected: false } }])
 
       expect(resultStates).toEqual(["DISCONNECTED"])
     })
@@ -137,7 +137,7 @@ describe("Monad — Булевы переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { isEnabled: false })
+      await updateMonads([{ id: id, fields: { isEnabled: false } }])
 
       expect(resultStates).toEqual(["DISABLED"])
     })
@@ -159,7 +159,7 @@ describe("Monad — Булевы переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { isEnabled: true })
+      await updateMonads([{ id: id, fields: { isEnabled: true } }])
 
       expect(resultStates).toEqual(["ENABLED"])
     })

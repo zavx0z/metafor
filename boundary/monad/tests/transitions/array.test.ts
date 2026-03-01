@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach } from "bun:test"
 import {
   createMonad,
-  updateMonad,
+  updateMonads,
   updateBoundary,
   onStateChange,
   _resetState,
-} from "../../src/monad"
+} from "../../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 
@@ -47,11 +47,11 @@ describe("Monad — Array переходы", () => {
       await updateBoundary()
 
       // tags=[] → не переходит
-      await updateMonad(id, { tags: [] })
+      await updateMonads([{ id: id, fields: { tags: [] } }])
       expect(resultStates).toEqual([])
 
       // tags=['urgent'] → переходит
-      await updateMonad(id, { tags: ["urgent", "important"] })
+      await updateMonads([{ id: id, fields: { tags: ["urgent", "important"] } }])
       expect(resultStates).toEqual(["URGENT"])
     })
 
@@ -72,7 +72,7 @@ describe("Monad — Array переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { numbers: [1, 5, 10] })
+      await updateMonads([{ id: id, fields: { numbers: [1, 5, 10] } }])
 
       expect(resultStates).toEqual(["FOUND"])
     })
@@ -94,7 +94,7 @@ describe("Monad — Array переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { numbers: [1, 2, 3] })
+      await updateMonads([{ id: id, fields: { numbers: [1, 2, 3] } }])
 
       expect(resultStates).toEqual([])
     })
@@ -120,7 +120,7 @@ describe("Monad — Array переходы", () => {
       await updateBoundary()
 
       // tags=['active'] → переходит (не содержит 'blocked')
-      await updateMonad(id, { tags: ["active"] })
+      await updateMonads([{ id: id, fields: { tags: ["active"] } }])
       expect(resultStates).toEqual(["ALLOWED"])
     })
 
@@ -166,11 +166,11 @@ describe("Monad — Array переходы", () => {
       await updateBoundary()
 
       // tags.length=2 → не переходит
-      await updateMonad(id, { tags: ["a", "b"] })
+      await updateMonads([{ id: id, fields: { tags: ["a", "b"] } }])
       expect(resultStates).toEqual([])
 
       // tags.length=3 → переходит
-      await updateMonad(id, { tags: ["a", "b", "c"] })
+      await updateMonads([{ id: id, fields: { tags: ["a", "b", "c"] } }])
       expect(resultStates).toEqual(["MANY"])
     })
 
@@ -191,7 +191,7 @@ describe("Monad — Array переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { tags: ["a", "b", "c", "d"] })
+      await updateMonads([{ id: id, fields: { tags: ["a", "b", "c", "d"] } }])
 
       expect(resultStates).toEqual(["MANY"])
     })
@@ -213,7 +213,7 @@ describe("Monad — Array переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { tags: ["a", "b"] })
+      await updateMonads([{ id: id, fields: { tags: ["a", "b"] } }])
 
       expect(resultStates).toEqual(["SOME"])
     })
@@ -235,7 +235,7 @@ describe("Monad — Array переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { tags: ["a"] })
+      await updateMonads([{ id: id, fields: { tags: ["a"] } }])
 
       expect(resultStates).toEqual(["FEW"])
     })
@@ -257,7 +257,7 @@ describe("Monad — Array переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { tags: ["a", "b"] })
+      await updateMonads([{ id: id, fields: { tags: ["a", "b"] } }])
 
       expect(resultStates).toEqual(["FEW"])
     })
@@ -281,7 +281,7 @@ describe("Monad — Array переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { tags: [] })
+      await updateMonads([{ id: id, fields: { tags: [] } }])
 
       expect(resultStates).toEqual(["EMPTY"])
     })
@@ -303,7 +303,7 @@ describe("Monad — Array переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { tags: ["a"] })
+      await updateMonads([{ id: id, fields: { tags: ["a"] } }])
 
       expect(resultStates).toEqual(["HAS_ITEMS"])
     })
@@ -331,11 +331,11 @@ describe("Monad — Array переходы", () => {
       await updateBoundary()
 
       // tags.length=3, но нет 'urgent' → не переходит
-      await updateMonad(id, { tags: ["a", "b", "c"] })
+      await updateMonads([{ id: id, fields: { tags: ["a", "b", "c"] } }])
       expect(resultStates).toEqual([])
 
       // tags.length=3 И есть 'urgent' → переходит
-      await updateMonad(id, { tags: ["urgent", "b", "c"] })
+      await updateMonads([{ id: id, fields: { tags: ["urgent", "b", "c"] } }])
       expect(resultStates).toEqual(["CRITICAL"])
     })
   })

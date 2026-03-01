@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach } from "bun:test"
 import {
   createMonad,
-  updateMonad,
+  updateMonads,
   updateBoundary,
   onStateChange,
   _resetState,
-} from "../../src/monad"
+} from "../../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 
@@ -45,7 +45,7 @@ describe("Monad — Числовые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { hp: 80 })
+      await updateMonads([{ id: id, fields: { hp: 80 } }])
 
       expect(resultStates).toEqual(["PATROL"])
     })
@@ -67,7 +67,7 @@ describe("Monad — Числовые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { hp: 50 })
+      await updateMonads([{ id: id, fields: { hp: 50 } }])
 
       expect(resultStates).toEqual([])
     })
@@ -91,7 +91,7 @@ describe("Monad — Числовые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { hp: 50 })
+      await updateMonads([{ id: id, fields: { hp: 50 } }])
 
       expect(resultStates).toEqual(["PATROL"])
     })
@@ -113,7 +113,7 @@ describe("Monad — Числовые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { hp: 49 })
+      await updateMonads([{ id: id, fields: { hp: 49 } }])
 
       expect(resultStates).toEqual([])
     })
@@ -137,7 +137,7 @@ describe("Monad — Числовые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { hp: 20 })
+      await updateMonads([{ id: id, fields: { hp: 20 } }])
 
       expect(resultStates).toEqual(["WEAK"])
     })
@@ -159,7 +159,7 @@ describe("Monad — Числовые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { hp: 30 })
+      await updateMonads([{ id: id, fields: { hp: 30 } }])
 
       expect(resultStates).toEqual([])
     })
@@ -183,7 +183,7 @@ describe("Monad — Числовые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { hp: 30 })
+      await updateMonads([{ id: id, fields: { hp: 30 } }])
 
       expect(resultStates).toEqual(["WEAK"])
     })
@@ -205,7 +205,7 @@ describe("Monad — Числовые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { hp: 31 })
+      await updateMonads([{ id: id, fields: { hp: 31 } }])
 
       expect(resultStates).toEqual([])
     })
@@ -229,7 +229,7 @@ describe("Monad — Числовые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { hp: 50 })
+      await updateMonads([{ id: id, fields: { hp: 50 } }])
 
       expect(resultStates).toEqual(["CRITICAL"])
     })
@@ -251,7 +251,7 @@ describe("Monad — Числовые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { hp: 51 })
+      await updateMonads([{ id: id, fields: { hp: 51 } }])
 
       expect(resultStates).toEqual([])
     })
@@ -275,7 +275,7 @@ describe("Monad — Числовые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { hp: 80 })
+      await updateMonads([{ id: id, fields: { hp: 80 } }])
 
       expect(resultStates).toEqual(["CHANGED"])
     })
@@ -297,7 +297,7 @@ describe("Monad — Числовые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { hp: 100 })
+      await updateMonads([{ id: id, fields: { hp: 100 } }])
 
       expect(resultStates).toEqual([])
     })

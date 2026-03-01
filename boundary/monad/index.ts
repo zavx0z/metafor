@@ -7,14 +7,13 @@
 export {
   createMonad,
   deleteMonad,
-  updateMonad,
   updateMonads,
   updateBoundary,
   onStateChange,
-} from "./src/monad"
+} from "./monad"
 
-export type { MonadConfig } from "./src/types"
-export type { Brane, Action, Update, Actions } from "./src/types"
+export type { MonadConfig } from "./types"
+export type { Brane, Action, Update, Actions } from "./types"
 export type {
   MonadId,
   FieldsStore,
@@ -24,8 +23,8 @@ export type {
   StatesStore,
   UuidToIndexStore,
   IndexToUuidStore,
-} from "./src/monad.t"
-export { convertField } from "./src/field"
+} from "./monad.t"
+export { convertField } from "./field"
 export type { Field, FieldType, BraneParamValue } from "@boundary/fields"
-export type { FieldDefinition, FieldsDefinition } from "./src/field"
-export type { MonadUpdate } from "./src/monad"
+export type { FieldDefinition, FieldsDefinition } from "./field"
+export type { MonadUpdate } from "./monad"

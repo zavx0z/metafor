@@ -303,7 +303,11 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<void> {
     })
 
     // Добавляем обновление: [braneIndex, fieldUpdates, lock?]
-    allUpdates.push([index, fieldUpdates, lock])
+    if (lock !== undefined) {
+      allUpdates.push([index, fieldUpdates, lock])
+    } else {
+      allUpdates.push([index, fieldUpdates])
+    }
   }
 
   // Вызываем @boundary/fields/update()
@@ -332,14 +336,6 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<void> {
       _onStateChange.current?.(monadId, old, current)
     }
   })
-}
-
-/**
- * @deprecated Используйте {@link updateMonads} вместо updateMonad.
- * Обновляет поля одной монады.
- */
-export async function updateMonad(id: MonadId, fields: Record<string, unknown>, locked?: boolean): Promise<void> {
-  await updateMonads([{ id, fields, lock: locked }])
 }
 
 /**

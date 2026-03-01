@@ -3,8 +3,7 @@
  *
  * @packageDocumentation
  */
-
-import type { Field, Data, Collapse } from "@boundary/fields"
+import type { Actions, Superposition } from "./types"
 
 /**
  * Индекс браны в Boundary (позиция в массиве).
@@ -35,7 +34,6 @@ export interface Transition {
   to: number
   conditions: Record<number, any>
 }
-import type { Actions, Superposition } from "./types"
 
 /**
  * Уникальный идентификатор монады (UUID v4).

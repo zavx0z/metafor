@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach } from "bun:test"
 import {
   createMonad,
-  updateMonad,
+  updateMonads,
   updateBoundary,
   onStateChange,
   _resetState,
-} from "../../src/monad"
+} from "../../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 
@@ -52,11 +52,11 @@ describe("Monad — Смешанные переходы", () => {
       await updateBoundary()
 
       // hp=100>50, isAlive=false → не переходит
-      await updateMonad(id, { hp: 100, isAlive: false })
+      await updateMonads([{ id: id, fields: { hp: 100, isAlive: false } }])
       expect(resultStates).toEqual([])
 
       // hp=100>50, isAlive=true → переходит
-      await updateMonad(id, { isAlive: true })
+      await updateMonads([{ id: id, fields: { isAlive: true } }])
       expect(resultStates).toEqual(["COMBAT"])
     })
 
@@ -83,7 +83,7 @@ describe("Monad — Смешанные переходы", () => {
       await updateBoundary()
 
       // isAlive=false → UNCONSCIOUS (первый переход)
-      await updateMonad(id, { isAlive: false })
+      await updateMonads([{ id: id, fields: { isAlive: false } }])
       expect(resultStates).toEqual(["UNCONSCIOUS"])
     })
   })
@@ -113,11 +113,11 @@ describe("Monad — Смешанные переходы", () => {
       await updateBoundary()
 
       // hp=100>50, command="defend" → не переходит
-      await updateMonad(id, { command: "defend" })
+      await updateMonads([{ id: id, fields: { command: "defend" } }])
       expect(resultStates).toEqual([])
 
       // hp=100>50, command="attack" → переходит
-      await updateMonad(id, { command: "attack" })
+      await updateMonads([{ id: id, fields: { command: "attack" } }])
       expect(resultStates).toEqual(["ATTACK"])
     })
 
@@ -145,11 +145,11 @@ describe("Monad — Смешанные переходы", () => {
       await updateBoundary()
 
       // hp=90>80, role="healer" → не переходит
-      await updateMonad(id, { hp: 90, role: "healer" })
+      await updateMonads([{ id: id, fields: { hp: 90, role: "healer" } }])
       expect(resultStates).toEqual([])
 
       // hp=90>80, role="mage" → переходит
-      await updateMonad(id, { role: "mage" })
+      await updateMonads([{ id: id, fields: { role: "mage" } }])
       expect(resultStates).toEqual(["READY"])
     })
   })
@@ -179,11 +179,11 @@ describe("Monad — Смешанные переходы", () => {
       await updateBoundary()
 
       // isConnected=true, status="pending" → не переходит
-      await updateMonad(id, { isConnected: true, status: "pending" })
+      await updateMonads([{ id: id, fields: { isConnected: true, status: "pending" } }])
       expect(resultStates).toEqual([])
 
       // isConnected=true, status="ready" → переходит
-      await updateMonad(id, { status: "ready" })
+      await updateMonads([{ id: id, fields: { status: "ready" } }])
       expect(resultStates).toEqual(["CONNECTED"])
     })
   })
@@ -221,7 +221,7 @@ describe("Monad — Смешанные переходы", () => {
       expect(resultStates).toEqual([])
 
       // hp=100>50, isAlive=true, command="fight" → переходит
-      await updateMonad(id, { command: "fight" })
+      await updateMonads([{ id: id, fields: { command: "fight" } }])
       expect(resultStates).toEqual(["COMBAT"])
     })
 
@@ -254,7 +254,7 @@ describe("Monad — Смешанные переходы", () => {
       await updateBoundary()
 
       // hp=0<=0 → DEAD (первый переход)
-      await updateMonad(id, { hp: 0 })
+      await updateMonads([{ id: id, fields: { hp: 0 } }])
       expect(resultStates).toEqual(["DEAD"])
     })
   })

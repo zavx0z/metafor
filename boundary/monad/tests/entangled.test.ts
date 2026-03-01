@@ -1,10 +1,10 @@
 import { describe, it, expect, beforeAll, afterEach } from "bun:test"
 import {
   createMonad,
-  updateMonad,
+  updateMonads,
   updateBoundary,
   _resetState,
-} from "../src/monad"
+} from "../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 
@@ -140,7 +140,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
 
       // isAlive=true в shared блоке, hp=100 локальное
       // Обновляем локальное hp → переход в PATROL
-      await updateMonad(id1, { hp: 80 })
+      await updateMonads([{ id: id1, fields: { hp: 80 } }])
 
       // Проверяем что action получил правильные params (включая shared isAlive)
       expect(capturedParams.length).toBe(1)
@@ -176,10 +176,10 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       // mana должно быть локальным для каждой монады
 
       // Обновляем mana у первой монады (не переходит, mana=60 не < 30)
-      await updateMonad(id1, { mana: 60 })
+      await updateMonads([{ id: id1, fields: { mana: 60 } }])
 
       // Обновляем mana у второй монады (переходит, mana=5 < 30)
-      await updateMonad(id2, { mana: 5 })
+      await updateMonads([{ id: id2, fields: { mana: 5 } }])
     })
   })
 
@@ -216,7 +216,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       await updateBoundary()
 
       // mana=60 > 40 → переход в PATROL (только монада 1)
-      await updateMonad(id1, { mana: 60 })
+      await updateMonads([{ id: id1, fields: { mana: 60 } }])
 
       // Проверяем что action получил правильные params (включая shared isAlive, role)
       expect(capturedParams.length).toBe(1)
@@ -257,7 +257,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       await updateBoundary()
 
       // mana=60 > 40 → переход в PATROL
-      await updateMonad(id1, { mana: 60 })
+      await updateMonads([{ id: id1, fields: { mana: 60 } }])
       // mana=5 не > 40 → нет перехода
 
       // Проверяем что action получил shared hp и локальное mana
@@ -327,13 +327,13 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       // Монада 3: все поля локальные (отличаются)
 
       // Обновляем mana у всех трёх
-      await updateMonad(id1, { mana: 60 })
-      await updateMonad(id2, { mana: 40 })
-      await updateMonad(id3, { mana: 80 })
+      await updateMonads([{ id: id1, fields: { mana: 60 } }])
+      await updateMonads([{ id: id2, fields: { mana: 40 } }])
+      await updateMonads([{ id: id3, fields: { mana: 80 } }])
     })
   })
 
-  describe("Интеграция с updateMonad", () => {
+  describe("Интеграция с updateMonads", () => {
     it("должен корректно обновлять локальные поля", async () => {
       const id1 = createMonad({
         fields: { hp: { type: "number" }, mana: { type: "number" } },
@@ -360,8 +360,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       await updateBoundary()
 
       // mana локальное для каждой монады
-      await updateMonad(id1, { mana: 60 })
-      await updateMonad(id2, { mana: 5 })
+      await updateMonads([{ id: id1, fields: { mana: 60 } }])
+      await updateMonads([{ id: id2, fields: { mana: 5 } }])
 
       // hp shared, но используется только для условий
     })

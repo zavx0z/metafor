@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach } from "bun:test"
 import {
   createMonad,
-  updateMonad,
+  updateMonads,
   updateBoundary,
   onStateChange,
   _resetState,
-} from "../../src/monad"
+} from "../../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 
@@ -45,7 +45,7 @@ describe("Monad — Строковые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { command: "attack" })
+      await updateMonads([{ id: id, fields: { command: "attack" } }])
 
       expect(resultStates).toEqual(["ATTACK"])
     })
@@ -67,7 +67,7 @@ describe("Monad — Строковые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { command: "defend" })
+      await updateMonads([{ id: id, fields: { command: "defend" } }])
 
       expect(resultStates).toEqual([])
     })
@@ -91,7 +91,7 @@ describe("Monad — Строковые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { status: "critical" })
+      await updateMonads([{ id: id, fields: { status: "critical" } }])
 
       expect(resultStates).toEqual(["ABNORMAL"])
     })
@@ -113,7 +113,7 @@ describe("Monad — Строковые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { status: "normal" })
+      await updateMonads([{ id: id, fields: { status: "normal" } }])
 
       expect(resultStates).toEqual([])
     })
@@ -137,7 +137,7 @@ describe("Monad — Строковые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { color: "red" })
+      await updateMonads([{ id: id, fields: { color: "red" } }])
 
       expect(resultStates).toEqual(["ACTIVE"])
     })
@@ -159,7 +159,7 @@ describe("Monad — Строковые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { color: "blue" })
+      await updateMonads([{ id: id, fields: { color: "blue" } }])
 
       expect(resultStates).toEqual([])
     })
@@ -183,7 +183,7 @@ describe("Monad — Строковые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { role: "ally" })
+      await updateMonads([{ id: id, fields: { role: "ally" } }])
 
       expect(resultStates).toEqual(["ALLY"])
     })
@@ -205,7 +205,7 @@ describe("Monad — Строковые переходы", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { role: "enemy" })
+      await updateMonads([{ id: id, fields: { role: "enemy" } }])
 
       expect(resultStates).toEqual([])
     })

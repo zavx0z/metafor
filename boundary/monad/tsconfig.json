@@ -5,7 +5,7 @@
     "tests/**/*",
     "space/**/*",
     "index.ts"
-  ],
+, "field.ts", "monad.ts", "superposition.ts", "types.ts", "monad.t.ts"  ],
   "exclude": [
     "node_modules",
     "dist"

@@ -1,11 +1,11 @@
 import { describe, it, expect, beforeAll, afterEach } from "bun:test"
 import {
   createMonad,
-  updateMonad,
+  updateMonads,
   updateBoundary,
   onStateChange,
   _resetState,
-} from "../src/monad"
+} from "../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 
@@ -45,7 +45,7 @@ describe("Monad — Граничные случаи", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { hp: 50 })
+      await updateMonads([{ id: id, fields: { hp: 50 } }])
 
       expect(resultStates).toEqual(["PATROL"])
     })
@@ -67,7 +67,7 @@ describe("Monad — Граничные случаи", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { hp: 0 })
+      await updateMonads([{ id: id, fields: { hp: 0 } }])
 
       expect(resultStates).toEqual(["DEAD"])
     })
@@ -91,7 +91,7 @@ describe("Monad — Граничные случаи", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { temperature: -10 })
+      await updateMonads([{ id: id, fields: { temperature: -10 } }])
 
       expect(resultStates).toEqual(["COLD"])
     })
@@ -113,7 +113,7 @@ describe("Monad — Граничные случаи", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { temperature: -273 })
+      await updateMonads([{ id: id, fields: { temperature: -273 } }])
 
       expect(resultStates).toEqual(["ABSOLUTE_ZERO"])
     })
@@ -137,7 +137,7 @@ describe("Monad — Граничные случаи", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { health: 50.4 })
+      await updateMonads([{ id: id, fields: { health: 50.4 } }])
 
       expect(resultStates).toEqual(["WEAK"])
     })
@@ -159,7 +159,7 @@ describe("Monad — Граничные случаи", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { health: 99.9 })
+      await updateMonads([{ id: id, fields: { health: 99.9 } }])
 
       expect(resultStates).toEqual(["CRITICAL"])
     })
@@ -183,7 +183,7 @@ describe("Monad — Граничные случаи", () => {
       _createdMonadIds.push(id)
 
       await updateBoundary()
-      await updateMonad(id, { command: "" })
+      await updateMonads([{ id: id, fields: { command: "" } }])
 
       expect(resultStates).toEqual(["IDLE"])
     })
@@ -207,11 +207,11 @@ describe("Monad — Граничные случаи", () => {
       await updateBoundary()
 
       // message="" → не переходит
-      await updateMonad(id, { message: "" })
+      await updateMonads([{ id: id, fields: { message: "" } }])
       expect(resultStates).toEqual([])
 
       // message="ready" → переходит
-      await updateMonad(id, { message: "ready" })
+      await updateMonads([{ id: id, fields: { message: "ready" } }])
       expect(resultStates).toEqual(["PROCESSING"])
     })
   })
@@ -236,11 +236,11 @@ describe("Monad — Граничные случаи", () => {
       await updateBoundary()
 
       // Переход в DEAD
-      await updateMonad(id, { hp: 0 })
+      await updateMonads([{ id: id, fields: { hp: 0 } }])
       expect(resultStates).toEqual(["DEAD"])
 
       // Попытка перехода из DEAD (должен остаться в DEAD)
-      await updateMonad(id, { hp: 100 })
+      await updateMonads([{ id: id, fields: { hp: 100 } }])
       expect(resultStates).toEqual(["DEAD"])
     })
 
@@ -267,11 +267,11 @@ describe("Monad — Граничные случаи", () => {
       await updateBoundary()
 
       // Переход в VICTORY
-      await updateMonad(id, { hp: 100 })
+      await updateMonads([{ id: id, fields: { hp: 100 } }])
       expect(resultStates).toEqual(["VICTORY"])
 
       // Остаётся в VICTORY
-      await updateMonad(id, { hp: 0 })
+      await updateMonads([{ id: id, fields: { hp: 0 } }])
       expect(resultStates).toEqual(["VICTORY"])
     })
   })

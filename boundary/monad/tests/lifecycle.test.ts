@@ -2,12 +2,12 @@ import { describe, it, expect, beforeAll, afterEach } from "bun:test"
 import {
   createMonad,
   deleteMonad,
-  updateMonad,
+  updateMonads,
   updateMonads,
   updateBoundary,
   onStateChange,
   _resetState,
-} from "../src/monad"
+} from "../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 
@@ -52,7 +52,7 @@ describe("Monad — Жизненный цикл", () => {
     expect(stateChanged).toBe(false)
 
     // Обновляем hp → должен перейти в PATROL
-    await updateMonad(id, { hp: 80 })
+    await updateMonads([{ id: id, fields: { hp: 80 } }])
 
     expect(stateChanged).toBe(true)
     expect(oldState).toBe("IDLE")
@@ -102,10 +102,10 @@ describe("Monad — Жизненный цикл", () => {
     await updateBoundary()
 
     // Обновляем первую монаду → PATROL
-    await updateMonad(id1, { hp: 80 })
+    await updateMonads([{ id: id1, fields: { hp: 80 } }])
 
     // Обновляем вторую монаду → остаётся IDLE (hp=30 не <= 0)
-    await updateMonad(id2, { hp: 30 })
+    await updateMonads([{ id: id2, fields: { hp: 30 } }])
 
     expect(states1).toEqual(["PATROL"])
     expect(states2).toEqual([])
@@ -140,8 +140,8 @@ describe("Monad — Жизненный цикл", () => {
 
     await updateBoundary()
 
-    await updateMonad(id1, { hp1: 80 })
-    await updateMonad(id2, { hp2: 80 })
+    await updateMonads([{ id: id1, fields: { hp1: 80 } }])
+    await updateMonads([{ id: id2, fields: { hp2: 80 } }])
 
     expect(callbackCounts.get(id1)).toBe(1)
     expect(callbackCounts.get(id2)).toBe(1)
