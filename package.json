@@ -6,6 +6,7 @@
   "private": true,
   "workspaces": [
     "boundary/*",
+    "force/*",
     "dsl/*",
     "zavx0z/*",
     "fixture",

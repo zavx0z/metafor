@@ -119,6 +119,42 @@
         "typescript": "^5",
       },
     },
+    "force/em": {
+      "name": "@force/em",
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "force/gravity": {
+      "name": "@force/gravity",
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "force/strong": {
+      "name": "@force/strong",
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "force/weak": {
+      "name": "@force/weak",
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
     "zavx0z/git": {
       "name": "@zavx0z/git",
       "version": "0.1.0",
@@ -295,6 +331,14 @@
     "@boundary/monad": ["@boundary/monad@workspace:boundary/monad"],
 
     "@bulk/gravity": ["@bulk/gravity@workspace:bulk/gravity"],
+
+    "@force/em": ["@force/em@workspace:force/em"],
+
+    "@force/gravity": ["@force/gravity@workspace:force/gravity"],
+
+    "@force/strong": ["@force/strong@workspace:force/strong"],
+
+    "@force/weak": ["@force/weak@workspace:force/weak"],
 
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.22.0", "https://registry.yarnpkg.com/@gerrit0/mini-shiki/-/mini-shiki-3.22.0.tgz", { "dependencies": { "@shikijs/engine-oniguruma": "^3.22.0", "@shikijs/langs": "^3.22.0", "@shikijs/themes": "^3.22.0", "@shikijs/types": "^3.22.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-jMpciqEVUBKE1QwU64S4saNMzpsSza6diNCk4MWAeCxO2+LFi2FIFmL2S0VDLzEJCxuvCbU783xi8Hp/gkM5CQ=="],
 

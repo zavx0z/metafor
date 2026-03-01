@@ -1,15 +1,14 @@
 import "@metafor/meta"
 
 export default MetaFor("{{name}}", { desc: "{{description}}" })
-  .context((t) => ({
+  .brane((field) => ({
     error: field.string.optional({ label: "{{errorLabel}}" }),
   }))
-  .states({})
+  .superposition({})
   .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
-  .view({
-    render: ({ context, html }) => html`
-      ${context.error && html`<div class="error">${context.error}</div>`}
-    `,
+  .bulk({
+    gravity: ({ fields, mass, html }) => html``,
+    view: ({ css }) => css``,
   })

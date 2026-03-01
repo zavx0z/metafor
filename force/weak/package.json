@@ -1,0 +1,16 @@
+{
+  "name": "@force/weak",
+  "module": "index.ts",
+  "type": "module",
+  "private": true,
+  "devDependencies": {
+    "@metafor/meta": "workspace:*",
+    "@metafor/build": "workspace:*"
+  },
+  "scripts": {
+    "build": "metafor-build src/meta.ts --out meta.json"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}
