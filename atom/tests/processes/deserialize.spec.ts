@@ -18,7 +18,7 @@ describe("deserializeProcesses", () => {
         desc: "Increment value",
         action: {
           read: ["value"],
-          src: "({ context }) => context.value + 1",
+          src: "({ context }) => fields.value + 1",
         },
       },
       reset: {
@@ -63,7 +63,7 @@ describe("deserializeProcesses", () => {
       multiply: {
         action: {
           read: ["value"],
-          src: "({ context }) => context.value * 2",
+          src: "({ fields }) => fields.value * 2",
         },
         success: {
           read: [],
@@ -81,7 +81,7 @@ describe("deserializeProcesses", () => {
     // Тестируем action функцию
     const mockContext = { value: 5, name: "test", isActive: true }
     // @ts-ignore
-    const result = process!.action({ context: mockContext, core: {} })
+    const result = process!.action({ fields: mockContext, mass: {} })
     expect(result, "action функция должна работать").toBe(10)
 
     // Тестируем success функцию

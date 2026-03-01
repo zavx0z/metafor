@@ -1,6 +1,6 @@
 import type { Schema, Update, Values } from "@zavx0z/context"
 import type { JsonPatch } from "../atom/em.t"
-import type { Core } from "../atom/gravity.t"
+import type { Mass } from "../atom/gravity.t"
 import type { ReactionFilterConditions } from "../atom/src/condition.t"
 import type { ReactionParams } from "../atom/src/reactions.t"
 import type { Self } from "../atom/atom"
@@ -22,16 +22,16 @@ import type { Self } from "../atom/atom"
  *   filter: ({ meta, patch }) => {
  *     return meta === "user" && patch.op === "replace"
  *   },
- *   update: ({ update, context, patch }) => {
+ *   update: ({ update, fields, patch }) => {
  *     update({
  *       lastMessage: patch.value,
- *       messageCount: context.messageCount + 1
+ *       messageCount: fields.messageCount + 1
  *     })
  *   }
  * }
  * ```
  */
-export type Reaction<C extends Schema, S extends string, I extends Core> = {
+export type Reaction<ɸ extends Schema, 𝛴 extends string, m extends Mass> = {
   /** Название реакции для документации */
   label: string
   /** Описание реакции для документации */
@@ -39,7 +39,7 @@ export type Reaction<C extends Schema, S extends string, I extends Core> = {
   /** Функция фильтрации событий */
   filter: (args: ReactionParams) => boolean
   /** Функция обработки события */
-  update: ReactionAction<C, S, I>
+  update: ReactionAction<C, S, M>
 }
 
 /**
@@ -49,7 +49,7 @@ export type Reaction<C extends Schema, S extends string, I extends Core> = {
  *
  * @template C - схема контекста
  * @template S - строковые ключи состояний
- * @template Core - тип core объекта
+ * @template Mass - тип mass объекта
  *
  * @example
  * ```typescript
@@ -66,7 +66,7 @@ export type Reaction<C extends Schema, S extends string, I extends Core> = {
  * ```
  */
 
-export type ReactionsDeclaration<C extends Schema, S extends string, I extends Core> = (
+export type ReactionsDeclaration<ɸ extends Schema, 𝛴 extends string, m extends Mass> = (
   reaction: (config?: {
     /** Название реакции */
     label?: string
@@ -88,13 +88,13 @@ export type ReactionsDeclaration<C extends Schema, S extends string, I extends C
      * Функция фильтра получает доступ к `self` (идентификатор актора) и `context` (текущий контекст),
      * что позволяет создавать динамические условия на основе состояния системы.
      *
-     * @param filter - Функция, принимающая `{ self, context }` и возвращающая объект условий фильтрации
+     * @param filter - Функция, принимающая `{ self, fields }` и возвращающая объект условий фильтрации
      * @returns Объект с методом `equal` для завершения цепочки создания реакции
      *
      * @example
      * ```typescript
      * reaction({ label: "Обработка сообщений" })
-     *   .filter(({ self, context }) => ({
+     *   .filter(({ self, fields }) => ({
      *     meta: "user",
      *     path: "/context",
      *     value: { gt: 0 }
@@ -102,7 +102,7 @@ export type ReactionsDeclaration<C extends Schema, S extends string, I extends C
      *   .equal(({ update, patch }) => update({ lastMessage: patch.value }))
      * ```
      */
-    filter: (filter: (params: { self: Self; context: Values<C> }) => ReactionFilterConditions) => {
+    filter: (filter: (params: { self: Self; fields: Values<ɸ> }) => ReactionFilterConditions) => {
       /**
        * Добавляет функцию обработки события реакции
        *
@@ -110,7 +110,7 @@ export type ReactionsDeclaration<C extends Schema, S extends string, I extends C
        * Получает полный доступ к параметрам события:
        * - `update` - функция для обновления контекста
        * - `context` - текущий контекст
-       * - `core` - core объект для хранения состояния
+       * - `mass` - mass объект для хранения состояния
        * - `meta` - название компонента-отправителя из MetaFor("label")
        * - `atom` - идентификатор актора-отправителя
        * - `timestamp` - временная метка события
@@ -118,7 +118,7 @@ export type ReactionsDeclaration<C extends Schema, S extends string, I extends C
        * - `state` - текущее состояние
        * - `self` - полный идентификатор актора
        *
-       * Функция может использовать `update()` для изменения контекста, обращаться к `core`
+       * Функция может использовать `update()` для изменения контекста, обращаться к `mass`
        * для работы с внешним состоянием, анализировать `patch` для получения данных события.
        *
        * @param reaction - Функция обработки события, вызываемая при срабатывании реакции
@@ -126,18 +126,18 @@ export type ReactionsDeclaration<C extends Schema, S extends string, I extends C
        *
        * @example
        * ```typescript
-       * .equal(({ update, context, patch, core }) => {
+       * .equal(({ update, fields, patch, mass }) => {
        *   // Обновление контекста
        *   update({
        *     lastMessage: patch.value,
-       *     messageCount: context.messageCount + 1
+       *     messageCount: fields.messageCount + 1
        *   })
-       *   // Работа с core объектом
-       *   core.log.push({ message: patch.value, time: Date.now() })
+       *   // Работа с mass объектом
+       *   mass.log.push({ message: patch.value, time: Date.now() })
        * })
        * ```
        */
-      equal: (reaction: ReactionAction<C, S, I>) => Reaction<C, S, I> & {
+      equal: (reaction: ReactionAction<C, S, M>) => Reaction<C, S, M> & {
         /**
          * Внутренний метод для регистрации состояний реакции в схеме
          *
@@ -158,7 +158,7 @@ export type ReactionsDeclaration<C extends Schema, S extends string, I extends C
       }
     }
   }
-) => ReactionsChainResult<C, S, I>
+) => ReactionsChainResult<C, S, M>
 
 /** Схема реакций */
 export type ReactionsSchema = {
@@ -173,7 +173,7 @@ export type ReactionsSchema = {
       src: string
     }
   >
-  states: Record<string, string[]>
+  superposition: Record<string, string[]>
 }
 /**
  * Функция обновления контекста
@@ -183,7 +183,7 @@ export type ReactionsSchema = {
  *
  * @template C - схема контекста
  * @template S - строковые ключи состояний
- * @template Core - тип core объекта
+ * @template Mass - тип mass объекта
  *
  * @includeExample ./react/test/reactions.basic.spec.ts
  * @includeExample ./react/test/reactions.execution.spec.ts
@@ -192,8 +192,8 @@ export type ReactionsSchema = {
  * ```typescript
  * const updateFn: ReactionUpdate<MyContext, "idle" | "loading"> = ({
  *   update,    // Функция для обновления контекста
- *   context,   // Текущий контекст
- *   core,      // Ядро
+ *   fields,   // Текущий контекст
+ *   mass,      // Масса
  *   meta,      // имя meta
  *   atom,      // ID атома
  *   timestamp, // Временная метка
@@ -204,19 +204,19 @@ export type ReactionsSchema = {
  *   // Обработка события
  *   update({
  *     lastMessage: patch.value,
- *     messageCount: context.messageCount + 1
+ *     messageCount: fields.messageCount + 1
  *   })
  * }
  * ```
  */
 
-export type ReactionAction<C extends Schema, S extends string, I extends Core> = (args: {
+export type ReactionAction<ɸ extends Schema, 𝛴 extends string, m extends Mass> = (args: {
   /** Функция для обновления контекста */
-  update: Update<C>
+  update: Update<ɸ>
   /** Текущий контекст */
-  context: Values<C>
-  /** Ядро */
-  core: I
+  fields: Values<ɸ>
+  /** Масса */
+  mass: I
   /** Название компонента-отправителя из MetaFor("label") */
   meta: string
   /** Информация об акторе */
@@ -231,9 +231,9 @@ export type ReactionAction<C extends Schema, S extends string, I extends Core> =
   self: Self
 }) => void /** Результат цепочки реакций */
 
-export type ReactionsChainResult<C extends Schema, S extends string, I extends Core> = [
+export type ReactionsChainResult<ɸ extends Schema, 𝛴 extends string, m extends Mass> = [
   S[],
-  Reaction<C, S, I> & {
+  Reaction<C, S, M> & {
     /**
      * Внутренний метод для регистрации состояний реакции в схеме
      *

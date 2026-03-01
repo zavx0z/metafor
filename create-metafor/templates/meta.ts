@@ -5,7 +5,7 @@ export default MetaFor("{{name}}", { desc: "{{description}}" })
     error: t.string.optional({ label: "{{errorLabel}}" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

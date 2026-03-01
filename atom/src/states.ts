@@ -34,7 +34,7 @@ export type { Wave as Conditions, Transitions, Wave }
  * // => true
  * ```
  */
-export const decoherence = <C extends Schema>(wave: Wave<C>, values: Values<C>): boolean => {
+export const decoherence = <ɸ extends Schema>(wave: Wave<C>, values: Values<ɸ>): boolean => {
   /** Оценивает одно условие */
   const evaluateCondition = (condition: any, value: any): boolean => {
     // Простые значения

@@ -23,7 +23,7 @@ describe("схема реакций", () => {
             path: "/context",
             value: 1,
           }))
-          .equal(({ update, context }) => update({ value: context.value + 1 })),
+          .equal(({ update, fields }) => update({ value: fields.value + 1 })),
       ],
       [
         ["error"],
@@ -50,7 +50,7 @@ describe("схема реакций", () => {
           src: expect.any(String),
         },
       },
-      states: {
+      superposition: {
         idle: ["0"],
         active: ["0"],
         error: ["1"],
@@ -84,13 +84,13 @@ describe("схема реакций", () => {
     expect(reaction.src, "реакция должна иметь src").toEqual(expect.any(String))
 
     // Проверяем структуру states
-    expect(snapshot.states, "states должен быть объектом").toEqual({
+    expect(snapshot.superposition, "states должен быть объектом").toEqual({
       idle: [reactionId],
     })
   })
 
   test("сохранение строкового представления функции equal", () => {
-    const updateFn = ({ update, context }: any) => update({ value: context.value * 2 })
+    const updateFn = ({ update, fields }: any) => update({ value: fields.value * 2 })
 
     const snapshot = reactionsSchema<typeof schema, State, {}>((reaction) => [
       [

@@ -3,7 +3,7 @@ import { test, describe, expect } from "bun:test"
 import { messagesFixture } from "../../../infra/test/fixture/message.ts"
 describe.skip("async process", async () => {
   const hex = MetaFor("websocket")
-    .context((t) => ({
+    .fields((t) => ({
       timeStampConnecting: t.number.optional({ label: "Время начала подключения" }),
       timeStampConnected: t.number.optional({ label: "Время подключения" }),
       timeStampDisconnected: t.number.optional({ label: "Время отключения" }),
@@ -13,7 +13,7 @@ describe.skip("async process", async () => {
       reconnectDelayMultiplier: t.number.required(1.5, { label: "Множитель задержки переподключения" }),
       error: t.string.optional({ label: "Ошибка соединения" }),
     }))
-    .states({
+    .superposition({
       отключен: {
         подключение: { remainingAttempts: { gt: 0 } },
       },
@@ -32,17 +32,17 @@ describe.skip("async process", async () => {
         подключение: { timeStampConnecting: { null: false } },
       },
     })
-    .core()
+    .mass()
     .processes((process) => ({
       отключен: process({ label: "Подключение к WebSocket" })
-        .action(({ context }) => {
-          if (!context.remainingAttempts) return { remainingAttempts: context.maxAttempts }
+        .action(({ fields }) => {
+          if (!fields.remainingAttempts) return { remainingAttempts: fields.maxAttempts }
         })
         .success(({ update, data }) => update({ error: null, ...data }))
         .error(({ update, error }) => update({ error: error.message })),
       подключение: process({ label: "Установка соединения WebSocket" })
         .action(
-          ({ context }) =>
+          ({ fields }) =>
             new Promise<{ timeStampConnected: number }>((resolve) => {
               setTimeout(() => resolve({ timeStampConnected: new Date().getTime() }), 400)
             })
@@ -61,14 +61,14 @@ describe.skip("async process", async () => {
 
       ожидание: process({ label: "Ожидание переподключения к WebSocket" })
         .action(
-          ({ context }) =>
+          ({ fields }) =>
             new Promise<{ timeStampConnecting: number; remainingAttempts: number }>((resolve) => {
-              context.remainingAttempts = context.remainingAttempts - 1
+              fields.remainingAttempts = fields.remainingAttempts - 1
               const delay =
-                context.reconnectDelay *
-                Math.pow(context.reconnectDelayMultiplier, context.maxAttempts - context.remainingAttempts)
+                fields.reconnectDelay *
+                Math.pow(fields.reconnectDelayMultiplier, fields.maxAttempts - fields.remainingAttempts)
               setTimeout(() => {
-                resolve({ timeStampConnecting: new Date().getTime(), remainingAttempts: context.remainingAttempts })
+                resolve({ timeStampConnecting: new Date().getTime(), remainingAttempts: fields.remainingAttempts })
               }, delay)
             })
         )
@@ -83,8 +83,8 @@ describe.skip("async process", async () => {
         ),
     }))
     .reactions(() => [])
-    .view({
-      render: ({ html }) => html` <div class="websocket-status"></div> `,
+    .bulk({
+      gravity: ({ html }) => html` <div class="websocket-status"></div> `,
     })
   const { waitForMessages } = messagesFixture({ meta: hex.name })
   const message = await waitForMessages(600)
@@ -102,7 +102,7 @@ describe.skip("async process", async () => {
   test("изменение контекста в состоянии отключен", () => {
     expect(message[2]?.impulses[0]).toEqual({
       op: "replace",
-      path: "/context",
+      path: "/fields",
       value: {
         remainingAttempts: 5,
       },
@@ -125,7 +125,7 @@ describe.skip("async process", async () => {
   test("изменение контекста в состоянии подключение", () => {
     expect(message[5]?.impulses[0]).toEqual({
       op: "replace",
-      path: "/context",
+      path: "/fields",
       value: {
         timeStampConnected: expect.any(Number),
       },

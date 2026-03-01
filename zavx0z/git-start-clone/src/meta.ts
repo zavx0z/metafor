@@ -5,7 +5,7 @@ export default MetaFor("git-start-clone", { desc: "Git start-clone — кома�
     error: t.string.optional({ label: "Ошибка" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

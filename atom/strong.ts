@@ -1,5 +1,5 @@
 import { Weak } from "./weak"
-import type { Core } from "./gravity"
+import type { Mass } from "./gravity"
 import type { Meta, Superposition } from "../meta/metafor"
 import type { Process, Processes } from "./src/processes"
 import type { Reactions } from "./src/reactions"
@@ -23,9 +23,9 @@ export abstract class Strong extends Weak {
     override eigenstates: Superposition,
     override processes: Processes,
     protected override reactions: Reactions,
-    core?: Core
+    mass?: Mass
   ) {
-    super(hidden, id, meta, core)
+    super(hidden, id, meta, mass)
 
     this.evaluate = EM.bindWithOriginal(this.evaluate, this)
     this.destroy = EM.bindWithOriginal(this.destroy, this)
@@ -124,7 +124,7 @@ export abstract class Strong extends Weak {
         timestamp: data.timestamp,
         patch,
         context: this.λ,
-        core: this.core,
+        mass: this.mass,
         state: this.state,
         update: this.evaluate,
         self: this.self,
@@ -144,7 +144,7 @@ export abstract class Strong extends Weak {
    * @param config - Конфигурация создания атома
    * @param config.meta - Схема мета, созданная через MetaFor()
    * @param config.id - Уникальный идентификатор атома (по умолчанию генерируется через crypto.randomUUID())
-   * @param config.core - Core объект для хранения сложных данных
+   * @param config.mass - Mass объект для хранения сложных данных и зависимостей от среды
    * @param config.context - Начальные значения контекста
    * @param config.path - Индексный путь атома в иерархии (опционально)
    * @returns Экземпляр атома
@@ -160,7 +160,7 @@ export abstract class Strong extends Weak {
    *     states: { idle: {} },
    *     processes: {},
    *     reactions: { reactions: {}, states: {} },
-   *     core: {}
+   *     mass: {}
    *   },
    *   id: "counter-1"
    * })
@@ -187,33 +187,33 @@ export abstract class Strong extends Weak {
   static fromSchema<M extends Meta>(config: {
     meta: M
     id?: string
-    core?: Core
+    mass?: Mass
     context?: Partial<Hidden<Values>>
     path?: string
   }): Atom {
-    const { meta, id = crypto.randomUUID(), core, context = {}, path } = config
+    const { meta, id = crypto.randomUUID(), mass, context = {}, path } = config
     // если указан индекс-путь — заранее резервируем слот под id
     if (typeof path === "string" && path.length > 0) Field.fields.reserveByIndexPath(id, path)
-    const ctx = contextFromSchema(meta.context)
+    const ctx = contextFromSchema(meta.fields)
     ctx.update(context)
     return new Atom(
       id,
       meta.name,
       meta.desc,
       ctx,
-      { [Symbol(undefined)]: { [Object.keys(meta.states)[0] as string]: {} }, ...meta.states },
+      { [Symbol(undefined)]: { [Object.keys(meta.superposition)[0] as string]: {} }, ...meta.superposition },
       processesFromSchema(meta.processes ?? {}),
-      reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
-      core
+      reactionsFromSchema(meta.reactions ?? { reactions: {}, superposition: {} }),
+      mass
     )
   }
 
   static createSibling<M extends Meta>(
     targetId: string,
     meta: M,
-    cfg: { id?: string; at?: "before" | "after"; core?: Core; context?: Partial<Hidden<Values>> } = {}
+    cfg: { id?: string; at?: "before" | "after"; mass?: Mass; context?: Partial<Hidden<Values>> } = {}
   ): string {
-    const { id = crypto.randomUUID(), core, context = {}, at = "after" } = cfg
+    const { id = crypto.randomUUID(), mass, context = {}, at = "after" } = cfg
     if (!Field.getAtom(targetId)) throw new Error(`атом-ориентир "${targetId}" не найден`)
 
     // 1) Резервируем слот под будущий атом
@@ -221,7 +221,7 @@ export abstract class Strong extends Weak {
     // 2) Создаём атом в следующей макротаске — родитель «не ждёт»
     setTimeout(() => {
       try {
-        const ctx = contextFromSchema(meta.context)
+        const ctx = contextFromSchema(meta.fields)
         ctx.update(context)
 
         // Конструктор сам прикрепит по резервации и разошлёт init
@@ -233,10 +233,10 @@ export abstract class Strong extends Weak {
           meta.name,
           meta.desc,
           ctx,
-          { [Symbol(undefined)]: { [Object.keys(meta.states)[0] as string]: {} }, ...meta.states },
+          { [Symbol(undefined)]: { [Object.keys(meta.superposition)[0] as string]: {} }, ...meta.superposition },
           processesFromSchema(meta.processes ?? {}),
-          reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
-          core
+          reactionsFromSchema(meta.reactions ?? { reactions: {}, superposition: {} }),
+          mass
         )
       } catch (e) {
         // Если что-то пойдёт не так — снимаем резервацию, чтобы не залипало
@@ -254,9 +254,9 @@ export abstract class Strong extends Weak {
   static append<M extends Meta>(
     parentId: string | null,
     meta: M,
-    cfg: { id?: string; core?: Core; context?: Partial<Hidden<Values>> } = {}
+    cfg: { id?: string; mass?: Mass; context?: Partial<Hidden<Values>> } = {}
   ): string {
-    const { id = crypto.randomUUID(), core, context = {} } = cfg
+    const { id = crypto.randomUUID(), mass, context = {} } = cfg
 
     // валидация родителя (кроме корня)
     if (parentId !== null && !Field.getAtom(parentId)) {
@@ -272,7 +272,7 @@ export abstract class Strong extends Weak {
     Field.fields.reserveByIndexPath(id, path)
 
     // готовим контекст
-    const ctx = contextFromSchema(meta.context)
+    const ctx = contextFromSchema(meta.fields)
     ctx.update(context)
 
     // создаём атом на следующем тике:
@@ -283,10 +283,10 @@ export abstract class Strong extends Weak {
         meta.name,
         meta.desc,
         ctx,
-        { [Symbol(undefined)]: { [Object.keys(meta.states)[0] as string]: {} }, ...meta.states },
+        { [Symbol(undefined)]: { [Object.keys(meta.superposition)[0] as string]: {} }, ...meta.superposition },
         processesFromSchema(meta.processes ?? {}),
-        reactionsFromSchema(meta.reactions ?? { reactions: {}, states: {} }),
-        core
+        reactionsFromSchema(meta.reactions ?? { reactions: {}, superposition: {} }),
+        mass
       )
     }, 0)
 

@@ -5,18 +5,18 @@ import { messagesFixture } from "../../../../infra/test/fixture/message.ts"
 
 describe.skip("MetaFor: инициализация без действия", async () => {
   const meta = MetaFor("test-without-action")
-    .context((t) => ({
+    .fields((t) => ({
       value: t.string.optional("ctx_1"),
     }))
-    .states({
+    .superposition({
       state_1: { state_2: { value: "ctx_1" } },
       state_2: { state_3: { value: "ctx_1" } },
       state_3: {},
     })
-    .core()
+    .mass()
     .processes(() => ({}))
     .reactions()
-    .view()
+    .bulk()
 
   const { waitForMessages } = messagesFixture({ meta: meta.name })
   const messages = await waitForMessages(10)
@@ -39,12 +39,12 @@ describe.skip("MetaFor: инициализация без действия", asy
             name: "test-without-action",
             state: "state_1",
             process: false,
-            states: {
+            superposition: {
               state_1: { state_2: { value: "ctx_1" } },
               state_2: { state_3: { value: "ctx_1" } },
               state_3: {},
             },
-            context: {
+            fields: {
               value: {
                 type: "string",
                 required: false,

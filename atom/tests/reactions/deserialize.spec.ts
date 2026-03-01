@@ -17,10 +17,10 @@ describe("deserializeReactions", () => {
         increment_0: {
           label: "increment",
           desc: "Increment value",
-          cond: '({ self }) => ({ meta: "test", op: "replace", path: "/context" })',
+          cond: '({ self }) => ({ meta: "test", op: "replace", path: "/fields" })',
           read: ["value"],
           write: ["value"],
-          src: "({ update, context }) => update({ value: context.value + 1 })",
+          src: "({ update, fields }) => update({ value: fields.value + 1 })",
         },
         reset_1: {
           label: "reset",
@@ -30,7 +30,7 @@ describe("deserializeReactions", () => {
           src: "({ update }) => update({ value: 0 })",
         },
       },
-      states: {
+      superposition: {
         idle: ["increment_0"],
         active: ["increment_0", "reset_1"],
         error: ["reset_1"],
@@ -66,10 +66,10 @@ describe("deserializeReactions", () => {
           cond: '({ self }) => ({ meta: "test", op: "replace" })',
           read: ["value"],
           write: ["value"],
-          src: "({ update, context, patch }) => update({ value: context.value + patch.value })",
+          src: "({ update, fields, patch }) => update({ value: fields.value + patch.value })",
         },
       },
-      states: {
+      superposition: {
         idle: ["test_0"],
       },
     }
@@ -83,13 +83,13 @@ describe("deserializeReactions", () => {
     }
 
     const mockContext = { value: 5, name: "test", isActive: true }
-    const mockPatch = { op: "replace", path: "/context", value: 3 } as const
+    const mockPatch = { op: "replace", path: "/fields", value: 3 } as const
 
     // Выполняем реакцию
     reactions.run({
       state: "idle",
-      context: mockContext,
-      core: {},
+      fields: mockContext,
+      mass: {},
       meta: "test",
       atom: "0",
       timestamp: Date.now(),
@@ -120,7 +120,7 @@ describe("deserializeReactions", () => {
           src: "({ update }) => update({ value: 200 })",
         },
       },
-      states: {
+      superposition: {
         idle: ["meta_test_0", "op_test_1"],
       },
     }
@@ -138,12 +138,12 @@ describe("deserializeReactions", () => {
     // Тест 1: реакция должна сработать при совпадении meta
     reactions.run({
       state: "idle",
-      context: mockContext,
-      core: {},
+      fields: mockContext,
+      mass: {},
       meta: "specific_meta",
       atom: "0",
       timestamp: Date.now(),
-      patch: { op: "replace", path: "/context", value: 1 },
+      patch: { op: "replace", path: "/fields", value: 1 },
       update: mockUpdate,
       self: { meta: "test", atom: "test-atom", path: "0" },
       destroy: () => {},
@@ -157,12 +157,12 @@ describe("deserializeReactions", () => {
     // Тест 2: реакция должна сработать при совпадении op
     reactions.run({
       state: "idle",
-      context: mockContext,
-      core: {},
+      fields: mockContext,
+      mass: {},
       meta: "other_meta",
       atom: "0",
       timestamp: Date.now(),
-      patch: { op: "add", path: "/context", value: 1 },
+      patch: { op: "add", path: "/fields", value: 1 },
       update: mockUpdate,
       self: { meta: "test", atom: "test-atom", path: "0" },
       destroy: () => {},
@@ -176,12 +176,12 @@ describe("deserializeReactions", () => {
     // Тест 3: реакции не должны сработать при несовпадении условий
     reactions.run({
       state: "idle",
-      context: mockContext,
-      core: {},
+      fields: mockContext,
+      mass: {},
       meta: "other_meta",
       atom: "0",
       timestamp: Date.now(),
-      patch: { op: "replace", path: "/context", value: 1 },
+      patch: { op: "replace", path: "/fields", value: 1 },
       update: mockUpdate,
       self: { meta: "test", atom: "test-atom", path: "0" },
       destroy: () => {},
@@ -193,7 +193,7 @@ describe("deserializeReactions", () => {
   test("пустой snapshot", () => {
     const snapshot = {
       reactions: {},
-      states: {},
+      superposition: {},
     }
 
     const reactions = reactionsFromSchema<C, S, {}>(snapshot)

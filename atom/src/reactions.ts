@@ -3,7 +3,7 @@
  * @module Reactions
  */
 import type { Schema, Update, Values } from "@zavx0z/context"
-import type { Core } from "../gravity.t"
+import type { Mass } from "../gravity.t"
 import type { ReactionParams, Reactions } from "./reactions.t"
 import type { ReactionAction, ReactionsSchema } from "../../meta/reactions.t"
 import type { ReactionFilterConditions } from "./condition.t"
@@ -21,8 +21,8 @@ export type { Reactions } from "./reactions.t"
  * const reactions = deserializeReactions(schema)
  * if (reactions.exists()) {
  *   reactions.run({
- *     context,
- *     core,
+ *     fields,
+ *     mass,
  *     meta: message.meta,
  *     atom: message.atom,
  *     timestamp: message.timestamp,
@@ -33,14 +33,14 @@ export type { Reactions } from "./reactions.t"
  * }
  * ```
  */
-export function reactionsFromSchema<C extends Schema = Schema, S extends string = string, I extends Core = Core>(
+export function reactionsFromSchema<C extends Schema = Schema, 𝛴 extends string = string, m extends Mass = Mass>(
   schema: ReactionsSchema
-): Reactions<C, S, I> {
+): Reactions<C, S, M> {
   const reactions: Array<{
     label: string
     desc?: string
-    update: ReactionAction<C, S, I>
-    getConditions: (params: { self: Self; context: Values<C> }) => any
+    update: ReactionAction<C, S, M>
+    getConditions: (params: { self: Self; fields: Values<ɸ> }) => any
     states: string[]
   }> = []
 
@@ -250,9 +250,9 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
     if (reactionData && typeof reactionData === "object") {
       // Восстанавливаем функцию equal из строки
 
-      // const paramString = "({ update, context, core, meta, atom, timestamp, patch, state, self }) => "
+      // const paramString = "({ update, fields, core, meta, atom, timestamp, patch, state, self }) => "
 
-      const updateFn = new Function("return " + reactionData.src)() as ReactionAction<C, S, I>
+      const updateFn = new Function("return " + reactionData.src)() as ReactionAction<C, S, M>
 
       // Создаем функцию фильтра из строки
       const filterFn = new Function("return " + reactionData.cond)()
@@ -267,8 +267,8 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
 
       reactions.push(reaction)
 
-      // Связываем реакции с состояниями
-      for (const [state, reactionIds] of Object.entries(schema.states)) {
+      // Связываем реакции с суперпозициями
+      for (const [state, reactionIds] of Object.entries(schema.superposition)) {
         if (reactionIds.includes(reactionId)) {
           reaction.states.push(state)
           if (!stateToReactions[state]) stateToReactions[state] = []
@@ -285,10 +285,10 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
         // Проверяем, что реакция активна для текущего состояния
         if (!reaction.states.includes(params.state)) continue
 
-        // Получаем условия фильтра с передачей self и context
+        // Получаем условия фильтра с передачей self и fields
         const conditions = reaction.getConditions({
           self: params.self,
-          context: params.context,
+          fields: params.fields,
         })
         // Создаем фильтр на основе условий
         const filterFn = createFilterFn(conditions)
@@ -304,9 +304,9 @@ export function reactionsFromSchema<C extends Schema = Schema, S extends string 
         ) {
           anyEqual = true
           reaction.update({
-            update: params.update as Update<C>,
-            context: params.context as Values<C>,
-            core: params.core as I,
+            update: params.update as Update<ɸ>,
+            fields: params.fields as Values<ɸ>,
+            mass: params.mass as M,
             meta: params.meta,
             atom: params.atom,
             timestamp: params.timestamp,

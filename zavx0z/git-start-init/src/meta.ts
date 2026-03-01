@@ -5,7 +5,7 @@ export default MetaFor("git-start-init", { desc: "Git start-init — коман�
     error: t.string.optional({ label: "Ошибка" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

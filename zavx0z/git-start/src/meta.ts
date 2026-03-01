@@ -6,7 +6,7 @@ export default MetaFor("git-start", { desc: "Git start — команды нач
     args: t.string.optional({ label: "Аргументы" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

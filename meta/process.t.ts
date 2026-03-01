@@ -1,5 +1,5 @@
 import type { Schema, Update } from "@zavx0z/context"
-import type { Core } from "../atom/gravity.t"
+import type { Mass } from "../atom/gravity.t"
 import type { ProcessChain, ActionParams, Process } from "../atom/src/processes.t"
 
 /**
@@ -12,10 +12,10 @@ import type { ProcessChain, ActionParams, Process } from "../atom/src/processes.
  * @param process - фабрика для создания цепочки ProcessChain
  * @returns объект, где ключи — имена процессов, а значения — цепочки ActionChain
  */
-export type ProcessesDeclaration<C extends Schema = Schema, S extends string = string, I extends Core = Core> = (
-  process: (config?: ProcessConfig) => ProcessChain<C, I>,
-  destroy: (config?: DestroyConfig) => DestroyChain<C, I>
-) => Partial<Record<S, ActionChain<C, I, any> | DestroyChain<C, I>>>
+export type ProcessesDeclaration<C extends Schema = Schema, 𝛴 extends string = string, m extends Mass = Mass> = (
+  process: (config?: ProcessConfig) => ProcessChain<ɸ, m>,
+  destroy: (config?: DestroyConfig) => DestroyChain<ɸ, m>
+) => Partial<Record<S, ActionChain<ɸ, m, any> | DestroyChain<ɸ, m>>>
 
 /**
  * Обработчик действия процесса.
@@ -94,8 +94,8 @@ export interface ProcessConfig extends BaseProcessConfig {}
 /**
  * Специальный тип для destroy-процессов
  */
-export type DestroyChain<C extends Schema = Schema, I extends Core = Core> = {
-  before: (handler: ({ core }: { core: I }) => void | Promise<void>) => DestroyChain<C, I>
+export type DestroyChain<C extends Schema = Schema, m extends Mass = Mass> = {
+  before: (handler: ({ mass }: { mass: I }) => void | Promise<void>) => DestroyChain<ɸ, m>
 }
 
 /**
@@ -107,10 +107,10 @@ export type DestroyChain<C extends Schema = Schema, I extends Core = Core> = {
  *
  * @example
  * ```typescript
- * const chain = action(({ context, core, fields, self, destroy }) => {
+ * const chain = action(({ fields, mass, fields, self, destroy }) => {
  *   // Доступ ко всем параметрам процесса
  *   // destroy() доступен в процессах
- *   return { name: context.name }
+ *   return { name: fields.name }
  * })
  *   .success(({ update, data }) => update({ name: data.name }))
  *   .error(({ update, error }) => update({ name: error.message }))
@@ -118,7 +118,7 @@ export type DestroyChain<C extends Schema = Schema, I extends Core = Core> = {
  * chain.getResult() // { action, success, error }
  * ```
  */
-export type ActionChain<C extends Schema, I extends Core, Res> = {
+export type ActionChain<C extends Schema, m extends Mass, Res> = {
   /**
    * Основная функция процесса, вызывается автоматом.
    *
@@ -126,7 +126,7 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
    *
    * @param params - объект с параметрами процесса:
    *   - `context` - текущий контекст атома
-   *   - `core` - ядро атома для сложных данных
+   *   - `mass` - масса атома для сложных данных и зависимостей от среды
    *   - `fields` - схема контекста для валидации и установки значений по умолчанию
    *   - `self` - полный идентификатор атома
    *   - `destroy` - функция для уничтожения атома
@@ -134,15 +134,15 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
    *
    * @example
    * ```typescript
-   * action: ({ context, core, fields, self, destroy }) => {
+   * action: ({ fields, mass, fields, self, destroy }) => {
    *   // Доступ к контексту
-   *   console.log(context.email, context.password)
+   *   console.log(fields.email, fields.password)
    *
-   *   // Доступ к ядру
-   *   core.users.push({ name: context.name })
+   *   // Доступ к массе
+   *   mass.users.push({ name: fields.name })
    *
    *   // Доступ к схеме для валидации
-   *   const isValid = fields.email.validate(context.email)
+   *   const isValid = fields.email.validate(fields.email)
    *
    *   // destroy() доступен для уничтожения атома
    *   // self.meta, self.atom, self.path доступны
@@ -152,7 +152,7 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
    * }
    * ```
    */
-  action: (params: ActionParams<C, I>) => Res | Promise<Res>
+  action: (params: ActionParams<ɸ, m>) => Res | Promise<Res>
 
   /**
    * Добавляет обработчик успешного завершения процесса.
@@ -185,7 +185,7 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
    * })
    * ```
    */
-  success: (handler: (params: { update: Update<C>; data: Res }) => void) => ActionChain<C, I, Res>
+  success: (handler: (params: { update: Update<ɸ>; data: Res }) => void) => ActionChain<ɸ, m, Res>
 
   /**
    * Добавляет обработчик ошибки выполнения процесса.
@@ -217,7 +217,7 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
    * })
    * ```
    */
-  error: (handler: (params: { update: Update<C>; error: Error }) => void) => ActionChain<C, I, Res>
+  error: (handler: (params: { update: Update<ɸ>; error: Error }) => void) => ActionChain<ɸ, m, Res>
 
   /**
    * Возвращает итоговый объект конфигурации процесса для автомата.
@@ -238,5 +238,5 @@ export type ActionChain<C extends Schema, I extends Core, Res> = {
    * // }
    * ```
    */
-  getResult: () => Process<C, I, Res>
+  getResult: () => Process<C, M, Res>
 }

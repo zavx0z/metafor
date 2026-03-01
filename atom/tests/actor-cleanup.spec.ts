@@ -7,7 +7,7 @@ describe("Очистка ресурсов атома", () => {
   beforeEach(() => {
     // Очищаем глобальное состояние Fields
     Fields.set(new Fields())
-    // Очищаем WeakMap с core (создаем новый экземпляр)
+    // Очищаем WeakMap с mass (создаем новый экземпляр)
     // Это невозможно сделать напрямую, но каждый тест создает новые атомы
   })
 
@@ -18,32 +18,32 @@ describe("Очистка ресурсов атома", () => {
 
   const testSchema: Meta = {
     name: "test-atom",
-    context: {
+    fields: {
       value: { type: "number", default: 0 },
     },
-    states: {
+    superposition: {
       initial: {},
     },
     reactions: {
       reactions: {},
-      states: {},
+      superposition: {},
     },
-    core: {},
+    mass: {},
   }
 
-  it("должен очищать core из WeakMap при уничтожении", () => {
-    const customCore = { customData: "test" }
-    const atom = Atom.fromSchema({ meta: testSchema, id: "atom-1", core: customCore })
+  it("должен очищать mass из WeakMap при уничтожении", () => {
+    const customMass = { customData: "test" }
+    const atom = Atom.fromSchema({ meta: testSchema, id: "atom-1", mass: customMass })
 
-    // Проверяем, что core доступен
-    expect(atom.core).toEqual(customCore)
+    // Проверяем, что mass доступен
+    expect(atom.mass).toEqual(customMass)
 
     // Уничтожаем атом
     atom.destroy()
 
-    // Проверяем, что core больше не доступен
+    // Проверяем, что mass больше не доступен
     // (WeakMap.delete() удаляет запись, но get() может вернуть undefined)
-    expect(atom.core).toBeUndefined()
+    expect(atom.mass).toBeUndefined()
   })
 
   it("должен удалять атом из иерархии при уничтожении", () => {
@@ -157,11 +157,11 @@ describe("Очистка ресурсов атома", () => {
 
     // атомы автоматически регистрируются при создании
 
-    // Сохраняем ссылки на core для проверки
-    const child1Core = child1.core
-    const child2Core = child2.core
-    const grandchild1Core = grandchild1.core
-    const grandchild2Core = grandchild2.core
+    // Сохраняем ссылки на mass для проверки
+    const child1Mass = child1.mass
+    const child2Mass = child2.mass
+    const grandchild1Mass = grandchild1.mass
+    const grandchild2Mass = grandchild2.mass
 
     // Проверяем, что все атомы зарегистрированы
     expect(fields.has(parent.id)).toBe(true)
@@ -182,18 +182,18 @@ describe("Очистка ресурсов атома", () => {
     expect(fields.has(grandchild2.id)).toBe(true)
     expect(fields.has(parent.id)).toBe(true)
 
-    // Проверяем, что core у child2 и grandchild2 НЕ удален
-    expect(child2.core).toBe(child2Core)
-    expect(grandchild2.core).toBe(grandchild2Core)
-    expect(child2.core).toBeDefined()
-    expect(grandchild2.core).toBeDefined()
+    // Проверяем, что mass у child2 и grandchild2 НЕ удален
+    expect(child2.mass).toBe(child2Mass)
+    expect(grandchild2.mass).toBe(grandchild2Mass)
+    expect(child2.mass).toBeDefined()
+    expect(grandchild2.mass).toBeDefined()
 
-    // Проверяем, что core у grandchild1 НЕ удален (он остался)
-    expect(grandchild1.core).toBe(grandchild1Core)
-    expect(grandchild1.core).toBeDefined()
+    // Проверяем, что mass у grandchild1 НЕ удален (он остался)
+    expect(grandchild1.mass).toBe(grandchild1Mass)
+    expect(grandchild1.mass).toBeDefined()
 
-    // child1 уничтожен, его core удален
-    expect(child1.core).toBeUndefined()
+    // child1 уничтожен, его mass удален
+    expect(child1.mass).toBeUndefined()
 
     // Очистка
     grandchild1.destroy()
@@ -217,14 +217,14 @@ describe("Очистка ресурсов атома", () => {
 
     // атомы автоматически регистрируются при создании
 
-    // Сохраняем ссылки на core
-    const branch1Core = branch1.core
-    const branch2Core = branch2.core
-    const leaf1Core = leaf1.core
-    const leaf2Core = leaf2.core
-    const leaf3Core = leaf3.core
-    const deep1Core = deep1.core
-    const deep2Core = deep2.core
+    // Сохраняем ссылки на mass
+    const branch1Mass = branch1.mass
+    const branch2Mass = branch2.mass
+    const leaf1Mass = leaf1.mass
+    const leaf2Mass = leaf2.mass
+    const leaf3Mass = leaf3.mass
+    const deep1Mass = deep1.mass
+    const deep2Mass = deep2.mass
 
     // Уничтожаем только branch1 (удаляется только branch1, его дети остаются и продвигаются)
     branch1.destroy()
@@ -241,20 +241,20 @@ describe("Очистка ресурсов атома", () => {
     expect(fields.has(leaf3.id)).toBe(true)
     expect(fields.has(root.id)).toBe(true)
 
-    // Проверяем, что core у незатронутых атомов НЕ удален
-    expect(branch2.core).toBe(branch2Core)
-    expect(leaf3.core).toBe(leaf3Core)
-    expect(branch2.core).toBeDefined()
-    expect(leaf3.core).toBeDefined()
+    // Проверяем, что mass у незатронутых атомов НЕ удален
+    expect(branch2.mass).toBe(branch2Mass)
+    expect(leaf3.mass).toBe(leaf3Mass)
+    expect(branch2.mass).toBeDefined()
+    expect(leaf3.mass).toBeDefined()
 
-    // Проверяем, что core у оставшихся детей branch1 НЕ удален
-    expect(leaf1.core).toBe(leaf1Core)
-    expect(leaf2.core).toBe(leaf2Core)
-    expect(deep1.core).toBe(deep1Core)
-    expect(deep2.core).toBe(deep2Core)
+    // Проверяем, что mass у оставшихся детей branch1 НЕ удален
+    expect(leaf1.mass).toBe(leaf1Mass)
+    expect(leaf2.mass).toBe(leaf2Mass)
+    expect(deep1.mass).toBe(deep1Mass)
+    expect(deep2.mass).toBe(deep2Mass)
 
-    // branch1 уничтожен, его core удален
-    expect(branch1.core).toBeUndefined()
+    // branch1 уничтожен, его mass удален
+    expect(branch1.mass).toBeUndefined()
 
     // Очистка
     leaf1.destroy()
@@ -268,30 +268,30 @@ describe("Очистка ресурсов атома", () => {
     const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom2" })
     const atom3 = Atom.fromSchema({ meta: testSchema, id: "atom3" })
 
-    // Сохраняем ссылки на core
-    const core1 = atom1.core
-    const core2 = atom2.core
-    const core3 = atom3.core
+    // Сохраняем ссылки на mass
+    const mass1 = atom1.mass
+    const mass2 = atom2.mass
+    const mass3 = atom3.mass
 
-    // Проверяем, что все core доступны
-    expect(atom1.core).toBe(core1)
-    expect(atom2.core).toBe(core2)
-    expect(atom3.core).toBe(core3)
+    // Проверяем, что все mass доступны
+    expect(atom1.mass).toBe(mass1)
+    expect(atom2.mass).toBe(mass2)
+    expect(atom3.mass).toBe(mass3)
 
     // Уничтожаем только atom2
     atom2.destroy()
 
-    // Проверяем, что core у atom2 удален, но у atom1 и atom3 - нет
-    expect(atom1.core).toBe(core1)
-    expect(atom2.core).toBeUndefined()
-    expect(atom3.core).toBe(core3)
+    // Проверяем, что mass у atom2 удален, но у atom1 и atom3 - нет
+    expect(atom1.mass).toBe(mass1)
+    expect(atom2.mass).toBeUndefined()
+    expect(atom3.mass).toBe(mass3)
 
     // Уничтожаем atom1
     atom1.destroy()
 
-    // Проверяем, что core у atom1 удален, но у atom3 - нет
-    expect(atom1.core).toBeUndefined()
-    expect(atom3.core).toBe(core3)
+    // Проверяем, что mass у atom1 удален, но у atom3 - нет
+    expect(atom1.mass).toBeUndefined()
+    expect(atom3.mass).toBe(mass3)
 
     // Очистка
     atom3.destroy()
@@ -302,33 +302,33 @@ describe("Очистка ресурсов атома", () => {
     const atom1 = Atom.fromSchema({ meta: testSchema, id: "atom1" })
     const atom2 = Atom.fromSchema({ meta: testSchema, id: "atom2" })
 
-    // Проверяем, что core доступны
-    expect(atom1.core).toBeDefined()
-    expect(atom2.core).toBeDefined()
+    // Проверяем, что mass доступны
+    expect(atom1.mass).toBeDefined()
+    expect(atom2.mass).toBeDefined()
 
     // Сохраняем ссылки
-    const core1 = atom1.core
-    const core2 = atom2.core
+    const mass1 = atom1.mass
+    const mass2 = atom2.mass
 
     // Уничтожаем atom1
     atom1.destroy()
 
-    // Проверяем, что core у atom1 удален, но у atom2 - нет
-    expect(atom1.core).toBeUndefined()
-    expect(atom2.core).toBe(core2)
+    // Проверяем, что mass у atom1 удален, но у atom2 - нет
+    expect(atom1.mass).toBeUndefined()
+    expect(atom2.mass).toBe(mass2)
 
-    // Создаем новый атом - он должен получить новый core
+    // Создаем новый атом - он должен получить новый mass
     const atom3 = Atom.fromSchema({ meta: testSchema, id: "atom3" })
-    expect(atom3.core).toBeDefined()
-    expect(atom3.core).not.toBe(core1) // Не должен быть тем же core, что у atom1
-    expect(atom3.core).not.toBe(core2) // И не тем же core, что у atom2
+    expect(atom3.mass).toBeDefined()
+    expect(atom3.mass).not.toBe(mass1) // Не должен быть тем же mass, что у atom1
+    expect(atom3.mass).not.toBe(mass2) // И не тем же mass, что у atom2
 
     // Очистка
     atom2.destroy()
     atom3.destroy()
   })
 
-  it("должен воспроизвести проблему с удалением core у соседних атомов", () => {
+  it("должен воспроизвести проблему с удалением mass у соседних атомов", () => {
     // Создаем структуру: 0 -> [0/0, 0/1] -> [0/0/0, 0/1/0]
     const root = Atom.fromSchema({ meta: testSchema, id: "root", path: "0" })
     const child0 = Atom.fromSchema({ meta: testSchema, id: "child0", path: "0/0" })
@@ -340,12 +340,12 @@ describe("Очистка ресурсов атома", () => {
 
     // атомы автоматически регистрируются при создании
 
-    // Сохраняем ссылки на core
-    const rootCore = root.core
-    const child0Core = child0.core
-    const child1Core = child1.core
-    const grandchild0Core = grandchild0.core
-    const grandchild1Core = grandchild1.core
+    // Сохраняем ссылки на mass
+    const rootMass = root.mass
+    const child0Mass = child0.mass
+    const child1Mass = child1.mass
+    const grandchild0Mass = grandchild0.mass
+    const grandchild1Mass = grandchild1.mass
 
     // До destroy child0
 
@@ -365,18 +365,18 @@ describe("Очистка ресурсов атома", () => {
     // grandchild0 остается, так как удаление не рекурсивное
     expect(fields.has(grandchild0.id)).toBe(true)
 
-    // Проверяем, что core у child1 и grandchild1 НЕ удален
-    expect(child1.core).toBe(child1Core)
-    expect(grandchild1.core).toBe(grandchild1Core)
-    expect(child1.core).toBeDefined()
-    expect(grandchild1.core).toBeDefined()
+    // Проверяем, что mass у child1 и grandchild1 НЕ удален
+    expect(child1.mass).toBe(child1Mass)
+    expect(grandchild1.mass).toBe(grandchild1Mass)
+    expect(child1.mass).toBeDefined()
+    expect(grandchild1.mass).toBeDefined()
 
-    // child0 уничтожен, его core должен быть undefined
-    expect(child0.core).toBeUndefined()
+    // child0 уничтожен, его mass должен быть undefined
+    expect(child0.mass).toBeUndefined()
 
-    // grandchild0 остается, его core не удален
-    expect(grandchild0.core).toBe(grandchild0Core)
-    expect(grandchild0.core).toBeDefined()
+    // grandchild0 остается, его mass не удален
+    expect(grandchild0.mass).toBe(grandchild0Mass)
+    expect(grandchild0.mass).toBeDefined()
 
     // Очистка
     grandchild0.destroy()

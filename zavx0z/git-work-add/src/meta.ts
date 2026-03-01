@@ -5,7 +5,7 @@ export default MetaFor("git-work-add", { desc: "Git work-add — команда 
     error: t.string.optional({ label: "Ошибка" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

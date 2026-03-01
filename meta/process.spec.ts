@@ -10,15 +10,15 @@ describe("parseChainsObject — разные варианты chain", () => {
     type S = "onlyAction" | "onlySuccess" | "onlyError" | "allHandlers"
 
     const actions: ProcessesDeclaration<C, S, {}> = (process) => ({
-      onlyAction: process().action(({ context }) => context.foo),
+      onlyAction: process().action(({ context }) => fields.foo),
       onlySuccess: process()
-        .action(({ context }) => context.foo)
+        .action(({ context }) => fields.foo)
         .success(({ update, data }) => update({ foo: data })),
       onlyError: process()
-        .action(({ context }) => context.foo)
+        .action(({ context }) => fields.foo)
         .error(({ update, error }) => update({ bar: 1 })),
       allHandlers: process()
-        .action(({ context }) => context.foo)
+        .action(({ context }) => fields.foo)
         .success(({ update, data }) => update({ foo: data }))
         .error(({ update, error }) => update({ bar: 2 })),
     })
@@ -30,7 +30,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ context }) => context.foo",
+            "src": "({ context }) => fields.foo",
           },
           "error": {
             "src": "({ update, error }) => update({ bar: 2 }, "e")",
@@ -51,7 +51,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ context }) => context.foo",
+            "src": "({ context }) => fields.foo",
           },
           "type": "action",
         },
@@ -60,7 +60,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ context }) => context.foo",
+            "src": "({ context }) => fields.foo",
           },
           "error": {
             "src": "({ update, error }) => update({ bar: 1 }, "e")",
@@ -75,7 +75,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ context }) => context.foo",
+            "src": "({ context }) => fields.foo",
           },
           "success": {
             "src": "({ update, data }) => update({ foo: data }, "s")",
@@ -99,7 +99,7 @@ describe("parseChainsObject — разные варианты chain", () => {
   test("один процесс", () => {
     const schema = contextSchema((t) => ({ foo: t.string.required("a") }))
     const actions: ProcessesDeclaration<typeof schema, "single", {}> = (process) => ({
-      single: process().action(({ context }) => context.foo),
+      single: process().action(({ context }) => fields.foo),
     })
     const snapshot = processesSchema(actions)
     expect(snapshot).toMatchInlineSnapshot(`
@@ -109,7 +109,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ context }) => context.foo",
+            "src": "({ context }) => fields.foo",
           },
           "type": "action",
         },
@@ -120,8 +120,8 @@ describe("parseChainsObject — разные варианты chain", () => {
   test("несколько процессов", () => {
     const schema = contextSchema((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
     const actions: ProcessesDeclaration<typeof schema, "first" | "second", {}> = (process) => ({
-      first: process().action(({ context }) => context.foo),
-      second: process().action(({ context }) => context.bar),
+      first: process().action(({ context }) => fields.foo),
+      second: process().action(({ context }) => fields.bar),
     })
     const snapshot = processesSchema(actions)
     expect(snapshot).toMatchInlineSnapshot(`
@@ -131,7 +131,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ context }) => context.foo",
+            "src": "({ context }) => fields.foo",
           },
           "type": "action",
         },
@@ -140,7 +140,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "bar",
             ],
-            "src": "({ context }) => context.bar",
+            "src": "({ context }) => fields.bar",
           },
           "type": "action",
         },
@@ -151,9 +151,9 @@ describe("parseChainsObject — разные варианты chain", () => {
   test("процессы с разными типами возвращаемых значений", () => {
     const schema = contextSchema((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
     const actions: ProcessesDeclaration<typeof schema, "string" | "number" | "object", {}> = (process) => ({
-      string: process().action(({ context }) => context.foo),
-      number: process().action(({ context }) => context.bar),
-      object: process().action(({ context }) => ({ foo: context.foo, bar: context.bar })),
+      string: process().action(({ context }) => fields.foo),
+      number: process().action(({ context }) => fields.bar),
+      object: process().action(({ context }) => ({ foo: fields.foo, bar: fields.bar })),
     })
     const snapshot = processesSchema(actions)
     expect(snapshot).toMatchInlineSnapshot(`
@@ -163,7 +163,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "bar",
             ],
-            "src": "({ context }) => context.bar",
+            "src": "({ context }) => fields.bar",
           },
           "type": "action",
         },
@@ -173,7 +173,7 @@ describe("parseChainsObject — разные варианты chain", () => {
               "foo",
               "bar",
             ],
-            "src": "({ context }) => ({ foo: context.foo, bar: context.bar })",
+            "src": "({ context }) => ({ foo: fields.foo, bar: fields.bar })",
           },
           "type": "action",
         },
@@ -182,7 +182,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ context }) => context.foo",
+            "src": "({ context }) => fields.foo",
           },
           "type": "action",
         },
@@ -195,7 +195,7 @@ describe("parseChainsObject — разные варианты chain", () => {
     const actions: ProcessesDeclaration<typeof schema, "async", {}> = (process) => ({
       async: process().action(async ({ context }) => {
         await new Promise((resolve) => setTimeout(resolve, 10))
-        return context.foo
+        return fields.foo
       }),
     })
     const snapshot = processesSchema(actions)
@@ -209,7 +209,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "src": 
       "async ({ context }) => {
               await new Promise((resolve) => setTimeout(resolve, 10));
-              return context.foo;
+              return fields.foo;
             }"
       ,
           },
@@ -223,7 +223,7 @@ describe("parseChainsObject — разные варианты chain", () => {
     const schema = contextSchema((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
     const actions: ProcessesDeclaration<typeof schema, "withHandlers", {}> = (process) => ({
       withHandlers: process()
-        .action(({ context }) => context.foo)
+        .action(({ context }) => fields.foo)
         .success(({ update, data }) => update({ foo: data }))
         .error(({ update, error }) => update({ bar: 42 })),
     })
@@ -235,7 +235,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ context }) => context.foo",
+            "src": "({ context }) => fields.foo",
           },
           "error": {
             "src": "({ update, error }) => update({ bar: 42 }, "e")",
@@ -259,7 +259,7 @@ describe("parseChainsObject — разные варианты chain", () => {
     const schema = contextSchema((t) => ({ foo: t.string.required("a") }))
     const actions: ProcessesDeclaration<typeof schema, "withMeta", {}> = (process) => ({
       withMeta: process({ label: "test_process", desc: "Test process description" }).action(
-        ({ context }) => context.foo
+        ({ context }) => fields.foo
       ),
     })
     const snapshot = processesSchema(actions)
@@ -270,7 +270,7 @@ describe("parseChainsObject — разные варианты chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ context }) => context.foo",
+            "src": "({ context }) => fields.foo",
           },
           "desc": "Test process description",
           "label": "test_process",
@@ -282,7 +282,7 @@ describe("parseChainsObject — разные варианты chain", () => {
 
   test("сохранение строкового представления action функции", () => {
     const schema = contextSchema((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
-    const actionFn = ({ context }: any) => context.foo + context.bar
+    const actionFn = ({ context }: any) => fields.foo + fields.bar
     const actions: ProcessesDeclaration<typeof schema, "sourceTest", {}> = (process) => ({
       sourceTest: process().action(actionFn),
     })
@@ -296,7 +296,7 @@ describe("parseChainsObject — разные варианты chain", () => {
 
   test("сохранение строкового представления всех обработчиков", () => {
     const schema = contextSchema((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
-    const actionFn = ({ context }: any) => context.foo
+    const actionFn = ({ context }: any) => fields.foo
     const successFn = ({ update, data }: any) => update({ result: data })
     const errorFn = ({ update, error }: any) => update({ error: error.message })
 
@@ -322,10 +322,10 @@ describe("parseChain — несколько chain", () => {
     const schema = contextSchema((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
     const actions: ProcessesDeclaration<typeof schema, "first" | "second", {}> = (process) => ({
       first: process({ label: "Первый процесс", desc: "Обрабатывает foo" })
-        .action(({ context }) => ({ foo: context.foo }))
+        .action(({ context }) => ({ foo: fields.foo }))
         .success(({ update, data }) => update({ foo: data.foo })),
       second: process({ label: "Второй процесс", desc: "Обрабатывает bar" })
-        .action(({ context }) => ({ bar: context.bar }))
+        .action(({ context }) => ({ bar: fields.bar }))
         .error(({ update, error }) => update({ bar: 42 })),
     })
     const snapshot = processesSchema(actions)
@@ -336,7 +336,7 @@ describe("parseChain — несколько chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ context }) => ({ foo: context.foo })",
+            "src": "({ context }) => ({ foo: fields.foo })",
           },
           "desc": "Обрабатывает foo",
           "label": "Первый процесс",
@@ -353,7 +353,7 @@ describe("parseChain — несколько chain", () => {
             "read": [
               "bar",
             ],
-            "src": "({ context }) => ({ bar: context.bar })",
+            "src": "({ context }) => ({ bar: fields.bar })",
           },
           "desc": "Обрабатывает bar",
           "error": {
@@ -372,14 +372,14 @@ describe("parseChain — несколько chain", () => {
   test("смешанные типы процессов", () => {
     const schema = contextSchema((t) => ({ foo: t.string.required("a"), bar: t.number.required(0) }))
     const actions: ProcessesDeclaration<typeof schema, "simple" | "complex" | "async", {}> = (process) => ({
-      simple: process().action(({ context }) => context.foo),
+      simple: process().action(({ context }) => fields.foo),
       complex: process()
-        .action(({ context }) => ({ foo: context.foo, bar: context.bar }))
+        .action(({ context }) => ({ foo: fields.foo, bar: fields.bar }))
         .success(({ update, data }) => update({ foo: data.foo }))
         .error(({ update, error }) => update({ bar: 0 })),
       async: process().action(async ({ context }) => {
         await new Promise((resolve) => setTimeout(resolve, 10))
-        return context.foo
+        return fields.foo
       }),
     })
     const snapshot = processesSchema(actions)
@@ -393,7 +393,7 @@ describe("parseChain — несколько chain", () => {
             "src": 
       "async ({ context }) => {
               await new Promise((resolve) => setTimeout(resolve, 10));
-              return context.foo;
+              return fields.foo;
             }"
       ,
           },
@@ -405,7 +405,7 @@ describe("parseChain — несколько chain", () => {
               "foo",
               "bar",
             ],
-            "src": "({ context }) => ({ foo: context.foo, bar: context.bar })",
+            "src": "({ context }) => ({ foo: fields.foo, bar: fields.bar })",
           },
           "error": {
             "src": "({ update, error }) => update({ bar: 0 }, "e")",
@@ -426,7 +426,7 @@ describe("parseChain — несколько chain", () => {
             "read": [
               "foo",
             ],
-            "src": "({ context }) => context.foo",
+            "src": "({ context }) => fields.foo",
           },
           "type": "action",
         },
@@ -446,18 +446,18 @@ describe("parseChain — несколько chain", () => {
       "cleanup" | "finalize" | "simple" | "nonRecursive",
       { cleanup: boolean; bar: number }
     > = (process, destroy) => ({
-      cleanup: destroy({ label: "Очистка ресурсов", desc: "Удаляет временные данные" }).before(({ core }) => {
+      cleanup: destroy({ label: "Очистка ресурсов", desc: "Удаляет временные данные" }).before(({ mass }) => {
         // Очистка временных данных
-        core.cleanup = true
+        mass.cleanup = true
       }),
-      finalize: destroy({ label: "Финализация" }).before(({ core }) => {
+      finalize: destroy({ label: "Финализация" }).before(({ mass }) => {
         // Финальная обработка
-        core.bar = 999
+        mass.bar = 999
       }),
       simple: destroy({ label: "Простое удаление" }),
-      nonRecursive: destroy({ label: "Не рекурсивное удаление" }).before(({ core }) => {
+      nonRecursive: destroy({ label: "Не рекурсивное удаление" }).before(({ mass }) => {
         // Обработка без рекурсии
-        core.bar = 0
+        mass.bar = 0
       }),
     })
 
@@ -467,8 +467,8 @@ describe("parseChain — несколько chain", () => {
         "cleanup": {
           "before": {
             "src": 
-      "({ core }) => {
-              core.cleanup = true;
+      "({ mass }) => {
+              mass.cleanup = true;
             }"
       ,
           },
@@ -479,8 +479,8 @@ describe("parseChain — несколько chain", () => {
         "finalize": {
           "before": {
             "src": 
-      "({ core }) => {
-              core.bar = 999;
+      "({ mass }) => {
+              mass.bar = 999;
             }"
       ,
           },
@@ -490,8 +490,8 @@ describe("parseChain — несколько chain", () => {
         "nonRecursive": {
           "before": {
             "src": 
-      "({ core }) => {
-              core.bar = 0;
+      "({ mass }) => {
+              mass.bar = 0;
             }"
       ,
           },

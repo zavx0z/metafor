@@ -5,7 +5,7 @@ export default MetaFor("git-work-sparse-checkout", { desc: "Git work-sparse-chec
     error: t.string.optional({ label: "Ошибка" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

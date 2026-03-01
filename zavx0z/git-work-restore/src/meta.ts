@@ -5,7 +5,7 @@ export default MetaFor("git-work-restore", { desc: "Git work-restore — ком�
     error: t.string.optional({ label: "Ошибка" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

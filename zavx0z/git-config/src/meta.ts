@@ -6,7 +6,7 @@ export default MetaFor("git-config", { desc: "Git config — конфигура�
     args: t.string.optional({ label: "Аргументы" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

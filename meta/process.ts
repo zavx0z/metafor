@@ -1,5 +1,5 @@
 import type { Schema } from "@zavx0z/context"
-import type { Core } from "../atom/gravity.t"
+import type { Mass } from "../atom/gravity.t"
 import type { Process } from "../atom/src/processes"
 import { ProcessType, type DestroyConfig, type ProcessConfig } from "./process.t"
 import type { ParsedProcess, ParsedDestroy, ProcessesDeclaration, ProcessesSchema } from "./process.t"
@@ -21,19 +21,19 @@ export type { ProcessesDeclaration, ProcessesSchema }
  * @example
  * ```ts
  * const process = {
- *   action: ({ context }) => context.data,
+ *   action: ({ context }) => fields.data,
  *   success: ({ update, data }) => update({ result: data }),
  *   error: ({ update, error }) => update({ error: error.message })
  * }
  * const result = parseProcess(process)
  * // => {
- * //   action: { read: ['data'], src: '({ context }) => context.data' },
+ * //   action: { read: ['data'], src: '({ context }) => fields.data' },
  * //   success: { read: [], write: ['result'], src: '({ update, data }) => update({ result: data })' },
  * //   error: { read: [], write: ['error'], src: '({ update, error }) => update({ error: error.message })' }
  * // }
  * ```
  */
-export function parseProcess<C extends Schema, I extends Core, Res = any>(process: Process<C, I, Res>): ParsedProcess {
+export function parseProcess<C extends Schema, m extends Mass, Res = any>(process: Process<C, M, Res>): ParsedProcess {
   const result: ParsedProcess = {} as ParsedProcess
   result.type = "action" as any
   if (process.label) result.label = process.label
@@ -80,9 +80,9 @@ export function parseProcess<C extends Schema, I extends Core, Res = any>(proces
  *
  * @example
  * ```ts
- * const processes: ProcessesDeclaration<C, S, I> = (process) => ({
- *   loadUser: process({ label: "loadUser" }).action(({ context }) => fetch(`/users/${context.id}`)),
- *   saveData: process().action(({ context, update }) => update({ saved: true }))
+ * const processes: ProcessesDeclaration<C, S, M> = (process) => ({
+ *   loadUser: process({ label: "loadUser" }).action(({ context }) => fetch(`/users/${fields.id}`)),
+ *   saveData: process().action(({ fields, update }) => update({ saved: true }))
  * }
  * const result = getSnapshotProcesses(processes)
  * // => {
@@ -93,8 +93,8 @@ export function parseProcess<C extends Schema, I extends Core, Res = any>(proces
  * @param processes - конфигурация процессов
  * @returns объект с распарсенными процессами
  */
-export const processesSchema = <C extends Schema, S extends string, I extends Core>(
-  processes: ProcessesDeclaration<C, S, I>
+export const processesSchema = <C extends Schema, 𝛴 extends string, m extends Mass>(
+  processes: ProcessesDeclaration<C, S, M>
 ): ProcessesSchema => {
   // Вызываем processesDeclaration с mock process и destroy
   const chains = processes(

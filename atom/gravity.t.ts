@@ -1,29 +1,31 @@
 import type { JsonPatch, Initiator } from "./em.t"
 
 /**
- * Ядро атома - объект для хранения сложных данных
+ * Масса атома — мера взаимодействия со средой исполнения
  *
- * Используется для хранения данных, которые не подходят для контекста:
- * - Сложные объекты и структуры данных
- * - Кэшированные результаты вычислений
- * - Внешние ресурсы (DOM элементы, WebSocket соединения)
- * - Состояние, которое не влияет на UI напрямую
+ * Масса накапливается в процессе исполнения и определяет локализацию процесса:
+ * - Зависимости от среды (WebSocket, DOM, Database API)
+ * - Временные структуры данных для вычислений
+ * - Кэши, актуальные только в runtime
+ * - Общие ресурсы в иерархии акторов
+ *
+ * Масса не сериализуется в Boundary — она проявляется только в Volume.
  *
  * @example
  * ```typescript
- * const core: Core = {
- *   users: [],
+ * const mass: Mass = {
+ *   socket: null as WebSocket | null,
  *   cache: new Map(),
  * }
  * ```
  */
-export type Core = Record<string, any>
+export type Mass = Record<string, any>
 // Тип для snapshot атомов
 
 export type AtomPayload = {
   path: string
   state: string
-  context: Record<string, any>
+  fields: Record<string, any>
 }
 
 export type ImpulsesChunk = {

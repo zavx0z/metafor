@@ -4,15 +4,15 @@ import type { ReactionParams } from "../../src/reactions.t.ts"
 describe.skip("реакции", () => {
   test("MetaFor - базовый функционал", async () => {
     const childHash = MetaFor(Bun.randomUUIDv7())
-      .context((types) => ({
+      .fields((types) => ({
         param: types.string.required(""),
       }))
-      .states({
+      .superposition({
         state_1: { state_2: { param: "param_1" } },
         state_2: { state_3: { param: "param_2" } },
         state_3: {},
       })
-      .core()
+      .mass()
       .processes((process) => ({
         state_1: process()
           .action(() => true)
@@ -40,13 +40,13 @@ describe.skip("реакции", () => {
     }
 
     const parentHash = MetaFor(Bun.randomUUIDv7())
-      .context((types) => ({
+      .fields((types) => ({
         childAdded: types.boolean.optional(),
       }))
-      .states({
+      .superposition({
         state_1: {},
       })
-      .core()
+      .mass()
       .processes()
       .reactions((reaction) => [
         [
@@ -63,7 +63,7 @@ describe.skip("реакции", () => {
         ],
       ])
       .view({
-        render: ({ html, context }) => html`<meta-${childHash}>${context.childAdded}</meta-${childHash}>`,
+        render: ({ html, fields }) => html`<meta-${childHash}>${fields.childAdded}</meta-${childHash}>`,
       })
 
     document.body.innerHTML = `<meta-${parentHash}></meta-${parentHash}>`
@@ -83,7 +83,7 @@ describe.skip("реакции", () => {
             name: "childName",
             state: "state_1",
             process: false,
-            states: {
+            superposition: {
               state_1: {
                 state_2: {
                   param: "param_1",
@@ -97,7 +97,7 @@ describe.skip("реакции", () => {
               state_3: {},
             },
             render: "<div></div>",
-            context: {
+            fields: {
               param: {
                 type: "string",
                 required: false,
@@ -140,7 +140,7 @@ describe.skip("реакции", () => {
         timestamp: expect.any(Number),
         patch: {
           op: "replace",
-          path: "/context",
+          path: "/fields",
           value: {
             param: "param_1",
           },
@@ -178,7 +178,7 @@ describe.skip("реакции", () => {
         timestamp: expect.any(Number),
         patch: {
           op: "replace",
-          path: "/context",
+          path: "/fields",
           value: {
             param: "param_2",
           },

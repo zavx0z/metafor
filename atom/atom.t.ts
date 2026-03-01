@@ -13,13 +13,13 @@ import type { Superposition } from "../meta/states"
  * @template C - схема контекста автомата
  * @template S - строковые ключи состояний
  */
-export interface Snapshot<C extends Schema, S extends string> {
+export interface Snapshot<C extends Schema, 𝛴 extends string> {
   /** Название компонента */
   name: string
   /** Описание компонента */
   desc?: string
   /** Карта состояний и переходов */
-  states: Superposition<S, C>
+  states: Superposition<𝛴, ɸ>
   /** Снимок процессов */
   processes?: ProcessesSchema
   /** Снимок реакций */

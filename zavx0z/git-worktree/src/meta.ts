@@ -6,7 +6,7 @@ export default MetaFor("git-worktree", { desc: "Git worktree — управле�
     args: t.string.optional({ label: "Аргументы" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

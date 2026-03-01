@@ -8,13 +8,13 @@ import "@metafor/meta"
 export default MetaFor("<name>")
   .context((t) => ({ /* поля */ }))
   .states({ /* граф переходов */ })
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
-  .view({ render: ({ state, context, html }) => html`...` })
+  .bulk({ gravity: ({ state, context, html }) => html`...` })
 ```
 
-**Порядок вызовов:** `context → states → core → processes → reactions → view`
+**Порядок вызовов:** `context → states → mass → processes → reactions → view`
 
 ---
 
@@ -32,7 +32,7 @@ export default MetaFor("<name>")
 **Правила:**
 
 - Только примитивы: `string`, `number`, `boolean`, `enum`, `array`
-- Объекты — в `core`
+- Объекты — в `mass`
 - `.optional({ label: "..." })` — метаданные для enum
 - **Для array всегда указывай дженерик:** `t.array.required<string>([])`
 - **Label всегда на русском:** `label: "Сообщение (-m)"`, `label: "Все файлы (-a)"`
@@ -152,7 +152,7 @@ export default MetaFor("<name>")
 ```typescript
 .processes(() => ({
   "определение операции": process()
-    .action(({ core, context }) => ({ operation: operation as NonNullable<typeof context.operation>, command, args }))
+    .action(({ mass, context }) => ({ operation: operation as NonNullable<typeof context.operation>, command, args }))
     .success(({ update, data }) => update(data))
     .error(({ update, error }) => update({ error: error.message })),
   "выполнение": process()
@@ -208,10 +208,10 @@ export default MetaFor("<name>")
 
 ---
 
-## Core — сложные данные
+## Mass — сложные данные
 
 ```typescript
-.core(() => ({
+.mass(() => ({
   users: new Map(),
   socket: null as WebSocket | null,
 }))
@@ -220,7 +220,7 @@ export default MetaFor("<name>")
 Если нет сложных данных:
 
 ```typescript
-.core(() => ({}))
+.mass(() => ({}))
 ```
 
 ---
@@ -230,7 +230,7 @@ export default MetaFor("<name>")
 ```typescript
 .processes(() => ({
   loading: process({ label: "Загрузка" })
-    .action(async ({ context, core }) => {
+    .action(async ({ context, mass }) => {
       const res = await fetch(`/api/${context.id}`)
       return await res.json()
     })
@@ -244,7 +244,7 @@ export default MetaFor("<name>")
 ```typescript
 // ✅ Через NonNullable<typeof context.field>
 .action(({ context }) => {
-  const group = getGroup(core.command)
+  const group = getGroup(mass.command)
   return { group: group as NonNullable<typeof context.group> }
 })
 
@@ -283,8 +283,8 @@ return { group: group as "start" | "work" | "examine" }
 ## View — иерархия акторов
 
 ```typescript
-.view({
-  render: ({ context, html }) => html`
+.bulk({
+  gravity: ({ context, html }) => html`
     ${context.operation && html`
       <meta-for
         src="zavx0z/git-${context.operation}"
@@ -296,7 +296,7 @@ return { group: group as "start" | "work" | "examine" }
         context=${{ message: context.error }} />
     `}
   `,
-  style: ({ css }) => css`.container { padding: 1rem; }`,
+  view: ({ css }) => css`.container { padding: 1rem; }`,
 })
 ```
 
@@ -337,7 +337,7 @@ export default MetaFor("git")
       "получение команды": { error: null },
     },
   })
-  .core({
+  .mass({
     patterns: {
       start: /^(clone|init)$/,
       work: /^(add|mv|restore)$/,
@@ -346,10 +346,10 @@ export default MetaFor("git")
   })
   .processes((process) => ({
     "определение операции": process()
-      .action(({ core, context }) => {
+      .action(({ mass, context }) => {
         const command = context.command?.split(" ")[0]
         let operation = null
-        for (const [key, regex] of Object.entries(core.patterns)) {
+        for (const [key, regex] of Object.entries(mass.patterns)) {
           if (regex.test(command)) {
             operation = key
             break
@@ -364,8 +364,8 @@ export default MetaFor("git")
       .action(() => null)
       .success(({ update }) => update({ operation: null })),
   }))
-  .view({
-    render: ({ context, html }) => html`
+  .bulk({
+    gravity: ({ context, html }) => html`
       ${context.operation && html`
         <meta-for src="zavx0z/git-${context.operation}" context=${{ command: context.command }} />
       `}
@@ -405,9 +405,9 @@ export default MetaFor("git")...
 **Можно:**
 
 ```typescript
-// ✅ Всё внутри .core()
+// ✅ Всё внутри .mass()
 export default MetaFor("git")
-  .core({
+  .mass({
     patterns: {
       start: /^(clone|init)$/,
       work: /^(add|mv|restore)$/,
@@ -415,10 +415,10 @@ export default MetaFor("git")
   })
   .processes((process) => ({
     "определение операции": process()
-      .action(({ core, context }) => {
+      .action(({ mass, context }) => {
         const command = context.command?.split(" ")[0]
         let operation = null
-        for (const [key, regex] of Object.entries(core.patterns)) {
+        for (const [key, regex] of Object.entries(mass.patterns)) {
           if (regex.test(command)) {
             operation = key
             break
@@ -431,7 +431,7 @@ export default MetaFor("git")
   }))
 ```
 
-**Правило:** Все данные, функции, паттерны — только внутри `.core()`, `.processes()`, `.context()`.
+**Правило:** Все данные, функции, паттерны — только внутри `.mass()`, `.processes()`, `.context()`.
 
 ---
 
@@ -468,8 +468,8 @@ zavx0z/git-work-add/     # команда add
 Путь указывает на репо: `zavx0z/<repo-name>`
 
 ```typescript
-.view({
-  render: ({ context, html }) => html`
+.bulk({
+  gravity: ({ context, html }) => html`
     ${context.operation === "start" && html`<meta-for src="zavx0z/git-start" context=${{ command: context.command, args: context.args }} />`}
     ${context.operation === "work" && html`<meta-for src="zavx0z/git-work" context=${{ command: context.command, args: context.args }} />`}
   `,
@@ -501,7 +501,7 @@ export default MetaFor("git")
       "получение команды": { error: null },
     },
   })
-  .core({
+  .mass({
     patterns: {
       start: /^(clone|init)$/,
       work: /^(add|mv|restore)$/,
@@ -509,10 +509,10 @@ export default MetaFor("git")
   })
   .processes((process) => ({
     "определение операции": process()
-      .action(({ core, context }) => {
+      .action(({ mass, context }) => {
         const command = context.command?.split(" ")[0]
         let operation = null
-        for (const [key, regex] of Object.entries(core.patterns)) {
+        for (const [key, regex] of Object.entries(mass.patterns)) {
           if (regex.test(command)) {
             operation = key
             break
@@ -527,8 +527,8 @@ export default MetaFor("git")
       .action(() => null)
       .success(({ update }) => update({ operation: null })),
   }))
-  .view({
-    render: ({ context, html }) => html`
+  .bulk({
+    gravity: ({ context, html }) => html`
       ${context.operation === "start" && html`<meta-for src="zavx0z/git-start" context=${{ command: context.command, args: context.args }} />`}
       ${context.operation === "work" && html`<meta-for src="zavx0z/git-work" context=${{ command: context.command, args: context.args }} />`}
     `,

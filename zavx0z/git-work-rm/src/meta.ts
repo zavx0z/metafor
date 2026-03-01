@@ -5,7 +5,7 @@ export default MetaFor("git-work-rm", { desc: "Git work-rm — команда gi
     error: t.string.optional({ label: "Ошибка" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

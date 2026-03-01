@@ -6,7 +6,7 @@
 
 import type { Schema, Update, Values } from "@zavx0z/context"
 import type { JsonPatch } from "../em.t"
-import type { Core } from "../gravity.t"
+import type { Mass } from "../gravity.t"
 import type { ReactionAction } from "../../meta/reactions.t"
 import type { Self } from "../../meta/metafor"
 
@@ -18,29 +18,29 @@ export type ReactionParams = {
   self: Self
 }
 
-export type Reactions<C extends Schema = Schema, S extends string = string, I extends Core = Core> = {
+export type Reactions<ɸ extends Schema = Schema, 𝛴 extends string = string, m extends Mass = Mass> = {
   run: (params: {
     state: S
-    context: Values<C>
-    core: I
+    fields: Values<ɸ>
+    mass: M
     meta: string
     atom: string
     timestamp: number
     patch: JsonPatch
-    update: Update<C>
+    update: Update<ɸ>
     self: Self
   }) => boolean
   exists: () => boolean
   getAll: () => Array<{
     label: string
     desc?: string
-    update: ReactionAction<C, S, I>
-    getConditions: (params: { self: Self; context: Values<C> }) => any
+    update: ReactionAction<C, S, M>
+    getConditions: (params: { self: Self; fields: Values<ɸ> }) => any
   }>
   get: (state: S) => Array<{
     label: string
     desc?: string
-    update: ReactionAction<C, S, I>
-    getConditions: (params: { self: Self; context: Values<C> }) => any
+    update: ReactionAction<C, S, M>
+    getConditions: (params: { self: Self; fields: Values<ɸ> }) => any
   }>
 }

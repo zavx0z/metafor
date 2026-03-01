@@ -13,7 +13,7 @@ export default MetaFor("git-plumbing", { desc: "Git plumbing — низкоур�
     args: t.string.optional({ label: "Аргументы" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

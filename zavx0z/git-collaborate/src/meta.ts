@@ -6,7 +6,7 @@ export default MetaFor("git-collaborate", { desc: "Git collaborate — кома�
     args: t.string.optional({ label: "Аргументы" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

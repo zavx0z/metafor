@@ -1,14 +1,14 @@
 import type { Schema } from "@zavx0z/context"
-import type { Core } from "../../atom/gravity.t"
+import type { Mass } from "../../atom/gravity.t"
 import type { ReactionAction } from "../reactions.t"
 
 const PATTERN_UPDATE = /\bupdate\s*\(\s*({[\s\S]*?})\s*\)/g
 const PATTERN_ARROW = /^\s*(\([^)]+\))\s*=>/
 
 export const pattern = {
-  dot: /context\.(\w+)/g,
-  destructParams: /context:\s*{([^}]+)}/g,
-  destructBody: /(?:const|let|var)\s*{([^}]+)}\s*=\s*context(?:\s*,\s*{([^}]+)}\s*=\s*context)*/g,
+  dot: /fields\.(\w+)/g,
+  destructParams: /fields:\s*{([^}]+)}/g,
+  destructBody: /(?:const|let|var)\s*{([^}]+)}\s*=\s*fields(?:\s*,\s*{([^}]+)}\s*=\s*fields)*/g,
   update: /update\(\s*{([^}]+)}\s*\)/g,
 }
 export function updateAppendArg(funcString: string, arg: string) {
@@ -36,9 +36,9 @@ export function destroyAppendArg(funcString: string, arg: string) {
  *
  * @example
  * ```ts
- * const fn = ({ core }) => { core.active = true }
+ * const fn = ({ mass }) => { mass.active = true }
  * const str = normalizeFunctionString(fn.toString())
- * // "({ core }) => { core.active = true }"
+ * // "({ mass }) => { mass.active = true }"
  * ```
  */
 export function normalizeFunctionString(funcString: string): string {
@@ -46,12 +46,12 @@ export function normalizeFunctionString(funcString: string): string {
 }
 
 /**
- * Парсит функцию и извлекает информацию о полях контекста, которые читаются и записываются.
+ * Парсит функцию и извлекает информацию о полях, которые читаются и записываются.
  *
  * Анализирует код функции с помощью регулярных выражений для поиска:
- * - Доступа к полям через `context.field`
- * - Деструктуризации параметров `{ field } = context`
- * - Деструктуризации в теле функции `const { field } = context`
+ * - Доступа к полям через `fields.field`
+ * - Деструктуризации параметров `{ field } = fields`
+ * - Деструктуризации в теле функции `const { field } = fields`
  * - Вызовов `update({ field })`
  *
  * @param fn - функция для анализа
@@ -60,8 +60,8 @@ export function normalizeFunctionString(funcString: string): string {
  *
  * @example
  * ```ts
- * const fn = ({ context, update }) => {
- *   const { name, age } = context
+ * const fn = ({ fields, update }) => {
+ *   const { name, age } = fields
  *   update({ status: 'active' })
  * }
  * const result = parseFunction(fn)
@@ -117,16 +117,16 @@ export function parseFunction(fn: Function, allowWrite: boolean = true) {
 /**
  * Анализирует функцию update для извлечения полей
  */
-export function extractFields<C extends Schema, S extends string, I extends Core>(reaction: ReactionAction<C, S, I>) {
+export function extractFields<C extends Schema, 𝛴 extends string, m extends Mass>(reaction: ReactionAction<C, S, M>) {
   const updateStr = reaction.toString()
   const read: string[] = []
   const write: string[] = []
 
-  // Извлекаем поля, которые читаются из контекста
-  const contextMatches = updateStr.match(/context\.(\w+)/g)
-  if (contextMatches) {
-    for (const match of contextMatches) {
-      const field = match.replace("context.", "")
+  // Извлекаем поля, которые читаются из fields
+  const fieldsMatches = updateStr.match(/fields\.(\w+)/g)
+  if (fieldsMatches) {
+    for (const match of fieldsMatches) {
+      const field = match.replace("fields.", "")
       if (!read.includes(field)) {
         read.push(field)
       }

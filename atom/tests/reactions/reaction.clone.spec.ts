@@ -9,7 +9,7 @@ type State = "idle" | "active"
 describe("deserializeReactions", () => {
   const fakeUpdate: Update<Ctx> = (values) => values as any
   const fakeContext: Values<Ctx> = { value: 10 } as any
-  const fakePatch: JsonPatch = { op: "replace", path: "/context", value: 1 }
+  const fakePatch: JsonPatch = { op: "replace", path: "/fields", value: 1 }
 
   it("создание из снимка", () => {
     // Создаем снимок напрямую
@@ -31,7 +31,7 @@ describe("deserializeReactions", () => {
           src: "({ update }) => update({ value: 200 })",
         },
       },
-      states: {
+      superposition: {
         idle: ["test_reaction_0"],
         active: ["another_reaction_1"],
       },
@@ -67,8 +67,8 @@ describe("deserializeReactions", () => {
 
     deserializedReactions.run({
       state: "idle",
-      context: fakeContext,
-      core: {},
+      fields: fakeContext,
+      mass: {},
       meta: "test",
       atom: "id",
       timestamp: Date.now(),
@@ -83,7 +83,7 @@ describe("deserializeReactions", () => {
   })
 
   it("пустой снимок", () => {
-    const emptySnapshot = { reactions: {}, states: {} }
+    const emptySnapshot = { reactions: {}, superposition: {} }
     const deserializedReactions = reactionsFromSchema<Ctx, State, {}>(emptySnapshot)
 
     expect(deserializedReactions.exists(), "пустые десериализованные реакции не должны содержать реакции").toBe(false)
@@ -102,7 +102,7 @@ describe("deserializeReactions", () => {
           src: "({ update }) => update({ value: 42 })",
         },
       },
-      states: {
+      superposition: {
         idle: ["reaction_1"],
       },
     }
@@ -129,8 +129,8 @@ describe("deserializeReactions", () => {
 
     deserializedReactions.run({
       state: "idle",
-      context: fakeContext,
-      core: {},
+      fields: fakeContext,
+      mass: {},
       meta: "test",
       atom: "id",
       timestamp: Date.now(),

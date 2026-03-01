@@ -401,8 +401,8 @@ describe("Fields (лексикографический порядок)", () => {
   //   const meta = {
   //     name: "test",
   //     desc: "",
-  //     context: {},
-  //     states: { IDLE: {} },
+  //     fields: {},
+  //     superposition: { IDLE: {} },
   //     processes: {},
   //     reactions: {},
   //     render: [],

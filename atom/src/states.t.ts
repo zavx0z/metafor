@@ -555,13 +555,13 @@ export type ConditionOptional<T> = T extends boolean
  */
 export type Wave<C extends Schema = Schema> = {
   [K in keyof Partial<C>]: C[K] extends SchemaType<any, true, any, any>
-    ? Condition<Values<C>[K]>
-    : ConditionOptional<Values<C>[K]>
+    ? Condition<Values<ɸ>[K]>
+    : ConditionOptional<Values<ɸ>[K]>
 }
 
 /**
  * Состояние в которое можно перейти с условиями
  */
-export type Transitions<To extends string = string, C extends Schema = Schema> = {
+export type Transitions<To extends string = string, ɸ extends Schema = Schema> = {
   [K in To]?: Wave<C>
 }

@@ -13,14 +13,14 @@ describe("Фильтрация по операции патча (op)", () => {
   const fakeMeta: string = "test"
 
   it("фильтрация по replace", () => {
-    const core: { called: boolean } = { called: false }
+    const mass: { called: boolean } = { called: false }
     const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ label: "test" })
             .filter(({ self }) => ({ op: "replace" }))
-            .equal(({ core }) => (core.called = true)),
+            .equal(({ mass }) => (mass.called = true)),
         ],
       ]) as any
     )
@@ -29,27 +29,27 @@ describe("Фильтрация по операции патча (op)", () => {
       meta: fakeMeta,
       atom: "id",
       timestamp: Date.now(),
-      patch: { op: "replace", path: "/context", value: 1 },
-      context: fakeContext,
+      patch: { op: "replace", path: "/fields", value: 1 },
+      fields: fakeContext,
       state: "idle",
-      core,
+      mass,
       update: fakeUpdate,
       destroy: () => {},
       self: { meta: "test", atom: "test-atom", path: "0" },
     })
 
-    expect(core.called, "реакция должна сработать при replace операции").toBe(true)
+    expect(mass.called, "реакция должна сработать при replace операции").toBe(true)
   })
 
   it("фильтрация по add", () => {
-    const core: { called: boolean } = { called: false }
+    const mass: { called: boolean } = { called: false }
     const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ label: "test" })
             .filter(({ self }) => ({ op: "add" }))
-            .equal(({ core }) => (core.called = true)),
+            .equal(({ mass }) => (mass.called = true)),
         ],
       ]) as any
     )
@@ -58,27 +58,27 @@ describe("Фильтрация по операции патча (op)", () => {
       meta: fakeMeta,
       atom: "id",
       timestamp: Date.now(),
-      patch: { op: "add", path: "/context", value: 1 },
-      context: fakeContext,
+      patch: { op: "add", path: "/fields", value: 1 },
+      fields: fakeContext,
       state: "idle",
-      core,
+      mass,
       update: fakeUpdate,
       destroy: () => {},
       self: { meta: "test", atom: "test-atom", path: "0" },
     })
 
-    expect(core.called, "реакция должна сработать при add операции").toBe(true)
+    expect(mass.called, "реакция должна сработать при add операции").toBe(true)
   })
 
   it("фильтрация по remove", () => {
-    const core: { called: boolean } = { called: false }
+    const mass: { called: boolean } = { called: false }
     const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ label: "test" })
             .filter(({ self }) => ({ op: "remove" }))
-            .equal(({ core }) => (core.called = true)),
+            .equal(({ mass }) => (mass.called = true)),
         ],
       ]) as any
     )
@@ -87,27 +87,27 @@ describe("Фильтрация по операции патча (op)", () => {
       meta: fakeMeta,
       atom: "id",
       timestamp: Date.now(),
-      patch: { op: "remove", path: "/context" },
-      context: fakeContext,
+      patch: { op: "remove", path: "/fields" },
+      fields: fakeContext,
       state: "idle",
-      core,
+      mass,
       update: fakeUpdate,
       destroy: () => {},
       self: { meta: "test", atom: "test-atom", path: "0" },
     })
 
-    expect(core.called, "реакция должна сработать при remove операции").toBe(true)
+    expect(mass.called, "реакция должна сработать при remove операции").toBe(true)
   })
 
   it("фильтрация по test", () => {
-    const core: { called: boolean } = { called: false }
+    const mass: { called: boolean } = { called: false }
     const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ label: "test" })
             .filter(({ self }) => ({ op: "test" }))
-            .equal(({ core }) => (core.called = true)),
+            .equal(({ mass }) => (mass.called = true)),
         ],
       ]) as any
     )
@@ -116,27 +116,27 @@ describe("Фильтрация по операции патча (op)", () => {
       meta: fakeMeta,
       atom: "id",
       timestamp: Date.now(),
-      patch: { op: "test", path: "/context", value: 1 },
-      context: fakeContext,
+      patch: { op: "test", path: "/fields", value: 1 },
+      fields: fakeContext,
       state: "idle",
-      core,
+      mass,
       update: fakeUpdate,
       destroy: () => {},
       self: { meta: "test", atom: "test-atom", path: "0" },
     })
 
-    expect(core.called, "реакция должна сработать при test операции").toBe(true)
+    expect(mass.called, "реакция должна сработать при test операции").toBe(true)
   })
 
   it("не срабатывает при несовпадении операции", () => {
-    const core: { called: boolean } = { called: false }
+    const mass: { called: boolean } = { called: false }
     const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
           ["idle"],
           reaction({ label: "test" })
             .filter(({ self }) => ({ op: "replace" }))
-            .equal(({ core }) => (core.called = true)),
+            .equal(({ mass }) => (mass.called = true)),
         ],
       ]) as any
     )
@@ -145,20 +145,20 @@ describe("Фильтрация по операции патча (op)", () => {
       meta: fakeMeta,
       atom: "id",
       timestamp: Date.now(),
-      patch: { op: "add", path: "/context", value: 1 },
-      context: fakeContext,
+      patch: { op: "add", path: "/fields", value: 1 },
+      fields: fakeContext,
       state: "idle",
-      core,
+      mass,
       update: fakeUpdate,
       destroy: () => {},
       self: { meta: "test", atom: "test-atom", path: "0" },
     })
 
-    expect(core.called, "реакция не должна сработать при несовпадении операции").toBe(false)
+    expect(mass.called, "реакция не должна сработать при несовпадении операции").toBe(false)
   })
 
   it("комбинированная фильтрация с другими условиями", () => {
-    const core: { called: boolean } = { called: false }
+    const mass: { called: boolean } = { called: false }
     const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
@@ -166,10 +166,10 @@ describe("Фильтрация по операции патча (op)", () => {
           reaction({ label: "test" })
             .filter(({ self }) => ({
               op: "replace",
-              path: "/context",
+              path: "/fields",
               meta: "test",
             }))
-            .equal(({ core }) => (core.called = true)),
+            .equal(({ mass }) => (mass.called = true)),
         ],
       ]) as any
     )
@@ -178,20 +178,20 @@ describe("Фильтрация по операции патча (op)", () => {
       meta: fakeMeta,
       atom: "id",
       timestamp: Date.now(),
-      patch: { op: "replace", path: "/context", value: 1 },
-      context: fakeContext,
+      patch: { op: "replace", path: "/fields", value: 1 },
+      fields: fakeContext,
       state: "idle",
-      core,
+      mass,
       update: fakeUpdate,
       destroy: () => {},
       self: { meta: "test", atom: "test-atom", path: "0" },
     })
 
-    expect(core.called, "реакция должна сработать при комбинированной фильтрации").toBe(true)
+    expect(mass.called, "реакция должна сработать при комбинированной фильтрации").toBe(true)
   })
 
   it("фильтрация по replace с path", () => {
-    const core: { called: boolean } = { called: false }
+    const mass: { called: boolean } = { called: false }
     const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
@@ -199,9 +199,9 @@ describe("Фильтрация по операции патча (op)", () => {
           reaction({ label: "test" })
             .filter(({ self }) => ({
               op: "replace",
-              path: "/context",
+              path: "/fields",
             }))
-            .equal(({ core }) => (core.called = true)),
+            .equal(({ mass }) => (mass.called = true)),
         ],
       ]) as any
     )
@@ -210,20 +210,20 @@ describe("Фильтрация по операции патча (op)", () => {
       meta: fakeMeta,
       atom: "id",
       timestamp: Date.now(),
-      patch: { op: "replace", path: "/context", value: 1 },
-      context: fakeContext,
+      patch: { op: "replace", path: "/fields", value: 1 },
+      fields: fakeContext,
       state: "idle",
-      core,
+      mass,
       update: fakeUpdate,
       destroy: () => {},
       self: { meta: "test", atom: "test-atom", path: "0" },
     })
 
-    expect(core.called, "реакция должна сработать при replace с path").toBe(true)
+    expect(mass.called, "реакция должна сработать при replace с path").toBe(true)
   })
 
   it("фильтрация по add с path", () => {
-    const core: { called: boolean } = { called: false }
+    const mass: { called: boolean } = { called: false }
     const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
@@ -231,9 +231,9 @@ describe("Фильтрация по операции патча (op)", () => {
           reaction({ label: "test" })
             .filter(({ self }) => ({
               op: "add",
-              path: "/context",
+              path: "/fields",
             }))
-            .equal(({ core }) => (core.called = true)),
+            .equal(({ mass }) => (mass.called = true)),
         ],
       ]) as any
     )
@@ -242,20 +242,20 @@ describe("Фильтрация по операции патча (op)", () => {
       meta: fakeMeta,
       atom: "id",
       timestamp: Date.now(),
-      patch: { op: "add", path: "/context", value: 1 },
-      context: fakeContext,
+      patch: { op: "add", path: "/fields", value: 1 },
+      fields: fakeContext,
       state: "idle",
-      core,
+      mass,
       update: fakeUpdate,
       destroy: () => {},
       self: { meta: "test", atom: "test-atom", path: "0" },
     })
 
-    expect(core.called, "реакция должна сработать при add с path").toBe(true)
+    expect(mass.called, "реакция должна сработать при add с path").toBe(true)
   })
 
   it("фильтрация по remove с path", () => {
-    const core: { called: boolean } = { called: false }
+    const mass: { called: boolean } = { called: false }
     const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
@@ -263,9 +263,9 @@ describe("Фильтрация по операции патча (op)", () => {
           reaction({ label: "test" })
             .filter(({ self }) => ({
               op: "remove",
-              path: "/context",
+              path: "/fields",
             }))
-            .equal(({ core }) => (core.called = true)),
+            .equal(({ mass }) => (mass.called = true)),
         ],
       ]) as any
     )
@@ -274,20 +274,20 @@ describe("Фильтрация по операции патча (op)", () => {
       meta: fakeMeta,
       atom: "id",
       timestamp: Date.now(),
-      patch: { op: "remove", path: "/context" },
-      context: fakeContext,
+      patch: { op: "remove", path: "/fields" },
+      fields: fakeContext,
       state: "idle",
-      core,
+      mass,
       update: fakeUpdate,
       destroy: () => {},
       self: { meta: "test", atom: "test-atom", path: "0" },
     })
 
-    expect(core.called, "реакция должна сработать при remove с path").toBe(true)
+    expect(mass.called, "реакция должна сработать при remove с path").toBe(true)
   })
 
   it("фильтрация по test с path", () => {
-    const core: { called: boolean } = { called: false }
+    const mass: { called: boolean } = { called: false }
     const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
         [
@@ -295,9 +295,9 @@ describe("Фильтрация по операции патча (op)", () => {
           reaction({ label: "test" })
             .filter(({ self }) => ({
               op: "test",
-              path: "/context",
+              path: "/fields",
             }))
-            .equal(({ core }) => (core.called = true)),
+            .equal(({ mass }) => (mass.called = true)),
         ],
       ]) as any
     )
@@ -306,15 +306,15 @@ describe("Фильтрация по операции патча (op)", () => {
       meta: fakeMeta,
       atom: "id",
       timestamp: Date.now(),
-      patch: { op: "test", path: "/context", value: 1 },
-      context: fakeContext,
+      patch: { op: "test", path: "/fields", value: 1 },
+      fields: fakeContext,
       state: "idle",
-      core,
+      mass,
       update: fakeUpdate,
       destroy: () => {},
       self: { meta: "test", atom: "test-atom", path: "0" },
     })
 
-    expect(core.called, "реакция должна сработать при test с path").toBe(true)
+    expect(mass.called, "реакция должна сработать при test с path").toBe(true)
   })
 })

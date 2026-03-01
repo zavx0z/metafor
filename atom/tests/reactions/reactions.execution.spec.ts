@@ -16,7 +16,7 @@ type Ctx = typeof schema
 type State = "idle" | "active" | "error"
 
 test("Выполнение реакций через run", () => {
-  const core: { called: boolean } = { called: false }
+  const mass: { called: boolean } = { called: false }
   const fakeUpdate: Update<Ctx> = (values) => values as any
   const fakeContext: Values<Ctx> = { value: 10, name: "test", isActive: true, tags: ["tag1", "tag2"] } as any
   const fakeMessage: Photon = {
@@ -24,16 +24,16 @@ test("Выполнение реакций через run", () => {
     atom: "id",
     path: "/",
     timestamp: Date.now(),
-    impulses: [{ op: "replace", path: "/context", value: 1 }],
+    impulses: [{ op: "replace", path: "/fields", value: 1 }],
   }
 
   const registry = reactionsFromSchema<Ctx, State, {}>(
-    reactionsSchema<Ctx, State, typeof core>((reaction) => [
+    reactionsSchema<Ctx, State, typeof mass>((reaction) => [
       [
         ["active"],
         reaction({ label: "test" })
           .filter(({ self }) => ({ meta: "test" }))
-          .equal(({ core }) => (core.called = true)),
+          .equal(({ mass }) => (mass.called = true)),
       ],
     ]) as any
   )
@@ -43,13 +43,13 @@ test("Выполнение реакций через run", () => {
     atom: fakeMessage.atom,
     timestamp: fakeMessage.timestamp,
     patch: fakeMessage.impulses[0] as JsonPatch,
-    context: fakeContext,
+    fields: fakeContext,
     state: "active",
-    core,
+    mass,
     update: fakeUpdate,
     destroy: () => {},
     self: { meta: "test", atom: "test-atom", path: "0" },
   })
 
-  expect(core.called, "реакция вызвана").toBe(true)
+  expect(mass.called, "реакция вызвана").toBe(true)
 })

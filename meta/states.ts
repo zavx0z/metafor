@@ -26,7 +26,7 @@ export type { Superposition }
  * ```
  */
 
-export function validateNoUnconditionalCycles<S extends string, C extends Schema>(states: Superposition<S, C>) {
+export function validateNoUnconditionalCycles<S extends string, ɸ extends Schema>(states: Superposition<𝛴, ɸ>) {
   // Строим граф только по безусловным переходам (условия: {}, null, undefined)
   const graph: Record<string, string[]> = {}
   for (const [from, transitions] of Object.entries(states)) {

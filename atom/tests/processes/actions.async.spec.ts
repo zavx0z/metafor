@@ -10,7 +10,7 @@ test("chain API — поддержка async action", async () => {
     processesSchema<typeof schema, "guest", {}>((process) => ({
       guest: process()
         .action(async ({ context }) => {
-          return context.name + "!async"
+          return fields.name + "!async"
         })
         .success(({ update, data }) => {
           expect(data, "data должен быть строкой").toBeTypeOf("string")

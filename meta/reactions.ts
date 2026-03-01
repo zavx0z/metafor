@@ -1,5 +1,5 @@
 import type { Schema, Values } from "@zavx0z/context"
-import type { Core } from "../atom/gravity.t"
+import type { Mass } from "../atom/gravity.t"
 import type { ReactionFilterConditions } from "../atom/src/condition.t"
 import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction } from "./reactions.t"
 import type { Self } from "./metafor"
@@ -7,16 +7,16 @@ import { extractFields, normalizeFunctionString, updateAppendArg } from "./parse
 import { Initiator } from "../atom/em.t"
 export type { ReactionsDeclaration, ReactionsSchema }
 
-export const reactionsSchema = <C extends Schema, S extends string, I extends Core = {}>(
-  builder: ReactionsDeclaration<C, S, I>
+export const reactionsSchema = <C extends Schema, 𝛴 extends string, m extends Mass = {}>(
+  builder: ReactionsDeclaration<C, S, M>
 ): ReactionsSchema | null => {
   const reactions: Record<string, any> = {}
-  const states: Record<string, string[]> = {}
+  const superposition: Record<string, string[]> = {}
   let reactionAutoId = 0
 
   const chainResult = builder((config?: { label?: string; desc?: string }) => ({
-    filter: (filter: (params: { self: Self; context: Values<C> }) => ReactionFilterConditions) => ({
-      equal: (update: ReactionAction<C, S, I>) => {
+    filter: (filter: (params: { self: Self; fields: Values<ɸ> }) => ReactionFilterConditions) => ({
+      equal: (update: ReactionAction<C, S, M>) => {
         const { read, write } = extractFields(update)
         const label = config?.label || ""
         const desc = config?.desc
@@ -42,11 +42,11 @@ export const reactionsSchema = <C extends Schema, S extends string, I extends Co
           registerStates: (list: S[]) => {
             for (const state of list) {
               const key = state as unknown as string
-              if (!states[key]) states[key] = []
-              states[key].push(String(id))
+              if (!superposition[key]) superposition[key] = []
+              superposition[key].push(String(id))
             }
           },
-        } as unknown as Reaction<C, S, I> & { registerStates: (list: S[]) => void }
+        } as unknown as Reaction<C, S, M> & { registerStates: (list: S[]) => void }
       },
     }),
   }))
@@ -54,5 +54,5 @@ export const reactionsSchema = <C extends Schema, S extends string, I extends Co
   for (const [list, reaction] of chainResult) reaction.registerStates(list)
 
   if (Object.keys(reactions).length === 0) return null
-  return { reactions, states }
+  return { reactions, superposition }
 }

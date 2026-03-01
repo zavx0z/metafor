@@ -1,5 +1,5 @@
 import type { Schema, Types, Update, Values } from "@zavx0z/context"
-import type { Core } from "../atom/gravity.t"
+import type { Mass } from "../atom/gravity.t"
 import type { ProcessesDeclaration, ProcessesSchema } from "./process.t"
 import type { Node as ParseNode } from "@zavx0z/template"
 import type { ReactionsSchema } from "./reactions.t"
@@ -9,7 +9,7 @@ import type { ReactionsDeclaration } from "./reactions"
 /**
  * MetaFor — фабрика для создания web-компонента-атома конечного автомата
  * @param name - имя атома (используется для создания тега `meta-${name}`)
- * @returns chain API: context() -> states() -> core() -> processes() -> reactions() -> view()
+ * @returns chain API: context() -> states() -> mass() -> processes() -> reactions() -> view()
  *
  * **Важно:** Итоговый тег компонента формируется как `meta-${name}`,
  * где name — это имя компонента, переданное в конструктор.
@@ -18,9 +18,9 @@ import type { ReactionsDeclaration } from "./reactions"
  * Основной API MetaFor для создания компонентов
  *
  * Предоставляет цепочку методов для настройки компонента:
- * - `context()` - определение типизированного контекста
+ * - `fields()` - определение типизированных полей
  * - `states()` - определение состояний и переходов
- * - `core()` - настройка ядра для сложных данных
+ * - `mass()` - настройка массы для сложных данных и зависимостей от среды
  * - `processes()` - определение процессов (действий)
  * - `reactions()` - определение реакций на события
  * - `view()` - определение представления компонента
@@ -28,12 +28,12 @@ import type { ReactionsDeclaration } from "./reactions"
  * @example
  * ```typescript
  * const component = MetaFor("my-component")
- *   .context((types) => ({ name: types.string.required("") }))
- *   .states({ idle: { loading: {} } })
- *   .core({ users: [] })
+ *   .fields((field) => ({ name: field.string.required("") }))
+ *   .superposition({ idle: { loading: {} } })
+ *   .mass({ users: [] })
  *   .processes((process) => ({ load: process().action(...) }))
  *   .reactions((reaction) => [...])
- *   .view({ render: ({ context }) => html`<div>${context.name}</div>` })
+ *   .view({ render: ({ fields }) => html`<div>${fields.name}</div>` })
  * ```
  */
 export type MetaFor = (
@@ -41,70 +41,70 @@ export type MetaFor = (
   config?: MetaForConfig,
 ) => {
   /**
-   * Регистрирует схему контекста для автомата.
+   * Регистрирует схему полей для автомата.
    *
-   * Контекст содержит только простые типы данных. Сложные объекты храните в core.
+   * Поля содержат только простые типы данных. Сложные объекты храните в mass.
    *
-   * @param schema Функция, принимающая types и возвращающая объект-схему контекста
+   * @param schema Функция, принимающая field и возвращающая объект-схему полей
    * @returns chain API для вызова .states(...)
    *
    * @example
    * ```typescript
-   * .context((types) => ({
-   *   userId: types.number.required(0),
-   *   userName: types.string.required("Anonymous"),
-   *   selectedIds: types.array.required([]),
-   *   isLoading: types.boolean.required(false),
-   *   theme: types.enum("light", "dark").required("dark"),
+   * .fields((field) => ({
+   *   userId: field.number.required(0),
+   *   userName: field.string.required("Anonymous"),
+   *   selectedIds: field.array.required([]),
+   *   isLoading: field.boolean.required(false),
+   *   theme: field.enum("light", "dark").required("dark"),
    * }))
    * ```
    */
-  context<C extends Schema>(
-    schema: (types: Types) => C,
+  fields<ɸ extends Schema>(
+    schema: (field: Types) => ɸ,
   ): {
     /**
-     * Регистрирует переходы автомата между состояниями.
+     * Регистрирует суперпозицию переходов автомата между состояниями.
      *
-     * @param states Объект, где ключ — имя состояния, а значение — карта возможных переходов (ключ — следующее состояние, значение — условия или данные перехода).
+     * @param superposition Объект, где ключ — имя состояния, а значение — карта возможных переходов (ключ — следующее состояние, значение — условия или данные перехода).
      * Пример:
      * ```ts
-     * .states({
+     * .superposition({
      *   guest: { user: { name: "Пользователь" } },
      *   user: { guest: {} },
      * })
      * ```
-     * @returns chain API для вызова .core(...)
+     * @returns chain API для вызова .mass(...)
      */
-    states<S extends string>(
-      states: Superposition<S, C>,
+    superposition<𝛴 extends string>(
+      superposition: Superposition<𝛴, ɸ>,
     ): {
       /**
-       * Регистрирует core объект для автомата.
+       * Регистрирует mass объект для автомата.
        *
-       * Core - это простой объект с данными, используемыми во всех состояниях.
-       * Сложные объекты и структуры данных храните в core.
-       * Core доступен во всех процессах и реакциях.
+       * Mass — это мера взаимодействия со средой исполнения.
+       * Масса накапливается в процессе исполнения и определяет локализацию процесса.
+       * Mass доступен во всех процессах и реакциях.
        *
-       * @param coreBuilder - функция, возвращающая core объект, или сам core объект
+       * @param massBuilder - функция, возвращающая mass объект, или сам mass объект
        * @returns chain API для вызова .processes(...)
        *
        * @example
        * ```typescript
        * // Вариант 1: Функция
-       * .core(() => ({
+       * .mass(() => ({
        *   users: [],
        * }))
        *
        * // Вариант 2: Простой объект
-       * .core({
+       * .mass({
        *   users: [],
        *   settings: { theme: 'dark' },
        *   cache: new Map()
        * })
        * ```
        */
-      core<I extends Core>(
-        core?: I,
+      mass<m extends Mass>(
+        mass?: m,
       ): {
         /**
          * Регистрирует процессы автомата для нужных состояний.
@@ -125,7 +125,7 @@ export type MetaFor = (
          *
          * @returns Объект с процессами только для нужных состояний
          */
-        processes(process?: ProcessesDeclaration<C, S, I>): {
+        processes(process?: ProcessesDeclaration<ɸ, 𝛴, m>): {
           /**
            * Регистрирует карту реакций для автомата.
            *
@@ -143,10 +143,10 @@ export type MetaFor = (
            *   ["idle", "loading"], // Состояния, в которых активна реакция
            *   {
            *     filter: (args) => args.meta.tag === "roadmap" && args.impulses[0]?.op === "replace",
-           *     update: ({ update, context, patch }) => {
+           *     update: ({ update, fields, patch }) => {
            *       update({
            *         lastMessage: patch.value,
-           *         messageCount: context.messageCount + 1
+           *         messageCount: fields.messageCount + 1
            *       })
            *     },
            *     label: "Обработка сообщений от roadmap атома"
@@ -157,23 +157,23 @@ export type MetaFor = (
            * // Вместо этого используйте процессы и их success/error обработчики
            * ```
            */
-          reactions(reaction?: ReactionsDeclaration<C, S, I>): {
+          reactions(reaction?: ReactionsDeclaration<ɸ, 𝛴, m>): {
             /**
-             * Регистрирует представление компонента и завершает конфигурацию.
+             * Регистрирует bulk-конфигурацию компонента и завершает конфигурацию.
              *
-             * @param view Конфигурация представления с render и style функциями
+             * @param bulk Конфигурация с gravity и style функциями
              * @returns Компонент для создания элемента с тегом `meta-${name}`
              *
              * @example
              * ```typescript
              * const component = MetaFor("my-component")
-             *   .context(...)
-             *   .states(...)
-             *   .core(...)
+             *   .fields(...)
+             *   .superposition(...)
+             *   .mass(...)
              *   .processes(...)
              *   .reactions(...)
-             *   .view({
-             *     render: ({ context, html }) => html`<div>${context.label}</div>`,
+             *   .bulk({
+             *     gravity: ({ fields, html }) => html`<div>${fields.label}</div>`,
              *     style: ({ css }) => css`.container { color: blue; }`
              *   })
              *
@@ -181,7 +181,7 @@ export type MetaFor = (
              * document.body.innerHTML = `<meta-my-component></meta-my-component>`
              * ```
              */
-            view(view?: ViewDeclaration<C, I, S>): Meta<C, S, I>
+            bulk(bulk?: BulkDeclaration<ɸ, m, 𝛴>): Meta<ɸ, 𝛴, m>
           }
         }
       }
@@ -199,7 +199,7 @@ declare global {
   /**
    * MetaFor — фабрика для создания web-компонента-атома конечного автомата
    * @param name - имя атома (используется для создания тега `meta-${name}`)
-   * @returns chain API: context() -> states() -> core() -> processes() -> reactions() -> view()
+   * @returns chain API: fields() -> superposition() -> mass() -> processes() -> reactions() -> bulk()
    *
    * **Важно:** Итоговый тег компонента формируется как `meta-${name}`,
    * где name — это имя компонента, переданное в конструктор.
@@ -208,22 +208,22 @@ declare global {
    * Основной API MetaFor для создания компонентов
    *
    * Предоставляет цепочку методов для настройки компонента:
-   * - `context()` - определение типизированного контекста
-   * - `states()` - определение состояний и переходов
-   * - `core()` - настройка ядра для сложных данных
+   * - `fields()` - определение типизированных полей
+   * - `superposition()` - определение суперпозиции состояний
+   * - `mass()` - настройка массы для сложных данных и зависимостей от среды
    * - `processes()` - определение процессов (действий)
    * - `reactions()` - определение реакций на события
-   * - `view()` - определение представления компонента
+   * - `bulk()` - определение bulk-конфигурации компонента
    *
    * @example
    * ```typescript
    * const component = MetaFor("my-component")
-   *   .context((types) => ({ name: types.string.required("") }))
-   *   .states({ idle: { loading: {} } })
-   *   .core({ users: [] })
+   *   .fields((field) => ({ name: field.string.required("") }))
+   *   .superposition({ idle: { loading: {} } })
+   *   .mass({ users: [] })
    *   .processes((process) => ({ load: process().action(...) }))
    *   .reactions((reaction) => [...])
-   *   .view({ render: ({ context }) => html`<div>${context.name}</div>` })
+   *   .bulk({ gravity: ({ fields }) => html`<div>${fields.name}</div>` })
    * ```
    */
   var MetaFor: MetaFor
@@ -251,82 +251,83 @@ export type MetaForConfig = {
 }
 
 /**
- * Параметры функции рендеринга представления атома.
+ * Параметры функции bulk-конфигурации атома.
  *
  * Предназначены для декларирования иерархии акторов через `<meta-for>`.
  *
  * ## API
- * - `state` — текущее состояние для условий рендеринга
+ * - `state` — текущее состояние для условий gravity
  * - `html` — шаблонизация для `<meta-for>` элементов
- * - `context` — данные атома для передачи дочерним акторам
+ * - `fields` — данные атома для передачи дочерним акторам
  * - `update` — функция обновления контекста
- * - `core` — ядро для сложных данных
+ * - `mass` — масса для сложных данных и зависимостей от среды
  *
  * @example
  * ```ts
  * // Иерархия акторов на основе состояния
- * render: ({ state, html }) => html`
+ * gravity: ({ state, html }) => html`
  *   ${state === "коммит" && html`<meta-for src="meta/status.js" context=${{ message: "В процессе..." }}></meta-for>`}
  *   ${state === "завершено" && html`<meta-for src="meta/success.js" context=${{ message: "Готово!" }}></meta-for>`}
  *   ${state === "ошибка" && html`<meta-for src="meta/error.js" context=${{ error: "Ошибка" }}></meta-for>`}
  * `
  *
  * // Передача контекста дочернему актору
- * render: ({ context, html }) => html`
- *   <meta-for src="meta/child.js" context=${{ data: context.value }}></meta-for>
+ * gravity: ({ fields, html }) => html`
+ *   <meta-for src="meta/child.js" context=${{ data: fields.value }}></meta-for>
  * `
  *
  * // Несколько акторов в иерархии
- * render: ({ html }) => html`
+ * gravity: ({ html }) => html`
  *   <meta-for src="meta/header.js"></meta-for>
  *   <meta-for src="meta/content.js"></meta-for>
  *   <meta-for src="meta/footer.js"></meta-for>
  * `
  * ```
  */
-export type ViewDefinitionParams<C extends Schema = Schema, I extends Core = Core, S extends string = string> = {
+export type ViewDefinitionParams<ɸ extends Schema = Schema, m extends Mass = Mass, 𝛴 extends string = string> = {
   /**
    * Функция для обновления контекста атома.
    * Используется в обработчиках событий для изменения состояния.
    * @example
    * ```ts
-   * render: ({ html, update }) => html`
+   * gravity: ({ html, update }) => html`
    *   <button onclick=${() => update({ isLoading: true })}>Начать</button>
    * `
    */
-  update: Update<C>
+  update: Update<ɸ>
   /**
    * Текущий контекст атома.
-   * Содержит все поля, определённые в `.context(...)`.
+   * Содержит все поля, определённые в `.fields(...)`.
    * Используется для передачи данных дочерним акторам.
    * @example
    * ```ts
-   * render: ({ context, html }) => html`
-   *   <meta-for src="meta/child.js" context=${{ value: context.data }}></meta-for>
+   * gravity: ({ fields, html }) => html`
+   *   <meta-for src="meta/child.js" context=${{ value: fields.data }}></meta-for>
    * `
    */
-  context: Values<C>
+  fields: Values<ɸ>
   /**
-   * Ядро атома для сложных данных.
+   * Масса атома для сложных данных и зависимостей от среды.
    * Содержит объекты, массивы и структуры, которые не помещаются в контекст.
+   * Масса определяет локализацию процесса и не сериализуется в Boundary.
    */
-  core: I
+  mass: m
   /**
    * Текущее состояние автомата.
-   * Строка из `.states(...)`, используется для условного рендеринга акторов.
+   * Строка из `.superposition(...)`, используется для условий gravity.
    * @example
    * ```ts
-   * render: ({ state, html }) => html`
+   * gravity: ({ state, html }) => html`
    *   ${state === "loading" && html`<meta-for src="meta/spinner.js"></meta-for>`}
    * `
    */
-  state: S
+  state: 𝛴
   /**
    * Функция шаблонизации для создания HTML.
    * Используется для декларирования иерархии акторов через `<meta-for>`.
    * @example
    * ```ts
-   * render: ({ html }) => html`
+   * gravity: ({ html }) => html`
    *   <meta-for src="meta/header.js"></meta-for>
    *   <meta-for src="meta/content.js"></meta-for>
    * `
@@ -335,90 +336,90 @@ export type ViewDefinitionParams<C extends Schema = Schema, I extends Core = Cor
 }
 
 /**
- * Конфигурация для представления компонента.
+ * Конфигурация для bulk-компонента.
  *
  * Определяет иерархию акторов через `<meta-for>` и стили компонента.
  * Поддерживает передачу контекста дочерним акторам через атрибут `context`.
  */
-export interface ViewDeclaration<C extends Schema, I extends Core, S extends string> {
+export interface BulkDeclaration<ɸ extends Schema, m extends Mass, 𝛴 extends string> {
   /**
-   * Функция рендеринга иерархии акторов.
+   * Функция gravity для иерархии акторов.
    * Декларирует вложенные акторы через `<meta-for src="..." context={...}>`.
    *
    * @example
    * ```ts
-   * // Условный рендеринг по состоянию
-   * render: ({ state, html }) => html`
+   * // Условный gravity по состоянию
+   * gravity: ({ state, html }) => html`
    *   ${state === "loading" && html`<meta-for src="meta/spinner.js"></meta-for>`}
    *   ${state === "ready" && html`<meta-for src="meta/content.js"></meta-for>`}
    * `
    *
    * // Передача контекста
-   * render: ({ context, html }) => html`
-   *   <meta-for src="meta/child.js" context=${{ data: context.value }}></meta-for>
+   * gravity: ({ fields, html }) => html`
+   *   <meta-for src="meta/child.js" context=${{ data: fields.value }}></meta-for>
    * `
    *
    * // Статическая иерархия
-   * render: ({ html }) => html`
+   * gravity: ({ html }) => html`
    *   <meta-for src="meta/header.js"></meta-for>
    *   <meta-for src="meta/main.js"></meta-for>
    *   <meta-for src="meta/footer.js"></meta-for>
    * `
    */
-  render?: (params: ViewDefinitionParams<C, I, S>) => void
+  gravity?: (params: ViewDefinitionParams<ɸ, m, 𝛴>) => void
   /**
-   * Функция для определения CSS-стилей компонента.
+   * Функция для определения view-стилей компонента.
    * Возвращает CSS строку через функцию css.
    *
    * @example
    * ```ts
-   * style: ({ css }) => css`
+   * view: ({ css }) => css`
    *   .container {
    *     padding: 16px;
    *     border: 1px solid #ccc;
    *   }
    * `
    */
-  style?: ({ css }: { css: (strings: TemplateStringsArray, ...values: any[]) => void }) => void
+  view?: ({ css }: { css: (strings: TemplateStringsArray, ...values: any[]) => void }) => void
 }
 
 /**
  * Схема компонента MetaFor
  *
- * Определяет полную структуру компонента включая контекст, состояния,
- * процессы, реакции и представление. Используется для создания атомов.
+ * Определяет полную структуру компонента включая поля, суперпозицию,
+ * процессы, реакции и массу. Используется для создания атомов.
  *
- * @template C - Тип контекста (схема контекста)
+ * @template C - Тип полей (схема полей)
  * @template S - Тип состояний (строковые литералы)
- * @template I - Тип ядра (объект для сложных данных)
+ * @template M - Тип массы (объект для сложных данных и зависимостей от среды)
  *
  * @example
  * ```typescript
  * const schema: Meta = {
  *   name: "user-profile",
- *   context: { name: types.string.required("") },
- *   states: { idle: { loading: {} } },
- *   core: { users: [] }
+ *   fields: { name: field.string.required("") },
+ *   superposition: { idle: { loading: {} } },
+ *   mass: { users: [] }
  * }
  * ```
  */
-export interface Meta<C extends Schema = Schema, S extends string = string, I extends Core = {}> {
+export interface Meta<ɸ extends Schema = Schema, 𝛴 extends string = string, m extends Mass = {}> {
   /** Название компонента */
   name: string
   /** Описание компонента */
   desc?: string
-  /** Карта состояний и переходов */
-  states: Superposition<S, C>
+  /** Суперпозиция состояний и переходов */
+  superposition: Superposition<𝛴, ɸ>
   /** Снимок процессов */
   processes?: ProcessesSchema
   /** Снимок реакций */
   reactions?: ReactionsSchema
-  /** Схема контекста */
-  context: C
-  /** Сериализованный view как ParseNode[] из @zavx0z/template */
-  render?: ParseNode[]
-  /** Стили компонента */
-  style?: string
-  /** Ядро */
-  core?: I
+  /** Схема полей */
+  fields: ɸ
+  /** Сериализованная gravity как ParseNode[] из @zavx0z/template */
+  gravity?: ParseNode[]
+  /** View-стили компонента */
+  view?: string
+  /** Масса */
+  mass?: m
 }

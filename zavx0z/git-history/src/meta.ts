@@ -8,7 +8,7 @@ export default MetaFor("git-history", { desc: "Git history — команды у
     args: t.string.optional({ label: "Аргументы" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

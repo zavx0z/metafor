@@ -2,7 +2,7 @@
  * @packageDocumentation
  * Модуль для преобразования MetaFor DSL в формат JSON для monad.
  *
- * Преобразует декларативное описание атома (context, states, processes, reactions, view, core)
+ * Преобразует декларативное описание атома (context, states, processes, reactions, view, mass)
  * в промежуточный JSON-формат, который используется для инициализации monad и boundary.
  */
 
@@ -26,8 +26,8 @@ type MetaLike = Record<string, any> & {
   /** Представление (render/style) */
   render?: ParseNode[]
   style?: string
-  /** Ядро для сложных данных */
-  core?: Record<string, any>
+  /** Масса для сложных данных и зависимостей от среды */
+  mass?: Record<string, any>
 }
 
 /**
@@ -83,13 +83,13 @@ export interface ParsedProcessJson {
 
 /**
  * Представление атома в JSON формате.
- * Содержит сериализованные render и style компоненты.
+ * Содержит сериализованные gravity и view компоненты.
  */
 export interface ViewJson {
-  /** Сериализованное представление render как AST из @zavx0z/template */
-  render?: ParseNode[]
-  /** Сериализованные стили как CSS строка */
-  style?: string
+  /** Сериализованное представление gravity как AST из @zavx0z/template */
+  gravity?: ParseNode[]
+  /** Сериализованные view-стили как CSS строка */
+  view?: string
 }
 
 /**
@@ -100,8 +100,8 @@ export interface ViewJson {
  * - **superposition** — граф переходов состояний
  * - **processes** — процессы с обработчиками (action/success/error)
  * - **reactions** — реакции на события других атомов
- * - **view** — представление (render/style) для BULK уровня
- * - **core** — ядро для сложных данных
+ * - **bulk** — bulk-конфигурация (gravity/style) для BULK уровня
+ * - **mass** — масса для сложных данных и зависимостей от среды
  *
  * @example
  * ```json
@@ -123,7 +123,7 @@ export interface ViewJson {
  *     "коммит": {
  *       "type": "action",
  *       "action": {
- *         "src": "({ context }) => { ... }",
+ *         "src": "({ fields }) => { ... }",
  *         "read": ["src"]
  *       },
  *       "success": {
@@ -134,13 +134,13 @@ export interface ViewJson {
  *   },
  *   "reactions": {
  *     "reactions": { ... },
- *     "states": { ... }
+ *     "superposition": { ... }
  *   },
- *   "view": {
- *     "render": [...],
- *     "style": ".container { color: blue; }"
+ *   "bulk": {
+ *     "gravity": [...],
+ *     "view": ".container { color: blue; }"
  *   },
- *   "core": {
+ *   "mass": {
  *     "users": []
  *   }
  * }
@@ -167,25 +167,25 @@ export interface MonadJson {
   processes?: Record<string, ParsedProcessJson>
   /**
    * Реакции на события других атомов.
-   * Содержит карту реакций и маппинг состояний.
+   * Содержит карту реакций и маппинг суперпозиций.
    */
   reactions?: {
     /** Карта реакций по ID */
     reactions: Record<string, ReactionDefinitionJson>
-    /** Маппинг состояний в ID реакций */
-    states: Record<string, string[]>
+    /** Маппинг суперпозиций в ID реакций */
+    superposition: Record<string, string[]>
   }
   /**
-   * Представление для BULK уровня.
-   * Содержит render (AST) и style (CSS строка).
+   * Bulk-конфигурация для BULK уровня.
+   * Содержит gravity (AST) и view (CSS).
    */
-  view?: ViewJson
+  bulk?: ViewJson
   /**
-   * Ядро для сложных данных.
+   * Масса для сложных данных и зависимостей от среды.
    * Используется для хранения объектов, массивов и других структур,
-   * которые не помещаются в простой контекст.
+   * которые не помещаются в простой контекст. Масса не сериализуется в Boundary.
    */
-  core?: Record<string, any>
+  mass?: Record<string, any>
 }
 
 /**
@@ -262,12 +262,12 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
  * Преобразует MetaFor DSL в формат JSON для monad.
  *
  * Извлекает все компоненты декларации:
- * - **fields** — схема полей из context с семантикой для ИИ
- * - **superposition** — граф переходов из states
+ * - **fields** — схема полей с семантикой для ИИ
+ * - **superposition** — граф переходов состояний
  * - **processes** — процессы с обработчиками (action/success/error/before)
  * - **reactions** — реакции на события других атомов
- * - **view** — представление (render/style) для BULK уровня
- * - **core** — ядро для сложных данных
+ * - **bulk** — bulk-конфигурация (gravity/style) для BULK уровня
+ * - **mass** — масса для сложных данных и зависимостей от среды
  *
  * @param meta - Исходный объект MetaFor со всеми компонентами
  * @param sourceText - Исходный код TS файла для извлечения generic-типов массивов
@@ -276,22 +276,22 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
  * @example
  * ```typescript
  * const meta = MetaFor("git")
- *   .context((t) => ({ src: t.string.required("./tmp/edit.json") }))
- *   .states({ коммит: { завершено: {} }, завершено: null })
- *   .core({ history: [] })
+ *   .fields((t) => ({ src: t.string.required("./tmp/edit.json") }))
+ *   .superposition({ коммит: { завершено: {} }, завершено: null })
+ *   .mass({ history: [] })
  *   .processes((process, destroy) => ({
- *     коммит: process().action(({ context }) => {}).success(({ update }) => update({ src: "" }))
+ *     коммит: process().action(({ fields }) => {}).success(({ update }) => update({ src: "" }))
  *   }))
  *   .reactions()
- *   .view({ render: ({ context, html }) => html`<div>${context.src}</div>` })
+ *   .bulk({ gravity: ({ fields, html }) => html`<div>${fields.src}</div>` })
  *
  * const json = convertMetaToMonadJson(meta, sourceCode)
- * // => { name: "git", fields: {...}, superposition: {...}, processes: {...}, view: {...}, core: {...} }
+ * // => { name: "git", fields: {...}, superposition: {...}, processes: {...}, bulk: {...}, mass: {...} }
  * ```
  */
 export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): MonadJson {
-  const inputContext = meta?.context
-  if (!inputContext || typeof inputContext !== "object") {
+  const inputFields = meta?.fields
+  if (!inputFields || typeof inputFields !== "object") {
     throw new Error("context не найден или не является объектом")
   }
 
@@ -299,7 +299,7 @@ export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): Mon
   const fields: Record<string, FieldDefinitionJson> = {}
 
   // Преобразуем context → fields, обогащая типы массивов и enum
-  for (const [fieldName, rawDef] of Object.entries(inputContext)) {
+  for (const [fieldName, rawDef] of Object.entries(inputFields)) {
     if (!rawDef || typeof rawDef !== "object") {
       fields[fieldName] = rawDef as FieldDefinitionJson
       continue
@@ -340,8 +340,8 @@ export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): Mon
     fields[fieldName] = def as FieldDefinitionJson
   }
 
-  // Строим superposition из states
-  const superposition = meta.states || {}
+  // Строим superposition из superposition
+  const superposition = meta.superposition || {}
 
   // Преобразуем processes в JSON формат
   const processesJson: Record<string, ParsedProcessJson> | undefined = meta.processes
@@ -393,7 +393,7 @@ export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): Mon
     : undefined
 
   // Преобразуем reactions в JSON формат
-  const reactionsJson: { reactions: Record<string, ReactionDefinitionJson>; states: Record<string, string[]> } | undefined =
+  const reactionsJson: { reactions: Record<string, ReactionDefinitionJson>; superposition: Record<string, string[]> } | undefined =
     meta.reactions && meta.reactions.reactions
       ? {
           reactions: Object.entries(meta.reactions.reactions).reduce((acc, [key, reaction]) => {
@@ -408,21 +408,21 @@ export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): Mon
             }
             return acc
           }, {} as Record<string, ReactionDefinitionJson>),
-          states: meta.reactions.states,
+          superposition: meta.reactions.superposition,
         }
       : undefined
 
-  // Собираем view
-  const viewJson: ViewJson | undefined =
-    meta.render || meta.style
+  // Собираем bulk
+  const bulkJson: ViewJson | undefined =
+    meta.gravity || meta.view
       ? {
-          ...(meta.render ? { render: meta.render } : {}),
-          ...(meta.style ? { style: meta.style } : {}),
+          ...(meta.gravity ? { gravity: meta.gravity } : {}),
+          ...(meta.view ? { view: meta.view } : {}),
         }
       : undefined
 
-  // Собираем core
-  const coreJson: Record<string, any> | undefined = meta.core
+  // Собираем mass
+  const massJson: Record<string, any> | undefined = meta.mass
 
   // Возвращаем формат для monad
   return {
@@ -431,7 +431,7 @@ export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): Mon
     superposition,
     ...(processesJson ? { processes: processesJson } : {}),
     ...(reactionsJson ? { reactions: reactionsJson } : {}),
-    ...(viewJson ? { view: viewJson } : {}),
-    ...(coreJson ? { core: coreJson } : {}),
+    ...(bulkJson ? { bulk: bulkJson } : {}),
+    ...(massJson ? { mass: massJson } : {}),
   }
 }

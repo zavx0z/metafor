@@ -6,7 +6,7 @@ export default MetaFor("git-stash", { desc: "Git stash — отложенные 
     args: t.string.optional({ label: "Аргументы" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

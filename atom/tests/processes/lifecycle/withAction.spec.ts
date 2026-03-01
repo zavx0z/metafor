@@ -5,15 +5,15 @@ import { Initiator } from "../../../em.ts"
 
 describe.skip("MetaFor: инициализация с действиями", async () => {
   const hex = MetaFor("test-with-action")
-    .context((t) => ({
+    .fields((t) => ({
       value: t.string.optional("ctx_1", { label: "Value" }),
     }))
-    .states({
+    .superposition({
       state_1: { state_2: { value: "ctx_2" } },
       state_2: { state_3: { value: "ctx_3" } },
       state_3: {},
     })
-    .core()
+    .mass()
     .processes((process) => ({
       state_1: process()
         .action(async () => {
@@ -35,7 +35,7 @@ describe.skip("MetaFor: инициализация с действиями", asy
         .success(async ({ update, data }) => update({ value: data.value })),
     }))
     .reactions()
-    .view()
+    .bulk()
   const { waitForMessages } = messagesFixture({ meta: hex.name })
 
   const messages = await waitForMessages(500)
@@ -60,12 +60,12 @@ describe.skip("MetaFor: инициализация с действиями", asy
             name: "test-with-action",
             state: "state_1",
             process: false,
-            states: {
+            superposition: {
               state_1: { state_2: { value: "ctx_2" } },
               state_2: { state_3: { value: "ctx_3" } },
               state_3: {},
             },
-            context: {
+            fields: {
               value: {
                 type: "string",
                 required: false,

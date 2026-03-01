@@ -6,7 +6,7 @@ export default MetaFor("git-submodule", { desc: "Git submodule — управл�
     args: t.string.optional({ label: "Аргументы" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

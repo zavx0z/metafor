@@ -5,7 +5,7 @@
 
 import type { Schema } from "@zavx0z/context"
 import type { Process, Processes } from "./processes.t"
-import type { Core } from "../gravity.t"
+import type { Mass } from "../gravity.t"
 import type { ProcessesSchema } from "../../meta/process.t"
 import { ProcessType } from "../../meta/process.t"
 
@@ -22,15 +22,15 @@ export type { Process, Processes }
  * const processes = deserializeProcesses(schema)
  * const process = processes.getProcess("processName")
  * if (process) {
- *   const result = await process.action({ context, core, element })
+ *   const result = await process.action({ fields, mass, element })
  *   if (process.success) process.success({ update, data: result })
  * }
  * ```
  */
-export function processesFromSchema<C extends Schema = Schema, S extends string = string, I extends Core = Core>(
+export function processesFromSchema<C extends Schema = Schema, 𝛴 extends string = string, m extends Mass = Mass>(
   schema: ProcessesSchema
-): Processes<C, S, I> {
-  const processes: Record<S, Process<C, I>> = {} as Record<S, Process<C, I>>
+): Processes<C, S, M> {
+  const processes: Record<S, Process<ɸ, m>> = {} as Record<S, Process<ɸ, m>>
 
   // Восстанавливаем процессы из схемы
   for (const [processName, processData] of Object.entries(schema)) {
@@ -46,7 +46,7 @@ export function processesFromSchema<C extends Schema = Schema, S extends string 
           // Type guard для ParsedDestroy
           if ("before" in processData) {
             const destroyData = processData as Extract<typeof processData, { before: any }>
-            const destroyProcess: Process<C, I> = {
+            const destroyProcess: Process<ɸ, m> = {
               // Для destroy-процессов создаём action, который вызывает destroy
               type: processType,
               action: new Function(`//# sourceURL=${name}_destroy \n return ${destroyData.before.src}`)() as any,
@@ -62,7 +62,7 @@ export function processesFromSchema<C extends Schema = Schema, S extends string 
           if ("action" in processData) {
             const actionData = processData as Extract<typeof processData, { action: any }>
             // Обычный процесс
-            const process: Process<C, I> = {
+            const process: Process<ɸ, m> = {
               type: processType,
               // Восстанавливаем action функцию из строки
               action: new Function(`//# sourceURL=${name}_action \n return ${actionData.action.src}`)() as any,

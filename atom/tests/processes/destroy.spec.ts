@@ -20,14 +20,14 @@ test("Полный пример с destroy", () => {
           .success(({ data, update }) => update({ children: data, current: 0 }))
           .error(({ error, update }) => update({ error: error.message })),
         сборка: process()
-          .action(async ({ self, context, core }) => {
+          .action(async ({ self, fields, core }) => {
             const id = `node_${Date.now()}`
-            return [...((context.process as string[]) || []), id]
+            return [...((fields.process as string[]) || []), id]
           })
           .success(({ data, update }) => update({ process: data }))
           .error(({ error, update }) => update({ error: error.message })),
         следующий: process()
-          .action(({ context: { current, children } }) => {
+          .action(({ fields: { current, children } }) => {
             const last = (current || 0) + 1
             return last === children ? -1 : last
           })

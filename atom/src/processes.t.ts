@@ -8,11 +8,11 @@
  * **Предпочтительно передавать данные через action для обновления контекста:**
  * ```typescript
  * // Хорошо - данные передаются через action
- * .action(({ core }) => Promise.resolve("connected"))
+ * .action(({ mass }) => Promise.resolve("connected"))
  * .success(({ update, data }) => update({ status: data }))
  *
  * // Плохо - данные дублируются в success
- * .action(({ core }) => Promise.resolve())
+ * .action(({ mass }) => Promise.resolve())
  * .success(({ update }) => update({ status: "connected" }))
  * ```
  *
@@ -21,15 +21,15 @@
  */
 
 import type { Schema, Values } from "@zavx0z/context"
-import type { Core } from "../gravity"
+import type { Mass } from "../gravity"
 import type { Destroy } from "../field"
 import type { Atom, Self } from "../atom"
 import type { ActionChain, ProcessType } from "../../meta/process.t"
 
-export type Processes<C extends Schema = Schema, S extends string = string, I extends Core = Core> = {
-  get: (name: S) => Process<C, I> | undefined
+export type Processes<C extends Schema = Schema, 𝛴 extends string = string, m extends Mass = Mass> = {
+  get: (name: S) => Process<ɸ, m> | undefined
   has: (name: S) => boolean
-  getAll: () => Record<S, Process<C, I>>
+  getAll: () => Record<S, Process<ɸ, m>>
   names: () => string[]
 }
 
@@ -46,14 +46,14 @@ export type Processes<C extends Schema = Schema, S extends string = string, I ex
  *   label: "my_process",
  *   desc: "Описание процесса"
  * })
- *   .action(({ context }) => ({ name: context.name }))
+ *   .action(({ context }) => ({ name: fields.name }))
  *   .success(({ update, data }) => update({ name: data.name }))
  *   .error(({ update, error }) => update({ name: error.message }))
  *
  * chain.getResult() // { action, success, error, label?, desc? }
  * ```
  */
-export type ProcessChain<C extends Schema, I extends Core> = {
+export type ProcessChain<C extends Schema, m extends Mass> = {
   /**
    * Добавляет основную функцию процесса.
    *
@@ -68,7 +68,7 @@ export type ProcessChain<C extends Schema, I extends Core> = {
    * ```typescript
    * // Синхронная функция
    * .action(({ context }) => {
-   *   if (!context.email) {
+   *   if (!fields.email) {
    *     throw new Error('Email обязателен')
    *   }
    *   return { isValid: true }
@@ -84,27 +84,27 @@ export type ProcessChain<C extends Schema, I extends Core> = {
    * })
    *
    * // Предпочтительный формат action с Promise
-   * .action(({ core }) => new Promise((resolve, reject) => {
+   * .action(({ mass }) => new Promise((resolve, reject) => {
    *   // асинхронная логика
    *   resolve({ success: true })
    * }))
    * ```
    */
-  action: <Res>(fn: (params: ActionParams<C, I>) => Res | Promise<Res>) => ActionChain<C, I, Res>
+  action: <Res>(fn: (params: ActionParams<ɸ, m>) => Res | Promise<Res>) => ActionChain<ɸ, m, Res>
 }
 
 /**
  * Параметры для action
- * @template C - схема контекста автомата
- * @template I - тип ядра автомата
+ * @template C - схема полей автомата
+ * @template M - тип массы автомата
  */
-export type ActionParams<C extends Schema, I extends Core> = {
-  /** Контекст */
-  context: Values<C>
-  /** Ядро */
-  core: I
-  /** Схема контекста */
-  fields: C
+export type ActionParams<C extends Schema, m extends Mass> = {
+  /** Поля */
+  fields: Values<ɸ>
+  /** Масса */
+  mass: M
+  /** Схема полей */
+  schema: C
   /** Полный идентификатор атома */
   self: Self
 }
@@ -123,7 +123,7 @@ export type ActionParams<C extends Schema, I extends Core> = {
  * const process: Process<MyContext, { userId: number }> = {
  *   label: "Авторизация",
  *   desc: "Процесс входа пользователя",
- *   action: async ({ context, core, fields, self, destroy }) => {
+ *   action: async ({ fields, mass, fields, self, destroy }) => {
  *     // Логика авторизации с доступом ко всем параметрам
  *     // destroy() доступен для уничтожения атома
  *     return { userId: 123 }
@@ -137,10 +137,10 @@ export type ActionParams<C extends Schema, I extends Core> = {
  * }
  * ```
  */
-export type Process<C extends Schema = Schema, I extends Core = Core, Res = any> = {
+export type Process<C extends Schema = Schema, m extends Mass = Mass, Res = any> = {
   type: ProcessType.ACTION | ProcessType.FINALLY
   /** Основная функция процесса */
-  action: (params: ActionParams<C, I>) => Res | Promise<Res>
+  action: (params: ActionParams<ɸ, m>) => Res | Promise<Res>
   /** Обработчик успешного завершения */
   success?: (params: { update: Atom["evaluate"]; data: Res }) => void
   /** Обработчик ошибки */
@@ -166,7 +166,7 @@ export type Process<C extends Schema = Schema, I extends Core = Core, Res = any>
  *   login: {
  *     label: "Авторизация",
  *     action: async ({ context }) => {
- *       return await api.login(context.email, context.password)
+ *       return await api.login(fields.email, fields.password)
  *     },
  *     success: ({ update, data }) => {
  *       update({ user: data.user, isAuthenticated: true })
@@ -187,6 +187,6 @@ export type Process<C extends Schema = Schema, I extends Core = Core, Res = any>
  * }
  * ```
  */
-export type ProcessesType<C extends Schema, S extends string, I extends Core, Res = any> = Partial<
-  Record<S, Process<C, I, Res>>
+export type ProcessesType<C extends Schema, 𝛴 extends string, m extends Mass, Res = any> = Partial<
+  Record<S, Process<C, M, Res>>
 >

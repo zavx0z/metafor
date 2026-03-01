@@ -21,8 +21,7 @@ export class Atom extends Strong {
         const result = this.process.action({
           self: this.self,
           fields: this.fields,
-          context: this.λ,
-          core: this.core,
+          mass: this.mass,
         })
         if (result instanceof Promise)
           result

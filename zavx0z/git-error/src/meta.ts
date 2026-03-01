@@ -5,7 +5,7 @@ export default MetaFor("git-error", { desc: "Git error — команда git" }
     error: t.string.optional({ label: "Ошибка" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

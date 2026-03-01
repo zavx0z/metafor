@@ -16,11 +16,11 @@ describe("", () => {
     const atom1 = Atom.fromSchema({
       meta: {
         name: "atom-1",
-        context: {},
-        states: { idle: {} },
+        fields: {},
+        superposition: { idle: {} },
         processes: {},
-        reactions: { reactions: {}, states: {} },
-        core: {},
+        reactions: { reactions: {}, superposition: {} },
+        mass: {},
       },
       id: "test1",
     })
@@ -28,11 +28,11 @@ describe("", () => {
     const atom2 = Atom.fromSchema({
       meta: {
         name: "atom-2",
-        context: {},
-        states: { idle: {} },
+        fields: {},
+        superposition: { idle: {} },
         processes: {},
-        reactions: { reactions: {}, states: {} },
-        core: {},
+        reactions: { reactions: {}, superposition: {} },
+        mass: {},
       },
       id: "test2",
     })
@@ -40,11 +40,11 @@ describe("", () => {
     const atom3 = Atom.fromSchema({
       meta: {
         name: "atom-3",
-        context: {},
-        states: { idle: {} },
+        fields: {},
+        superposition: { idle: {} },
         processes: {},
-        reactions: { reactions: {}, states: {} },
-        core: {},
+        reactions: { reactions: {}, superposition: {} },
+        mass: {},
       },
       id: "test3",
     })
@@ -68,11 +68,11 @@ describe("", () => {
   test("atom - явное указание path переопределяет автогенерацию", () => {
     const testSchema = {
       name: "test",
-      context: {},
-      states: { idle: {} },
+      fields: {},
+      superposition: { idle: {} },
       processes: {},
-      reactions: { reactions: {}, states: {} },
-      core: {},
+      reactions: { reactions: {}, superposition: {} },
+      mass: {},
     }
 
     // Создаем атом с явным path
@@ -100,11 +100,11 @@ describe("", () => {
   test("atom - счетчик путей инкрементируется корректно", () => {
     const testSchema = {
       name: "test",
-      context: {},
-      states: { idle: {} },
+      fields: {},
+      superposition: { idle: {} },
       processes: {},
-      reactions: { reactions: {}, states: {} },
-      core: {},
+      reactions: { reactions: {}, superposition: {} },
+      mass: {},
     }
 
     const atoms: Atom[] = []
@@ -133,11 +133,11 @@ describe("", () => {
     const testSchema = {
       name: "test",
       desc: "Test schema",
-      context: {},
-      states: { idle: {} },
+      fields: {},
+      superposition: { idle: {} },
       processes: {},
-      reactions: { reactions: {}, states: {} },
-      core: {},
+      reactions: { reactions: {}, superposition: {} },
+      mass: {},
       render: [],
     }
 

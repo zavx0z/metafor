@@ -6,7 +6,7 @@ export default MetaFor("git-examine", { desc: "Git examine — команды п
     args: t.string.optional({ label: "Аргументы" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

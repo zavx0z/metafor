@@ -8,7 +8,7 @@ test("Строгая типизация действий", () => {
   const processes = processesFromSchema(
     processesSchema<typeof schema, "guest", {}>((process) => ({
       guest: process()
-        .action(({ context }) => context.name)
+        .action(({ context }) => fields.name)
         .success(({ update, data }) => {
           // @ts-expect-error update требует Partial<V>
           update({ age: 42 })

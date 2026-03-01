@@ -5,7 +5,7 @@ export default MetaFor("git-work-mv", { desc: "Git work-mv — команда gi
     error: t.string.optional({ label: "Ошибка" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

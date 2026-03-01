@@ -20,10 +20,10 @@ test("Создание уникальных реакций", () => {
           .filter(({ self }) => ({
             meta: "test",
             op: "replace",
-            path: "/context",
+            path: "/fields",
             value: 1,
           }))
-          .equal(({ update, context }) => update({ value: context.value + 1 })),
+          .equal(({ update, fields }) => update({ value: fields.value + 1 })),
       ],
       [
         ["error"],

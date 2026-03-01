@@ -6,7 +6,7 @@ type State = "idle" | "active"
 
 describe("Фильтрация реакций", () => {
   it("реакция должна сработать", () => {
-    const core: { called: boolean } = { called: false }
+    const mass: { called: boolean } = { called: false }
 
     const registry = reactionsFromSchema(
       reactionsSchema<{}, State, { called: boolean }>((reaction) => [
@@ -14,8 +14,8 @@ describe("Фильтрация реакций", () => {
           ["idle"],
           reaction({ label: "test" })
             .filter(({ self }) => ({ value: "test" }))
-            .equal(({ core }) => {
-              core.called = true
+            .equal(({ mass }) => {
+              mass.called = true
             }),
         ],
       ]) as any
@@ -26,13 +26,13 @@ describe("Фильтрация реакций", () => {
       atom: "id",
       timestamp: Date.now(),
       patch: { op: "replace", path: "/state", value: "test" },
-      context: {},
+      fields: {},
       state: "idle",
-      core,
+      mass,
       update: () => ({}),
       self: { meta: "test", atom: "test-atom", path: "0" },
     })
 
-    expect(core.called, "реакция должна сработать").toBe(true)
+    expect(mass.called, "реакция должна сработать").toBe(true)
   })
 })

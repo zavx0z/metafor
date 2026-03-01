@@ -5,7 +5,7 @@ export default MetaFor("git-work-clean", { desc: "Git work-clean — коман�
     error: t.string.optional({ label: "Ошибка" }),
   }))
   .states({})
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes(() => ({}))
   .reactions(() => [])
   .view({

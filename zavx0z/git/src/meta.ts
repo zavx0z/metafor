@@ -33,7 +33,7 @@ export default MetaFor("git", { desc: "Git — распределённая си
       "получение команды": { error: null },
     },
   })
-  .core({
+  .mass({
     patterns: {
       start: /^(clone|init)$/,
       work: /^(add|mv|restore|rm|clean|sparse-checkout)$/,
@@ -48,7 +48,7 @@ export default MetaFor("git", { desc: "Git — распределённая си
   })
   .processes((process) => ({
     "определение операции": process()
-      .action(({ core, context }) => {
+      .action(({ mass, context }) => {
         const cmd = context.command || ""
         const parts = cmd.split(" ")
         const command = parts[0]
@@ -56,7 +56,7 @@ export default MetaFor("git", { desc: "Git — распределённая си
           throw new Error("Не удалось извлечь команду")
         }
         const args = parts.length > 1 ? parts.slice(1).join(" ") : null
-        const patterns = core.patterns
+        const patterns = mass.patterns
         let operation: string | null = null
         for (const [key, regex] of Object.entries(patterns)) {
           if (regex.test(command)) {

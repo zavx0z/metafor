@@ -85,7 +85,7 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
     },
     выполнено: {},
   })
-  .core(() => ({}))
+  .mass(() => ({}))
   .processes((process, destroy) => ({
     "парсинг опций": process({
       label: "Парсинг опций",

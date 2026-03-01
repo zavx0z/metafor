@@ -18,7 +18,7 @@
  * - Доступны в `Self` объекте: `{ meta, atom, path }`
  *
  * ### Расширенные фильтры реакций
- * - Доступ к контексту в функции `filter`: `filter(({ self, context }) => ...)`
+ * - Доступ к контексту в функции `filter`: `filter(({ self, fields }) => ...)`
  * - Декларативные условия фильтрации с поддержкой сложных условий
  * - Фильтрация по meta, atom, path, op, value, timestamp
  *
@@ -35,7 +35,7 @@
  * @example
  * ```typescript
  * export default MetaFor("user-profile")
- *   .context((types) => ({
+ *   .fields((types) => ({
  *     userId: types.number.required(0),
  *     userName: types.string.required(""),
  *     isLoading: types.boolean.required(false),
@@ -50,7 +50,7 @@
  *   .processes((process) => ({
  *     loadUser: process()
  *       .action(async ({ context }) => {
- *         const response = await fetch(`/api/users/${context.userId}`)
+ *         const response = await fetch(`/api/users/${fields.userId}`)
  *         return await response.json()
  *       })
  *       .success(({ update, data }) => {
@@ -61,7 +61,7 @@
  *     [
  *       ["idle"],
  *       reaction()
- *         .filter(({ self, context }) => ({
+ *         .filter(({ self, fields }) => ({
  *           meta: "user",
  *           atom: self.atom.split("/")[1] || "",
  *           value: { gt: 0 }
@@ -70,9 +70,9 @@
  *     ]
  *   ])
  *   .view({
- *     render: ({ context, html, update }) => html`
+ *     render: ({ fields, html, update }) => html`
  *       <div>
- *         <h1>${context.userName}</h1>
+ *         <h1>${fields.userName}</h1>
  *         <button onclick=${() => update({ isLoading: true })}>
  *           Загрузить
  *         </button>
@@ -83,16 +83,16 @@
  *
  * @packageDocumentation
  */
-import { contextSchema, type Schema, type Types } from "@zavx0z/context"
+import { contextSchema, type Schema, type Types as Fields } from "@zavx0z/context"
 import { parse, type NodeLogical, type NodeMeta, type Node as NodeType } from "@zavx0z/template"
-import type { Core } from "../atom/gravity.t"
+import type { Mass } from "../atom/gravity.t"
 
 import { validateNoUnconditionalCycles, type Superposition } from "./states"
 import { reactionsSchema, type ReactionsDeclaration } from "./reactions"
 import { processesSchema, type ProcessesDeclaration } from "./process"
 import { serializeStyle } from "./style"
 
-import type { MetaForConfig, MetaFor, ViewDeclaration, Meta } from "./metafor.t"
+import type { MetaForConfig, MetaFor, BulkDeclaration, Meta } from "./metafor.t"
 import type { Self } from "../atom/atom"
 
 export type { MetaFor, Meta, Self, Superposition, NodeMeta, NodeType, NodeLogical }
@@ -101,32 +101,32 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc
   const dev = config?.dev ?? globalThis.DEV ?? false
   return {
-    context<C extends Schema>(schema: (types: Types) => C) {
-      const context = contextSchema(schema)
+    fields<ɸ extends Schema>(schema: (field: Fields) => ɸ) {
+      const fields = contextSchema(schema)
       return {
-        states<S extends string>(states: Superposition<S, C>) {
-          validateNoUnconditionalCycles(states)
-          const symbolKeys = Object.getOwnPropertySymbols(states)
+        superposition<𝛴 extends string>(superposition: Superposition<𝛴, ɸ>) {
+          validateNoUnconditionalCycles(superposition)
+          const symbolKeys = Object.getOwnPropertySymbols(superposition)
           const undefinedSymbol = symbolKeys.find((key) => String(key) === "Symbol()")
-          const undefinedValue = states[undefinedSymbol as unknown as S]
+          const undefinedValue = superposition[undefinedSymbol as unknown as 𝛴]
           if (undefinedValue) {
-            states["$undef$" as S] = undefinedValue
-            delete states[undefinedSymbol as unknown as S]
+            superposition["$undef$" as 𝛴] = undefinedValue
+            delete superposition[undefinedSymbol as unknown as 𝛴]
           }
           return {
-            core<I extends Core>(core?: I) {
+            mass<m extends Mass>(mass?: m) {
               return {
-                processes(process: ProcessesDeclaration<C, S, I> = () => ({})) {
+                processes(process: ProcessesDeclaration<ɸ, 𝛴, m> = () => ({})) {
                   const processes = processesSchema(process)
                   return {
-                    reactions(reaction: ReactionsDeclaration<C, S, I> = () => []) {
+                    reactions(reaction: ReactionsDeclaration<ɸ, 𝛴, m> = () => []) {
                       const reactions = reactionsSchema(reaction)
                       return {
-                        view(view?: ViewDeclaration<C, I, S>): Meta<C, S, I> {
-                          const schema: Meta<C, S, I> = { name, states, context, core: core || ({} as I) }
+                        bulk(bulk?: BulkDeclaration<ɸ, m, 𝛴>): Meta<ɸ, 𝛴, m> {
+                          const schema: Meta<ɸ, 𝛴, m> = { name, superposition, fields, mass: mass || ({} as m) }
                           if (desc) schema.desc = desc
-                          if (view && "style" in view) schema.style = serializeStyle(view.style)
-                          if (view && "render" in view) schema.render = parse(view.render as any)
+                          if (bulk && "view" in bulk) schema.view = serializeStyle(bulk.view as any)
+                          if (bulk && "gravity" in bulk) schema.gravity = parse(bulk.gravity as any)
                           if (processes) schema.processes = processes
                           if (reactions) schema.reactions = reactions
                           return schema

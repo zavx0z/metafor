@@ -1,20 +1,20 @@
 import type { Atom } from "./atom"
 import { Field } from "./field"
 import type { AtomPayload } from "./gravity.t"
-import type { Core } from "./gravity.t"
+import type { Mass } from "./gravity.t"
 
-export type { Core }
+export type { Mass }
 
 export abstract class Gravity extends Field {
-  protected constructor(_: unknown, id: string, meta: string, core?: Core) {
+  protected constructor(_: unknown, id: string, meta: string, mass?: Mass) {
     super(_, id, meta)
-    Gravity.coreWeakMap.set(this, core || {})
+    Gravity.massWeakMap.set(this, mass || {})
     // Вклеиваемся в дерево (если резерва нет — окажемся в конце корня).
     Field.fields.attachReserved(this as unknown as Atom)
   }
 
   public override destroy() {
-    Gravity.coreWeakMap.delete(this)
+    Gravity.massWeakMap.delete(this)
     super.destroy()
   }
 
@@ -22,7 +22,7 @@ export abstract class Gravity extends Field {
     return {
       path: String(this.path),
       state: this.state,
-      context: { ...this.λ },
+      fields: { ...this.λ },
     }
   }
 
@@ -40,15 +40,15 @@ export abstract class Gravity extends Field {
     return Field.atoms.map((atom) => atom.self)
   }
 
-  // ------------------------------- Ядро ---------------------------------------------
+  // ------------------------------- Масса ---------------------------------------------
 
-  private static coreWeakMap = new WeakMap<Gravity, Core>()
+  private static massWeakMap = new WeakMap<Gravity, Mass>()
 
-  public get core() {
-    return Gravity.coreWeakMap.get(this)!
+  public get mass() {
+    return Gravity.massWeakMap.get(this)!
   }
 
-  public set core(value: Core) {
-    Gravity.coreWeakMap.set(this, value)
+  public set mass(value: Mass) {
+    Gravity.massWeakMap.set(this, value)
   }
 }

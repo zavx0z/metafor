@@ -103,7 +103,7 @@ export abstract class EM extends Gravity {
   }
 
   private static getImpulse() {
-    const impulse = EM.stack.shift() as Impulse
+    const impulse = EM.stack.shift() as Mmpulse
 
     EM.emitStack.forEach((observer) => observer(EM.stack))
     let atom: ReturnType<typeof Field.getAtom> | null = null
