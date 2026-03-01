@@ -1,0 +1,37 @@
+import { createMonad, onStateChange, updateBoundary } from "@boundary/monad"
+import { GPU } from "@boundary/matrix"
+import { setupDevice } from "fixture/bunWebGPU"
+GPU._device = await setupDevice()
+
+const root = createMonad({
+  fields: {
+    hp: { type: "number" },
+    mana: { type: "number" },
+    isAlive: { type: "boolean" },
+  },
+  params: { hp: 100, mana: 50, isAlive: true },
+  state: "IDLE",
+  superposition: {
+    IDLE: {
+      PATROL: { hp: { gt: 50 } }, // ← Приоритет 1: hp > 50
+      DEAD: { hp: { lte: 0 } }, // ← Приоритет 2: hp <= 0
+    },
+    PATROL: {
+      IDLE: { mana: { lt: 10 } }, // mana < 10 → IDLE
+      COMBAT: { isAlive: true }, // isAlive === true → COMBAT
+    },
+    COMBAT: null,
+    DEAD: null, // Терминальное состояние
+  },
+  actions: {
+    PATROL: () => console.log("Start patrol"),
+    DEAD: () => console.log("Unit died"),
+  },
+})
+
+onStateChange((monadId, old, current) => {
+  const msg = `State changed: ${old} → ${current}`
+  console.log(msg)
+})
+
+await updateBoundary()

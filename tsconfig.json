@@ -48,6 +48,7 @@
     "*/node_modules/**/*",
     ".idea/**/*",
     ".cursor/**/*",
-    ".vscode/**/*"
+    ".vscode/**/*",
+    "./metafor.ts"
   ]
 }

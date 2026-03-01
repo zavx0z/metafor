@@ -7,7 +7,6 @@
 import {
   write as fieldsWrite,
   update as fieldsUpdate,
-  FieldType,
   type Field,
   type Data,
   type Brane,
@@ -98,10 +97,41 @@ function paramsToTuples(params: Record<string, unknown>): [number, BraneParamVal
 }
 
 /**
- * Создаёт и регистрирует монаду.
+ * Конфигурация монады.
  *
- * @param config - Конфигурация монады.
- * @returns UUID созданной монады.
+ * @remarks
+ * **Порядок переходов в суперпозиции важен!**
+ * Переходы проверяются в порядке объявления ключей.
+ * Первый выполненный переход останавливает проверку.
+ *
+ * @example
+ * ```typescript
+ * createMonad({
+ *   fields: {
+ *     hp: { type: "number" },
+ *     mana: { type: "number" },
+ *     isAlive: { type: "boolean" }
+ *   },
+ *   params: { hp: 100, mana: 50, isAlive: true },
+ *   state: "IDLE",
+ *   superposition: {
+ *     IDLE: {
+ *       PATROL: { hp: { gt: 50 } },   // ← Приоритет 1: hp > 50
+ *       DEAD: { hp: { lte: 0 } }      // ← Приоритет 2: hp <= 0
+ *     },
+ *     PATROL: {
+ *       IDLE: { mana: { lt: 10 } },   // mana < 10 → IDLE
+ *       COMBAT: { isAlive: true }     // isAlive === true → COMBAT
+ *     },
+ *     COMBAT: null,
+ *     DEAD: null                       // Терминальное состояние
+ *   },
+ *   actions: {
+ *     PATROL: () => console.log("Start patrol"),
+ *     DEAD: () => console.log("Unit died")
+ *   }
+ * })
+ * ```
  */
 export function createMonad(config: MonadConfig): string {
   const id = crypto.randomUUID()
