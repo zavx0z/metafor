@@ -4,7 +4,7 @@ import { test, expect } from "bun:test"
 import type { JsonPatch } from "../../em.t"
 import type { Photon } from "../../em.t"
 import { contextSchema } from "@zavx0z/context"
-import { reactionsSchema } from "../../../meta/reactions"
+import { reactionsSchema } from "../../../dsl/meta/reactions"
 
 const schema = contextSchema((field) => ({
   value: field.number.required(0),

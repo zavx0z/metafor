@@ -1,51 +1,67 @@
 import type { Schema } from "@zavx0z/context"
-import { ProcessType, type DestroyConfig, type ProcessConfig } from "./process.t"
+import { ProcessType, type DestroyConfig, type ProcessConfig, type ExecutionEnv, type ActionParams } from "./process.t"
 import type { ParsedProcess, ParsedDestroy, ProcessesDeclaration, ProcessesSchema, Process } from "./process.t"
-import { destroyAppendArg, normalizeFunctionString, parseFunction, updateAppendArg } from "./parser/func"
+import { destroyAppendArg, normalizeFunctionString, parseFunction, updateAppendArg, extractModuleSrc, validateActionStructure } from "./action"
 import { Initiator, type Mass } from "./metafor.t"
 
 
-export type { ProcessesDeclaration, ProcessesSchema }
+export type { ProcessesDeclaration, ProcessesSchema, ActionParams }
 
 /**
  * Парсит процесс и извлекает информацию о всех обработчиках.
  *
- * Анализирует объект процесса, содержащий обработчики action, success и error.
- * Для каждого обработчика извлекает информацию о полях контекста.
- * Для всех обработчиков сохраняет строковое представление функции для десериализации.
+ * Анализирует объект процесса с обработчиками action, success и error.
+ * Для action извлекает путь к модулю через extractModuleSrc и валидирует структуру.
+ * Для success/error сохраняет строковое представление функции для десериализации.
  *
- * @param process - объект процесса с обработчиками
- * @returns распарсенный процесс с информацией о полях и строковым представлением всех функций
+ * @param process - Объект процесса с обработчиками
+ * @returns Распарсенный процесс с информацией о полях и путём к модулю action
+ * @throws Error если структура action функции не соответствует требованиям
  *
  * @example
  * ```ts
  * const process = {
- *   action: ({ value }) => value.data,
+ *   action: async ({ value }) => {
+ *     const mod = await import("./actions/loader.ts")
+ *     return mod.default(value)
+ *   },
  *   success: ({ update, data }) => update({ result: data }),
  *   error: ({ update, error }) => update({ error: error.message })
  * }
  * const result = parseProcess(process)
  * // => {
- * //   action: { read: ['data'], src: '({ value }) => value.data' },
- * //   success: { read: [], write: ['result'], src: '({ update, data }) => update({ result: data })' },
- * //   error: { read: [], write: ['error'], src: '({ update, error }) => update({ error: error.message })' }
+ * //   action: { src: "./actions/loader.ts", read: ['value'] },
+ * //   success: { read: [], write: ['result'], src: '({ update, data }) => update({ result: data }, "s")' },
+ * //   error: { read: [], write: ['error'], src: '({ update, error }) => update({ error: error.message }, "e")' }
  * // }
  * ```
  */
 export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(process: Process<ɸ, m, Res>): ParsedProcess {
   const result: ParsedProcess = {} as ParsedProcess
-  result.type = "action" as any
+  result.type = ProcessType.ACTION
   if (process.label) result.label = process.label
   if (process.desc) result.desc = process.desc
 
-  const parsed = parseFunction(process.action, false)
+  // Validate action structure
+  const validation = validateActionStructure(process.action as Function)
+  if (!validation.valid) {
+    throw new Error(`Невалидная структура action: ${validation.error}`)
+  }
+
+  // Extract module path from import()
+  const modulePath = extractModuleSrc(process.action as Function)
+  if (!modulePath) {
+    throw new Error('Не удалось извлечь путь модуля из import("...") в функции action')
+  }
+
+  const parsed = parseFunction(process.action as Function, false)
   result.action = {
-    src: normalizeFunctionString(process.action.toString()),
+    src: modulePath,
     ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
   }
 
   if (process.success) {
-    const parsed = parseFunction(process.success, true)
+    const parsed = parseFunction(process.success as Function, true)
     const src = normalizeFunctionString(updateAppendArg(process.success.toString(), `"${Initiator.Success}"`))
     result.success = {
       src,
@@ -54,7 +70,7 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
     }
   }
   if (process.error) {
-    const parsed = parseFunction(process.error)
+    const parsed = parseFunction(process.error as Function)
     const src = normalizeFunctionString(updateAppendArg(process.error.toString(), `"${Initiator.Error}"`))
     result.error = {
       src,
@@ -102,6 +118,7 @@ export const processesSchema = <ɸ extends Schema, 𝛴 extends string, m extend
         type: ProcessType.ACTION,
         label: config?.label,
         desc: config?.desc,
+        env: config?.env,
         _successHandler: undefined,
         _errorHandler: undefined,
         action: (fn: any) => {
@@ -124,6 +141,7 @@ export const processesSchema = <ɸ extends Schema, 𝛴 extends string, m extend
           if (chain._errorHandler) result.error = chain._errorHandler
           if (chain.label) result.label = chain.label
           if (chain.desc) result.desc = chain.desc
+          if (chain.env) result.env = chain.env
           return result
         },
       }
@@ -134,6 +152,7 @@ export const processesSchema = <ɸ extends Schema, 𝛴 extends string, m extend
         type: ProcessType.FINALLY,
         label: config?.label,
         desc: config?.desc,
+        env: config?.env,
         _beforeHandler: undefined,
         before: (fn: any) => {
           chain._beforeHandler = fn
@@ -146,6 +165,7 @@ export const processesSchema = <ɸ extends Schema, 𝛴 extends string, m extend
           if (chain._beforeHandler) result.before = chain._beforeHandler
           if (chain.label) result.label = chain.label
           if (chain.desc) result.desc = chain.desc
+          if (chain.env) result.env = chain.env
           return result
         },
       }
@@ -172,12 +192,19 @@ export const processesSchema = <ɸ extends Schema, 𝛴 extends string, m extend
             },
             ...(chainResult.label ? { label: chainResult.label } : {}),
             ...(chainResult.desc ? { desc: chainResult.desc } : {}),
+            ...(chainResult.env ? { env: chainResult.env } : {}),
           }
         }
       } else {
         // Обычный процесс
         if ("getResult" in chains[key] && typeof chains[key].getResult === "function") {
-          result[key] = parseProcess(chains[key].getResult())
+          const parsedProcess = parseProcess(chains[key].getResult())
+          // Add env from chain if present
+          const chainEnv = (chains[key] as any).env
+          if (chainEnv) {
+            parsedProcess.env = chainEnv
+          }
+          result[key] = parsedProcess
         }
       }
     }

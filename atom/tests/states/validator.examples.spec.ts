@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test"
-import { validateNoUnconditionalCycles } from "../../../meta/states.ts"
-import type { Superposition } from "../../../meta/states.t.ts"
+import { validateNoUnconditionalCycles } from "../../../dsl/meta/states.ts"
+import type { Superposition } from "../../../dsl/meta/states.t.ts"
 
 test("Валидация корректной конфигурации состояний", () => {
   const validStates: Superposition = {

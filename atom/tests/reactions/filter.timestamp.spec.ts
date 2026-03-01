@@ -1,7 +1,7 @@
 import { reactionsFromSchema } from "../../src/reactions"
 import type { Update, Values } from "@zavx0z/context"
 import { describe, it, expect } from "bun:test"
-import { reactionsSchema } from "../../../meta/reactions"
+import { reactionsSchema } from "../../../dsl/meta/reactions"
 import type { JsonPatch } from "../../em.t"
 
 type Ctx = { value: { type: "number"; required: true } }

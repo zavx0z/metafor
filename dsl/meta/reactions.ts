@@ -1,6 +1,6 @@
 import type { Schema, Values } from "@zavx0z/context"
 import type { ReactionsDeclaration, Reaction, ReactionsSchema, ReactionAction, ReactionFilterConditions } from "./reactions.t"
-import { extractFields, normalizeFunctionString, updateAppendArg } from "./parser/func"
+import { extractFields, normalizeFunctionString, updateAppendArg } from "./action"
 import { Initiator, type Mass, type Self } from "./metafor.t"
 export type { ReactionsDeclaration, ReactionsSchema }
 

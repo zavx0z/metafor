@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test"
 import { processesFromSchema } from "../../src/processes.ts"
-import { processesSchema, type ProcessesSchema } from "../../../meta/process.ts"
+import { processesSchema, type ProcessesSchema } from "../../../dsl/meta/process.ts"
 import { contextSchema } from "@zavx0z/context"
 
 test("chain API — поддержка async action", async () => {
@@ -10,7 +10,8 @@ test("chain API — поддержка async action", async () => {
     processesSchema<typeof schema, "guest", {}>((process) => ({
       guest: process()
         .action(async ({ context }) => {
-          return fields.name + "!async"
+          const mod = await import("./mock-action.ts")
+          return mod.default(fields.name + "!async")
         })
         .success(({ update, data }) => {
           expect(data, "data должен быть строкой").toBeTypeOf("string")

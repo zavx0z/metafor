@@ -137,13 +137,13 @@ export type ProcessesDeclaration<ɸ extends Schema = Schema, 𝛴 extends string
 
 /**
  * Обработчик действия процесса.
- * Содержит функцию и список полей контекста, которые читаются.
+ * Содержит путь к модулю и список полей контекста, которые читаются.
  */
-type ParsedActionHandler = {
+export type ParsedActionHandler = {
+  /** Путь к ESM-модулю с реализацией действия */
+  src: string
   /** Список полей контекста, которые читаются в обработчике */
   read?: string[]
-  /** Строковое представление функции action для десериализации */
-  src: string
 }
 
 /**
@@ -172,6 +172,8 @@ export type ParsedProcess = {
   label?: string
   /** Описание процесса */
   desc?: string
+  /** Среды исполнения процесса */
+  env?: ExecutionEnv[]
   /** Обработчик основного действия процесса */
   action: ParsedActionHandler
   /** Обработчик успешного завершения процесса */
@@ -189,6 +191,8 @@ export type ParsedDestroy = {
   label?: string
   /** Описание процесса */
   desc?: string
+  /** Среды исполнения процесса */
+  env?: ExecutionEnv[]
   before: ParsedActionHandler
 }
 
@@ -205,9 +209,36 @@ interface BaseProcessConfig {
   desc?: string
 }
 
-export interface DestroyConfig extends BaseProcessConfig {}
+/**
+ * Среды исполнения для процесса.
+ * Определяют, где может выполняться данный процесс.
+ */
+export type ExecutionEnv = "browser" | "node" | "worker" | "server" | "any"
 
-export interface ProcessConfig extends BaseProcessConfig {}
+export interface DestroyConfig extends BaseProcessConfig {
+  /** Среды исполнения процесса */
+  env?: ExecutionEnv[]
+}
+
+export interface ProcessConfig extends BaseProcessConfig {
+  /**
+   * Массив сред исполнения, в которых может выполняться процесс.
+   * Позволяет указать целевую платформу для процесса.
+   *
+   * @example
+   * ```typescript
+   * // Процесс выполняется только в браузере
+   * process({ env: ['browser'] })
+   *
+   * // Процесс выполняется в браузере и node
+   * process({ env: ['browser', 'node'] })
+   *
+   * // Процесс выполняется в любой среде
+   * process({ env: ['any'] })
+   * ```
+   */
+  env?: ExecutionEnv[]
+}
 
 /**
  * Специальный тип для destroy-процессов

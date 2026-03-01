@@ -1,5 +1,5 @@
 import { reactionsFromSchema } from "../../src/reactions"
-import { reactionsSchema } from "../../../meta/reactions"
+import { reactionsSchema } from "../../../dsl/meta/reactions"
 import { describe, it, expect } from "bun:test"
 import { contextSchema, contextFromSchema } from "@zavx0z/context"
 

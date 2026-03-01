@@ -1,4 +1,4 @@
-import { createMonad, updateBoundary, updateMonad, onStateChange } from "@boundary/monad"
+import { createMonad, updateBoundary, updateMonads, onStateChange } from "@boundary/monad"
 
 const status = document.getElementById("status")!
 const out = document.getElementById("output")!
@@ -78,7 +78,7 @@ const corpseId = createMonad({
 
 // Callback на изменение состояния
 onStateChange((monadId, old, current) => {
-  const msg = `State changed: ${old} → ${current}`
+  const msg = `State changed for monad ${monadId}: ${old} → ${current}`
   console.log(msg)
   out.innerText += msg + "\n"
 })
@@ -95,8 +95,10 @@ console.log("\n--- Шаг симуляции (hp=100 → PATROL, hp=0 → DEAD) 
 out.innerText += "\n--- Шаг симуляции ---\n"
 
 // Обновляем и выполняем шаг для каждой монады
-await updateMonad(warriorId, { hp: 100 })
-await updateMonad(corpseId, { hp: 0 })
+await updateMonads([
+  { id: warriorId, fields: { hp: 100 } },
+  { id: corpseId, fields: { hp: 0 } },
+])
 
 const endMsg = `Симуляция завершена`
 console.log(endMsg)

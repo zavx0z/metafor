@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test"
 import { processesFromSchema } from "../../src/processes.ts"
-import { processesSchema, type ProcessesSchema } from "../../../meta/process.ts"
+import { processesSchema, type ProcessesSchema } from "../../../dsl/meta/process.ts"
 import { contextSchema } from "@zavx0z/context"
 
 test("Базовый chain API для действий", () => {
@@ -12,7 +12,10 @@ test("Базовый chain API для действий", () => {
   const processes = processesFromSchema(
     processesSchema<typeof schema, "guest" | "user", {}>((process) => ({
       guest: process()
-        .action(({ context }) => ({ name: fields.name, age: fields.age + 1 }))
+        .action(async ({ context }) => {
+          const mod = await import("./mock-action.ts")
+          return mod.default({ name: fields.name, age: fields.age + 1 })
+        })
         .success(({ update, data }) => {
           expect(data.name, "data.name должен быть строкой").toBeTypeOf("string")
           expect(data.age, "data.age должен быть числом").toBeTypeOf("number")
@@ -22,7 +25,10 @@ test("Базовый chain API для действий", () => {
           expect(error, "error должен быть определён").toBeDefined()
           update({ name: "error" })
         }),
-      user: process().action(({ context }) => ({ name: fields.name, age: fields.age })),
+      user: process().action(async ({ context }) => {
+        const mod = await import("./mock-action.ts")
+        return mod.default({ name: fields.name, age: fields.age })
+      }),
     })) as ProcessesSchema
   )
 

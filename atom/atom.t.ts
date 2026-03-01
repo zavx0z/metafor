@@ -3,10 +3,10 @@
  * @packageDocumentation
  * @module Core
  */
-import type { Schema, Snapshot as ContextSnapshot } from "@zavx0z/context"
-import type { ProcessesSchema } from "../meta/process.t"
-import type { ReactionsSchema } from "../meta/reactions.t"
-import type { Superposition } from "../meta/states"
+import type { Schema, Snapshot as ContextSnapshot } from "@zavx0z/context";
+import type { ProcessesSchema } from "../dsl/meta/process.t";
+import type { ReactionsSchema } from "../dsl/meta/reactions.t";
+import type { Superposition } from "../dsl/meta/states.t";
 
 /**
  * Интерфейс снимка состояния компонента
@@ -15,23 +15,22 @@ import type { Superposition } from "../meta/states"
  */
 export interface Snapshot<C extends Schema, 𝛴 extends string> {
   /** Название компонента */
-  name: string
+  name: string;
   /** Описание компонента */
-  desc?: string
+  desc?: string;
   /** Карта состояний и переходов */
-  states: Superposition<𝛴, ɸ>
+  states: Superposition<𝛴, ɸ>;
   /** Снимок процессов */
-  processes?: ProcessesSchema
+  processes?: ProcessesSchema;
   /** Снимок реакций */
-  reactions?: ReactionsSchema
+  reactions?: ReactionsSchema;
   /** Сериализованный view*/
-  render?: string
+  render?: string;
   /** Стили компонента */
-  style?: string
+  style?: string;
   /** Текущее состояние */
-  state: S
+  state: S;
   /** Снимок контекста */
-  context: ContextSnapshot<C>
-  core: string[]
+  context: ContextSnapshot<C>;
+  core: string[];
 }
-

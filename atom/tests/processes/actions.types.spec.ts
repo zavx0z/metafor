@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test"
 import { processesFromSchema } from "../../src/processes.ts"
-import { processesSchema, type ProcessesSchema } from "../../../meta/process.ts"
+import { processesSchema, type ProcessesSchema } from "../../../dsl/meta/process.ts"
 import { contextSchema } from "@zavx0z/context"
 
 test("Строгая типизация действий", () => {
@@ -8,7 +8,10 @@ test("Строгая типизация действий", () => {
   const processes = processesFromSchema(
     processesSchema<typeof schema, "guest", {}>((process) => ({
       guest: process()
-        .action(({ context }) => fields.name)
+        .action(async ({ context }) => {
+          const mod = await import("./mock-action.ts")
+          return mod.default(fields.name)
+        })
         .success(({ update, data }) => {
           // @ts-expect-error update требует Partial<V>
           update({ age: 42 })

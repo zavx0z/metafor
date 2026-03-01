@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
 import { convertMetaToMonadJson, extractArrayElementTypesFromSource } from "../monadJson"
-import "../../meta/metafor"
+import "../../meta/metafor.ts"
 
 describe("convertMetaToMonadJson", () => {
   test("должен преобразовать fields с сохранением всех данных", () => {
@@ -190,7 +190,10 @@ describe("convertMetaToMonadJson", () => {
       .superposition({ idle: null })
       .mass()
       .processes((process) => ({
-        idle: process().action(({ value }) => Promise.resolve({})),
+        idle: process().action(async ({ value }) => {
+          const mod = await import("./mock-action.ts")
+          return mod.default(value)
+        }),
       }))
       .reactions()
       .bulk()
@@ -269,9 +272,9 @@ describe("convertMetaToMonadJson", () => {
       .mass()
       .processes((process) => ({
         idle: process({ label: "Test Process", desc: "Описание процесса" })
-          .action(({ value }) => {
-            console.log("Value:", value.value)
-            return { result: value.value * 2 }
+          .action(async ({ value }) => {
+            const mod = await import("./mock-action.ts")
+            return mod.default({ result: value.value * 2 })
           })
           .success(({ update, data }) => {
             update({ value: data.result })
@@ -292,7 +295,7 @@ describe("convertMetaToMonadJson", () => {
       label: "Test Process",
       desc: "Описание процесса",
       action: {
-        src: expect.stringContaining("({ value }) =>"),
+        src: "./mock-action.ts",
         read: ["value"],
       },
       success: {
@@ -442,7 +445,10 @@ describe("convertMetaToMonadJson", () => {
       .mass({ data: [] as string[] })
       .processes((process) => ({
         idle: process({ label: "Process" })
-          .action(({ value }) => value.count)
+          .action(async ({ value }) => {
+            const mod = await import("./mock-action.ts")
+            return mod.default(value.count)
+          })
           .success(({ update, data }) => update({ count: data as number })),
       }))
       .reactions((reaction) => [

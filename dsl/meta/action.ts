@@ -1,9 +1,21 @@
 import type { Schema } from "@zavx0z/context"
-import type { Mass } from "../metafor.t"
-import type { ReactionAction } from "../reactions.t"
+import type { Mass } from "./metafor.t"
+import type { ReactionAction } from "./reactions.t"
 
 const PATTERN_UPDATE = /\bupdate\s*\(\s*({[\s\S]*?})\s*\)/g
 const PATTERN_ARROW = /^\s*(\([^)]+\))\s*=>/
+
+/**
+ * Паттерн для поиска динамических импортов import("...") в коде функции.
+ * Соответствует import("./module.ts") или import( './module.ts' )
+ */
+const PATTERN_IMPORT = /import\s*\(\s*["']([^"']+)["']\s*\)/
+
+/**
+ * Паттерн для поиска операторов return в коде функции.
+ * Соответствует явным return statement (не стрелочные функции =>).
+ */
+const PATTERN_RETURN = /\breturn\s+[^;]+;?/
 
 export const pattern = {
   dot: /value\.(\w+)/g,
@@ -155,4 +167,89 @@ export function extractFields<ɸ extends Schema, 𝛴 extends string, m extends 
   }
 
   return { read, write }
+}
+
+/**
+ * Извлекает путь к модулю из динамического импорта в функции.
+ *
+ * Анализирует код функции и находит первый import("..."), возвращая путь к модулю.
+ * Возвращает null, если import не найден.
+ *
+ * @param fn - Функция для анализа
+ * @returns Путь к модулю или null
+ *
+ * @example
+ * ```ts
+ * const fn = async ({ value }) => {
+ *   const mod = await import("./actions/loader.ts")
+ *   return mod.default(value)
+ * }
+ * const src = extractModuleSrc(fn)
+ * // => "./actions/loader.ts"
+ * ```
+ */
+export function extractModuleSrc(fn: Function): string | null {
+  const code = fn.toString()
+  const importMatch = PATTERN_IMPORT.exec(code)
+  return importMatch?.[1] ?? null
+}
+
+/**
+ * Валидирует структуру функции действия.
+ *
+ * Проверяет, что функция соответствует требуемому паттерну:
+ * 1. Содержит import("...") для загрузки модуля
+ * 2. Содержит return для возврата результата
+ *
+ * Примечание: из-за транспиляции порядок import/return в строковом
+ * представлении может нарушаться. Проверяется только наличие.
+ *
+ * @param fn - Функция для валидации
+ * @returns Результат валидации с флагом valid и опциональным сообщением об ошибке
+ *
+ * @example
+ * ```ts
+ * // Валидно
+ * validateActionStructure(async ({ value }) => {
+ *   const mod = await import("./mod.ts")
+ *   const result = mod.process(value)
+ *   return result
+ * })
+ * // => { valid: true }
+ *
+ * // Невалидно — нет import
+ * validateActionStructure(({ value }) => value * 2)
+ * // => { valid: false, error: "..." }
+ * ```
+ */
+export function validateActionStructure(fn: Function): { valid: boolean; error?: string } {
+  const code = fn.toString()
+
+  // Удаление комментариев и нормализация
+  const normalizedCode = code
+    .replace(/\/\*[\s\S]*?\*\//g, "")
+    .replace(/\/\/.*$/gm, "")
+    .trim()
+
+  // Проверка наличия import
+  const importMatch = normalizedCode.match(PATTERN_IMPORT)
+  if (!importMatch) {
+    return {
+      valid: false,
+      error:
+        'Первая строка должна быть import("..."): функция действия должна начинать с динамического импорта модуля',
+    }
+  }
+
+  // Проверка наличия return
+  const returnMatch = normalizedCode.match(PATTERN_RETURN)
+  if (!returnMatch) {
+    return {
+      valid: false,
+      error:
+        'Последняя строка должна быть return: функция действия должна возвращать результат через return',
+    }
+  }
+
+  return { valid: true }
 }

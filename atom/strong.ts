@@ -1,18 +1,18 @@
-import { Weak } from "./weak"
-import type { Mass } from "./gravity"
-import type { Meta, Superposition } from "../meta/metafor"
-import type { Process, Processes } from "./src/processes"
-import type { Reactions } from "./src/reactions"
-import type { Context } from "@zavx0z/context"
-import { contextFromSchema } from "@zavx0z/context"
-import { processesFromSchema } from "./src/processes"
-import { reactionsFromSchema } from "./src/reactions"
-import { Field, type Hidden, type Values } from "./field"
-import { Atom } from "./atom"
-import { decoherence, type Wave } from "./src/states"
-import { EM, type Photon } from "./em"
-import { ProcessType } from "../meta/process.t"
-import { Initiator } from "./em"
+import { Weak } from "./weak";
+import type { Mass } from "./gravity";
+import type { Meta, Superposition } from "../dsl/meta/metafor.t";
+import type { Process, Processes } from "./src/processes";
+import type { Reactions } from "./src/reactions";
+import type { Context } from "@zavx0z/context";
+import { contextFromSchema } from "@zavx0z/context";
+import { processesFromSchema } from "./src/processes";
+import { reactionsFromSchema } from "./src/reactions";
+import { Field, type Hidden, type Values } from "./field";
+import { Atom } from "./atom";
+import { decoherence, type Wave } from "./src/states";
+import { EM, type Photon } from "./em";
+import { ProcessType } from "../dsl/meta/process.t";
+import { Initiator } from "./em";
 
 export abstract class Strong extends Weak {
   constructor(
@@ -23,82 +23,96 @@ export abstract class Strong extends Weak {
     override eigenstates: Superposition,
     override processes: Processes,
     protected override reactions: Reactions,
-    mass?: Mass
+    mass?: Mass,
   ) {
-    super(hidden, id, meta, mass)
+    super(hidden, id, meta, mass);
 
-    this.evaluate = EM.bindWithOriginal(this.evaluate, this)
-    this.destroy = EM.bindWithOriginal(this.destroy, this)
-    this.up = EM.bindWithOriginal(this.up, this)
-    this.down = EM.bindWithOriginal(this.down, this)
-    this.connect()
-    this.init()
+    this.evaluate = EM.bindWithOriginal(this.evaluate, this);
+    this.destroy = EM.bindWithOriginal(this.destroy, this);
+    this.up = EM.bindWithOriginal(this.up, this);
+    this.down = EM.bindWithOriginal(this.down, this);
+    this.connect();
+    this.init();
   }
 
   @EM.it
   init(initiator = Initiator.Nothing) {
-    const eigenstate = this.measurement(Object.getOwnPropertySymbols(this.eigenstates)[0] as unknown as string)
-    eigenstate && this.collapse(eigenstate)
+    const eigenstate = this.measurement(
+      Object.getOwnPropertySymbols(this.eigenstates)[0] as unknown as string,
+    );
+    eigenstate && this.collapse(eigenstate);
   }
 
-  measurement(state: string): { state: string; process: Process | undefined } | undefined {
-    if (this.process) return
+  measurement(
+    state: string,
+  ): { state: string; process: Process | undefined } | undefined {
+    if (this.process) return;
 
-    const eigenstates = this.eigenstates[state]
-    if (!eigenstates) return
+    const eigenstates = this.eigenstates[state];
+    if (!eigenstates) return;
 
-    const eigenstate = Object.entries(eigenstates).find(([_, Ψ]) => decoherence(Ψ as Wave, this.λ))?.[0]
-    if (!eigenstate) return
+    const eigenstate = Object.entries(eigenstates).find(([_, Ψ]) =>
+      decoherence(Ψ as Wave, this.λ),
+    )?.[0];
+    if (!eigenstate) return;
 
-    const process = this.processes.get(eigenstate)
-    return { state: eigenstate, process }
+    const process = this.processes.get(eigenstate);
+    return { state: eigenstate, process };
   }
 
   setState(state: string) {
-    this.state = state
+    this.state = state;
     // const eigenstate = this.measurement(state)
     // if (eigenstate) {
     //   this.collapse(eigenstate)
     // }
   }
 
-  collapse({ state, process }: { state: string; process: Process | undefined }) {
-    if (!process) return this.transition(state)
+  collapse({
+    state,
+    process,
+  }: {
+    state: string;
+    process: Process | undefined;
+  }) {
+    if (!process) return this.transition(state);
 
-    this.process = process
+    this.process = process;
     switch (process.type) {
       case ProcessType.ACTION:
-        this.action(state).then(this.up).catch(this.down)
-        break
+        this.action(state).then(this.up).catch(this.down);
+        break;
       case ProcessType.FINALLY:
-        this.destroy()
-        break
+        this.destroy();
+        break;
     }
   }
 
   @EM.it
   transition(state: string) {
-    this.setState(state)
-    const eigenstate = this.measurement(state)
-    eigenstate && this.collapse(eigenstate)
+    this.setState(state);
+    const eigenstate = this.measurement(state);
+    eigenstate && this.collapse(eigenstate);
   }
 
   @EM.it
   up() {
-    if (this.result && this.process?.success) this.process.success({ update: this.evaluate, data: this.result })
-    this.process = undefined
-    this.result = undefined
-    const eigenstate = this.measurement(this.state)
-    eigenstate && this.collapse(eigenstate)
+    if (this.result && this.process?.success)
+      this.process.success({ update: this.evaluate, data: this.result });
+    this.process = undefined;
+    this.result = undefined;
+    const eigenstate = this.measurement(this.state);
+    eigenstate && this.collapse(eigenstate);
   }
 
   @EM.it
   down() {
-    if (this.error && this.process?.error) this.process.error({ update: this.evaluate, error: this.error })
-    this.process = undefined
-    this.error = null
-    const eigenstate = this.measurement(this.state)
-    eigenstate && this.collapse(eigenstate)
+    if (this.error && this.process?.error)
+      this.process.error({ update: this.evaluate, error: this.error });
+    this.process = undefined;
+    this.error = null;
+    const eigenstate = this.measurement(this.state);
+    eigenstate && this.collapse(eigenstate);
   }
 
   /**
@@ -108,15 +122,18 @@ export abstract class Strong extends Weak {
    * @returns Обновленные значения.
    */
   @EM.it
-  evaluate(values: Partial<Hidden<Values>>, initiator?: Initiator): Partial<Hidden<Values>> {
-    const updated = this.update(values)
-    return updated
+  evaluate(
+    values: Partial<Hidden<Values>>,
+    initiator?: Initiator,
+  ): Partial<Hidden<Values>> {
+    const updated = this.update(values);
+    return updated;
   }
 
   protected handleReaction({ data }: MessageEvent<Photon>) {
-    if (!this.reactions.exists()) return
-    if (data.atom === this.id) return
-    let anyEqual = false
+    if (!this.reactions.exists()) return;
+    if (data.atom === this.id) return;
+    let anyEqual = false;
     for (const patch of data.impulses) {
       const eq = this.reactions.run({
         meta: data.meta,
@@ -128,12 +145,12 @@ export abstract class Strong extends Weak {
         state: this.state,
         update: this.evaluate,
         self: this.self,
-      })
-      eq && (anyEqual = true)
+      });
+      eq && (anyEqual = true);
     }
     if (anyEqual) {
-      const eigenstate = this.measurement(this.state)
-      eigenstate && this.collapse(eigenstate)
+      const eigenstate = this.measurement(this.state);
+      eigenstate && this.collapse(eigenstate);
     }
   }
   // ---------------------------------------------------------------------
@@ -185,44 +202,58 @@ export abstract class Strong extends Weak {
    * ```
    */
   static fromSchema<M extends Meta>(config: {
-    meta: M
-    id?: string
-    mass?: Mass
-    context?: Partial<Hidden<Values>>
-    path?: string
+    meta: M;
+    id?: string;
+    mass?: Mass;
+    context?: Partial<Hidden<Values>>;
+    path?: string;
   }): Atom {
-    const { meta, id = crypto.randomUUID(), mass, context = {}, path } = config
+    const { meta, id = crypto.randomUUID(), mass, context = {}, path } = config;
     // если указан индекс-путь — заранее резервируем слот под id
-    if (typeof path === "string" && path.length > 0) Field.fields.reserveByIndexPath(id, path)
-    const ctx = contextFromSchema(meta.fields)
-    ctx.update(context)
+    if (typeof path === "string" && path.length > 0)
+      Field.fields.reserveByIndexPath(id, path);
+    const ctx = contextFromSchema(meta.fields);
+    ctx.update(context);
     return new Atom(
       id,
       meta.name,
       meta.desc,
       ctx,
-      { [Symbol(undefined)]: { [Object.keys(meta.superposition)[0] as string]: {} }, ...meta.superposition },
+      {
+        [Symbol(undefined)]: {
+          [Object.keys(meta.superposition)[0] as string]: {},
+        },
+        ...meta.superposition,
+      },
       processesFromSchema(meta.processes ?? {}),
-      reactionsFromSchema(meta.reactions ?? { reactions: {}, superposition: {} }),
-      mass
-    )
+      reactionsFromSchema(
+        meta.reactions ?? { reactions: {}, superposition: {} },
+      ),
+      mass,
+    );
   }
 
   static createSibling<M extends Meta>(
     targetId: string,
     meta: M,
-    cfg: { id?: string; at?: "before" | "after"; mass?: Mass; context?: Partial<Hidden<Values>> } = {}
+    cfg: {
+      id?: string;
+      at?: "before" | "after";
+      mass?: Mass;
+      context?: Partial<Hidden<Values>>;
+    } = {},
   ): string {
-    const { id = crypto.randomUUID(), mass, context = {}, at = "after" } = cfg
-    if (!Field.getAtom(targetId)) throw new Error(`атом-ориентир "${targetId}" не найден`)
+    const { id = crypto.randomUUID(), mass, context = {}, at = "after" } = cfg;
+    if (!Field.getAtom(targetId))
+      throw new Error(`атом-ориентир "${targetId}" не найден`);
 
     // 1) Резервируем слот под будущий атом
-    Field.fields.reserveSibling(id, targetId, at)
+    Field.fields.reserveSibling(id, targetId, at);
     // 2) Создаём атом в следующей макротаске — родитель «не ждёт»
     setTimeout(() => {
       try {
-        const ctx = contextFromSchema(meta.fields)
-        ctx.update(context)
+        const ctx = contextFromSchema(meta.fields);
+        ctx.update(context);
 
         // Конструктор сам прикрепит по резервации и разошлёт init
         // ВАЖНО: path в processes self можно оставить пустым — он читается геттером
@@ -233,47 +264,54 @@ export abstract class Strong extends Weak {
           meta.name,
           meta.desc,
           ctx,
-          { [Symbol(undefined)]: { [Object.keys(meta.superposition)[0] as string]: {} }, ...meta.superposition },
+          {
+            [Symbol(undefined)]: {
+              [Object.keys(meta.superposition)[0] as string]: {},
+            },
+            ...meta.superposition,
+          },
           processesFromSchema(meta.processes ?? {}),
-          reactionsFromSchema(meta.reactions ?? { reactions: {}, superposition: {} }),
-          mass
-        )
+          reactionsFromSchema(
+            meta.reactions ?? { reactions: {}, superposition: {} },
+          ),
+          mass,
+        );
       } catch (e) {
         // Если что-то пойдёт не так — снимаем резервацию, чтобы не залипало
         try {
-          Field.fields.cancelReservation(id)
+          Field.fields.cancelReservation(id);
         } catch {}
-        console.error("createSibling async init failed:", e)
+        console.error("createSibling async init failed:", e);
       }
-    }, 0)
+    }, 0);
 
     // 3) Сразу отдаём id
-    return id
+    return id;
   }
 
   static append<M extends Meta>(
     parentId: string | null,
     meta: M,
-    cfg: { id?: string; mass?: Mass; context?: Partial<Hidden<Values>> } = {}
+    cfg: { id?: string; mass?: Mass; context?: Partial<Hidden<Values>> } = {},
   ): string {
-    const { id = crypto.randomUUID(), mass, context = {} } = cfg
+    const { id = crypto.randomUUID(), mass, context = {} } = cfg;
 
     // валидация родителя (кроме корня)
     if (parentId !== null && !Field.getAtom(parentId)) {
-      throw new Error(`Родитель "${parentId}" не найден`)
+      throw new Error(`Родитель "${parentId}" не найден`);
     }
     // строим индекс-путь в конец детей родителя
-    const kids = Field.getChildren(parentId)
-    const index = kids.length
-    const parentPath = parentId === null ? null : Field.getPath(parentId)
-    const path = parentPath ? `${parentPath}/${index}` : String(index)
+    const kids = Field.getChildren(parentId);
+    const index = kids.length;
+    const parentPath = parentId === null ? null : Field.getPath(parentId);
+    const path = parentPath ? `${parentPath}/${index}` : String(index);
 
     // резервируем позицию ПО ИНДЕКС-ПУТИ (конвертируется в orderKey и фиксирует parentId)
-    Field.fields.reserveByIndexPath(id, path)
+    Field.fields.reserveByIndexPath(id, path);
 
     // готовим контекст
-    const ctx = contextFromSchema(meta.fields)
-    ctx.update(context)
+    const ctx = contextFromSchema(meta.fields);
+    ctx.update(context);
 
     // создаём атом на следующем тике:
     setTimeout(() => {
@@ -283,13 +321,20 @@ export abstract class Strong extends Weak {
         meta.name,
         meta.desc,
         ctx,
-        { [Symbol(undefined)]: { [Object.keys(meta.superposition)[0] as string]: {} }, ...meta.superposition },
+        {
+          [Symbol(undefined)]: {
+            [Object.keys(meta.superposition)[0] as string]: {},
+          },
+          ...meta.superposition,
+        },
         processesFromSchema(meta.processes ?? {}),
-        reactionsFromSchema(meta.reactions ?? { reactions: {}, superposition: {} }),
-        mass
-      )
-    }, 0)
+        reactionsFromSchema(
+          meta.reactions ?? { reactions: {}, superposition: {} },
+        ),
+        mass,
+      );
+    }, 0);
 
-    return id
+    return id;
   }
 }

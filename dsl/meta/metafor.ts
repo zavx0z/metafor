@@ -89,13 +89,13 @@ import { parse, type NodeLogical, type NodeMeta, type Node as NodeType } from "@
 
 import { validateNoUnconditionalCycles, type Superposition } from "./states"
 import { reactionsSchema, type ReactionsDeclaration } from "./reactions"
-import { processesSchema, type ProcessesDeclaration } from "./process"
+import { processesSchema, type ProcessesDeclaration, type ActionParams } from "./process"
 import { serializeStyle } from "./style"
 
 import type { MetaForConfig, MetaFor, BulkDeclaration, Meta, Mass, Self } from "./metafor.t"
 
 
-export type { MetaFor, Meta, Self, Superposition, NodeMeta, NodeType, NodeLogical }
+export type { MetaFor, Meta, Self, Mass, Superposition, NodeMeta, NodeType, NodeLogical, ActionParams }
 
 globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, jest } from "bun:test"
 import { Atom } from "../atom"
 import { Fields } from "../src/fields"
-import type { Meta } from "../../meta/metafor"
+import type { Meta } from "../../dsl/meta/metafor"
 
 describe("Очистка ресурсов атома", () => {
   beforeEach(() => {
