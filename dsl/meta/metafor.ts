@@ -101,7 +101,7 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc
   const dev = config?.dev ?? globalThis.DEV ?? false
   return {
-    fields<ɸ extends Schema>(schema: (field: Fields) => ɸ) {
+    brane<ɸ extends Schema>(schema: (field: Fields) => ɸ) {
       const fields = contextSchema(schema)
       return {
         superposition<𝛴 extends string>(superposition: Superposition<𝛴, ɸ>) {

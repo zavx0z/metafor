@@ -546,7 +546,7 @@ export type ReactionAction<ɸ extends Schema, 𝛴 extends string, m extends Mas
   /** Функция для обновления полей */
   update: Update<ɸ>
   /** Текущие поля */
-  fields: Values<ɸ>
+  field: Values<ɸ>
   /** Масса */
   mass: m
   /** Название компонента-отправителя из MetaFor("label") */

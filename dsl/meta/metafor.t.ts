@@ -113,7 +113,7 @@ export type MetaFor = (
    * }))
    * ```
    */
-  fields<ɸ extends Schema>(
+  brane<ɸ extends Schema>(
     schema: (field: Types) => ɸ,
   ): {
     /**
@@ -258,6 +258,7 @@ declare global {
    * **Важно:** Итоговый тег компонента формируется как `meta-${name}`,
    * где name — это имя компонента, переданное в конструктор.
    */
+  
   /**
    * Основной API MetaFor для создания компонентов
    *
@@ -279,7 +280,7 @@ declare global {
    *   .reactions((reaction) => [...])
    *   .bulk({ gravity: ({ fields }) => html`<div>${fields.name}</div>` })
    * ```
-   */
+   */ // @ts-ignore
   var MetaFor: MetaFor
 }
 export {}

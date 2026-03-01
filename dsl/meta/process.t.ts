@@ -50,7 +50,7 @@ export type Process<ɸ extends Schema = Schema, m extends Mass = Mass, Res = any
  */
 export type ActionParams<ɸ extends Schema, m extends Mass> = {
   /** Поля */
-  fields: Values<ɸ>
+  field: Values<ɸ>
   /** Масса */
   mass: m
   /** Схема полей */
