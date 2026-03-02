@@ -76,12 +76,13 @@ describe("write / update — базовые переходы", () => {
         },
       ],
     })
-    
+
     // После write() state=1 (PATROL)
     expect(initialStates).toContainEqual([0, 1])
 
     // update с hp=0 → DEAD
-    const states1 = await update([[0, [[0, 0]]]])
+    // WGSL ставит LOCK=1 при первом переходе, нужно разблокировать
+    const states1 = await update([[0, [[0, 0]], false]])
     expect(states1).toContainEqual([0, 2]) // DEAD
   })
 
@@ -330,11 +331,12 @@ describe("write / update — многошаговая эволюция", () => {
     expect(initialStates).toEqual([])
 
     // Шаг 1: IDLE → PATROL (hp=100>50)
-    const states1 = await update([[0, [[0, 100]]]])
+    const states1 = await update([[0, [[0, 100]], false]])
     expect(states1).toContainEqual([0, 1])
 
     // Шаг 2: PATROL → COMBAT (mana=5<10)
-    const states2 = await update([[0, [[1, 5]]]])
+    // WGSL ставит LOCK=1 при первом переходе, нужно разблокировать
+    const states2 = await update([[0, [[1, 5]], false]])
     expect(states2).toContainEqual([0, 2])
 
     // Шаг 3: COMBAT — терминальное состояние (остаётся в 2)

@@ -279,6 +279,8 @@ export async function updateBoundary(lockedMonadIds?: MonadId[]): Promise<void> 
   })
   // Обрабатываем изменения состояний
   const changes: BraneStateChange[] = []
+  const monadsToUnlock: MonadId[] = []
+  
   stateChanges.forEach(([braneIndex, stateIndex]) => {
     const monadId = _indexToUuid.get(braneIndex)
     if (!monadId) return
@@ -299,8 +301,23 @@ export async function updateBoundary(lockedMonadIds?: MonadId[]): Promise<void> 
         intention: intention ?? null,
         params: _monadParams.get(monadId)!,
       })
+      // Авто-снятие блокировки если нет намерения (MONAD — Замысел)
+      if (!intention) {
+        monadsToUnlock.push(monadId)
+      }
     }
   })
+  
+  // Снимаем блокировку с бран без намерения
+  if (monadsToUnlock.length > 0) {
+    const unlockUpdates = monadsToUnlock.map((id) => ({
+      id,
+      fields: {},
+      lock: false,
+    }))
+    await updateMonads(unlockUpdates)
+  }
+  
   // Пакетная отправка изменений
   if (changes.length > 0 && _onStateChange.current) {
     _onStateChange.current(changes)
@@ -422,4 +439,36 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<void> {
  */
 export function onStateChange(callback: (changes: BraneStateChange[]) => void): void {
   _onStateChange.current = callback
+}
+
+/**
+ * Снимает блокировку с монад после завершения процессов.
+ *
+ * Вызывается WEAK FORCE после завершения всех процессов для разблокировки бран.
+ *
+ * @param monadIds - IDs монад для разблокировки. Если не указаны, разблокируются все.
+ *
+ * @example
+ * ```typescript
+ * // После завершения процессов
+ * await releaseLock(['uuid1', 'uuid2'])
+ *
+ * // Разблокировать все
+ * await releaseLock()
+ * ```
+ */
+export async function releaseLock(monadIds?: MonadId[]): Promise<void> {
+  const idsToUnlock = monadIds ?? Array.from(_monadIds)
+  
+  if (idsToUnlock.length === 0) {
+    return
+  }
+  
+  const unlockUpdates = idsToUnlock.map((id) => ({
+    id,
+    fields: {},
+    lock: false,
+  }))
+  
+  await updateMonads(unlockUpdates)
 }

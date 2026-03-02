@@ -135,17 +135,18 @@ describe("write() — возврат начальных состояний", () 
       [[2, { 0: { lte: 0 } }]],  // PATROL → DEAD
       [null],
     ]
-    
+
     // hp=100 > 50 → переход в state=1 (PATROL)
     const initialStates = await write({
       fields: [{ type: FieldType.F32 }],
       branes: [{ state: 0, params: [[0, 100]], collapses }],
     })
-    
+
     expect(initialStates).toContainEqual([0, 1])
-    
+
     // update с hp=0 → переход в state=2 (DEAD)
-    const nextStates = await update([[0, [[0, 0]]]])
+    // WGSL ставит LOCK=1 при первом переходе, нужно разблокировать
+    const nextStates = await update([[0, [[0, 0]], false]])
     expect(nextStates).toContainEqual([0, 2])
   })
 

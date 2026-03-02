@@ -575,8 +575,10 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
   // In-place обновление состояния
   states[idx] = next_state;
 
-  // Атомарная установка флага изменения
+  // Атомарная установка флага изменения + авто-блокировка
   if (next_state != current_state) {
     atomicStore(&dirty_flags[idx], 1u);
+    // Авто-блокировка: Закон фиксирует изменение состояния
+    heap[block_ptr + 2u] = 1u;
   }
 }

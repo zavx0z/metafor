@@ -12,6 +12,7 @@ export {
   onStateChange,
   registerProcesses,
   getProcessSchema,
+  releaseLock,
 } from "./monad"
 
 export type { MonadConfig, Intention, Intentions, Brane, Update } from "./types"

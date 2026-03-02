@@ -7,6 +7,7 @@ import {
   onStateChange,
   registerProcesses,
   getProcessSchema,
+  releaseLock,
   type BraneStateChange,
 } from "../monad"
 import type { ParsedProcessJson } from "../../../dsl/build/monadJson"
@@ -151,20 +152,24 @@ describe("Monad — Намерения (intentions)", () => {
     onStateChange((c) => changes.push(...c))
     await updateBoundary()
 
-    // hp=100 > 50 → PATROL
+    // hp=100 > 50 → PATROL (LOCK=1)
     await updateMonads([{ id: id, fields: { hp: 100 } }])
     expect(changes[0]!.newState).toBe("PATROL")
     expect(changes[0]!.intention).toBe("patrolProcess")
+    // WEAK FORCE исполняет процесс → releaseLock()
+    await releaseLock([id])
 
-    // hp=15 <= 20 → IDLE
+    // hp=15 <= 20 → IDLE (LOCK=1)
     await updateMonads([{ id: id, fields: { hp: 15 } }])
     expect(changes[1]!.newState).toBe("IDLE")
     expect(changes[1]!.intention).toBe("idleProcess")
+    await releaseLock([id])
 
-    // hp=0 <= 0 → DEAD
+    // hp=0 <= 0 → DEAD (LOCK=1)
     await updateMonads([{ id: id, fields: { hp: 0 } }])
     expect(changes[2]!.newState).toBe("DEAD")
     expect(changes[2]!.intention).toBe("deathProcess")
+    await releaseLock([id])
   })
 
   it("должен вернуть намерение только при изменении состояния", async () => {
@@ -225,20 +230,24 @@ describe("Monad — Намерения (intentions)", () => {
     onStateChange((c) => changes.push(...c))
     await updateBoundary()
 
-    // hp=100>80 → PATROL
+    // hp=100>80 → PATROL (LOCK=1)
     await updateMonads([{ id: id, fields: { hp: 100 } }])
     expect(changes[0]!.newState).toBe("PATROL")
     expect(changes[0]!.intention).toBe("patrolProcess")
+    // WEAK FORCE исполняет процесс → releaseLock()
+    await releaseLock([id])
 
-    // mana=10<20 → COMBAT
+    // mana=10<20 → COMBAT (LOCK=1)
     await updateMonads([{ id: id, fields: { mana: 10 } }])
     expect(changes[1]!.newState).toBe("COMBAT")
     expect(changes[1]!.intention).toBe("combatProcess")
+    await releaseLock([id])
 
-    // hp=0<=0 → DEAD
+    // hp=0<=0 → DEAD (LOCK=1)
     await updateMonads([{ id: id, fields: { hp: 0 } }])
     expect(changes[2]!.newState).toBe("DEAD")
     expect(changes[2]!.intention).toBe("deathProcess")
+    await releaseLock([id])
   })
 
   it("должен вернуть null намерение если состояние без намерения", async () => {
