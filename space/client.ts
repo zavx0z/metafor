@@ -1,4 +1,7 @@
 import { createMonad, updateBoundary, updateMonads, onStateChange, releaseLock } from "@boundary/monad"
+import space from "./meta.json"
+
+console.log(space)
 
 const status = document.getElementById("status")!
 const out = document.getElementById("output")!
@@ -77,14 +80,14 @@ const corpseId = createMonad({
 // Callback на изменение состояния (пакетный)
 onStateChange((changes) => {
   for (const { monadId, oldState, newState, intention } of changes) {
-    const msg = `State changed for monad ${monadId}: ${oldState} → ${newState}${intention ? `, intention: ${intention}` : ''}`
+    const msg = `State changed for monad ${monadId}: ${oldState} → ${newState}${intention ? `, intention: ${intention}` : ""}`
     console.log(msg)
     out.innerText += msg + "\n"
   }
 })
 
-console.log("\n--- Инициализация границы ---")
-out.innerText += "\n--- Инициализация границы ---\n"
+console.log("\n--- Инициализация пространства ---")
+out.innerText += "\n--- Инициализация пространства ---\n"
 await updateBoundary()
 
 const startMsg = `Начальные состояния созданы`
