@@ -10,7 +10,8 @@
     "dsl/*",
     "fixture",
     "bulk/*",
-    "space"
+    "space",
+    "github/**/*"
   ],
   "devDependencies": {
     "@types/node": "^25.3.0",

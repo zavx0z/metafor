@@ -107,7 +107,7 @@ function getLinuxLocale(): string | null {
   const locale: string = lang || lcAll || language
 
   if (locale) {
-    return locale.split("_")[0].split(".")[0] || null // ru_RU.UTF-8 -> ru
+    return locale.split("_")[0]?.split(".")[0] || null // ru_RU.UTF-8 -> ru
   }
   return null
 }

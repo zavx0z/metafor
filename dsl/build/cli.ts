@@ -63,9 +63,9 @@ class StatusRunner {
   public errorMessage: string | null = null
   private lastErrorMessage: string | null = null
 
-  start(message: string) {
-    this.message = message
-    this.status = statusEmojis[0]
+  start(message?: string) {
+    this.message = message ?? "Ожидание"
+    this.status = statusEmojis[0]!
 
     // Запускаем анимацию
     this.interval = setInterval(() => {
@@ -73,9 +73,9 @@ class StatusRunner {
     }, 80)
   }
 
-  update(status: number, message: string) {
-    this.status = statusEmojis[status]
-    this.message = message
+  update(status: number, message?: string) {
+    this.status = statusEmojis[status]!
+    this.message = message ?? "Ожидание"
   }
 
   render() {
@@ -143,7 +143,7 @@ function extractErrorMessage(errorText: string): string {
   }
 
   // Убираем trailing пустые строки
-  while (errorLines.length > 0 && errorLines[errorLines.length - 1].trim() === "") {
+  while (errorLines.length > 0 && errorLines[errorLines.length - 1]?.trim() === "") {
     errorLines.pop()
   }
 
@@ -298,7 +298,7 @@ if (isWatchMode) {
     if (initialBuildResult !== true) {
       runner.errorMessage = typeof initialBuildResult === "string" ? initialBuildResult.replace(/\s+/g, " ").trim() : null
       runner.start("Ошибка сборки...")
-      runner.status = statusEmojis[2] // ❌
+      runner.status = statusEmojis[2]! // ❌
     } else {
       // Запускаем анимацию статуса
       runner.start("Ожидание изменений...")
@@ -334,7 +334,7 @@ if (isWatchMode) {
               runner.clearError()
             } else {
               // result содержит сообщение об ошибке — нормализуем в одну строку
-              runner.errorMessage = typeof result === "string" ? result.replace(/\s+/g, " ").trim() : null
+              runner.errorMessage = typeof result === "string" ? result.replace(/\s+/g, " ").trim() : (null as string | null)
               runner.update(2, "Ошибка сборки...")
             }
           } catch {

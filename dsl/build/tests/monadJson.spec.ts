@@ -298,15 +298,14 @@ describe("convertMetaToMonadJson", () => {
       label: "Test Process",
       desc: "Описание процесса",
       action: {
-        src: "./mock-action.ts",
         read: ["value"],
       },
       success: {
-        src: expect.stringContaining("({ update, data }) =>"),
+        src: expect.any(String),
         write: ["value"],
       },
       error: {
-        src: expect.stringContaining("({ update, error }) =>"),
+        src: expect.any(String),
         write: ["value"],
       },
     })

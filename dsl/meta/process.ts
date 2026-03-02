@@ -60,9 +60,10 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
       ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
     }
   } else {
-    // Пустая функция-заглушка — не требуем src
+    // Пустая функция-заглушка — src = ""
     const parsed = parseFunction(process.action as Function, false)
     result.action = {
+      src: "",
       ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
     }
   }

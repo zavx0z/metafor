@@ -389,7 +389,7 @@ export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): Mon
             // Для стрелочных функций извлекаем часть после =>
             const arrowMatch = src.match(/=>\s*(.*)$/)
             if (arrowMatch) {
-              const body = arrowMatch[1].trim()
+              const body = arrowMatch[1]?.trim()
               // Пустое тело: {} или ({})
               return body === "{}" || body === "({})"
             }

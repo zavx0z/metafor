@@ -1,17 +1,17 @@
 import "@metafor/meta"
 
 export default MetaFor("git-submodule", { desc: "Git submodule — управление субмодулями" })
-  .context((t) => ({
+  .brane((field) => ({
     operation: field.enum("submodule").optional({ label: "Тип операции" }),
     args: field.string.optional({ label: "Аргументы" }),
   }))
-  .states({})
-  .mass(() => ({}))
+  .superposition({})
+  .mass({})
   .processes(() => ({}))
   .reactions(() => [])
-  .view({
-    render: ({ context, html }) => html`
-      ${context.operation &&
-      html` <meta-for src="zavx0z/git-submodule-${context.operation}" context=${{ args: context.args }} /> `}
+  .bulk({
+    gravity: ({ value, html }) => html`
+      ${value.operation &&
+      html` <meta-for src="zavx0z/git-submodule-${value.operation}" context=${{ args: value.args }} /> `}
     `,
   })

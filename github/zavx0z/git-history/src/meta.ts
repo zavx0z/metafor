@@ -1,19 +1,19 @@
 import "@metafor/meta"
 
 export default MetaFor("git-history", { desc: "Git history — команды управления историей (switch, checkout, commit, reset, revert)" })
-  .context((t) => ({
-    operation: t
+  .brane((field) => ({
+    operation: field
       .enum("switch", "checkout", "commit", "reset", "revert", "bisect", "repair")
       .optional({ label: "Тип операции" }),
     args: field.string.optional({ label: "Аргументы" }),
   }))
-  .states({})
-  .mass(() => ({}))
+  .superposition({})
+  .mass({})
   .processes(() => ({}))
   .reactions(() => [])
-  .view({
-    render: ({ context, html }) => html`
-      ${context.operation &&
-      html` <meta-for src="zavx0z/git-history-${context.operation}" context=${{ args: context.args }} /> `}
+  .bulk({
+    gravity: ({ value, html }) => html`
+      ${value.operation &&
+      html` <meta-for src="zavx0z/git-history-${value.operation}" context=${{ args: value.args }} /> `}
     `,
   })

@@ -23,15 +23,13 @@ const root = createMonad({
     COMBAT: null,
     DEAD: null, // Терминальное состояние
   },
-  actions: {
-    PATROL: () => console.log("Start patrol"),
-    DEAD: () => console.log("Unit died"),
-  },
 })
 
-onStateChange((monadId, old, current) => {
-  const msg = `State changed: ${old} → ${current}`
-  console.log(msg)
+onStateChange((changes) => {
+  for (const change of changes) {
+    const msg = `State changed: ${change.oldState} → ${change.newState}`
+    console.log(msg)
+  }
 })
 
 await updateBoundary()

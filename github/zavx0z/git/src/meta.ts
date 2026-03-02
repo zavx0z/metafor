@@ -1,7 +1,7 @@
 import "@metafor/meta"
 
 export default MetaFor("git", { desc: "Git — распределённая система управления версиями" })
-  .context((t) => ({
+  .brane((field) => ({
     operation: field.enum(
       "start",
       "work",
@@ -18,7 +18,7 @@ export default MetaFor("git", { desc: "Git — распределённая си
     command: field.string.optional({ label: "Команда" }),
     args: field.string.optional({ label: "Аргументы" }),
   }))
-  .states({
+  .superposition({
     "получение команды": {
       "определение операции": { command: { null: false } },
     },
@@ -48,8 +48,8 @@ export default MetaFor("git", { desc: "Git — распределённая си
   })
   .processes((process) => ({
     "определение операции": process()
-      .action(({ mass, context }) => {
-        const cmd = context.command || ""
+      .action(({ mass, value }) => {
+        const cmd = value.command || ""
         const parts = cmd.split(" ")
         const command = parts[0]
         if (!command) {
@@ -59,15 +59,15 @@ export default MetaFor("git", { desc: "Git — распределённая си
         const patterns = mass.patterns
         let operation: string | null = null
         for (const [key, regex] of Object.entries(patterns)) {
-          if (regex.test(command)) {
+          if ((regex as RegExp).test(command)) {
             operation = key
             break
           }
         }
         if (!operation) {
-          throw new Error(`Неизвестная команда: ${context.command}`)
+          throw new Error(`Неизвестная команда: ${value.command}`)
         }
-        return { operation: operation as NonNullable<typeof context.operation>, command, args }
+        return { operation: operation as NonNullable<typeof value.operation>, command, args }
       })
       .success(({ update, data }) => update(data))
       .error(({ update, error }) => update({ error: error.message })),
@@ -76,20 +76,20 @@ export default MetaFor("git", { desc: "Git — распределённая си
       .success(({ update }) => update({ operation: null })),
   }))
   .reactions(() => [])
-  .view({
-    render: ({ context, html }) => html`
-      ${context.operation && html`
+  .bulk({
+    gravity: ({ value, html }) => html`
+      ${value.operation && html`
         <meta-for
-          src="zavx0z/git-${context.operation}"
+          src="zavx0z/git-${value.operation}"
           context=${{
-            operation: context.operation,
-            args: context.args,
+            operation: value.operation,
+            args: value.args,
           }} />
       `}
-      ${context.error && html`
+      ${value.error && html`
         <meta-for
           src="zavx0z/git-error"
-          context=${{ message: context.error }} />
+          context=${{ message: value.error }} />
       `}
     `,
   })

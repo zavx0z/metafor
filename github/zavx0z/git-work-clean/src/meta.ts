@@ -1,15 +1,15 @@
 import "@metafor/meta"
 
 export default MetaFor("git-work-clean", { desc: "Git work-clean — команда git" })
-  .context((t) => ({
+  .brane((field) => ({
     error: field.string.optional({ label: "Ошибка" }),
   }))
-  .states({})
-  .mass(() => ({}))
+  .superposition({})
+  .mass({})
   .processes(() => ({}))
   .reactions(() => [])
-  .view({
-    render: ({ context, html }) => html`
-      ${context.error && html`<div class="error">${context.error}</div>`}
+  .bulk({
+    gravity: ({ value, html }) => html`
+      ${value.error && html`<div class="error">${value.error}</div>`}
     `,
   })

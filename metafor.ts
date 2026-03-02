@@ -1,9 +1,4 @@
 import "@metafor/meta"
-import { Atom } from "@metafor/atom"
-import { threadLog } from "@metafor/inspect/web/logger"
-// import { load } from "@metafor/virtual"
-// const destroyVirtual = await load({ src: "./infra/virtual/dist/worker.js", debug: true })
-await import("@metafor/inspect/web/debugger")
 
 export async function load(src: string) {
   const [author, name] = src.split("/")
@@ -17,31 +12,33 @@ export async function load(src: string) {
 }
 
 class WebComponent extends HTMLElement {
-  builder: Atom | null = null
+  private src: string | null = null
 
   constructor() {
     super()
   }
 
   async initializeAtom() {
-    const src: string | null = this.getAttribute("src")
-    if (!src) {
+    if (!this.src) {
       console.error(`src не определен`)
       return
     }
 
-    const schema = await load(src)
-    this.builder = Atom.fromSchema({ meta: schema })
+    const schema = await load(this.src)
+    // TODO: Инициализация атома после подключения @metafor/atom
+    console.log("Schema loaded:", schema)
   }
 
   async connectedCallback() {
-    const log = this.hasAttribute("log")
-    log && (await threadLog())
+    this.src = this.getAttribute("src")
+    // TODO: Подключить threadLog после подключения @metafor/inspect
+    // const log = this.hasAttribute("log")
+    // log && (await threadLog())
 
     this.initializeAtom()
   }
   disconnectedCallback() {
-    // destroyVirtual()
+    // cleanup
   }
 }
 

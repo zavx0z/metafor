@@ -1,7 +1,7 @@
 import "@metafor/meta"
 
 export default MetaFor("git-plumbing", { desc: "Git plumbing — низкоуровневые команды" })
-  .context((t) => ({
+  .brane((field) => ({
     operation: field.enum(
       "cat-file", "check-attr", "check-ignore", "check-mailmap", "commit-graph",
       "commit-tree", "count-objects", "diff-files", "diff-index", "diff-tree",
@@ -12,13 +12,13 @@ export default MetaFor("git-plumbing", { desc: "Git plumbing — низкоур�
     ).optional({ label: "Тип операции" }),
     args: field.string.optional({ label: "Аргументы" }),
   }))
-  .states({})
-  .mass(() => ({}))
+  .superposition({})
+  .mass({})
   .processes(() => ({}))
   .reactions(() => [])
-  .view({
-    render: ({ context, html }) => html`
-      ${context.operation &&
-      html` <meta-for src="zavx0z/git-plumbing-${context.operation}" context=${{ args: context.args }} /> `}
+  .bulk({
+    gravity: ({ value, html }) => html`
+      ${value.operation &&
+      html` <meta-for src="zavx0z/git-plumbing-${value.operation}" context=${{ args: value.args }} /> `}
     `,
   })
