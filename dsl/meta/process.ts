@@ -51,14 +51,20 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
 
   // Extract module path from import()
   const modulePath = extractModuleSrc(process.action as Function)
-  if (!modulePath) {
-    throw new Error('Не удалось извлечь путь модуля из import("...") в функции action')
-  }
-
-  const parsed = parseFunction(process.action as Function, false)
-  result.action = {
-    src: modulePath,
-    ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
+  
+  // Для пустых функций (заглушек) modulePath может отсутствовать
+  if (modulePath) {
+    const parsed = parseFunction(process.action as Function, false)
+    result.action = {
+      src: modulePath,
+      ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
+    }
+  } else {
+    // Пустая функция-заглушка — не требуем src
+    const parsed = parseFunction(process.action as Function, false)
+    result.action = {
+      ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
+    }
   }
 
   if (process.success) {

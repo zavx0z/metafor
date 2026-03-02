@@ -204,12 +204,15 @@ export function extractModuleSrc(fn: Function): string | null {
  * Из-за транспиляции порядок строк может нарушаться, поэтому валидация
  * проверяет только наличие import и return в теле функции.
  *
+ * Функции без тела (пустые заглушки) и стрелочные функции с неявным return
+ * считаются валидными.
+ *
  * @param fn - Функция для валидации
  * @returns Результат валидации с флагом valid и опциональным сообщением об ошибке
  *
  * @example
  * ```ts
- * // Валидно
+ * // Валидно — с import и return
  * validateActionStructure(async ({ value }) => {
  *   const mod = await import("./mod.ts")
  *   const result = mod.process(value)
@@ -217,8 +220,12 @@ export function extractModuleSrc(fn: Function): string | null {
  * })
  * // => { valid: true }
  *
+ * // Валидно — пустая функция-заглушка
+ * validateActionStructure(() => ({}))
+ * // => { valid: true }
+ *
  * // Невалидно — нет import
- * validateActionStructure(({ value }) => value * 2)
+ * validateActionStructure(({ value }) => console.log(value))
  * // => { valid: false, error: "..." }
  * ```
  */
@@ -230,6 +237,16 @@ export function validateActionStructure(fn: Function): { valid: boolean; error?:
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .replace(/\/\/.*$/gm, "")
     .trim()
+
+  // Проверка на пустую функцию-заглушку
+  // Пустое тело: () => {} или () => ({})
+  const isEmptyStub =
+    /^\s*\([^)]*\)\s*=>\s*\{\s*\}\s*$/.test(normalizedCode) ||
+    /^\s*\([^)]*\)\s*=>\s*\(\{\}\)\s*$/.test(normalizedCode)
+
+  if (isEmptyStub) {
+    return { valid: true }
+  }
 
   // Проверка наличия import
   const importMatch = normalizedCode.match(PATTERN_IMPORT)

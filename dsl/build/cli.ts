@@ -58,17 +58,18 @@ function hashContent(str: string): string {
  */
 class StatusRunner {
   private interval: NodeJS.Timeout | null = null
-  private status: string = "💤"
+  public status: string = "💤"
   private message: string = "Ожидание"
+  public errorMessage: string | null = null
+  private lastErrorMessage: string | null = null
 
   start(message: string) {
     this.message = message
     this.status = statusEmojis[0]
-    
+
     // Запускаем анимацию
     this.interval = setInterval(() => {
-      const frame = animationFrames[animationFrame++ % animationFrames.length]
-      process.stdout.write(`\r\x1b[K${this.status} ${frame} ${this.message}`)
+      this.render()
     }, 80)
   }
 
@@ -77,21 +78,86 @@ class StatusRunner {
     this.message = message
   }
 
+  render() {
+    // Очищаем строку статуса
+    process.stdout.write(`\r\x1b[K`)
+    // Если была ошибка, очищаем строку с ней
+    if (this.lastErrorMessage && !this.errorMessage) {
+      process.stdout.write(`\n\x1b[K\x1b[1A`)
+    }
+    const frame = animationFrames[animationFrame++ % animationFrames.length]
+    process.stdout.write(`${this.status} ${frame} ${this.message}`)
+    if (this.errorMessage) {
+      // Выводим ошибку на следующей строке и возвращаем курсор на строку статуса
+      process.stdout.write(`\r\n${this.errorMessage}\x1b[1A`)
+    }
+    this.lastErrorMessage = this.errorMessage
+  }
+
+  clearError() {
+    // Только сбрасываем сообщение об ошибке, строка очистится в render()
+    this.errorMessage = null
+  }
+
   stop() {
     if (this.interval) {
       clearInterval(this.interval)
       this.interval = null
     }
     process.stdout.write("\r\x1b[K")
+    if (this.lastErrorMessage || this.errorMessage) {
+      process.stdout.write(`\n\x1b[K\x1b[1A`)
+    }
   }
 }
 
 const runner = new StatusRunner()
 
 /**
- * Выполняет сборку meta-файла
+ * Извлекает понятное сообщение об ошибке из вывода Bun
+ * Убирает стек трейс, оставляя только суть ошибки
  */
-async function build(): Promise<boolean> {
+function extractErrorMessage(errorText: string): string {
+  const lines = errorText.split("\n")
+  const errorLines: string[] = []
+
+  for (const line of lines) {
+    const trimmedLine = line.trim()
+
+    // Пропускаем строки стека (начинаются с "at ")
+    if (trimmedLine.startsWith("at ")) continue
+    // Пропускаем строки с путями к файлам и номерами строк в скобках
+    if (/^\([^)]+\):\d+:\d+\)$/.test(trimmedLine)) continue
+    // Пропускаем строки вида "Bun v1.3.10 (macOS x64)"
+    if (trimmedLine.startsWith("Bun v")) continue
+    // Пропускаем строки с номерами строк кода (вида "2084 |     result.desc...")
+    if (/^\d+\s*\|/.test(trimmedLine)) continue
+    // Пропускаем строки только с "^"
+    if (trimmedLine === "^") continue
+    // Пропускаем строки "error:" в начале
+    if (trimmedLine.startsWith("error:")) continue
+    // Пропускаем пустые строки
+    if (trimmedLine === "" && errorLines.length > 0 && errorLines[errorLines.length - 1] === "") continue
+
+    errorLines.push(line)
+  }
+
+  // Убираем trailing пустые строки
+  while (errorLines.length > 0 && errorLines[errorLines.length - 1].trim() === "") {
+    errorLines.pop()
+  }
+
+  const message = errorLines.join("\n")
+
+  // Если сообщение пустое, возвращаем оригинал
+  return message || errorText
+}
+
+/**
+ * Выполняет сборку meta-файла
+ * @returns true если сборка успешна, или сообщение об ошибке
+ */
+async function build(): Promise<boolean | string> {
   if (isBuilding) {
     console.log("⏳ Предыдущая сборка еще не завершена, пропускаю...")
     return false
@@ -105,8 +171,7 @@ async function build(): Promise<boolean> {
     const inputFileHandle = Bun.file(inputFilePath)
 
     if (!(await inputFileHandle.exists())) {
-      console.error(`Файл ${inputFile} не найден`)
-      return false
+      return `Файл ${inputFile} не найден`
     }
 
     let outputPath: string
@@ -120,7 +185,7 @@ async function build(): Promise<boolean> {
 
     // Читаем исходный текст
     const sourceText = await inputFileHandle.text()
-    
+
     // Обновляем хэш после успешной сборки
     lastContentHash = hashContent(sourceText)
 
@@ -141,20 +206,27 @@ async function build(): Promise<boolean> {
       const sourceText = ${JSON.stringify(sourceText)}
       const inputFilePath = ${JSON.stringify(inputFilePath)}
 
-      const fileUrl = pathToFileURL(inputFilePath).href + "?t=" + Date.now() + "&r=" + Math.random()
-      const module = await import(fileUrl)
-      const data = module.default
+      try {
+        const fileUrl = pathToFileURL(inputFilePath).href + "?t=" + Date.now() + "&r=" + Math.random()
+        const module = await import(fileUrl)
+        const data = module.default
 
-      if (!data) {
-        console.error("Default export не найден в " + inputFilePath)
+        if (!data) {
+          console.error("Default export не найден в " + inputFilePath)
+          process.exit(1)
+        }
+
+        const normalized = convertMetaToMonadJson(data, sourceText)
+        const json = JSON.stringify(normalized, null, 2)
+
+        // Выводим JSON в stdout
+        console.log(json)
+      } catch (error) {
+        // Выводим только сообщение об ошибке без стека
+        const errorMessage = error instanceof Error ? error.message : String(error)
+        console.error(errorMessage)
         process.exit(1)
       }
-
-      const normalized = convertMetaToMonadJson(data, sourceText)
-      const json = JSON.stringify(normalized, null, 2)
-      
-      // Выводим JSON в stdout
-      console.log(json)
     `
 
     await Bun.write(tempFile, tempCode)
@@ -175,8 +247,9 @@ async function build(): Promise<boolean> {
 
     if (!success) {
       const errorText = new TextDecoder().decode(stderr)
-      console.error("Ошибка сборки:", errorText)
-      return false
+      // Извлекаем понятные ошибки без стека
+      const errorMessage = extractErrorMessage(errorText)
+      return errorMessage
     }
 
     const json = new TextDecoder().decode(stdout)
@@ -198,15 +271,19 @@ async function build(): Promise<boolean> {
 
     return true
   } catch (error) {
-    console.error("Ошибка сборки:", error)
-    return false
+    return error instanceof Error ? error.message : String(error)
   } finally {
     isBuilding = false
   }
 }
 
 // Первоначальная сборка
-build()
+const initialBuildResult = await build()
+if (initialBuildResult !== true && !isWatchMode) {
+  // Выводим ошибку в однократном режиме
+  console.error(typeof initialBuildResult === "string" ? initialBuildResult : "Ошибка сборки")
+  process.exit(1)
+}
 
 // Запуск watcher только если передан --watch
 if (isWatchMode) {
@@ -217,8 +294,15 @@ if (isWatchMode) {
     console.log(`👀 Отслеживание: ${inputFile}`)
     console.log("Нажмите Ctrl+C для остановки\n")
 
-    // Запускаем анимацию статуса
-    runner.start("Ожидание изменений...")
+    // Если начальная сборка была с ошибкой, отображаем её
+    if (initialBuildResult !== true) {
+      runner.errorMessage = typeof initialBuildResult === "string" ? initialBuildResult.replace(/\s+/g, " ").trim() : null
+      runner.start("Ошибка сборки...")
+      runner.status = statusEmojis[2] // ❌
+    } else {
+      // Запускаем анимацию статуса
+      runner.start("Ожидание изменений...")
+    }
 
     // Debounce таймер
     let debounceTimer: NodeJS.Timeout | null = null
@@ -244,15 +328,19 @@ if (isWatchMode) {
 
             lastContentHash = currentHash
             runner.update(1, "Пересборка...")
-            const success = await build()
-            if (success) {
+            const result = await build()
+            if (result === true) {
               runner.update(0, "Ожидание изменений...")
+              runner.clearError()
             } else {
+              // result содержит сообщение об ошибке — нормализуем в одну строку
+              runner.errorMessage = typeof result === "string" ? result.replace(/\s+/g, " ").trim() : null
               runner.update(2, "Ошибка сборки...")
             }
           } catch {
             // Ошибка чтения, пропускаем
             isBuilding = false
+            runner.clearError()
             runner.update(2, "Ошибка...")
           }
         }, 300)

@@ -65,8 +65,8 @@ export interface ParsedProcessJson {
   desc?: string
   /** Обработчик действия с исходным кодом и списком читаемых полей */
   action?: {
-    /** Исходный код функции */
-    src: string
+    /** Исходный код функции (опционально для пустых функций-заглушек) */
+    src?: string
     /** Поля контекста, которые читаются */
     read?: string[]
   }
@@ -376,32 +376,61 @@ export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): Mon
           }
         } else {
           // Action-процесс
-          // Валидируем путь к модулю действия
-          validateModulePath(parsed.action.src)
+          // Валидируем путь к модулю действия (если он есть)
+          if (parsed.action.src) {
+            validateModulePath(parsed.action.src)
+          }
+
+          // Собираем процесс только если есть данные (src, read, success, error, label, desc)
+          const hasAction = parsed.action.src || (parsed.action.read && parsed.action.read.length > 0)
+          // Проверяем success/error на наличие полезного кода (не пустая заглушка)
+          // Извлекаем тело функции после => и проверяем, не пустое ли оно
+          const isEmptyStub = (src: string): boolean => {
+            // Для стрелочных функций извлекаем часть после =>
+            const arrowMatch = src.match(/=>\s*(.*)$/)
+            if (arrowMatch) {
+              const body = arrowMatch[1].trim()
+              // Пустое тело: {} или ({})
+              return body === "{}" || body === "({})"
+            }
+            return false
+          }
+          const isNotEmptyHandler = (handler?: { src: string; read?: string[]; write?: string[] }) => {
+            if (!handler) return false
+            return !isEmptyStub(handler.src) || (handler.read && handler.read.length > 0) || (handler.write && handler.write.length > 0)
+          }
+          const hasSuccess = isNotEmptyHandler(parsed.success)
+          const hasError = isNotEmptyHandler(parsed.error)
+          const hasMeta = parsed.label || parsed.desc
+
+          // Пропускаем пустые процессы
+          if (!hasAction && !hasSuccess && !hasError && !hasMeta) {
+            return acc
+          }
 
           acc[key] = {
             type: "action",
             ...(parsed.label ? { label: parsed.label } : {}),
             ...(parsed.desc ? { desc: parsed.desc } : {}),
-            action: {
-              src: parsed.action.src,
-              ...(parsed.action.read ? { read: parsed.action.read } : {}),
-            },
-            ...(parsed.success
+            ...(parsed.action.src ? { action: { src: parsed.action.src } } : {}),
+            ...(parsed.action.read && parsed.action.read.length > 0
+              ? { action: { ...acc[key]?.action, read: parsed.action.read } }
+              : {}),
+            ...(hasSuccess
               ? {
                   success: {
-                    src: parsed.success.src,
-                    ...(parsed.success.read ? { read: parsed.success.read } : {}),
-                    ...(parsed.success.write ? { write: parsed.success.write } : {}),
+                    src: parsed.success!.src,
+                    ...(parsed.success!.read ? { read: parsed.success!.read } : {}),
+                    ...(parsed.success!.write ? { write: parsed.success!.write } : {}),
                   },
                 }
               : {}),
-            ...(parsed.error
+            ...(hasError
               ? {
                   error: {
-                    src: parsed.error.src,
-                    ...(parsed.error.read ? { read: parsed.error.read } : {}),
-                    ...(parsed.error.write ? { write: parsed.error.write } : {}),
+                    src: parsed.error!.src,
+                    ...(parsed.error!.read ? { read: parsed.error!.read } : {}),
+                    ...(parsed.error!.write ? { write: parsed.error!.write } : {}),
                   },
                 }
               : {}),

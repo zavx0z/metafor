@@ -1,7 +1,9 @@
 {
   "name": "space",
   "fields": {},
-  "superposition": {},
+  "superposition": {
+    "подписка на изменения состояний": {}
+  },
   "processes": {},
   "mass": {}
 }

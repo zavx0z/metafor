@@ -8,6 +8,6 @@
   "scripts": {
     "build": "metafor-build src/meta.ts --out meta.json",
     "build:watch": "metafor-build src/meta.ts --out meta.json --watch",
-    "space": "bun space/server"
+    "dev": "bun server"
   }
 }
