@@ -19,10 +19,10 @@ const meta = MetaFor("git")
     lastError: null as string | null,
   })
   .processes((process, destroy) => ({
-    коммит: process({ label: "Коммит", desc: "Процесс коммита изменений" })
-      .action(({ value }) => {
-        console.log("Коммит:", value.src)
-        return { success: true }
+    коммит: process({ label: "Коммит", desc: "Процесс коммита изменений", env: ["browser", "node"] })
+      .action(async ({ value }) => {
+        const mod = await import("./actions/commit.ts")
+        return mod.default({ value })
       })
       .success(({ update, data }) => {
         update({ src: "", patches: [], isLoading: false })
@@ -49,8 +49,8 @@ const meta = MetaFor("git")
   ])
   .bulk({
     gravity: ({ fields, state, html }) =>
-      html`${state === "коммит" && html`<meta-for src="meta/status.js" fields=${{ message: "Коммит в процессе...", src: value.src }}></meta-for>`}
-        ${state === "завершено" && html`<meta-for src="meta/success.js" fields=${{ message: "Готово!", patches: value.patches }}></meta-for>`}
+      html`${state === "коммит" && html`<meta-for src="meta/status.js" fields=${{ message: "Коммит в процессе...", src: fields.src }}></meta-for>`}
+        ${state === "завершено" && html`<meta-for src="meta/success.js" fields=${{ message: "Готово!", patches: fields.patches }}></meta-for>`}
         ${state === "ошибка" && html`<meta-for src="meta/error.js" fields=${{ error: "Ошибка коммита" }}></meta-for>`}`,
     view: ({ css }) => css``,
   })

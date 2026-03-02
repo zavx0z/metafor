@@ -41,6 +41,7 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
   result.type = ProcessType.ACTION
   if (process.label) result.label = process.label
   if (process.desc) result.desc = process.desc
+  if (process.env) result.env = process.env
 
   // Validate action structure
   const validation = validateActionStructure(process.action as Function)

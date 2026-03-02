@@ -41,6 +41,8 @@ export type Process<ɸ extends Schema = Schema, m extends Mass = Mass, Res = any
   label?: string
   /** Описание процесса для документации */
   desc?: string
+  /** Среды исполнения процесса */
+  env?: ExecutionEnv[]
 }
 
 /**

@@ -261,7 +261,7 @@ export default async function action({
 
 ```typescript
 .processes((process, destroy) => ({
-  loading: process({ label: "Загрузка" })
+  loading: process({ label: "Загрузка", env: ["browser", "node"] })
     .action(async ({ value }) => {
       const mod = await import("./actions/fetchUser.ts")
       return mod.default({ value })
@@ -269,6 +269,29 @@ export default async function action({
     .success(({ update, data }) => update({ name: data.name }))
     .error(({ update, error }) => update({ error: error.message })),
 }))
+```
+
+**Примечание:** `success` и `error` обработчики остаются inline в DSL. Только `action` выносится в отдельный модуль.
+
+**Параметры process:**
+
+| Параметр | Тип | Описание |
+| -------- | --- | -------- |
+| `label` | `string` | Название процесса для документации |
+| `desc` | `string` | Описание процесса для документации |
+| `env` | `ExecutionEnv[]` | Среды исполнения: `"browser"`, `"node"`, `"worker"`, `"server"`, `"any"` |
+
+**Примеры env:**
+
+```typescript
+// Только браузер
+process({ env: ["browser"] })
+
+// Браузер и Node.js
+process({ env: ["browser", "node"] })
+
+// Любая среда
+process({ env: ["any"] })
 ```
 
 **Типизация возвращаемого значения:**
@@ -603,7 +626,7 @@ export default MetaFor("git")
   })
 ```
 
-### Пример action-модуля: detectOperation.ts
+### Пример action-модуля в репозитории
 
 ```typescript
 // actions/detectOperation.ts

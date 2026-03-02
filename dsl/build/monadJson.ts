@@ -31,6 +31,22 @@ type MetaLike = Record<string, any> & {
 }
 
 /**
+ * Валидирует путь к модулю действия.
+ * Путь должен начинаться с './', '../' или '@'.
+ *
+ * @param src - Путь к модулю
+ * @throws Error если путь невалиден
+ */
+function validateModulePath(src: string): void {
+  if (!src.startsWith("./") && !src.startsWith("../") && !src.startsWith("@")) {
+    throw new Error(
+      `Невалидный путь модуля: "${src}". ` +
+        `Путь должен начинаться с './', '../' или '@' для пакетов.`
+    )
+  }
+}
+
+/**
  * Тип элемента массива для полей массивов.
  * Используется для определения типа элементов при выводе типов.
  */
@@ -360,6 +376,9 @@ export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): Mon
           }
         } else {
           // Action-процесс
+          // Валидируем путь к модулю действия
+          validateModulePath(parsed.action.src)
+
           acc[key] = {
             type: "action",
             ...(parsed.label ? { label: parsed.label } : {}),
