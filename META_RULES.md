@@ -152,11 +152,17 @@ export default MetaFor("<name>")
 ```typescript
 .processes((process) => ({
   "определение операции": process()
-    .action(({ mass, value }) => ({ operation: operation as NonNullable<typeof value.operation>, command, args }))
+    .action(async ({ mass, value }) => {
+      const mod = await import("./actions/detectOperation.ts")
+      return mod.default({ mass, value })
+    })
     .success(({ update, data }) => update(data))
     .error(({ update, error }) => update({ error: error.message })),
   "выполнение": process()
-    .action(() => null)
+    .action(async () => {
+      const mod = await import("./actions/execute.ts")
+      return mod.default()
+    })
     .success(({ update }) => update({ operation: null })),
 }))
 ```
@@ -170,7 +176,7 @@ export default MetaFor("<name>")
 ```text
 1. Вход в состояние
    ↓
-2. action() → return data ИЛИ throw error
+2. action() → import("...") → return data ИЛИ throw error
    ↓
 3. success() ИЛИ error() → update() → поля обновлены
    ↓
@@ -190,12 +196,9 @@ export default MetaFor("<name>")
 ```typescript
 .processes((process) => ({
   "загрузка": process()
-    .action(async ({ value, update }) => {
-      // ❌ Триггеры НЕ проверятся до завершения process
-      update({ status: "loading" })  // Промежуточное обновление
-      const data = await fetch(...)
-      update({ status: "success" })  // Ещё одно обновление
-      return { data }
+    .action(async ({ value }) => {
+      const mod = await import("./actions/fetchData.ts")
+      return mod.default({ value })
     })
     .success(({ update, data }) => {
       update({ data })  // Финальное обновление
@@ -227,12 +230,41 @@ export default MetaFor("<name>")
 
 ## Processes — process(action/success/error) destroy
 
+**Важно:** Действия процессов выносятся в отдельные ESM-модули.
+
+### Структура action-модуля
+
+```typescript
+// actions/fetchUser.ts
+import type { ActionParams } from "@metafor/meta"
+
+export interface FetchUserResult {
+  name: string
+  email: string
+}
+
+export default async function action({
+  value,
+}: ActionParams<{ id: { type: "number" } }, {}>): Promise<FetchUserResult> {
+  const res = await fetch(`/api/users/${value.id}`)
+  return await res.json()
+}
+```
+
+**Правила:**
+
+1. **Первая строка:** `import("...")` для загрузки модуля
+2. **Последняя строка:** `return` для возврата результата
+3. **Любое имя экспорта:** `default`, `action`, `process`, `load`, `run`, `execute`
+
+### Пример в meta.ts
+
 ```typescript
 .processes((process, destroy) => ({
   loading: process({ label: "Загрузка" })
-    .action(async ({ value, mass }) => {
-      const res = await fetch(`/api/${value.id}`)
-      return await res.json()
+    .action(async ({ value }) => {
+      const mod = await import("./actions/fetchUser.ts")
+      return mod.default({ value })
     })
     .success(({ update, data }) => update({ name: data.name }))
     .error(({ update, error }) => update({ error: error.message })),
@@ -243,8 +275,9 @@ export default MetaFor("<name>")
 
 ```typescript
 // ✅ Через NonNullable<typeof value.field>
-.action(({ value }) => {
-  const group = getGroup(mass.command)
+.action(async ({ value }) => {
+  const mod = await import("./actions/getGroup.ts")
+  const group = mod.default(mass.command)
   return { group: group as NonNullable<typeof value.group> }
 })
 
@@ -310,7 +343,7 @@ return { group: group as "start" | "work" | "examine" }
 
 ---
 
-## Пример: git enum
+## Пример актора
 
 ```typescript
 import "@metafor/meta"
@@ -346,22 +379,17 @@ export default MetaFor("git")
   })
   .processes((process) => ({
     "определение операции": process()
-      .action(({ mass, value }) => {
-        const command = value.command?.split(" ")[0]
-        let operation = null
-        for (const [key, regex] of Object.entries(mass.patterns)) {
-          if (regex.test(command)) {
-            operation = key
-            break
-          }
-        }
-        if (!operation) throw new Error(`Неизвестная команда: ${command}`)
-        return { operation: operation as NonNullable<typeof value.operation> }
+      .action(async ({ mass, value }) => {
+        const mod = await import("./actions/detectOperation.ts")
+        return mod.default({ mass, value })
       })
       .success(({ update, data }) => update(data))
       .error(({ update, error }) => update({ error: error.message })),
     "выполнение": process()
-      .action(() => null)
+      .action(async () => {
+        const mod = await import("./actions/execute.ts")
+        return mod.default()
+      })
       .success(({ update }) => update({ operation: null })),
   }))
   .bulk({
@@ -376,6 +404,37 @@ export default MetaFor("git")
   })
 ```
 
+### Пример action-модуля: detectOperation.ts
+
+```typescript
+// actions/detectOperation.ts
+import type { ActionParams } from "@metafor/meta"
+
+interface DetectOperationValue {
+  command?: string | null
+}
+
+interface DetectOperationResult {
+  operation: "start" | "work" | "examine"
+}
+
+export default async function action({
+  mass,
+  value,
+}: ActionParams<{}, { patterns: Record<string, RegExp> }>): Promise<DetectOperationResult> {
+  const command = value.command?.split(" ")[0]
+  if (!command) throw new Error("Команда не указана")
+  
+  for (const [key, regex] of Object.entries(mass.patterns)) {
+    if (regex.test(command)) {
+      return { operation: key as "start" | "work" | "examine" }
+    }
+  }
+  
+  throw new Error(`Неизвестная команда: ${command}`)
+}
+```
+
 ---
 
 ## Соглашения
@@ -386,7 +445,8 @@ export default MetaFor("git")
 4. Импорт: `import "@metafor/meta"`
 5. Bulk: только `<meta-for>` для иерархии акторов
 6. Цепочка: все методы обязательны (даже пустые)
-7. **Весь код внутри MetaFor** — никаких внешних функций/констант
+7. **Action-модули:** логика действий в отдельных файлах `actions/*.ts`
+8. **Структура action:** `import("...")` + `return`
 
 ---
 
@@ -415,57 +475,62 @@ export default MetaFor("git")
   })
   .processes((process) => ({
     "определение операции": process()
-      .action(({ mass, value }) => {
-        const command = value.command?.split(" ")[0]
-        let operation = null
-        for (const [key, regex] of Object.entries(mass.patterns)) {
-          if (regex.test(command)) {
-            operation = key
-            break
-          }
-        }
-        if (!operation) throw new Error(`Неизвестная команда: ${command}`)
-        return { operation: operation as NonNullable<typeof value.operation> }
+      .action(async ({ mass, value }) => {
+        const mod = await import("./actions/detectOperation.ts")
+        return mod.default({ mass, value })
       })
-      .success(({ update, data }) => update({ operation: data.operation }))
+      .success(({ update, data }) => update(data))
   }))
 ```
 
-**Правило:** Все данные, функции, паттерны — только внутри `.mass()`, `.processes()`, `.brane()`.
+**Правило:** Все данные, функции, паттерны — только внутри `.mass()`, `.processes()`, `.brane()` **или в отдельных action-модулях**.
+
+**Action-модули:**
+
+- Выносите логику действий в отдельные файлы: `actions/*.ts`
+- Каждый модуль экспортирует функцию по умолчанию или именованную
+- Модуль импортируется динамически: `await import("./actions/...")`
 
 ---
 
 ## Репозитории и субмодули
 
-Каждая мета — отдельное репозиторий на верхнем уровне `zavx0z/`. Главное репо содержит ссылки на другие репо через префиксы.
+Каждая мета — отдельный репозиторий на GitHub. Локально все репо хранятся в общей директории `github/`.
 
-**Структура:**
+**Структура на GitHub:**
 
 ```text
-zavx0z/git/              # главное репо
-  meta.ts
-zavx0z/git-start/        # группа start
-  meta.ts
-zavx0z/git-start-clone/  # команда clone
-  meta.ts
-zavx0z/git-start-init/   # команда init
-  meta.ts
-zavx0z/git-work/         # группа work
-  meta.ts
-zavx0z/git-work-add/     # команда add
-  meta.ts
+github.com/zavx0z/git/              # главное репо
+github.com/zavx0z/git-start/        # группа start
+github.com/zavx0z/git-start-clone/  # команда clone
+github.com/otheruser/git-work/      # группа work от другого пользователя
 ```
 
-**Преимущества плоской структуры:**
+**Локальная структура:**
 
-- ✅ Все репо на верхнем уровне — легко найти
-- ✅ Полные имена с префиксами — ясно назначение
-- ✅ Нет вложенности — можно менять состав без изменения иерархии
+```text
+~/github/
+  zavx0z/git/              # главное репо
+    meta.ts
+  zavx0z/git-start/        # группа start
+    meta.ts
+  zavx0z/git-start-clone/  # команда clone
+    meta.ts
+  otheruser/git-work/      # группа work от другого пользователя
+    meta.ts
+```
+
+**Преимущества распределённой структуры:**
+
+- ✅ Каждый репо независим — можно развивать отдельно
+- ✅ Разные авторы — каждый владеет своими мета
+- ✅ Нет центральной зависимости — можно использовать любые репо
 - ✅ Префиксы сохраняют группировку — `git-start-*`, `git-work-*`
+- ✅ Локально все в одном месте — директория `github/`
 
 **Пути в src:**
 
-Путь указывает на репо: `zavx0z/<repo-name>`
+Путь указывает на GitHub репо: `<username>/<repo-name>`
 
 ```typescript
 .bulk({
@@ -474,7 +539,7 @@ zavx0z/git-work-add/     # команда add
       <meta-for src="zavx0z/git-start" fields=${{ command: value.command, args: value.args }} />
     `}
     ${value.operation === "work" && html`
-      <meta-for src="zavx0z/git-work" fields=${{ command: value.command, args: value.args }} />
+      <meta-for src="otheruser/git-work" fields=${{ command: value.command, args: value.args }} />
     `}
   `,
 })
@@ -513,22 +578,17 @@ export default MetaFor("git")
   })
   .processes((process) => ({
     "определение операции": process()
-      .action(({ mass, value }) => {
-        const command = value.command?.split(" ")[0]
-        let operation = null
-        for (const [key, regex] of Object.entries(mass.patterns)) {
-          if (regex.test(command)) {
-            operation = key
-            break
-          }
-        }
-        if (!operation) throw new Error(`Неизвестная команда: ${command}`)
-        return { operation: operation as NonNullable<typeof value.operation> }
+      .action(async ({ mass, value }) => {
+        const mod = await import("./actions/detectOperation.ts")
+        return mod.default({ mass, value })
       })
       .success(({ update, data }) => update(data))
       .error(({ update, error }) => update({ error: error.message })),
     "выполнение": process()
-      .action(() => null)
+      .action(async () => {
+        const mod = await import("./actions/execute.ts")
+        return mod.default()
+      })
       .success(({ update }) => update({ operation: null })),
   }))
   .bulk({
@@ -537,8 +597,39 @@ export default MetaFor("git")
         <meta-for src="zavx0z/git-start" fields=${{ command: value.command, args: value.args }} />
       `}
       ${value.operation === "work" && html`
-        <meta-for src="zavx0z/git-work" fields=${{ command: value.command, args: value.args }} />
+        <meta-for src="otheruser/git-work" fields=${{ command: value.command, args: value.args }} />
       `}
     `,
   })
+```
+
+### Пример action-модуля: detectOperation.ts
+
+```typescript
+// actions/detectOperation.ts
+import type { ActionParams } from "@metafor/meta"
+
+interface DetectOperationValue {
+  command?: string | null
+}
+
+interface DetectOperationResult {
+  operation: "start" | "work"
+}
+
+export default async function action({
+  mass,
+  value,
+}: ActionParams<{}, { patterns: Record<string, RegExp> }>): Promise<DetectOperationResult> {
+  const command = value.command?.split(" ")[0]
+  if (!command) throw new Error("Команда не указана")
+
+  for (const [key, regex] of Object.entries(mass.patterns)) {
+    if (regex.test(command)) {
+      return { operation: key as "start" | "work" }
+    }
+  }
+
+  throw new Error(`Неизвестная команда: ${command}`)
+}
 ```
