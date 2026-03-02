@@ -35,6 +35,11 @@ let isBuilding = false
 // Хэш последнего собранного файла для обнаружения реальных изменений
 let lastContentHash: string | null = null
 
+// Анимация статуса
+let animationFrame = 0
+const animationFrames = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"]
+const statusEmojis = ["💤", "🔄", "❌", "✅"]
+
 /**
  * Вычисляет простой хэш строки
  */
@@ -47,6 +52,41 @@ function hashContent(str: string): string {
   }
   return hash.toString(36)
 }
+
+/**
+ * Анимационный индикатор для watch режима
+ */
+class StatusRunner {
+  private interval: NodeJS.Timeout | null = null
+  private status: string = "💤"
+  private message: string = "Ожидание"
+
+  start(message: string) {
+    this.message = message
+    this.status = statusEmojis[0]
+    
+    // Запускаем анимацию
+    this.interval = setInterval(() => {
+      const frame = animationFrames[animationFrame++ % animationFrames.length]
+      process.stdout.write(`\r\x1b[K${this.status} ${frame} ${this.message}`)
+    }, 80)
+  }
+
+  update(status: number, message: string) {
+    this.status = statusEmojis[status]
+    this.message = message
+  }
+
+  stop() {
+    if (this.interval) {
+      clearInterval(this.interval)
+      this.interval = null
+    }
+    process.stdout.write("\r\x1b[K")
+  }
+}
+
+const runner = new StatusRunner()
 
 /**
  * Выполняет сборку meta-файла
@@ -151,7 +191,11 @@ async function build(): Promise<boolean> {
       humanSize = `${(stat.size / 1024).toFixed(2)} Кб`
     }
 
-    console.log(`✓ Собрано ${outputPath} (${humanSize})`)
+    // Выводим сообщение только в режиме однократной сборки
+    if (!isWatchMode) {
+      console.log(`✓ Собрано ${outputPath} (${humanSize})`)
+    }
+
     return true
   } catch (error) {
     console.error("Ошибка сборки:", error)
@@ -170,8 +214,11 @@ if (isWatchMode) {
     const cwd = process.cwd()
     const watchPath = isAbsolute(inputFile) ? inputFile : join(cwd, inputFile)
 
-    console.log(`👀 Отслеживание изменений в ${inputFile}...`)
-    console.log("Нажмите Ctrl+C для остановки")
+    console.log(`👀 Отслеживание: ${inputFile}`)
+    console.log("Нажмите Ctrl+C для остановки\n")
+
+    // Запускаем анимацию статуса
+    runner.start("Ожидание изменений...")
 
     // Debounce таймер
     let debounceTimer: NodeJS.Timeout | null = null
@@ -196,11 +243,17 @@ if (isWatchMode) {
             }
 
             lastContentHash = currentHash
-            console.log(`\n🔄 ${filename} изменен, пересборка...`)
-            await build()
+            runner.update(1, "Пересборка...")
+            const success = await build()
+            if (success) {
+              runner.update(0, "Ожидание изменений...")
+            } else {
+              runner.update(2, "Ошибка сборки...")
+            }
           } catch {
             // Ошибка чтения, пропускаем
             isBuilding = false
+            runner.update(2, "Ошибка...")
           }
         }, 300)
       }
@@ -212,6 +265,7 @@ if (isWatchMode) {
 
     process.on("SIGINT", () => {
       if (debounceTimer) clearTimeout(debounceTimer)
+      runner.stop()
       console.log("\n👋 Watcher остановлен")
       process.exit(0)
     })

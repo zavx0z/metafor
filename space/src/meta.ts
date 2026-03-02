@@ -1,3 +1,5 @@
+import "@metafor/meta"
+
 export default MetaFor("space")
   .brane((field) => ({}))
   .superposition({})
