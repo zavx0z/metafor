@@ -1,9 +1,9 @@
-import "@metafor/meta"
-
 export default MetaFor("space")
   .brane((field) => ({}))
   .superposition({})
-  .mass({})
-  .processes((process, destroy) => ({}))
+  .mass({
+    onStateChange: undefined
+  })
+  .processes(() => ({}))
   .reactions()
   .bulk()

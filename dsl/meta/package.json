@@ -8,11 +8,15 @@
     ".": {
       "import": "./dist/metafor.js",
       "types": "./dist/index.d.ts"
+    },
+    "./global": {
+      "types": "./global.d.ts"
     }
   },
   "types": "./dist/index.d.ts",
   "files": [
     "dist",
+    "global.d.ts",
     "README.md",
     "README.ru.md"
   ],

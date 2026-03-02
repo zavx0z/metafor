@@ -2,12 +2,8 @@
   "name": "space",
   "private": true,
   "devDependencies": {
-    "@types/bun": "latest",
     "@metafor/build": "workspace:*",
     "@metafor/meta": "workspace:*"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
   },
   "scripts": {
     "build": "metafor-build src/meta.ts --out meta.json",
