@@ -22,8 +22,10 @@ afterEach(() => {
 
 describe("Monad — Array переходы", () => {
   const createStateChangeHandler = (resultStates: string[]) => {
-    return (_id: string, _old: string, current: string) => {
-      resultStates.push(current)
+    return (changes: Array<{ monadId: string; oldState: string; newState: string; intention?: string | null; params: Record<string, unknown> }>) => {
+      for (const change of changes) {
+        resultStates.push(change.newState)
+      }
     }
   }
 
@@ -40,7 +42,7 @@ describe("Monad — Array переходы", () => {
           IDLE: { URGENT: { tags: { include: "urgent" } } },
           URGENT: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -67,7 +69,7 @@ describe("Monad — Array переходы", () => {
           IDLE: { FOUND: { numbers: { include: 5 } } },
           FOUND: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -89,7 +91,7 @@ describe("Monad — Array переходы", () => {
           IDLE: { FOUND: { numbers: { include: 5 } } },
           FOUND: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -113,7 +115,7 @@ describe("Monad — Array переходы", () => {
           CHECKING: { ALLOWED: { tags: { notInclude: "blocked" } } },
           ALLOWED: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -136,7 +138,7 @@ describe("Monad — Array переходы", () => {
           CHECKING: { ALLOWED: { tags: { notInclude: "blocked" } } },
           ALLOWED: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -159,7 +161,7 @@ describe("Monad — Array переходы", () => {
           IDLE: { MANY: { tags: { length: { eq: 3 } } } },
           MANY: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -186,7 +188,7 @@ describe("Monad — Array переходы", () => {
           IDLE: { MANY: { tags: { length: { gt: 2 } } } },
           MANY: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -208,7 +210,7 @@ describe("Monad — Array переходы", () => {
           IDLE: { SOME: { tags: { length: { gte: 2 } } } },
           SOME: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -230,7 +232,7 @@ describe("Monad — Array переходы", () => {
           IDLE: { FEW: { tags: { length: { lt: 3 } } } },
           FEW: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -252,7 +254,7 @@ describe("Monad — Array переходы", () => {
           IDLE: { FEW: { tags: { length: { lte: 2 } } } },
           FEW: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -276,7 +278,7 @@ describe("Monad — Array переходы", () => {
           HAS_ITEMS: { EMPTY: { tags: { isEmpty: true } } },
           EMPTY: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -298,7 +300,7 @@ describe("Monad — Array переходы", () => {
           EMPTY: { HAS_ITEMS: { tags: { isEmpty: false } } },
           HAS_ITEMS: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -324,7 +326,7 @@ describe("Monad — Array переходы", () => {
           } },
           CRITICAL: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 

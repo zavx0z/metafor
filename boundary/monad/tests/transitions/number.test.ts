@@ -22,8 +22,10 @@ afterEach(() => {
 
 describe("Monad — Числовые переходы", () => {
   const createStateChangeHandler = (resultStates: string[]) => {
-    return (_id: string, _old: string, current: string) => {
-      resultStates.push(current)
+    return (changes: Array<{ monadId: string; oldState: string; newState: string; intention?: string | null; params: Record<string, unknown> }>) => {
+      for (const change of changes) {
+        resultStates.push(change.newState)
+      }
     }
   }
 
@@ -40,7 +42,7 @@ describe("Monad — Числовые переходы", () => {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -62,7 +64,7 @@ describe("Monad — Числовые переходы", () => {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -86,7 +88,7 @@ describe("Monad — Числовые переходы", () => {
           IDLE: { PATROL: { hp: { gte: 50 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -108,7 +110,7 @@ describe("Monad — Числовые переходы", () => {
           IDLE: { PATROL: { hp: { gte: 50 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -132,7 +134,7 @@ describe("Monad — Числовые переходы", () => {
           IDLE: { WEAK: { hp: { lt: 30 } } },
           WEAK: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -154,7 +156,7 @@ describe("Monad — Числовые переходы", () => {
           IDLE: { WEAK: { hp: { lt: 30 } } },
           WEAK: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -178,7 +180,7 @@ describe("Monad — Числовые переходы", () => {
           IDLE: { WEAK: { hp: { lte: 30 } } },
           WEAK: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -200,7 +202,7 @@ describe("Monad — Числовые переходы", () => {
           IDLE: { WEAK: { hp: { lte: 30 } } },
           WEAK: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -224,7 +226,7 @@ describe("Monad — Числовые переходы", () => {
           IDLE: { CRITICAL: { hp: { eq: 50 } } },
           CRITICAL: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -246,7 +248,7 @@ describe("Monad — Числовые переходы", () => {
           IDLE: { CRITICAL: { hp: { eq: 50 } } },
           CRITICAL: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -270,7 +272,7 @@ describe("Monad — Числовые переходы", () => {
           IDLE: { CHANGED: { hp: { neq: 100 } } },
           CHANGED: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -292,7 +294,7 @@ describe("Monad — Числовые переходы", () => {
           IDLE: { CHANGED: { hp: { neq: 100 } } },
           CHANGED: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 

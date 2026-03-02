@@ -6,8 +6,8 @@
  * в промежуточный JSON-формат, который используется для инициализации monad и boundary.
  */
 
-import type { ParsedProcess, ParsedDestroy } from "@metafor/meta/process.t"
-import type { ReactionsSchema } from "@metafor/meta/reactions.t"
+import type { ParsedProcess, ParsedDestroy } from "../meta/process.t"
+import type { ReactionsSchema } from "../meta/reactions.t"
 import type { Node as ParseNode } from "@zavx0z/template"
 
 /**

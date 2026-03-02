@@ -35,6 +35,15 @@ export interface Superposition {
 }
 
 /**
+ * Намерение — ключ процесса для выполнения при переходе в состояние.
+ *
+ * @remarks
+ * Намерение указывает, какой процесс должен быть выполнен при переходе в данное состояние.
+ * Берётся из DSL-декларации процессов. Не у каждого состояния есть намерение.
+ */
+export type Intention = string
+
+/**
  * Конфигурация монады.
  *
  * @remarks
@@ -63,9 +72,9 @@ export interface Superposition {
  *     },
  *     DEAD: null                       // Терминальное состояние
  *   },
- *   actions: {
- *     PATROL: () => console.log("Start patrol"),
- *     DEAD: () => console.log("Unit died")
+ *   intentions: {
+ *     PATROL: "patrolProcess",        // Ключ процесса из DSL
+ *     DEAD: "deathProcess"
  *   }
  * })
  * ```
@@ -75,7 +84,7 @@ export interface MonadConfig {
   params: Record<string, unknown>
   state: string
   superposition: Superposition
-  actions: Actions
+  intentions?: Intentions
 }
 
 /**
@@ -84,14 +93,12 @@ export interface MonadConfig {
 export type Update = (params: Record<string, unknown>) => void
 
 /**
- * Действие — функция, выполняемая при изменении состояния.
+ * Карта намерений по именам состояний.
+ *
+ * @remarks
+ * Не у каждого состояния есть намерение. Если намерения нет — состояние терминальное или не требует действия.
  */
-export type Action = (params: Record<string, unknown>) => void
-
-/**
- * Карта действий по именам состояний.
- */
-export type Actions = Record<string, Action | null>
+export type Intentions = Record<string, Intention | null>
 
 /**
  * Брана — носитель состояния.

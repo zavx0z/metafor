@@ -22,8 +22,10 @@ afterEach(() => {
 
 describe("Monad — Граничные случаи", () => {
   const createStateChangeHandler = (resultStates: string[]) => {
-    return (_id: string, _old: string, current: string) => {
-      resultStates.push(current)
+    return (changes: Array<{ monadId: string; oldState: string; newState: string; intention?: string | null; params: Record<string, unknown> }>) => {
+      for (const change of changes) {
+        resultStates.push(change.newState)
+      }
     }
   }
 
@@ -40,7 +42,7 @@ describe("Monad — Граничные случаи", () => {
           IDLE: { PATROL: { hp: { gte: 50 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -62,7 +64,7 @@ describe("Monad — Граничные случаи", () => {
           ALIVE: { DEAD: { hp: { lte: 0 } } },
           DEAD: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -86,7 +88,7 @@ describe("Monad — Граничные случаи", () => {
           NORMAL: { COLD: { temperature: { lt: 0 } } },
           COLD: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -108,7 +110,7 @@ describe("Monad — Граничные случаи", () => {
           NORMAL: { ABSOLUTE_ZERO: { temperature: { lte: -273 } } },
           ABSOLUTE_ZERO: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -132,7 +134,7 @@ describe("Monad — Граничные случаи", () => {
           HEALTHY: { WEAK: { health: { lt: 50.5 } } },
           WEAK: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -154,7 +156,7 @@ describe("Monad — Граничные случаи", () => {
           NORMAL: { CRITICAL: { health: { gte: 99.9 } } },
           CRITICAL: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -178,7 +180,7 @@ describe("Monad — Граничные случаи", () => {
           ACTIVE: { IDLE: { command: { eq: "" } } },
           IDLE: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -200,7 +202,7 @@ describe("Monad — Граничные случаи", () => {
           WAITING: { PROCESSING: { message: { notIn: ["", "pending"] } } },
           PROCESSING: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -229,7 +231,7 @@ describe("Monad — Граничные случаи", () => {
           IDLE: { DEAD: { hp: { lte: 0 } } },
           DEAD: null, // Терминальное состояние
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -260,7 +262,7 @@ describe("Monad — Граничные случаи", () => {
           VICTORY: null, // Терминальное
           DEAD: null,    // Терминальное
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 

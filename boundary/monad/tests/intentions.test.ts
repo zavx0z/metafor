@@ -1,0 +1,330 @@
+import { describe, it, expect, beforeAll, afterEach } from "bun:test"
+import {
+  createMonad,
+  updateMonads,
+  updateBoundary,
+  _resetState,
+  onStateChange,
+  registerProcesses,
+  getProcessSchema,
+  type BraneStateChange,
+} from "../monad"
+import type { ParsedProcessJson } from "../../../dsl/build/monadJson"
+import { GPU } from "@boundary/matrix"
+import { setupDevice } from "fixture/bunWebGPU"
+
+beforeAll(async () => {
+  GPU._device = await setupDevice()
+})
+
+const _createdMonadIds: string[] = []
+
+afterEach(() => {
+  _resetState()
+  _createdMonadIds.length = 0
+})
+
+// Моковые схемы процессов из DSL
+const mockProcesses: Record<string, ParsedProcessJson> = {
+  patrolProcess: {
+    type: "action",
+    label: "Патруль",
+    desc: "Процесс патрулирования",
+    action: {
+      src: "./actions/patrol.ts",
+      read: ["position"],
+    },
+  },
+  combatProcess: {
+    type: "action",
+    label: "Бой",
+    desc: "Процесс боя",
+    action: {
+      src: "./actions/combat.ts",
+      read: ["hp", "enemy"],
+    },
+  },
+  deathProcess: {
+    type: "action",
+    label: "Смерть",
+    desc: "Процесс смерти",
+    action: {
+      src: "./actions/death.ts",
+      read: ["hp"],
+    },
+  },
+  idleProcess: {
+    type: "action",
+    label: "Бездействие",
+    desc: "Процесс бездействия",
+    action: {
+      src: "./actions/idle.ts",
+      read: [],
+    },
+  },
+}
+
+describe("Monad — Намерения (intentions)", () => {
+  it("должен вернуть намерение при переходе в состояние", async () => {
+    const changes: BraneStateChange[] = []
+
+    registerProcesses(mockProcesses)
+
+    const id = createMonad({
+      fields: { hp: { type: "number" } },
+      params: { hp: 30 },
+      state: "IDLE",
+      superposition: {
+        IDLE: { PATROL: { hp: { gt: 50 } } },
+        PATROL: null,
+      },
+      intentions: {
+        PATROL: "patrolProcess",
+      },
+    })
+    _createdMonadIds.push(id)
+
+    onStateChange((c) => changes.push(...c))
+    await updateBoundary()
+    await updateMonads([{ id: id, fields: { hp: 80 } }])
+
+    expect(changes).toHaveLength(1)
+    expect(changes[0]!.newState).toBe("PATROL")
+    expect(changes[0]!.intention).toBe("patrolProcess")
+  })
+
+  it("должен вернуть намерение с правильными параметрами", async () => {
+    const changes: BraneStateChange[] = []
+
+    registerProcesses(mockProcesses)
+
+    const id = createMonad({
+      fields: { hp: { type: "number" }, mana: { type: "number" } },
+      params: { hp: 30, mana: 50 },
+      state: "IDLE",
+      superposition: {
+        IDLE: { COMBAT: { hp: { gt: 50 } } },
+        COMBAT: null,
+      },
+      intentions: {
+        COMBAT: "combatProcess",
+      },
+    })
+    _createdMonadIds.push(id)
+
+    onStateChange((c) => changes.push(...c))
+    await updateBoundary()
+    await updateMonads([{ id: id, fields: { hp: 80, mana: 30 } }])
+
+    expect(changes).toHaveLength(1)
+    expect(changes[0]!.intention).toBe("combatProcess")
+    expect(changes[0]!.params).toEqual({ hp: 80, mana: 30 })
+  })
+
+  it("должен вернуть разные намерения для разных состояний", async () => {
+    const changes: BraneStateChange[] = []
+
+    registerProcesses(mockProcesses)
+
+    const id = createMonad({
+      fields: { hp: { type: "number" } },
+      params: { hp: 100 },
+      state: "IDLE",
+      superposition: {
+        IDLE: {
+          PATROL: { hp: { gt: 50 } },
+          DEAD: { hp: { lte: 0 } },
+        },
+        PATROL: {
+          IDLE: { hp: { lte: 20 } },
+        },
+        DEAD: null,
+      },
+      intentions: {
+        PATROL: "patrolProcess",
+        DEAD: "deathProcess",
+        IDLE: "idleProcess",
+      },
+    })
+    _createdMonadIds.push(id)
+
+    onStateChange((c) => changes.push(...c))
+    await updateBoundary()
+
+    // hp=100 > 50 → PATROL
+    await updateMonads([{ id: id, fields: { hp: 100 } }])
+    expect(changes[0]!.newState).toBe("PATROL")
+    expect(changes[0]!.intention).toBe("patrolProcess")
+
+    // hp=15 <= 20 → IDLE
+    await updateMonads([{ id: id, fields: { hp: 15 } }])
+    expect(changes[1]!.newState).toBe("IDLE")
+    expect(changes[1]!.intention).toBe("idleProcess")
+
+    // hp=0 <= 0 → DEAD
+    await updateMonads([{ id: id, fields: { hp: 0 } }])
+    expect(changes[2]!.newState).toBe("DEAD")
+    expect(changes[2]!.intention).toBe("deathProcess")
+  })
+
+  it("должен вернуть намерение только при изменении состояния", async () => {
+    const changes: BraneStateChange[] = []
+
+    registerProcesses(mockProcesses)
+
+    const id = createMonad({
+      fields: { hp: { type: "number" } },
+      params: { hp: 100 },
+      state: "IDLE",
+      superposition: {
+        IDLE: { PATROL: { hp: { gt: 50 } } },
+        PATROL: null,
+      },
+      intentions: {
+        PATROL: "patrolProcess",
+      },
+    })
+    _createdMonadIds.push(id)
+
+    onStateChange((c) => changes.push(...c))
+    await updateBoundary()
+
+    // Переход в PATROL
+    await updateMonads([{ id: id, fields: { hp: 80 } }])
+    expect(changes).toHaveLength(1)
+    expect(changes[0]!.intention).toBe("patrolProcess")
+
+    // Остаётся в PATROL (намерение не должно вернуться снова)
+    await updateMonads([{ id: id, fields: { hp: 90 } }])
+    expect(changes).toHaveLength(1)
+  })
+
+  it("должен вернуть намерения при цепочке переходов", async () => {
+    const changes: BraneStateChange[] = []
+
+    registerProcesses(mockProcesses)
+
+    const id = createMonad({
+      fields: { hp: { type: "number" }, mana: { type: "number" } },
+      params: { hp: 100, mana: 100 },
+      state: "IDLE",
+      superposition: {
+        IDLE: { PATROL: { hp: { gt: 80 } } },
+        PATROL: { COMBAT: { mana: { lt: 20 } } },
+        COMBAT: { DEAD: { hp: { lte: 0 } } },
+        DEAD: null,
+      },
+      intentions: {
+        PATROL: "patrolProcess",
+        COMBAT: "combatProcess",
+        DEAD: "deathProcess",
+      },
+    })
+    _createdMonadIds.push(id)
+
+    onStateChange((c) => changes.push(...c))
+    await updateBoundary()
+
+    // hp=100>80 → PATROL
+    await updateMonads([{ id: id, fields: { hp: 100 } }])
+    expect(changes[0]!.newState).toBe("PATROL")
+    expect(changes[0]!.intention).toBe("patrolProcess")
+
+    // mana=10<20 → COMBAT
+    await updateMonads([{ id: id, fields: { mana: 10 } }])
+    expect(changes[1]!.newState).toBe("COMBAT")
+    expect(changes[1]!.intention).toBe("combatProcess")
+
+    // hp=0<=0 → DEAD
+    await updateMonads([{ id: id, fields: { hp: 0 } }])
+    expect(changes[2]!.newState).toBe("DEAD")
+    expect(changes[2]!.intention).toBe("deathProcess")
+  })
+
+  it("должен вернуть null намерение если состояние без намерения", async () => {
+    const changes: BraneStateChange[] = []
+
+    registerProcesses(mockProcesses)
+
+    const id = createMonad({
+      fields: { hp: { type: "number" } },
+      params: { hp: 100 },
+      state: "IDLE",
+      superposition: {
+        IDLE: { DEAD: { hp: { lte: 0 } } },
+        DEAD: null,
+      },
+      // DEAD без намерения — терминальное состояние
+    })
+    _createdMonadIds.push(id)
+
+    onStateChange((c) => changes.push(...c))
+    await updateBoundary()
+
+    // hp=0 <= 0 → DEAD (без намерения)
+    await updateMonads([{ id: id, fields: { hp: 0 } }])
+    expect(changes).toHaveLength(1)
+    expect(changes[0]!.newState).toBe("DEAD")
+    expect(changes[0]!.intention).toBeNull()
+  })
+
+  it("должен вернуть пакетные изменения для нескольких монад", async () => {
+    const changes: BraneStateChange[] = []
+
+    registerProcesses(mockProcesses)
+
+    const id1 = createMonad({
+      fields: { hp: { type: "number" } },
+      params: { hp: 100 },
+      state: "IDLE",
+      superposition: {
+        IDLE: { PATROL: { hp: { gt: 50 } } },
+        PATROL: null,
+      },
+      intentions: {
+        PATROL: "patrolProcess",
+      },
+    })
+
+    const id2 = createMonad({
+      fields: { mana: { type: "number" } },
+      params: { mana: 100 },
+      state: "IDLE",
+      superposition: {
+        IDLE: { COMBAT: { mana: { gt: 50 } } },
+        COMBAT: null,
+      },
+      intentions: {
+        COMBAT: "combatProcess",
+      },
+    })
+    _createdMonadIds.push(id1, id2)
+
+    onStateChange((c) => changes.push(...c))
+    await updateBoundary()
+
+    // Обе монады меняют состояние одновременно
+    await updateMonads([
+      { id: id1, fields: { hp: 80 } },
+      { id: id2, fields: { mana: 80 } },
+    ])
+
+    expect(changes).toHaveLength(2)
+    const change1 = changes.find((c) => c.monadId === id1)
+    const change2 = changes.find((c) => c.monadId === id2)
+    expect(change1?.newState).toBe("PATROL")
+    expect(change1?.intention).toBe("patrolProcess")
+    expect(change2?.newState).toBe("COMBAT")
+    expect(change2?.intention).toBe("combatProcess")
+  })
+
+  it("должен получить схему процесса по ключу намерения", async () => {
+    registerProcesses(mockProcesses)
+
+    const schema = getProcessSchema("patrolProcess")
+    expect(schema).toBeDefined()
+    expect(schema?.type).toBe("action")
+    expect(schema?.label).toBe("Патруль")
+    expect(schema?.action?.src).toBe("./actions/patrol.ts")
+  })
+})

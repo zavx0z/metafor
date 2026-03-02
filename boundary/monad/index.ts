@@ -10,14 +10,17 @@ export {
   updateMonads,
   updateBoundary,
   onStateChange,
+  registerProcesses,
+  getProcessSchema,
 } from "./monad"
 
-export type { MonadConfig } from "./types"
-export type { Brane, Action, Update, Actions } from "./types"
+export type { MonadConfig, Intention, Intentions, Brane, Update } from "./types"
 export type {
   MonadId,
   FieldsStore,
-  ActionsStore,
+  IntentionsStore,
+  ProcessesStore,
+  ProcessKey,
   ParamsStore,
   SuperpositionsStore,
   StatesStore,
@@ -27,4 +30,5 @@ export type {
 export { convertField } from "./field"
 export type { Field, FieldType, BraneParamValue } from "@boundary/fields"
 export type { FieldDefinition, FieldsDefinition } from "./field"
-export type { MonadUpdate } from "./monad"
+export type { MonadUpdate, BraneStateChange } from "./monad"
+export type { ParsedProcessJson } from "../../dsl/build/monadJson"

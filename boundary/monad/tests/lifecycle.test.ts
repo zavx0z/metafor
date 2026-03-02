@@ -3,7 +3,6 @@ import {
   createMonad,
   deleteMonad,
   updateMonads,
-  updateMonads,
   updateBoundary,
   onStateChange,
   _resetState,
@@ -28,10 +27,13 @@ describe("Monad — Жизненный цикл", () => {
     let oldState = ""
     let currentState = ""
 
-    onStateChange((id, old, current) => {
-      stateChanged = true
-      oldState = old
-      currentState = current
+    onStateChange((changes) => {
+      if (changes.length > 0) {
+        const change = changes[0]!
+        stateChanged = true
+        oldState = change.oldState
+        currentState = change.newState
+      }
     })
 
     const id = createMonad({
@@ -42,7 +44,7 @@ describe("Monad — Жизненный цикл", () => {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
       },
-      actions: {},
+      intentions: {},
     })
     _createdMonadIds.push(id)
 
@@ -67,11 +69,13 @@ describe("Monad — Жизненный цикл", () => {
     const states1: string[] = []
     const states2: string[] = []
 
-    onStateChange((id, old, current) => {
-      if (id === _createdMonadIds[0]) {
-        states1.push(current)
-      } else {
-        states2.push(current)
+    onStateChange((changes) => {
+      for (const change of changes) {
+        if (change.monadId === _createdMonadIds[0]) {
+          states1.push(change.newState)
+        } else {
+          states2.push(change.newState)
+        }
       }
     })
 
@@ -83,7 +87,7 @@ describe("Monad — Жизненный цикл", () => {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
       },
-      actions: {},
+      intentions: {},
     })
     _createdMonadIds.push(id1)
 
@@ -95,7 +99,7 @@ describe("Monad — Жизненный цикл", () => {
         IDLE: { DEAD: { hp: { lte: 0 } } },
         DEAD: null,
       },
-      actions: {},
+      intentions: {},
     })
     _createdMonadIds.push(id2)
 
@@ -114,9 +118,11 @@ describe("Monad — Жизненный цикл", () => {
   it("должен вызвать callback для каждой монады отдельно", async () => {
     const callbackCounts = new Map<string, number>()
 
-    onStateChange((id) => {
-      const count = callbackCounts.get(id) ?? 0
-      callbackCounts.set(id, count + 1)
+    onStateChange((changes) => {
+      for (const change of changes) {
+        const count = callbackCounts.get(change.monadId) ?? 0
+        callbackCounts.set(change.monadId, count + 1)
+      }
     })
 
     // Создаём две монады с разными полями для избежания конфликтов
@@ -125,7 +131,7 @@ describe("Monad — Жизненный цикл", () => {
       params: { hp1: 100 },
       state: "IDLE",
       superposition: { IDLE: { PATROL: { hp1: { gt: 50 } } }, PATROL: null },
-      actions: {},
+      intentions: {},
     })
     _createdMonadIds.push(id1)
 
@@ -134,7 +140,7 @@ describe("Monad — Жизненный цикл", () => {
       params: { hp2: 100 },
       state: "IDLE",
       superposition: { IDLE: { PATROL: { hp2: { gt: 50 } } }, PATROL: null },
-      actions: {},
+      intentions: {},
     })
     _createdMonadIds.push(id2)
 
@@ -150,8 +156,10 @@ describe("Monad — Жизненный цикл", () => {
   it("должен блокировать переходы при lock=true в updateMonads()", async () => {
     let stateChanged = false
 
-    onStateChange(() => {
-      stateChanged = true
+    onStateChange((changes) => {
+      if (changes.length > 0) {
+        stateChanged = true
+      }
     })
 
     const id = createMonad({
@@ -162,7 +170,7 @@ describe("Monad — Жизненный цикл", () => {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
       },
-      actions: {},
+      intentions: {},
     })
     _createdMonadIds.push(id)
 
@@ -182,8 +190,10 @@ describe("Monad — Жизненный цикл", () => {
   it("должен обновлять поля даже при блокировке переходов", async () => {
     const stateChanges: string[] = []
 
-    onStateChange((_, __, current) => {
-      stateChanges.push(current)
+    onStateChange((changes) => {
+      for (const change of changes) {
+        stateChanges.push(change.newState)
+      }
     })
 
     const id = createMonad({
@@ -194,7 +204,7 @@ describe("Monad — Жизненный цикл", () => {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
       },
-      actions: {},
+      intentions: {},
     })
     _createdMonadIds.push(id)
 
@@ -214,8 +224,10 @@ describe("Monad — Жизненный цикл", () => {
   it("должен разблокировать монаду без изменения полей", async () => {
     const stateChanges: string[] = []
 
-    onStateChange((_, __, current) => {
-      stateChanges.push(current)
+    onStateChange((changes) => {
+      for (const change of changes) {
+        stateChanges.push(change.newState)
+      }
     })
 
     const id = createMonad({
@@ -226,7 +238,7 @@ describe("Monad — Жизненный цикл", () => {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
       },
-      actions: {},
+      intentions: {},
     })
     _createdMonadIds.push(id)
 

@@ -42,7 +42,7 @@ describe("convertMetaToMonadJson", () => {
       const meta = MetaFor("test")
         .brane((field) => ({
           tags: field.array.required<string>([]),
-          numbers: field.array.required<number>([1, 2, 3])
+          numbers: field.array.required<number>([1, 2, 3]),
         }))
     `
 
@@ -191,6 +191,7 @@ describe("convertMetaToMonadJson", () => {
       .mass()
       .processes((process) => ({
         idle: process().action(async ({ value }) => {
+          // @ts-ignore - mock module for testing
           const mod = await import("./mock-action.ts")
           return mod.default(value)
         }),
@@ -272,7 +273,9 @@ describe("convertMetaToMonadJson", () => {
       .mass()
       .processes((process) => ({
         idle: process({ label: "Test Process", desc: "Описание процесса" })
+          // @ts-ignore
           .action(async ({ value }) => {
+            // @ts-ignore - mock module for testing
             const mod = await import("./mock-action.ts")
             return mod.default({ result: value.value * 2 })
           })
@@ -347,7 +350,7 @@ describe("convertMetaToMonadJson", () => {
         [
           ["idle"],
           reaction({ label: "Value Update", desc: "Обновление значения" })
-            .filter(({ self, fields }) => ({
+            .filter(({ self, value }) => ({
               meta: "source",
               value: { gt: 0 },
             }))
@@ -364,7 +367,7 @@ describe("convertMetaToMonadJson", () => {
     const reaction = result.reactions!.reactions["0"]
     expect(reaction!.label).toBe("Value Update")
     expect(reaction!.desc).toBe("Обновление значения")
-    expect(reaction!.cond).toContain("({ self, fields }) =>")
+    expect(reaction!.cond).toContain("({ self, value }) =>")
     expect(reaction!.src).toContain("({ update, patch }) =>")
     expect(reaction!.write).toEqual(["value"])
     expect(result.reactions!.superposition.idle).toEqual(["0"])
@@ -380,7 +383,7 @@ describe("convertMetaToMonadJson", () => {
       .processes()
       .reactions()
       .bulk({
-        gravity: ({ fields, state, html, update }) =>
+        gravity: ({ value, state, html, update }) =>
           html`<div>
             <h1>${value.label}</h1>
             <p>State: ${state}</p>
@@ -460,7 +463,7 @@ describe("convertMetaToMonadJson", () => {
         ],
       ])
       .bulk({
-        gravity: ({ fields, html }) => html`<div>${value.name}</div>`,
+        gravity: ({ value, html }) => html`<div>${value.name}</div>`,
         view: ({ css }) => css`div { color: red; }`,
       })
 
@@ -483,7 +486,7 @@ describe("extractArrayElementTypesFromSource", () => {
         .brane((field) => ({
           tags: field.array.required<string>([]),
           numbers: field.array.required<number>([1, 2, 3]),
-          items: field.array.optional<string>([])
+          items: field.array.optional<string>([]),
         }))
     `
 
@@ -501,7 +504,7 @@ describe("extractArrayElementTypesFromSource", () => {
       const meta = MetaFor("test")
         .brane((field) => ({
           name: field.string.required(""),
-          age: field.number.required(0)
+          age: field.number.required(0),
         }))
     `
 
@@ -514,7 +517,7 @@ describe("extractArrayElementTypesFromSource", () => {
     const sourceText = `
       const meta = MetaFor("test")
         .brane((field) => ({
-          tags: field.array.required<string>([]), numbers: field.array.required<number>([])
+          tags: field.array.required<string>([]), numbers: field.array.required<number>([]),
         }))
     `
 

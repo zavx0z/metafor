@@ -4,6 +4,8 @@ import {
   updateMonads,
   updateBoundary,
   _resetState,
+  onStateChange,
+  type BraneStateChange,
 } from "../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
@@ -28,7 +30,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
 
       createMonad({
@@ -39,7 +41,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
 
       await updateBoundary()
@@ -58,7 +60,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
 
       createMonad({
@@ -69,7 +71,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
 
       await updateBoundary()
@@ -87,7 +89,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
 
       createMonad({
@@ -98,7 +100,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
 
       await updateBoundary()
@@ -110,7 +112,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
   describe("Корректность работы с shared блоками", () => {
     it("должен корректно работать с shared блоком", async () => {
       // hp разное → локальное, isAlive одинаковое → shared
-      const capturedParams: Record<string, unknown>[] = []
+      const changes: BraneStateChange[] = []
 
       const id1 = createMonad({
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
@@ -119,9 +121,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },  // Переход по hp (локальное)
           PATROL: null,
-        },
-        actions: {
-          PATROL: (params) => capturedParams.push({ ...params }),
         },
       })
 
@@ -133,18 +132,18 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
         },
-        actions: {},  // Вторая монада без action
       })
 
+      onStateChange((c) => changes.push(...c))
       await updateBoundary()
 
       // isAlive=true в shared блоке, hp=100 локальное
       // Обновляем локальное hp → переход в PATROL
       await updateMonads([{ id: id1, fields: { hp: 80 } }])
 
-      // Проверяем что action получил правильные params (включая shared isAlive)
-      expect(capturedParams.length).toBe(1)
-      expect(capturedParams[0]).toEqual({ hp: 80, isAlive: true })
+      // Проверяем что изменение состояния получило правильные params (включая shared isAlive)
+      expect(changes).toHaveLength(1)
+      expect(changes[0]!.params).toEqual({ hp: 80, isAlive: true })
     })
 
     it("должен работать с mixed: local + shared поля", async () => {
@@ -156,7 +155,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           IDLE: { PATROL: { mana: { lt: 30 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
 
       const id2 = createMonad({
@@ -167,7 +166,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           IDLE: { PATROL: { mana: { lt: 30 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
 
       await updateBoundary()
@@ -183,9 +182,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
     })
   })
 
-  describe("Проверка через action params", () => {
-    it("должен передать shared поля в action", async () => {
-      const capturedParams: Record<string, unknown>[] = []
+  describe("Проверка через onStateChange params", () => {
+    it("должен передать shared поля в onStateChange", async () => {
+      const changes: BraneStateChange[] = []
 
       // Монада 1: hp=100, isAlive=true, role="warrior"
       const id1 = createMonad({
@@ -195,9 +194,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },  // Переход по mana (локальное)
           PATROL: null,
-        },
-        actions: {
-          PATROL: (params) => capturedParams.push({ ...params }),
         },
       })
 
@@ -210,21 +206,21 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
         },
-        actions: {},  // Без action
       })
 
+      onStateChange((c) => changes.push(...c))
       await updateBoundary()
 
       // mana=60 > 40 → переход в PATROL (только монада 1)
       await updateMonads([{ id: id1, fields: { mana: 60 } }])
 
-      // Проверяем что action получил правильные params (включая shared isAlive, role)
-      expect(capturedParams.length).toBe(1)
-      expect(capturedParams[0]).toEqual({ hp: 100, isAlive: true, role: "warrior", mana: 60 })
+      // Проверяем что изменение состояния получило правильные params (включая shared isAlive, role)
+      expect(changes).toHaveLength(1)
+      expect(changes[0]!.params).toEqual({ hp: 100, isAlive: true, role: "warrior", mana: 60 })
     })
 
-    it("должен передать mixed local + shared поля в action", async () => {
-      const capturedParams: Record<string, unknown>[] = []
+    it("должен передать mixed local + shared поля в onStateChange", async () => {
+      const changes: BraneStateChange[] = []
 
       // Монада 1: hp=100 (shared), mana=10 (local)
       const id1 = createMonad({
@@ -234,9 +230,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
-        },
-        actions: {
-          PATROL: (params) => capturedParams.push({ ...params }),
         },
       })
 
@@ -249,20 +242,18 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
         },
-        actions: {
-          PATROL: (params) => capturedParams.push({ ...params }),
-        },
       })
 
+      onStateChange((c) => changes.push(...c))
       await updateBoundary()
 
       // mana=60 > 40 → переход в PATROL
       await updateMonads([{ id: id1, fields: { mana: 60 } }])
       // mana=5 не > 40 → нет перехода
 
-      // Проверяем что action получил shared hp и локальное mana
-      expect(capturedParams.length).toBe(1)
-      expect(capturedParams[0]).toEqual({ hp: 100, mana: 60 })
+      // Проверяем что изменение состояния получило shared hp и локальное mana
+      expect(changes).toHaveLength(1)
+      expect(changes[0]!.params).toEqual({ hp: 100, mana: 60 })
     })
   })
 
@@ -278,7 +269,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
             IDLE: { PATROL: { hp: { gt: 50 } } },
             PATROL: null,
           },
-          actions: {},
+          intentions: {},
         })
       }
 
@@ -296,7 +287,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
 
       const id2 = createMonad({
@@ -307,7 +298,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
 
       const id3 = createMonad({
@@ -318,7 +309,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
 
       await updateBoundary()
@@ -343,7 +334,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
 
       const id2 = createMonad({
@@ -354,7 +345,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
         },
-        actions: {},
+        intentions: {},
       })
 
       await updateBoundary()

@@ -13,29 +13,49 @@ import {
   type BraneParamValue,
 } from "@boundary/fields"
 import type {
-  ActionsStore,
+  IntentionsStore,
   IndexToUuidStore,
   MonadId,
   StatesStore,
   SuperpositionsStore,
   UuidToIndexStore,
+  ProcessesStore,
+  ProcessKey,
 } from "./monad.t"
 import type { FieldDefinition, FieldsDefinition } from "./field"
-import type { MonadConfig } from "./types"
+import type { MonadConfig, Intention } from "./types"
+import type { ParsedProcessJson } from "../../dsl/build/monadJson"
 import { convertField } from "./field"
 import { convertToNumeric } from "./superposition"
+
+/**
+ * Изменение состояния браны.
+ */
+export interface BraneStateChange {
+  /** ID монады */
+  monadId: MonadId
+  /** Предыдущее состояние */
+  oldState: string
+  /** Текущее состояние */
+  newState: string
+  /** Намерение (ключ процесса) если есть */
+  intention?: Intention | null
+  /** Текущие параметры монады */
+  params: Record<string, unknown>
+}
 
 // ==================== Внутреннее состояние ====================
 const _globalFields: Map<string, [number, Field]> = new Map()
 const _fieldNameIndex: Map<string, number> = new Map()
-const _actions: ActionsStore = new Map()
+const _intentions: IntentionsStore = new Map()
+const _processes: ProcessesStore = new Map()
 const _superpositions: SuperpositionsStore = new Map()
 const _states: StatesStore = new Map()
 const _monadParams: Map<MonadId, Record<string, unknown>> = new Map()
 const _uuidToIndex: UuidToIndexStore = new Map()
 const _indexToUuid: IndexToUuidStore = new Map()
 const _stateMaps: Map<MonadId, string[]> = new Map() // states для reverse-маппинга
-const _onStateChange: { current: ((monadId: MonadId, old: string, current: string) => void) | null } = { current: null }
+const _onStateChange: { current: ((changes: BraneStateChange[]) => void) | null } = { current: null }
 const _monadIds: Set<MonadId> = new Set()
 let _nextFieldIndex = 0
 let _fieldsDefinition: FieldsDefinition = {}
@@ -44,7 +64,8 @@ let _fieldsDefinition: FieldsDefinition = {}
 export function _resetState(): void {
   _globalFields.clear()
   _fieldNameIndex.clear()
-  _actions.clear()
+  _intentions.clear()
+  _processes.clear()
   _superpositions.clear()
   _states.clear()
   _monadParams.clear()
@@ -126,9 +147,9 @@ function paramsToTuples(params: Record<string, unknown>): [number, BraneParamVal
  *     COMBAT: null,
  *     DEAD: null                       // Терминальное состояние
  *   },
- *   actions: {
- *     PATROL: () => console.log("Start patrol"),
- *     DEAD: () => console.log("Unit died")
+ *   intentions: {
+ *     PATROL: "patrolProcess",        // Ключ процесса из DSL
+ *     DEAD: "deathProcess"
  *   }
  * })
  * ```
@@ -145,7 +166,7 @@ export function createMonad(config: MonadConfig): string {
     }
   }
   _monadParams.set(id, { ...config.params })
-  _actions.set(id, config.actions)
+  _intentions.set(id, config.intentions ?? {})
   _superpositions.set(id, config.superposition)
   _states.set(id, config.state)
   return id
@@ -159,10 +180,47 @@ export function createMonad(config: MonadConfig): string {
 export function deleteMonad(id: MonadId): void {
   _monadIds.delete(id)
   _monadParams.delete(id)
-  _actions.delete(id)
+  _intentions.delete(id)
   _superpositions.delete(id)
   _states.delete(id)
   _uuidToIndex.delete(id)
+}
+
+/**
+ * Регистрирует схемы процессов из DSL.
+ *
+ * @param processes - Объект с ключами процессов и их схемами из DSL.
+ *
+ * @example
+ * ```typescript
+ * registerProcesses({
+ *   patrolProcess: {
+ *     type: "action",
+ *     label: "Патруль",
+ *     action: { src: "./actions/patrol.ts", read: ["position"] }
+ *   },
+ *   deathProcess: {
+ *     type: "action",
+ *     label: "Смерть",
+ *     action: { src: "./actions/death.ts", read: ["hp"] }
+ *   }
+ * })
+ * ```
+ */
+export function registerProcesses(processes: Record<ProcessKey, ParsedProcessJson>): void {
+  for (const [key, schema] of Object.entries(processes)) {
+    _processes.set(key, schema as ParsedProcessJson)
+  }
+}
+
+/**
+ * Получает схему процесса по ключу.
+ *
+ * @param processKey - Ключ процесса (ID намерения).
+ * @returns Схема процесса или undefined если не найдена.
+ */
+export function getProcessSchema(processKey: ProcessKey): ParsedProcessJson | undefined {
+  return _processes.get(processKey)
 }
 
 /**
@@ -220,6 +278,7 @@ export async function updateBoundary(lockedMonadIds?: MonadId[]): Promise<void> 
     _indexToUuid.set(i, monadId)
   })
   // Обрабатываем изменения состояний
+  const changes: BraneStateChange[] = []
   stateChanges.forEach(([braneIndex, stateIndex]) => {
     const monadId = _indexToUuid.get(braneIndex)
     if (!monadId) return
@@ -231,17 +290,21 @@ export async function updateBoundary(lockedMonadIds?: MonadId[]): Promise<void> 
     const old = _states.get(monadId)
     if (old !== undefined && current !== old) {
       _states.set(monadId, current)
-      const actions = _actions.get(monadId)
-      const action = actions?.[current]
-      if (action) {
-        const params = _monadParams.get(monadId)
-        if (params) {
-          action(params)
-        }
-      }
-      _onStateChange.current?.(monadId, old, current)
+      const intentions = _intentions.get(monadId)
+      const intention = intentions?.[current]
+      changes.push({
+        monadId,
+        oldState: old,
+        newState: current,
+        intention: intention ?? null,
+        params: _monadParams.get(monadId)!,
+      })
     }
   })
+  // Пакетная отправка изменений
+  if (changes.length > 0 && _onStateChange.current) {
+    _onStateChange.current(changes)
+  }
 }
 
 /**
@@ -314,6 +377,7 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<void> {
   const stateChanges = await fieldsUpdate(allUpdates)
 
   // Обрабатываем изменения состояний
+  const changes: BraneStateChange[] = []
   stateChanges.forEach(([braneIndex, stateIndex]) => {
     const monadId = _indexToUuid.get(braneIndex)
     if (!monadId) return
@@ -325,31 +389,37 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<void> {
     const old = _states.get(monadId)
     if (old !== undefined && current !== old) {
       _states.set(monadId, current)
-      const actions = _actions.get(monadId)
-      const action = actions?.[current]
-      if (action) {
-        const params = _monadParams.get(monadId)
-        if (params) {
-          action(params)
-        }
-      }
-      _onStateChange.current?.(monadId, old, current)
+      const intentions = _intentions.get(monadId)
+      const intention = intentions?.[current]
+      changes.push({
+        monadId,
+        oldState: old,
+        newState: current,
+        intention: intention ?? null,
+        params: _monadParams.get(monadId)!,
+      })
     }
   })
+  // Пакетная отправка изменений
+  if (changes.length > 0 && _onStateChange.current) {
+    _onStateChange.current(changes)
+  }
 }
 
 /**
  * Устанавливает callback на изменение состояния.
  *
- * @param callback - Функция обратного вызова.
+ * @param callback - Функция обратного вызова, получает массив изменений всех бран.
  *
  * @example
  * ```typescript
- * onStateChange((monadId, old, current) => {
- *   console.log(`State changed: ${old} → ${current}`)
+ * onStateChange((changes) => {
+ *   for (const { monadId, oldState, newState, intention, params } of changes) {
+ *     console.log(`${monadId}: ${oldState} → ${newState}, intention: ${intention}`)
+ *   }
  * })
  * ```
  */
-export function onStateChange(callback: (monadId: MonadId, old: string, current: string) => void): void {
+export function onStateChange(callback: (changes: BraneStateChange[]) => void): void {
   _onStateChange.current = callback
 }

@@ -22,8 +22,10 @@ afterEach(() => {
 
 describe("Monad — Булевы переходы", () => {
   const createStateChangeHandler = (resultStates: string[]) => {
-    return (_id: string, _old: string, current: string) => {
-      resultStates.push(current)
+    return (changes: Array<{ monadId: string; oldState: string; newState: string; intention?: string | null; params: Record<string, unknown> }>) => {
+      for (const change of changes) {
+        resultStates.push(change.newState)
+      }
     }
   }
 
@@ -40,7 +42,7 @@ describe("Monad — Булевы переходы", () => {
           INACTIVE: { ACTIVE: { isAlive: true } },
           ACTIVE: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -62,7 +64,7 @@ describe("Monad — Булевы переходы", () => {
           ACTIVE: { INACTIVE: { isActive: false } },
           INACTIVE: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -86,7 +88,7 @@ describe("Monad — Булевы переходы", () => {
           DISCONNECTED: { CONNECTED: { isConnected: { eq: true } } },
           CONNECTED: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -108,7 +110,7 @@ describe("Monad — Булевы переходы", () => {
           CONNECTED: { DISCONNECTED: { isConnected: { eq: false } } },
           DISCONNECTED: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -132,7 +134,7 @@ describe("Monad — Булевы переходы", () => {
           ENABLED: { DISABLED: { isEnabled: { neq: true } } },
           DISABLED: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -154,7 +156,7 @@ describe("Monad — Булевы переходы", () => {
           DISABLED: { ENABLED: { isEnabled: { neq: false } } },
           ENABLED: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 

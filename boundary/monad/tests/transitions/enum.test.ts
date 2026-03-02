@@ -22,8 +22,10 @@ afterEach(() => {
 
 describe("Monad — Enum переходы", () => {
   const createStateChangeHandler = (resultStates: string[]) => {
-    return (_id: string, _old: string, current: string) => {
-      resultStates.push(current)
+    return (changes: Array<{ monadId: string; oldState: string; newState: string; intention?: string | null; params: Record<string, unknown> }>) => {
+      for (const change of changes) {
+        resultStates.push(change.newState)
+      }
     }
   }
 
@@ -40,7 +42,7 @@ describe("Monad — Enum переходы", () => {
           IDLE: { ACTIVE: { status: { eq: "active" } } },
           ACTIVE: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -62,7 +64,7 @@ describe("Monad — Enum переходы", () => {
           IDLE: { ACTIVE: { status: { eq: "active" } } },
           ACTIVE: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -86,7 +88,7 @@ describe("Monad — Enum переходы", () => {
           IDLE: { CHANGED: { status: { neq: "idle" } } },
           CHANGED: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -110,7 +112,7 @@ describe("Monad — Enum переходы", () => {
           IDLE: { NOT_IDLE: { status: { in: ["active", "paused"] } } },
           NOT_IDLE: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -132,7 +134,7 @@ describe("Monad — Enum переходы", () => {
           IDLE: { NOT_IDLE: { status: { in: ["active", "paused"] } } },
           NOT_IDLE: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -156,7 +158,7 @@ describe("Monad — Enum переходы", () => {
           UNDEFINED: { ALLY: { role: { notIn: ["enemy", "neutral"] } } },
           ALLY: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -180,7 +182,7 @@ describe("Monad — Enum переходы", () => {
           IDLE: { URGENT: { priority: { gt: "low" } } },
           URGENT: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -202,7 +204,7 @@ describe("Monad — Enum переходы", () => {
           IDLE: { URGENT: { priority: { gt: "low" } } },
           URGENT: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 

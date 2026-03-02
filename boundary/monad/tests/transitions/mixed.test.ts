@@ -22,8 +22,10 @@ afterEach(() => {
 
 describe("Monad — Смешанные переходы", () => {
   const createStateChangeHandler = (resultStates: string[]) => {
-    return (_id: string, _old: string, current: string) => {
-      resultStates.push(current)
+    return (changes: Array<{ monadId: string; oldState: string; newState: string; intention?: string | null; params: Record<string, unknown> }>) => {
+      for (const change of changes) {
+        resultStates.push(change.newState)
+      }
     }
   }
 
@@ -45,7 +47,7 @@ describe("Monad — Смешанные переходы", () => {
           },
           COMBAT: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -76,7 +78,7 @@ describe("Monad — Смешанные переходы", () => {
           DEAD: null,
           UNCONSCIOUS: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -106,7 +108,7 @@ describe("Monad — Смешанные переходы", () => {
           },
           ATTACK: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -138,7 +140,7 @@ describe("Monad — Смешанные переходы", () => {
           },
           READY: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -172,7 +174,7 @@ describe("Monad — Смешанные переходы", () => {
           },
           CONNECTED: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -211,7 +213,7 @@ describe("Monad — Смешанные переходы", () => {
           },
           COMBAT: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
@@ -247,7 +249,7 @@ describe("Monad — Смешанные переходы", () => {
           UNCONSCIOUS: null,
           CRITICAL: null,
         },
-        actions: {},
+        intentions: {},
       })
       _createdMonadIds.push(id)
 
