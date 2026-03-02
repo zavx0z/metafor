@@ -1,4 +1,4 @@
-import { createMonad, updateBoundary, updateMonads, onStateChange } from "@boundary/monad"
+import { createMonad, updateBoundary, updateMonads, onStateChange, releaseLock } from "@boundary/monad"
 
 const status = document.getElementById("status")!
 const out = document.getElementById("output")!
@@ -35,10 +35,10 @@ const warriorId = createMonad({
     },
     DEAD: null,
   },
-  actions: {
-    PATROL: (params) => console.log(`Warrior патрулирует: hp=${params.hp}`),
-    COMBAT: (params) => console.log(`Warrior в бою: hp=${params.hp}`),
-    DEAD: (params) => console.log(`Warrior погиб: hp=${params.hp}`),
+  intentions: {
+    PATROL: "patrolProcess",
+    COMBAT: "combatProcess",
+    DEAD: "deathProcess",
   },
 })
 
@@ -69,18 +69,18 @@ const corpseId = createMonad({
     },
     DEAD: null,
   },
-  actions: {
-    PATROL: (params) => console.log(`Corpse патрулирует: hp=${params.hp}`),
-    COMBAT: (params) => console.log(`Corpse в бою: hp=${params.hp}`),
-    DEAD: (params) => console.log(`Corpse погиб: hp=${params.hp}`),
+  intentions: {
+    DEAD: "deathProcess",
   },
 })
 
-// Callback на изменение состояния
-onStateChange((monadId, old, current) => {
-  const msg = `State changed for monad ${monadId}: ${old} → ${current}`
-  console.log(msg)
-  out.innerText += msg + "\n"
+// Callback на изменение состояния (пакетный)
+onStateChange((changes) => {
+  for (const { monadId, oldState, newState, intention } of changes) {
+    const msg = `State changed for monad ${monadId}: ${oldState} → ${newState}${intention ? `, intention: ${intention}` : ''}`
+    console.log(msg)
+    out.innerText += msg + "\n"
+  }
 })
 
 console.log("\n--- Инициализация границы ---")
@@ -91,14 +91,18 @@ const startMsg = `Начальные состояния созданы`
 console.log(startMsg)
 out.innerText += startMsg + "\n"
 
-console.log("\n--- Шаг симуляции (hp=100 → PATROL, hp=0 → DEAD) ---")
-out.innerText += "\n--- Шаг симуляции ---\n"
+console.log("\n--- TAKT 1: Шаг симуляции (hp=100 → PATROL, hp=0 → DEAD) ---")
+out.innerText += "\n--- TAKT 1 ---\n"
 
 // Обновляем и выполняем шаг для каждой монады
 await updateMonads([
   { id: warriorId, fields: { hp: 100 } },
   { id: corpseId, fields: { hp: 0 } },
 ])
+
+// WEAK FORCE: исполняет процессы для монад с намерением
+// После завершения — снимаем блокировку
+await releaseLock()
 
 const endMsg = `Симуляция завершена`
 console.log(endMsg)
