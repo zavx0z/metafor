@@ -1,129 +1,107 @@
 # 🌀 Boundary Lock Lifecycle в MetaFor
 
-Этот документ фиксирует **актуальное поведение TAKT-цикла** для `MONAD ↔ BOUNDARY`, включая:
+Этот документ фиксирует актуальную модель `MONAD ↔ BOUNDARY`, где:
 
-- рождение монады (`oldState: undefined`)
-- runtime-переходы (`oldState !== undefined`)
-- автоматические и явные разблокировки (`lock`)
-
----
-
-## 1) Фундамент
-
-FSM в MetaFor работает как пакетный ритм:
-
-1. `BOUNDARY` вычисляет переходы для всех бран параллельно.
-2. При изменении состояния `BOUNDARY` ставит `lock=1`.
-3. `MONAD` анализирует переход:
-   - если намерения нет → снимает `lock`
-   - если намерение есть → оставляет `lock`
-4. `WEAK FORCE` исполняет процесс и вызывает `releaseLock()`.
+- `updateBoundary()` эмитит **birth-events** для новых монад,
+- `updateBoundary()` **не выполняет runtime-шаг переходов**,
+- runtime-переходы происходят только в `updateMonads()`.
 
 ---
 
-## 2) TAKT-поток (актуальная версия)
+## 1) Базовый инвариант
 
-## TAKT 0 — Рождение
+`updateBoundary()` — это commit-фаза синхронизации графа монад с Boundary:
 
-`createMonad()` создаёт монаду без установленного состояния.
+- пересобирает/инициализирует boundary под текущий набор монад,
+- обновляет внутренние соответствия `monadId <-> braneIndex`,
+- фиксирует начальные состояния новых монад,
+- эмитит только birth-события (`oldState: undefined`),
+- не вычисляет runtime-переходы в этом вызове.
 
-На первом `updateBoundary()` формируется event рождения:
+Это позволяет:
 
-- `oldState: undefined`
-- `newState: <первое состояние superposition>`
-
-Это **не ошибка**, а нормальный lifecycle event.
-
----
-
-## TAKT 1 — Вычисление в Boundary
-
-GPU шейдер:
-
-- читает текущее состояние и bytecode-правила,
-- вычисляет `next_state`,
-- обновляет `states[idx] = next_state`,
-- если `next_state != current_state`, выставляет:
-  - `dirty_flag = 1`
-  - `lock = 1`
-
-`lock` находится в заголовке блока браны (`heap[block_ptr + 2]`).
+1. получить явный сигнал создания новой монады,
+2. запустить процесс первого состояния (если есть intention),
+3. избежать двойного runtime-перехода в одном такте инициализации.
 
 ---
 
-## TAKT 2 — Интерпретация в Monad
+## 2) TAKT-модель (актуальная)
 
-`MONAD` получает пакет изменений и разбирает их как события:
+### TAKT 0 — Commit + Birth signaling (`updateBoundary`)
 
-- **birth-event**: `oldState === undefined`
-- **runtime-event**: `oldState !== undefined`
+- MONAD подготавливает все браны и суперпозиции.
+- BOUNDARY инициализируется без runtime-step.
+- Для новых монад MONAD выставляет первое состояние суперпозиции.
+- Эмитится birth-event:
+  - `oldState: undefined`
+  - `newState: <first state>`
+- Runtime-переходы в этом такте не считаются.
 
-Далее для `newState` проверяется `intention`:
+### TAKT 1+ — Runtime evolution (`updateMonads`)
 
-- `intention == null/undefined` → `MONAD` снимает `lock`
-- `intention != null` → `lock` остаётся до завершения процесса
-
----
-
-## TAKT 3 — Исполнение в Weak Force
-
-Для событий с намерением:
-
-- исполняется `process.action()`,
-- обновляются поля/эффекты,
-- после завершения вызывается `releaseLock(monadIds?)`.
+- Обновляются поля одной или нескольких монад.
+- Выполняется один шаг эволюции FSM.
+- При реальном изменении состояния:
+  - формируется runtime-event,
+  - BOUNDARY ставит `lock = 1`.
 
 ---
 
-## TAKT 4 — Следующая эволюция
+## 3) Lock lifecycle: кто ставит и кто снимает
 
-Следующий GPU-такт:
-
-- разблокированные браны снова участвуют в переходах,
-- заблокированные пропускаются.
-
----
-
-## 3) Таблица lock-ответственности
-
-| Уровень | Ставит lock | Снимает lock |
+| Слой | Ставит lock | Снимает lock |
 |---|---|---|
-| `BOUNDARY` | Автоматически при фактическом переходе | Никогда |
-| `MONAD` | Никогда | Автоматически, если у `newState` нет intention |
-| `WEAK FORCE` | Никогда | После исполнения процесса через `releaseLock()` |
+| `BOUNDARY` | Автоматически при реальном runtime-переходе | Никогда |
+| `MONAD` | Никогда | Автоматически, если у `newState` нет `intention` |
+| `WEAK FORCE` / orchestration | Никогда | Явно через `releaseLock()` после завершения процесса |
 
 ---
 
-## 4) Семантика событий `onStateChange`
+## 4) Birth-events и lock
 
-Подписчик получает **массив изменений за такт**.
+Birth-event в `updateBoundary()`:
 
-Рекомендуемое разделение:
+- нужен как событие жизненного цикла (создание/инициализация),
+- может нести `intention` первого состояния,
+- не означает, что уже был runtime-переход.
 
-- Birth events: `oldState === undefined`
-- Runtime transitions: `oldState !== undefined`
+Правило для lock в birth-фазе:
 
-Если бизнес-логика должна реагировать только на рабочие переходы:
+- если у первого состояния **нет** `intention`, lock снимается сразу;
+- если `intention` есть, lock может быть удержан до завершения инициализационного процесса согласно orchestration-политике.
 
-```ts
-const runtime = changes.filter(c => c.oldState !== undefined)
+---
+
+## 5) Семантика `onStateChange`
+
+`onStateChange` получает пакет изменений, который может содержать:
+
+1. **Birth events**
+   - `oldState === undefined`
+2. **Runtime transitions**
+   - `oldState !== undefined`
+
+Рекомендуется явно разделять их в обработчиках:
+
+```/dev/null/example.ts#L1-11
+onStateChange((changes) => {
+  const births = changes.filter((c) => c.oldState === undefined)
+  const runtime = changes.filter((c) => c.oldState !== undefined)
+
+  // инициализационная оркестрация
+  for (const c of births) handleBirth(c)
+
+  // рабочая логика переходов
+  for (const c of runtime) handleRuntime(c)
+})
 ```
 
 ---
 
-## 5) Важные практические правила
+## 6) Практический поток
 
-1. Не трактуйте `oldState: undefined` как сбой — это событие рождения.
-2. Не смешивайте birth/runtime в доменных обработчиках без явной фильтрации.
-3. Для состояний с intention держите lock до `releaseLock()`.
-4. Для состояний без intention lock снимается автоматически на стороне `MONAD`.
-5. Обновления состояния обрабатываются пакетно, в ритме TAKT.
-
----
-
-## 6) Короткий пример жизненного цикла
-
-```ts
+```/dev/null/lifecycle.ts#L1-32
 const id = createMonad({
   fields: { hp: { type: "number" } },
   params: { hp: 30 },
@@ -132,6 +110,7 @@ const id = createMonad({
     PATROL: null,
   },
   intentions: {
+    IDLE: "spawnProcess",
     PATROL: "patrolProcess",
   },
 })
@@ -139,26 +118,40 @@ const id = createMonad({
 onStateChange((changes) => {
   for (const c of changes) {
     if (c.oldState === undefined) {
-      console.log("[BIRTH]", c.monadId, "->", c.newState)
+      console.log("[BIRTH]", c.monadId, "->", c.newState, c.intention)
     } else {
       console.log("[RUN]", c.monadId, c.oldState, "->", c.newState, c.intention)
     }
   }
 })
 
-await updateBoundary() // birth-event
-await updateMonads([{ id, fields: { hp: 80 } }]) // runtime transition IDLE -> PATROL (lock=1)
-await releaseLock([id]) // после исполнения процесса
+// Commit boundary + birth signals (без runtime-step)
+await updateBoundary()
+
+// Runtime step
+await updateMonads([{ id, fields: { hp: 80 } }])
+
+// После завершения процесса
+await releaseLock([id])
 ```
 
 ---
 
-## 7) Итог
+## 7) Правила для команды
 
-`lock` в MetaFor — это не «запрет», а механизм ритма:
+1. После `createMonad()` / `deleteMonad()` вызывайте `updateBoundary()`.
+2. Не трактуйте birth-event как runtime-переход.
+3. Для стартовых процессов используйте birth-events (`oldState: undefined`).
+4. Для рабочей доменной логики используйте runtime-events (`oldState !== undefined`).
+5. Управляйте завершением lock через `releaseLock()` после выполнения процессов.
 
-- `BOUNDARY` фиксирует факт изменения,
-- `MONAD` проверяет наличие воли к действию,
-- `WEAK FORCE` завершает цикл действием и освобождением.
+---
 
-Это обеспечивает детерминированную эволюцию без потери семантики и без гонок между этапами.
+## 8) Итог
+
+В актуальной архитектуре:
+
+- `updateBoundary()` отвечает за **commit структуры и birth-сигнализацию**,
+- `updateMonads()` отвечает за **runtime-эволюцию FSM**,
+- lock lifecycle остаётся детерминированным и предсказуемым,
+- запуск процесса первого состояния делается корректно через birth-events.

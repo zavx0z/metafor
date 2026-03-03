@@ -7,40 +7,47 @@
 
 1. хранит семантику (`"IDLE"`, `"PATROL"`, имена полей),
 2. передаёт механику в `BOUNDARY` (GPU/bytecode),
-3. фиксирует события переходов,
+3. эмитит события жизненного цикла и runtime-переходов,
 4. управляет ритмом блокировок через намерения.
 
 ---
 
-## Ключевая модель: `undefined` как рождение
+## Ключевая модель: `updateBoundary()` как commit + birth-signal
 
-Новая монада создаётся **без текущего состояния**.
+`updateBoundary()` в текущей модели:
 
-- `createMonad()` не устанавливает `state`
-- первое состояние проявляется на `updateBoundary()`
-- первый event имеет вид:
+- **пересобирает/синхронизирует boundary** под актуальный набор монад,
+- **не выполняет runtime-шаг переходов** (не делает эволюцию FSM),
+- **но эмитит birth-events** для новых монад.
+
+Birth-event нужен, чтобы:
+
+- оповестить систему о появлении новой монады,
+- запустить процесс первого состояния (если есть `intention`),
+- отделить фазу создания от runtime-эволюции.
+
+Формат birth-event:
 
 - `oldState: undefined`
-- `newState: <первое состояние суперпозиции>`
-
-Это **нормальный lifecycle**, а не ошибка.
+- `newState: <первое состояние superposition>`
 
 ---
 
 ## Такт событий (`onStateChange`)
 
-`onStateChange(callback)` получает **пакет событий**.
+`onStateChange(callback)` получает **пакет изменений**.
 
-События могут быть двух типов:
+Есть два типа событий:
 
-1. **Birth-event** (рождение):
+1. **Birth-event** (инициализация монады)
    - `oldState === undefined`
-2. **Runtime transition** (рабочий переход):
+2. **Runtime transition** (рабочий переход)
    - `oldState !== undefined`
 
-Если вам нужна только runtime-логика — фильтруйте события:
+Гарантия текущей модели:
 
-- `changes.filter(c => c.oldState !== undefined)`
+- `updateBoundary()` → только birth-events (если есть новые монады),
+- `updateMonads()` → только runtime transitions.
 
 ---
 
@@ -48,12 +55,16 @@
 
 ### Кто ставит lock
 
-`BOUNDARY` автоматически ставит lock, когда состояние реально изменилось.
+`BOUNDARY` автоматически ставит lock при реальном изменении состояния.
 
 ### Кто снимает lock
 
-- `MONAD` снимает lock автоматически, если у нового состояния **нет намерения**
-- `WEAK FORCE` (или ваш orchestration слой) снимает lock после исполнения процесса через `releaseLock()`
+- `MONAD` снимает lock автоматически, если у нового состояния **нет намерения**.
+- `WEAK FORCE` (или orchestration-слой) снимает lock после исполнения процесса через `releaseLock()`.
+
+### Birth и lock
+
+Для birth-событий без `intention` lock снимается сразу в commit-фазе `updateBoundary()`, без runtime-step.
 
 ---
 
@@ -65,28 +76,32 @@
 
 Поля:
 
-- `fields`: схема полей
-- `params`: значения полей
-- `superposition`: граф переходов
-- `intentions?`: карта `state -> processKey`
+- `fields`: схема полей,
+- `params`: значения полей,
+- `superposition`: граф переходов,
+- `intentions?`: карта `state -> processKey`.
 
 ---
 
 ## `updateBoundary(): Promise<BraneStateChange[]>`
 
-Инициализирует/пересобирает boundary и выполняет первый такт вычисления.
+Синхронизирует boundary и эмитит birth-events.
 
-Важно:
+Поведение:
 
-- генерирует birth-events (`oldState: undefined`)
-- затем может добавить runtime-переход, если в том же такте был фактический переход по условиям
-- автоматически разблокирует состояния без намерения
+- пересобирает boundary под текущий набор монад,
+- обновляет внутренние маппинги `monadId <-> braneIndex`,
+- фиксирует начальное состояние новых монад,
+- эмитит только birth-events (`oldState: undefined`),
+- runtime-переходы в этом вызове не вычисляет.
+
+Возвращает массив birth-изменений (или `[]`, если новых монад нет).
 
 ---
 
 ## `updateMonads(updates): Promise<BraneStateChange[]>`
 
-Обновляет поля и запускает эволюцию.
+Обновляет поля и запускает runtime-эволюцию FSM.
 
 Формат:
 
@@ -94,13 +109,13 @@
 
 `lock`:
 
-- `true` — принудительно заблокировать
-- `false` — принудительно разблокировать
-- `undefined` — не менять lock напрямую
+- `true` — принудительно заблокировать,
+- `false` — принудительно разблокировать,
+- `undefined` — не менять lock напрямую.
 
 Также:
 
-- если после перехода нет намерения, lock снимается автоматически.
+- если после runtime-перехода нет `intention`, lock снимается автоматически.
 
 ---
 
@@ -122,8 +137,8 @@
 
 Явно снимает lock:
 
-- для перечисленных `monadIds`
-- или для всех, если аргумент не передан
+- для перечисленных `monadIds`,
+- или для всех, если аргумент не передан.
 
 Используйте после завершения процесса действия.
 
@@ -147,10 +162,16 @@
 
 ---
 
-## Пример: правильный lifecycle
+## Пример: birth-signal + runtime
 
 ```ts
-import { createMonad, updateBoundary, updateMonads, onStateChange } from "@boundary/monad"
+import {
+  createMonad,
+  updateBoundary,
+  updateMonads,
+  onStateChange,
+  releaseLock,
+} from "@boundary/monad"
 
 const id = createMonad({
   fields: { hp: { type: "number" } },
@@ -160,39 +181,40 @@ const id = createMonad({
     PATROL: null,
   },
   intentions: {
+    IDLE: "spawnProcess",      // процесс на первом состоянии
     PATROL: "patrolProcess",
   },
 })
 
 onStateChange((changes) => {
-  const runtime = changes.filter(c => c.oldState !== undefined)
-
   for (const c of changes) {
     if (c.oldState === undefined) {
-      console.log(`[BIRTH] ${c.monadId}: ${c.newState}`)
+      console.log(`[BIRTH] ${c.monadId}: ${c.newState}, intention=${c.intention}`)
     } else {
       console.log(`[RUN] ${c.monadId}: ${c.oldState} -> ${c.newState}, intention=${c.intention}`)
     }
   }
-
-  // бизнес-реакции только на runtime
-  for (const c of runtime) {
-    // ...
-  }
 })
 
-await updateBoundary() // birth-event
-await updateMonads([{ id, fields: { hp: 80 } }]) // runtime transition IDLE -> PATROL
+// Commit + birth signaling (без runtime-step)
+await updateBoundary()
+
+// Runtime-такт
+await updateMonads([{ id, fields: { hp: 80 } }])
+
+// После завершения процесса
+await releaseLock([id])
 ```
 
 ---
 
 ## Практические рекомендации
 
-1. Всегда вызывайте `updateBoundary()` после создания набора монад.
-2. Не трактуйте `oldState: undefined` как ошибку.
-3. Разделяйте birth и runtime-события в обработчиках.
-4. Если состояние имеет процесс-намерение — держите lock до завершения процесса и вызывайте `releaseLock()`.
+1. После `createMonad()` / `deleteMonad()` вызывайте `updateBoundary()`.
+2. Используйте birth-events из `updateBoundary()` для инициализационной оркестрации.
+3. Реагируйте на runtime-логику через `updateMonads()` + `onStateChange`.
+4. Для состояний с намерением удерживайте lock до завершения процесса и вызывайте `releaseLock()`.
+5. Разделяйте обработку birth и runtime в доменных обработчиках явно.
 
 ---
 

@@ -216,8 +216,8 @@ function getMatrixState(): MatrixStateInternal {
  * **Side Effects:**
  * - Сбрасывает StringAtlas
  * - Аллоцирует GPU-буферы
- * - Выполняет step() для установки начальных состояний
- * - Возвращает изменённые состояния после инициализации
+ * - НЕ выполняет step() во время инициализации
+ * - Возвращает изменения после инициализации (обычно пусто до первого update())
  *
  * **Потокобезопасность:**
  * - Функция использует mutex для предотвращения конкурентных вызовов
@@ -228,12 +228,12 @@ function getMatrixState(): MatrixStateInternal {
  *
  * @example
  * ```typescript
- * // Инициализация с возвратом начальных состояний
+ * // Инициализация без шага FSM
  * const initialStates = await write({
  *   fields: [{ type: FieldType.F32 }],
  *   branes: [{ params: [[0, 100]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null]] }],
  * })
- * // initialStates = [[0, 1]] — брана 0 перешла в состояние 1 (100 > 50)
+ * // initialStates = [] до первого update()
  * ```
  */
 export async function write(data: Data): Promise<[number, number][]> {
@@ -280,8 +280,7 @@ export async function write(data: Data): Promise<[number, number][]> {
       prepared.arrayReserveSize,
     )
 
-    // 5. Выполняем step() после инициализации
-    _stepMatrix()
+    // 5. Во время инициализации шаг FSM не выполняется
 
     // 6. Возвращаем состояния после инициализации
     return await _readMatrixChanges()

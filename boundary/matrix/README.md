@@ -120,7 +120,7 @@ braneDescriptors = new Uint32Array([
 | 1 | `entangled_count` | Количество ссылок на entangled блоки |
 | 2 | `lock` | Флаг блокировки переходов (0 = разблокирована, 1 = заблокирована) |
 
-**Примечание:** Флаг `lock` устанавливается в `1` при вызове `update()` с параметром `lockedBranes`. После выполнения шейдера флаг автоматически сбрасывается в `0`.
+**Примечание:** Флаг `lock` управляется третьим элементом кортежа в `update()` (`[braneIndex, fieldUpdates, lock?]`). Значение `true` устанавливает `lock = 1`, `false` — `lock = 0`, `undefined` — не меняет текущее состояние lock.
 
 **Формат packed_meta:**
 
@@ -574,13 +574,9 @@ async readChanges(): Promise<[number, number][]> {
 │    ├─→ dirtyFlags: 1 u32 на брану                       │
 │    └─→ Запись данных в VRAM                             │
 │                                                         │
-│ 4. backend.run()                                        │
-│    ├─→ clearBuffer(dirtyFlags)                          │
-│    ├─→ dispatchWorkgroups()                             │
-│    └─→ states обновляется in-place                      │
-│                                                         │
-│ 5. backend.readChanges()                                │
-│    └─→ Чтение начальных состояний                       │
+│ 4. backend.readChanges()                                │
+│    └─→ Чтение изменений после инициализации             │
+│       (обычно пусто до первого update())               │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -588,7 +584,7 @@ async readChanges(): Promise<[number, number][]> {
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│ matrix.update(updates, lockedBranes?)                   │
+│ matrix.update([[braneIndex, fieldUpdates, lock?], ...]) │
 ├─────────────────────────────────────────────────────────┤
 │ 1. encodeFieldUpdate(value, field)                       │
 │    ├─→ Для STRING: atlas.intern()                       │
@@ -597,8 +593,8 @@ async readChanges(): Promise<[number, number][]> {
 │ 2. writeValueToHeap()                                   │
 │    └─→ Обновление heap[fieldOffset]                      │
 │                                                         │
-│ 3. Запись флагов блокировки (если есть lockedBranes)    │
-│    └─→ heap[block_ptr + 2] = 1 для каждой заблокированной│
+│ 3. Обновление lock-флагов (если lock передан в кортеже) │
+│    └─→ heap[block_ptr + 2] = lock ? 1 : 0               │
 │                                                         │
 │ 4. GPUBackend.updateHeapFields()                        │
 │    └─→ writeBuffer(heap, offset, data)                  │
@@ -682,7 +678,7 @@ await write({
 })
 ```
 
-**GPU-буферы после инициализации:**
+**GPU-буферы после инициализации (до runtime-step):**
 
 ```text
 braneDescriptors (16 байт):
@@ -718,9 +714,9 @@ states (8 байт):
   │      └───── brane 1: state = 0
   └──────────── brane 0: state = 0
 
-dirtyFlags (8 байт) — после run():
+dirtyFlags (8 байт) — после write():
 ┌──────┬──────┐
-│  1   │  0   │  ← brane 0 изменилась (100 > 50), brane 1 нет
+│  0   │  0   │  ← runtime-шаг ещё не выполнялся
 └──────┴──────┘
 
 bytecode (48 байт):
@@ -744,17 +740,17 @@ uniforms (16 байт):
   │
   └────────────────────────── braneCount = 2
 
-stagingBuffer (16 байт) — после readChanges():
+stagingBuffer (16 байт) — после readChanges() в write():
 ┌──────┬──────┬──────┬──────┐
-│  1   │  0   │  1   │  0   │
+│  0   │  0   │  0   │  0   │
 └──────┴──────┴──────┴──────┘
   │      │      │      │
   │      │      │      └───── states[1] = 0
-  │      │      └──────────── states[0] = 1 (изменилось)
-  │      └─────────────────── dirtyFlags[1] = 0 (нет изменений)
-  └────────────────────────── dirtyFlags[0] = 1 (изменилось)
+  │      │      └──────────── states[0] = 0
+  │      └─────────────────── dirtyFlags[1] = 0
+  └────────────────────────── dirtyFlags[0] = 0
 
-readChanges() возвращает: [[0, 1]]  // Только brane 0 изменилась
+readChanges() в write() обычно возвращает: []  // До первого update()
 ```
 
 ---
@@ -864,7 +860,7 @@ await dumpMatrix(heap, bytecode, bytecodeOffsets, braneBlockPtrs)
 
 ### Принцип работы
 
-1. **Установка флага:** При вызове `update()` с параметром `lockedBranes` для указанных бран записывается `lock = 1` в слово 2 заголовка блока.
+1. **Установка/снятие флага:** В `update()` третье значение кортежа управляет lock для конкретной браны: `true` → `lock = 1`, `false` → `lock = 0`, `undefined` → lock не меняется.
 
 2. **Проверка в шейдере:** `evolution.wgsl` проверяет флаг в начале `main()`:
 
@@ -881,11 +877,20 @@ await dumpMatrix(heap, bytecode, bytecodeOffsets, braneBlockPtrs)
 ### API
 
 ```typescript
-// Заблокировать браны 0 и 2 на один update()
-await update(updates, [0, 2])
+// Заблокировать одну брану
+await update([
+  [0, [[0, 100]], true],
+])
 
-// Все браны разблокированы
-await update(updates)
+// Разблокировать эту же брану
+await update([
+  [0, [], false],
+])
+
+// Оставить lock без изменений (третий элемент не передаём)
+await update([
+  [0, [[0, 50]]],
+])
 ```
 
 ### Применение

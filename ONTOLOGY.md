@@ -198,7 +198,7 @@ superposition.filter((_, i) => indices.includes(i))
 
 * Процессы: `action → success/error`
 * Реакции: `filter → equal`
-* Стек: `lock → step → resume`
+* Стек TAKT-цикла: `commit(updateBoundary) → birth-signal → runtime-step(updateMonads) → releaseLock`
 
 ---
 

@@ -227,7 +227,7 @@ export function getProcessSchema(processKey: ProcessKey): ParsedProcessJson | un
 /**
  * Создаёт/пересоздаёт Boundary со всеми бранами.
  *
- * @returns Массив изменений состояний (включая первую инициализацию)
+ * @returns Массив изменений состояний (только birth-events при первой инициализации)
  */
 export async function updateBoundary(): Promise<BraneStateChange[]> {
   const monadIds = Array.from(_monadIds)
@@ -266,7 +266,7 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
     fields: fieldsArray,
     branes: allBranes,
   }
-  const stateChanges = await fieldsWrite(data)
+  await fieldsWrite(data)
   // Маппинги
   _uuidToIndex.clear()
   _indexToUuid.clear()
@@ -275,23 +275,22 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
     _indexToUuid.set(i, monadId)
   })
 
-  // Обрабатываем изменения состояний (включая рождение: oldState === undefined)
+  // Инициализация состояния всех монад с эмитом только birth-событий
+  // (без runtime-переходов, т.к. updateBoundary не выполняет шаг FSM)
   const changes: BraneStateChange[] = []
   const monadsToUnlock: MonadId[] = []
 
-  // Инициализация состояния всех монад до применения dirty-изменений:
-  // каждая монада рождается в первом состоянии суперпозиции (oldState: undefined -> newState: first)
   for (const monadId of monadIds) {
     const stateMap = _stateMaps.get(monadId)
     if (!stateMap || stateMap.length === 0) {
       throw new Error(`State map not found for monad ${monadId}`)
     }
 
-    const firstState = stateMap[0]!
     const old = _states.get(monadId)
-
     if (old === undefined) {
+      const firstState = stateMap[0]!
       _states.set(monadId, firstState)
+
       const intention = _intentions.get(monadId)?.[firstState]
       changes.push({
         monadId,
@@ -300,43 +299,14 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
         intention: intention ?? null,
         params: _monadParams.get(monadId)!,
       })
+
       if (!intention) {
         monadsToUnlock.push(monadId)
       }
     }
   }
 
-  // Применяем фактические dirty-изменения от Boundary поверх "рождения"
-  stateChanges.forEach(([braneIndex, stateIndex]) => {
-    const monadId = _indexToUuid.get(braneIndex)
-    if (!monadId) return
-
-    const stateMap = _stateMaps.get(monadId)
-    if (!stateMap) {
-      throw new Error(`State map not found for monad ${monadId}`)
-    }
-
-    const current = stateMap[stateIndex]!
-    const old = _states.get(monadId)
-
-    if (current !== old) {
-      _states.set(monadId, current)
-      const intention = _intentions.get(monadId)?.[current]
-      changes.push({
-        monadId,
-        oldState: old,
-        newState: current,
-        intention: intention ?? null,
-        params: _monadParams.get(monadId)!,
-      })
-      if (!intention) {
-        monadsToUnlock.push(monadId)
-      }
-    }
-  })
-
-  // Снимаем блокировку с бран без намерения напрямую через _updateMatrixHeap()
-  // БЕЗ повторного вызова _stepMatrix() (это произошло бы в updateMonads())
+  // Для birth без intention снимаем lock сразу, без шага эволюции
   if (monadsToUnlock.length > 0) {
     const matrixState = getMatrixState()
     const uniqueMonadsToUnlock = Array.from(new Set(monadsToUnlock))
@@ -346,16 +316,15 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
         throw new Error(`Monad ${id} not found in boundary`)
       }
       const blockPtr = matrixState.braneBlockPtrs[index]!
-      // lock находится по смещению blockPtr + 2
       return { offset: blockPtr + 2, value1: 0 }
     })
     _updateMatrixHeap(unlockUpdates)
   }
 
-  // Пакетная отправка изменений
   if (changes.length > 0 && _onStateChange.current) {
     _onStateChange.current(changes)
   }
+
   return changes
 }
 
