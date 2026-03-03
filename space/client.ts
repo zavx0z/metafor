@@ -1,6 +1,6 @@
-import { createMonad, updateBoundary, updateMonads, onStateChange, releaseLock } from "@boundary/monad"
+import { createMonad, updateBoundary, deleteMonad, releaseLock, type BraneStateChange } from "@boundary/monad"
 import space from "./meta.json"
-import { executeProcess } from "@force/weak/proc"
+import { executeProcess, loadAction } from "../force/weak/proc/load"
 
 const status = document.getElementById("status")!
 const out = document.getElementById("output")!
@@ -12,37 +12,17 @@ status.style.color = "#4af626"
 const procs = space.processes
 const proc = procs[Object.keys(procs)[0] as keyof typeof procs]
 
-// console.log(space)
-const spaceMonad = createMonad({
-  fields: {},
-  params: {},
-  superposition: space.superposition
-})
+const spaceId = createMonad({ fields: {}, params: {}, superposition: space.superposition })
 
-// executeProcess(proc.action)
+log(await updateBoundary())
+const action = await loadAction(proc.action)
+await executeProcess({ action })
+log(await releaseLock())
+deleteMonad(spaceId)
 
-// Callback на изменение состояния (пакетный)
-onStateChange((changes) => {
-  for (const { monadId, oldState, newState, intention } of changes) {
-    if (monadId === spaceMonad && oldState === undefined && newState === "создание слабой силы") {
-      try {
-        executeProcess(proc.action)
-      } catch (e) {
-        console.error(e)
-      }
-    }
-    const msg = `State changed for monad ${monadId}: ${oldState} → ${newState}${intention ? `, intention: ${intention}` : ""}`
-    console.log(msg)
-    out.innerText += msg + "\n"
-  }
-})
-const changed = await updateBoundary()
-console.log(changed)
-
-await releaseLock()
-
-// // Обновляем и выполняем шаг для каждой монады
-// await updateMonads([
-//   { id: warriorId, fields: { hp: 100 } },
-//   { id: corpseId, fields: { hp: 0 } },
-// ])
+function log(changed: BraneStateChange[]) {
+  const { monadId, oldState, newState, intention } = changed[0]!
+  const msg = `${monadId}: ${oldState} → ${newState}${intention ? `, intention: ${intention}` : ""}`
+  console.log(msg)
+  out.innerText += msg + "\n"
+}

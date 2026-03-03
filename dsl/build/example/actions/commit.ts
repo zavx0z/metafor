@@ -14,10 +14,12 @@ interface CommitResult {
 /**
  * Функция действия коммита.
  *
- * @param params - Параметры действия: value, mass, schema, self, update
+ * @param params - Параметры действия: field, value, mass, self
  * @returns Promise с результатом коммита
  */
-export default async function action({ value }: any): Promise<CommitResult> {
+export default async function action({ field, value }: any): Promise<CommitResult> {
+  // field — декларация полей (схема)
+  // value — значения полей (данные)
   const commitValue = value as unknown as CommitValue
 
   // Имитация коммита

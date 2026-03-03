@@ -1,6 +1,9 @@
-// import { updateBoundary } from "@boundary/monad"
-//   await updateBoundary()
 
-export async function create() {
+
+/**
+ * Создаёт слабую силу.
+ */
+export default async function action() {
   console.log("create weak field!!!!")
+
 }

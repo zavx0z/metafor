@@ -12,7 +12,7 @@ const server = serve({
     "/_bun/client/proc/*": async (req) => {
       try {
         const path = new URL(req.url).pathname
-        return new Response(Bun.file(path.replace("/_bun/client/proc", "./proc")))
+        return new Response(Bun.file(path.replace("/_bun/client", "./")))
       } catch (e) {
         console.error(e)
         return new Response("Not Found", { status: 404 })

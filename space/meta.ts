@@ -3,27 +3,23 @@ import "@metafor/meta"
 const meta = MetaFor("space")
   .brane((field) => ({}))
   .superposition({
-    "создание слабой силы": {
-      "запуск сил": {},
+    "загрузка слабой силы": {
+      завершено: {},
+      ошибка: {},
     },
-    "запуск сил": {
-      конец: {},
-    },
-    конец: null,
+    завершено: null,
+    ошибка: null,
   })
   .mass({
     onStateChange: undefined,
   })
-  .processes((proces) => ({
-    "создание слабой силы": proces()
-      .action(async () => {
-        const { create } = await import("./proc/create.ts")
-        return create()
-      })
-      .success(({ data }) => {}),
+  .processes((process) => ({
+    "загрузка слабой силы": process({ label: "Загрузка и исполнение", env: ["any"] }).action(async () => {
+      const mod = await import("./proc/create.ts")
+      mod.default()
+    }),
   }))
   .reactions()
   .bulk()
 
 export default meta
-export type Meta = typeof meta

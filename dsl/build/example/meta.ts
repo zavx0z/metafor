@@ -20,9 +20,9 @@ const meta = MetaFor("git")
   })
   .processes((process, destroy) => ({
     коммит: process({ label: "Коммит", desc: "Процесс коммита изменений" })
-      .action(async ({ value, mass, schema, self }) => {
+      .action(async ({ field, value, mass, self }) => {
         const mod = await import("./actions/commit.ts")
-        return mod.default({ value, mass, schema, self })
+        return mod.default({ field, value, mass, self })
       })
       .success(({ update, data }) => {
         update({ src: "", patches: [], isLoading: false })

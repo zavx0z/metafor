@@ -2,20 +2,20 @@
   "name": "space",
   "fields": {},
   "superposition": {
-    "создание слабой силы": {
-      "запуск сил": {}
+    "загрузка слабой силы": {
+      "завершено": {},
+      "ошибка": {}
     },
-    "запуск сил": {
-      "конец": {}
-    },
-    "конец": null
+    "завершено": null,
+    "ошибка": null
   },
   "processes": {
-    "создание слабой силы": {
+    "загрузка слабой силы": {
       "type": "action",
+      "label": "Загрузка и исполнение",
       "action": {
         "src": "./proc/create.ts",
-        "importSpecifier": "create"
+        "importSpecifier": "default"
       }
     }
   },

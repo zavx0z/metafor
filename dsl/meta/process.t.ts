@@ -2,22 +2,46 @@ import type { Schema, Update, Values } from "@zavx0z/context"
 import type { Mass, Self } from "./metafor.t"
 
 /**
+ * Параметры для action
+ * @template ɸ - схема полей автомата
+ * @template m - тип массы автомата
+ */
+export type ActionParams<ɸ extends Schema, m extends Mass> = {
+  /**
+   * Декларация полей (схема, тип, валидатор).
+   * Используется для валидации и доступа к типам полей.
+   */
+  field: ɸ
+  /**
+   * Значения полей (текущие данные).
+   *
+   * **field** — декларация поля (схема, тип, валидатор).
+   * **value** — текущее значение поля (данные).
+   */
+  value: Values<ɸ>
+  /** Масса */
+  mass: m
+  /** Полный идентификатор атома */
+  self: Self
+}
+
+/**
  * Конфигурация одного процесса
  *
  * Содержит основную функцию action и опциональные обработчики success/error.
  * Также может содержать метаданные label и desc.
  *
- * @template C - схема контекста автомата
+ * @template ɸ - схема контекста автомата
+ * @template m - тип массы автомата
  * @template Res - возвращаемый тип результата action
  *
  * @example
  * ```typescript
- * const process: Process<MyContext, { userId: number }> = {
+ * const process: Process<MyFields, MyMass, { userId: number }> = {
  *   label: "Авторизация",
  *   desc: "Процесс входа пользователя",
- *   action: async ({ value, mass, schema, self, destroy }) => {
+ *   action: async ({ value, mass, self }) => {
  *     // Логика авторизации с доступом ко всем параметрам
- *     // destroy() доступен для уничтожения атома
  *     return { userId: 123 }
  *   },
  *   success: ({ update, data }) => {
@@ -43,22 +67,6 @@ export type Process<ɸ extends Schema = Schema, m extends Mass = Mass, Res = any
   desc?: string
   /** Среды исполнения процесса */
   env?: ExecutionEnv[]
-}
-
-/**
- * Параметры для action
- * @template C - схема полей автомата
- * @template M - тип массы автомата
- */
-export type ActionParams<ɸ extends Schema, m extends Mass> = {
-  /** Текущие значения полей */
-  value: Values<ɸ>
-  /** Масса */
-  mass: m
-  /** Схема полей */
-  schema: ɸ
-  /** Полный идентификатор атома */
-  self: Self
 }
 
 /**

@@ -483,11 +483,11 @@ export function onStateChange(callback: (changes: BraneStateChange[]) => void): 
  * await releaseLock()
  * ```
  */
-export async function releaseLock(monadIds?: MonadId[]): Promise<void> {
+export async function releaseLock(monadIds?: MonadId[]): Promise<BraneStateChange[]> {
   const idsToUnlock = monadIds ?? Array.from(_monadIds)
 
   if (idsToUnlock.length === 0) {
-    return
+    return []
   }
 
   const unlockUpdates = idsToUnlock.map((id) => ({
@@ -496,5 +496,5 @@ export async function releaseLock(monadIds?: MonadId[]): Promise<void> {
     lock: false,
   }))
 
-  await updateMonads(unlockUpdates)
+  return await updateMonads(unlockUpdates)
 }

@@ -230,6 +230,18 @@ export default MetaFor("<name>")
 
 ## Processes — process(action/success/error) destroy
 
+**Параметры process:**
+
+| Параметр | Описание |
+| -------- | -------- |
+| `value` | **Значения полей** — текущие данные атома |
+| `mass` | **Масса** — сложные данные и зависимости от среды |
+| `self` | **Идентификатор** — полный путь к атому |
+
+**Принцип:**
+- **field** — декларация поля (схема, тип, валидатор). Определяется в `.brane()`. Доступно в `process.action({ field })`.
+- **value** — значение поля (текущие данные). Доступно в `process.action({ value })`.
+
 **Важно:** Действия процессов выносятся в отдельные ESM-модули.
 
 ### Структура action-модуля
@@ -244,12 +256,28 @@ export interface FetchUserResult {
 }
 
 export default async function action({
+  field,
   value,
 }: ActionParams<{ id: { type: "number" } }, {}>): Promise<FetchUserResult> {
+  // field.id — декларация поля (схема)
+  // value.id — значение поля (данные)
   const res = await fetch(`/api/users/${value.id}`)
   return await res.json()
 }
 ```
+
+**Параметры action:**
+
+| Параметр | Описание |
+| -------- | -------- |
+| `field` | **Декларация полей** — схема, тип, валидатор (из `.brane()`) |
+| `value` | **Значения полей** — текущие данные атома |
+| `mass` | **Масса** — сложные данные и зависимости от среды |
+| `self` | **Идентификатор** — полный путь к атому |
+
+**Принцип:**
+- **field** — декларация поля (схема, тип, валидатор)
+- **value** — значение поля (текущие данные)
 
 **Правила:**
 
@@ -642,8 +670,11 @@ interface DetectOperationResult {
 
 export default async function action({
   mass,
+  field,
   value,
 }: ActionParams<{}, { patterns: Record<string, RegExp> }>): Promise<DetectOperationResult> {
+  // field — декларация полей (схема)
+  // value — значения полей (данные)
   const command = value.command?.split(" ")[0]
   if (!command) throw new Error("Команда не указана")
 

@@ -1,141 +1,155 @@
 /**
- * Тесты для выполнения process action в рантайме.
+ * Тесты для функции executeProcess.
  *
- * Проверяют, что функция executeProcess корректно загружает и выполняет
- * action-модули с правильной передачей параметров и спецификатором импорта.
+ * Проверяют, что функция корректно выполняет действия
+ * с обработкой синхронных/асинхронных результатов и ошибок.
  */
 
 import { describe, expect, test, mock } from "bun:test"
-import { executeProcessWithModule, type ProcessConfig } from "./execute"
+import { executeProcess } from "./execute"
+import type { ExecuteParams } from "./execute.t"
 
-describe("executeProcessWithModule", () => {
-  test("выполняет модуль с default export через importSpecifier", async () => {
+describe("executeProcess", () => {
+  test("выполняет синхронное действие", async () => {
     const mockAction = mock((params: any) => {
       return { processed: true, data: params.value.name }
     })
 
-    const mod = { default: mockAction }
-
-    const params: any = {
+    const params: ExecuteParams = {
+      action: mockAction,
+      self: { atom: "test-atom", path: "test", meta: "test-meta" },
+      field: { name: { type: "string" }, value: { type: "number" } },
       value: { name: "test", value: 42 },
       mass: { counter: 0 },
-      schema: { name: { type: "string" as const }, value: { type: "number" as const } },
-      self: { atom: "test-atom", path: "test", meta: "test-meta" },
     }
 
-    const result = await executeProcessWithModule(mod, "default", params)
+    const result = await executeProcess(params)
 
     expect(result).toEqual({ processed: true, data: "test" })
     expect(mockAction).toHaveBeenCalledTimes(1)
   })
 
-  test("выполняет модуль с именованным экспортом", async () => {
-    const mockAction = mock((params: any) => {
-      return { result: params.value.userId }
+  test("выполняет асинхронное действие", async () => {
+    const mockAction = mock(async (params: any) => {
+      return { async: true, userId: params.value.userId }
     })
 
-    const mod = { commit: mockAction }
-
-    const params: any = {
-      value: { userId: 123, email: "test@example.com" },
-      mass: {},
-      schema: { userId: { type: "number" as const } },
+    const params: ExecuteParams = {
+      action: mockAction,
       self: { atom: "user", path: "0", meta: "user-meta" },
+      field: { userId: { type: "number" } },
+      value: { userId: 123 },
+      mass: {},
     }
 
-    const result = await executeProcessWithModule(mod, "commit", params)
+    const result = await executeProcess(params)
 
-    expect(result).toEqual({ result: 123 })
+    expect(result).toEqual({ async: true, userId: 123 })
     expect(mockAction).toHaveBeenCalledTimes(1)
   })
 
-  test("выбрасывает ошибку если спецификатор не найден", () => {
-    const mod = { other: "export" }
-
-    const params = {
+  test("выбрасывает ошибку если действие не задано", async () => {
+    const params: ExecuteParams = {
+      action: undefined as any,
+      self: { atom: "test", path: "0", meta: "test" },
+      field: {},
       value: {},
       mass: {},
-      schema: {},
-      self: { atom: "test", path: "0", meta: "test" },
     }
 
-    expect(() => executeProcessWithModule(mod, "nonexistent", params)).toThrow(
-      'не экспортирует функцию "nonexistent"'
-    )
+    await expect(executeProcess(params)).rejects.toThrow("Нечего делать!")
   })
 
-  test("выбрасывает ошибку с пустым списком экспортов", () => {
-    const mod = { value: 42, str: "hello" }
+  test("нормализует ошибку из строки", async () => {
+    const mockAction = mock(() => {
+      throw "Ошибка выполнения"
+    })
 
-    const params = {
+    const params: ExecuteParams = {
+      action: mockAction,
+      self: { atom: "test", path: "0", meta: "test" },
+      field: {},
       value: {},
       mass: {},
-      schema: {},
+    }
+
+    await expect(executeProcess(params)).rejects.toThrow("Ошибка выполнения")
+  })
+
+  test("нормализует ошибку из объекта", async () => {
+    const mockAction = mock(() => {
+      throw { code: 500, message: "Internal error" }
+    })
+
+    const params: ExecuteParams = {
+      action: mockAction,
       self: { atom: "test", path: "0", meta: "test" },
-    }
-
-    expect(() => executeProcessWithModule(mod, "fn", params)).toThrow("(нет функций)")
-  })
-})
-
-describe("параметры функции", () => {
-  test("включает все обязательные поля", () => {
-    const params = {
-      value: { field: "test" },
-      mass: { data: "mass-data" },
-      schema: { field: { type: "string" as const } },
-      self: { atom: "test", path: "0/root", meta: "test" },
-      update: () => ({}),
-    }
-
-    expect(params).toHaveProperty("value")
-    expect(params).toHaveProperty("mass")
-    expect(params).toHaveProperty("schema")
-    expect(params).toHaveProperty("self")
-    expect(params).toHaveProperty("update")
-  })
-
-  test("функция update вызываема", () => {
-    const mockUpdate = mock()
-    const params = {
-      value: { field: "test" },
+      field: {},
+      value: {},
       mass: {},
-      schema: { field: { type: "string" as const } },
-      self: { atom: "test", path: "0", meta: "test" },
-      update: mockUpdate,
     }
 
-    params.update({ field: "updated" })
-    expect(mockUpdate).toHaveBeenCalledTimes(1)
-  })
-})
-
-describe("структура action-модуля", () => {
-  test("модуль может экспортировать default функцию", () => {
-    const moduleCode = `
-      export default async function action(params) {
-        return { result: params.value }
-      }
-    `
-    expect(moduleCode).toContain("export default")
-    expect(moduleCode).toContain("async function action")
+    await expect(executeProcess(params)).rejects.toThrow()
   })
 
-  test("модуль может экспортировать именованную функцию", () => {
-    const moduleCode = `
-      export async function action(params) {
-        return { result: params.value }
-      }
-    `
-    expect(moduleCode).toContain("export async function action")
+  test("нормализует ошибку из Error", async () => {
+    const mockAction = mock(() => {
+      throw new Error("Явная ошибка")
+    })
+
+    const params: ExecuteParams = {
+      action: mockAction,
+      self: { atom: "test", path: "0", meta: "test" },
+      field: {},
+      value: {},
+      mass: {},
+    }
+
+    await expect(executeProcess(params)).rejects.toThrow("Явная ошибка")
   })
 
-  test("модуль может экспортировать функцию с любым именем", () => {
-    const moduleCode = `
-      export async function load(params) {
-        return { result: params.value }
+  test("обрабатывает отклонение Promise", async () => {
+    const mockAction = mock(async () => {
+      throw new Error("Асинхронная ошибка")
+    })
+
+    const params: ExecuteParams = {
+      action: mockAction,
+      self: { atom: "test", path: "0", meta: "test" },
+      field: {},
+      value: {},
+      mass: {},
+    }
+
+    await expect(executeProcess(params)).rejects.toThrow("Асинхронная ошибка")
+  })
+
+  test("передаёт все параметры в действие", async () => {
+    const mockAction = mock((params: any) => {
+      return {
+        hasSelf: !!params.self,
+        hasField: !!params.field,
+        hasValue: !!params.value,
+        hasMass: !!params.mass,
       }
-    `
-    expect(moduleCode).toContain("export async function load")
+    })
+
+    const params: ExecuteParams = {
+      action: mockAction,
+      self: { atom: "test", path: "0", meta: "test" },
+      field: { count: { type: "number" } },
+      value: { count: 42 },
+      mass: { counter: 1 },
+    }
+
+    const result = await executeProcess(params)
+
+    expect(result).toEqual({ hasSelf: true, hasField: true, hasValue: true, hasMass: true })
+    expect(mockAction).toHaveBeenCalledWith({
+      self: { atom: "test", path: "0", meta: "test" },
+      field: { count: { type: "number" } },
+      value: { count: 42 },
+      mass: { counter: 1 },
+    })
   })
 })

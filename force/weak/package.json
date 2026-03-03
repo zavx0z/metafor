@@ -12,7 +12,7 @@
   },
   "exports": {
     "./proc": {
-      "import": "./proc/execute.ts"
+      "import": "./proc/load.ts"
     }
   }
 }
