@@ -12,26 +12,30 @@ import { createMonad } from "@boundary/monad"
 const id = createMonad({
   fields: { hp: { type: "number" } },
   params: { hp: 100 },
-  state: "IDLE",
   superposition: {
     IDLE: { PATROL: { hp: { gt: 50 } } },
     PATROL: null,
   },
-  actions: {
-    PATROL: () => console.log("Patrol"),
+  intentions: {
+    PATROL: "patrolProcess",
   },
 })
 ```
 
-### `updateBoundary(): Promise<void>`
+**Важно:** Параметр `state` **не требуется**. Монада рождается в неопределённом состоянии (`undefined`). При первом вызове `updateBoundary()` происходит переход из `undefined` в первое состояние суперпозиции.
+
+### `updateBoundary(): Promise<BraneStateChange[]>`
 
 ```typescript
 import { updateBoundary } from "@boundary/monad"
 
-await updateBoundary()
+const changes = await updateBoundary()
+// changes = [{ monadId, oldState: undefined, newState: "IDLE", intention: null }]
 ```
 
-### `updateMonads(updates: MonadUpdate[]): Promise<void>`
+Возвращает массив изменений состояний. При первой инициализации `oldState === undefined`.
+
+### `updateMonads(updates: MonadUpdate[]): Promise<BraneStateChange[]>`
 
 ```typescript
 import { updateMonads } from "@boundary/monad"
@@ -49,7 +53,7 @@ await updateMonads([
 await updateMonads([{ id, fields: { hp: 80 }, lock: true }])
 
 // Разблокировать
-await updateMonads([{ id, fields: { hp: 80 }, lock: false }])
+await updateMonads([{ id, fields: { hp: 80 }, lock: false } }])
 ```
 
 ### `onStateChange(callback): void`
@@ -57,8 +61,14 @@ await updateMonads([{ id, fields: { hp: 80 }, lock: false }])
 ```typescript
 import { onStateChange } from "@boundary/monad"
 
-onStateChange((monadId, old, current) => {
-  console.log(`${old} → ${current}`)
+onStateChange((changes) => {
+  for (const { monadId, oldState, newState, intention, params } of changes) {
+    if (oldState === undefined) {
+      console.log(`[INIT] ${monadId} → ${newState}`)
+    } else {
+      console.log(`${monadId}: ${oldState} → ${newState}`)
+    }
+  }
 })
 ```
 

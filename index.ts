@@ -10,7 +10,6 @@ const root = createMonad({
     isAlive: { type: "boolean" },
   },
   params: { hp: 100, mana: 50, isAlive: true },
-  state: "IDLE",
   superposition: {
     IDLE: {
       PATROL: { hp: { gt: 50 } }, // ← Приоритет 1: hp > 50

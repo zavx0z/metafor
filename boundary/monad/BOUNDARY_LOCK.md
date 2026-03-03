@@ -120,14 +120,38 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
 
 ## 🔷 MONAD API
 
-### `updateBoundary()`
+### `createMonad(config)`
+
+**Важно:** Монада рождается в неопределённом состоянии.
+
+```typescript
+const id = createMonad({
+  fields: { hp: { type: "number" } },
+  params: { hp: 100 },
+  superposition: {
+    IDLE: { PATROL: { hp: { gt: 50 } } },
+    PATROL: null,
+  },
+  intentions: {
+    PATROL: "patrolProcess",
+  },
+})
+```
+
+### `updateBoundary(): Promise<BraneStateChange[]>`
 
 Автоматически снимает блокировку с бран, у которых **нет намерения** после перехода.
 
+При первой инициализации возвращает изменения с `oldState: undefined`:
+
 ```typescript
-await updateBoundary()
-// WGSL ставит LOCK=1 при изменении состояния
-// MONAD проверяет намерение → если null, снимает LOCK
+const changes = await updateBoundary()
+// changes = [{
+//   monadId: "...",
+//   oldState: undefined,  // ← первая инициализация
+//   newState: "IDLE",
+//   intention: null
+// }]
 ```
 
 ### `releaseLock(monadIds?)`
@@ -149,7 +173,10 @@ await releaseLock()
 ```typescript
 onStateChange((changes) => {
   for (const { monadId, oldState, newState, intention, params } of changes) {
-    if (intention) {
+    if (oldState === undefined) {
+      // Первая инициализация монады
+      console.log(`[INIT] ${monadId} → ${newState}`)
+    } else if (intention) {
       // Есть намерение → LOCK остаётся → ждём releaseLock()
       console.log(`${monadId}: ${oldState} → ${newState}, intention: ${intention}`)
     } else {
@@ -188,13 +215,34 @@ TAKT — это Ритм Бытия.
 
 ## 🧪 Примеры Использования
 
-### Пример 1: Состояние без намерения (автоматическая разблокировка)
+### Пример 1: Первая инициализация (oldState === undefined)
 
 ```typescript
 const id = createMonad({
   fields: { hp: { type: "number" } },
   params: { hp: 100 },
-  state: "IDLE",
+  superposition: {
+    IDLE: { PATROL: { hp: { gt: 50 } } },
+    PATROL: null,
+  },
+})
+
+onStateChange((changes) => {
+  // changes[0].oldState === undefined
+  // changes[0].newState === "IDLE"
+  console.log(`[INIT] ${changes[0].monadId} → ${changes[0].newState}`)
+})
+
+await updateBoundary()
+// oldState: undefined → newState: "IDLE"
+```
+
+### Пример 2: Состояние без намерения (автоматическая разблокировка)
+
+```typescript
+const id = createMonad({
+  fields: { hp: { type: "number" } },
+  params: { hp: 100 },
   superposition: {
     IDLE: { DEAD: { hp: { lte: 0 } } },
     DEAD: null, // Терминальное состояние без намерения
@@ -211,13 +259,12 @@ await updateMonads([{ id, fields: { hp: 0 } }])
 // DEAD → LOCK=1 → MONAD видит null intention → LOCK=0
 ```
 
-### Пример 2: Состояние с намерением (ручная разблокировка)
+### Пример 3: Состояние с намерением (ручная разблокировка)
 
 ```typescript
 const id = createMonad({
   fields: { hp: { type: "number" } },
   params: { hp: 100 },
-  state: "IDLE",
   superposition: {
     IDLE: { PATROL: { hp: { gt: 50 } } },
     PATROL: null,
@@ -240,7 +287,7 @@ await updateMonads([{ id, fields: { hp: 80 } }])
 await releaseLock([id]) // ← явная разблокировка после процесса
 ```
 
-### Пример 3: TAKT-пакетная обработка
+### Пример 4: TAKT-пакетная обработка
 
 ```typescript
 const id1 = createMonad({ /* ... с намерением ... */ })
@@ -273,6 +320,7 @@ await releaseLock([id1, id3])
 * [ ] `onStateChange()` получает намерения для всех изменений
 * [ ] WEAK FORCE вызывает `releaseLock()` после завершения процессов
 * [ ] Тесты покрывают оба сценария (с намерением и без)
+* [ ] Первая инициализация обрабатывает `oldState === undefined`
 
 ---
 

@@ -5,6 +5,7 @@ import {
   updateBoundary,
   onStateChange,
   _resetState,
+  type BraneStateChange,
 } from "../../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
@@ -22,7 +23,7 @@ afterEach(() => {
 
 describe("Monad — Числовые переходы", () => {
   const createStateChangeHandler = (resultStates: string[]) => {
-    return (changes: Array<{ monadId: string; oldState: string; newState: string; intention?: string | null; params: Record<string, unknown> }>) => {
+    return (changes: BraneStateChange[]) => {
       for (const change of changes) {
         resultStates.push(change.newState)
       }
@@ -37,7 +38,6 @@ describe("Monad — Числовые переходы", () => {
       const id = createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 30 },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -59,7 +59,6 @@ describe("Monad — Числовые переходы", () => {
       const id = createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 30 },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -83,7 +82,6 @@ describe("Monad — Числовые переходы", () => {
       const id = createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 30 },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { hp: { gte: 50 } } },
           PATROL: null,
@@ -105,7 +103,6 @@ describe("Monad — Числовые переходы", () => {
       const id = createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 30 },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { hp: { gte: 50 } } },
           PATROL: null,
@@ -129,7 +126,6 @@ describe("Monad — Числовые переходы", () => {
       const id = createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 100 },
-        state: "IDLE",
         superposition: {
           IDLE: { WEAK: { hp: { lt: 30 } } },
           WEAK: null,
@@ -151,7 +147,6 @@ describe("Monad — Числовые переходы", () => {
       const id = createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 100 },
-        state: "IDLE",
         superposition: {
           IDLE: { WEAK: { hp: { lt: 30 } } },
           WEAK: null,
@@ -175,7 +170,6 @@ describe("Monad — Числовые переходы", () => {
       const id = createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 100 },
-        state: "IDLE",
         superposition: {
           IDLE: { WEAK: { hp: { lte: 30 } } },
           WEAK: null,
@@ -197,7 +191,6 @@ describe("Monad — Числовые переходы", () => {
       const id = createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 100 },
-        state: "IDLE",
         superposition: {
           IDLE: { WEAK: { hp: { lte: 30 } } },
           WEAK: null,
@@ -221,7 +214,6 @@ describe("Monad — Числовые переходы", () => {
       const id = createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 100 },
-        state: "IDLE",
         superposition: {
           IDLE: { CRITICAL: { hp: { eq: 50 } } },
           CRITICAL: null,
@@ -243,7 +235,6 @@ describe("Monad — Числовые переходы", () => {
       const id = createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 100 },
-        state: "IDLE",
         superposition: {
           IDLE: { CRITICAL: { hp: { eq: 50 } } },
           CRITICAL: null,
@@ -267,7 +258,6 @@ describe("Monad — Числовые переходы", () => {
       const id = createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 100 },
-        state: "IDLE",
         superposition: {
           IDLE: { CHANGED: { hp: { neq: 100 } } },
           CHANGED: null,
@@ -289,7 +279,6 @@ describe("Monad — Числовые переходы", () => {
       const id = createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 100 },
-        state: "IDLE",
         superposition: {
           IDLE: { CHANGED: { hp: { neq: 100 } } },
           CHANGED: null,

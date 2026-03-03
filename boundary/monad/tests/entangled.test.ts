@@ -25,7 +25,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       createMonad({
         fields: { hp: { type: "number" }, mana: { type: "number" } },
         params: { hp: 100, mana: 50 },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -36,7 +35,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       createMonad({
         fields: { hp: { type: "number" }, mana: { type: "number" } },
         params: { hp: 100, mana: 10 },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -55,7 +53,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 100 },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -66,7 +63,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 50 },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -84,7 +80,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       createMonad({
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
         params: { hp: 100, isAlive: true },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -95,7 +90,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       createMonad({
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
         params: { hp: 100, isAlive: true },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -117,7 +111,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       const id1 = createMonad({
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
         params: { hp: 30, isAlive: true },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },  // Переход по hp (локальное)
           PATROL: null,
@@ -127,7 +120,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       createMonad({
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
         params: { hp: 50, isAlive: true },  // hp разное → локальное
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -150,7 +142,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       const id1 = createMonad({
         fields: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
         params: { hp: 100, mana: 50, isAlive: true },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { mana: { lt: 30 } } },
           PATROL: null,
@@ -161,7 +152,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       const id2 = createMonad({
         fields: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
         params: { hp: 100, mana: 10, isAlive: true },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { mana: { lt: 30 } } },
           PATROL: null,
@@ -190,7 +180,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       const id1 = createMonad({
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" }, role: { type: "string" }, mana: { type: "number" } },
         params: { hp: 100, isAlive: true, role: "warrior", mana: 10 },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },  // Переход по mana (локальное)
           PATROL: null,
@@ -201,7 +190,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       const id2 = createMonad({
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" }, role: { type: "string" }, mana: { type: "number" } },
         params: { hp: 100, isAlive: true, role: "warrior", mana: 5 },  // mana разное → локальное
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
@@ -226,7 +214,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       const id1 = createMonad({
         fields: { hp: { type: "number" }, mana: { type: "number" } },
         params: { hp: 100, mana: 10 },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
@@ -237,7 +224,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       const id2 = createMonad({
         fields: { hp: { type: "number" }, mana: { type: "number" } },
         params: { hp: 100, mana: 5 },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
@@ -264,7 +250,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         createMonad({
           fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
           params: { hp: 100, isAlive: true },
-          state: "IDLE",
           superposition: {
             IDLE: { PATROL: { hp: { gt: 50 } } },
             PATROL: null,
@@ -282,7 +267,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       const id1 = createMonad({
         fields: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
         params: { hp: 100, mana: 50, isAlive: true },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
@@ -293,7 +277,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       const id2 = createMonad({
         fields: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
         params: { hp: 100, mana: 30, isAlive: true },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
@@ -304,7 +287,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       const id3 = createMonad({
         fields: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
         params: { hp: 50, mana: 100, isAlive: false },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
@@ -329,7 +311,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       const id1 = createMonad({
         fields: { hp: { type: "number" }, mana: { type: "number" } },
         params: { hp: 100, mana: 50 },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
@@ -340,7 +321,6 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       const id2 = createMonad({
         fields: { hp: { type: "number" }, mana: { type: "number" } },
         params: { hp: 100, mana: 10 },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,

@@ -16,8 +16,7 @@ const proc = procs[Object.keys(procs)[0] as keyof typeof procs]
 const spaceMonad = createMonad({
   fields: {},
   params: {},
-  superposition: space.superposition,
-  state: Object.keys(space.superposition)[0]!,
+  superposition: space.superposition
 })
 
 // executeProcess(proc.action)
@@ -25,18 +24,25 @@ const spaceMonad = createMonad({
 // Callback на изменение состояния (пакетный)
 onStateChange((changes) => {
   for (const { monadId, oldState, newState, intention } of changes) {
+    if (monadId === spaceMonad && oldState === undefined && newState === "создание слабой силы") {
+      try {
+        executeProcess(proc.action)
+      } catch (e) {
+        console.error(e)
+      }
+    }
     const msg = `State changed for monad ${monadId}: ${oldState} → ${newState}${intention ? `, intention: ${intention}` : ""}`
     console.log(msg)
     out.innerText += msg + "\n"
   }
 })
-await updateBoundary()
+const changed = await updateBoundary()
+console.log(changed)
 
-// await releaseLock()
+await releaseLock()
 
 // // Обновляем и выполняем шаг для каждой монады
 // await updateMonads([
 //   { id: warriorId, fields: { hp: 100 } },
 //   { id: corpseId, fields: { hp: 0 } },
 // ])
-

@@ -5,6 +5,7 @@ import {
   updateBoundary,
   onStateChange,
   _resetState,
+  type BraneStateChange,
 } from "../../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
@@ -22,7 +23,7 @@ afterEach(() => {
 
 describe("Monad — Смешанные переходы", () => {
   const createStateChangeHandler = (resultStates: string[]) => {
-    return (changes: Array<{ monadId: string; oldState: string; newState: string; intention?: string | null; params: Record<string, unknown> }>) => {
+    return (changes: BraneStateChange[]) => {
       for (const change of changes) {
         resultStates.push(change.newState)
       }
@@ -37,7 +38,6 @@ describe("Monad — Смешанные переходы", () => {
       const id = createMonad({
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
         params: { hp: 30, isAlive: true },
-        state: "IDLE",
         superposition: {
           IDLE: {
             COMBAT: {
@@ -69,7 +69,6 @@ describe("Monad — Смешанные переходы", () => {
       const id = createMonad({
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
         params: { hp: 100, isAlive: true },
-        state: "ALIVE",
         superposition: {
           ALIVE: {
             DEAD: { hp: { lte: 0 } },
@@ -98,7 +97,6 @@ describe("Monad — Смешанные переходы", () => {
       const id = createMonad({
         fields: { hp: { type: "number" }, command: { type: "string" } },
         params: { hp: 100, command: "" },
-        state: "IDLE",
         superposition: {
           IDLE: {
             ATTACK: {
@@ -130,7 +128,6 @@ describe("Monad — Смешанные переходы", () => {
       const id = createMonad({
         fields: { hp: { type: "number" }, role: { type: "string" } },
         params: { hp: 50, role: "" },
-        state: "IDLE",
         superposition: {
           IDLE: {
             READY: {
@@ -164,7 +161,6 @@ describe("Monad — Смешанные переходы", () => {
       const id = createMonad({
         fields: { isConnected: { type: "boolean" }, status: { type: "string" } },
         params: { isConnected: false, status: "" },
-        state: "DISCONNECTED",
         superposition: {
           DISCONNECTED: {
             CONNECTED: {
@@ -202,7 +198,6 @@ describe("Monad — Смешанные переходы", () => {
           command: { type: "string" },
         },
         params: { hp: 100, isAlive: true, command: "" },
-        state: "IDLE",
         superposition: {
           IDLE: {
             COMBAT: {
@@ -238,7 +233,6 @@ describe("Monad — Смешанные переходы", () => {
           status: { type: "string" },
         },
         params: { hp: 100, isAlive: true, status: "normal" },
-        state: "IDLE",
         superposition: {
           IDLE: {
             DEAD: { hp: { lte: 0 } },           // Приоритет 1

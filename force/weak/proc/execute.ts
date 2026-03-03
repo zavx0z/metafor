@@ -111,7 +111,7 @@ export async function executeProcess<ɸ extends Schema, m extends Mass, Res>(
  * const result = await executeProcessWithModule(mod, "default", params)
  * ```
  */
-export function executeProcessWithModule<ɸ extends Schema, m extends Mass, Res>(
+export async function executeProcessWithModule<ɸ extends Schema, m extends Mass, Res>(
   mod: Record<string, any>,
   importSpecifier: string,
   params?: ActionParams<ɸ, m>
@@ -126,5 +126,5 @@ export function executeProcessWithModule<ɸ extends Schema, m extends Mass, Res>
     )
   }
 
-  return actionFn(params)
+  return await actionFn(params)
 }

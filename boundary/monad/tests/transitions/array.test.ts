@@ -5,6 +5,7 @@ import {
   updateBoundary,
   onStateChange,
   _resetState,
+  type BraneStateChange,
 } from "../../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
@@ -22,7 +23,7 @@ afterEach(() => {
 
 describe("Monad — Array переходы", () => {
   const createStateChangeHandler = (resultStates: string[]) => {
-    return (changes: Array<{ monadId: string; oldState: string; newState: string; intention?: string | null; params: Record<string, unknown> }>) => {
+    return (changes: BraneStateChange[]) => {
       for (const change of changes) {
         resultStates.push(change.newState)
       }
@@ -37,7 +38,6 @@ describe("Monad — Array переходы", () => {
       const id = createMonad({
         fields: { tags: { type: "array<string>" } },
         params: { tags: [] },
-        state: "IDLE",
         superposition: {
           IDLE: { URGENT: { tags: { include: "urgent" } } },
           URGENT: null,
@@ -64,7 +64,6 @@ describe("Monad — Array переходы", () => {
       const id = createMonad({
         fields: { numbers: { type: "array<number>" } },
         params: { numbers: [] },
-        state: "IDLE",
         superposition: {
           IDLE: { FOUND: { numbers: { include: 5 } } },
           FOUND: null,
@@ -86,7 +85,6 @@ describe("Monad — Array переходы", () => {
       const id = createMonad({
         fields: { numbers: { type: "array<number>" } },
         params: { numbers: [] },
-        state: "IDLE",
         superposition: {
           IDLE: { FOUND: { numbers: { include: 5 } } },
           FOUND: null,
@@ -110,7 +108,6 @@ describe("Monad — Array переходы", () => {
       const id = createMonad({
         fields: { tags: { type: "array<string>" } },
         params: { tags: [] },
-        state: "CHECKING",
         superposition: {
           CHECKING: { ALLOWED: { tags: { notInclude: "blocked" } } },
           ALLOWED: null,
@@ -133,7 +130,6 @@ describe("Monad — Array переходы", () => {
       const id = createMonad({
         fields: { tags: { type: "array<string>" } },
         params: { tags: ["blocked"] },
-        state: "CHECKING",
         superposition: {
           CHECKING: { ALLOWED: { tags: { notInclude: "blocked" } } },
           ALLOWED: null,
@@ -156,7 +152,6 @@ describe("Monad — Array переходы", () => {
       const id = createMonad({
         fields: { tags: { type: "array<string>" } },
         params: { tags: [] },
-        state: "IDLE",
         superposition: {
           IDLE: { MANY: { tags: { length: { eq: 3 } } } },
           MANY: null,
@@ -183,7 +178,6 @@ describe("Monad — Array переходы", () => {
       const id = createMonad({
         fields: { tags: { type: "array<string>" } },
         params: { tags: [] },
-        state: "IDLE",
         superposition: {
           IDLE: { MANY: { tags: { length: { gt: 2 } } } },
           MANY: null,
@@ -205,7 +199,6 @@ describe("Monad — Array переходы", () => {
       const id = createMonad({
         fields: { tags: { type: "array<string>" } },
         params: { tags: [] },
-        state: "IDLE",
         superposition: {
           IDLE: { SOME: { tags: { length: { gte: 2 } } } },
           SOME: null,
@@ -227,7 +220,6 @@ describe("Monad — Array переходы", () => {
       const id = createMonad({
         fields: { tags: { type: "array<string>" } },
         params: { tags: [] },
-        state: "IDLE",
         superposition: {
           IDLE: { FEW: { tags: { length: { lt: 3 } } } },
           FEW: null,
@@ -249,7 +241,6 @@ describe("Monad — Array переходы", () => {
       const id = createMonad({
         fields: { tags: { type: "array<string>" } },
         params: { tags: [] },
-        state: "IDLE",
         superposition: {
           IDLE: { FEW: { tags: { length: { lte: 2 } } } },
           FEW: null,
@@ -273,7 +264,6 @@ describe("Monad — Array переходы", () => {
       const id = createMonad({
         fields: { tags: { type: "array<string>" } },
         params: { tags: ["a"] },
-        state: "HAS_ITEMS",
         superposition: {
           HAS_ITEMS: { EMPTY: { tags: { isEmpty: true } } },
           EMPTY: null,
@@ -295,7 +285,6 @@ describe("Monad — Array переходы", () => {
       const id = createMonad({
         fields: { tags: { type: "array<string>" } },
         params: { tags: [] },
-        state: "EMPTY",
         superposition: {
           EMPTY: { HAS_ITEMS: { tags: { isEmpty: false } } },
           HAS_ITEMS: null,
@@ -319,7 +308,6 @@ describe("Monad — Array переходы", () => {
       const id = createMonad({
         fields: { tags: { type: "array<string>" } },
         params: { tags: [] },
-        state: "IDLE",
         superposition: {
           IDLE: { CRITICAL: {
             tags: { length: { gt: 2 }, include: "urgent" },

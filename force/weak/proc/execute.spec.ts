@@ -9,41 +9,41 @@ import { describe, expect, test, mock } from "bun:test"
 import { executeProcessWithModule, type ProcessConfig } from "./execute"
 
 describe("executeProcessWithModule", () => {
-  test("выполняет модуль с default export через importSpecifier", () => {
+  test("выполняет модуль с default export через importSpecifier", async () => {
     const mockAction = mock((params: any) => {
       return { processed: true, data: params.value.name }
     })
 
     const mod = { default: mockAction }
 
-    const params = {
+    const params: any = {
       value: { name: "test", value: 42 },
       mass: { counter: 0 },
       schema: { name: { type: "string" as const }, value: { type: "number" as const } },
       self: { atom: "test-atom", path: "test", meta: "test-meta" },
     }
 
-    const result = executeProcessWithModule(mod, "default", params)
+    const result = await executeProcessWithModule(mod, "default", params)
 
     expect(result).toEqual({ processed: true, data: "test" })
     expect(mockAction).toHaveBeenCalledTimes(1)
   })
 
-  test("выполняет модуль с именованным экспортом", () => {
+  test("выполняет модуль с именованным экспортом", async () => {
     const mockAction = mock((params: any) => {
       return { result: params.value.userId }
     })
 
     const mod = { commit: mockAction }
 
-    const params = {
+    const params: any = {
       value: { userId: 123, email: "test@example.com" },
       mass: {},
       schema: { userId: { type: "number" as const } },
       self: { atom: "user", path: "0", meta: "user-meta" },
     }
 
-    const result = executeProcessWithModule(mod, "commit", params)
+    const result = await executeProcessWithModule(mod, "commit", params)
 
     expect(result).toEqual({ result: 123 })
     expect(mockAction).toHaveBeenCalledTimes(1)

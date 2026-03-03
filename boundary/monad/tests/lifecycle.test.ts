@@ -6,6 +6,7 @@ import {
   updateBoundary,
   onStateChange,
   _resetState,
+  type BraneStateChange,
 } from "../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
@@ -24,10 +25,10 @@ afterEach(() => {
 describe("Monad — Жизненный цикл", () => {
   it("должен создать, обновить и удалить монаду", async () => {
     let stateChanged = false
-    let oldState = ""
+    let oldState: string | undefined = ""
     let currentState = ""
 
-    onStateChange((changes) => {
+    onStateChange((changes: BraneStateChange[]) => {
       if (changes.length > 0) {
         const change = changes[0]!
         stateChanged = true
@@ -39,7 +40,6 @@ describe("Monad — Жизненный цикл", () => {
     const id = createMonad({
       fields: { hp: { type: "number" } },
       params: { hp: 30 },
-      state: "IDLE",
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
@@ -82,7 +82,6 @@ describe("Monad — Жизненный цикл", () => {
     const id1 = createMonad({
       fields: { hp: { type: "number" } },
       params: { hp: 100 },
-      state: "IDLE",
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
@@ -94,7 +93,6 @@ describe("Monad — Жизненный цикл", () => {
     const id2 = createMonad({
       fields: { hp: { type: "number" } },
       params: { hp: 30 },
-      state: "IDLE",
       superposition: {
         IDLE: { DEAD: { hp: { lte: 0 } } },
         DEAD: null,
@@ -129,7 +127,6 @@ describe("Monad — Жизненный цикл", () => {
     const id1 = createMonad({
       fields: { hp1: { type: "number" } },
       params: { hp1: 100 },
-      state: "IDLE",
       superposition: { IDLE: { PATROL: { hp1: { gt: 50 } } }, PATROL: null },
       intentions: {},
     })
@@ -138,7 +135,6 @@ describe("Monad — Жизненный цикл", () => {
     const id2 = createMonad({
       fields: { hp2: { type: "number" } },
       params: { hp2: 100 },
-      state: "IDLE",
       superposition: { IDLE: { PATROL: { hp2: { gt: 50 } } }, PATROL: null },
       intentions: {},
     })
@@ -165,7 +161,6 @@ describe("Monad — Жизненный цикл", () => {
     const id = createMonad({
       fields: { hp: { type: "number" } },
       params: { hp: 30 },
-      state: "IDLE",
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
@@ -199,7 +194,6 @@ describe("Monad — Жизненный цикл", () => {
     const id = createMonad({
       fields: { hp: { type: "number" } },
       params: { hp: 30 },
-      state: "IDLE",
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
@@ -233,7 +227,6 @@ describe("Monad — Жизненный цикл", () => {
     const id = createMonad({
       fields: { hp: { type: "number" } },
       params: { hp: 30 },
-      state: "IDLE",
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,

@@ -260,7 +260,7 @@ export async function write(data: Data): Promise<[number, number][]> {
     const prepared = prepareData(data)
 
     // 3. Сохраняем глобальное состояние
-    fields = data.fields
+    fields = data.fields ?? []
     bytecode = prepared.compiledRules.bytecode
     bytecodeOffsets = prepared.compiledRules.bytecodeOffsets
     initialStates = prepared.initialStates

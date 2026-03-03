@@ -35,8 +35,8 @@ import { convertToNumeric } from "./superposition"
 export interface BraneStateChange {
   /** ID монады */
   monadId: MonadId
-  /** Предыдущее состояние */
-  oldState: string
+  /** Предыдущее состояние (undefined при первой инициализации) */
+  oldState: string | undefined
   /** Текущее состояние */
   newState: string
   /** Намерение (ключ процесса) если есть */
@@ -169,7 +169,7 @@ export function createMonad(config: MonadConfig): string {
   _monadParams.set(id, { ...config.params })
   _intentions.set(id, config.intentions ?? {})
   _superpositions.set(id, config.superposition)
-  _states.set(id, config.state)
+  // Состояние не устанавливается — монада рождается в неопределённом состоянии
   return id
 }
 
@@ -227,11 +227,12 @@ export function getProcessSchema(processKey: ProcessKey): ParsedProcessJson | un
 /**
  * Создаёт/пересоздаёт Boundary со всеми бранами.
  *
+ * @returns Массив изменений состояний (включая первую инициализацию)
  */
-export async function updateBoundary(): Promise<void> {
+export async function updateBoundary(): Promise<BraneStateChange[]> {
   const monadIds = Array.from(_monadIds)
   if (monadIds.length === 0) {
-    return
+    return []
   }
   // Собираем поля в массив Field[]
   const fieldsArray: Field[] = []
@@ -247,9 +248,12 @@ export async function updateBoundary(): Promise<void> {
     // Сохраняем states для reverse-маппинга
     _stateMaps.set(monadId, converted.states)
     // Находим индекс начального состояния
-    const initialStateIndex = converted.states.indexOf(_states.get(monadId)!)
+    // Если состояние не установлено (монада рождается) — используем первое состояние из суперпозиции
+    const currentState = _states.get(monadId)
+    const initialStateName = currentState ?? converted.states[0]!
+    const initialStateIndex = converted.states.indexOf(initialStateName)
     if (initialStateIndex === -1) {
-      throw new Error(`State '${_states.get(monadId)}' not found in superposition`)
+      throw new Error(`State '${initialStateName}' not found in superposition`)
     }
     return {
       params: paramsTuples,
@@ -282,14 +286,15 @@ export async function updateBoundary(): Promise<void> {
       throw new Error(`State map not found for monad ${monadId}`)
     }
     const current = stateMap[stateIndex]!
-    const old = _states.get(monadId)
-    if (old !== undefined && current !== old) {
+    const old = _states.get(monadId) // undefined при первой инициализации
+    // Фиксируем изменение если current !== old (обычный переход или первая инициализация)
+    if (current !== old) {
       _states.set(monadId, current)
       const intentions = _intentions.get(monadId)
       const intention = intentions?.[current]
       changes.push({
         monadId,
-        oldState: old,
+        oldState: old, // undefined или предыдущее состояние
         newState: current,
         intention: intention ?? null,
         params: _monadParams.get(monadId)!,
@@ -297,6 +302,18 @@ export async function updateBoundary(): Promise<void> {
       // Авто-снятие блокировки если нет намерения (MONAD — Замысел)
       if (!intention) {
         monadsToUnlock.push(monadId)
+      }
+    }
+  })
+
+  // Инициализируем _states для монад без изменений (которые не попали в stateChanges)
+  // Это нужно для монад, которые остались в первом состоянии суперпозиции
+  monadIds.forEach((monadId) => {
+    if (!_states.has(monadId)) {
+      const stateMap = _stateMaps.get(monadId)
+      if (stateMap) {
+        // Используем первое состояние как начальное
+        _states.set(monadId, stateMap[0]!)
       }
     }
   })
@@ -321,6 +338,7 @@ export async function updateBoundary(): Promise<void> {
   if (changes.length > 0 && _onStateChange.current) {
     _onStateChange.current(changes)
   }
+  return changes
 }
 
 /**

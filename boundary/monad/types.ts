@@ -60,7 +60,6 @@ export type Intention = string
  *     isAlive: { type: "boolean" }
  *   },
  *   params: { hp: 100, mana: 50, isAlive: true },
- *   state: "IDLE",
  *   superposition: {
  *     IDLE: {
  *       PATROL: { hp: { gt: 50 } },   // ← Приоритет 1: hp > 50
@@ -82,7 +81,6 @@ export type Intention = string
 export interface MonadConfig {
   fields: FieldsDefinition
   params: Record<string, unknown>
-  state: string
   superposition: Superposition
   intentions?: Intentions
 }

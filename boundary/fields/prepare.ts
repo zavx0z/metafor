@@ -45,7 +45,9 @@ export interface PreparedData {
  */
 export function prepareData(data: Data): PreparedData {
   // Извлекаем params из бран для анализа entangled
-  const params = data.branes.map((b) => b.params)
+  const branes = data.branes ?? []
+  const fieldDefs = data.fields ?? []
+  const params = branes.map((b) => b.params)
 
   // Анализ entangled групп (чистая функция)
   const entangledAnalysis = findEntangledGroups(params)
@@ -61,11 +63,11 @@ export function prepareData(data: Data): PreparedData {
   const braneMapping = buildBraneMapping(params, entangledBraneIds, entangledAnalysis)
 
   // Компиляция суперпозиций (чистая функция) — интернирует строки из IN списков
-  const compiledRules = compileEnsemble(data.branes, data.fields)
+  const compiledRules = compileEnsemble(branes, fieldDefs)
 
   // Подготовка метаданных полей
   const fieldMeta = new Map<number, { fieldType: number; fieldSize: number }>()
-  data.fields.forEach((field, idx) => {
+  fieldDefs.forEach((field, idx) => {
     const fieldType = fieldTypeToBytecodeType(field.type)
     const fieldSize = fieldType === TYPE.STRING || fieldType === TYPE.ARRAY ? 2 : 1
     fieldMeta.set(idx, { fieldType, fieldSize })
@@ -73,10 +75,10 @@ export function prepareData(data: Data): PreparedData {
 
   // Кодирование entangled полей (принцип готового формата данных)
   const encodedEntangledFields = new Map<string, [number, number][]>()
-  for (const [key, fields] of braneMapping.entangledFields.entries()) {
-    const encoded = fields.map(([fieldIndex, value]) => {
+  for (const [key, entangledFields] of braneMapping.entangledFields.entries()) {
+    const encoded = entangledFields.map(([fieldIndex, value]) => {
       const meta = fieldMeta.get(fieldIndex)!
-      const field = data.fields[fieldIndex]
+      const field = fieldDefs[fieldIndex]
       const ctx: EncodingContext = { type: meta.fieldType }
       if (field?.enum !== undefined) {
         ctx.enum = field.enum
@@ -91,7 +93,7 @@ export function prepareData(data: Data): PreparedData {
   const encodedLocalFields = braneMapping.localFields.map(braneFields =>
     braneFields.map(([fieldIndex, value]) => {
       const meta = fieldMeta.get(fieldIndex)!
-      const field = data.fields[fieldIndex]
+      const field = fieldDefs[fieldIndex]
       const ctx: EncodingContext = { type: meta.fieldType }
       if (field?.enum !== undefined) {
         ctx.enum = field.enum
@@ -108,9 +110,9 @@ export function prepareData(data: Data): PreparedData {
   let arrayReserve = MIN_ARRAY_RESERVE
 
   // Считаем потенциальный размер массивов из params
-  for (const brane of data.branes) {
+  for (const brane of branes) {
     for (const [fieldIndex, value] of brane.params) {
-      const field = data.fields[fieldIndex]
+      const field = fieldDefs[fieldIndex]
       if (field?.type === FieldType.ARRAY_PTR && Array.isArray(value)) {
         // Размер массива в heap: 1 (длина) + элементы
         const arraySize = 1 + value.length
@@ -157,7 +159,7 @@ export function prepareData(data: Data): PreparedData {
   const finalEncodedLocalFields = braneMapping.localFields.map(braneFields =>
     braneFields.map(([fieldIndex, value]) => {
       const meta = fieldMeta.get(fieldIndex)!
-      const field = data.fields[fieldIndex]
+      const field = fieldDefs[fieldIndex]
       const ctx: EncodingContext = {
         type: meta.fieldType,
         allocateHeap,
@@ -196,10 +198,10 @@ export function prepareData(data: Data): PreparedData {
 
   // Перекодируем entangled поля с ARRAY (теперь с allocateHeap)
   const finalEncodedEntangledFields = new Map<string, [number, number][]>()
-  for (const [key, fields] of braneMapping.entangledFields.entries()) {
-    const encoded = fields.map(([fieldIndex, value]) => {
+  for (const [key, entangledFields] of braneMapping.entangledFields.entries()) {
+    const encoded = entangledFields.map(([fieldIndex, value]) => {
       const meta = fieldMeta.get(fieldIndex)!
-      const field = data.fields[fieldIndex]
+      const field = fieldDefs[fieldIndex]
       const ctx: EncodingContext = {
         type: meta.fieldType,
         allocateHeap,
@@ -238,7 +240,7 @@ export function prepareData(data: Data): PreparedData {
   heapData.set(ultimateHeapLayout.heap)
 
   // Начальные состояния
-  const initialStates = new Uint32Array(data.branes.map((b) => b.state))
+  const initialStates = new Uint32Array(branes.map((b) => b.state))
 
   return {
     fieldMeta,

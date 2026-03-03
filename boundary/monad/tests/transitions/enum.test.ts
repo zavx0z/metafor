@@ -5,6 +5,7 @@ import {
   updateBoundary,
   onStateChange,
   _resetState,
+  type BraneStateChange,
 } from "../../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
@@ -22,7 +23,7 @@ afterEach(() => {
 
 describe("Monad — Enum переходы", () => {
   const createStateChangeHandler = (resultStates: string[]) => {
-    return (changes: Array<{ monadId: string; oldState: string; newState: string; intention?: string | null; params: Record<string, unknown> }>) => {
+    return (changes: BraneStateChange[]) => {
       for (const change of changes) {
         resultStates.push(change.newState)
       }
@@ -37,7 +38,6 @@ describe("Monad — Enum переходы", () => {
       const id = createMonad({
         fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
         params: { status: "idle" },
-        state: "IDLE",
         superposition: {
           IDLE: { ACTIVE: { status: { eq: "active" } } },
           ACTIVE: null,
@@ -59,7 +59,6 @@ describe("Monad — Enum переходы", () => {
       const id = createMonad({
         fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
         params: { status: "idle" },
-        state: "IDLE",
         superposition: {
           IDLE: { ACTIVE: { status: { eq: "active" } } },
           ACTIVE: null,
@@ -83,7 +82,6 @@ describe("Monad — Enum переходы", () => {
       const id = createMonad({
         fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
         params: { status: "idle" },
-        state: "IDLE",
         superposition: {
           IDLE: { CHANGED: { status: { neq: "idle" } } },
           CHANGED: null,
@@ -107,7 +105,6 @@ describe("Monad — Enum переходы", () => {
       const id = createMonad({
         fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
         params: { status: "idle" },
-        state: "IDLE",
         superposition: {
           IDLE: { NOT_IDLE: { status: { in: ["active", "paused"] } } },
           NOT_IDLE: null,
@@ -129,7 +126,6 @@ describe("Monad — Enum переходы", () => {
       const id = createMonad({
         fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
         params: { status: "idle" },
-        state: "IDLE",
         superposition: {
           IDLE: { NOT_IDLE: { status: { in: ["active", "paused"] } } },
           NOT_IDLE: null,
@@ -153,7 +149,6 @@ describe("Monad — Enum переходы", () => {
       const id = createMonad({
         fields: { role: { type: "enum<string>", values: ["ally", "enemy", "neutral"] } },
         params: { role: "ally" },
-        state: "UNDEFINED",
         superposition: {
           UNDEFINED: { ALLY: { role: { notIn: ["enemy", "neutral"] } } },
           ALLY: null,
@@ -177,7 +172,6 @@ describe("Monad — Enum переходы", () => {
       const id = createMonad({
         fields: { priority: { type: "enum<string>", values: ["low", "medium", "high"] } },
         params: { priority: "low" },
-        state: "IDLE",
         superposition: {
           IDLE: { URGENT: { priority: { gt: "low" } } },
           URGENT: null,
@@ -199,7 +193,6 @@ describe("Monad — Enum переходы", () => {
       const id = createMonad({
         fields: { priority: { type: "enum<string>", values: ["low", "medium", "high"] } },
         params: { priority: "low" },
-        state: "IDLE",
         superposition: {
           IDLE: { URGENT: { priority: { gt: "low" } } },
           URGENT: null,

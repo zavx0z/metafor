@@ -5,6 +5,7 @@ import {
   updateBoundary,
   onStateChange,
   _resetState,
+  type BraneStateChange,
 } from "../monad"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
@@ -22,7 +23,7 @@ afterEach(() => {
 
 describe("Monad — Граничные случаи", () => {
   const createStateChangeHandler = (resultStates: string[]) => {
-    return (changes: Array<{ monadId: string; oldState: string; newState: string; intention?: string | null; params: Record<string, unknown> }>) => {
+    return (changes: BraneStateChange[]) => {
       for (const change of changes) {
         resultStates.push(change.newState)
       }
@@ -37,7 +38,6 @@ describe("Monad — Граничные случаи", () => {
       const id = createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 30 },
-        state: "IDLE",
         superposition: {
           IDLE: { PATROL: { hp: { gte: 50 } } },
           PATROL: null,
@@ -59,7 +59,6 @@ describe("Monad — Граничные случаи", () => {
       const id = createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 100 },
-        state: "ALIVE",
         superposition: {
           ALIVE: { DEAD: { hp: { lte: 0 } } },
           DEAD: null,
@@ -83,7 +82,6 @@ describe("Monad — Граничные случаи", () => {
       const id = createMonad({
         fields: { temperature: { type: "number" } },
         params: { temperature: 20 },
-        state: "NORMAL",
         superposition: {
           NORMAL: { COLD: { temperature: { lt: 0 } } },
           COLD: null,
@@ -105,7 +103,6 @@ describe("Monad — Граничные случаи", () => {
       const id = createMonad({
         fields: { temperature: { type: "number" } },
         params: { temperature: 0 },
-        state: "NORMAL",
         superposition: {
           NORMAL: { ABSOLUTE_ZERO: { temperature: { lte: -273 } } },
           ABSOLUTE_ZERO: null,
@@ -129,7 +126,6 @@ describe("Monad — Граничные случаи", () => {
       const id = createMonad({
         fields: { health: { type: "number" } },
         params: { health: 100 },
-        state: "HEALTHY",
         superposition: {
           HEALTHY: { WEAK: { health: { lt: 50.5 } } },
           WEAK: null,
@@ -151,7 +147,6 @@ describe("Monad — Граничные случаи", () => {
       const id = createMonad({
         fields: { health: { type: "number" } },
         params: { health: 50 },
-        state: "NORMAL",
         superposition: {
           NORMAL: { CRITICAL: { health: { gte: 99.9 } } },
           CRITICAL: null,
@@ -175,7 +170,6 @@ describe("Monad — Граничные случаи", () => {
       const id = createMonad({
         fields: { command: { type: "string" } },
         params: { command: "attack" },
-        state: "ACTIVE",
         superposition: {
           ACTIVE: { IDLE: { command: { eq: "" } } },
           IDLE: null,
@@ -197,7 +191,6 @@ describe("Monad — Граничные случаи", () => {
       const id = createMonad({
         fields: { message: { type: "string" } },
         params: { message: "" },
-        state: "WAITING",
         superposition: {
           WAITING: { PROCESSING: { message: { notIn: ["", "pending"] } } },
           PROCESSING: null,
@@ -226,7 +219,6 @@ describe("Monad — Граничные случаи", () => {
       const id = createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 100 },
-        state: "IDLE",
         superposition: {
           IDLE: { DEAD: { hp: { lte: 0 } } },
           DEAD: null, // Терминальное состояние
@@ -253,7 +245,6 @@ describe("Monad — Граничные случаи", () => {
       const id = createMonad({
         fields: { hp: { type: "number" } },
         params: { hp: 50 },
-        state: "IDLE",
         superposition: {
           IDLE: {
             VICTORY: { hp: { gte: 80 } },

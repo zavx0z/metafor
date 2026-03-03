@@ -64,7 +64,6 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     const id = createMonad({
       fields: { hp: { type: "number" } },
       params: { hp: 30 },
-      state: "IDLE",
       superposition: {
         IDLE: { DEAD: { hp: { lte: 0 } } },
         DEAD: null, // Терминальное состояние без намерения
@@ -95,7 +94,6 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     const id = createMonad({
       fields: { hp: { type: "number" } },
       params: { hp: 30 },
-      state: "IDLE",
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
@@ -128,7 +126,6 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     const id = createMonad({
       fields: { hp: { type: "number" } },
       params: { hp: 30 },
-      state: "IDLE",
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: { DEAD: { hp: { lte: 0 } } },
@@ -171,7 +168,6 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     const id1 = createMonad({
       fields: { hp: { type: "number" } },
       params: { hp: 100 },
-      state: "IDLE",
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
@@ -184,7 +180,6 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     const id2 = createMonad({
       fields: { mana: { type: "number" } },
       params: { mana: 100 },
-      state: "IDLE",
       superposition: {
         IDLE: { DEAD: { mana: { lte: 0 } } },
         DEAD: null, // Без намерения
@@ -194,7 +189,6 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     const id3 = createMonad({
       fields: { energy: { type: "number" } },
       params: { energy: 50 },
-      state: "IDLE",
       superposition: {
         IDLE: { PATROL: { energy: { gt: 30 } } },
         PATROL: null,
@@ -242,7 +236,6 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     const id1 = createMonad({
       fields: { hp: { type: "number" } },
       params: { hp: 100 },
-      state: "IDLE",
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
@@ -255,7 +248,6 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     const id2 = createMonad({
       fields: { mana: { type: "number" } },
       params: { mana: 100 },
-      state: "IDLE",
       superposition: {
         IDLE: { PATROL: { mana: { gt: 50 } } },
         PATROL: null,
@@ -289,7 +281,6 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     const id = createMonad({
       fields: { hp: { type: "number" }, mana: { type: "number" } },
       params: { hp: 100, mana: 100 },
-      state: "IDLE",
       superposition: {
         IDLE: { PATROL: { hp: { gt: 80 } } },
         PATROL: { COMBAT: { mana: { lt: 20 } } },
