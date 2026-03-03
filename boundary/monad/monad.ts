@@ -12,6 +12,7 @@ import {
   type Brane,
   type BraneParamValue,
 } from "@boundary/fields"
+import { _updateMatrixHeap, getMatrixState } from "@boundary/matrix"
 import type {
   IntentionsStore,
   IndexToUuidStore,
@@ -300,14 +301,20 @@ export async function updateBoundary(): Promise<void> {
     }
   })
 
-  // Снимаем блокировку с бран без намерения
+  // Снимаем блокировку с бран без намерения напрямую через _updateMatrixHeap()
+  // БЕЗ повторного вызова _stepMatrix() (это произошло бы в updateMonads())
   if (monadsToUnlock.length > 0) {
-    const unlockUpdates = monadsToUnlock.map((id) => ({
-      id,
-      fields: {},
-      lock: false,
-    }))
-    await updateMonads(unlockUpdates)
+    const matrixState = getMatrixState()
+    const unlockUpdates = monadsToUnlock.map((id) => {
+      const index = _uuidToIndex.get(id)
+      if (index === undefined) {
+        throw new Error(`Monad ${id} not found in boundary`)
+      }
+      const blockPtr = matrixState.braneBlockPtrs[index]!
+      // lock находится по смещению blockPtr + 2
+      return { offset: blockPtr + 2, value1: 0 }
+    })
+    _updateMatrixHeap(unlockUpdates)
   }
 
   // Пакетная отправка изменений
