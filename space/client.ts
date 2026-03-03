@@ -13,10 +13,11 @@ const procs = space.processes
 const proc = procs[Object.keys(procs)[0] as keyof typeof procs]
 
 const spaceId = createMonad({ fields: {}, params: {}, superposition: space.superposition })
-
 log(await updateBoundary())
+
 const action = await loadAction(proc.action)
 await executeProcess({ action })
+
 log(await releaseLock())
 deleteMonad(spaceId)
 

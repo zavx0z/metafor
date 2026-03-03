@@ -6,12 +6,15 @@
 import "@metafor/meta"
 
 export default MetaFor("<name>")
-  .brane((field) => ({ /* поля */ }))
-  .superposition({ /* граф переходов */ })
+  .brane((field) => ({}))
+  .superposition({})
   .mass({})
   .processes((process, destroy) => ({}))
   .reactions((reaction) => [])
-  .bulk({ gravity: ({ state, value, html }) => html`...`, view: ({css}) => css`...` })
+  .bulk({
+    gravity: ({ state, value, html }) => html``,
+    view: ({ css }) => css``,
+  })
 ```
 
 **Порядок вызовов:** `brane → superposition → mass → processes → reactions → bulk`
@@ -239,6 +242,7 @@ export default MetaFor("<name>")
 | `self` | **Идентификатор** — полный путь к атому |
 
 **Принцип:**
+
 - **field** — декларация поля (схема, тип, валидатор). Определяется в `.brane()`. Доступно в `process.action({ field })`.
 - **value** — значение поля (текущие данные). Доступно в `process.action({ value })`.
 
@@ -276,6 +280,7 @@ export default async function action({
 | `self` | **Идентификатор** — полный путь к атому |
 
 **Принцип:**
+
 - **field** — декларация поля (схема, тип, валидатор)
 - **value** — значение поля (текущие данные)
 

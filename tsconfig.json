@@ -35,7 +35,7 @@
   "include": [
     "types/**/*.d.ts",
     "fixture/**/*.ts",
-    "*.ts"
+    "**/*.ts"
   ],
   "exclude": [
     "./atom/**/*",
