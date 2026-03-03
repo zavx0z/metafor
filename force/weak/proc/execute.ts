@@ -37,7 +37,7 @@ import type { Mass, ActionParams } from "@metafor/meta"
  */
 export async function executeProcess<ɸ extends Schema, m extends Mass, Res>(
   moduleSrc: string,
-  params: ActionParams<ɸ, m>
+  params?: ActionParams<ɸ, m>
 ): Promise<Res> {
   // Динамический импорт модуля действия
   const mod = await import(moduleSrc)

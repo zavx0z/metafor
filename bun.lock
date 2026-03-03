@@ -84,14 +84,6 @@
         "typescript": "^5",
       },
     },
-    "bulk/gravity": {
-      "name": "@bulk/gravity",
-      "devDependencies": {
-        "@boundary/monad": "workspace:*",
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
-      },
-    },
     "dsl/build": {
       "name": "@metafor/build",
       "bin": {
@@ -155,19 +147,172 @@
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
       },
-      "peerDependencies": {
-        "typescript": "^5",
+    },
+    "github/zavx0z/git": {
+      "name": "@zavx0z/git",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-collaborate": {
+      "name": "@zavx0z/git-collaborate",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-config": {
+      "name": "@zavx0z/git-config",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-error": {
+      "name": "@zavx0z/git-error",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-examine": {
+      "name": "@zavx0z/git-examine",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-history": {
+      "name": "@zavx0z/git-history",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-history-commit": {
+      "name": "@zavx0z/git-history-commit",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-plumbing": {
+      "name": "@zavx0z/git-plumbing",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-start": {
+      "name": "@zavx0z/git-start",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-start-clone": {
+      "name": "@zavx0z/git-start-clone",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-start-init": {
+      "name": "@zavx0z/git-start-init",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-stash": {
+      "name": "@zavx0z/git-stash",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-submodule": {
+      "name": "@zavx0z/git-submodule",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-work-add": {
+      "name": "@zavx0z/git-work-add",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-work-clean": {
+      "name": "@zavx0z/git-work-clean",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-work-mv": {
+      "name": "@zavx0z/git-work-mv",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-work-restore": {
+      "name": "@zavx0z/git-work-restore",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-work-rm": {
+      "name": "@zavx0z/git-work-rm",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-work-sparse-checkout": {
+      "name": "@zavx0z/git-work-sparse-checkout",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/meta": "workspace:*",
+      },
+    },
+    "github/zavx0z/git-worktree": {
+      "name": "@zavx0z/git-worktree",
+      "version": "0.1.0",
+      "devDependencies": {
+        "@metafor/build": "workspace:*",
+        "@metafor/meta": "workspace:*",
       },
     },
     "space": {
       "name": "space",
       "devDependencies": {
+        "@force/weak": "workspace:*",
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
-        "@types/bun": "latest",
-      },
-      "peerDependencies": {
-        "typescript": "^5",
       },
     },
   },
@@ -185,8 +330,6 @@
     "@boundary/matrix": ["@boundary/matrix@workspace:boundary/matrix"],
 
     "@boundary/monad": ["@boundary/monad@workspace:boundary/monad"],
-
-    "@bulk/gravity": ["@bulk/gravity@workspace:bulk/gravity"],
 
     "@force/em": ["@force/em@workspace:force/em"],
 
@@ -231,6 +374,46 @@
     "@webgpu/types": ["@webgpu/types@0.1.68", "https://registry.yarnpkg.com/@webgpu/types/-/types-0.1.68.tgz", {}, "sha512-3ab1B59Ojb6RwjOspYLsTpCzbNB3ZaamIAxBMmvnNkiDoLTZUOBXZ9p5nAYVEkQlDdf6qAZWi1pqj9+ypiqznA=="],
 
     "@zavx0z/context": ["@zavx0z/context@2.3.1", "https://registry.yarnpkg.com/@zavx0z/context/-/context-2.3.1.tgz", { "peerDependencies": { "typescript": "^5" } }, "sha512-UNlKElkG38w56qpc7fNRV9l26nm8FzkOqsH6CUO9yRolJFMst886kfpb+a40iv+G8AMPVy8sYRceExee/V/kkg=="],
+
+    "@zavx0z/git": ["@zavx0z/git@workspace:github/zavx0z/git"],
+
+    "@zavx0z/git-collaborate": ["@zavx0z/git-collaborate@workspace:github/zavx0z/git-collaborate"],
+
+    "@zavx0z/git-config": ["@zavx0z/git-config@workspace:github/zavx0z/git-config"],
+
+    "@zavx0z/git-error": ["@zavx0z/git-error@workspace:github/zavx0z/git-error"],
+
+    "@zavx0z/git-examine": ["@zavx0z/git-examine@workspace:github/zavx0z/git-examine"],
+
+    "@zavx0z/git-history": ["@zavx0z/git-history@workspace:github/zavx0z/git-history"],
+
+    "@zavx0z/git-history-commit": ["@zavx0z/git-history-commit@workspace:github/zavx0z/git-history-commit"],
+
+    "@zavx0z/git-plumbing": ["@zavx0z/git-plumbing@workspace:github/zavx0z/git-plumbing"],
+
+    "@zavx0z/git-start": ["@zavx0z/git-start@workspace:github/zavx0z/git-start"],
+
+    "@zavx0z/git-start-clone": ["@zavx0z/git-start-clone@workspace:github/zavx0z/git-start-clone"],
+
+    "@zavx0z/git-start-init": ["@zavx0z/git-start-init@workspace:github/zavx0z/git-start-init"],
+
+    "@zavx0z/git-stash": ["@zavx0z/git-stash@workspace:github/zavx0z/git-stash"],
+
+    "@zavx0z/git-submodule": ["@zavx0z/git-submodule@workspace:github/zavx0z/git-submodule"],
+
+    "@zavx0z/git-work-add": ["@zavx0z/git-work-add@workspace:github/zavx0z/git-work-add"],
+
+    "@zavx0z/git-work-clean": ["@zavx0z/git-work-clean@workspace:github/zavx0z/git-work-clean"],
+
+    "@zavx0z/git-work-mv": ["@zavx0z/git-work-mv@workspace:github/zavx0z/git-work-mv"],
+
+    "@zavx0z/git-work-restore": ["@zavx0z/git-work-restore@workspace:github/zavx0z/git-work-restore"],
+
+    "@zavx0z/git-work-rm": ["@zavx0z/git-work-rm@workspace:github/zavx0z/git-work-rm"],
+
+    "@zavx0z/git-work-sparse-checkout": ["@zavx0z/git-work-sparse-checkout@workspace:github/zavx0z/git-work-sparse-checkout"],
+
+    "@zavx0z/git-worktree": ["@zavx0z/git-worktree@workspace:github/zavx0z/git-worktree"],
 
     "@zavx0z/template": ["@zavx0z/template@2.6.1", "https://registry.yarnpkg.com/@zavx0z/template/-/template-2.6.1.tgz", { "peerDependencies": { "typescript": "^5" } }, "sha512-dG4QomcsXp1Mdlx9zOoZn1xO3k47CbT5mibDSATa9bnIdUOjI2VU1Jm0YTfcbSnG2pKL1o7aG2TLI7QgZpBewg=="],
 

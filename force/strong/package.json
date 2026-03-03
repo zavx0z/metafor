@@ -9,8 +9,5 @@
   },
   "scripts": {
     "build": "metafor-build src/meta.ts --out meta.json"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
   }
 }

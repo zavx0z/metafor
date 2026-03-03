@@ -1,7 +1,13 @@
 import { createMonad, updateBoundary, updateMonads, onStateChange, releaseLock } from "@boundary/monad"
 import space from "./meta.json"
+import { executeProcess } from "@force/weak/proc"
 
-console.log(space)
+const procs = space.processes
+const proc = procs[Object.keys(procs)[0] as keyof typeof procs]
+
+console.log(await import("./proc/create.ts"))
+// executeProcess(proc.action.src)
+console.log(proc.action.src)
 
 const status = document.getElementById("status")!
 const out = document.getElementById("output")!

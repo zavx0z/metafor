@@ -3,7 +3,8 @@
   "private": true,
   "devDependencies": {
     "@metafor/build": "workspace:*",
-    "@metafor/meta": "workspace:*"
+    "@metafor/meta": "workspace:*",
+    "@force/weak": "workspace:*"
   },
   "scripts": {
     "build": "metafor-build meta.ts --out meta.json",

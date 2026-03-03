@@ -8,9 +8,11 @@
     "@metafor/build": "workspace:*"
   },
   "scripts": {
-    "build": "metafor-build src/meta.ts --out meta.json"
+    "build": "metafor-build meta.ts --out meta.json"
   },
-  "peerDependencies": {
-    "typescript": "^5"
+  "exports": {
+    "./proc": {
+      "import": "./proc/execute.ts"
+    }
   }
 }

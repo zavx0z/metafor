@@ -67,32 +67,34 @@ export interface ParsedProcessJson {
   action?: {
     /** Исходный код функции (опционально для пустых функций-заглушек) */
     src?: string
-    /** Поля контекста, которые читаются */
+    /** Имя экспорта для импорта (например, "default", "commit", "process") */
+    importSpecifier?: string
+    /** Значения полей, которые читаются */
     read?: string[]
   }
   /** Обработчик успеха с исходным кодом и списками полей */
   success?: {
     /** Исходный код функции */
     src: string
-    /** Поля контекста, которые читаются */
+    /** Значения полей, которые читаются */
     read?: string[]
-    /** Поля контекста, которые записываются */
+    /** Значения полей, которые записываются */
     write?: string[]
   }
   /** Обработчик ошибки с исходным кодом и списками полей */
   error?: {
     /** Исходный код функции */
     src: string
-    /** Поля контекста, которые читаются */
+    /** Значения полей, которые читаются */
     read?: string[]
-    /** Поля контекста, которые записываются */
+    /** Значения полей, которые записываются */
     write?: string[]
   }
   /** Обработчик before для destroy-процесса */
   before?: {
     /** Исходный код функции */
     src: string
-    /** Поля контекста, которые читаются */
+    /** Значения полей, которые читаются */
     read?: string[]
   }
 }
@@ -412,7 +414,10 @@ export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): Mon
             type: "action",
             ...(parsed.label ? { label: parsed.label } : {}),
             ...(parsed.desc ? { desc: parsed.desc } : {}),
-            ...(parsed.action.src ? { action: { src: parsed.action.src } } : {}),
+            ...(parsed.action.src ? { action: {
+              src: parsed.action.src,
+              ...(parsed.action.importSpecifier ? { importSpecifier: parsed.action.importSpecifier } : {}),
+            } } : {}),
             ...(parsed.action.read && parsed.action.read.length > 0
               ? { action: { ...acc[key]?.action, read: parsed.action.read } }
               : {}),

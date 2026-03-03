@@ -3,7 +3,10 @@ import "@metafor/meta"
 const meta = MetaFor("space")
   .brane((field) => ({}))
   .superposition({
-    "создание слабой силы": {},
+    "создание слабой силы": {
+      "запуск сил": {}
+    },
+    "запуск сил": {},
   })
   .mass({
     onStateChange: undefined,
