@@ -1,7 +1,7 @@
 import type { Schema } from "@zavx0z/context"
 import { ProcessType, type DestroyConfig, type ProcessConfig, type ExecutionEnv, type ActionParams } from "./process.t"
 import type { ParsedProcess, ParsedDestroy, ProcessesDeclaration, ProcessesSchema, Process } from "./process.t"
-import { destroyAppendArg, normalizeFunctionString, parseFunction, updateAppendArg, extractModuleSrc, validateActionStructure } from "./action"
+import { destroyAppendArg, normalizeFunctionString, parseFunction, updateAppendArg, extractModuleSrc, extractImportSpecifier, validateActionStructure } from "./action"
 import { Initiator, type Mass } from "./metafor.t"
 
 
@@ -11,11 +11,11 @@ export type { ProcessesDeclaration, ProcessesSchema, ActionParams }
  * Парсит процесс и извлекает информацию о всех обработчиках.
  *
  * Анализирует объект процесса с обработчиками action, success и error.
- * Для action извлекает путь к модулю через extractModuleSrc и валидирует структуру.
- * Для success/error сохраняет строковое представление функции для десериализации.
+ * Для action извлекает путь к модулю через extractModuleSrc, определяет спецификатор импорта через extractImportSpecifier
+ * и валидирует структуру. Для success/error сохраняет строковое представление функции для десериализации.
  *
  * @param process - Объект процесса с обработчиками
- * @returns Распарсенный процесс с информацией о полях и путём к модулю action
+ * @returns Распарсенный процесс с информацией о полях, путём к модулю action и именем экспорта
  * @throws Error если структура action функции не соответствует требованиям
  *
  * @example
@@ -30,7 +30,7 @@ export type { ProcessesDeclaration, ProcessesSchema, ActionParams }
  * }
  * const result = parseProcess(process)
  * // => {
- * //   action: { src: "./actions/loader.ts", read: ['value'] },
+ * //   action: { src: "./actions/loader.ts", importSpecifier: "default", read: ['value'] },
  * //   success: { read: [], write: ['result'], src: '({ update, data }) => update({ result: data }, "s")' },
  * //   error: { read: [], write: ['error'], src: '({ update, error }) => update({ error: error.message }, "e")' }
  * // }
@@ -52,11 +52,15 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
   // Extract module path from import()
   const modulePath = extractModuleSrc(process.action as Function)
   
+  // Extract import specifier (например, "default", "commit", "process")
+  const importSpecifier = extractImportSpecifier(process.action as Function)
+
   // Для пустых функций (заглушек) modulePath может отсутствовать
   if (modulePath) {
     const parsed = parseFunction(process.action as Function, false)
     result.action = {
       src: modulePath,
+      ...(importSpecifier ? { importSpecifier } : {}),
       ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
     }
   } else {
@@ -64,6 +68,7 @@ export function parseProcess<ɸ extends Schema, m extends Mass, Res = any>(proce
     const parsed = parseFunction(process.action as Function, false)
     result.action = {
       src: "",
+      ...(importSpecifier ? { importSpecifier } : {}),
       ...(parsed.read.length > 0 ? { read: parsed.read } : {}),
     }
   }

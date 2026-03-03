@@ -139,11 +139,13 @@ export type ProcessesDeclaration<ɸ extends Schema = Schema, 𝛴 extends string
 
 /**
  * Обработчик действия процесса.
- * Содержит путь к модулю и список полей контекста, которые читаются.
+ * Содержит путь к модулю, имя экспорта и список полей контекста, которые читаются.
  */
 export type ParsedActionHandler = {
   /** Путь к ESM-модулю с реализацией действия */
   src: string
+  /** Имя экспорта для импорта (например, "default", "commit", "process") */
+  importSpecifier?: string
   /** Список полей контекста, которые читаются в обработчике */
   read?: string[]
 }

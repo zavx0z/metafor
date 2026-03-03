@@ -9,6 +9,7 @@
   "scripts": {
     "build": "metafor-build meta.ts --out meta.json",
     "build:watch": "metafor-build meta.ts --out meta.json --watch",
+    "build:action": "bun build proc/create.ts --outdir proc",
     "app": "bun server"
   }
 }

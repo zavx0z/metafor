@@ -4,9 +4,12 @@ const meta = MetaFor("space")
   .brane((field) => ({}))
   .superposition({
     "создание слабой силы": {
-      "запуск сил": {}
+      "запуск сил": {},
     },
-    "запуск сил": {},
+    "запуск сил": {
+      конец: {},
+    },
+    конец: null,
   })
   .mass({
     onStateChange: undefined,
@@ -14,7 +17,7 @@ const meta = MetaFor("space")
   .processes((proces) => ({
     "создание слабой силы": proces()
       .action(async () => {
-        const { create } = await import("./proc/create")
+        const { create } = await import("./proc/create.ts")
         return create()
       })
       .success(({ data }) => {}),

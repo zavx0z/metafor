@@ -8,6 +8,7 @@ import {
   parseFunction,
   extractFields,
   extractModuleSrc,
+  extractImportSpecifier,
   validateActionStructure,
 } from "./action.js"
 
@@ -228,6 +229,80 @@ describe("Парсер action-функций", () => {
       }
       const result = extractModuleSrc(fn)
       expect(result).toBe("./first.ts")
+    })
+  })
+
+  describe("extractImportSpecifier", () => {
+    test("определяет default импорт", () => {
+      const fn = async ({ value }: any) => {
+        // @ts-expect-error — тестовый импорт
+        const mod = await import("./mod.ts")
+        return mod.default(value)
+      }
+      const result = extractImportSpecifier(fn)
+      expect(result).toBe("default")
+    })
+
+    test("определяет default импорт с кавычками", () => {
+      const fn = async ({ value }: any) => {
+        // @ts-expect-error — тестовый импорт
+        const mod = await import("./mod.ts")
+        return mod["default"](value)
+      }
+      const result = extractImportSpecifier(fn)
+      expect(result).toBe("default")
+    })
+
+    test("определяет именованный импорт (process)", () => {
+      const fn = async ({ value }: any) => {
+        // @ts-expect-error — тестовый импорт
+        const mod = await import("./mod.ts")
+        return mod.process(value)
+      }
+      const result = extractImportSpecifier(fn)
+      expect(result).toBe("process")
+    })
+
+    test("определяет именованный импорт (commit)", () => {
+      const fn = async ({ value }: any) => {
+        // @ts-expect-error — тестовый импорт
+        const mod = await import("./mod.ts")
+        return mod.commit(value)
+      }
+      const result = extractImportSpecifier(fn)
+      expect(result).toBe("commit")
+    })
+
+    test("определяет именованный импорт через деструктуризацию", () => {
+      const fn = async ({ value }: any) => {
+        // @ts-expect-error — тестовый импорт
+        const { process } = await import("./mod.ts")
+        return process(value)
+      }
+      const result = extractImportSpecifier(fn)
+      expect(result).toBe("process")
+    })
+
+    test("определяет именованный импорт с алиасом", () => {
+      const fn = async ({ value }: any) => {
+        // @ts-expect-error — тестовый импорт
+        const { commit: save } = await import("./mod.ts")
+        return save(value)
+      }
+      const result = extractImportSpecifier(fn)
+      expect(result).toBe("commit")
+    })
+
+    test("возвращает null если нет импорта", () => {
+      const fn = ({ value }: any) => value * 2
+      const result = extractImportSpecifier(fn)
+      expect(result).toBe(null)
+    })
+
+    test("возвращает null для пустой функции", () => {
+      const fn = () => ({})
+      const result = extractImportSpecifier(fn)
+      expect(result).toBe(null)
     })
   })
 

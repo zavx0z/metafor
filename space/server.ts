@@ -9,6 +9,15 @@ const server = serve({
   },
   routes: {
     "/": index,
+    "/_bun/client/proc/*": async (req) => {
+      try {
+        const path = new URL(req.url).pathname
+        return new Response(Bun.file(path.replace("/_bun/client/proc", "./proc")))
+      } catch (e) {
+        console.error(e)
+        return new Response("Not Found", { status: 404 })
+      }
+    },
   },
   async fetch(req) {
     const url = new URL(req.url)

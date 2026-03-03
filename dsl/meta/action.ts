@@ -195,6 +195,114 @@ export function extractModuleSrc(fn: Function): string | null {
 }
 
 /**
+ * Определяет спецификатор импорта из модуля.
+ *
+ * Анализирует код функции после import() и определяет, что именно импортируется:
+ * - `mod.default` → "default"
+ * - `mod["default"]` → "default"
+ * - `mod.process` → "process"
+ * - `mod.namedExport` → "namedExport"
+ *
+ * Работает как с исходным кодом, так и с транспилированным (Bun/TypeScript):
+ * - Исходный: `const mod = await import("./mod.ts"); return mod.default(value)`
+ * - Транспилированный: `return (await import("./mod.ts")).default(value)`
+ *
+ * @param fn - Функция для анализа
+ * @returns Имя экспорта или null (если не удалось определить)
+ *
+ * @example
+ * ```ts
+ * // Default импорт
+ * const fn1 = async () => {
+ *   const mod = await import("./mod.ts")
+ *   return mod.default(value)
+ * }
+ * extractImportSpecifier(fn1) // => "default"
+ *
+ * // Именованный импорт
+ * const fn2 = async () => {
+ *   const mod = await import("./mod.ts")
+ *   return mod.process(value)
+ * }
+ * extractImportSpecifier(fn2) // => "process"
+ *
+ * // Деструктуризация
+ * const fn3 = async () => {
+ *   const { commit } = await import("./mod.ts")
+ *   return commit(value)
+ * }
+ * extractImportSpecifier(fn3) // => "commit"
+ * ```
+ */
+export function extractImportSpecifier(fn: Function): string | null {
+  const code = fn.toString()
+  
+  // Находим все импорты
+  const importMatch = PATTERN_IMPORT.exec(code)
+  if (!importMatch) return null
+  
+  // Паттерн 1: Транспилированный код Bun/TypeScript
+  // return (await import("./mod.ts")).default(value)
+  // return (await import("./mod.ts")).process(value)
+  const transpiledPattern = /\(\s*await\s+import\s*\(\s*["']([^"']+)["']\s*\)\s*\)\s*\.\s*([a-zA-Z_$][\w$]*)\s*\(/
+  const transpiledMatch = code.match(transpiledPattern)
+  if (transpiledMatch && transpiledMatch[2]) {
+    return transpiledMatch[2]
+  }
+  
+  // Паттерн 2: Транспилированный код с доступом через кавычки
+  // return (await import("./mod.ts"))["default"](value)
+  const transpiledBracketPattern = /\(\s*await\s+import\s*\(\s*["']([^"']+)["']\s*\)\s*\)\s*\[\s*["']([^"']+)["']\s*\]\s*\(/
+  const transpiledBracketMatch = code.match(transpiledBracketPattern)
+  if (transpiledBracketMatch && transpiledBracketMatch[2]) {
+    return transpiledBracketMatch[2]
+  }
+  
+  // Паттерн 3: Исходный код
+  // Сначала проверяем деструктуризацию, потом переменную
+  
+  // Проверяем деструктуризацию { named } = await import(...)
+  const destructMatch = code.match(/(?:const|let|var)\s*\{([^}]+)\}\s*=\s*(?:await\s*)?import\s*\(/)
+  if (destructMatch && destructMatch[1]) {
+    const destructContent = destructMatch[1].trim()
+    // Если есть алиас: { orig: alias } => "orig"
+    const aliasMatch = destructContent.match(/([a-zA-Z_$][\w$]*)\s*:\s*[a-zA-Z_$][\w$]*/)
+    if (aliasMatch && aliasMatch[1]) {
+      return aliasMatch[1]
+    }
+    // Иначе берём само имя
+    return destructContent
+  }
+  
+  // Проверяем переменную: const mod = await import(...)
+  const varDeclMatch = code.match(/(?:const|let|var)\s+([a-zA-Z_$][\w$]*)\s*=\s*(?:await\s*)?import\s*\(/)
+  if (varDeclMatch) {
+    const varName = varDeclMatch[1]
+    
+    // Проверяем mod.default
+    const defaultAccessPattern = new RegExp(`${varName}\\.default\\s*\\(`)
+    if (defaultAccessPattern.test(code)) {
+      return "default"
+    }
+    
+    // Проверяем mod["default"]
+    const defaultBracketPattern = new RegExp(`${varName}\\[["']default["']\\]\\s*\\(`)
+    if (defaultBracketPattern.test(code)) {
+      return "default"
+    }
+    
+    // Проверяем mod.namedExport
+    const namedAccessPattern = new RegExp(`${varName}\\.([a-zA-Z_$][\\w$]*)\\s*\\(`)
+    const namedMatch = namedAccessPattern.exec(code)
+    if (namedMatch && namedMatch[1]) {
+      return namedMatch[1]
+    }
+  }
+  
+  return null
+}
+
+/**
  * Валидирует структуру функции действия.
  *
  * Проверяет, что функция соответствует требуемому паттерну:

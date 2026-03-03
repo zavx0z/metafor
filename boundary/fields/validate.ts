@@ -16,13 +16,13 @@ import { FieldType, type Data } from "./index.t"
  * @throws {Error} При невалидных данных
  */
 export function validateData(data: Data): void {
-  // Проверка на пустые массивы
+  // Проверка на пустые/отсутствующие массивы — допустимо
   if (!data.fields || data.fields.length === 0) {
-    throw new Error("fields array cannot be empty")
+    return // Нет полей — нечего валидировать
   }
 
   if (!data.branes || data.branes.length === 0) {
-    throw new Error("branes array cannot be empty")
+    return // Нет бран — нечего валидировать
   }
 
   // Валидация полей
@@ -48,13 +48,13 @@ export function validateData(data: Data): void {
     }
 
     brane.params.forEach(([fieldIndex, value], paramIndex) => {
-      if (fieldIndex < 0 || fieldIndex >= data.fields.length) {
+      if (fieldIndex < 0 || fieldIndex >= data.fields!.length) {
         throw new Error(
           `Brane ${braneIndex}, param ${paramIndex}: field index ${fieldIndex} out of range`,
         )
       }
 
-      const field = data.fields[fieldIndex]!
+      const field = data.fields![fieldIndex]!
 
       // Проверка enum значений (строка допустима для enum полей)
       if (field.enum && typeof value === "string") {
@@ -132,7 +132,7 @@ export function validateData(data: Data): void {
           for (const [condFieldIndex, cond] of Object.entries(conditions)) {
             const fieldIdx = Number(condFieldIndex)
 
-            if (fieldIdx < 0 || fieldIdx >= data.fields.length) {
+            if (fieldIdx < 0 || fieldIdx >= data.fields!.length) {
               throw new Error(
                 `Brane ${braneIndex}, state ${stateIndex}: condition references non-existent field ${fieldIdx}`,
               )

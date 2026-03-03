@@ -2,69 +2,79 @@
  * Тесты для выполнения process action в рантайме.
  *
  * Проверяют, что функция executeProcess корректно загружает и выполняет
- * action-модули с правильной передачей параметров.
+ * action-модули с правильной передачей параметров и спецификатором импорта.
  */
 
 import { describe, expect, test, mock } from "bun:test"
+import { executeProcessWithModule, type ProcessConfig } from "./execute"
 
-describe("executeProcess", () => {
-  test("выполняет модуль с default export", async () => {
-    // Создаём мок action-модуля
+describe("executeProcessWithModule", () => {
+  test("выполняет модуль с default export через importSpecifier", () => {
     const mockAction = mock((params: any) => {
       return { processed: true, data: params.value.name }
     })
 
-    // Мокаем импорт
-    // @ts-expect-error — тестовый мок
-    const originalImport = globalThis.import
-    // @ts-expect-error — тестовый мок
-    globalThis.import = mock(async (src: string) => {
-      if (src === "./test-action.ts") {
-        return { default: mockAction }
-      }
-      return originalImport(src)
-    })
+    const mod = { default: mockAction }
 
     const params = {
       value: { name: "test", value: 42 },
       mass: { counter: 0 },
       schema: { name: { type: "string" as const }, value: { type: "number" as const } },
       self: { atom: "test-atom", path: "test", meta: "test-meta" },
-      update: mock(),
     }
 
-    // Примечание: этот тест демонстрирует API
-    expect(params.value.name).toBe("test")
+    const result = executeProcessWithModule(mod, "default", params)
 
-    // Восстанавливаем оригинальный import
-    // @ts-expect-error — тестовый мок
-    globalThis.import = originalImport
+    expect(result).toEqual({ processed: true, data: "test" })
+    expect(mockAction).toHaveBeenCalledTimes(1)
   })
 
-  test("передаёт все параметры в action-функцию", () => {
-    const params = {
-      value: { name: "test", value: 100 },
-      mass: { counter: 5 },
-      schema: { name: { type: "string" as const }, value: { type: "number" as const } },
-      self: { atom: "test", path: "0/1", meta: "test" },
-      update: () => ({}),
-    }
+  test("выполняет модуль с именованным экспортом", () => {
+    const mockAction = mock((params: any) => {
+      return { result: params.value.userId }
+    })
 
-    expect(params.value).toEqual({ name: "test", value: 100 })
-    expect(params.mass).toEqual({ counter: 5 })
-  })
+    const mod = { commit: mockAction }
 
-  test("action-функция получает корректный тип value", () => {
     const params = {
       value: { userId: 123, email: "test@example.com" },
       mass: {},
-      schema: { userId: { type: "number" as const }, email: { type: "string" as const } },
+      schema: { userId: { type: "number" as const } },
       self: { atom: "user", path: "0", meta: "user-meta" },
-      update: () => ({}),
     }
 
-    expect(params.value.userId).toBe(123)
-    expect(params.value.email).toBe("test@example.com")
+    const result = executeProcessWithModule(mod, "commit", params)
+
+    expect(result).toEqual({ result: 123 })
+    expect(mockAction).toHaveBeenCalledTimes(1)
+  })
+
+  test("выбрасывает ошибку если спецификатор не найден", () => {
+    const mod = { other: "export" }
+
+    const params = {
+      value: {},
+      mass: {},
+      schema: {},
+      self: { atom: "test", path: "0", meta: "test" },
+    }
+
+    expect(() => executeProcessWithModule(mod, "nonexistent", params)).toThrow(
+      'не экспортирует функцию "nonexistent"'
+    )
+  })
+
+  test("выбрасывает ошибку с пустым списком экспортов", () => {
+    const mod = { value: 42, str: "hello" }
+
+    const params = {
+      value: {},
+      mass: {},
+      schema: {},
+      self: { atom: "test", path: "0", meta: "test" },
+    }
+
+    expect(() => executeProcessWithModule(mod, "fn", params)).toThrow("(нет функций)")
   })
 })
 

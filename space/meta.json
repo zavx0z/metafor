@@ -5,13 +5,17 @@
     "создание слабой силы": {
       "запуск сил": {}
     },
-    "запуск сил": {}
+    "запуск сил": {
+      "конец": {}
+    },
+    "конец": null
   },
   "processes": {
     "создание слабой силы": {
       "type": "action",
       "action": {
-        "src": "./proc/create"
+        "src": "./proc/create.ts",
+        "importSpecifier": "create"
       }
     }
   },

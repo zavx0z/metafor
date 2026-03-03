@@ -18,24 +18,26 @@ describe("validateData — валидация входных данных", () =
     expect(() => validateData(data)).not.toThrow()
   })
 
-  test("должен бросать ошибку для пустых fields", () => {
-    const data = {
-      fields: [],
-      branes: [{
-        params: [],
-        state: 0,
-        collapses: [[null]],
-      }],
-    } as Data
-    expect(() => validateData(data)).toThrow("fields array cannot be empty")
+  test("должен принимать отсутствующие fields", () => {
+    const data: Data = {
+      branes: [],
+    }
+    expect(() => validateData(data)).not.toThrow()
   })
 
-  test("должен бросать ошибку для пустых branes", () => {
-    const data = {
+  test("должен принимать отсутствующие branes", () => {
+    const data: Data = {
       fields: [{ type: FieldType.F32 }],
+    }
+    expect(() => validateData(data)).not.toThrow()
+  })
+
+  test("должен принимать пустые fields", () => {
+    const data: Data = {
+      fields: [],
       branes: [],
-    } as Data
-    expect(() => validateData(data)).toThrow("branes array cannot be empty")
+    }
+    expect(() => validateData(data)).not.toThrow()
   })
 
   test("должен бросать ошибку для невалидного типа поля", () => {
