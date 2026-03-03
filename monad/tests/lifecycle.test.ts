@@ -29,8 +29,9 @@ describe("Monad — Жизненный цикл", () => {
     let currentState = ""
 
     onStateChange((changes: BraneStateChange[]) => {
-      if (changes.length > 0) {
-        const change = changes[0]!
+      const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+      if (runtimeChanges.length > 0) {
+        const change = runtimeChanges[0]!
         stateChanged = true
         oldState = change.oldState
         currentState = change.newState
@@ -51,7 +52,7 @@ describe("Monad — Жизненный цикл", () => {
     await updateBoundary()
 
     // Проверяем начальное состояние
-    expect(stateChanged).toBe(false)
+    expect(stateChanged).toBe(false) // событие рождения игнорируется фильтром runtimeChanges
 
     // Обновляем hp → должен перейти в PATROL
     await updateMonads([{ id: id, fields: { hp: 80 } }])
@@ -71,6 +72,7 @@ describe("Monad — Жизненный цикл", () => {
 
     onStateChange((changes) => {
       for (const change of changes) {
+        if (change.oldState === undefined) continue
         if (change.monadId === _createdMonadIds[0]) {
           states1.push(change.newState)
         } else {
@@ -118,6 +120,7 @@ describe("Monad — Жизненный цикл", () => {
 
     onStateChange((changes) => {
       for (const change of changes) {
+        if (change.oldState === undefined) continue
         const count = callbackCounts.get(change.monadId) ?? 0
         callbackCounts.set(change.monadId, count + 1)
       }
@@ -153,7 +156,8 @@ describe("Monad — Жизненный цикл", () => {
     let stateChanged = false
 
     onStateChange((changes) => {
-      if (changes.length > 0) {
+      const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+      if (runtimeChanges.length > 0) {
         stateChanged = true
       }
     })
@@ -187,6 +191,7 @@ describe("Monad — Жизненный цикл", () => {
 
     onStateChange((changes) => {
       for (const change of changes) {
+        if (change.oldState === undefined) continue
         stateChanges.push(change.newState)
       }
     })
@@ -220,6 +225,7 @@ describe("Monad — Жизненный цикл", () => {
 
     onStateChange((changes) => {
       for (const change of changes) {
+        if (change.oldState === undefined) continue
         stateChanges.push(change.newState)
       }
     })

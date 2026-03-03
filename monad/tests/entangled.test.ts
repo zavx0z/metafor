@@ -133,9 +133,12 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       // Обновляем локальное hp → переход в PATROL
       await updateMonads([{ id: id1, fields: { hp: 80 } }])
 
+      // Проверяем runtime-переходы (исключаем событие рождения oldState=undefined)
+      const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+
       // Проверяем что изменение состояния получило правильные params (включая shared isAlive)
-      expect(changes).toHaveLength(1)
-      expect(changes[0]!.params).toEqual({ hp: 80, isAlive: true })
+      expect(runtimeChanges).toHaveLength(1)
+      expect(runtimeChanges[0]!.params).toEqual({ hp: 80, isAlive: true })
     })
 
     it("должен работать с mixed: local + shared поля", async () => {
@@ -202,9 +205,12 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       // mana=60 > 40 → переход в PATROL (только монада 1)
       await updateMonads([{ id: id1, fields: { mana: 60 } }])
 
+      // Проверяем runtime-переходы (исключаем событие рождения oldState=undefined)
+      const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+
       // Проверяем что изменение состояния получило правильные params (включая shared isAlive, role)
-      expect(changes).toHaveLength(1)
-      expect(changes[0]!.params).toEqual({ hp: 100, isAlive: true, role: "warrior", mana: 60 })
+      expect(runtimeChanges).toHaveLength(1)
+      expect(runtimeChanges[0]!.params).toEqual({ hp: 100, isAlive: true, role: "warrior", mana: 60 })
     })
 
     it("должен передать mixed local + shared поля в onStateChange", async () => {
@@ -237,9 +243,12 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       await updateMonads([{ id: id1, fields: { mana: 60 } }])
       // mana=5 не > 40 → нет перехода
 
+      // Проверяем runtime-переходы (исключаем событие рождения oldState=undefined)
+      const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+
       // Проверяем что изменение состояния получило shared hp и локальное mana
-      expect(changes).toHaveLength(1)
-      expect(changes[0]!.params).toEqual({ hp: 100, mana: 60 })
+      expect(runtimeChanges).toHaveLength(1)
+      expect(runtimeChanges[0]!.params).toEqual({ hp: 100, mana: 60 })
     })
   })
 

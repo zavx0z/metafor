@@ -274,46 +274,63 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
     _uuidToIndex.set(monadId, i)
     _indexToUuid.set(i, monadId)
   })
-  // Обрабатываем изменения состояний
+
+  // Обрабатываем изменения состояний (включая рождение: oldState === undefined)
   const changes: BraneStateChange[] = []
   const monadsToUnlock: MonadId[] = []
 
-  stateChanges.forEach(([braneIndex, stateIndex]) => {
-    const monadId = _indexToUuid.get(braneIndex)
-    if (!monadId) return
+  // Инициализация состояния всех монад до применения dirty-изменений:
+  // каждая монада рождается в первом состоянии суперпозиции (oldState: undefined -> newState: first)
+  for (const monadId of monadIds) {
     const stateMap = _stateMaps.get(monadId)
-    if (!stateMap) {
+    if (!stateMap || stateMap.length === 0) {
       throw new Error(`State map not found for monad ${monadId}`)
     }
-    const current = stateMap[stateIndex]!
-    const old = _states.get(monadId) // undefined при первой инициализации
-    // Фиксируем изменение если current !== old (обычный переход или первая инициализация)
-    if (current !== old) {
-      _states.set(monadId, current)
-      const intentions = _intentions.get(monadId)
-      const intention = intentions?.[current]
+
+    const firstState = stateMap[0]!
+    const old = _states.get(monadId)
+
+    if (old === undefined) {
+      _states.set(monadId, firstState)
+      const intention = _intentions.get(monadId)?.[firstState]
       changes.push({
         monadId,
-        oldState: old, // undefined или предыдущее состояние
-        newState: current,
+        oldState: undefined,
+        newState: firstState,
         intention: intention ?? null,
         params: _monadParams.get(monadId)!,
       })
-      // Авто-снятие блокировки если нет намерения (MONAD — Замысел)
       if (!intention) {
         monadsToUnlock.push(monadId)
       }
     }
-  })
+  }
 
-  // Инициализируем _states для монад без изменений (которые не попали в stateChanges)
-  // Это нужно для монад, которые остались в первом состоянии суперпозиции
-  monadIds.forEach((monadId) => {
-    if (!_states.has(monadId)) {
-      const stateMap = _stateMaps.get(monadId)
-      if (stateMap) {
-        // Используем первое состояние как начальное
-        _states.set(monadId, stateMap[0]!)
+  // Применяем фактические dirty-изменения от Boundary поверх "рождения"
+  stateChanges.forEach(([braneIndex, stateIndex]) => {
+    const monadId = _indexToUuid.get(braneIndex)
+    if (!monadId) return
+
+    const stateMap = _stateMaps.get(monadId)
+    if (!stateMap) {
+      throw new Error(`State map not found for monad ${monadId}`)
+    }
+
+    const current = stateMap[stateIndex]!
+    const old = _states.get(monadId)
+
+    if (current !== old) {
+      _states.set(monadId, current)
+      const intention = _intentions.get(monadId)?.[current]
+      changes.push({
+        monadId,
+        oldState: old,
+        newState: current,
+        intention: intention ?? null,
+        params: _monadParams.get(monadId)!,
+      })
+      if (!intention) {
+        monadsToUnlock.push(monadId)
       }
     }
   })
@@ -322,7 +339,8 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
   // БЕЗ повторного вызова _stepMatrix() (это произошло бы в updateMonads())
   if (monadsToUnlock.length > 0) {
     const matrixState = getMatrixState()
-    const unlockUpdates = monadsToUnlock.map((id) => {
+    const uniqueMonadsToUnlock = Array.from(new Set(monadsToUnlock))
+    const unlockUpdates = uniqueMonadsToUnlock.map((id) => {
       const index = _uuidToIndex.get(id)
       if (index === undefined) {
         throw new Error(`Monad ${id} not found in boundary`)
@@ -412,6 +430,8 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<BraneStateCh
 
   // Обрабатываем изменения состояний
   const changes: BraneStateChange[] = []
+  const monadsToUnlock: MonadId[] = []
+
   stateChanges.forEach(([braneIndex, stateIndex]) => {
     const monadId = _indexToUuid.get(braneIndex)
     if (!monadId) return
@@ -432,8 +452,27 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<BraneStateCh
         intention: intention ?? null,
         params: _monadParams.get(monadId)!,
       })
+      // Авто-снятие блокировки если нет намерения (TAKT 2)
+      if (!intention) {
+        monadsToUnlock.push(monadId)
+      }
     }
   })
+
+  // Снимаем блокировку с бран без намерения напрямую, без дополнительного шага эволюции
+  if (monadsToUnlock.length > 0) {
+    const matrixState = getMatrixState()
+    const uniqueMonadsToUnlock = Array.from(new Set(monadsToUnlock))
+    const unlockUpdates = uniqueMonadsToUnlock.map((id) => {
+      const index = _uuidToIndex.get(id)
+      if (index === undefined) {
+        throw new Error(`Monad ${id} not found in boundary`)
+      }
+      const blockPtr = matrixState.braneBlockPtrs[index]!
+      return { offset: blockPtr + 2, value1: 0 }
+    })
+    _updateMatrixHeap(unlockUpdates)
+  }
   // Пакетная отправка изменений
   if (changes.length > 0 && _onStateChange.current) {
     _onStateChange.current(changes)

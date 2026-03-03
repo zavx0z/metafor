@@ -1,133 +1,132 @@
-# 🌀 Boundary-Блокировка + TAKT-Синхронизация
+# 🌀 Boundary Lock Lifecycle в MetaFor
 
-Этот документ описывает архитектуру цикла эволюции суперпозиций с автоматической блокировкой на уровне WGSL и пакетной обработкой (TAKT).
+Этот документ фиксирует **актуальное поведение TAKT-цикла** для `MONAD ↔ BOUNDARY`, включая:
 
----
-
-## 📐 Архитектура Цикла
-
-```
-┌─────────────────────────────────────────────────────────────────┐
-│  0. BOUNDARY — Вычисление Переходов + Авто-Блокировка           │
-│     └─ GPU шейдер вычисляет next_state                          │
-│     └─ states[idx] = next_state                                 │
-│     └─ dirtyFlags[idx] = 1                                      │
-│     └─ heap[block_ptr + 2] = 1  ← LOCK автоматически            │
-└─────────────────────────────────────────────────────────────────┘
-                          ↓ изменение зафиксировано
-┌─────────────────────────────────────────────────────────────────┐
-│  1. MONAD — Сбор Изменений (TAKT)                               │
-│     └─ onStateChange() получает пакет изменений                 │
-│     └─ Читает: какие браны изменили состояние                   │
-│     └─ Проверяет: есть ли process для нового состояния          │
-└─────────────────────────────────────────────────────────────────┘
-                          ↓ проверка намерения
-┌─────────────────────────────────────────────────────────────────┐
-│  2. MONAD — Фильтрация + Трансляция (TAKT)                      │
-│     └─ Если process есть → оставляет LOCK → транслирует намерение│
-│     └─ Если process нет → снимает LOCK → пропускает             │
-│     └─ Всё пакетно для всех бран сразу                         │
-└─────────────────────────────────────────────────────────────────┘
-                          ↓ намерение подтверждено
-┌─────────────────────────────────────────────────────────────────┐
-│  3. WEAK FORCE — Исполнение Процессов (TAKT)                    │
-│     └─ process.action() для всех акторов с намерением           │
-│     └─ update() → изменение fields                              │
-│     └─ По завершении → MONAD снимает LOCK через releaseLock()   │
-└─────────────────────────────────────────────────────────────────┘
-                          ↓ процессы завершены
-┌─────────────────────────────────────────────────────────────────┐
-│  4. BOUNDARY — Снова Вычисление (TAKT)                          │
-│     └─ Разблокированные браны → вычисляют переходы              │
-│     └─ Заблокированные браны → пропускают вычисление            │
-│     └─ Цикл замыкается                                          │
-└─────────────────────────────────────────────────────────────────┘
-```
+- рождение монады (`oldState: undefined`)
+- runtime-переходы (`oldState !== undefined`)
+- автоматические и явные разблокировки (`lock`)
 
 ---
 
-## 🧭 Распределение Ответственности
+## 1) Фундамент
 
-| Уровень | Ответственность | Блокировка |
-|---------|----------------|------------|
-| **BOUNDARY** | Вычисление переходов + **авто-блокировка при изменении** | Ставит LOCK автоматически |
-| **MONAD** | Проверка намерения + **снятие LOCK если нет процесса** | Снимает LOCK условно |
-| **WEAK FORCE** | Исполнение процессов | LOCK держится пока процесс не завершится |
+FSM в MetaFor работает как пакетный ритм:
 
----
-
-## ⚡ TAKT-Синхронизация
-
-```
-TAKT 1:
-┌─────────────────────────────────────────────────────────────────┐
-│ BOUNDARY: все браны вычисляют → dirtyFlags + LOCK               │
-└─────────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ MONAD: пакетная проверка намерений → фильтр → трансляция       │
-└─────────────────────────────────────────────────────────────────┘
-                          ↓
-┌─────────────────────────────────────────────────────────────────┐
-│ WEAK: пакетное исполнение процессов → update()                  │
-└─────────────────────────────────────────────────────────────────┘
-                          ↓
-TAKT 2: (повтор)
-```
-
-**Ключевой принцип:** Все браны обрабатываются **одновременно в рамках одного TAKT**, не последовательно.
+1. `BOUNDARY` вычисляет переходы для всех бран параллельно.
+2. При изменении состояния `BOUNDARY` ставит `lock=1`.
+3. `MONAD` анализирует переход:
+   - если намерения нет → снимает `lock`
+   - если намерение есть → оставляет `lock`
+4. `WEAK FORCE` исполняет процесс и вызывает `releaseLock()`.
 
 ---
 
-## 📝 WGSL Реализация
+## 2) TAKT-поток (актуальная версия)
 
-Файл: `boundary/matrix/evolution.wgsl`
+## TAKT 0 — Рождение
 
-```wgsl
-@compute @workgroup_size(64)
-fn main(@builtin(global_invocation_id) id: vec3<u32>) {
-  let idx = id.x;
-  if (idx >= u.braneCount) {
-    return;
-  }
+`createMonad()` создаёт монаду без установленного состояния.
 
-  let block_ptr = brane_descriptors[idx * 2u];
+На первом `updateBoundary()` формируется event рождения:
 
-  // Проверка флага блокировки (3-е слово заголовка)
-  let lock = heap_safe(block_ptr + 2u);
-  if (lock == 1u) {
-    return;  // Пропустить переходы, состояние не менять
-  }
+- `oldState: undefined`
+- `newState: <первое состояние superposition>`
 
-  let current_state = states[idx];
-  var next_state = current_state;
+Это **не ошибка**, а нормальный lifecycle event.
 
-  // ... вычисление переходов FSM ...
+---
 
-  // In-place обновление состояния
-  states[idx] = next_state;
+## TAKT 1 — Вычисление в Boundary
 
-  // Атомарная установка флага изменения + авто-блокировка
-  if (next_state != current_state) {
-    atomicStore(&dirty_flags[idx], 1u);
-    // Авто-блокировка: Закон фиксирует изменение состояния
-    heap[block_ptr + 2u] = 1u;
-  }
-}
+GPU шейдер:
+
+- читает текущее состояние и bytecode-правила,
+- вычисляет `next_state`,
+- обновляет `states[idx] = next_state`,
+- если `next_state != current_state`, выставляет:
+  - `dirty_flag = 1`
+  - `lock = 1`
+
+`lock` находится в заголовке блока браны (`heap[block_ptr + 2]`).
+
+---
+
+## TAKT 2 — Интерпретация в Monad
+
+`MONAD` получает пакет изменений и разбирает их как события:
+
+- **birth-event**: `oldState === undefined`
+- **runtime-event**: `oldState !== undefined`
+
+Далее для `newState` проверяется `intention`:
+
+- `intention == null/undefined` → `MONAD` снимает `lock`
+- `intention != null` → `lock` остаётся до завершения процесса
+
+---
+
+## TAKT 3 — Исполнение в Weak Force
+
+Для событий с намерением:
+
+- исполняется `process.action()`,
+- обновляются поля/эффекты,
+- после завершения вызывается `releaseLock(monadIds?)`.
+
+---
+
+## TAKT 4 — Следующая эволюция
+
+Следующий GPU-такт:
+
+- разблокированные браны снова участвуют в переходах,
+- заблокированные пропускаются.
+
+---
+
+## 3) Таблица lock-ответственности
+
+| Уровень | Ставит lock | Снимает lock |
+|---|---|---|
+| `BOUNDARY` | Автоматически при фактическом переходе | Никогда |
+| `MONAD` | Никогда | Автоматически, если у `newState` нет intention |
+| `WEAK FORCE` | Никогда | После исполнения процесса через `releaseLock()` |
+
+---
+
+## 4) Семантика событий `onStateChange`
+
+Подписчик получает **массив изменений за такт**.
+
+Рекомендуемое разделение:
+
+- Birth events: `oldState === undefined`
+- Runtime transitions: `oldState !== undefined`
+
+Если бизнес-логика должна реагировать только на рабочие переходы:
+
+```ts
+const runtime = changes.filter(c => c.oldState !== undefined)
 ```
 
 ---
 
-## 🔷 MONAD API
+## 5) Важные практические правила
 
-### `createMonad(config)`
+1. Не трактуйте `oldState: undefined` как сбой — это событие рождения.
+2. Не смешивайте birth/runtime в доменных обработчиках без явной фильтрации.
+3. Для состояний с intention держите lock до `releaseLock()`.
+4. Для состояний без intention lock снимается автоматически на стороне `MONAD`.
+5. Обновления состояния обрабатываются пакетно, в ритме TAKT.
 
-**Важно:** Монада рождается в неопределённом состоянии.
+---
 
-```typescript
+## 6) Короткий пример жизненного цикла
+
+```ts
 const id = createMonad({
   fields: { hp: { type: "number" } },
-  params: { hp: 100 },
+  params: { hp: 30 },
   superposition: {
     IDLE: { PATROL: { hp: { gt: 50 } } },
     PATROL: null,
@@ -136,196 +135,30 @@ const id = createMonad({
     PATROL: "patrolProcess",
   },
 })
-```
 
-### `updateBoundary(): Promise<BraneStateChange[]>`
-
-Автоматически снимает блокировку с бран, у которых **нет намерения** после перехода.
-
-При первой инициализации возвращает изменения с `oldState: undefined`:
-
-```typescript
-const changes = await updateBoundary()
-// changes = [{
-//   monadId: "...",
-//   oldState: undefined,  // ← первая инициализация
-//   newState: "IDLE",
-//   intention: null
-// }]
-```
-
-### `releaseLock(monadIds?)`
-
-Снимает блокировку с указанных монад после завершения процессов.
-
-```typescript
-// После завершения WEAK FORCE процессов
-await releaseLock(['uuid1', 'uuid2'])
-
-// Разблокировать все
-await releaseLock()
-```
-
-### `onStateChange(callback)`
-
-Получает пакет изменений со всеми намерениями.
-
-```typescript
 onStateChange((changes) => {
-  for (const { monadId, oldState, newState, intention, params } of changes) {
-    if (oldState === undefined) {
-      // Первая инициализация монады
-      console.log(`[INIT] ${monadId} → ${newState}`)
-    } else if (intention) {
-      // Есть намерение → LOCK остаётся → ждём releaseLock()
-      console.log(`${monadId}: ${oldState} → ${newState}, intention: ${intention}`)
+  for (const c of changes) {
+    if (c.oldState === undefined) {
+      console.log("[BIRTH]", c.monadId, "->", c.newState)
     } else {
-      // Нет намерения → LOCK снят автоматически
-      console.log(`${monadId}: ${oldState} → ${newState} (no intention)`)
+      console.log("[RUN]", c.monadId, c.oldState, "->", c.newState, c.intention)
     }
   }
 })
+
+await updateBoundary() // birth-event
+await updateMonads([{ id, fields: { hp: 80 } }]) // runtime transition IDLE -> PATROL (lock=1)
+await releaseLock([id]) // после исполнения процесса
 ```
 
 ---
 
-## 🕯️ Философское Обоснование
+## 7) Итог
 
-```
-BOUNDARY — это Закон.
-Закон автоматически блокирует изменение после перехода.
-Не спрашивает разрешения — просто фиксирует факт.
+`lock` в MetaFor — это не «запрет», а механизм ритма:
 
-MONAD — это Замысел.
-Замысел проверяет: "Есть ли намерение действовать в этом состоянии?"
-Если нет → снимает блокировку → позволяет течь дальше.
-Если есть → держит блокировку → исполняет процесс.
+- `BOUNDARY` фиксирует факт изменения,
+- `MONAD` проверяет наличие воли к действию,
+- `WEAK FORCE` завершает цикл действием и освобождением.
 
-WEAK FORCE — это Действие.
-Действие происходит только если Замысел подтвердил намерение.
-После действия → блокировка снимается → Закон снова вычисляет.
-
-TAKT — это Ритм Бытия.
-Все изменения синхронизированы.
-Нет хаоса последовательных обновлений.
-Всё происходит в такт.
-```
-
----
-
-## 🧪 Примеры Использования
-
-### Пример 1: Первая инициализация (oldState === undefined)
-
-```typescript
-const id = createMonad({
-  fields: { hp: { type: "number" } },
-  params: { hp: 100 },
-  superposition: {
-    IDLE: { PATROL: { hp: { gt: 50 } } },
-    PATROL: null,
-  },
-})
-
-onStateChange((changes) => {
-  // changes[0].oldState === undefined
-  // changes[0].newState === "IDLE"
-  console.log(`[INIT] ${changes[0].monadId} → ${changes[0].newState}`)
-})
-
-await updateBoundary()
-// oldState: undefined → newState: "IDLE"
-```
-
-### Пример 2: Состояние без намерения (автоматическая разблокировка)
-
-```typescript
-const id = createMonad({
-  fields: { hp: { type: "number" } },
-  params: { hp: 100 },
-  superposition: {
-    IDLE: { DEAD: { hp: { lte: 0 } } },
-    DEAD: null, // Терминальное состояние без намерения
-  },
-})
-
-onStateChange((changes) => {
-  // changes[0].intention === null
-  // Блокировка снята автоматически
-})
-
-await updateBoundary()
-await updateMonads([{ id, fields: { hp: 0 } }])
-// DEAD → LOCK=1 → MONAD видит null intention → LOCK=0
-```
-
-### Пример 3: Состояние с намерением (ручная разблокировка)
-
-```typescript
-const id = createMonad({
-  fields: { hp: { type: "number" } },
-  params: { hp: 100 },
-  superposition: {
-    IDLE: { PATROL: { hp: { gt: 50 } } },
-    PATROL: null,
-  },
-  intentions: {
-    PATROL: "patrolProcess",
-  },
-})
-
-onStateChange((changes) => {
-  // changes[0].intention === "patrolProcess"
-  // Блокировка остаётся до releaseLock()
-})
-
-await updateBoundary()
-await updateMonads([{ id, fields: { hp: 80 } }])
-// PATROL → LOCK=1 → MONAD видит намерение → LOCK остаётся
-
-// WEAK FORCE исполняет patrolProcess...
-await releaseLock([id]) // ← явная разблокировка после процесса
-```
-
-### Пример 4: TAKT-пакетная обработка
-
-```typescript
-const id1 = createMonad({ /* ... с намерением ... */ })
-const id2 = createMonad({ /* ... без намерения ... */ })
-const id3 = createMonad({ /* ... с намерением ... */ })
-
-await updateBoundary()
-
-// TAKT 1: Пакетное обновление всех монад
-await updateMonads([
-  { id: id1, fields: { hp: 80 } },      // → LOCK=1 (намерение)
-  { id: id2, fields: { mana: 0 } },     // → LOCK=1→0 (нет намерения)
-  { id: id3, fields: { energy: 40 } },  // → LOCK=1 (намерение)
-])
-
-// WEAK FORCE: исполняет процессы для id1 и id3
-await releaseLock([id1, id3])
-
-// TAKT 2: Готов к следующим переходам
-```
-
----
-
-## 📋 Чек-лист Интеграции
-
-При интеграции нового цикла:
-
-* [ ] WGSL ставит `LOCK=1` при изменении состояния
-* [ ] `updateBoundary()` автоматически снимает LOCK для состояний без намерения
-* [ ] `onStateChange()` получает намерения для всех изменений
-* [ ] WEAK FORCE вызывает `releaseLock()` после завершения процессов
-* [ ] Тесты покрывают оба сценария (с намерением и без)
-* [ ] Первая инициализация обрабатывает `oldState === undefined`
-
----
-
-## 📚 Связанные Документы
-
-* [`QWEN.md`](../../QWEN.md) — Стандарты документации
-* [`boundary/monad/monad.ts`](./monad/monad.ts) — Реализация MONAD
-* [`boundary/matrix/evolution.wgsl`](./matrix/evolution.wgsl) — WGSL шейдер
+Это обеспечивает детерминированную эволюцию без потери семантики и без гонок между этапами.

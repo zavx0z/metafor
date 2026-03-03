@@ -25,6 +25,9 @@ describe("Monad — Граничные случаи", () => {
   const createStateChangeHandler = (resultStates: string[]) => {
     return (changes: BraneStateChange[]) => {
       for (const change of changes) {
+        if (change.oldState === undefined) {
+          continue
+        }
         resultStates.push(change.newState)
       }
     }

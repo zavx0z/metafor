@@ -80,9 +80,10 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     // MONAD должен автоматически снять LOCK так как нет намерения
     await updateMonads([{ id: id, fields: { hp: 0 } }])
 
-    expect(changes).toHaveLength(1)
-    expect(changes[0]!.newState).toBe("DEAD")
-    expect(changes[0]!.intention).toBeNull()
+    const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges).toHaveLength(1)
+    expect(runtimeChanges[0]!.newState).toBe("DEAD")
+    expect(runtimeChanges[0]!.intention).toBeNull()
     // Блокировка должна быть снята автоматически
   })
 
@@ -112,9 +113,10 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     // MONAD НЕ снимает LOCK так как есть намерение
     await updateMonads([{ id: id, fields: { hp: 80 } }])
 
-    expect(changes).toHaveLength(1)
-    expect(changes[0]!.newState).toBe("PATROL")
-    expect(changes[0]!.intention).toBe("patrolProcess")
+    const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges).toHaveLength(1)
+    expect(runtimeChanges[0]!.newState).toBe("PATROL")
+    expect(runtimeChanges[0]!.intention).toBe("patrolProcess")
     // Блокировка должна держаться до releaseLock()
   })
 
@@ -143,8 +145,9 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
 
     // TAKT 1: hp=80 > 50 → PATROL (с намерением, LOCK=1)
     await updateMonads([{ id: id, fields: { hp: 80 } }])
-    expect(changes[0]!.newState).toBe("PATROL")
-    expect(changes[0]!.intention).toBe("patrolProcess")
+    let runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges[0]!.newState).toBe("PATROL")
+    expect(runtimeChanges[0]!.intention).toBe("patrolProcess")
 
     // WEAK FORCE: исполняет patrolProcess...
     // После завершения: releaseLock()
@@ -152,8 +155,9 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
 
     // TAKT 2: hp=0 <= 0 → DEAD (с намерением, LOCK=1)
     await updateMonads([{ id: id, fields: { hp: 0 } }])
-    expect(changes[1]!.newState).toBe("DEAD")
-    expect(changes[1]!.intention).toBe("deathProcess")
+    runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges[1]!.newState).toBe("DEAD")
+    expect(runtimeChanges[1]!.intention).toBe("deathProcess")
 
     // WEAK FORCE: исполняет deathProcess...
     // После завершения: releaseLock()
@@ -215,14 +219,19 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     const change2 = changes.find((c) => c.monadId === id2)
     const change3 = changes.find((c) => c.monadId === id3)
 
-    expect(change1?.newState).toBe("PATROL")
-    expect(change1?.intention).toBe("patrolProcess")
+    const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    const runtimeChange1 = runtimeChanges.find((c) => c.monadId === id1)
+    const runtimeChange2 = runtimeChanges.find((c) => c.monadId === id2)
+    const runtimeChange3 = runtimeChanges.find((c) => c.monadId === id3)
 
-    expect(change2?.newState).toBe("DEAD")
-    expect(change2?.intention).toBeNull()
+    expect(runtimeChange1?.newState).toBe("PATROL")
+    expect(runtimeChange1?.intention).toBe("patrolProcess")
 
-    expect(change3?.newState).toBe("PATROL")
-    expect(change3?.intention).toBe("patrolProcess")
+    expect(runtimeChange2?.newState).toBe("DEAD")
+    expect(runtimeChange2?.intention).toBeNull()
+
+    expect(runtimeChange3?.newState).toBe("PATROL")
+    expect(runtimeChange3?.intention).toBe("patrolProcess")
 
     // releaseLock() для монад с намерением
     await releaseLock([id1, id3])
@@ -267,7 +276,8 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
       { id: id2, fields: { mana: 80 } },
     ])
 
-    expect(changes).toHaveLength(2)
+    const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges).toHaveLength(2)
 
     // releaseLock() без аргументов → разблокировать все
     await releaseLock()
@@ -300,20 +310,23 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
 
     // TAKT 1: hp=100>80 → PATROL (LOCK=1)
     await updateMonads([{ id: id, fields: { hp: 100 } }])
-    expect(changes[0]!.newState).toBe("PATROL")
-    expect(changes[0]!.intention).toBe("patrolProcess")
+    let runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges[0]!.newState).toBe("PATROL")
+    expect(runtimeChanges[0]!.intention).toBe("patrolProcess")
     await releaseLock([id])
 
     // TAKT 2: mana=10<20 → COMBAT (LOCK=1)
     await updateMonads([{ id: id, fields: { mana: 10 } }])
-    expect(changes[1]!.newState).toBe("COMBAT")
-    expect(changes[1]!.intention).toBe("combatProcess")
+    runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges[1]!.newState).toBe("COMBAT")
+    expect(runtimeChanges[1]!.intention).toBe("combatProcess")
     await releaseLock([id])
 
     // TAKT 3: hp=0<=0 → DEAD (LOCK=1)
     await updateMonads([{ id: id, fields: { hp: 0 } }])
-    expect(changes[2]!.newState).toBe("DEAD")
-    expect(changes[2]!.intention).toBe("deathProcess")
+    runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges[2]!.newState).toBe("DEAD")
+    expect(runtimeChanges[2]!.intention).toBe("deathProcess")
     await releaseLock([id])
   })
 })

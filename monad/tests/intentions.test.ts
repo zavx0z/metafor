@@ -88,9 +88,10 @@ describe("Monad — Намерения (intentions)", () => {
     await updateBoundary()
     await updateMonads([{ id: id, fields: { hp: 80 } }])
 
-    expect(changes).toHaveLength(1)
-    expect(changes[0]!.newState).toBe("PATROL")
-    expect(changes[0]!.intention).toBe("patrolProcess")
+    const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges).toHaveLength(1)
+    expect(runtimeChanges[0]!.newState).toBe("PATROL")
+    expect(runtimeChanges[0]!.intention).toBe("patrolProcess")
   })
 
   it("должен вернуть намерение с правильными параметрами", async () => {
@@ -115,9 +116,10 @@ describe("Monad — Намерения (intentions)", () => {
     await updateBoundary()
     await updateMonads([{ id: id, fields: { hp: 80, mana: 30 } }])
 
-    expect(changes).toHaveLength(1)
-    expect(changes[0]!.intention).toBe("combatProcess")
-    expect(changes[0]!.params).toEqual({ hp: 80, mana: 30 })
+    const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges).toHaveLength(1)
+    expect(runtimeChanges[0]!.intention).toBe("combatProcess")
+    expect(runtimeChanges[0]!.params).toEqual({ hp: 80, mana: 30 })
   })
 
   it("должен вернуть разные намерения для разных состояний", async () => {
@@ -151,21 +153,24 @@ describe("Monad — Намерения (intentions)", () => {
 
     // hp=100 > 50 → PATROL (LOCK=1)
     await updateMonads([{ id: id, fields: { hp: 100 } }])
-    expect(changes[0]!.newState).toBe("PATROL")
-    expect(changes[0]!.intention).toBe("patrolProcess")
+    let runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges[0]!.newState).toBe("PATROL")
+    expect(runtimeChanges[0]!.intention).toBe("patrolProcess")
     // WEAK FORCE исполняет процесс → releaseLock()
     await releaseLock([id])
 
     // hp=15 <= 20 → IDLE (LOCK=1)
     await updateMonads([{ id: id, fields: { hp: 15 } }])
-    expect(changes[1]!.newState).toBe("IDLE")
-    expect(changes[1]!.intention).toBe("idleProcess")
+    runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges[1]!.newState).toBe("IDLE")
+    expect(runtimeChanges[1]!.intention).toBe("idleProcess")
     await releaseLock([id])
 
     // hp=0 <= 0 → DEAD (LOCK=1)
     await updateMonads([{ id: id, fields: { hp: 0 } }])
-    expect(changes[2]!.newState).toBe("DEAD")
-    expect(changes[2]!.intention).toBe("deathProcess")
+    runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges[2]!.newState).toBe("DEAD")
+    expect(runtimeChanges[2]!.intention).toBe("deathProcess")
     await releaseLock([id])
   })
 
@@ -192,12 +197,14 @@ describe("Monad — Намерения (intentions)", () => {
 
     // Переход в PATROL
     await updateMonads([{ id: id, fields: { hp: 80 } }])
-    expect(changes).toHaveLength(1)
-    expect(changes[0]!.intention).toBe("patrolProcess")
+    let runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges).toHaveLength(1)
+    expect(runtimeChanges[0]!.intention).toBe("patrolProcess")
 
     // Остаётся в PATROL (намерение не должно вернуться снова)
     await updateMonads([{ id: id, fields: { hp: 90 } }])
-    expect(changes).toHaveLength(1)
+    runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges).toHaveLength(1)
   })
 
   it("должен вернуть намерения при цепочке переходов", async () => {
@@ -227,21 +234,24 @@ describe("Monad — Намерения (intentions)", () => {
 
     // hp=100>80 → PATROL (LOCK=1)
     await updateMonads([{ id: id, fields: { hp: 100 } }])
-    expect(changes[0]!.newState).toBe("PATROL")
-    expect(changes[0]!.intention).toBe("patrolProcess")
+    let runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges[0]!.newState).toBe("PATROL")
+    expect(runtimeChanges[0]!.intention).toBe("patrolProcess")
     // WEAK FORCE исполняет процесс → releaseLock()
     await releaseLock([id])
 
     // mana=10<20 → COMBAT (LOCK=1)
     await updateMonads([{ id: id, fields: { mana: 10 } }])
-    expect(changes[1]!.newState).toBe("COMBAT")
-    expect(changes[1]!.intention).toBe("combatProcess")
+    runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges[1]!.newState).toBe("COMBAT")
+    expect(runtimeChanges[1]!.intention).toBe("combatProcess")
     await releaseLock([id])
 
     // hp=0<=0 → DEAD (LOCK=1)
     await updateMonads([{ id: id, fields: { hp: 0 } }])
-    expect(changes[2]!.newState).toBe("DEAD")
-    expect(changes[2]!.intention).toBe("deathProcess")
+    runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges[2]!.newState).toBe("DEAD")
+    expect(runtimeChanges[2]!.intention).toBe("deathProcess")
     await releaseLock([id])
   })
 
@@ -266,9 +276,10 @@ describe("Monad — Намерения (intentions)", () => {
 
     // hp=0 <= 0 → DEAD (без намерения)
     await updateMonads([{ id: id, fields: { hp: 0 } }])
-    expect(changes).toHaveLength(1)
-    expect(changes[0]!.newState).toBe("DEAD")
-    expect(changes[0]!.intention).toBeNull()
+    const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges).toHaveLength(1)
+    expect(runtimeChanges[0]!.newState).toBe("DEAD")
+    expect(runtimeChanges[0]!.intention).toBeNull()
   })
 
   it("должен вернуть пакетные изменения для нескольких монад", async () => {
@@ -310,9 +321,10 @@ describe("Monad — Намерения (intentions)", () => {
       { id: id2, fields: { mana: 80 } },
     ])
 
-    expect(changes).toHaveLength(2)
-    const change1 = changes.find((c) => c.monadId === id1)
-    const change2 = changes.find((c) => c.monadId === id2)
+    const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
+    expect(runtimeChanges).toHaveLength(2)
+    const change1 = runtimeChanges.find((c) => c.monadId === id1)
+    const change2 = runtimeChanges.find((c) => c.monadId === id2)
     expect(change1?.newState).toBe("PATROL")
     expect(change1?.intention).toBe("patrolProcess")
     expect(change2?.newState).toBe("COMBAT")

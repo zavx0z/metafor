@@ -25,6 +25,8 @@ describe("Monad — Числовые переходы", () => {
   const createStateChangeHandler = (resultStates: string[]) => {
     return (changes: BraneStateChange[]) => {
       for (const change of changes) {
+        // Игнорируем событие рождения монады: undefined -> initial state
+        if (change.oldState === undefined) continue
         resultStates.push(change.newState)
       }
     }
