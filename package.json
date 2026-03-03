@@ -11,7 +11,8 @@
     "fixture",
     "bulk/*",
     "space",
-    "github/**/*"
+    "github/**/*",
+    "monad"
   ],
   "devDependencies": {
     "@types/node": "^25.3.0",

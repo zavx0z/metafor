@@ -68,22 +68,6 @@
         "typescript": "^5",
       },
     },
-    "boundary/monad": {
-      "name": "@boundary/monad",
-      "dependencies": {
-        "@boundary/atlas": "workspace:*",
-        "@boundary/fields": "workspace:*",
-        "@boundary/matrix": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "@webgpu/types": "^0.1.32",
-        "bun-webgpu": "^0.1.5",
-      },
-      "peerDependencies": {
-        "typescript": "^5",
-      },
-    },
     "dsl/build": {
       "name": "@metafor/build",
       "bin": {
@@ -136,9 +120,6 @@
       "devDependencies": {
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
-      },
-      "peerDependencies": {
-        "typescript": "^5",
       },
     },
     "force/weak": {
@@ -307,6 +288,22 @@
         "@metafor/meta": "workspace:*",
       },
     },
+    "monad": {
+      "name": "@boundary/monad",
+      "dependencies": {
+        "@boundary/atlas": "workspace:*",
+        "@boundary/fields": "workspace:*",
+        "@boundary/matrix": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+        "@webgpu/types": "^0.1.32",
+        "bun-webgpu": "^0.1.5",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
     "space": {
       "name": "space",
       "devDependencies": {
@@ -329,7 +326,7 @@
 
     "@boundary/matrix": ["@boundary/matrix@workspace:boundary/matrix"],
 
-    "@boundary/monad": ["@boundary/monad@workspace:boundary/monad"],
+    "@boundary/monad": ["@boundary/monad@workspace:monad"],
 
     "@force/em": ["@force/em@workspace:force/em"],
 
@@ -647,6 +644,16 @@
 
     "zod": ["zod@3.25.76", "https://registry.yarnpkg.com/zod/-/zod-3.25.76.tgz", {}, "sha512-gzUt/qt81nXsFGKIFcC3YnfEAx5NkunCfnDlvuBSSFS02bcXu4Lmea0AFIUwbLWxWPx3d9p8S5QoaujKcNQxcQ=="],
 
+    "@boundary/atlas/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
+    "@boundary/dump/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
+    "@boundary/fields/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
+    "@boundary/matrix/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
+    "@boundary/monad/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
+
     "@types/puppeteer/@types/node": ["@types/node@24.0.12", "https://registry.yarnpkg.com/@types/node/-/node-24.0.12.tgz", { "dependencies": { "undici-types": "~7.8.0" } }, "sha512-LtOrbvDf5ndC9Xi+4QZjVL0woFymF/xSTKZKPgrrl7H7XoeDvnD+E2IclKVDyaK9UM756W/3BXqSU+JEHopA9g=="],
 
     "@types/yauzl/@types/node": ["@types/node@24.0.12", "https://registry.yarnpkg.com/@types/node/-/node-24.0.12.tgz", { "dependencies": { "undici-types": "~7.8.0" } }, "sha512-LtOrbvDf5ndC9Xi+4QZjVL0woFymF/xSTKZKPgrrl7H7XoeDvnD+E2IclKVDyaK9UM756W/3BXqSU+JEHopA9g=="],
@@ -654,6 +661,16 @@
     "bun-types/@types/node": ["@types/node@24.0.12", "https://registry.yarnpkg.com/@types/node/-/node-24.0.12.tgz", { "dependencies": { "undici-types": "~7.8.0" } }, "sha512-LtOrbvDf5ndC9Xi+4QZjVL0woFymF/xSTKZKPgrrl7H7XoeDvnD+E2IclKVDyaK9UM756W/3BXqSU+JEHopA9g=="],
 
     "dts-bundle-generator/typescript": ["typescript@5.8.3", "https://registry.yarnpkg.com/typescript/-/typescript-5.8.3.tgz", { "bin": { "tsc": "bin/tsc", "tsserver": "bin/tsserver" } }, "sha512-p1diW6TqL9L07nNxvRMM7hMMw4c5XOo/1ibL4aAIGmSAt9slTE1Xgw5KWuof2uTOvCg9BY7ZRi+GaF+7sfgPeQ=="],
+
+    "@boundary/atlas/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
+
+    "@boundary/dump/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
+
+    "@boundary/fields/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
+
+    "@boundary/matrix/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
+
+    "@boundary/monad/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
 
     "@types/puppeteer/@types/node/undici-types": ["undici-types@7.8.0", "https://registry.yarnpkg.com/undici-types/-/undici-types-7.8.0.tgz", {}, "sha512-9UJ2xGDvQ43tYyVMpuHlsgApydB8ZKfVYTsLDhXkFL/6gfkp+U8xTGdh8pMJv1SpZna0zxG1DwsKZsreLbXBxw=="],
 

@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 import type { Intentions, Superposition } from "./types"
-import type { ParsedProcessJson } from "../../dsl/build/monadJson"
+import type { ParsedProcessJson } from "../dsl/build/monadJson"
 
 /**
  * Индекс браны в Boundary (позиция в массиве).

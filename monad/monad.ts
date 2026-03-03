@@ -25,7 +25,7 @@ import type {
 } from "./monad.t"
 import type { FieldDefinition, FieldsDefinition } from "./field"
 import type { MonadConfig, Intention } from "./types"
-import type { ParsedProcessJson } from "../../dsl/build/monadJson"
+import type { ParsedProcessJson } from "../dsl/build/monadJson"
 import { convertField } from "./field"
 import { convertToNumeric } from "./superposition"
 
