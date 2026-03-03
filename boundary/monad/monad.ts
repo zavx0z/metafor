@@ -224,18 +224,10 @@ export function getProcessSchema(processKey: ProcessKey): ParsedProcessJson | un
 }
 
 /**
- * Создаёт/пересоздаёт Boundary со всеми бранами через @boundary/fields.
- */
-export async function updateBoundary(): Promise<void>
-/**
- * Создаёт/пересоздаёт Boundary с блокировкой переходов для указанных монад.
+ * Создаёт/пересоздаёт Boundary со всеми бранами.
  *
- * @param lockedMonadIds - IDs монад для временной блокировки переходов.
- *                         Блокировка действует только на этот вызов updateBoundary().
- *                         Автоматически сбрасывается после выполнения.
  */
-export async function updateBoundary(lockedMonadIds?: MonadId[]): Promise<void>
-export async function updateBoundary(lockedMonadIds?: MonadId[]): Promise<void> {
+export async function updateBoundary(): Promise<void> {
   const monadIds = Array.from(_monadIds)
   if (monadIds.length === 0) {
     return
@@ -280,7 +272,7 @@ export async function updateBoundary(lockedMonadIds?: MonadId[]): Promise<void> 
   // Обрабатываем изменения состояний
   const changes: BraneStateChange[] = []
   const monadsToUnlock: MonadId[] = []
-  
+
   stateChanges.forEach(([braneIndex, stateIndex]) => {
     const monadId = _indexToUuid.get(braneIndex)
     if (!monadId) return
@@ -307,7 +299,7 @@ export async function updateBoundary(lockedMonadIds?: MonadId[]): Promise<void> 
       }
     }
   })
-  
+
   // Снимаем блокировку с бран без намерения
   if (monadsToUnlock.length > 0) {
     const unlockUpdates = monadsToUnlock.map((id) => ({
@@ -317,7 +309,7 @@ export async function updateBoundary(lockedMonadIds?: MonadId[]): Promise<void> 
     }))
     await updateMonads(unlockUpdates)
   }
-  
+
   // Пакетная отправка изменений
   if (changes.length > 0 && _onStateChange.current) {
     _onStateChange.current(changes)
@@ -354,9 +346,9 @@ export interface MonadUpdate {
  * await updateMonads([{ id: 'uuid', fields: {}, lock: false }])
  * ```
  */
-export async function updateMonads(updates: MonadUpdate[]): Promise<void> {
+export async function updateMonads(updates: MonadUpdate[]): Promise<BraneStateChange[]> {
   if (updates.length === 0) {
-    return
+    return []
   }
 
   const allUpdates: Array<[number, Array<[number, unknown]>, boolean?]> = []
@@ -421,6 +413,7 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<void> {
   if (changes.length > 0 && _onStateChange.current) {
     _onStateChange.current(changes)
   }
+  return changes
 }
 
 /**
@@ -459,16 +452,16 @@ export function onStateChange(callback: (changes: BraneStateChange[]) => void): 
  */
 export async function releaseLock(monadIds?: MonadId[]): Promise<void> {
   const idsToUnlock = monadIds ?? Array.from(_monadIds)
-  
+
   if (idsToUnlock.length === 0) {
     return
   }
-  
+
   const unlockUpdates = idsToUnlock.map((id) => ({
     id,
     fields: {},
     lock: false,
   }))
-  
+
   await updateMonads(unlockUpdates)
 }

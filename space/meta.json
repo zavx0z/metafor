@@ -2,8 +2,15 @@
   "name": "space",
   "fields": {},
   "superposition": {
-    "подписка на изменения состояний": {}
+    "создание слабой силы": {}
   },
-  "processes": {},
+  "processes": {
+    "создание слабой силы": {
+      "type": "action",
+      "action": {
+        "src": "./proc/create"
+      }
+    }
+  },
   "mass": {}
 }

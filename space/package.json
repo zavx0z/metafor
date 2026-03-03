@@ -6,8 +6,8 @@
     "@metafor/meta": "workspace:*"
   },
   "scripts": {
-    "build": "metafor-build src/meta.ts --out meta.json",
-    "build:watch": "metafor-build src/meta.ts --out meta.json --watch",
-    "dev": "bun server"
+    "build": "metafor-build meta.ts --out meta.json",
+    "build:watch": "metafor-build meta.ts --out meta.json --watch",
+    "app": "bun server"
   }
 }
