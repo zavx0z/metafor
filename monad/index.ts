@@ -15,13 +15,12 @@ export {
   releaseLock,
 } from "./monad"
 
-export type { MonadConfig, Intention, Intentions, Brane, Update } from "./types"
+export type { MonadConfig, Intention, Intentions, Update } from "./types"
 export type {
   MonadId,
   FieldsStore,
   IntentionsStore,
   ProcessesStore,
-  ProcessKey,
   ParamsStore,
   SuperpositionsStore,
   StatesStore,

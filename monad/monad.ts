@@ -21,7 +21,6 @@ import type {
   SuperpositionsStore,
   UuidToIndexStore,
   ProcessesStore,
-  ProcessKey,
 } from "./monad.t"
 import type { FieldDefinition, FieldsDefinition } from "./field"
 import type { MonadConfig, Intention } from "./types"
@@ -207,7 +206,7 @@ export function deleteMonad(id: MonadId): void {
  * })
  * ```
  */
-export function registerProcesses(processes: Record<ProcessKey, ParsedProcessJson>): void {
+export function registerProcesses(processes: Record<Intention, ParsedProcessJson>): void {
   for (const [key, schema] of Object.entries(processes)) {
     _processes.set(key, schema as ParsedProcessJson)
   }
@@ -219,7 +218,7 @@ export function registerProcesses(processes: Record<ProcessKey, ParsedProcessJso
  * @param processKey - Ключ процесса (ID намерения).
  * @returns Схема процесса или undefined если не найдена.
  */
-export function getProcessSchema(processKey: ProcessKey): ParsedProcessJson | undefined {
+export function getProcessSchema(processKey: Intention): ParsedProcessJson | undefined {
   return _processes.get(processKey)
 }
 

@@ -3,9 +3,10 @@
  *
  * @packageDocumentation
  */
-import type { Intentions, Superposition, FieldsDefinition } from "./types"
+import type { Intentions, Superposition, Intention } from "./types"
 import type { ParsedProcessJson } from "../dsl/build/monadJson"
 import type { Collapse } from "@boundary/fields"
+import type { FieldsDefinition } from "./field"
 
 /**
  * Индекс браны в Boundary (позиция в массиве).
@@ -30,12 +31,6 @@ export interface NumericSuperposition {
 export type MonadId = string
 
 /**
- * Ключ процесса (ID намерения).
- * Используется для lookup схемы процесса в ProcessesStore.
- */
-export type ProcessKey = string
-
-/**
  * Хранилище конфигурации полей для каждой монады.
  *
  * - **Ключ:** {@link MonadId}
@@ -54,14 +49,14 @@ export type IntentionsStore = Map<MonadId, Intentions>
 /**
  * Хранилище схем процессов из DSL.
  *
- * - **Ключ:** {@link ProcessKey} — уникальный ключ процесса
+ * - **Ключ:** {@link Intention} — ключ процесса (ID намерения)
  * - **Значение:** {@link ParsedProcessJson} — схема процесса (src, read, write, label, desc)
  *
  * @remarks
  * Схемы процессов загружаются из DSL-декларации и используются координатором
  * для выполнения процессов при изменении состояний монад.
  */
-export type ProcessesStore = Map<ProcessKey, ParsedProcessJson>
+export type ProcessesStore = Map<Intention, ParsedProcessJson>
 
 /**
  * Хранилище runtime-параметров каждой монады.

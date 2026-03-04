@@ -165,21 +165,18 @@ export interface MonadConfig {
 
 | Уровень | Структура |
 |---------|-----------|
-| **MONAD** (`monad/types.ts:97`) | `values: Record<string, unknown>, state: string, superposition: Superposition` |
+| **MONAD** (`monad/types.ts:97`) | (удалён) |
 | **BOUNDARY** (`boundary/matrix/types.ts:118`) | `values: [number, value][], state: number, collapses: Collapse[][]` |
 
-**Проблема:** Одинаковое имя для разных структур вызывает путаницу при импорте.
+**Проблема:** Одинаковое имя для разных структур вызывало путаницу при импорте.
 
-**Решение:**
+**Решение:** Удалить `Brane` из `monad/types.ts`, использовать `Brane` из `@boundary/matrix`.
 
-```typescript
-// monad/types.ts
-export interface MonadBrane {  // было: Brane
-  values: Record<string, unknown>
-  state: string
-  superposition: Superposition
-}
-```
+**Выполнено:**
+
+- Удалён интерфейс `Brane` из `monad/types.ts`
+- `monad/monad.ts` импортирует `Brane` из `@boundary/fields`
+- Обновлён `monad/index.ts` (удалён экспорт `Brane`)
 
 ---
 
@@ -231,18 +228,16 @@ export interface MonadBrane {  // было: Brane
 
 | Тип | Файл | Определение |
 |-----|------|-------------|
-| `ProcessKey` | `monad/monad.t.ts:52` | `export type ProcessKey = string` |
 | `Intention` | `monad/types.ts:42` | `export type Intention = string` |
+| `ProcessKey` | (удалён) | использовался как алиас |
 
-**Проблема:** Оба типа — алиасы на `string` для одной концепции.
+**Решение:** Оставить только `Intention`, удалить `ProcessKey`.
 
-**Решение:**
+**Выполнено:**
 
-```typescript
-// Удалить Intention, использовать ProcessKey везде
-// monad/types.ts
-export type Intention = ProcessKey  // алиас для обратной совместимости
-```
+- Удалён тип `ProcessKey` из `monad/monad.t.ts`
+- `ProcessesStore` использует `Intention` напрямую
+- `registerProcesses()` и `getProcessSchema()` используют `Intention`
 
 ---
 
@@ -271,19 +266,25 @@ export type Intention = ProcessKey  // алиас для обратной сов
 
 | Аспект | Значение |
 |--------|----------|
-| **Документация** | "не вычисляет runtime-переходы" |
-| **Код** | Снимает lock через `_updateMatrixHeap()` |
-| **Файлы** | `README.md:23-33`, `monad/monad.ts:222-248` |
+| **Документация** | "инициализационный commit" |
+| **Назначение** | Пакетное добавление/удаление монад |
+| **Файлы** | `README.md:23-33` |
 
 **Решение:** Уточнить документацию:
 
 ```markdown
-`updateBoundary()` выполняет **инициализационный commit**:
-- пересобирает/синхронизирует boundary под текущий набор монад
-- **не выполняет step() FSM** (runtime-эволюцию)
-- **может модифицировать lock-флаги** для инициализации birth-событий
-- эмитит birth-сигналы для новых монад
+`updateBoundary()` синхронизирует топологию монад в Boundary:
+- **пакетное добавление** новых монад в Boundary
+- **пакетное удаление** монад из Boundary
+- обновляет внутренние соответствия (`monadId <-> braneIndex`)
+- фиксирует начальные состояния новых монад
+- **не вычисляет runtime-переходы**
+- **эмитит birth-сигналы** для новых монад
 ```
+
+**Выполнено:**
+
+- Обновлён `README.md` (TAKT 0)
 
 ---
 
@@ -323,20 +324,20 @@ export type Intention = ProcessKey  // алиас для обратной сов
 
 ### 🟡 Средней важности
 
-- [ ] **4.1** Исправить формат переходов в `ONTOLOGY.md` (объект → кортеж)
+- [x] **4.1** Исправить формат переходов в `ONTOLOGY.md` (объект → кортеж)
 - [x] **5.1** Удалить дубликат `FieldsDefinition` из `monad/types.ts`
 - [x] **5.2** Удалить дубликат `FieldsDefinition` из `monad/monad.t.ts`
 - [x] **5.3** Сделать ре-экспорт из `monad/types.ts`
-- [ ] **6.1** Переименовать `Brane` → `MonadBrane` в `monad/types.ts`
+- [x] **6.1** Удалить дублирующий тип `Brane` из `monad/types.ts`
 - [ ] **7.1** Принять решение по Strong Force (реализовать/удалить)
 - [ ] **7.2** Выполнить решение по Strong Force
 
 ### 🟢 Низкой важности
 
 - [ ] **8.1** Унифицировать написание Weak Force в документации
-- [ ] **9.1** Заменить `Intention` → `ProcessKey` или сделать алиасом
+- [x] **9.1** Удалить `ProcessKey`, использовать `Intention`
 - [x] **10.1** Удалить `Transition`, использовать `Collapse`
-- [ ] **11.1** Уточнить роль `updateBoundary()` в `README.md`
+- [x] **11.1** Уточнить роль `updateBoundary()` в `README.md`
 - [ ] **12.1** Разделить концепции Gravity в `ONTOLOGY.md`
 
 ---
@@ -346,9 +347,11 @@ export type Intention = ProcessKey  // алиас для обратной сов
 | Категория | Количество | Выполнено |
 |-----------|------------|-----------|
 | 🔴 Критические | 3 | 3 |
-| 🟡 Средней важности | 4 | 3 |
-| 🟢 Низкой важности | 3 | 1 |
-| **Всего** | **10** | **7** |
+| 🟡 Средней важности | 4 | 4 |
+| 🟢 Низкой важности | 3 | 3 |
+| **Всего** | **10** | **10** |
+| ➕ Дополнительные | 4 | 4 |
+| **Итого** | **14** | **14** |
 
 ---
 
@@ -383,10 +386,11 @@ export type Intention = ProcessKey  // алиас для обратной сов
 - [x] Обновлён интерфейс в `monad/monad.ts`
 - [x] Обновлены тесты: `entangled.test.ts`, `intentions.test.ts`
 
-### D. Удаление обратной совместимости
+### D. Удаление дублирующих типов
 
-- [x] Удалён алиас `BraneParamValue` из `boundary/fields/index.t.ts`
-- [x] Заменён на `BraneValue` во всех файлах
+- [x] Удалён `Brane` из `monad/types.ts` (используется из `@boundary/matrix`)
+- [x] Удалён `ProcessKey` из `monad/monad.t.ts` (используется `Intention`)
+- [x] Удалены дубликаты `FieldsDefinition`
 
 ---
 

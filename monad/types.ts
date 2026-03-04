@@ -92,15 +92,3 @@ export type Update = (params: Record<string, unknown>) => void
  * Не у каждого состояния есть намерение. Если намерения нет — состояние терминальное или не требует действия.
  */
 export type Intentions = Record<string, Intention | null>
-
-/**
- * Брана — носитель состояния.
- */
-export interface Brane {
-  /** Значения полей браны (values — данные). */
-  values: Record<string, unknown>
-  /** Текущее состояние (должно быть в superposition). */
-  state: string
-  /** Суперпозиция — все состояния + граф переходов. */
-  superposition: Superposition
-}
