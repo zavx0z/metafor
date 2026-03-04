@@ -228,7 +228,7 @@ superposition.filter((_, i) => indices.includes(i))
 | **Superposition** | Формат суперпозиции уровня MONAD (имена состояний и полей). Несёт *смысл* для разработчика. |
 | **NumericSuperposition** | Формат суперпозиции уровня BOUNDARY (числовые индексы). Эффектен для GPU-вычислений. |
 | **convertToNumeric()** | Конвертер: `Superposition → NumericSuperposition`. Переводит смысл в индексы. |
-| **params** | Значения полей (извлекаются из `fields[].default`) |
+| **values** | Значения полей (извлекаются из `fields[].default`) |
 | **state** | Текущее состояние браны (одно из суперпозиции) |
 | **superposition** | Все возможные состояния браны + граф переходов между ними |
 | **FieldType** | Числовые типы для GPU: `F32`, `BOOL`, `STRING_PTR`, `ARRAY_PTR`, `U32` |

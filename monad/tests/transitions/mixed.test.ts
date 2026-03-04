@@ -37,8 +37,8 @@ describe("Monad — Смешанные переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" }, isAlive: { type: "boolean" } },
-        value: { hp: 30, isAlive: true },
+        fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
+        values: { hp: 30, isAlive: true },
         superposition: {
           IDLE: {
             COMBAT: {
@@ -68,8 +68,8 @@ describe("Monad — Смешанные переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" }, isAlive: { type: "boolean" } },
-        value: { hp: 100, isAlive: true },
+        fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
+        values: { hp: 100, isAlive: true },
         superposition: {
           ALIVE: {
             DEAD: { hp: { lte: 0 } },
@@ -96,8 +96,8 @@ describe("Monad — Смешанные переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" }, command: { type: "string" } },
-        value: { hp: 100, command: "" },
+        fields: { hp: { type: "number" }, command: { type: "string" } },
+        values: { hp: 100, command: "" },
         superposition: {
           IDLE: {
             ATTACK: {
@@ -127,8 +127,8 @@ describe("Monad — Смешанные переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" }, role: { type: "string" } },
-        value: { hp: 50, role: "" },
+        fields: { hp: { type: "number" }, role: { type: "string" } },
+        values: { hp: 50, role: "" },
         superposition: {
           IDLE: {
             READY: {
@@ -160,8 +160,8 @@ describe("Monad — Смешанные переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { isConnected: { type: "boolean" }, status: { type: "string" } },
-        value: { isConnected: false, status: "" },
+        fields: { isConnected: { type: "boolean" }, status: { type: "string" } },
+        values: { isConnected: false, status: "" },
         superposition: {
           DISCONNECTED: {
             CONNECTED: {
@@ -193,12 +193,12 @@ describe("Monad — Смешанные переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: {
+        fields: {
           hp: { type: "number" },
           isAlive: { type: "boolean" },
           command: { type: "string" },
         },
-        value: { hp: 100, isAlive: true, command: "" },
+        values: { hp: 100, isAlive: true, command: "" },
         superposition: {
           IDLE: {
             COMBAT: {
@@ -228,12 +228,12 @@ describe("Monad — Смешанные переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: {
+        fields: {
           hp: { type: "number" },
           isAlive: { type: "boolean" },
           status: { type: "string" },
         },
-        value: { hp: 100, isAlive: true, status: "normal" },
+        values: { hp: 100, isAlive: true, status: "normal" },
         superposition: {
           IDLE: {
             DEAD: { hp: { lte: 0 } },           // Приоритет 1

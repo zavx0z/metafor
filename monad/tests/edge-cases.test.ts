@@ -39,8 +39,8 @@ describe("Monad — Граничные случаи", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 30 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 30 },
         superposition: {
           IDLE: { PATROL: { hp: { gte: 50 } } },
           PATROL: null,
@@ -60,8 +60,8 @@ describe("Monad — Граничные случаи", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 100 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 100 },
         superposition: {
           ALIVE: { DEAD: { hp: { lte: 0 } } },
           DEAD: null,
@@ -83,8 +83,8 @@ describe("Monad — Граничные случаи", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { temperature: { type: "number" } },
-        value: { temperature: 20 },
+        fields: { temperature: { type: "number" } },
+        values: { temperature: 20 },
         superposition: {
           NORMAL: { COLD: { temperature: { lt: 0 } } },
           COLD: null,
@@ -104,8 +104,8 @@ describe("Monad — Граничные случаи", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { temperature: { type: "number" } },
-        value: { temperature: 0 },
+        fields: { temperature: { type: "number" } },
+        values: { temperature: 0 },
         superposition: {
           NORMAL: { ABSOLUTE_ZERO: { temperature: { lte: -273 } } },
           ABSOLUTE_ZERO: null,
@@ -127,8 +127,8 @@ describe("Monad — Граничные случаи", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { health: { type: "number" } },
-        value: { health: 100 },
+        fields: { health: { type: "number" } },
+        values: { health: 100 },
         superposition: {
           HEALTHY: { WEAK: { health: { lt: 50.5 } } },
           WEAK: null,
@@ -148,8 +148,8 @@ describe("Monad — Граничные случаи", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { health: { type: "number" } },
-        value: { health: 50 },
+        fields: { health: { type: "number" } },
+        values: { health: 50 },
         superposition: {
           NORMAL: { CRITICAL: { health: { gte: 99.9 } } },
           CRITICAL: null,
@@ -171,8 +171,8 @@ describe("Monad — Граничные случаи", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { command: { type: "string" } },
-        value: { command: "attack" },
+        fields: { command: { type: "string" } },
+        values: { command: "attack" },
         superposition: {
           ACTIVE: { IDLE: { command: { eq: "" } } },
           IDLE: null,
@@ -192,8 +192,8 @@ describe("Monad — Граничные случаи", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { message: { type: "string" } },
-        value: { message: "" },
+        fields: { message: { type: "string" } },
+        values: { message: "" },
         superposition: {
           WAITING: { PROCESSING: { message: { notIn: ["", "pending"] } } },
           PROCESSING: null,
@@ -220,8 +220,8 @@ describe("Monad — Граничные случаи", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 100 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 100 },
         superposition: {
           IDLE: { DEAD: { hp: { lte: 0 } } },
           DEAD: null, // Терминальное состояние
@@ -246,8 +246,8 @@ describe("Monad — Граничные случаи", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 50 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 50 },
         superposition: {
           IDLE: {
             VICTORY: { hp: { gte: 80 } },

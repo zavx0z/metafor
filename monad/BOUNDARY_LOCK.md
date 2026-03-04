@@ -104,7 +104,7 @@ onStateChange((changes) => {
 ```/dev/null/lifecycle.ts#L1-32
 const id = createMonad({
   fields: { hp: { type: "number" } },
-  params: { hp: 30 },
+  values: { hp: 30 },
   superposition: {
     IDLE: { PATROL: { hp: { gt: 50 } } },
     PATROL: null,

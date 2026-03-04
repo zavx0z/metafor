@@ -38,8 +38,8 @@ describe("Monad — Enum переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
-        value: { status: "idle" },
+        fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
+        values: { status: "idle" },
         superposition: {
           IDLE: { ACTIVE: { status: { eq: "active" } } },
           ACTIVE: null,
@@ -59,8 +59,8 @@ describe("Monad — Enum переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
-        value: { status: "idle" },
+        fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
+        values: { status: "idle" },
         superposition: {
           IDLE: { ACTIVE: { status: { eq: "active" } } },
           ACTIVE: null,
@@ -82,8 +82,8 @@ describe("Monad — Enum переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
-        value: { status: "idle" },
+        fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
+        values: { status: "idle" },
         superposition: {
           IDLE: { CHANGED: { status: { neq: "idle" } } },
           CHANGED: null,
@@ -105,8 +105,8 @@ describe("Monad — Enum переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
-        value: { status: "idle" },
+        fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
+        values: { status: "idle" },
         superposition: {
           IDLE: { NOT_IDLE: { status: { in: ["active", "paused"] } } },
           NOT_IDLE: null,
@@ -126,8 +126,8 @@ describe("Monad — Enum переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
-        value: { status: "idle" },
+        fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
+        values: { status: "idle" },
         superposition: {
           IDLE: { NOT_IDLE: { status: { in: ["active", "paused"] } } },
           NOT_IDLE: null,
@@ -149,8 +149,8 @@ describe("Monad — Enum переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { role: { type: "enum<string>", values: ["ally", "enemy", "neutral"] } },
-        value: { role: "ally" },
+        fields: { role: { type: "enum<string>", values: ["ally", "enemy", "neutral"] } },
+        values: { role: "ally" },
         superposition: {
           UNDEFINED: { ALLY: { role: { notIn: ["enemy", "neutral"] } } },
           ALLY: null,
@@ -172,8 +172,8 @@ describe("Monad — Enum переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { priority: { type: "enum<string>", values: ["low", "medium", "high"] } },
-        value: { priority: "low" },
+        fields: { priority: { type: "enum<string>", values: ["low", "medium", "high"] } },
+        values: { priority: "low" },
         superposition: {
           IDLE: { URGENT: { priority: { gt: "low" } } },
           URGENT: null,
@@ -193,8 +193,8 @@ describe("Monad — Enum переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { priority: { type: "enum<string>", values: ["low", "medium", "high"] } },
-        value: { priority: "low" },
+        fields: { priority: { type: "enum<string>", values: ["low", "medium", "high"] } },
+        values: { priority: "low" },
         superposition: {
           IDLE: { URGENT: { priority: { gt: "low" } } },
           URGENT: null,

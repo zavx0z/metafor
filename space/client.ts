@@ -12,7 +12,7 @@ const out = document.getElementById("output")!
 // const procs = space.processes
 // const proc = procs[Object.keys(procs)[0] as keyof typeof procs]
 
-// const spaceId = createMonad({ field: {}, value: {}, superposition: space.superposition })
+// const spaceId = createMonad({ fields: {}, values: {}, superposition: space.superposition })
 // log(await updateBoundary())
 
 // const action = await loadAction(proc.action)
@@ -31,7 +31,7 @@ function log(changed: BraneStateChange[]) {
 async function createActor(metaPath: string) {
   const dsl = await loadDSL(metaPath)
   console.log(dsl)
-  const actorId = createMonad({ field: dsl.fields, value: {}, superposition: dsl.superposition })
+  const actorId = createMonad({ fields: dsl.fields, values: {}, superposition: dsl.superposition })
   log(await updateBoundary())
 }
 

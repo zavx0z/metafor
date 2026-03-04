@@ -23,8 +23,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
     it("должен создать shared блок для одинаковых значений полей", async () => {
       // Две монады с одинаковым значением hp=100
       createMonad({
-        field: { hp: { type: "number" }, mana: { type: "number" } },
-        value: { hp: 100, mana: 50 },
+        fields: { hp: { type: "number" }, mana: { type: "number" } },
+        values: { hp: 100, mana: 50 },
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -33,8 +33,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       })
 
       createMonad({
-        field: { hp: { type: "number" }, mana: { type: "number" } },
-        value: { hp: 100, mana: 10 },
+        fields: { hp: { type: "number" }, mana: { type: "number" } },
+        values: { hp: 100, mana: 10 },
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -51,8 +51,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
     it("не должен создавать shared блок для разных значений", async () => {
       // Две монады с разными значениями hp
       createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 100 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 100 },
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -61,8 +61,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       })
 
       createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 50 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 50 },
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -78,8 +78,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
     it("должен создать shared блок для идентичных бран", async () => {
       // Две полностью идентичные монады
       createMonad({
-        field: { hp: { type: "number" }, isAlive: { type: "boolean" } },
-        value: { hp: 100, isAlive: true },
+        fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
+        values: { hp: 100, isAlive: true },
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -88,8 +88,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       })
 
       createMonad({
-        field: { hp: { type: "number" }, isAlive: { type: "boolean" } },
-        value: { hp: 100, isAlive: true },
+        fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
+        values: { hp: 100, isAlive: true },
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -109,8 +109,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       const changes: BraneStateChange[] = []
 
       const id1 = createMonad({
-        field: { hp: { type: "number" }, isAlive: { type: "boolean" } },
-        value: { hp: 30, isAlive: true },
+        fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
+        values: { hp: 30, isAlive: true },
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },  // Переход по hp (локальное)
           PATROL: null,
@@ -118,8 +118,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       })
 
       createMonad({
-        field: { hp: { type: "number" }, isAlive: { type: "boolean" } },
-        value: { hp: 50, isAlive: true },  // hp разное → локальное
+        fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
+        values: { hp: 50, isAlive: true },  // hp разное → локальное
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -143,8 +143,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
 
     it("должен работать с mixed: local + shared поля", async () => {
       const id1 = createMonad({
-        field: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
-        value: { hp: 100, mana: 50, isAlive: true },
+        fields: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
+        values: { hp: 100, mana: 50, isAlive: true },
         superposition: {
           IDLE: { PATROL: { mana: { lt: 30 } } },
           PATROL: null,
@@ -153,8 +153,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       })
 
       const id2 = createMonad({
-        field: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
-        value: { hp: 100, mana: 10, isAlive: true },
+        fields: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
+        values: { hp: 100, mana: 10, isAlive: true },
         superposition: {
           IDLE: { PATROL: { mana: { lt: 30 } } },
           PATROL: null,
@@ -181,8 +181,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
 
       // Монада 1: hp=100, isAlive=true, role="warrior"
       const id1 = createMonad({
-        field: { hp: { type: "number" }, isAlive: { type: "boolean" }, role: { type: "string" }, mana: { type: "number" } },
-        value: { hp: 100, isAlive: true, role: "warrior", mana: 10 },
+        fields: { hp: { type: "number" }, isAlive: { type: "boolean" }, role: { type: "string" }, mana: { type: "number" } },
+        values: { hp: 100, isAlive: true, role: "warrior", mana: 10 },
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },  // Переход по mana (локальное)
           PATROL: null,
@@ -191,8 +191,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
 
       // Монада 2: hp=100, isAlive=true, role="warrior" (идентичные → shared), mana=5 (локальное)
       const id2 = createMonad({
-        field: { hp: { type: "number" }, isAlive: { type: "boolean" }, role: { type: "string" }, mana: { type: "number" } },
-        value: { hp: 100, isAlive: true, role: "warrior", mana: 5 },  // mana разное → локальное
+        fields: { hp: { type: "number" }, isAlive: { type: "boolean" }, role: { type: "string" }, mana: { type: "number" } },
+        values: { hp: 100, isAlive: true, role: "warrior", mana: 5 },  // mana разное → локальное
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
@@ -218,8 +218,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
 
       // Монада 1: hp=100 (shared), mana=10 (local)
       const id1 = createMonad({
-        field: { hp: { type: "number" }, mana: { type: "number" } },
-        value: { hp: 100, mana: 10 },
+        fields: { hp: { type: "number" }, mana: { type: "number" } },
+        values: { hp: 100, mana: 10 },
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
@@ -228,8 +228,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
 
       // Монада 2: hp=100 (shared), mana=5 (local)
       const id2 = createMonad({
-        field: { hp: { type: "number" }, mana: { type: "number" } },
-        value: { hp: 100, mana: 5 },
+        fields: { hp: { type: "number" }, mana: { type: "number" } },
+        values: { hp: 100, mana: 5 },
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
@@ -257,8 +257,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       // Создаём 10 идентичных монад
       for (let i = 0; i < 10; i++) {
         createMonad({
-          field: { hp: { type: "number" }, isAlive: { type: "boolean" } },
-          value: { hp: 100, isAlive: true },
+          fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
+          values: { hp: 100, isAlive: true },
           superposition: {
             IDLE: { PATROL: { hp: { gt: 50 } } },
             PATROL: null,
@@ -274,8 +274,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
 
     it("должен корректно работать с 3+ монадами с частичным совпадением", async () => {
       const id1 = createMonad({
-        field: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
-        value: { hp: 100, mana: 50, isAlive: true },
+        fields: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
+        values: { hp: 100, mana: 50, isAlive: true },
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
@@ -284,8 +284,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       })
 
       const id2 = createMonad({
-        field: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
-        value: { hp: 100, mana: 30, isAlive: true },
+        fields: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
+        values: { hp: 100, mana: 30, isAlive: true },
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
@@ -294,8 +294,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       })
 
       const id3 = createMonad({
-        field: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
-        value: { hp: 50, mana: 100, isAlive: false },
+        fields: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
+        values: { hp: 50, mana: 100, isAlive: false },
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
@@ -318,8 +318,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
   describe("Интеграция с updateMonads", () => {
     it("должен корректно обновлять локальные поля", async () => {
       const id1 = createMonad({
-        field: { hp: { type: "number" }, mana: { type: "number" } },
-        value: { hp: 100, mana: 50 },
+        fields: { hp: { type: "number" }, mana: { type: "number" } },
+        values: { hp: 100, mana: 50 },
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,
@@ -328,8 +328,8 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       })
 
       const id2 = createMonad({
-        field: { hp: { type: "number" }, mana: { type: "number" } },
-        value: { hp: 100, mana: 10 },
+        fields: { hp: { type: "number" }, mana: { type: "number" } },
+        values: { hp: 100, mana: 10 },
         superposition: {
           IDLE: { PATROL: { mana: { gt: 40 } } },
           PATROL: null,

@@ -38,8 +38,8 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 30 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 30 },
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -59,8 +59,8 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 30 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 30 },
         superposition: {
           IDLE: { PATROL: { hp: { gt: 50 } } },
           PATROL: null,
@@ -82,8 +82,8 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 30 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 30 },
         superposition: {
           IDLE: { PATROL: { hp: { gte: 50 } } },
           PATROL: null,
@@ -103,8 +103,8 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 30 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 30 },
         superposition: {
           IDLE: { PATROL: { hp: { gte: 50 } } },
           PATROL: null,
@@ -126,8 +126,8 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 100 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 100 },
         superposition: {
           IDLE: { WEAK: { hp: { lt: 30 } } },
           WEAK: null,
@@ -147,8 +147,8 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 100 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 100 },
         superposition: {
           IDLE: { WEAK: { hp: { lt: 30 } } },
           WEAK: null,
@@ -170,8 +170,8 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 100 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 100 },
         superposition: {
           IDLE: { WEAK: { hp: { lte: 30 } } },
           WEAK: null,
@@ -191,8 +191,8 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 100 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 100 },
         superposition: {
           IDLE: { WEAK: { hp: { lte: 30 } } },
           WEAK: null,
@@ -214,8 +214,8 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 100 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 100 },
         superposition: {
           IDLE: { CRITICAL: { hp: { eq: 50 } } },
           CRITICAL: null,
@@ -235,8 +235,8 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 100 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 100 },
         superposition: {
           IDLE: { CRITICAL: { hp: { eq: 50 } } },
           CRITICAL: null,
@@ -258,8 +258,8 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 100 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 100 },
         superposition: {
           IDLE: { CHANGED: { hp: { neq: 100 } } },
           CHANGED: null,
@@ -279,8 +279,8 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { hp: { type: "number" } },
-        value: { hp: 100 },
+        fields: { hp: { type: "number" } },
+        values: { hp: 100 },
         superposition: {
           IDLE: { CHANGED: { hp: { neq: 100 } } },
           CHANGED: null,

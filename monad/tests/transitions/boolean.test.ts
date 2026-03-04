@@ -37,8 +37,8 @@ describe("Monad — Булевы переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { isAlive: { type: "boolean" } },
-        value: { isAlive: false },
+        fields: { isAlive: { type: "boolean" } },
+        values: { isAlive: false },
         superposition: {
           INACTIVE: { ACTIVE: { isAlive: true } },
           ACTIVE: null,
@@ -58,8 +58,8 @@ describe("Monad — Булевы переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { isActive: { type: "boolean" } },
-        value: { isActive: true },
+        fields: { isActive: { type: "boolean" } },
+        values: { isActive: true },
         superposition: {
           ACTIVE: { INACTIVE: { isActive: false } },
           INACTIVE: null,
@@ -81,8 +81,8 @@ describe("Monad — Булевы переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { isConnected: { type: "boolean" } },
-        value: { isConnected: false },
+        fields: { isConnected: { type: "boolean" } },
+        values: { isConnected: false },
         superposition: {
           DISCONNECTED: { CONNECTED: { isConnected: { eq: true } } },
           CONNECTED: null,
@@ -102,8 +102,8 @@ describe("Monad — Булевы переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { isConnected: { type: "boolean" } },
-        value: { isConnected: true },
+        fields: { isConnected: { type: "boolean" } },
+        values: { isConnected: true },
         superposition: {
           CONNECTED: { DISCONNECTED: { isConnected: { eq: false } } },
           DISCONNECTED: null,
@@ -125,8 +125,8 @@ describe("Monad — Булевы переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { isEnabled: { type: "boolean" } },
-        value: { isEnabled: true },
+        fields: { isEnabled: { type: "boolean" } },
+        values: { isEnabled: true },
         superposition: {
           ENABLED: { DISABLED: { isEnabled: { neq: true } } },
           DISABLED: null,
@@ -146,8 +146,8 @@ describe("Monad — Булевы переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        field: { isEnabled: { type: "boolean" } },
-        value: { isEnabled: false },
+        fields: { isEnabled: { type: "boolean" } },
+        values: { isEnabled: false },
         superposition: {
           DISABLED: { ENABLED: { isEnabled: { neq: false } } },
           ENABLED: null,

@@ -134,8 +134,7 @@ function paramsToTuples(params: Record<string, unknown>): [number, BraneParamVal
  *     mana: { type: "number" },
  *     isAlive: { type: "boolean" }
  *   },
- *   params: { hp: 100, mana: 50, isAlive: true },
- *   state: "IDLE",
+ *   values: { hp: 100, mana: 50, isAlive: true },
  *   superposition: {
  *     IDLE: {
  *       PATROL: { hp: { gt: 50 } },   // ← Приоритет 1: hp > 50
@@ -158,15 +157,15 @@ function paramsToTuples(params: Record<string, unknown>): [number, BraneParamVal
 export function createMonad(config: MonadConfig): string {
   const id = crypto.randomUUID()
   _monadIds.add(id)
-  for (const [name, def] of Object.entries(config.field)) {
+  for (const [name, def] of Object.entries(config.fields)) {
     const registeredField = convertField(def as FieldDefinition)
     addMonadField(name, registeredField)
-    if (config.value[name] !== undefined) {
+    if (config.values[name] !== undefined) {
       // Сохраняем в _fieldsDefinition для последующего write()
       _fieldsDefinition[name] = def as FieldDefinition
     }
   }
-  _monadParams.set(id, { ...config.value })
+  _monadParams.set(id, { ...config.values })
   _intentions.set(id, config.intentions ?? {})
   _superpositions.set(id, config.superposition)
   // Состояние не устанавливается — монада рождается в неопределённом состоянии
