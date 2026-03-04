@@ -4,7 +4,7 @@ import index from "./index.html"
 const server = serve({
   port: 3000,
   development: {
-    hmr: true,
+    hmr: false,
     console: true,
   },
   routes: {

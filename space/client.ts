@@ -2,6 +2,7 @@ import.meta.hot.accept()
 import { createMonad, updateBoundary, deleteMonad, releaseLock, type BraneStateChange } from "@boundary/monad"
 import { executeProcess, loadAction } from "../force/weak/load"
 import { loadDSL } from "../force/gravity/load"
+import { type Node } from "@zavx0z/template"
 
 const status = document.getElementById("status")!
 status.innerText = "✅ WebGPU Active"
@@ -32,8 +33,31 @@ async function createAgent(metaPath: string) {
   const dsl = await loadDSL(metaPath)
   console.log(dsl)
   const actorId = createMonad({ fields: dsl.fields, values: {}, superposition: dsl.superposition })
-  log(await updateBoundary())
+  const msg = await updateBoundary()
+  log(msg)
+  return { uuid: actorId, bulk: dsl.bulk }
 }
 
 const HUB_DIRECTORY = "/github/"
-createAgent(HUB_DIRECTORY + "zavx0z/git")
+const data = await createAgent(HUB_DIRECTORY + "zavx0z/git")
+
+const hierarchy: Node[] = data.bulk.gravity
+
+for (const [key, value] of Object.entries(hierarchy)) {
+  switch (value.type) {
+    case "map": {
+      break
+    }
+    case "cond": {
+      break
+    }
+    case "log": {
+      break
+    }
+    case "meta": {
+      break
+    }
+    default:
+      break
+  }
+}
