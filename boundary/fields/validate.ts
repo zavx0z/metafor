@@ -42,12 +42,12 @@ export function validateData(data: Data): void {
 
   // Валидация бран
   data.branes.forEach((brane, braneIndex) => {
-    // Проверка params
-    if (!brane.params || !Array.isArray(brane.params)) {
-      throw new Error(`Brane ${braneIndex}: params must be an array`)
+    // Проверка values
+    if (!brane.values || !Array.isArray(brane.values)) {
+      throw new Error(`Brane ${braneIndex}: values must be an array`)
     }
 
-    brane.params.forEach(([fieldIndex, value], paramIndex) => {
+    brane.values.forEach(([fieldIndex, value], paramIndex) => {
       if (fieldIndex < 0 || fieldIndex >= data.fields!.length) {
         throw new Error(
           `Brane ${braneIndex}, param ${paramIndex}: field index ${fieldIndex} out of range`,

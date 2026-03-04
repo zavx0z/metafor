@@ -24,7 +24,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: "MAGE" }]], [null]]
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
-        branes: [{ state: 0, params: [[0, "WARRIOR"]], collapses }],
+        branes: [{ state: 0, values: [[0, "WARRIOR"]], collapses }],
       })
       const resultStates = await update([[0, [[0, "MAGE"]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -34,7 +34,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: "MAGE" }]], [null]]
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
-        branes: [{ state: 0, params: [[0, "WARRIOR"]], collapses }],
+        branes: [{ state: 0, values: [[0, "WARRIOR"]], collapses }],
       })
       const resultStates = await update([[0, [[0, "ROGUE"]]]])
       expect(resultStates).toEqual([])
@@ -46,7 +46,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: { eq: "WARRIOR" } }]], [null]]
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
-        branes: [{ state: 0, params: [[0, "ROGUE"]], collapses }],
+        branes: [{ state: 0, values: [[0, "ROGUE"]], collapses }],
       })
       const resultStates = await update([[0, [[0, "WARRIOR"]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -59,7 +59,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
       // Начальное значение "WARRIOR" = "WARRIOR", поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
-        branes: [{ state: 0, params: [[0, "WARRIOR"]], collapses }],
+        branes: [{ state: 0, values: [[0, "WARRIOR"]], collapses }],
       })
       const resultStates = await update([[0, [[0, "MAGE"]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -72,7 +72,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
       // Начальное значение "ROGUE" не в списке, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
-        branes: [{ state: 0, params: [[0, "ROGUE"]], collapses }],
+        branes: [{ state: 0, values: [[0, "ROGUE"]], collapses }],
       })
       const resultStates = await update([[0, [[0, "WARRIOR"]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -83,7 +83,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
       // Начальное значение "WARRIOR" в списке, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
-        branes: [{ state: 0, params: [[0, "WARRIOR"]], collapses }],
+        branes: [{ state: 0, values: [[0, "WARRIOR"]], collapses }],
       })
       const resultStates = await update([[0, [[0, "ROGUE"]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -96,7 +96,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
       // WARRIOR=0, начальное значение WARRIOR не > WARRIOR, поэтому НЕ переходит
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
-        branes: [{ state: 0, params: [[0, "WARRIOR"]], collapses }],
+        branes: [{ state: 0, values: [[0, "WARRIOR"]], collapses }],
       })
       const resultStates = await update([[0, [[0, "ROGUE"]]]])  // ROGUE=2 > WARRIOR=0
       expect(resultStates).toContainEqual([0, 1])
@@ -107,7 +107,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
       // ROGUE=2, начальное значение ROGUE не < ROGUE, поэтому НЕ переходит
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
-        branes: [{ state: 0, params: [[0, "ROGUE"]], collapses }],
+        branes: [{ state: 0, values: [[0, "ROGUE"]], collapses }],
       })
       const resultStates = await update([[0, [[0, "WARRIOR"]]]])  // WARRIOR=0 < ROGUE=2
       expect(resultStates).toContainEqual([0, 1])
@@ -119,7 +119,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: { eq: "MAGE" } }]], [null]]
       await expect(write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
-        branes: [{ state: 0, params: [[0, "UNKNOWN"]], collapses }],
+        branes: [{ state: 0, values: [[0, "UNKNOWN"]], collapses }],
       })).rejects.toThrow("not in enum")
     })
 
@@ -127,7 +127,7 @@ describe("matrix - тип UINT (enum) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: { eq: "MAGE" } }]], [null]]
       await write({
         fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
-        branes: [{ state: 0, params: [[0, "WARRIOR"]], collapses }],
+        branes: [{ state: 0, values: [[0, "WARRIOR"]], collapses }],
       })
       await expect(update([[0, [[0, "UNKNOWN"]]]])).rejects.toThrow("not found in enum")
     })

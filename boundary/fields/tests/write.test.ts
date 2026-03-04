@@ -28,7 +28,7 @@ describe("write() — возврат начальных состояний", () 
     // write() — TAKT 0: инициализация без перехода
     await write({
       fields: [{ type: FieldType.F32 }],
-      branes: [{ state: 0, params: [[0, 100]], collapses }],
+      branes: [{ state: 0, values: [[0, 100]], collapses }],
     })
 
     // update() — TAKT 1: hp=100 > 50 → переход в state=1
@@ -45,7 +45,7 @@ describe("write() — возврат начальных состояний", () 
     // hp=0 ≤ 50 → НЕ переходит после write()
     const initialStates = await write({
       fields: [{ type: FieldType.F32 }],
-      branes: [{ state: 0, params: [[0, 0]], collapses }],
+      branes: [{ state: 0, values: [[0, 0]], collapses }],
     })
     
     expect(initialStates).toEqual([])  // Нет изменений
@@ -61,9 +61,9 @@ describe("write() — возврат начальных состояний", () 
     await write({
       fields: [{ type: FieldType.F32 }],
       branes: [
-        { state: 0, params: [[0, 100]], collapses },  // 100 > 50 → state 1
-        { state: 0, params: [[0, 30]], collapses },   // 30 ≤ 50 → state 0
-        { state: 0, params: [[0, 60]], collapses },   // 60 > 50 → state 1
+        { state: 0, values: [[0, 100]], collapses },  // 100 > 50 → state 1
+        { state: 0, values: [[0, 30]], collapses },   // 30 ≤ 50 → state 0
+        { state: 0, values: [[0, 60]], collapses },   // 60 > 50 → state 1
       ],
     })
 
@@ -88,7 +88,7 @@ describe("write() — возврат начальных состояний", () 
     // write() — TAKT 0: инициализация
     await write({
       fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
-      branes: [{ state: 0, params: [[0, [1, 2, 3]]], collapses }],
+      branes: [{ state: 0, values: [[0, [1, 2, 3]]], collapses }],
     })
 
     // update() — TAKT 1: массив [1, 2, 3] имеет длину 3 → переход в state=1
@@ -105,7 +105,7 @@ describe("write() — возврат начальных состояний", () 
     // write() — TAKT 0: инициализация
     await write({
       fields: [{ type: FieldType.STRING_PTR }],
-      branes: [{ state: 0, params: [[0, "hero"]], collapses }],
+      branes: [{ state: 0, values: [[0, "hero"]], collapses }],
     })
 
     // update() — TAKT 1: "hero" === "hero" → переход в state=1
@@ -122,7 +122,7 @@ describe("write() — возврат начальных состояний", () 
     // write() — TAKT 0: инициализация
     await write({
       fields: [{ type: FieldType.BOOL }],
-      branes: [{ state: 0, params: [[0, true]], collapses }],
+      branes: [{ state: 0, values: [[0, true]], collapses }],
     })
 
     // update() — TAKT 1: true === true → переход в state=1
@@ -139,7 +139,7 @@ describe("write() — возврат начальных состояний", () 
     // write() — TAKT 0: инициализация
     await write({
       fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
-      branes: [{ state: 0, params: [[0, "MAGE"]], collapses }],
+      branes: [{ state: 0, values: [[0, "MAGE"]], collapses }],
     })
 
     // update() — TAKT 1: "MAGE" === "MAGE" → переход в state=1
@@ -157,7 +157,7 @@ describe("write() — возврат начальных состояний", () 
     // write() — TAKT 0: инициализация
     await write({
       fields: [{ type: FieldType.F32 }],
-      branes: [{ state: 0, params: [[0, 100]], collapses }],
+      branes: [{ state: 0, values: [[0, 100]], collapses }],
     })
 
     // update() — TAKT 1: hp=100 > 50 → переход в state=1 (PATROL)
@@ -180,8 +180,8 @@ describe("write() — возврат начальных состояний", () 
     await write({
       fields: [{ type: FieldType.F32 }],
       branes: [
-        { state: 0, params: [[0, 100]], collapses },  // → state 1
-        { state: 0, params: [[0, 30]], collapses },   // → state 0 (без изменений)
+        { state: 0, values: [[0, 100]], collapses },  // → state 1
+        { state: 0, values: [[0, 30]], collapses },   // → state 0 (без изменений)
       ],
     })
 

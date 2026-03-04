@@ -44,13 +44,13 @@ export interface PreparedData {
  * @returns Подготовленные данные для GPU
  */
 export function prepareData(data: Data): PreparedData {
-  // Извлекаем params из бран для анализа entangled
+  // Извлекаем values из бран для анализа entangled
   const branes = data.branes ?? []
   const fieldDefs = data.fields ?? []
-  const params = branes.map((b) => b.params)
+  const values = branes.map((b) => b.values)
 
   // Анализ entangled групп (чистая функция)
-  const entangledAnalysis = findEntangledGroups(params)
+  const entangledAnalysis = findEntangledGroups(values)
 
   // Создаём маппинг entangledBraneIds
   const entangledBraneIds = new Map<string, number>()
@@ -60,7 +60,7 @@ export function prepareData(data: Data): PreparedData {
   })
 
   // Построение маппинга бран (чистая функция)
-  const braneMapping = buildBraneMapping(params, entangledBraneIds, entangledAnalysis)
+  const braneMapping = buildBraneMapping(values, entangledBraneIds, entangledAnalysis)
 
   // Компиляция суперпозиций (чистая функция) — интернирует строки из IN списков
   const compiledRules = compileEnsemble(branes, fieldDefs)
@@ -109,9 +109,9 @@ export function prepareData(data: Data): PreparedData {
   const MIN_ARRAY_RESERVE = 256
   let arrayReserve = MIN_ARRAY_RESERVE
 
-  // Считаем потенциальный размер массивов из params
+  // Считаем потенциальный размер массивов из values
   for (const brane of branes) {
-    for (const [fieldIndex, value] of brane.params) {
+    for (const [fieldIndex, value] of brane.values) {
       const field = fieldDefs[fieldIndex]
       if (field?.type === FieldType.ARRAY_PTR && Array.isArray(value)) {
         // Размер массива в heap: 1 (длина) + элементы
@@ -145,7 +145,7 @@ export function prepareData(data: Data): PreparedData {
   // Сохраняем размер резерва для использования в update()
   const arrayReserveSize = arrayReserve
 
-  // Аллокация массивов из params (после создания extendedHeap)
+  // Аллокация массивов из values (после создания extendedHeap)
   let heapAllocOffset = heapData.length - arrayReserveSize
 
   // Функция аллокации для encodeValue

@@ -15,7 +15,7 @@ describe("prepareData — подготовка данных для GPU", () => {
     const data: Data = {
       fields: [{ type: FieldType.F32 }],
       branes: [{
-        params: [[0, 100]],
+        values: [[0, 100]],
         state: 0,
         collapses: [[[1, { 0: { gt: 50 } }]], [null]],
       }],
@@ -33,12 +33,12 @@ describe("prepareData — подготовка данных для GPU", () => {
       fields: [{ type: FieldType.F32 }],
       branes: [
         {
-          params: [[0, 100]],
+          values: [[0, 100]],
           state: 0,
           collapses: [[null]],
         },
         {
-          params: [[0, 100]], // одинаковое значение → entangled
+          values: [[0, 100]], // одинаковое значение → entangled
           state: 0,
           collapses: [[null]],
         },
@@ -55,7 +55,7 @@ describe("prepareData — подготовка данных для GPU", () => {
       fields: [{ type: FieldType.STRING_PTR }],
       branes: [
         {
-          params: [[0, "hello"]],
+          values: [[0, "hello"]],
           state: 0,
           collapses: [[null]],
         },
@@ -72,7 +72,7 @@ describe("prepareData — подготовка данных для GPU", () => {
       fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
       branes: [
         {
-          params: [[0, [1, 2, 3, 4, 5]]], // массив из 5 элементов
+          values: [[0, [1, 2, 3, 4, 5]]], // массив из 5 элементов
           state: 0,
           collapses: [[null]],
         },

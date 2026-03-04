@@ -41,8 +41,8 @@ export interface BraneStateChange {
   newState: string
   /** Намерение (ключ процесса) если есть */
   intention?: Intention | null
-  /** Текущие параметры монады */
-  params: Record<string, unknown>
+  /** Текущие значения монады */
+  values: Record<string, unknown>
 }
 
 // ==================== Внутреннее состояние ====================
@@ -105,11 +105,11 @@ function addMonadField(name: string, field: Field): number {
 }
 
 /**
- * Конвертирует params из Record в кортежи [fieldIndex, value].
+ * Конвертирует values из Record в кортежи [fieldIndex, value].
  */
-function paramsToTuples(params: Record<string, unknown>): [number, BraneParamValue][] {
+function valuesToTuples(values: Record<string, unknown>): [number, BraneParamValue][] {
   const tuples: [number, BraneParamValue][] = []
-  for (const [name, value] of Object.entries(params)) {
+  for (const [name, value] of Object.entries(values)) {
     const fieldIndex = _fieldNameIndex.get(name)
     if (fieldIndex !== undefined) {
       tuples.push([fieldIndex, value as BraneParamValue])
@@ -238,10 +238,10 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
   for (const [_, [index, field]] of _globalFields.entries()) {
     fieldsArray[index] = field
   }
-  // Конвертируем params и superposition для каждой монады
+  // Конвертируем values и superposition для каждой монады
   const allBranes: Brane[] = monadIds.map((monadId) => {
-    const monadParams = _monadParams.get(monadId)!
-    const paramsTuples = paramsToTuples(monadParams)
+    const monadValues = _monadParams.get(monadId)!
+    const valuesTuples = valuesToTuples(monadValues)
     const monadSuperposition = _superpositions.get(monadId)!
     const converted = convertToNumeric(monadSuperposition, _fieldNameIndex)
     // Сохраняем states для reverse-маппинга
@@ -255,7 +255,7 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
       throw new Error(`State '${initialStateName}' not found in superposition`)
     }
     return {
-      params: paramsTuples,
+      values: valuesTuples,
       state: initialStateIndex,
       collapses: converted.boundary.transitions,
     }
@@ -296,7 +296,7 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
         oldState: undefined,
         newState: firstState,
         intention: intention ?? null,
-        params: _monadParams.get(monadId)!,
+        values: _monadParams.get(monadId)!,
       })
 
       if (!intention) {
@@ -418,7 +418,7 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<BraneStateCh
         oldState: old,
         newState: current,
         intention: intention ?? null,
-        params: _monadParams.get(monadId)!,
+        values: _monadParams.get(monadId)!,
       })
       // Авто-снятие блокировки если нет намерения (TAKT 2)
       if (!intention) {
@@ -456,7 +456,7 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<BraneStateCh
  * @example
  * ```typescript
  * onStateChange((changes) => {
- *   for (const { monadId, oldState, newState, intention, params } of changes) {
+ *   for (const { monadId, oldState, newState, intention, values } of changes) {
  *     console.log(`${monadId}: ${oldState} → ${newState}, intention: ${intention}`)
  *   }
  * })

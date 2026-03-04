@@ -9,7 +9,7 @@
 import type { EntangledGroup, EntangledAnalysis, BraneMapping } from "./entangled.t"
 
 /**
- * Анализирует параметры бран и определяет entangled группы.
+ * Анализирует значения бран и определяет entangled группы.
  *
  * @remarks
  * **Чистая функция:** Не имеет side effects, не зависит от состояния.
@@ -18,27 +18,27 @@ import type { EntangledGroup, EntangledAnalysis, BraneMapping } from "./entangle
  * 1. Поле присутствует у ≥2 бран
  * 2. Все значения поля одинаковы (Object.is)
  *
- * @param params - Массив параметров бран в формате кортежей.
+ * @param values - Массив значений бран в формате кортежей.
  * @returns Результат анализа с маппингом entangled групп.
  *
  * @example
  * ```typescript
- * const params = [
+ * const values = [
  *   [[0, 100], [1, true]],  // брана 0
  *   [[0, 100], [1, true]],  // брана 1 (идентична)
  * ]
- * const analysis = findEntangledGroups(params)
+ * const analysis = findEntangledGroups(values)
  * // analysis.entangledGroups: Map { "0,1" → { braneIndices: Set(0,1), fieldIndices: Set(0,1) } }
  * ```
  */
 export function findEntangledGroups(
-  params: [number, unknown][][],
+  values: [number, unknown][][],
 ): EntangledAnalysis {
   const fieldUsage = new Map<number, Set<number>>()
 
   // Собираем usage: поле → браны
-  params.forEach((braneParams, idx) => {
-    braneParams.forEach(([fieldId]) => {
+  values.forEach((braneValues, idx) => {
+    braneValues.forEach(([fieldId]) => {
       if (!fieldUsage.has(fieldId)) {
         fieldUsage.set(fieldId, new Set())
       }
@@ -62,13 +62,13 @@ export function findEntangledGroups(
     if (braneIndicesSet.size < 2) return
 
     const ids = Array.from(braneIndicesSet)
-    const brane0Params = params[ids[0]!]!
+    const brane0Values = values[ids[0]!]!
 
     // Находим значение поля у первой браны
     let firstValue: unknown = undefined
-    for (let i = 0; i < brane0Params.length; i++) {
-      if (brane0Params[i]![0] === fieldId) {
-        firstValue = brane0Params[i]![1]
+    for (let i = 0; i < brane0Values.length; i++) {
+      if (brane0Values[i]![0] === fieldId) {
+        firstValue = brane0Values[i]![1]
         break
       }
     }
@@ -78,11 +78,11 @@ export function findEntangledGroups(
     // Проверяем: одинаковы ли значения у всех бран
     let allSame = true
     for (let i = 1; i < ids.length && allSame; i++) {
-      const braneParams = params[ids[i]!]!
+      const braneValues = values[ids[i]!]!
       let found = false
-      for (let j = 0; j < braneParams.length; j++) {
-        if (braneParams[j]![0] === fieldId) {
-          if (!valueEquals(braneParams[j]![1], firstValue)) {
+      for (let j = 0; j < braneValues.length; j++) {
+        if (braneValues[j]![0] === fieldId) {
+          if (!valueEquals(braneValues[j]![1], firstValue)) {
             allSame = false
           }
           found = true
@@ -114,13 +114,13 @@ export function findEntangledGroups(
  * @remarks
  * **Чистая функция:** Не имеет side effects.
  *
- * @param params - Массив параметров бран.
+ * @param values - Массив значений бран.
  * @param entangledBraneIds - Маппинг ключ группы → ID entangled блока.
  * @param analysis - Результат анализа findEntangledGroups.
  * @returns Структура для создания бран.
  */
 export function buildBraneMapping(
-  params: [number, unknown][][],
+  values: [number, unknown][][],
   entangledBraneIds: Map<string, number>,
   analysis: EntangledAnalysis,
 ): BraneMapping {
@@ -131,24 +131,24 @@ export function buildBraneMapping(
   entangledGroups.forEach((group, key) => {
     const braneIndices = Array.from(group.braneIndices)
     const firstBraneIdx = braneIndices[0]!
-    const braneParams = params[firstBraneIdx]!
+    const braneValues = values[firstBraneIdx]!
 
     // Фильтруем только поля, входящие в эту группу
-    const filteredParams = braneParams.filter(([fid]) =>
+    const filteredValues = braneValues.filter(([fid]) =>
       group.fieldIndices.has(fid),
     )
-    entangledFields.set(key, filteredParams)
+    entangledFields.set(key, filteredValues)
   })
 
   const braneEntangledMap: number[][] = []
   const localFields: [number, unknown][][] = []
 
-  params.forEach((braneParams, idx) => {
+  values.forEach((braneValues, idx) => {
     const entangledIds: number[] = []
     const usedGroupKeys = new Set<string>()
     const localBrane: [number, unknown][] = []
 
-    braneParams.forEach(([fieldId, value]) => {
+    braneValues.forEach(([fieldId, value]) => {
       const ids = fieldUsage.get(fieldId)!
 
       // Если поле используется только одной браной — локальное

@@ -30,9 +30,9 @@ describe("matrix — Логические стадии (bun-webgpu)", () => {
       await write({
         fields: [{ type: FieldType.F32 }],
         branes: [
-          { state: 0, params: [[0, 0]], collapses },
-          { state: 0, params: [[0, 0]], collapses },
-          { state: 0, params: [[0, 0]], collapses },
+          { state: 0, values: [[0, 0]], collapses },
+          { state: 0, values: [[0, 0]], collapses },
+          { state: 0, values: [[0, 0]], collapses },
         ],
       })
       const resultStates = await update([[0, [[0, 1]]]])
@@ -48,9 +48,9 @@ describe("matrix — Логические стадии (bun-webgpu)", () => {
       await write({
         fields: [{ type: FieldType.F32 }],
         branes: [
-          { state: 0, params: [[0, 0]], collapses },
-          { state: 0, params: [[0, 0]], collapses },
-          { state: 0, params: [[0, 0]], collapses },
+          { state: 0, values: [[0, 0]], collapses },
+          { state: 0, values: [[0, 0]], collapses },
+          { state: 0, values: [[0, 0]], collapses },
         ],
       })
       const resultStates = await update([[0, [[0, 36.6]]]])
@@ -69,8 +69,8 @@ describe("matrix — Логические стадии (bun-webgpu)", () => {
       await write({
         fields: [{ type: FieldType.F32 }],
         branes: [
-          { state: 0, params: [[0, 0]], collapses },
-          { state: 0, params: [[0, 0]], collapses },
+          { state: 0, values: [[0, 0]], collapses },
+          { state: 0, values: [[0, 0]], collapses },
         ],
       })
       const resultStates = await update([[0, [[0, 1]]]])
@@ -89,9 +89,9 @@ describe("matrix — Логические стадии (bun-webgpu)", () => {
       await write({
         fields: [{ type: FieldType.F32 }, { type: FieldType.F32 }],
         branes: [
-          { state: 0, params: [[0, 0], [1, 0]], collapses },
-          { state: 0, params: [[0, 0], [1, 0]], collapses },
-          { state: 0, params: [[0, 0], [1, 0]], collapses },
+          { state: 0, values: [[0, 0], [1, 0]], collapses },
+          { state: 0, values: [[0, 0], [1, 0]], collapses },
+          { state: 0, values: [[0, 0], [1, 0]], collapses },
         ],
       })
       const resultStates = await update([[0, [

@@ -24,7 +24,7 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: { eq: "hero" } }]], [null]]
       await write({
         fields: [{ type: FieldType.STRING_PTR }],
-        branes: [{ state: 0, params: [[0, ""]], collapses }],
+        branes: [{ state: 0, values: [[0, ""]], collapses }],
       })
       const resultStates = await update([[0, [[0, "hero"]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -34,7 +34,7 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: { eq: "hero" } }]], [null]]
       await write({
         fields: [{ type: FieldType.STRING_PTR }],
-        branes: [{ state: 0, params: [[0, ""]], collapses }],
+        branes: [{ state: 0, values: [[0, ""]], collapses }],
       })
       const resultStates = await update([[0, [[0, "monster"]]]])
       expect(resultStates).toEqual([])
@@ -47,7 +47,7 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
       // Начальное значение "hero" = "hero", поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.STRING_PTR }],
-        branes: [{ state: 0, params: [[0, "hero"]], collapses }],
+        branes: [{ state: 0, values: [[0, "hero"]], collapses }],
       })
       const resultStates = await update([[0, [[0, "monster"]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -60,8 +60,8 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
       await write({
         fields: [{ type: FieldType.STRING_PTR }],
         branes: [
-          { state: 0, params: [[0, "alpha"]], collapses },
-          { state: 0, params: [[0, "beta"]], collapses },
+          { state: 0, values: [[0, "alpha"]], collapses },
+          { state: 0, values: [[0, "beta"]], collapses },
         ],
       })
       const resultStates = await update([[0, [[0, "hero"]]]])
@@ -72,7 +72,7 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: { in: ["привет", "мир", "тест"] } }]], [null]]
       await write({
         fields: [{ type: FieldType.STRING_PTR }],
-        branes: [{ state: 0, params: [[0, ""]], collapses }],
+        branes: [{ state: 0, values: [[0, ""]], collapses }],
       })
       const resultStates = await update([[0, [[0, "мир"]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -82,7 +82,7 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: { in: ["😀", "😂", "😍"] } }]], [null]]
       await write({
         fields: [{ type: FieldType.STRING_PTR }],
-        branes: [{ state: 0, params: [[0, ""]], collapses }],
+        branes: [{ state: 0, values: [[0, ""]], collapses }],
       })
       const resultStates = await update([[0, [[0, "😂"]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -96,8 +96,8 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
       await write({
         fields: [{ type: FieldType.STRING_PTR }],
         branes: [
-          { state: 0, params: [[0, "hero"]], collapses },
-          { state: 0, params: [[0, "hero"]], collapses },
+          { state: 0, values: [[0, "hero"]], collapses },
+          { state: 0, values: [[0, "hero"]], collapses },
         ],
       })
       const resultStates = await update([[0, [[0, "warrior"]]]])
@@ -114,8 +114,8 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
       await write({
         fields: [{ type: FieldType.STRING_PTR }],
         branes: [
-          { state: 0, params: [[0, ""]], collapses },
-          { state: 0, params: [[0, ""]], collapses },
+          { state: 0, values: [[0, ""]], collapses },
+          { state: 0, values: [[0, ""]], collapses },
         ],
       })
       const resultStates = await update([

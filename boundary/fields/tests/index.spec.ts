@@ -32,7 +32,7 @@ describe("write / update — базовые переходы", () => {
       branes: [
         {
           // Начальное значение 0 ≤ 50, поэтому НЕ переходит после write()
-          params: [[0, 0]],
+          values: [[0, 0]],
           state: 0,
           collapses: [
             [[1, { 0: { gt: 50 } }]], // IDLE → PATROL
@@ -41,7 +41,7 @@ describe("write / update — базовые переходы", () => {
         },
         {
           // Начальное значение 50 не > 50, поэтому НЕ переходит после write()
-          params: [[0, 50]],
+          values: [[0, 50]],
           state: 0,
           collapses: [
             [[1, { 0: { gt: 50 } }]],
@@ -67,7 +67,7 @@ describe("write / update — базовые переходы", () => {
       branes: [
         {
           // Начальное значение 100 > 50, поэтому после write() state=0 (ещё не выполнен переход)
-          params: [[0, 100]],
+          values: [[0, 100]],
           state: 0,
           collapses: [
             [[1, { 0: { gt: 50 } }]], // IDLE → PATROL
@@ -94,7 +94,7 @@ describe("write / update — базовые переходы", () => {
       branes: [
         {
           // Начальное значение 0 < 50, поэтому НЕ переходит после write()
-          params: [[0, 0]],
+          values: [[0, 0]],
           state: 0,
           collapses: [
             [[1, { 0: { gte: 50 } }]],
@@ -127,7 +127,7 @@ describe("write / update — логические условия", () => {
       branes: [
         {
           // Начальное значение false ≠ true, поэтому НЕ переходит после write()
-          params: [[0, false]],
+          values: [[0, false]],
           state: 0,
           collapses: [
             [[1, { 0: true }]],
@@ -150,7 +150,7 @@ describe("write / update — логические условия", () => {
       branes: [
         {
           // Начальное значение true ≠ false, поэтому НЕ переходит после write()
-          params: [[0, true]],
+          values: [[0, true]],
           state: 0,
           collapses: [
             [[1, { 0: false }]],
@@ -183,7 +183,7 @@ describe("write / update — множественные условия", () => {
       branes: [
         {
           // Начальное значение hp=0, mana=0 не удовлетворяет условиям
-          params: [
+          values: [
             [0, 0],
             [1, 0],
           ],
@@ -233,7 +233,7 @@ describe("write / update — entangled группы", () => {
       branes: [
         {
           // Начальное значение isAlive=false ≠ true, поэтому НЕ переходит после write()
-          params: [
+          values: [
             [0, 100],
             [1, false],
           ],
@@ -264,7 +264,7 @@ describe("write / update — entangled группы", () => {
       ],
       branes: [
         {
-          params: [
+          values: [
             [0, 100],
             [1, 10],  // mana=10 < 30 → должен перейти
             [2, true],
@@ -276,7 +276,7 @@ describe("write / update — entangled группы", () => {
           ],
         },
         {
-          params: [
+          values: [
             [0, 100],
             [1, 50],  // mana=50 не < 30 → не должен перейти
             [2, true],
@@ -323,7 +323,7 @@ describe("write / update — многошаговая эволюция", () => {
       ],
       branes: [
         {
-          params: [
+          values: [
             [0, 0],  // hp=0 ≤ 50, поэтому НЕ переходит после write()
             [1, 5],
           ],
@@ -371,7 +371,7 @@ describe("write / update — ошибки", () => {
   test("должен бросить ошибку при неверном индексе браны", async () => {
     await write({
       fields: [{ type: FieldType.F32 }],
-      branes: [{ params: [[0, 100]], state: 0, collapses: [[null as any]] }],
+      branes: [{ values: [[0, 100]], state: 0, collapses: [[null as any]] }],
     })
 
     await expect(update([[999, [[0, 100]]]])).rejects.toThrow("Brane index out of range")
@@ -402,7 +402,7 @@ describe("write / update — параллельные вызовы", () => {
     await write({
       fields: [{ type: FieldType.F32 }],
       branes: [
-        { params: [[0, 0]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
+        { values: [[0, 0]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
       ],
     })
 
@@ -432,7 +432,7 @@ describe("write / update — параллельные вызовы", () => {
     await write({
       fields: [{ type: FieldType.F32 }],
       branes: [
-        { params: [[0, 0]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
+        { values: [[0, 0]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
       ],
     })
 
@@ -461,7 +461,7 @@ describe("write / update — параллельные вызовы", () => {
     const initialStates = await write({
       fields: [{ type: FieldType.F32 }],
       branes: [
-        { params: [[0, 0]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
+        { values: [[0, 0]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
       ],
     })
 
@@ -475,7 +475,7 @@ describe("write / update — параллельные вызовы", () => {
     const newInitialStates = await write({
       fields: [{ type: FieldType.F32 }],
       branes: [
-        { params: [[0, 0]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
+        { values: [[0, 0]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
       ],
     })
 
@@ -507,7 +507,7 @@ describe("write / update — ARRAY поля", () => {
       fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
       branes: [
         {
-          params: [[0, [1, 2, 3]]],
+          values: [[0, [1, 2, 3]]],
           state: 0,
           collapses: [[[1, { 0: { length: { eq: 5 } } }]], [null as any]],
         },
@@ -532,7 +532,7 @@ describe("write / update — ARRAY поля", () => {
       branes: [
         {
           // Начинаем с непустого массива (isEmpty=false, состояние 0)
-          params: [[0, [1, 2, 3]]],
+          values: [[0, [1, 2, 3]]],
           state: 0,
           collapses: [[[1, { 0: { isEmpty: true } }]], [null as any]],
         },
@@ -559,7 +559,7 @@ describe("update() с блокировкой переходов", () => {
     await write({
       fields: [{ type: FieldType.F32 }],
       branes: [{
-        params: [[0, 100]],
+        values: [[0, 100]],
         state: 0,
         collapses: [[[1, { 0: { gt: 50 } }]], [null as any]],
       }],
@@ -576,7 +576,7 @@ describe("update() с блокировкой переходов", () => {
     await write({
       fields: [{ type: FieldType.F32 }],
       branes: [{
-        params: [[0, 30]],
+        values: [[0, 30]],
         state: 0,
         collapses: [[[1, { 0: { gt: 50 } }]], [null as any]],
       }],
@@ -599,7 +599,7 @@ describe("update() с блокировкой переходов", () => {
     await write({
       fields: [{ type: FieldType.F32 }],
       branes: [{
-        params: [[0, 30]],
+        values: [[0, 30]],
         state: 0,
         collapses: [[[1, { 0: { gt: 50 } }]], [null as any]],
       }],
@@ -618,8 +618,8 @@ describe("update() с блокировкой переходов", () => {
     await write({
       fields: [{ type: FieldType.F32 }],
       branes: [
-        { params: [[0, 30]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
-        { params: [[0, 30]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
+        { values: [[0, 30]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
+        { values: [[0, 30]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
       ],
     })
 
@@ -641,9 +641,9 @@ describe("update() с блокировкой переходов", () => {
     await write({
       fields: [{ type: FieldType.F32 }],
       branes: [
-        { params: [[0, 30]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
-        { params: [[0, 30]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
-        { params: [[0, 30]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
+        { values: [[0, 30]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
+        { values: [[0, 30]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
+        { values: [[0, 30]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null as any]] },
       ],
     })
 
@@ -669,7 +669,7 @@ describe("update() с блокировкой переходов", () => {
     await write({
       fields: [{ type: FieldType.F32 }],
       branes: [{
-        params: [[0, 100]],
+        values: [[0, 100]],
         state: 0,
         collapses: [[[1, { 0: { gt: 50 } }]], [null as any]],
       }],

@@ -7,65 +7,65 @@ import { findEntangledGroups, buildBraneMapping } from "../entangled"
 describe("findEntangledGroups / buildBraneMapping — чистые функции", () => {
   describe("findEntangledGroups", () => {
     test("должен найти entangled группу для одинаковых значений", () => {
-      const params: [number, unknown][][] = [
+      const values: [number, unknown][][] = [
         [[0, 100], [1, true]],
         [[0, 100], [1, true]],
       ]
-      const { fieldUsage, entangledGroups } = findEntangledGroups(params)
+      const { fieldUsage, entangledGroups } = findEntangledGroups(values)
       expect(fieldUsage.get(0)).toEqual(new Set([0, 1]))
       expect(entangledGroups.size).toBe(1)
     })
 
     test("не должен создавать entangled для разных значений", () => {
-      const params: [number, unknown][][] = [
+      const values: [number, unknown][][] = [
         [[0, 100], [1, true]],
         [[0, 50], [1, false]],
       ]
-      const { entangledGroups } = findEntangledGroups(params)
+      const { entangledGroups } = findEntangledGroups(values)
       expect(entangledGroups.size).toBe(0)
     })
 
     test("должен создать entangled только для одинаковых полей", () => {
-      const params: [number, unknown][][] = [
+      const values: [number, unknown][][] = [
         [[0, 100], [1, true]],
         [[0, 100], [1, false]],
       ]
-      const { entangledGroups } = findEntangledGroups(params)
+      const { entangledGroups } = findEntangledGroups(values)
       expect(entangledGroups.size).toBe(1)
     })
 
     test("должен обработать 3 браны с частичным совпадением", () => {
-      const params: [number, unknown][][] = [
+      const values: [number, unknown][][] = [
         [[0, 100], [1, true]],
         [[0, 100], [1, true]],
         [[0, 50], [1, false]],
       ]
-      const { entangledGroups } = findEntangledGroups(params)
+      const { entangledGroups } = findEntangledGroups(values)
       expect(entangledGroups.size).toBe(0)
     })
   })
 
   describe("buildBraneMapping", () => {
     test("должен создать правильный маппинг для identical бран", () => {
-      const params: [number, unknown][][] = [
+      const values: [number, unknown][][] = [
         [[0, 100], [1, true]],
         [[0, 100], [1, true]],
       ]
-      const analysis = findEntangledGroups(params)
+      const analysis = findEntangledGroups(values)
       const entangledBraneIds = new Map<string, number>([["0,1", 0]])
-      const result = buildBraneMapping(params, entangledBraneIds, analysis)
+      const result = buildBraneMapping(values, entangledBraneIds, analysis)
       expect(result.localFields[0]).toEqual([])
       expect(result.braneEntangledMap[0]).toEqual([0])
     })
 
     test("должен разделить local и entangled поля", () => {
-      const params: [number, unknown][][] = [
+      const values: [number, unknown][][] = [
         [[0, 100], [1, 50]],
         [[0, 100], [1, 10]],
       ]
-      const analysis = findEntangledGroups(params)
+      const analysis = findEntangledGroups(values)
       const entangledBraneIds = new Map<string, number>([["0,1", 0]])
-      const result = buildBraneMapping(params, entangledBraneIds, analysis)
+      const result = buildBraneMapping(values, entangledBraneIds, analysis)
       expect(result.entangledFields.get("0,1")).toEqual([[0, 100]])
       expect(result.localFields[0]).toEqual([[1, 50]])
     })

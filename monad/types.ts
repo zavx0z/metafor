@@ -102,8 +102,8 @@ export type Intentions = Record<string, Intention | null>
  * Брана — носитель состояния.
  */
 export interface Brane {
-  /** Значения полей браны (params — данные). */
-  params: Record<string, unknown>
+  /** Значения полей браны (values — данные). */
+  values: Record<string, unknown>
   /** Текущее состояние (должно быть в superposition). */
   state: string
   /** Суперпозиция — все состояния + граф переходов. */

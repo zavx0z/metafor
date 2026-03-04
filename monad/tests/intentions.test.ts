@@ -119,7 +119,7 @@ describe("Monad — Намерения (intentions)", () => {
     const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges).toHaveLength(1)
     expect(runtimeChanges[0]!.intention).toBe("combatProcess")
-    expect(runtimeChanges[0]!.params).toEqual({ hp: 80, mana: 30 })
+    expect(runtimeChanges[0]!.values).toEqual({ hp: 80, mana: 30 })
   })
 
   it("должен вернуть разные намерения для разных состояний", async () => {

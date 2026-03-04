@@ -2,145 +2,24 @@
  * Типы для API fields.
  *
  * @packageDocumentation
+ *
+ * @remarks
+ * Все типы переопределены в `@boundary/matrix/types` и ре-экспортируются отсюда.
  */
 
-/**
- * Определение типа поля для GPU.
- *
- * @example
- * ```ts
- * const field: Field = { type: FieldType.F32 }
- * const stringField: Field = { type: FieldType.STRING_PTR }
- * const arrayField: Field = { type: FieldType.ARRAY_PTR, elementType: "number" }
- * ```
- */
-export const FieldType = {
-  /** 32-битное число с плавающей точкой */
-  F32: 0,
-  /** 32-битное беззнаковое целое */
-  U32: 1,
-  /** Булево значение (хранится как 0 или 1) */
-  BOOL: 2,
-  /** Ссылка на строку в StringAtlas */
-  STRING_PTR: 3,
-  /** Ссылка на массив в heap */
-  ARRAY_PTR: 4,
-} as const
+// Ре-экспорт типов из @boundary/matrix
+export {
+  FieldType,
+  type FieldTypeValue,
+  type BraneValue,
+  type Field,
+  type Collapse,
+  type Brane,
+  type Data,
+} from "@boundary/matrix"
 
+// Алиас для обратной совместимости
 /**
- * Тип значения FieldType.
+ * @deprecated Используйте `BraneValue` из `@boundary/matrix`
  */
-export type FieldTypeValue = (typeof FieldType)[keyof typeof FieldType]
-
-/**
- * Допустимые значения параметра браны.
- * Union type для строгой типизации вместо `unknown`.
- */
-export type BraneParamValue =
-  | number
-  | boolean
-  | string
-  | null
-  | number[]
-  | boolean[]
-  | string[]
-
-/**
- * Поле — схема данных для GPU.
- *
- * @example
- * ```ts
- * // Простое числовое поле
- * const field: Field = { type: FieldType.F32 }
- *
- * // Поле с enum (строковая типизация)
- * const enumField: Field = {
- *   type: FieldType.U32,
- *   enum: ["idle", "running", "stopped"]
- * }
- *
- * // Массив чисел
- * const arrayField: Field = {
- *   type: FieldType.ARRAY_PTR,
- *   elementType: "number"
- * }
- * ```
- */
-export interface Field {
-  /** Тип данных поля */
-  type: FieldTypeValue
-  /** Тип элементов для ARRAY_PTR */
-  elementType?: "number" | "string" | "boolean"
-  /** Список допустимых значений для enum-полей */
-  enum?: any[]
-}
-
-/**
- * Collapse — переход между состояниями.
- *
- * Формат: `[targetState, conditions]` или `null` для терминального состояния.
- *
- * - `targetState`: индекс целевого состояния
- * - `conditions`: `Record<fieldIndex, condition>` — условия перехода
- *
- * @example
- * ```ts
- * // Переход в состояние 1 при условии field[0] > 50
- * const collapse: Collapse = [1, { 0: { gt: 50 } }]
- *
- * // Терминальное состояние
- * const terminal: Collapse = null
- * ```
- */
-export type Collapse = [number, Record<number, any>] | null
-
-/**
- * Brane — возмущение квантового поля.
- *
- * @example
- * ```ts
- * const brane: Brane = {
- *   params: [[0, 100], [1, true]],  // fieldIndex, value
- *   state: 0,                        // начальное состояние
- *   collapses: [                     // граф переходов
- *     [[1, { 0: { gt: 50 } }]],      // из состояния 0 → 1 при field[0] > 50
- *     [null]                          // состояние 1 терминальное
- *   ]
- * }
- * ```
- */
-export interface Brane {
-  /** Значения полей: `[fieldIndex, value][]` */
-  params: [number, BraneParamValue][]
-  /** Начальное состояние (индекс). */
-  state: number
-  /** Граф переходов между состояниями. */
-  collapses: Collapse[][]
-}
-
-/**
- * Data — конфигурация для `write()`.
- *
- * @example
- * ```ts
- * const data: Data = {
- *   fields: [
- *     { type: FieldType.F32 },
- *     { type: FieldType.BOOL }
- *   ],
- *   branes: [
- *     {
- *       params: [[0, 100], [1, true]],
- *       state: 0,
- *       collapses: [[[1, { 0: { gt: 50 } }]], [null]]
- *     }
- *   ]
- * }
- * ```
- */
-export interface Data {
-  /** Поля: индекс = позиция в массиве. Может отсутствовать или быть пустым. */
-  fields?: Field[]
-  /** Браны. Может отсутствовать или быть пустым. */
-  branes?: Brane[]
-}
+export type BraneParamValue = BraneValue

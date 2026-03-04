@@ -244,3 +244,14 @@ export function _getBackend(): GPUBackend | null {
 export { GPUBackend } from "./backend"
 export { GPU } from "./device"
 export type { BackendInitParams } from "./backend.t"
+
+// Ре-экспорт типов данных
+export {
+  FieldType,
+  type FieldTypeValue,
+  type BraneValue,
+  type Field,
+  type Collapse,
+  type Brane,
+  type Data,
+} from "./types"

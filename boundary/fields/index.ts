@@ -26,7 +26,7 @@
  * await write({
  *   fields: [{ type: FieldType.F32 }],
  *   branes: [{
- *     params: [[0, 100]],
+ *     values: [[0, 100]],
  *     state: 0,
  *     collapses: [[[1, { 0: { gt: 50 } }]], [null]],
  *   }],
@@ -46,8 +46,6 @@ import {
   resetMatrix,
   getMatrixState as getMatrixRuntimeState,
 } from "@boundary/matrix"
-import { serializeMatrix, deserializeMatrix } from "@boundary/dump"
-import type { MatrixState as DumpMatrixState } from "@boundary/dump"
 
 import { validateData } from "./validate"
 import { prepareData, type PreparedData } from "./prepare"
@@ -113,7 +111,7 @@ export type {
 } from "./index.t"
 
 // ============================================================================
-// ГЛОБАЛЬНОЕ СОСТОЯНИЕ (fp.md п.5)
+// ГЛОБАЛЬНОЕ СОСТОЯНИЕ
 // ============================================================================
 
 /**
@@ -231,7 +229,7 @@ function getMatrixState(): MatrixStateInternal {
  * // Инициализация без шага FSM
  * const initialStates = await write({
  *   fields: [{ type: FieldType.F32 }],
- *   branes: [{ params: [[0, 100]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null]] }],
+ *   branes: [{ values: [[0, 100]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null]] }],
  * })
  * // initialStates = [] до первого update()
  * ```

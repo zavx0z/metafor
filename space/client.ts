@@ -22,7 +22,7 @@ const out = document.getElementById("output")!
 // deleteMonad(spaceId)
 
 function log(changed: BraneStateChange[]) {
-  const { monadId, oldState, newState, intention } = changed[0]!
+  const { monadId, oldState, newState, intention, values } = changed[0]!
   const msg = `${monadId}: ${oldState} → ${newState}${intention ? `, intention: ${intention}` : ""}`
   console.log(msg)
   out.innerText += msg + "\n"

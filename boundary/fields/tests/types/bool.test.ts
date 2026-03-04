@@ -24,7 +24,7 @@ describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: true }]], [null]]
       await write({
         fields: [{ type: FieldType.BOOL }],
-        branes: [{ state: 0, params: [[0, false]], collapses }],
+        branes: [{ state: 0, values: [[0, false]], collapses }],
       })
       const resultStates = await update([[0, [[0, true]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -34,7 +34,7 @@ describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: false }]], [null]]
       await write({
         fields: [{ type: FieldType.BOOL }],
-        branes: [{ state: 0, params: [[0, true]], collapses }],
+        branes: [{ state: 0, values: [[0, true]], collapses }],
       })
       const resultStates = await update([[0, [[0, false]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -46,7 +46,7 @@ describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: { eq: true } }]], [null]]
       await write({
         fields: [{ type: FieldType.BOOL }],
-        branes: [{ state: 0, params: [[0, false]], collapses }],
+        branes: [{ state: 0, values: [[0, false]], collapses }],
       })
       const resultStates = await update([[0, [[0, true]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -56,7 +56,7 @@ describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: { eq: false } }]], [null]]
       await write({
         fields: [{ type: FieldType.BOOL }],
-        branes: [{ state: 0, params: [[0, true]], collapses }],
+        branes: [{ state: 0, values: [[0, true]], collapses }],
       })
       const resultStates = await update([[0, [[0, false]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -68,7 +68,7 @@ describe("matrix - тип BOOLEAN (логический) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: { neq: true } }]], [null]]
       await write({
         fields: [{ type: FieldType.BOOL }],
-        branes: [{ state: 0, params: [[0, true]], collapses }],
+        branes: [{ state: 0, values: [[0, true]], collapses }],
       })
       const resultStates = await update([[0, [[0, false]]]])
       expect(resultStates).toContainEqual([0, 1])

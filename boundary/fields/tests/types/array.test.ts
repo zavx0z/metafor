@@ -25,7 +25,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
       // write() с пустым массивом [] не содержит 5, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
-        branes: [{ state: 0, params: [[0, []]], collapses }],
+        branes: [{ state: 0, values: [[0, []]], collapses }],
       })
       const resultStates = await update([[0, [[0, [1, 3, 5, 7]]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -35,7 +35,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: { include: 5 } }]], [null]]
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
-        branes: [{ state: 0, params: [[0, []]], collapses }],
+        branes: [{ state: 0, values: [[0, []]], collapses }],
       })
       const resultStates = await update([[0, [[0, [1, 2, 3]]]]])
       expect(resultStates).toEqual([])
@@ -49,7 +49,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
       // [1, 2, 3] не содержит 10 → notInclude:10 = TRUE → transition
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
-        branes: [{ state: 0, params: [[0, []]], collapses }],
+        branes: [{ state: 0, values: [[0, []]], collapses }],
       })
       const resultStates = await update([[0, [[0, [1, 2, 3]]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -61,7 +61,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
       // [1, 5, 10] содержит 5 → notInclude:5 = FALSE → no transition
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
-        branes: [{ state: 0, params: [[0, []]], collapses }],
+        branes: [{ state: 0, values: [[0, []]], collapses }],
       })
       const resultStates = await update([[0, [[0, [1, 5, 10]]]]])
       expect(resultStates).toEqual([])
@@ -74,7 +74,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
       // Пустой массив имеет длину 0 ≠ 3, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
-        branes: [{ state: 0, params: [[0, []]], collapses }],
+        branes: [{ state: 0, values: [[0, []]], collapses }],
       })
       const resultStates = await update([[0, [[0, [1, 2, 3]]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -85,7 +85,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
       // Пустой массив имеет длину 0 ≤ 2, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
-        branes: [{ state: 0, params: [[0, []]], collapses }],
+        branes: [{ state: 0, values: [[0, []]], collapses }],
       })
       const resultStates = await update([[0, [[0, [1, 2, 3, 4]]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -96,7 +96,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
       // write() с пустым массивом (длина 0 ≤ 3) — TAKT 0: инициализация без перехода
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
-        branes: [{ state: 0, params: [[0, []]], collapses }],
+        branes: [{ state: 0, values: [[0, []]], collapses }],
       })
       // update() — TAKT 1: длина 0 ≤ 3 → переход в state=1
       const states1 = await update([[0, []]])
@@ -114,7 +114,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
       // write() с пустым массивом [] — TAKT 0: инициализация без перехода
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
-        branes: [{ state: 0, params: [[0, []]], collapses }],
+        branes: [{ state: 0, values: [[0, []]], collapses }],
       })
       // update() — TAKT 1: isEmpty=true → переход в state=1
       const states1 = await update([[0, []]])
@@ -130,7 +130,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
       // write() с пустым массивом [] — TAKT 0: инициализация
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
-        branes: [{ state: 0, params: [[0, []]], collapses }],
+        branes: [{ state: 0, values: [[0, []]], collapses }],
       })
       // update() — TAKT 1: isEmpty=true → переход в state=1 (терминальное)
       const states1 = await update([[0, []]])
@@ -147,7 +147,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: { include: "hero" } }]], [null]]
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "string" }],
-        branes: [{ state: 0, params: [[0, []]], collapses }],
+        branes: [{ state: 0, values: [[0, []]], collapses }],
       })
       const resultStates = await update([[0, [[0, ["warrior", "mage", "hero"]]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -157,7 +157,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: { length: 2 } }]], [null]]
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "string" }],
-        branes: [{ state: 0, params: [[0, []]], collapses }],
+        branes: [{ state: 0, values: [[0, []]], collapses }],
       })
       const resultStates = await update([[0, [[0, ["alpha", "beta"]]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -170,7 +170,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
       // Пустой массив не удовлетворяет условиям, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
-        branes: [{ state: 0, params: [[0, []]], collapses }],
+        branes: [{ state: 0, values: [[0, []]], collapses }],
       })
       const resultStates = await update([[0, [[0, [1, 5, 10]]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -183,7 +183,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
       // write() с непустым массивом [1, 2, 3] — TAKT 0: инициализация без перехода
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
-        branes: [{ state: 0, params: [[0, [1, 2, 3]]], collapses }],
+        branes: [{ state: 0, values: [[0, [1, 2, 3]]], collapses }],
       })
       // update() — TAKT 1: length=3 → переход в state=1
       const states1 = await update([[0, []]])
@@ -199,7 +199,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
       // write() с непустым массивом ["warrior", "hero"] — TAKT 0: инициализация
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "string" }],
-        branes: [{ state: 0, params: [[0, ["warrior", "hero"]]], collapses }],
+        branes: [{ state: 0, values: [[0, ["warrior", "hero"]]], collapses }],
       })
       // update() — TAKT 1: включает "hero" → переход в state=1
       const states1 = await update([[0, []]])
@@ -215,7 +215,7 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
       // write() с пустым массивом [] — TAKT 0: инициализация
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
-        branes: [{ state: 0, params: [[0, []]], collapses }],
+        branes: [{ state: 0, values: [[0, []]], collapses }],
       })
       // update() — TAKT 1: isEmpty=true → переход в state=1
       const states1 = await update([[0, []]])

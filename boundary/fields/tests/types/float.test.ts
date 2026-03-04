@@ -25,7 +25,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
       // Начальное значение 0 ≠ 42, поэтому после write() state=0
       await write({
         fields: [{ type: FieldType.F32 }],
-        branes: [{ state: 0, params: [[0, 0]], collapses }],
+        branes: [{ state: 0, values: [[0, 0]], collapses }],
       })
       const resultStates = await update([[0, [[0, 42]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -35,7 +35,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: { eq: -10 } }]], [null]]
       await write({
         fields: [{ type: FieldType.F32 }],
-        branes: [{ state: 0, params: [[0, 0]], collapses }],
+        branes: [{ state: 0, values: [[0, 0]], collapses }],
       })
       const resultStates = await update([[0, [[0, -10]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -45,7 +45,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
       const collapses: Collapse[][] = [[[1, { 0: { eq: 3.14 } }]], [null]]
       await write({
         fields: [{ type: FieldType.F32 }],
-        branes: [{ state: 0, params: [[0, 0]], collapses }],
+        branes: [{ state: 0, values: [[0, 0]], collapses }],
       })
       const resultStates = await update([[0, [[0, 3.14]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -56,7 +56,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
       // Начальное значение 1 ≠ 0, поэтому после write() state=0
       await write({
         fields: [{ type: FieldType.F32 }],
-        branes: [{ state: 0, params: [[0, 1]], collapses }],
+        branes: [{ state: 0, values: [[0, 1]], collapses }],
       })
       const resultStates = await update([[0, [[0, 0]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -69,7 +69,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
       // Начальное значение 42 = 42, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.F32 }],
-        branes: [{ state: 0, params: [[0, 42]], collapses }],
+        branes: [{ state: 0, values: [[0, 42]], collapses }],
       })
       const resultStates = await update([[0, [[0, 41]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -82,7 +82,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
       // Начальное значение 50 ≤ 100, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.F32 }],
-        branes: [{ state: 0, params: [[0, 50]], collapses }],
+        branes: [{ state: 0, values: [[0, 50]], collapses }],
       })
       const resultStates = await update([[0, [[0, 101]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -95,7 +95,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
       // Начальное значение 100 ≥ 50, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.F32 }],
-        branes: [{ state: 0, params: [[0, 100]], collapses }],
+        branes: [{ state: 0, values: [[0, 100]], collapses }],
       })
       const resultStates = await update([[0, [[0, 49]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -108,7 +108,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
       // Начальное значение 0 < 50, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.F32 }],
-        branes: [{ state: 0, params: [[0, 0]], collapses }],
+        branes: [{ state: 0, values: [[0, 0]], collapses }],
       })
       const resultStates = await update([[0, [[0, 50]]]])
       expect(resultStates).toContainEqual([0, 1])
@@ -121,7 +121,7 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
       // Начальное значение 100 > 50, поэтому НЕ переходит после write()
       await write({
         fields: [{ type: FieldType.F32 }],
-        branes: [{ state: 0, params: [[0, 100]], collapses }],
+        branes: [{ state: 0, values: [[0, 100]], collapses }],
       })
       const resultStates = await update([[0, [[0, 50]]]])
       expect(resultStates).toContainEqual([0, 1])

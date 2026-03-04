@@ -10,7 +10,7 @@ describe("validateData — валидация входных данных", () =
     const data: Data = {
       fields: [{ type: FieldType.F32 }],
       branes: [{
-        params: [[0, 100]],
+        values: [[0, 100]],
         state: 0,
         collapses: [[[1, { 0: { gt: 50 } }]], [null]],
       }],
@@ -44,7 +44,7 @@ describe("validateData — валидация входных данных", () =
     const data = {
       fields: [{ type: 999 }],
       branes: [{
-        params: [],
+        values: [],
         state: 0,
         collapses: [[null]],
       }],
@@ -56,7 +56,7 @@ describe("validateData — валидация входных данных", () =
     const data = {
       fields: [{ type: FieldType.ARRAY_PTR }],
       branes: [{
-        params: [],
+        values: [],
         state: 0,
         collapses: [[null]],
       }],
@@ -68,7 +68,7 @@ describe("validateData — валидация входных данных", () =
     const data: Data = {
       fields: [{ type: FieldType.F32 }],
       branes: [{
-        params: [[999, 100]],
+        values: [[999, 100]],
         state: 0,
         collapses: [[null]],
       }],
@@ -80,7 +80,7 @@ describe("validateData — валидация входных данных", () =
     const data: Data = {
       fields: [{ type: FieldType.U32, enum: ["A", "B"] }],
       branes: [{
-        params: [[0, "INVALID"]],
+        values: [[0, "INVALID"]],
         state: 0,
         collapses: [[null]],
       }],
@@ -92,7 +92,7 @@ describe("validateData — валидация входных данных", () =
     const data: Data = {
       fields: [{ type: FieldType.U32, enum: ["A", "B"] }],
       branes: [{
-        params: [[0, "A"]],
+        values: [[0, "A"]],
         state: 0,
         collapses: [[null]],
       }],
@@ -104,7 +104,7 @@ describe("validateData — валидация входных данных", () =
     const data: Data = {
       fields: [{ type: FieldType.F32 }],
       branes: [{
-        params: [],
+        values: [],
         state: 0,
         collapses: [[[-1, {}]]], // отрицательный target state
       }],
@@ -116,7 +116,7 @@ describe("validateData — валидация входных данных", () =
     const data: Data = {
       fields: [{ type: FieldType.F32 }],
       branes: [{
-        params: [],
+        values: [],
         state: 0,
         collapses: [[[999, {}]]], // target state за пределами диапазона
       }],
