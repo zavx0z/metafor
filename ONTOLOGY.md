@@ -141,9 +141,9 @@
 
 // BOUNDARY (вычисления)
 {
-  transitions: [
-    [{ to: 1, conditions: { 0: { gt: 50 } } }],  // Из IDLE → PATROL
-    [null]                                        // PATROL — терминальное
+  collapses: [
+    [[1, { 0: { gt: 50 } }]],  // Из IDLE → PATROL (кортеж [to, conditions])
+    [null]                      // PATROL — терминальное
   ]
 }
 ```

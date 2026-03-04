@@ -5,6 +5,7 @@
  */
 import type { Intentions, Superposition } from "./types"
 import type { ParsedProcessJson } from "../dsl/build/monadJson"
+import type { Collapse } from "@boundary/fields"
 
 /**
  * Индекс браны в Boundary (позиция в массиве).
@@ -25,15 +26,7 @@ export interface FieldsDefinition {
  * Числовая суперпозиция для BOUNDARY (индексы).
  */
 export interface NumericSuperposition {
-  transitions: Array<Array<Transition | null>>
-}
-
-/**
- * Переход между состояниями.
- */
-export interface Transition {
-  to: number
-  conditions: Record<number, any>
+  transitions: Array<Array<Collapse>>
 }
 
 /**

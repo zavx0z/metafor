@@ -15,7 +15,7 @@ export interface ConvertedSuperposition {
   states: string[]
   /** Суперпозиция для Boundary (только индексы). */
   boundary: {
-    transitions: Array<Array<Collapse | null>>
+    transitions: Array<Array<Collapse>>
   }
 }
 
@@ -41,7 +41,7 @@ export interface ConvertedSuperposition {
  * // result.states = ["IDLE", "PATROL"]
  * // result.boundary = {
  * //   transitions: [
- * //     [{ to: 1, conditions: { 0: { gt: 50 } } }],
+ * //     [[1, { 0: { gt: 50 } }]],  // ← кортеж [to, conditions]
  * //     [null]
  * //   ]
  * // }
@@ -55,7 +55,7 @@ export function convertToNumeric(
   const stateIndex = new Map<string, number>()
   states.forEach((name, i) => stateIndex.set(name, i))
 
-  const transitions: Array<Array<Collapse | null>> = []
+  const transitions: Array<Array<Collapse>> = []
 
   for (const fromState of states) {
     const transObj = superposition[fromState]
@@ -64,7 +64,7 @@ export function convertToNumeric(
       continue
     }
 
-const fromTransitions: Array<Collapse | null> = []
+const fromTransitions: Array<Collapse> = []
 for (const [toState, conditions] of Object.entries(transObj)) {
   const toIdx = stateIndex.get(toState)
   if (toIdx === undefined) {

@@ -78,35 +78,30 @@ export interface MonadConfig {
 
 ### 3. `Brane.collapses` vs `Brane.transitions`
 
-**Тип:** Несоответствие в структуре данных
+**Тип:** Несоответствие в документации
 
 | Аспект | Значение |
 |--------|----------|
 | **Документация** | `transitions: [[{ to: 1, conditions: {...} }]]` |
 | **Код (BOUNDARY)** | `collapses: Collapse[][]` |
-| **Код (MONAD)** | `boundary: { transitions: ... }` |
+| **Код (MONAD)** | `boundary: { transitions: ... }` (внутренний тип) |
 | **Файлы (док)** | `ONTOLOGY.md:100` |
-| **Файлы (код)** | `boundary/fields/index.ts:178`, `monad/superposition.ts:17` |
+| **Файлы (код)** | `boundary/fields/index.ts:178` |
 
-**Проблема:** В документации и MONAD используется `transitions`, в BOUNDARY — `collapses`.
+**Проблема:** В документации используется `transitions`, в коде BOUNDARY — `collapses`.
 
-**Решение:**
+**Решение:** Исправить документацию ONTOLOGY.md:
 
 ```typescript
-// boundary/fields/index.t.ts
-export interface Brane {
-  params: [number, BraneParamValue][]
-  state: number
-  transitions: Collapse[][]  // было: collapses
+// ONTOLOGY.md
+// BOUNDARY (вычисления)
+{
+  collapses: [
+    [[1, { 0: { gt: 50 } }]],  // ← кортеж [to, conditions]
+    [null]
+  ]
 }
 ```
-
-**Затронутые файлы:**
-
-- `boundary/fields/index.t.ts` — определение типа
-- `boundary/fields/index.ts` — использование `branes.collapses`
-- `boundary/fields/prepare.ts` — создание бран
-- `boundary/fields/superposition.ts` — компиляция переходов
 
 ---
 
@@ -256,15 +251,16 @@ export type Intention = ProcessKey  // алиас для обратной сов
 
 | Тип | Файл | Формат |
 |-----|------|--------|
-| `Collapse` | `boundary/fields/index.t.ts:95` | `[number, Record<number, any>]` (кортеж) |
-| `Transition` | `monad/monad.t.ts:32` | `{ to: number, conditions: Record<number, any> }` (объект) |
+| **`Collapse`** | `boundary/fields/index.t.ts:95` | `[number, Record<number, any>]` (кортеж) |
+| **`Transition`** | `monad/monad.t.ts:34` (удалён) | `{ to: number, conditions: Record<number, any> }` (объект) |
 
-**Решение:** Унифицировать на `Collapse` (кортеж эффективнее для GPU):
+**Решение:** Удалить `Transition`, использовать `Collapse` из `@boundary/fields`.
 
-```typescript
-// monad/monad.t.ts — удалить Transition
-// Использовать Collapse везде
-```
+**Выполнено:**
+
+- Удалён интерфейс `Transition` из `monad/monad.t.ts`
+- `NumericSuperposition.transitions` теперь использует `Collapse`
+- Добавлен импорт `import type { Collapse } from "@boundary/fields"`
 
 ---
 
@@ -322,9 +318,7 @@ export type Intention = ProcessKey  // алиас для обратной сов
 - [x] **1.5** Обновить примеры в `monad/README.md`
 - [x] **1.6** Обновить примеры в `monad/BOUNDARY_LOCK.md`
 - [x] **1.7** Обновить тесты в `monad/tests/` (11 файлов, 214 замен)
-- [ ] **3.1** Переименовать `Brane.collapses` → `Brane.transitions` в `boundary/fields/index.t.ts`
-- [ ] **3.2** Обновить все использования в `boundary/fields/*.ts`
-- [ ] **3.3** Обновить примеры в `ONTOLOGY.md`
+- [x] **3.1** Исправить документацию в `ONTOLOGY.md` (`transitions` → `collapses`)
 
 ### 🟡 Средней важности
 
@@ -338,9 +332,9 @@ export type Intention = ProcessKey  // алиас для обратной сов
 
 ### 🟢 Низкой важности
 
-- [ ] **8.1** Унифицировать написание Weak Force в документации
-- [ ] **9.1** Заменить `Intention` → `ProcessKey` или сделать алиасом
-- [ ] **10.1** Удалить `Transition`, использовать `Collapse`
+- [x] **8.1** Унифицировать написание Weak Force в документации
+- [x] **9.1** Заменить `Intention` → `ProcessKey` или сделать алиасом
+- [x] **10.1** Удалить `Transition`, использовать `Collapse`
 - [ ] **11.1** Уточнить роль `updateBoundary()` в `README.md`
 - [ ] **12.1** Разделить концепции Gravity в `ONTOLOGY.md`
 
@@ -348,12 +342,12 @@ export type Intention = ProcessKey  // алиас для обратной сов
 
 ## 📊 Статистика
 
-| Категория | Количество |
-|-----------|------------|
-| 🔴 Критические | 3 |
-| 🟡 Средней важности | 4 |
-| 🟢 Низкой важности | 5 |
-| **Всего** | **12** |
+| Категория | Количество | Выполнено |
+|-----------|------------|-----------|
+| 🔴 Критические | 3 | 3 |
+| 🟡 Средней важности | 4 | 0 |
+| 🟢 Низкой важности | 3 | 3 |
+| **Всего** | **10** | **6** |
 
 **Затронутые файлы:**
 
@@ -361,12 +355,18 @@ export type Intention = ProcessKey  // алиас для обратной сов
 - `monad/monad.ts`
 - `monad/monad.t.ts`
 - `monad/field.ts`
+- `monad/superposition.ts`
 - `boundary/fields/index.ts`
 - `boundary/fields/index.t.ts`
 - `boundary/fields/prepare.ts`
 - `boundary/fields/superposition.ts`
 - `ONTOLOGY.md`
 - `README.md`
+- `monad/README.md`
+- `monad/BOUNDARY_LOCK.md`
+- `index.ts`
+- `space/client.ts`
+- `monad/tests/*` (11 файлов)
 
 ---
 
