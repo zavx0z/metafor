@@ -63,7 +63,7 @@ export type Mass = Record<string, any>
 /**
  * MetaFor — фабрика для создания web-компонента-атома конечного автомата
  * @param name - имя атома (используется для создания тега `meta-${name}`)
- * @returns chain API: brane() -> superposition() -> mass() -> processes() -> reactions() -> bulk()
+ * @returns chain API: fields() -> superposition() -> mass() -> processes() -> reactions() -> bulk()
  *
  * **Важно:** Итоговый тег компонента формируется как `meta-${name}`,
  * где name — это имя компонента, переданное в конструктор.
@@ -72,7 +72,7 @@ export type Mass = Record<string, any>
  * Основной API MetaFor для создания компонентов
  *
  * Предоставляет цепочку методов для настройки компонента:
- * - `brane()` - определение типизированных полей
+ * - `fields()` - определение типизированных полей
  * - `superposition()` - определение суперпозиции состояний
  * - `mass()` - настройка массы для сложных данных и зависимостей от среды
  * - `processes()` - определение процессов (действий)
@@ -82,7 +82,7 @@ export type Mass = Record<string, any>
  * @example
  * ```typescript
  * const component = MetaFor("my-component")
- *   .brane((field) => ({ name: field.string.required("") }))
+ *   .fields((field) => ({ name: field.string.required("") }))
  *   .superposition({ idle: { loading: {} } })
  *   .mass({ users: [] })
  *   .processes((process) => ({ load: process().action(...) }))
@@ -104,7 +104,7 @@ export type MetaFor = (
    *
    * @example
    * ```typescript
-   * .brane((field) => ({
+   * .fields((field) => ({
    *   userId: field.number.required(0),
    *   userName: field.string.required("Anonymous"),
    *   selectedIds: field.array.required([]),
@@ -221,7 +221,7 @@ export type MetaFor = (
              * @example
              * ```typescript
              * const component = MetaFor("my-component")
-             *   .brane(...)
+             *   .fields(...)
              *   .superposition(...)
              *   .mass(...)
              *   .processes(...)
@@ -253,7 +253,7 @@ declare global {
   /**
    * MetaFor — фабрика для создания web-компонента-атома конечного автомата
    * @param name - имя атома (используется для создания тега `meta-${name}`)
-   * @returns chain API: brane() -> superposition() -> mass() -> processes() -> reactions() -> bulk()
+   * @returns chain API: fields() -> superposition() -> mass() -> processes() -> reactions() -> bulk()
    *
    * **Важно:** Итоговый тег компонента формируется как `meta-${name}`,
    * где name — это имя компонента, переданное в конструктор.
@@ -263,7 +263,7 @@ declare global {
    * Основной API MetaFor для создания компонентов
    *
    * Предоставляет цепочку методов для настройки компонента:
-   * - `brane()` - определение типизированных полей
+   * - `fields()` - определение типизированных полей
    * - `superposition()` - определение суперпозиции состояний
    * - `mass()` - настройка массы для сложных данных и зависимостей от среды
    * - `processes()` - определение процессов (действий)
@@ -273,7 +273,7 @@ declare global {
    * @example
    * ```typescript
    * const component = MetaFor("my-component")
-   *   .brane((field) => ({ name: field.string.required("") }))
+   *   .fields((field) => ({ name: field.string.required("") }))
    *   .superposition({ idle: { loading: {} } })
    *   .mass({ users: [] })
    *   .processes((process) => ({ load: process().action(...) }))
@@ -352,7 +352,7 @@ export type ViewDefinitionParams<ɸ extends Schema = Schema, m extends Mass = Ma
   update: Update<ɸ>
   /**
    * Текущие значения полей.
-   * Содержит все значения полей, определённых в `.brane(...)`.
+   * Содержит все значения полей, определённых в `.fields(...)`.
    * Используется для передачи данных дочерним акторам.
    * @example
    * ```ts
@@ -452,7 +452,7 @@ export interface BulkDeclaration<ɸ extends Schema, m extends Mass, 𝛴 extends
  * ```typescript
  * const schema: Meta = {
  *   name: "user-profile",
- *   brane: { name: field.string.required("") },
+ *   fields: { name: field.string.required("") },
  *   superposition: { idle: { loading: {} } },
  *   mass: { users: [] }
  * }
@@ -469,8 +469,8 @@ export interface Meta<ɸ extends Schema = Schema, 𝛴 extends string = string, 
   processes?: ProcessesSchema
   /** Снимок реакций */
   reactions?: ReactionsSchema
-  /** Схема полей brane */
-  brane: ɸ
+  /** Схема полей */
+  fields: ɸ
   /** Сериализованная gravity как ParseNode[] из @zavx0z/template */
   gravity?: ParseNode[]
   /** View-стили компонента */

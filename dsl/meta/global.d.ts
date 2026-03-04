@@ -13,7 +13,7 @@
  *
  * // Теперь MetaFor доступен глобально:
  * export default MetaFor("my-component")
- *   .brane((field) => ({ name: field.string.required("") }))
+ *   .fields((field) => ({ name: field.string.required("") }))
  *   // ...
  * ```
  */
@@ -29,7 +29,7 @@ declare global {
   /**
    * MetaFor — фабрика для создания web-компонента-атома конечного автомата
    * @param name - имя атома (используется для создания тега `meta-${name}`)
-   * @returns chain API: brane() -> superposition() -> mass() -> processes() -> reactions() -> bulk()
+   * @returns chain API: fields() -> superposition() -> mass() -> processes() -> reactions() -> bulk()
    */
   var MetaFor: MetaForType
 

@@ -40,7 +40,7 @@ describe("convertMetaToMonadJson", () => {
   test("должен преобразовать array с generic типом из исходного кода", () => {
     const sourceText = `
       const meta = MetaFor("test")
-        .brane((field) => ({
+        .fields((field) => ({
           tags: field.array.required<string>([]),
           numbers: field.array.required<number>([1, 2, 3]),
         }))
@@ -482,7 +482,7 @@ describe("extractArrayElementTypesFromSource", () => {
   test("должен извлечь типы элементов из field.array.required<Type>", () => {
     const sourceText = `
       const meta = MetaFor("test")
-        .brane((field) => ({
+        .fields((field) => ({
           tags: field.array.required<string>([]),
           numbers: field.array.required<number>([1, 2, 3]),
           items: field.array.optional<string>([]),
@@ -501,7 +501,7 @@ describe("extractArrayElementTypesFromSource", () => {
   test("должен вернуть пустой объект если нет объявлений массивов", () => {
     const sourceText = `
       const meta = MetaFor("test")
-        .brane((field) => ({
+        .fields((field) => ({
           name: field.string.required(""),
           age: field.number.required(0),
         }))
@@ -515,7 +515,7 @@ describe("extractArrayElementTypesFromSource", () => {
   test("должен обработать несколько объявлений в одной строке", () => {
     const sourceText = `
       const meta = MetaFor("test")
-        .brane((field) => ({
+        .fields((field) => ({
           tags: field.array.required<string>([]), numbers: field.array.required<number>([]),
         }))
     `

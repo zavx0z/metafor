@@ -294,7 +294,7 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
  * @example
  * ```typescript
  * const meta = MetaFor("git")
- *   .brane((field) => ({ src: field.string.required("./tmp/edit.json") }))
+ *   .fields((field) => ({ src: field.string.required("./tmp/edit.json") }))
  *   .superposition({ коммит: { завершено: {} }, завершено: null })
  *   .mass({ history: [] })
  *   .processes((process, destroy) => ({

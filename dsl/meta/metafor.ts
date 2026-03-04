@@ -35,7 +35,7 @@
  * @example
  * ```typescript
  * export default MetaFor("user-profile")
- *   .brane((field) => ({
+ *   .fields((field) => ({
  *     userId: field.number.required(0),
  *     userName: field.string.required(""),
  *     isLoading: field.boolean.required(false),
@@ -123,7 +123,7 @@ globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
                       const reactions = reactionsSchema(reaction)
                       return {
                         bulk(bulk?: BulkDeclaration<ɸ, m, 𝛴>): Meta<ɸ, 𝛴, m> {
-                          const schema: Meta<ɸ, 𝛴, m> = { name, superposition, brane: fields, mass: mass || ({} as m) }
+                          const schema: Meta<ɸ, 𝛴, m> = { name, superposition, fields: fields, mass: mass || ({} as m) }
                           if (desc) schema.desc = desc
                           if (bulk && "view" in bulk) schema.view = serializeStyle(bulk.view as any)
                           if (bulk && "gravity" in bulk) schema.gravity = parse(bulk.gravity as any)

@@ -32,7 +32,7 @@ async function createActor(metaPath: string) {
   const dsl = await loadDSL(metaPath)
   console.log(dsl)
   const actorId = createMonad({ field: dsl.fields, value: {}, superposition: dsl.superposition })
-  // log(await updateBoundary())
+  log(await updateBoundary())
 }
 
 const HUB_DIRECTORY = "/github/"

@@ -6,7 +6,7 @@
 import "@metafor/meta"
 
 export default MetaFor("<name>")
-  .brane((field) => ({}))
+  .fields((field) => ({}))
   .superposition({})
   .mass({})
   .processes((process, destroy) => ({}))
@@ -17,14 +17,14 @@ export default MetaFor("<name>")
   })
 ```
 
-**Порядок вызовов:** `brane → superposition → mass → processes → reactions → bulk`
+**Порядок вызовов:** `fields → superposition → mass → processes → reactions → bulk`
 
 ---
 
-## brane — только примитивы
+## fields — только примитивы
 
 ```typescript
-.brane((field) => ({
+.fields((field) => ({
   name: field.string.required("Гость"),
   age: field.number.required(18)({ label: "Возраст" }),
   status: field.enum("draft", "published").optional({ label: "Статус" }),
@@ -43,7 +43,7 @@ export default MetaFor("<name>")
 **Примеры label:**
 
 ```typescript
-.brane((field) => ({
+.fields((field) => ({
   // ✅ Правильно: русский + опция
   message: field.string.optional({ label: "Сообщение (-m)" }),
   all: field.boolean.optional({ label: "Все файлы (-a)" }),
@@ -243,7 +243,7 @@ export default MetaFor("<name>")
 
 **Принцип:**
 
-- **field** — декларация поля (схема, тип, валидатор). Определяется в `.brane()`. Доступно в `process.action({ field })`.
+- **field** — декларация поля (схема, тип, валидатор). Определяется в `.fields()`. Доступно в `process.action({ field })`.
 - **value** — значение поля (текущие данные). Доступно в `process.action({ value })`.
 
 **Важно:** Действия процессов выносятся в отдельные ESM-модули.
@@ -274,7 +274,7 @@ export default async function action({
 
 | Параметр | Описание |
 | -------- | -------- |
-| `field` | **Декларация полей** — схема, тип, валидатор (из `.brane()`) |
+| `field` | **Декларация полей** — схема, тип, валидатор (из `.fields()`) |
 | `value` | **Значения полей** — текущие данные атома |
 | `mass` | **Масса** — сложные данные и зависимости от среды |
 | `self` | **Идентификатор** — полный путь к атому |
@@ -405,7 +405,7 @@ return { group: group as "start" | "work" | "examine" }
 import "@metafor/meta"
 
 export default MetaFor("git")
-  .brane((field) => ({
+  .fields((field) => ({
     operation: field.enum("start", "work", "examine").optional({ label: "Тип операции" }),
     error: field.string.optional({ label: "Ошибка" }),
     command: field.string.optional({ label: "Команда" }),
@@ -539,7 +539,7 @@ export default MetaFor("git")
   }))
 ```
 
-**Правило:** Все данные, функции, паттерны — только внутри `.mass()`, `.processes()`, `.brane()` **или в отдельных action-модулях**.
+**Правило:** Все данные, функции, паттерны — только внутри `.mass()`, `.processes()`, `.fields()` **или в отдельных action-модулях**.
 
 **Action-модули:**
 
@@ -606,7 +606,7 @@ github.com/otheruser/git-work/      # группа work от другого по
 ```typescript
 // zavx0z/git/meta.ts
 export default MetaFor("git")
-  .brane((field) => ({
+  .fields((field) => ({
     operation: field.enum("start", "work").optional({ label: "Тип операции" }),
     command: field.string.optional({ label: "Команда" }),
     args: field.string.optional({ label: "Аргументы" }),
