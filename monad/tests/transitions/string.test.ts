@@ -38,8 +38,8 @@ describe("Monad — Строковые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        fields: { command: { type: "string" } },
-        params: { command: "" },
+        field: { command: { type: "string" } },
+        value: { command: "" },
         superposition: {
           IDLE: { ATTACK: { command: { eq: "attack" } } },
           ATTACK: null,
@@ -59,8 +59,8 @@ describe("Monad — Строковые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        fields: { command: { type: "string" } },
-        params: { command: "" },
+        field: { command: { type: "string" } },
+        value: { command: "" },
         superposition: {
           IDLE: { ATTACK: { command: { eq: "attack" } } },
           ATTACK: null,
@@ -82,8 +82,8 @@ describe("Monad — Строковые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        fields: { status: { type: "string" } },
-        params: { status: "normal" },
+        field: { status: { type: "string" } },
+        value: { status: "normal" },
         superposition: {
           NORMAL: { ABNORMAL: { status: { neq: "normal" } } },
           ABNORMAL: null,
@@ -103,8 +103,8 @@ describe("Monad — Строковые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        fields: { status: { type: "string" } },
-        params: { status: "normal" },
+        field: { status: { type: "string" } },
+        value: { status: "normal" },
         superposition: {
           NORMAL: { ABNORMAL: { status: { neq: "normal" } } },
           ABNORMAL: null,
@@ -126,8 +126,8 @@ describe("Monad — Строковые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        fields: { color: { type: "string" } },
-        params: { color: "" },
+        field: { color: { type: "string" } },
+        value: { color: "" },
         superposition: {
           NEUTRAL: { ACTIVE: { color: { in: ["red", "green"] } } },
           ACTIVE: null,
@@ -147,8 +147,8 @@ describe("Monad — Строковые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        fields: { color: { type: "string" } },
-        params: { color: "" },
+        field: { color: { type: "string" } },
+        value: { color: "" },
         superposition: {
           NEUTRAL: { ACTIVE: { color: { in: ["red", "green"] } } },
           ACTIVE: null,
@@ -170,8 +170,8 @@ describe("Monad — Строковые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        fields: { role: { type: "string" } },
-        params: { role: "" },
+        field: { role: { type: "string" } },
+        value: { role: "" },
         superposition: {
           UNDEFINED: { ALLY: { role: { notIn: ["enemy", "neutral"] } } },
           ALLY: null,
@@ -191,8 +191,8 @@ describe("Monad — Строковые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const id = createMonad({
-        fields: { role: { type: "string" } },
-        params: { role: "enemy" },
+        field: { role: { type: "string" } },
+        value: { role: "enemy" },
         superposition: {
           UNDEFINED: { ALLY: { role: { notIn: ["enemy", "neutral"] } } },
           ALLY: null,

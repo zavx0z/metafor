@@ -4,11 +4,8 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@metafor/meta": "workspace:*",
-    "@metafor/build": "workspace:*"
   },
   "scripts": {
-    "build": "metafor-build meta.ts --out meta.json"
   },
   "exports": {
     "./proc": {

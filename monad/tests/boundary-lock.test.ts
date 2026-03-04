@@ -62,8 +62,8 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     registerProcesses(mockProcesses)
 
     const id = createMonad({
-      fields: { hp: { type: "number" } },
-      params: { hp: 30 },
+      field: { hp: { type: "number" } },
+      value: { hp: 30 },
       superposition: {
         IDLE: { DEAD: { hp: { lte: 0 } } },
         DEAD: null, // Терминальное состояние без намерения
@@ -93,8 +93,8 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     registerProcesses(mockProcesses)
 
     const id = createMonad({
-      fields: { hp: { type: "number" } },
-      params: { hp: 30 },
+      field: { hp: { type: "number" } },
+      value: { hp: 30 },
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
@@ -126,8 +126,8 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     registerProcesses(mockProcesses)
 
     const id = createMonad({
-      fields: { hp: { type: "number" } },
-      params: { hp: 30 },
+      field: { hp: { type: "number" } },
+      value: { hp: 30 },
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: { DEAD: { hp: { lte: 0 } } },
@@ -170,8 +170,8 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     registerProcesses(mockProcesses)
 
     const id1 = createMonad({
-      fields: { hp: { type: "number" } },
-      params: { hp: 100 },
+      field: { hp: { type: "number" } },
+      value: { hp: 100 },
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
@@ -182,8 +182,8 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     })
 
     const id2 = createMonad({
-      fields: { mana: { type: "number" } },
-      params: { mana: 100 },
+      field: { mana: { type: "number" } },
+      value: { mana: 100 },
       superposition: {
         IDLE: { DEAD: { mana: { lte: 0 } } },
         DEAD: null, // Без намерения
@@ -191,8 +191,8 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     })
 
     const id3 = createMonad({
-      fields: { energy: { type: "number" } },
-      params: { energy: 50 },
+      field: { energy: { type: "number" } },
+      value: { energy: 50 },
       superposition: {
         IDLE: { PATROL: { energy: { gt: 30 } } },
         PATROL: null,
@@ -243,8 +243,8 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     registerProcesses(mockProcesses)
 
     const id1 = createMonad({
-      fields: { hp: { type: "number" } },
-      params: { hp: 100 },
+      field: { hp: { type: "number" } },
+      value: { hp: 100 },
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
@@ -255,8 +255,8 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     })
 
     const id2 = createMonad({
-      fields: { mana: { type: "number" } },
-      params: { mana: 100 },
+      field: { mana: { type: "number" } },
+      value: { mana: 100 },
       superposition: {
         IDLE: { PATROL: { mana: { gt: 50 } } },
         PATROL: null,
@@ -289,8 +289,8 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     registerProcesses(mockProcesses)
 
     const id = createMonad({
-      fields: { hp: { type: "number" }, mana: { type: "number" } },
-      params: { hp: 100, mana: 100 },
+      field: { hp: { type: "number" }, mana: { type: "number" } },
+      value: { hp: 100, mana: 100 },
       superposition: {
         IDLE: { PATROL: { hp: { gt: 80 } } },
         PATROL: { COMBAT: { mana: { lt: 20 } } },

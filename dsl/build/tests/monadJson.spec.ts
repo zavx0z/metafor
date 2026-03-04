@@ -5,7 +5,7 @@ import "../../meta/metafor.ts"
 describe("convertMetaToMonadJson", () => {
   test("должен преобразовать fields с сохранением всех данных", () => {
     const meta = MetaFor("test")
-      .brane((field) => ({
+      .fields((field) => ({
         name: field.string.required("Anonymous", { label: "Имя" }),
         age: field.number.optional(0),
       }))
@@ -47,7 +47,7 @@ describe("convertMetaToMonadJson", () => {
     `
 
     const meta = MetaFor("test")
-      .brane((field) => ({
+      .fields((field) => ({
         tags: field.array.required<string>([]),
         numbers: field.array.required<number>([1, 2, 3]),
       }))
@@ -65,7 +65,7 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать array с generic типом из default значения", () => {
     const meta = MetaFor("test")
-      .brane((field) => ({
+      .fields((field) => ({
         tags: field.array.required<string>(["tag1", "tag2"]),
         numbers: field.array.required<number>([1, 2, 3]),
       }))
@@ -83,7 +83,7 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен выбросить ошибку если не удалось вывести тип массива", () => {
     const meta = MetaFor("test")
-      .brane((field) => ({
+      .fields((field) => ({
         items: field.array.required([]),
       }))
       .superposition({ idle: null })
@@ -99,7 +99,7 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать enum с string значениями", () => {
     const meta = MetaFor("test")
-      .brane((field) => ({
+      .fields((field) => ({
         status: field.enum("active", "inactive").required("active"),
       }))
       .superposition({ idle: null })
@@ -120,7 +120,7 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать enum с number значениями", () => {
     const meta = MetaFor("test")
-      .brane((field) => ({
+      .fields((field) => ({
         level: field.enum(1, 2, 3).required(1),
       }))
       .superposition({ idle: null })
@@ -141,7 +141,7 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен выбросить ошибку если enum пустой", () => {
     const meta = MetaFor("test")
-      .brane((field) => ({
+      .fields((field) => ({
         // @ts-ignore - пустой enum для теста
         status: field.enum().required("active"),
       }))
@@ -158,7 +158,7 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать states в superposition", () => {
     const meta = MetaFor("test")
-      .brane((field) => ({
+      .fields((field) => ({
         name: field.string.required(""),
       }))
       .superposition({
@@ -184,7 +184,7 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен включить processes если есть", () => {
     const meta = MetaFor("test")
-      .brane((field) => ({
+      .fields((field) => ({
         name: field.string.required(""),
       }))
       .superposition({ idle: null })
@@ -208,7 +208,7 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен включить reactions если есть", () => {
     const meta = MetaFor("test")
-      .brane((field) => ({
+      .fields((field) => ({
         name: field.string.required(""),
       }))
       .superposition({ idle: null })
@@ -244,7 +244,7 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать простые типы без изменений", () => {
     const meta = MetaFor("test")
-      .brane((field) => ({
+      .fields((field) => ({
         name: field.string.required(""),
         age: field.number.optional(0),
         active: field.boolean.required(true),
@@ -266,7 +266,7 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать processes с action/success/error", () => {
     const meta = MetaFor("test")
-      .brane((field) => ({
+      .fields((field) => ({
         value: field.number.required(0),
       }))
       .superposition({ idle: { done: {} }, done: null })
@@ -313,7 +313,7 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать destroy процесс", () => {
     const meta = MetaFor("test")
-      .brane((field) => ({
+      .fields((field) => ({
         value: field.number.required(0),
       }))
       .superposition({ idle: { done: {} }, done: null })
@@ -338,7 +338,7 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать reactions с filter и equal", () => {
     const meta = MetaFor("test")
-      .brane((field) => ({
+      .fields((field) => ({
         value: field.number.required(0),
         isActive: field.boolean.required(false),
       }))
@@ -374,7 +374,7 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать view с render и style", () => {
     const meta = MetaFor("test")
-      .brane((field) => ({
+      .fields((field) => ({
         label: field.string.required("Test"),
       }))
       .superposition({ idle: null })
@@ -411,7 +411,7 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать core с данными", () => {
     const meta = MetaFor("test")
-      .brane((field) => ({
+      .fields((field) => ({
         value: field.number.required(0),
       }))
       .superposition({ idle: null })
@@ -439,7 +439,7 @@ describe("convertMetaToMonadJson", () => {
 
   test("должен преобразовать полный атом со всеми компонентами", () => {
     const meta = MetaFor("complete")
-      .brane((field) => ({
+      .fields((field) => ({
         name: field.string.required("Test", { label: "Название" }),
         count: field.number.required(0),
       }))

@@ -13,6 +13,6 @@
     "@metafor/build": "workspace:*"
   },
   "scripts": {
-    "build": "metafor-build src/meta.ts --out meta.json"
+    "build": "metafor-build meta.ts --out meta.json"
   }
 }

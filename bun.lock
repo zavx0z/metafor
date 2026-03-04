@@ -290,23 +290,16 @@
     },
     "monad": {
       "name": "@boundary/monad",
-      "dependencies": {
+      "devDependencies": {
         "@boundary/atlas": "workspace:*",
         "@boundary/fields": "workspace:*",
         "@boundary/matrix": "workspace:*",
-      },
-      "devDependencies": {
-        "@types/bun": "latest",
-        "@webgpu/types": "^0.1.32",
-        "bun-webgpu": "^0.1.5",
-      },
-      "peerDependencies": {
-        "typescript": "^5",
       },
     },
     "space": {
       "name": "space",
       "devDependencies": {
+        "@boundary/monad": "workspace:*",
         "@force/weak": "workspace:*",
         "@metafor/build": "workspace:*",
         "@metafor/meta": "workspace:*",
@@ -652,8 +645,6 @@
 
     "@boundary/matrix/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
 
-    "@boundary/monad/@types/bun": ["@types/bun@1.3.10", "", { "dependencies": { "bun-types": "1.3.10" } }, "sha512-0+rlrUrOrTSskibryHbvQkDOWRJwJZqZlxrUs1u4oOoTln8+WIXBPmAuCF35SWB2z4Zl3E84Nl/D0P7803nigQ=="],
-
     "@types/puppeteer/@types/node": ["@types/node@24.0.12", "https://registry.yarnpkg.com/@types/node/-/node-24.0.12.tgz", { "dependencies": { "undici-types": "~7.8.0" } }, "sha512-LtOrbvDf5ndC9Xi+4QZjVL0woFymF/xSTKZKPgrrl7H7XoeDvnD+E2IclKVDyaK9UM756W/3BXqSU+JEHopA9g=="],
 
     "@types/yauzl/@types/node": ["@types/node@24.0.12", "https://registry.yarnpkg.com/@types/node/-/node-24.0.12.tgz", { "dependencies": { "undici-types": "~7.8.0" } }, "sha512-LtOrbvDf5ndC9Xi+4QZjVL0woFymF/xSTKZKPgrrl7H7XoeDvnD+E2IclKVDyaK9UM756W/3BXqSU+JEHopA9g=="],
@@ -669,8 +660,6 @@
     "@boundary/fields/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
 
     "@boundary/matrix/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
-
-    "@boundary/monad/@types/bun/bun-types": ["bun-types@1.3.10", "", { "dependencies": { "@types/node": "*" } }, "sha512-tcpfCCl6XWo6nCVnpcVrxQ+9AYN1iqMIzgrSKYMB/fjLtV2eyAVEg7AxQJuCq/26R6HpKWykQXuSOq/21RYcbg=="],
 
     "@types/puppeteer/@types/node/undici-types": ["undici-types@7.8.0", "https://registry.yarnpkg.com/undici-types/-/undici-types-7.8.0.tgz", {}, "sha512-9UJ2xGDvQ43tYyVMpuHlsgApydB8ZKfVYTsLDhXkFL/6gfkp+U8xTGdh8pMJv1SpZna0zxG1DwsKZsreLbXBxw=="],
 

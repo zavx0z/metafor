@@ -1,7 +1,7 @@
 import "@metafor/meta"
 
 const meta = MetaFor("git")
-  .brane((field) => ({
+  .fields((field) => ({
     src: field.string.required("./tmp/edit.json", { label: "JSON-patch путь" }),
     patches: field.array.required<string>([], { label: "разделенные патчи" }),
     isLoading: field.boolean.required(false, { label: "Флаг загрузки" }),

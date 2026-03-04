@@ -12,12 +12,7 @@
         "**/*.crswap": true,
         "**/node_modules": true,
         "**/__pycache__": true,
-        ".venv": true,
-        ".idea": true,
-        ".firebase": true,
-        ".windsurf": true,
-        ".vscode": true,
-        ".qoder": true
+        ".venv": true
     },
     "hide-files.files": [
         ".idea",

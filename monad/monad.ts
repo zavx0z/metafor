@@ -158,15 +158,15 @@ function paramsToTuples(params: Record<string, unknown>): [number, BraneParamVal
 export function createMonad(config: MonadConfig): string {
   const id = crypto.randomUUID()
   _monadIds.add(id)
-  for (const [name, def] of Object.entries(config.fields)) {
+  for (const [name, def] of Object.entries(config.field)) {
     const registeredField = convertField(def as FieldDefinition)
     addMonadField(name, registeredField)
-    if (config.params[name] !== undefined) {
+    if (config.value[name] !== undefined) {
       // Сохраняем в _fieldsDefinition для последующего write()
       _fieldsDefinition[name] = def as FieldDefinition
     }
   }
-  _monadParams.set(id, { ...config.params })
+  _monadParams.set(id, { ...config.value })
   _intentions.set(id, config.intentions ?? {})
   _superpositions.set(id, config.superposition)
   // Состояние не устанавливается — монада рождается в неопределённом состоянии

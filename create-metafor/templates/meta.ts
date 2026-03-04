@@ -1,7 +1,7 @@
 import "@metafor/meta"
 
 export default MetaFor("{{name}}", { desc: "{{description}}" })
-  .brane((field) => ({
+  .fields((field) => ({
     error: field.string.optional({ label: "{{errorLabel}}" }),
   }))
   .superposition({})

@@ -39,8 +39,8 @@ describe("Monad — Жизненный цикл", () => {
     })
 
     const id = createMonad({
-      fields: { hp: { type: "number" } },
-      params: { hp: 30 },
+      field: { hp: { type: "number" } },
+      value: { hp: 30 },
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
@@ -82,8 +82,8 @@ describe("Monad — Жизненный цикл", () => {
     })
 
     const id1 = createMonad({
-      fields: { hp: { type: "number" } },
-      params: { hp: 100 },
+      field: { hp: { type: "number" } },
+      value: { hp: 100 },
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
@@ -93,8 +93,8 @@ describe("Monad — Жизненный цикл", () => {
     _createdMonadIds.push(id1)
 
     const id2 = createMonad({
-      fields: { hp: { type: "number" } },
-      params: { hp: 30 },
+      field: { hp: { type: "number" } },
+      value: { hp: 30 },
       superposition: {
         IDLE: { DEAD: { hp: { lte: 0 } } },
         DEAD: null,
@@ -128,16 +128,16 @@ describe("Monad — Жизненный цикл", () => {
 
     // Создаём две монады с разными полями для избежания конфликтов
     const id1 = createMonad({
-      fields: { hp1: { type: "number" } },
-      params: { hp1: 100 },
+      field: { hp1: { type: "number" } },
+      value: { hp1: 100 },
       superposition: { IDLE: { PATROL: { hp1: { gt: 50 } } }, PATROL: null },
       intentions: {},
     })
     _createdMonadIds.push(id1)
 
     const id2 = createMonad({
-      fields: { hp2: { type: "number" } },
-      params: { hp2: 100 },
+      field: { hp2: { type: "number" } },
+      value: { hp2: 100 },
       superposition: { IDLE: { PATROL: { hp2: { gt: 50 } } }, PATROL: null },
       intentions: {},
     })
@@ -163,8 +163,8 @@ describe("Monad — Жизненный цикл", () => {
     })
 
     const id = createMonad({
-      fields: { hp: { type: "number" } },
-      params: { hp: 30 },
+      field: { hp: { type: "number" } },
+      value: { hp: 30 },
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
@@ -197,8 +197,8 @@ describe("Monad — Жизненный цикл", () => {
     })
 
     const id = createMonad({
-      fields: { hp: { type: "number" } },
-      params: { hp: 30 },
+      field: { hp: { type: "number" } },
+      value: { hp: 30 },
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,
@@ -231,8 +231,8 @@ describe("Monad — Жизненный цикл", () => {
     })
 
     const id = createMonad({
-      fields: { hp: { type: "number" } },
-      params: { hp: 30 },
+      field: { hp: { type: "number" } },
+      value: { hp: 30 },
       superposition: {
         IDLE: { PATROL: { hp: { gt: 50 } } },
         PATROL: null,

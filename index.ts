@@ -4,12 +4,12 @@ import { setupDevice } from "fixture/bunWebGPU"
 GPU._device = await setupDevice()
 
 const root = createMonad({
-  fields: {
+  field: {
     hp: { type: "number" },
     mana: { type: "number" },
     isAlive: { type: "boolean" },
   },
-  params: { hp: 100, mana: 50, isAlive: true },
+  value: { hp: 100, mana: 50, isAlive: true },
   superposition: {
     IDLE: {
       PATROL: { hp: { gt: 50 } }, // ← Приоритет 1: hp > 50

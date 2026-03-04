@@ -113,7 +113,7 @@ export type MetaFor = (
    * }))
    * ```
    */
-  brane<ɸ extends Schema>(
+  fields<ɸ extends Schema>(
     schema: (field: Types) => ɸ,
   ): {
     /**

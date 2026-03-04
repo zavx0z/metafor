@@ -79,8 +79,8 @@ export type Intention = string
  * ```
  */
 export interface MonadConfig {
-  fields: FieldsDefinition
-  params: Record<string, unknown>
+  field: FieldsDefinition
+  value: Record<string, unknown>
   superposition: Superposition
   intentions?: Intentions
 }

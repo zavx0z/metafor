@@ -38,6 +38,7 @@
     "**/*.ts"
   ],
   "exclude": [
+    "old",
     "./atom/**/*",
     "**/dist-test/*",
     "**/script/**/*",

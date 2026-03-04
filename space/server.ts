@@ -9,6 +9,15 @@ const server = serve({
   },
   routes: {
     "/": index,
+    "/github/*": async (req) => {
+      try {
+        const path = new URL(req.url).pathname
+        return new Response(Bun.file(path.replace("/github", "../github")))
+      } catch (e) {
+        console.error(e)
+        return new Response("Not Found", { status: 404 })
+      }
+    },
     "/_bun/client/proc/*": async (req) => {
       try {
         const path = new URL(req.url).pathname
