@@ -3,7 +3,8 @@
 > Документ содержит выявленные несоответствия между документацией и кодом, а также план их устранения.
 
 **Дата создания:** 2026-03-04  
-**Статус:** Требуется исправление
+**Дата обновления:** 2026-03-04  
+**Статус:** ✅ Критические задачи выполнены
 
 ---
 
@@ -164,8 +165,8 @@ export interface MonadConfig {
 
 | Уровень | Структура |
 |---------|-----------|
-| **MONAD** (`monad/types.ts:97`) | `params: Record<string, unknown>, state: string, superposition: Superposition` |
-| **BOUNDARY** (`boundary/fields/index.ts:178`) | `params: [number, value][], state: number, transitions: Collapse[][]` |
+| **MONAD** (`monad/types.ts:97`) | `values: Record<string, unknown>, state: string, superposition: Superposition` |
+| **BOUNDARY** (`boundary/matrix/types.ts:118`) | `values: [number, value][], state: number, collapses: Collapse[][]` |
 
 **Проблема:** Одинаковое имя для разных структур вызывает путаницу при импорте.
 
@@ -174,7 +175,7 @@ export interface MonadConfig {
 ```typescript
 // monad/types.ts
 export interface MonadBrane {  // было: Brane
-  params: Record<string, unknown>
+  values: Record<string, unknown>
   state: string
   superposition: Superposition
 }
@@ -251,16 +252,16 @@ export type Intention = ProcessKey  // алиас для обратной сов
 
 | Тип | Файл | Формат |
 |-----|------|--------|
-| **`Collapse`** | `boundary/fields/index.t.ts:95` | `[number, Record<number, any>]` (кортеж) |
+| **`Collapse`** | `boundary/matrix/types.ts:95` | `[number, Record<number, any>]` (кортеж) |
 | **`Transition`** | `monad/monad.t.ts:34` (удалён) | `{ to: number, conditions: Record<number, any> }` (объект) |
 
-**Решение:** Удалить `Transition`, использовать `Collapse` из `@boundary/fields`.
+**Решение:** Удалить `Transition`, использовать `Collapse` из `@boundary/matrix`.
 
 **Выполнено:**
 
 - Удалён интерфейс `Transition` из `monad/monad.t.ts`
 - `NumericSuperposition.transitions` теперь использует `Collapse`
-- Добавлен импорт `import type { Collapse } from "@boundary/fields"`
+- Добавлен импорт `import type { Collapse } from "@boundary/matrix"`
 
 ---
 
@@ -323,17 +324,17 @@ export type Intention = ProcessKey  // алиас для обратной сов
 ### 🟡 Средней важности
 
 - [ ] **4.1** Исправить формат переходов в `ONTOLOGY.md` (объект → кортеж)
-- [ ] **5.1** Удалить дубликат `FieldsDefinition` из `monad/types.ts`
-- [ ] **5.2** Удалить дубликат `FieldsDefinition` из `monad/monad.t.ts`
-- [ ] **5.3** Сделать ре-экспорт из `monad/types.ts`
+- [x] **5.1** Удалить дубликат `FieldsDefinition` из `monad/types.ts`
+- [x] **5.2** Удалить дубликат `FieldsDefinition` из `monad/monad.t.ts`
+- [x] **5.3** Сделать ре-экспорт из `monad/types.ts`
 - [ ] **6.1** Переименовать `Brane` → `MonadBrane` в `monad/types.ts`
 - [ ] **7.1** Принять решение по Strong Force (реализовать/удалить)
 - [ ] **7.2** Выполнить решение по Strong Force
 
 ### 🟢 Низкой важности
 
-- [x] **8.1** Унифицировать написание Weak Force в документации
-- [x] **9.1** Заменить `Intention` → `ProcessKey` или сделать алиасом
+- [ ] **8.1** Унифицировать написание Weak Force в документации
+- [ ] **9.1** Заменить `Intention` → `ProcessKey` или сделать алиасом
 - [x] **10.1** Удалить `Transition`, использовать `Collapse`
 - [ ] **11.1** Уточнить роль `updateBoundary()` в `README.md`
 - [ ] **12.1** Разделить концепции Gravity в `ONTOLOGY.md`
@@ -345,39 +346,92 @@ export type Intention = ProcessKey  // алиас для обратной сов
 | Категория | Количество | Выполнено |
 |-----------|------------|-----------|
 | 🔴 Критические | 3 | 3 |
-| 🟡 Средней важности | 4 | 0 |
-| 🟢 Низкой важности | 3 | 3 |
-| **Всего** | **10** | **6** |
+| 🟡 Средней важности | 4 | 3 |
+| 🟢 Низкой важности | 3 | 1 |
+| **Всего** | **10** | **7** |
 
-**Затронутые файлы:**
+---
 
+## ✅ Выполненные задачи (дополнительно)
+
+Следующие задачи были выполнены в ходе работы, но не были в исходном плане:
+
+### A. Перемещение типов в `@boundary/matrix`
+
+- [x] Создан файл `boundary/matrix/types.ts` с типами:
+  - `FieldType`, `FieldTypeValue`
+  - `BraneValue`, `Field`, `Collapse`
+  - `Brane`, `Data`
+- [x] Настроен ре-экспорт из `boundary/fields/index.t.ts`
+
+### B. Переименование `Brane.params` → `Brane.values`
+
+- [x] Обновлены все файлы BOUNDARY:
+  - `boundary/matrix/types.ts`
+  - `boundary/fields/index.ts`
+  - `boundary/fields/validate.ts`
+  - `boundary/fields/prepare.ts`
+  - `boundary/fields/entangled.ts`
+- [x] Обновлены файлы MONAD:
+  - `monad/monad.ts`
+  - `monad/types.ts`
+  - `monad/index.ts`
+- [x] Обновлены тесты (12 файлов, ~150 замен)
+
+### C. Переименование `BraneStateChange.params` → `BraneStateChange.values`
+
+- [x] Обновлён интерфейс в `monad/monad.ts`
+- [x] Обновлены тесты: `entangled.test.ts`, `intentions.test.ts`
+
+### D. Удаление обратной совместимости
+
+- [x] Удалён алиас `BraneParamValue` из `boundary/fields/index.t.ts`
+- [x] Заменён на `BraneValue` во всех файлах
+
+---
+
+## 📁 Затронутые файлы
+
+**Конфигурация API:**
 - `monad/types.ts`
 - `monad/monad.ts`
 - `monad/monad.t.ts`
 - `monad/field.ts`
 - `monad/superposition.ts`
+- `monad/index.ts`
+
+**Типы BOUNDARY:**
+- `boundary/matrix/types.ts` (новый)
+- `boundary/matrix/index.ts`
 - `boundary/fields/index.ts`
 - `boundary/fields/index.t.ts`
 - `boundary/fields/prepare.ts`
-- `boundary/fields/superposition.ts`
+- `boundary/fields/validate.ts`
+- `boundary/fields/entangled.ts`
+
+**Документация:**
 - `ONTOLOGY.md`
 - `README.md`
 - `monad/README.md`
 - `monad/BOUNDARY_LOCK.md`
+- `INCONSISTENCIES.md`
+
+**Примеры и тесты:**
 - `index.ts`
 - `space/client.ts`
 - `monad/tests/*` (11 файлов)
+- `boundary/fields/tests/*` (12 файлов)
 
 ---
 
 ## 🎯 Рекомендации по порядку исправления
 
-1. **Начать с критических** (1-3) — они влияют на API и могут сломать код
-2. **Запустить тесты** после каждого критического изменения
-3. **Обновить документацию** после исправления кода
+1. **Начать с критических** (1-3) — они влияют на API и могут сломать код ✅
+2. **Запустить тесты** после каждого критического изменения ✅
+3. **Обновить документацию** после исправления кода ✅
 4. **Выполнить средние** (4-7) — улучшат согласованность
 5. **Завершить низкими** (8-12) — косметические улучшения
 
 ---
 
-*Документ будет обновляться по мере исправления несоответствий.*
+*Документ обновлён: 2026-03-04*

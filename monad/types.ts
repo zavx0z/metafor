@@ -4,12 +4,7 @@
  * @packageDocumentation
  */
 
-import type { FieldDefinition } from "./field"
-
-/**
- * Карта определений полей для монады.
- */
-export type FieldsDefinition = Record<string, FieldDefinition>
+import type { FieldDefinition, FieldsDefinition } from "./field"
 
 /**
  * Суперпозиция — граф переходов между состояниями.
