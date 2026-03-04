@@ -38,7 +38,9 @@ describe("Monad — Жизненный цикл", () => {
       }
     })
 
-    const id = createMonad({
+    const uuid = crypto.randomUUID()
+    const monadUuid = createMonad({
+      uuid,
       fields: { hp: { type: "number" } },
       values: { hp: 30 },
       superposition: {
@@ -47,7 +49,7 @@ describe("Monad — Жизненный цикл", () => {
       },
       intentions: {},
     })
-    _createdMonadIds.push(id)
+    _createdMonadIds.push(monadUuid)
 
     await updateBoundary()
 
@@ -55,14 +57,14 @@ describe("Monad — Жизненный цикл", () => {
     expect(stateChanged).toBe(false) // событие рождения игнорируется фильтром runtimeChanges
 
     // Обновляем hp → должен перейти в PATROL
-    await updateMonads([{ id: id, fields: { hp: 80 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 80 } }])
 
     expect(stateChanged).toBe(true)
     expect(oldState).toBe("IDLE")
     expect(currentState).toBe("PATROL")
 
     // Удаляем монаду
-    deleteMonad(id)
+    deleteMonad(monadUuid)
     expect(true).toBe(true)
   })
 
@@ -81,7 +83,9 @@ describe("Monad — Жизненный цикл", () => {
       }
     })
 
-    const id1 = createMonad({
+    const uuid1 = crypto.randomUUID()
+    const monadUuid1 = createMonad({
+      uuid: uuid1,
       fields: { hp: { type: "number" } },
       values: { hp: 100 },
       superposition: {
@@ -90,9 +94,11 @@ describe("Monad — Жизненный цикл", () => {
       },
       intentions: {},
     })
-    _createdMonadIds.push(id1)
+    _createdMonadIds.push(monadUuid1)
 
-    const id2 = createMonad({
+    const uuid2 = crypto.randomUUID()
+    const monadUuid2 = createMonad({
+      uuid: uuid2,
       fields: { hp: { type: "number" } },
       values: { hp: 30 },
       superposition: {
@@ -101,15 +107,15 @@ describe("Monad — Жизненный цикл", () => {
       },
       intentions: {},
     })
-    _createdMonadIds.push(id2)
+    _createdMonadIds.push(monadUuid2)
 
     await updateBoundary()
 
     // Обновляем первую монаду → PATROL
-    await updateMonads([{ id: id1, fields: { hp: 80 } }])
+    await updateMonads([{ uuid: monadUuid1, fields: { hp: 80 } }])
 
     // Обновляем вторую монаду → остаётся IDLE (hp=30 не <= 0)
-    await updateMonads([{ id: id2, fields: { hp: 30 } }])
+    await updateMonads([{ uuid: monadUuid2, fields: { hp: 30 } }])
 
     expect(states1).toEqual(["PATROL"])
     expect(states2).toEqual([])
@@ -127,29 +133,33 @@ describe("Monad — Жизненный цикл", () => {
     })
 
     // Создаём две монады с разными полями для избежания конфликтов
-    const id1 = createMonad({
+    const uuid1 = crypto.randomUUID()
+    const monadUuid1 = createMonad({
+      uuid: uuid1,
       fields: { hp1: { type: "number" } },
       values: { hp1: 100 },
       superposition: { IDLE: { PATROL: { hp1: { gt: 50 } } }, PATROL: null },
       intentions: {},
     })
-    _createdMonadIds.push(id1)
+    _createdMonadIds.push(monadUuid1)
 
-    const id2 = createMonad({
+    const uuid2 = crypto.randomUUID()
+    const monadUuid2 = createMonad({
+      uuid: uuid2,
       fields: { hp2: { type: "number" } },
       values: { hp2: 100 },
       superposition: { IDLE: { PATROL: { hp2: { gt: 50 } } }, PATROL: null },
       intentions: {},
     })
-    _createdMonadIds.push(id2)
+    _createdMonadIds.push(monadUuid2)
 
     await updateBoundary()
 
-    await updateMonads([{ id: id1, fields: { hp1: 80 } }])
-    await updateMonads([{ id: id2, fields: { hp2: 80 } }])
+    await updateMonads([{ uuid: monadUuid1, fields: { hp1: 80 } }])
+    await updateMonads([{ uuid: monadUuid2, fields: { hp2: 80 } }])
 
-    expect(callbackCounts.get(id1)).toBe(1)
-    expect(callbackCounts.get(id2)).toBe(1)
+    expect(callbackCounts.get(monadUuid1)).toBe(1)
+    expect(callbackCounts.get(monadUuid2)).toBe(1)
   })
 
   it("должен блокировать переходы при lock=true в updateMonads()", async () => {
@@ -162,7 +172,9 @@ describe("Monad — Жизненный цикл", () => {
       }
     })
 
-    const id = createMonad({
+    const uuid = crypto.randomUUID()
+    const monadUuid = createMonad({
+      uuid,
       fields: { hp: { type: "number" } },
       values: { hp: 30 },
       superposition: {
@@ -171,17 +183,17 @@ describe("Monad — Жизненный цикл", () => {
       },
       intentions: {},
     })
-    _createdMonadIds.push(id)
+    _createdMonadIds.push(monadUuid)
 
     await updateBoundary()
 
     // Обновляем hp с блокировкой → НЕ должен перейти в PATROL
-    await updateMonads([{ id, fields: { hp: 80 }, lock: true }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 80 }, lock: true }])
 
     expect(stateChanged).toBe(false)
 
     // Разблокировка (FSM проверит переход по текущим данным)
-    await updateMonads([{ id, fields: {}, lock: false }])
+    await updateMonads([{ uuid: monadUuid, fields: {}, lock: false }])
 
     expect(stateChanged).toBe(true)
   })
@@ -196,7 +208,9 @@ describe("Monad — Жизненный цикл", () => {
       }
     })
 
-    const id = createMonad({
+    const uuid = crypto.randomUUID()
+    const monadUuid = createMonad({
+      uuid,
       fields: { hp: { type: "number" } },
       values: { hp: 30 },
       superposition: {
@@ -205,17 +219,17 @@ describe("Monad — Жизненный цикл", () => {
       },
       intentions: {},
     })
-    _createdMonadIds.push(id)
+    _createdMonadIds.push(monadUuid)
 
     await updateBoundary()
 
     // Обновляем hp с блокировкой → поле обновлено, но переход не сработал
-    await updateMonads([{ id, fields: { hp: 80 }, lock: true }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 80 }, lock: true }])
 
     expect(stateChanges).toHaveLength(0)
 
     // Разблокировка (FSM проверит переход по текущим данным)
-    await updateMonads([{ id, fields: {}, lock: false }])
+    await updateMonads([{ uuid: monadUuid, fields: {}, lock: false }])
 
     expect(stateChanges).toEqual(["PATROL"])
   })
@@ -230,7 +244,9 @@ describe("Monad — Жизненный цикл", () => {
       }
     })
 
-    const id = createMonad({
+    const uuid = crypto.randomUUID()
+    const monadUuid = createMonad({
+      uuid,
       fields: { hp: { type: "number" } },
       values: { hp: 30 },
       superposition: {
@@ -239,16 +255,16 @@ describe("Monad — Жизненный цикл", () => {
       },
       intentions: {},
     })
-    _createdMonadIds.push(id)
+    _createdMonadIds.push(monadUuid)
 
     await updateBoundary()
 
     // Обновляем hp с блокировкой
-    await updateMonads([{ id, fields: { hp: 80 }, lock: true }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 80 }, lock: true }])
     expect(stateChanges).toHaveLength(0)
 
     // Разблокировка (FSM проверит переход по текущим данным)
-    await updateMonads([{ id, fields: {}, lock: false }])
+    await updateMonads([{ uuid: monadUuid, fields: {}, lock: false }])
 
     expect(stateChanges).toEqual(["PATROL"])
   })

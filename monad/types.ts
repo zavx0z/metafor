@@ -48,7 +48,9 @@ export type Intention = string
  *
  * @example
  * ```typescript
+ * const uuid = crypto.randomUUID()
  * createMonad({
+ *   uuid,
  *   fields: {
  *     hp: { type: "number" },
  *     mana: { type: "number" },
@@ -74,6 +76,8 @@ export type Intention = string
  * ```
  */
 export interface MonadConfig {
+  /** UUID монады (генерируется вызывающей стороной) */
+  uuid: string
   fields: FieldsDefinition
   values: Record<string, unknown>
   superposition: Superposition

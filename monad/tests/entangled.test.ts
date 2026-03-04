@@ -14,15 +14,20 @@ beforeAll(async () => {
   GPU._device = await setupDevice()
 })
 
+const _createdMonadIds: string[] = []
+
 afterEach(() => {
   _resetState()
+  _createdMonadIds.length = 0
 })
 
 describe("Monad — Entangled Branes (shared блоки)", () => {
   describe("Автоматическое создание shared блоков", () => {
     it("должен создать shared блок для одинаковых значений полей", async () => {
       // Две монады с одинаковым значением hp=100
-      createMonad({
+      const uuid1 = crypto.randomUUID()
+      const monadUuid1 = createMonad({
+        uuid: uuid1,
         fields: { hp: { type: "number" }, mana: { type: "number" } },
         values: { hp: 100, mana: 50 },
         superposition: {
@@ -32,7 +37,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         intentions: {},
       })
 
-      createMonad({
+      const uuid2 = crypto.randomUUID()
+      const monadUuid2 = createMonad({
+        uuid: uuid2,
         fields: { hp: { type: "number" }, mana: { type: "number" } },
         values: { hp: 100, mana: 10 },
         superposition: {
@@ -42,6 +49,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         intentions: {},
       })
 
+      _createdMonadIds.push(monadUuid1, monadUuid2)
       await updateBoundary()
 
       // Shared блок должен быть создан для hp=100
@@ -50,7 +58,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
 
     it("не должен создавать shared блок для разных значений", async () => {
       // Две монады с разными значениями hp
-      createMonad({
+      const uuid1 = crypto.randomUUID()
+      const monadUuid1 = createMonad({
+        uuid: uuid1,
         fields: { hp: { type: "number" } },
         values: { hp: 100 },
         superposition: {
@@ -60,7 +70,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         intentions: {},
       })
 
-      createMonad({
+      const uuid2 = crypto.randomUUID()
+      const monadUuid2 = createMonad({
+        uuid: uuid2,
         fields: { hp: { type: "number" } },
         values: { hp: 50 },
         superposition: {
@@ -70,6 +82,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         intentions: {},
       })
 
+      _createdMonadIds.push(monadUuid1, monadUuid2)
       await updateBoundary()
 
       // Все поля должны быть локальными (нет shared блоков)
@@ -77,7 +90,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
 
     it("должен создать shared блок для идентичных бран", async () => {
       // Две полностью идентичные монады
-      createMonad({
+      const uuid1 = crypto.randomUUID()
+      const monadUuid1 = createMonad({
+        uuid: uuid1,
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
         values: { hp: 100, isAlive: true },
         superposition: {
@@ -87,7 +102,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         intentions: {},
       })
 
-      createMonad({
+      const uuid2 = crypto.randomUUID()
+      const monadUuid2 = createMonad({
+        uuid: uuid2,
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
         values: { hp: 100, isAlive: true },
         superposition: {
@@ -97,6 +114,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         intentions: {},
       })
 
+      _createdMonadIds.push(monadUuid1, monadUuid2)
       await updateBoundary()
 
       // Все поля должны быть в shared блоке
@@ -108,7 +126,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       // hp разное → локальное, isAlive одинаковое → shared
       const changes: BraneStateChange[] = []
 
-      const id1 = createMonad({
+      const uuid1 = crypto.randomUUID()
+      const monadUuid1 = createMonad({
+        uuid: uuid1,
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
         values: { hp: 30, isAlive: true },
         superposition: {
@@ -117,7 +137,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         },
       })
 
-      createMonad({
+      const uuid2 = crypto.randomUUID()
+      const monadUuid2 = createMonad({
+        uuid: uuid2,
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
         values: { hp: 50, isAlive: true },  // hp разное → локальное
         superposition: {
@@ -126,12 +148,14 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         },
       })
 
+      _createdMonadIds.push(monadUuid1, monadUuid2)
+
       onStateChange((c) => changes.push(...c))
       await updateBoundary()
 
       // isAlive=true в shared блоке, hp=100 локальное
       // Обновляем локальное hp → переход в PATROL
-      await updateMonads([{ id: id1, fields: { hp: 80 } }])
+      await updateMonads([{ uuid: monadUuid1, fields: { hp: 80 } }])
 
       // Проверяем runtime-переходы (исключаем событие рождения oldState=undefined)
       const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
@@ -142,7 +166,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
     })
 
     it("должен работать с mixed: local + shared поля", async () => {
-      const id1 = createMonad({
+      const uuid1 = crypto.randomUUID()
+      const monadUuid1 = createMonad({
+        uuid: uuid1,
         fields: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
         values: { hp: 100, mana: 50, isAlive: true },
         superposition: {
@@ -152,7 +178,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         intentions: {},
       })
 
-      const id2 = createMonad({
+      const uuid2 = crypto.randomUUID()
+      const monadUuid2 = createMonad({
+        uuid: uuid2,
         fields: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
         values: { hp: 100, mana: 10, isAlive: true },
         superposition: {
@@ -162,16 +190,17 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         intentions: {},
       })
 
+      _createdMonadIds.push(monadUuid1, monadUuid2)
       await updateBoundary()
 
       // hp и isAlive должны быть в shared блоке
       // mana должно быть локальным для каждой монады
 
       // Обновляем mana у первой монады (не переходит, mana=60 не < 30)
-      await updateMonads([{ id: id1, fields: { mana: 60 } }])
+      await updateMonads([{ uuid: monadUuid1, fields: { mana: 60 } }])
 
       // Обновляем mana у второй монады (переходит, mana=5 < 30)
-      await updateMonads([{ id: id2, fields: { mana: 5 } }])
+      await updateMonads([{ uuid: monadUuid2, fields: { mana: 5 } }])
     })
   })
 
@@ -180,7 +209,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       const changes: BraneStateChange[] = []
 
       // Монада 1: hp=100, isAlive=true, role="warrior"
-      const id1 = createMonad({
+      const uuid1 = crypto.randomUUID()
+      const monadUuid1 = createMonad({
+        uuid: uuid1,
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" }, role: { type: "string" }, mana: { type: "number" } },
         values: { hp: 100, isAlive: true, role: "warrior", mana: 10 },
         superposition: {
@@ -190,7 +221,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       })
 
       // Монада 2: hp=100, isAlive=true, role="warrior" (идентичные → shared), mana=5 (локальное)
-      const id2 = createMonad({
+      const uuid2 = crypto.randomUUID()
+      const monadUuid2 = createMonad({
+        uuid: uuid2,
         fields: { hp: { type: "number" }, isAlive: { type: "boolean" }, role: { type: "string" }, mana: { type: "number" } },
         values: { hp: 100, isAlive: true, role: "warrior", mana: 5 },  // mana разное → локальное
         superposition: {
@@ -199,11 +232,13 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         },
       })
 
+      _createdMonadIds.push(monadUuid1, monadUuid2)
+
       onStateChange((c) => changes.push(...c))
       await updateBoundary()
 
       // mana=60 > 40 → переход в PATROL (только монада 1)
-      await updateMonads([{ id: id1, fields: { mana: 60 } }])
+      await updateMonads([{ uuid: monadUuid1, fields: { mana: 60 } }])
 
       // Проверяем runtime-переходы (исключаем событие рождения oldState=undefined)
       const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
@@ -217,7 +252,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       const changes: BraneStateChange[] = []
 
       // Монада 1: hp=100 (shared), mana=10 (local)
-      const id1 = createMonad({
+      const uuid1 = crypto.randomUUID()
+      const monadUuid1 = createMonad({
+        uuid: uuid1,
         fields: { hp: { type: "number" }, mana: { type: "number" } },
         values: { hp: 100, mana: 10 },
         superposition: {
@@ -227,7 +264,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
       })
 
       // Монада 2: hp=100 (shared), mana=5 (local)
-      const id2 = createMonad({
+      const uuid2 = crypto.randomUUID()
+      const monadUuid2 = createMonad({
+        uuid: uuid2,
         fields: { hp: { type: "number" }, mana: { type: "number" } },
         values: { hp: 100, mana: 5 },
         superposition: {
@@ -236,11 +275,13 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         },
       })
 
+      _createdMonadIds.push(monadUuid1, monadUuid2)
+
       onStateChange((c) => changes.push(...c))
       await updateBoundary()
 
       // mana=60 > 40 → переход в PATROL
-      await updateMonads([{ id: id1, fields: { mana: 60 } }])
+      await updateMonads([{ uuid: monadUuid1, fields: { mana: 60 } }])
       // mana=5 не > 40 → нет перехода
 
       // Проверяем runtime-переходы (исключаем событие рождения oldState=undefined)
@@ -256,7 +297,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
     it("должен экономить память при множестве identical бран", async () => {
       // Создаём 10 идентичных монад
       for (let i = 0; i < 10; i++) {
-        createMonad({
+        const uuid = crypto.randomUUID()
+        const monadUuid = createMonad({
+          uuid,
           fields: { hp: { type: "number" }, isAlive: { type: "boolean" } },
           values: { hp: 100, isAlive: true },
           superposition: {
@@ -265,6 +308,7 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
           },
           intentions: {},
         })
+        _createdMonadIds.push(monadUuid)
       }
 
       await updateBoundary()
@@ -273,7 +317,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
     })
 
     it("должен корректно работать с 3+ монадами с частичным совпадением", async () => {
-      const id1 = createMonad({
+      const uuid1 = crypto.randomUUID()
+      const monadUuid1 = createMonad({
+        uuid: uuid1,
         fields: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
         values: { hp: 100, mana: 50, isAlive: true },
         superposition: {
@@ -283,7 +329,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         intentions: {},
       })
 
-      const id2 = createMonad({
+      const uuid2 = crypto.randomUUID()
+      const monadUuid2 = createMonad({
+        uuid: uuid2,
         fields: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
         values: { hp: 100, mana: 30, isAlive: true },
         superposition: {
@@ -293,7 +341,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         intentions: {},
       })
 
-      const id3 = createMonad({
+      const uuid3 = crypto.randomUUID()
+      const monadUuid3 = createMonad({
+        uuid: uuid3,
         fields: { hp: { type: "number" }, mana: { type: "number" }, isAlive: { type: "boolean" } },
         values: { hp: 50, mana: 100, isAlive: false },
         superposition: {
@@ -303,21 +353,24 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         intentions: {},
       })
 
+      _createdMonadIds.push(monadUuid1, monadUuid2, monadUuid3)
       await updateBoundary()
 
       // Монады 1 и 2: hp=100 и isAlive=true должны быть в shared блоке
       // Монада 3: все поля локальные (отличаются)
 
       // Обновляем mana у всех трёх
-      await updateMonads([{ id: id1, fields: { mana: 60 } }])
-      await updateMonads([{ id: id2, fields: { mana: 40 } }])
-      await updateMonads([{ id: id3, fields: { mana: 80 } }])
+      await updateMonads([{ uuid: monadUuid1, fields: { mana: 60 } }])
+      await updateMonads([{ uuid: monadUuid2, fields: { mana: 40 } }])
+      await updateMonads([{ uuid: monadUuid3, fields: { mana: 80 } }])
     })
   })
 
   describe("Интеграция с updateMonads", () => {
     it("должен корректно обновлять локальные поля", async () => {
-      const id1 = createMonad({
+      const uuid1 = crypto.randomUUID()
+      const monadUuid1 = createMonad({
+        uuid: uuid1,
         fields: { hp: { type: "number" }, mana: { type: "number" } },
         values: { hp: 100, mana: 50 },
         superposition: {
@@ -327,7 +380,9 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         intentions: {},
       })
 
-      const id2 = createMonad({
+      const uuid2 = crypto.randomUUID()
+      const monadUuid2 = createMonad({
+        uuid: uuid2,
         fields: { hp: { type: "number" }, mana: { type: "number" } },
         values: { hp: 100, mana: 10 },
         superposition: {
@@ -337,11 +392,12 @@ describe("Monad — Entangled Branes (shared блоки)", () => {
         intentions: {},
       })
 
+      _createdMonadIds.push(monadUuid1, monadUuid2)
       await updateBoundary()
 
       // mana локальное для каждой монады
-      await updateMonads([{ id: id1, fields: { mana: 60 } }])
-      await updateMonads([{ id: id2, fields: { mana: 5 } }])
+      await updateMonads([{ uuid: monadUuid1, fields: { mana: 60 } }])
+      await updateMonads([{ uuid: monadUuid2, fields: { mana: 5 } }])
 
       // hp shared, но используется только для условий
     })

@@ -36,7 +36,9 @@ describe("Monad — Булевы переходы", () => {
       const resultStates: string[] = []
       onStateChange(createStateChangeHandler(resultStates))
 
-      const id = createMonad({
+      const uuid = crypto.randomUUID()
+      const monadUuid = createMonad({
+        uuid,
         fields: { isAlive: { type: "boolean" } },
         values: { isAlive: false },
         superposition: {
@@ -45,10 +47,10 @@ describe("Monad — Булевы переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(id)
+      _createdMonadIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ id: id, fields: { isAlive: true } }])
+      await updateMonads([{ uuid: monadUuid, fields: { isAlive: true } }])
 
       expect(resultStates).toEqual(["ACTIVE"])
     })
@@ -57,7 +59,9 @@ describe("Monad — Булевы переходы", () => {
       const resultStates: string[] = []
       onStateChange(createStateChangeHandler(resultStates))
 
-      const id = createMonad({
+      const uuid = crypto.randomUUID()
+      const monadUuid = createMonad({
+        uuid,
         fields: { isActive: { type: "boolean" } },
         values: { isActive: true },
         superposition: {
@@ -66,10 +70,10 @@ describe("Monad — Булевы переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(id)
+      _createdMonadIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ id: id, fields: { isActive: false } }])
+      await updateMonads([{ uuid: monadUuid, fields: { isActive: false } }])
 
       expect(resultStates).toEqual(["INACTIVE"])
     })
@@ -80,7 +84,9 @@ describe("Monad — Булевы переходы", () => {
       const resultStates: string[] = []
       onStateChange(createStateChangeHandler(resultStates))
 
-      const id = createMonad({
+      const uuid = crypto.randomUUID()
+      const monadUuid = createMonad({
+        uuid,
         fields: { isConnected: { type: "boolean" } },
         values: { isConnected: false },
         superposition: {
@@ -89,10 +95,10 @@ describe("Monad — Булевы переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(id)
+      _createdMonadIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ id: id, fields: { isConnected: true } }])
+      await updateMonads([{ uuid: monadUuid, fields: { isConnected: true } }])
 
       expect(resultStates).toEqual(["CONNECTED"])
     })
@@ -101,7 +107,9 @@ describe("Monad — Булевы переходы", () => {
       const resultStates: string[] = []
       onStateChange(createStateChangeHandler(resultStates))
 
-      const id = createMonad({
+      const uuid = crypto.randomUUID()
+      const monadUuid = createMonad({
+        uuid,
         fields: { isConnected: { type: "boolean" } },
         values: { isConnected: true },
         superposition: {
@@ -110,10 +118,10 @@ describe("Monad — Булевы переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(id)
+      _createdMonadIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ id: id, fields: { isConnected: false } }])
+      await updateMonads([{ uuid: monadUuid, fields: { isConnected: false } }])
 
       expect(resultStates).toEqual(["DISCONNECTED"])
     })
@@ -124,7 +132,9 @@ describe("Monad — Булевы переходы", () => {
       const resultStates: string[] = []
       onStateChange(createStateChangeHandler(resultStates))
 
-      const id = createMonad({
+      const uuid = crypto.randomUUID()
+      const monadUuid = createMonad({
+        uuid,
         fields: { isEnabled: { type: "boolean" } },
         values: { isEnabled: true },
         superposition: {
@@ -133,10 +143,10 @@ describe("Monad — Булевы переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(id)
+      _createdMonadIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ id: id, fields: { isEnabled: false } }])
+      await updateMonads([{ uuid: monadUuid, fields: { isEnabled: false } }])
 
       expect(resultStates).toEqual(["DISABLED"])
     })
@@ -145,7 +155,9 @@ describe("Monad — Булевы переходы", () => {
       const resultStates: string[] = []
       onStateChange(createStateChangeHandler(resultStates))
 
-      const id = createMonad({
+      const uuid = crypto.randomUUID()
+      const monadUuid = createMonad({
+        uuid,
         fields: { isEnabled: { type: "boolean" } },
         values: { isEnabled: false },
         superposition: {
@@ -154,10 +166,10 @@ describe("Monad — Булевы переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(id)
+      _createdMonadIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ id: id, fields: { isEnabled: true } }])
+      await updateMonads([{ uuid: monadUuid, fields: { isEnabled: true } }])
 
       expect(resultStates).toEqual(["ENABLED"])
     })

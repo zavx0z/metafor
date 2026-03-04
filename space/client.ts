@@ -13,7 +13,8 @@ const out = document.getElementById("output")!
 // const procs = space.processes
 // const proc = procs[Object.keys(procs)[0] as keyof typeof procs]
 
-// const spaceId = createMonad({ fields: {}, values: {}, superposition: space.superposition })
+// const uuid = crypto.randomUUID()
+// const spaceId = createMonad({ uuid, fields: {}, values: {}, superposition: space.superposition })
 // log(await updateBoundary())
 
 // const action = await loadAction(proc.action)

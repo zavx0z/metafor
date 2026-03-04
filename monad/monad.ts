@@ -32,7 +32,7 @@ import { convertToNumeric } from "./superposition"
  * Изменение состояния браны.
  */
 export interface BraneStateChange {
-  /** ID монады */
+  /** UUID монады */
   monadId: MonadId
   /** Предыдущее состояние (undefined при первой инициализации) */
   oldState: string | undefined
@@ -118,7 +118,10 @@ function valuesToTuples(values: Record<string, unknown>): [number, BraneValue][]
 }
 
 /**
- * Конфигурация монады.
+ * Создаёт монаду и регистрирует её в системе.
+ *
+ * @param config - Конфигурация монады.
+ * @returns UUID монады.
  *
  * @remarks
  * **Порядок переходов в суперпозиции важен!**
@@ -127,7 +130,9 @@ function valuesToTuples(values: Record<string, unknown>): [number, BraneValue][]
  *
  * @example
  * ```typescript
+ * const uuid = crypto.randomUUID()
  * createMonad({
+ *   uuid,
  *   fields: {
  *     hp: { type: "number" },
  *     mana: { type: "number" },
@@ -154,8 +159,8 @@ function valuesToTuples(values: Record<string, unknown>): [number, BraneValue][]
  * ```
  */
 export function createMonad(config: MonadConfig): string {
-  const id = crypto.randomUUID()
-  _monadIds.add(id)
+  const uuid = config.uuid
+  _monadIds.add(uuid)
   for (const [name, def] of Object.entries(config.fields)) {
     const registeredField = convertField(def as FieldDefinition)
     addMonadField(name, registeredField)
@@ -164,25 +169,25 @@ export function createMonad(config: MonadConfig): string {
       _fieldsDefinition[name] = def as FieldDefinition
     }
   }
-  _monadParams.set(id, { ...config.values })
-  _intentions.set(id, config.intentions ?? {})
-  _superpositions.set(id, config.superposition)
+  _monadParams.set(uuid, { ...config.values })
+  _intentions.set(uuid, config.intentions ?? {})
+  _superpositions.set(uuid, config.superposition)
   // Состояние не устанавливается — монада рождается в неопределённом состоянии
-  return id
+  return uuid
 }
 
 /**
  * Удаляет монаду.
  *
- * @param id - {@link MonadId} монады.
+ * @param uuid - {@link MonadId} монады.
  */
-export function deleteMonad(id: MonadId): void {
-  _monadIds.delete(id)
-  _monadParams.delete(id)
-  _intentions.delete(id)
-  _superpositions.delete(id)
-  _states.delete(id)
-  _uuidToIndex.delete(id)
+export function deleteMonad(uuid: MonadId): void {
+  _monadIds.delete(uuid)
+  _monadParams.delete(uuid)
+  _intentions.delete(uuid)
+  _superpositions.delete(uuid)
+  _states.delete(uuid)
+  _uuidToIndex.delete(uuid)
 }
 
 /**
@@ -330,8 +335,8 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
  * Обновление одной или нескольких монад.
  */
 export interface MonadUpdate {
-  /** ID монады */
-  id: MonadId
+  /** UUID монады */
+  uuid: string
   /** Новые значения полей (пустой объект для разблокировки без изменений) */
   fields?: Record<string, unknown>
   /** Если true, блокирует переходы; если false — разблокирует; undefined — не менять */
@@ -341,19 +346,19 @@ export interface MonadUpdate {
 /**
  * Обновляет поля бран и выполняет шаг эволюции через @boundary/fields.
  *
- * @param updates - Массив обновлений: `[{ id, fields, lock }, ...]`
+ * @param updates - Массив обновлений: `[{ uuid, fields, lock }, ...]`
  * @throws {Error} Если Boundary не инициализирован. Вызовите updateBoundary() перед updateMonads().
  *
  * @example
  * ```typescript
  * // Обновить одну монаду
- * await updateMonads([{ id: 'uuid', fields: { hp: 80 } }])
+ * await updateMonads([{ uuid: 'uuid', fields: { hp: 80 } }])
  *
  * // Обновить с блокировкой
- * await updateMonads([{ id: 'uuid', fields: { hp: 80 }, lock: true }])
+ * await updateMonads([{ uuid: 'uuid', fields: { hp: 80 }, lock: true }])
  *
  * // Разблокировать без изменения полей
- * await updateMonads([{ id: 'uuid', fields: {}, lock: false }])
+ * await updateMonads([{ uuid: 'uuid', fields: {}, lock: false }])
  * ```
  */
 export async function updateMonads(updates: MonadUpdate[]): Promise<BraneStateChange[]> {
@@ -363,16 +368,16 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<BraneStateCh
 
   const allUpdates: Array<[number, Array<[number, unknown]>, boolean?]> = []
 
-  for (const { id, fields = {}, lock } of updates) {
-    const index = _uuidToIndex.get(id)
+  for (const { uuid, fields = {}, lock } of updates) {
+    const index = _uuidToIndex.get(uuid)
     if (index === undefined) {
-      throw new Error(`Monad ${id} not found in boundary`)
+      throw new Error(`Monad ${uuid} not found in boundary`)
     }
 
     // Обновляем params монады
-    const monadParams = _monadParams.get(id)
+    const monadParams = _monadParams.get(uuid)
     if (monadParams) {
-      _monadParams.set(id, { ...monadParams, ...fields })
+      _monadParams.set(uuid, { ...monadParams, ...fields })
     }
 
     // Конвертируем в кортежи для update()
@@ -470,7 +475,7 @@ export function onStateChange(callback: (changes: BraneStateChange[]) => void): 
  *
  * Вызывается WEAK FORCE после завершения всех процессов для разблокировки бран.
  *
- * @param monadIds - IDs монад для разблокировки. Если не указаны, разблокируются все.
+ * @param monadIds - UUIDs монад для разблокировки. Если не указаны, разблокируются все.
  *
  * @example
  * ```typescript
@@ -482,14 +487,14 @@ export function onStateChange(callback: (changes: BraneStateChange[]) => void): 
  * ```
  */
 export async function releaseLock(monadIds?: MonadId[]): Promise<BraneStateChange[]> {
-  const idsToUnlock = monadIds ?? Array.from(_monadIds)
+  const uuidsToUnlock = monadIds ?? Array.from(_monadIds)
 
-  if (idsToUnlock.length === 0) {
+  if (uuidsToUnlock.length === 0) {
     return []
   }
 
-  const unlockUpdates = idsToUnlock.map((id) => ({
-    id,
+  const unlockUpdates = uuidsToUnlock.map((uuid) => ({
+    uuid,
     fields: {},
     lock: false,
   }))

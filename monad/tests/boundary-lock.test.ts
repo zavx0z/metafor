@@ -61,7 +61,9 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
 
     registerProcesses(mockProcesses)
 
-    const id = createMonad({
+    const uuid = crypto.randomUUID()
+    const monadUuid = createMonad({
+      uuid,
       fields: { hp: { type: "number" } },
       values: { hp: 30 },
       superposition: {
@@ -70,7 +72,7 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
       },
       // DEAD без намерения
     })
-    _createdMonadIds.push(id)
+    _createdMonadIds.push(monadUuid)
 
     onStateChange((c) => changes.push(...c))
     await updateBoundary()
@@ -78,7 +80,7 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     // hp=0 <= 0 → DEAD (без намерения)
     // WGSL ставит LOCK=1 при изменении
     // MONAD должен автоматически снять LOCK так как нет намерения
-    await updateMonads([{ id: id, fields: { hp: 0 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 0 } }])
 
     const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges).toHaveLength(1)
@@ -92,7 +94,9 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
 
     registerProcesses(mockProcesses)
 
-    const id = createMonad({
+    const uuid = crypto.randomUUID()
+    const monadUuid = createMonad({
+      uuid,
       fields: { hp: { type: "number" } },
       values: { hp: 30 },
       superposition: {
@@ -103,7 +107,7 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
         PATROL: "patrolProcess",
       },
     })
-    _createdMonadIds.push(id)
+    _createdMonadIds.push(monadUuid)
 
     onStateChange((c) => changes.push(...c))
     await updateBoundary()
@@ -111,7 +115,7 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     // hp=80 > 50 → PATROL (с намерением)
     // WGSL ставит LOCK=1
     // MONAD НЕ снимает LOCK так как есть намерение
-    await updateMonads([{ id: id, fields: { hp: 80 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 80 } }])
 
     const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges).toHaveLength(1)
@@ -125,7 +129,9 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
 
     registerProcesses(mockProcesses)
 
-    const id = createMonad({
+    const uuid = crypto.randomUUID()
+    const monadUuid = createMonad({
+      uuid,
       fields: { hp: { type: "number" } },
       values: { hp: 30 },
       superposition: {
@@ -138,30 +144,30 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
         DEAD: "deathProcess",
       },
     })
-    _createdMonadIds.push(id)
+    _createdMonadIds.push(monadUuid)
 
     onStateChange((c) => changes.push(...c))
     await updateBoundary()
 
     // TAKT 1: hp=80 > 50 → PATROL (с намерением, LOCK=1)
-    await updateMonads([{ id: id, fields: { hp: 80 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 80 } }])
     let runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges[0]!.newState).toBe("PATROL")
     expect(runtimeChanges[0]!.intention).toBe("patrolProcess")
 
     // WEAK FORCE: исполняет patrolProcess...
     // После завершения: releaseLock()
-    await releaseLock([id])
+    await releaseLock([monadUuid])
 
     // TAKT 2: hp=0 <= 0 → DEAD (с намерением, LOCK=1)
-    await updateMonads([{ id: id, fields: { hp: 0 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 0 } }])
     runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges[1]!.newState).toBe("DEAD")
     expect(runtimeChanges[1]!.intention).toBe("deathProcess")
 
     // WEAK FORCE: исполняет deathProcess...
     // После завершения: releaseLock()
-    await releaseLock([id])
+    await releaseLock([monadUuid])
   })
 
   it("должен работать с пакетной обработкой (TAKT) для нескольких монад", async () => {
@@ -169,7 +175,9 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
 
     registerProcesses(mockProcesses)
 
-    const id1 = createMonad({
+    const uuid1 = crypto.randomUUID()
+    const monadUuid1 = createMonad({
+      uuid: uuid1,
       fields: { hp: { type: "number" } },
       values: { hp: 100 },
       superposition: {
@@ -181,7 +189,9 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
       },
     })
 
-    const id2 = createMonad({
+    const uuid2 = crypto.randomUUID()
+    const monadUuid2 = createMonad({
+      uuid: uuid2,
       fields: { mana: { type: "number" } },
       values: { mana: 100 },
       superposition: {
@@ -190,7 +200,9 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
       },
     })
 
-    const id3 = createMonad({
+    const uuid3 = crypto.randomUUID()
+    const monadUuid3 = createMonad({
+      uuid: uuid3,
       fields: { energy: { type: "number" } },
       values: { energy: 50 },
       superposition: {
@@ -202,27 +214,27 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
       },
     })
 
-    _createdMonadIds.push(id1, id2, id3)
+    _createdMonadIds.push(monadUuid1, monadUuid2, monadUuid3)
 
     onStateChange((c) => changes.push(...c))
     await updateBoundary()
 
     // TAKT 1: Пакетное обновление всех монад
     await updateMonads([
-      { id: id1, fields: { hp: 80 } },      // → PATROL (с намерением, LOCK=1)
-      { id: id2, fields: { mana: 0 } },     // → DEAD (без намерения, LOCK=1→0)
-      { id: id3, fields: { energy: 40 } },  // → PATROL (с намерением, LOCK=1)
+      { uuid: monadUuid1, fields: { hp: 80 } },      // → PATROL (с намерением, LOCK=1)
+      { uuid: monadUuid2, fields: { mana: 0 } },     // → DEAD (без намерения, LOCK=1→0)
+      { uuid: monadUuid3, fields: { energy: 40 } },  // → PATROL (с намерением, LOCK=1)
     ])
 
     // Находим изменения по монадам
-    const change1 = changes.find((c) => c.monadId === id1)
-    const change2 = changes.find((c) => c.monadId === id2)
-    const change3 = changes.find((c) => c.monadId === id3)
+    const change1 = changes.find((c) => c.monadId === monadUuid1)
+    const change2 = changes.find((c) => c.monadId === monadUuid2)
+    const change3 = changes.find((c) => c.monadId === monadUuid3)
 
     const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
-    const runtimeChange1 = runtimeChanges.find((c) => c.monadId === id1)
-    const runtimeChange2 = runtimeChanges.find((c) => c.monadId === id2)
-    const runtimeChange3 = runtimeChanges.find((c) => c.monadId === id3)
+    const runtimeChange1 = runtimeChanges.find((c) => c.monadId === monadUuid1)
+    const runtimeChange2 = runtimeChanges.find((c) => c.monadId === monadUuid2)
+    const runtimeChange3 = runtimeChanges.find((c) => c.monadId === monadUuid3)
 
     expect(runtimeChange1?.newState).toBe("PATROL")
     expect(runtimeChange1?.intention).toBe("patrolProcess")
@@ -234,7 +246,7 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
     expect(runtimeChange3?.intention).toBe("patrolProcess")
 
     // releaseLock() для монад с намерением
-    await releaseLock([id1, id3])
+    await releaseLock([monadUuid1, monadUuid3])
   })
 
   it("должен разблокировать все монады если не указаны ID", async () => {
@@ -242,7 +254,9 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
 
     registerProcesses(mockProcesses)
 
-    const id1 = createMonad({
+    const uuid1 = crypto.randomUUID()
+    const monadUuid1 = createMonad({
+      uuid: uuid1,
       fields: { hp: { type: "number" } },
       values: { hp: 100 },
       superposition: {
@@ -254,7 +268,9 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
       },
     })
 
-    const id2 = createMonad({
+    const uuid2 = crypto.randomUUID()
+    const monadUuid2 = createMonad({
+      uuid: uuid2,
       fields: { mana: { type: "number" } },
       values: { mana: 100 },
       superposition: {
@@ -266,14 +282,14 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
       },
     })
 
-    _createdMonadIds.push(id1, id2)
+    _createdMonadIds.push(monadUuid1, monadUuid2)
 
     onStateChange((c) => changes.push(...c))
     await updateBoundary()
 
     await updateMonads([
-      { id: id1, fields: { hp: 80 } },
-      { id: id2, fields: { mana: 80 } },
+      { uuid: monadUuid1, fields: { hp: 80 } },
+      { uuid: monadUuid2, fields: { mana: 80 } },
     ])
 
     const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
@@ -288,7 +304,9 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
 
     registerProcesses(mockProcesses)
 
-    const id = createMonad({
+    const uuid = crypto.randomUUID()
+    const monadUuid = createMonad({
+      uuid,
       fields: { hp: { type: "number" }, mana: { type: "number" } },
       values: { hp: 100, mana: 100 },
       superposition: {
@@ -303,30 +321,30 @@ describe("Boundary-блокировка + TAKT-синхронизация", () =
         DEAD: "deathProcess",
       },
     })
-    _createdMonadIds.push(id)
+    _createdMonadIds.push(monadUuid)
 
     onStateChange((c) => changes.push(...c))
     await updateBoundary()
 
     // TAKT 1: hp=100>80 → PATROL (LOCK=1)
-    await updateMonads([{ id: id, fields: { hp: 100 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 100 } }])
     let runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges[0]!.newState).toBe("PATROL")
     expect(runtimeChanges[0]!.intention).toBe("patrolProcess")
-    await releaseLock([id])
+    await releaseLock([monadUuid])
 
     // TAKT 2: mana=10<20 → COMBAT (LOCK=1)
-    await updateMonads([{ id: id, fields: { mana: 10 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { mana: 10 } }])
     runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges[1]!.newState).toBe("COMBAT")
     expect(runtimeChanges[1]!.intention).toBe("combatProcess")
-    await releaseLock([id])
+    await releaseLock([monadUuid])
 
     // TAKT 3: hp=0<=0 → DEAD (LOCK=1)
-    await updateMonads([{ id: id, fields: { hp: 0 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 0 } }])
     runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges[2]!.newState).toBe("DEAD")
     expect(runtimeChanges[2]!.intention).toBe("deathProcess")
-    await releaseLock([id])
+    await releaseLock([monadUuid])
   })
 })

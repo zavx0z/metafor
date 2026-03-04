@@ -4,6 +4,7 @@ import { setupDevice } from "fixture/bunWebGPU"
 GPU._device = await setupDevice()
 
 const root = createMonad({
+  uuid: crypto.randomUUID(),
   fields: {
     hp: { type: "number" },
     mana: { type: "number" },

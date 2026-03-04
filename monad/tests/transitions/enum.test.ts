@@ -37,7 +37,9 @@ describe("Monad — Enum переходы", () => {
       const resultStates: string[] = []
       onStateChange(createStateChangeHandler(resultStates))
 
-      const id = createMonad({
+      const uuid = crypto.randomUUID()
+      const monadUuid = createMonad({
+        uuid,
         fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
         values: { status: "idle" },
         superposition: {
@@ -46,10 +48,10 @@ describe("Monad — Enum переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(id)
+      _createdMonadIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ id: id, fields: { status: "active" } }])
+      await updateMonads([{ uuid: monadUuid, fields: { status: "active" } }])
 
       expect(resultStates).toEqual(["ACTIVE"])
     })
@@ -58,7 +60,9 @@ describe("Monad — Enum переходы", () => {
       const resultStates: string[] = []
       onStateChange(createStateChangeHandler(resultStates))
 
-      const id = createMonad({
+      const uuid = crypto.randomUUID()
+      const monadUuid = createMonad({
+        uuid,
         fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
         values: { status: "idle" },
         superposition: {
@@ -67,10 +71,10 @@ describe("Monad — Enum переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(id)
+      _createdMonadIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ id: id, fields: { status: "paused" } }])
+      await updateMonads([{ uuid: monadUuid, fields: { status: "paused" } }])
 
       expect(resultStates).toEqual([])
     })
@@ -81,7 +85,9 @@ describe("Monad — Enum переходы", () => {
       const resultStates: string[] = []
       onStateChange(createStateChangeHandler(resultStates))
 
-      const id = createMonad({
+      const uuid = crypto.randomUUID()
+      const monadUuid = createMonad({
+        uuid,
         fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
         values: { status: "idle" },
         superposition: {
@@ -90,10 +96,10 @@ describe("Monad — Enum переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(id)
+      _createdMonadIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ id: id, fields: { status: "active" } }])
+      await updateMonads([{ uuid: monadUuid, fields: { status: "active" } }])
 
       expect(resultStates).toEqual(["CHANGED"])
     })
@@ -104,7 +110,9 @@ describe("Monad — Enum переходы", () => {
       const resultStates: string[] = []
       onStateChange(createStateChangeHandler(resultStates))
 
-      const id = createMonad({
+      const uuid = crypto.randomUUID()
+      const monadUuid = createMonad({
+        uuid,
         fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
         values: { status: "idle" },
         superposition: {
@@ -113,10 +121,10 @@ describe("Monad — Enum переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(id)
+      _createdMonadIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ id: id, fields: { status: "paused" } }])
+      await updateMonads([{ uuid: monadUuid, fields: { status: "paused" } }])
 
       expect(resultStates).toEqual(["NOT_IDLE"])
     })
@@ -125,7 +133,9 @@ describe("Monad — Enum переходы", () => {
       const resultStates: string[] = []
       onStateChange(createStateChangeHandler(resultStates))
 
-      const id = createMonad({
+      const uuid = crypto.randomUUID()
+      const monadUuid = createMonad({
+        uuid,
         fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
         values: { status: "idle" },
         superposition: {
@@ -134,10 +144,10 @@ describe("Monad — Enum переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(id)
+      _createdMonadIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ id: id, fields: { status: "idle" } }])
+      await updateMonads([{ uuid: monadUuid, fields: { status: "idle" } }])
 
       expect(resultStates).toEqual([])
     })
@@ -148,7 +158,9 @@ describe("Monad — Enum переходы", () => {
       const resultStates: string[] = []
       onStateChange(createStateChangeHandler(resultStates))
 
-      const id = createMonad({
+      const uuid = crypto.randomUUID()
+      const monadUuid = createMonad({
+        uuid,
         fields: { role: { type: "enum<string>", values: ["ally", "enemy", "neutral"] } },
         values: { role: "ally" },
         superposition: {
@@ -157,10 +169,10 @@ describe("Monad — Enum переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(id)
+      _createdMonadIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ id: id, fields: { role: "ally" } }])
+      await updateMonads([{ uuid: monadUuid, fields: { role: "ally" } }])
 
       expect(resultStates).toEqual(["ALLY"])
     })
@@ -171,7 +183,9 @@ describe("Monad — Enum переходы", () => {
       const resultStates: string[] = []
       onStateChange(createStateChangeHandler(resultStates))
 
-      const id = createMonad({
+      const uuid = crypto.randomUUID()
+      const monadUuid = createMonad({
+        uuid,
         fields: { priority: { type: "enum<string>", values: ["low", "medium", "high"] } },
         values: { priority: "low" },
         superposition: {
@@ -180,10 +194,10 @@ describe("Monad — Enum переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(id)
+      _createdMonadIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ id: id, fields: { priority: "high" } }])
+      await updateMonads([{ uuid: monadUuid, fields: { priority: "high" } }])
 
       expect(resultStates).toEqual(["URGENT"])
     })
@@ -192,7 +206,9 @@ describe("Monad — Enum переходы", () => {
       const resultStates: string[] = []
       onStateChange(createStateChangeHandler(resultStates))
 
-      const id = createMonad({
+      const uuid = crypto.randomUUID()
+      const monadUuid = createMonad({
+        uuid,
         fields: { priority: { type: "enum<string>", values: ["low", "medium", "high"] } },
         values: { priority: "low" },
         superposition: {
@@ -201,10 +217,10 @@ describe("Monad — Enum переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(id)
+      _createdMonadIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ id: id, fields: { priority: "low" } }])
+      await updateMonads([{ uuid: monadUuid, fields: { priority: "low" } }])
 
       expect(resultStates).toEqual([])
     })

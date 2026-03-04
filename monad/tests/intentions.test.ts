@@ -71,7 +71,9 @@ describe("Monad — Намерения (intentions)", () => {
 
     registerProcesses(mockProcesses)
 
-    const id = createMonad({
+    const uuid = crypto.randomUUID()
+    const monadUuid = createMonad({
+      uuid,
       fields: { hp: { type: "number" } },
       values: { hp: 30 },
       superposition: {
@@ -82,11 +84,11 @@ describe("Monad — Намерения (intentions)", () => {
         PATROL: "patrolProcess",
       },
     })
-    _createdMonadIds.push(id)
+    _createdMonadIds.push(monadUuid)
 
     onStateChange((c) => changes.push(...c))
     await updateBoundary()
-    await updateMonads([{ id: id, fields: { hp: 80 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 80 } }])
 
     const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges).toHaveLength(1)
@@ -99,7 +101,9 @@ describe("Monad — Намерения (intentions)", () => {
 
     registerProcesses(mockProcesses)
 
-    const id = createMonad({
+    const uuid = crypto.randomUUID()
+    const monadUuid = createMonad({
+      uuid,
       fields: { hp: { type: "number" }, mana: { type: "number" } },
       values: { hp: 30, mana: 50 },
       superposition: {
@@ -110,11 +114,11 @@ describe("Monad — Намерения (intentions)", () => {
         COMBAT: "combatProcess",
       },
     })
-    _createdMonadIds.push(id)
+    _createdMonadIds.push(monadUuid)
 
     onStateChange((c) => changes.push(...c))
     await updateBoundary()
-    await updateMonads([{ id: id, fields: { hp: 80, mana: 30 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 80, mana: 30 } }])
 
     const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges).toHaveLength(1)
@@ -127,7 +131,9 @@ describe("Monad — Намерения (intentions)", () => {
 
     registerProcesses(mockProcesses)
 
-    const id = createMonad({
+    const uuid = crypto.randomUUID()
+    const monadUuid = createMonad({
+      uuid,
       fields: { hp: { type: "number" } },
       values: { hp: 100 },
       superposition: {
@@ -146,32 +152,32 @@ describe("Monad — Намерения (intentions)", () => {
         IDLE: "idleProcess",
       },
     })
-    _createdMonadIds.push(id)
+    _createdMonadIds.push(monadUuid)
 
     onStateChange((c) => changes.push(...c))
     await updateBoundary()
 
     // hp=100 > 50 → PATROL (LOCK=1)
-    await updateMonads([{ id: id, fields: { hp: 100 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 100 } }])
     let runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges[0]!.newState).toBe("PATROL")
     expect(runtimeChanges[0]!.intention).toBe("patrolProcess")
     // WEAK FORCE исполняет процесс → releaseLock()
-    await releaseLock([id])
+    await releaseLock([monadUuid])
 
     // hp=15 <= 20 → IDLE (LOCK=1)
-    await updateMonads([{ id: id, fields: { hp: 15 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 15 } }])
     runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges[1]!.newState).toBe("IDLE")
     expect(runtimeChanges[1]!.intention).toBe("idleProcess")
-    await releaseLock([id])
+    await releaseLock([monadUuid])
 
     // hp=0 <= 0 → DEAD (LOCK=1)
-    await updateMonads([{ id: id, fields: { hp: 0 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 0 } }])
     runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges[2]!.newState).toBe("DEAD")
     expect(runtimeChanges[2]!.intention).toBe("deathProcess")
-    await releaseLock([id])
+    await releaseLock([monadUuid])
   })
 
   it("должен вернуть намерение только при изменении состояния", async () => {
@@ -179,7 +185,9 @@ describe("Monad — Намерения (intentions)", () => {
 
     registerProcesses(mockProcesses)
 
-    const id = createMonad({
+    const uuid = crypto.randomUUID()
+    const monadUuid = createMonad({
+      uuid,
       fields: { hp: { type: "number" } },
       values: { hp: 100 },
       superposition: {
@@ -190,19 +198,19 @@ describe("Monad — Намерения (intentions)", () => {
         PATROL: "patrolProcess",
       },
     })
-    _createdMonadIds.push(id)
+    _createdMonadIds.push(monadUuid)
 
     onStateChange((c) => changes.push(...c))
     await updateBoundary()
 
     // Переход в PATROL
-    await updateMonads([{ id: id, fields: { hp: 80 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 80 } }])
     let runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges).toHaveLength(1)
     expect(runtimeChanges[0]!.intention).toBe("patrolProcess")
 
     // Остаётся в PATROL (намерение не должно вернуться снова)
-    await updateMonads([{ id: id, fields: { hp: 90 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 90 } }])
     runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges).toHaveLength(1)
   })
@@ -212,7 +220,9 @@ describe("Monad — Намерения (intentions)", () => {
 
     registerProcesses(mockProcesses)
 
-    const id = createMonad({
+    const uuid = crypto.randomUUID()
+    const monadUuid = createMonad({
+      uuid,
       fields: { hp: { type: "number" }, mana: { type: "number" } },
       values: { hp: 100, mana: 100 },
       superposition: {
@@ -227,32 +237,32 @@ describe("Monad — Намерения (intentions)", () => {
         DEAD: "deathProcess",
       },
     })
-    _createdMonadIds.push(id)
+    _createdMonadIds.push(monadUuid)
 
     onStateChange((c) => changes.push(...c))
     await updateBoundary()
 
     // hp=100>80 → PATROL (LOCK=1)
-    await updateMonads([{ id: id, fields: { hp: 100 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 100 } }])
     let runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges[0]!.newState).toBe("PATROL")
     expect(runtimeChanges[0]!.intention).toBe("patrolProcess")
     // WEAK FORCE исполняет процесс → releaseLock()
-    await releaseLock([id])
+    await releaseLock([monadUuid])
 
     // mana=10<20 → COMBAT (LOCK=1)
-    await updateMonads([{ id: id, fields: { mana: 10 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { mana: 10 } }])
     runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges[1]!.newState).toBe("COMBAT")
     expect(runtimeChanges[1]!.intention).toBe("combatProcess")
-    await releaseLock([id])
+    await releaseLock([monadUuid])
 
     // hp=0<=0 → DEAD (LOCK=1)
-    await updateMonads([{ id: id, fields: { hp: 0 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 0 } }])
     runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges[2]!.newState).toBe("DEAD")
     expect(runtimeChanges[2]!.intention).toBe("deathProcess")
-    await releaseLock([id])
+    await releaseLock([monadUuid])
   })
 
   it("должен вернуть null намерение если состояние без намерения", async () => {
@@ -260,7 +270,9 @@ describe("Monad — Намерения (intentions)", () => {
 
     registerProcesses(mockProcesses)
 
-    const id = createMonad({
+    const uuid = crypto.randomUUID()
+    const monadUuid = createMonad({
+      uuid,
       fields: { hp: { type: "number" } },
       values: { hp: 100 },
       superposition: {
@@ -269,13 +281,13 @@ describe("Monad — Намерения (intentions)", () => {
       },
       // DEAD без намерения — терминальное состояние
     })
-    _createdMonadIds.push(id)
+    _createdMonadIds.push(monadUuid)
 
     onStateChange((c) => changes.push(...c))
     await updateBoundary()
 
     // hp=0 <= 0 → DEAD (без намерения)
-    await updateMonads([{ id: id, fields: { hp: 0 } }])
+    await updateMonads([{ uuid: monadUuid, fields: { hp: 0 } }])
     const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges).toHaveLength(1)
     expect(runtimeChanges[0]!.newState).toBe("DEAD")
@@ -287,7 +299,9 @@ describe("Monad — Намерения (intentions)", () => {
 
     registerProcesses(mockProcesses)
 
-    const id1 = createMonad({
+    const uuid1 = crypto.randomUUID()
+    const monadUuid1 = createMonad({
+      uuid: uuid1,
       fields: { hp: { type: "number" } },
       values: { hp: 100 },
       superposition: {
@@ -299,7 +313,9 @@ describe("Monad — Намерения (intentions)", () => {
       },
     })
 
-    const id2 = createMonad({
+    const uuid2 = crypto.randomUUID()
+    const monadUuid2 = createMonad({
+      uuid: uuid2,
       fields: { mana: { type: "number" } },
       values: { mana: 100 },
       superposition: {
@@ -310,21 +326,21 @@ describe("Monad — Намерения (intentions)", () => {
         COMBAT: "combatProcess",
       },
     })
-    _createdMonadIds.push(id1, id2)
+    _createdMonadIds.push(monadUuid1, monadUuid2)
 
     onStateChange((c) => changes.push(...c))
     await updateBoundary()
 
     // Обе монады меняют состояние одновременно
     await updateMonads([
-      { id: id1, fields: { hp: 80 } },
-      { id: id2, fields: { mana: 80 } },
+      { uuid: monadUuid1, fields: { hp: 80 } },
+      { uuid: monadUuid2, fields: { mana: 80 } },
     ])
 
     const runtimeChanges = changes.filter((c) => c.oldState !== undefined)
     expect(runtimeChanges).toHaveLength(2)
-    const change1 = runtimeChanges.find((c) => c.monadId === id1)
-    const change2 = runtimeChanges.find((c) => c.monadId === id2)
+    const change1 = runtimeChanges.find((c) => c.monadId === monadUuid1)
+    const change2 = runtimeChanges.find((c) => c.monadId === monadUuid2)
     expect(change1?.newState).toBe("PATROL")
     expect(change1?.intention).toBe("patrolProcess")
     expect(change2?.newState).toBe("COMBAT")
