@@ -38,11 +38,9 @@
     "**/*.ts"
   ],
   "exclude": [
-    "old",
-    "./atom/**/*",
     "**/dist-test/*",
     "**/script/**/*",
-    "docs",
+    "**/docs/**/*",
     "*/dist/**/*",
     "*/node_modules/**/*",
     ".idea/**/*",

@@ -4,7 +4,7 @@
  * @packageDocumentation
  *
  * @remarks
- * Все типы переопределены в `@boundary/matrix/types` и ре-экспортируются отсюда.
+ * Все типы определены в `@boundary/matrix/types` и ре-экспортируются отсюда.
  */
 
 // Ре-экспорт типов из @boundary/matrix
@@ -17,9 +17,3 @@ export {
   type Brane,
   type Data,
 } from "@boundary/matrix"
-
-// Алиас для обратной совместимости
-/**
- * @deprecated Используйте `BraneValue` из `@boundary/matrix`
- */
-export type BraneParamValue = BraneValue

@@ -107,7 +107,7 @@ export type {
   Brane,
   Data,
   Collapse,
-  BraneParamValue,
+  BraneValue,
 } from "./index.t"
 
 // ============================================================================

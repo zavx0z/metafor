@@ -10,7 +10,7 @@ import {
   type Field,
   type Data,
   type Brane,
-  type BraneParamValue,
+  type BraneValue,
 } from "@boundary/fields"
 import { _updateMatrixHeap, getMatrixState } from "@boundary/matrix"
 import type {
@@ -107,12 +107,12 @@ function addMonadField(name: string, field: Field): number {
 /**
  * Конвертирует values из Record в кортежи [fieldIndex, value].
  */
-function valuesToTuples(values: Record<string, unknown>): [number, BraneParamValue][] {
-  const tuples: [number, BraneParamValue][] = []
+function valuesToTuples(values: Record<string, unknown>): [number, BraneValue][] {
+  const tuples: [number, BraneValue][] = []
   for (const [name, value] of Object.entries(values)) {
     const fieldIndex = _fieldNameIndex.get(name)
     if (fieldIndex !== undefined) {
-      tuples.push([fieldIndex, value as BraneParamValue])
+      tuples.push([fieldIndex, value as BraneValue])
     }
   }
   return tuples

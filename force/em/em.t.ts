@@ -1,4 +1,4 @@
-import type { Self } from "../../old/atom/atom"
+import type { Self } from "@metafor/meta"
 
 export interface Boson extends Self {
   timestamp: number
