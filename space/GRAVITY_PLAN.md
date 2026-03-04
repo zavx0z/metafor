@@ -665,6 +665,7 @@ async function checkAndReapply(newValues: Record<string, unknown>) {
 | **✅ UUID в client.ts** | (удалена) | ✅ Завершена |
 | **✅ Gravity Stores** | (удалена) | ✅ Завершена |
 | **🔄 Func Parse** | `tasks/func-parse.md` | 🔄 В выполнении |
+| **⬜ Entangled Planning** | `tasks/entangled-planning.md` | ⬜ Ожидает |
 | **⬜ Func Resolve** | `tasks/func-resolve.md` | ⬜ Ожидает |
 | **⬜ Интеграция client.ts** | — | ⬜ Ожидает |
 | **⬜ Реактивность** | — | ⬜ Ожидает |

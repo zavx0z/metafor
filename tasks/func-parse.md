@@ -93,13 +93,21 @@ export interface ParseContext {
  * @property src - путь к DSL (например, "zavx0z/git-start")
  * @property context - контекст для value (опционально)
  * @property fields - начальные поля монады
- * @property superposition - суперпозиция (опционально)
+ *
+ * ## Пример
+ *
+ * ```typescript
+ * const declaration: ActorDeclaration = {
+ *   src: "zavx0z/git-start",
+ *   context: { operation: "clone" },
+ *   fields: { count: 0 }
+ * }
+ * ```
  */
 export interface ActorDeclaration {
   src: string
   context?: Record<string, unknown>
   fields: Record<string, unknown>
-  superposition: Record<string, unknown>
 }
 ```
 
