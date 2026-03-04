@@ -69,6 +69,10 @@ export interface EncodedValueResult {
 export function encodeValue(value: unknown, context: EncodingContext): EncodedValueResult {
   // 1. ENUM
   if (context.enum) {
+    // null для optional-полей — кодируется как 0
+    if (value === null) {
+      return { value1: 0, value2: 0 }
+    }
     // Если значение уже число (индекс) — возвращаем его
     if (typeof value === "number") {
       return { value1: value, value2: 0 }
@@ -94,6 +98,10 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
 
   // 4. STRING → string_id + hash
   if (context.type === TYPE.STRING) {
+    // null для optional-полей — кодируется как 0 (пустая строка)
+    if (value === null) {
+      return { value1: 0, value2: 0 }
+    }
     if (typeof value !== "string") {
       throw new Error(`Expected string for TYPE.STRING, got ${typeof value}`)
     }
