@@ -12,14 +12,21 @@
         "**/*.crswap": true,
         "**/node_modules": true,
         "**/__pycache__": true,
-        ".venv": true
+        ".venv": true,
+        ".idea": true,
+        ".firebase": true,
+        ".windsurf": true,
+        ".vscode": true,
+        ".qoder": true,
+        ".github": true
     },
     "hide-files.files": [
         ".idea",
         ".firebase",
         ".windsurf",
         ".vscode",
-        ".qoder"
+        ".qoder",
+        ".github"
     ],
     "explorer.fileNesting.enabled": true,
     "explorer.fileNesting.expand": false,

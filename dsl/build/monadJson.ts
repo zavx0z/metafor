@@ -15,8 +15,8 @@ import type { Node as ParseNode } from "@zavx0z/template"
  * Содержит все компоненты декларации атома.
  */
 type MetaLike = Record<string, any> & {
-  /** Схема полей brane с типами и значениями по умолчанию */
-  brane?: Record<string, any>
+  /** Схема полей с типами и значениями по умолчанию */
+  fields?: Record<string, any>
   /** Граф переходов состояний (суперпозиция) */
   superposition?: Record<string, any>
   /** Процессы с обработчиками action/success/error */
@@ -308,9 +308,9 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
  * ```
  */
 export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): MonadJson {
-  const inputFields = meta?.brane
+  const inputFields = meta?.fields
   if (!inputFields || typeof inputFields !== "object") {
-    throw new Error("brane не найден или не является объектом")
+    throw new Error("fields не найден или не является объектом")
   }
 
   const arrayElementTypesFromSource = sourceText ? extractArrayElementTypesFromSource(sourceText) : {}

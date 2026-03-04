@@ -61,11 +61,12 @@ describe("write / update — базовые переходы", () => {
   })
 
   test("должен перейти из IDLE в DEAD при hp <= 0", async () => {
-    const initialStates = await write({
+    // write() — TAKT 0: инициализация
+    await write({
       fields: [{ type: FieldType.F32 }],
       branes: [
         {
-          // Начальное значение 100 > 50, поэтому после write() state=1 (PATROL)
+          // Начальное значение 100 > 50, поэтому после write() state=0 (ещё не выполнен переход)
           params: [[0, 100]],
           state: 0,
           collapses: [
@@ -77,11 +78,12 @@ describe("write / update — базовые переходы", () => {
       ],
     })
 
-    // После write() state=1 (PATROL)
-    expect(initialStates).toContainEqual([0, 1])
+    // update() — TAKT 1: hp=100 > 50 → переход в state=1 (PATROL)
+    const states = await update([[0, []]])
+    expect(states).toContainEqual([0, 1])
 
-    // update с hp=0 → DEAD
-    // WGSL ставит LOCK=1 при первом переходе, нужно разблокировать
+    // update() — TAKT 2: hp=0 → переход в state=2 (DEAD)
+    // Разблокируем и обновляем поле
     const states1 = await update([[0, [[0, 0]], false]])
     expect(states1).toContainEqual([0, 2]) // DEAD
   })
@@ -253,7 +255,8 @@ describe("write / update — entangled группы", () => {
   })
 
   test("должен работать с mixed: local + entangled поля", async () => {
-    const initialStates = await write({
+    // write() — TAKT 0: инициализация
+    await write({
       fields: [
         { type: FieldType.F32 }, // hp (shared)
         { type: FieldType.F32 }, // mana (local)
@@ -286,13 +289,20 @@ describe("write / update — entangled группы", () => {
         },
       ],
     })
+
+    // update() — TAKT 1: выполнение переходов
+    // Брана 0: mana=10<30 → state=1
+    // Брана 1: mana=50 не <30 → state=0
+    const states = await update([
+      [0, []],
+      [1, []],
+    ])
     
-    // После write(): брана 0 mana=10<30 → state=1, брана 1 mana=50 не <30 → state=0
-    expect(initialStates).toContainEqual([0, 1])  // Брана 0 перешла
+    expect(states).toContainEqual([0, 1])  // Брана 0 перешла
 
     // Обновляем брану 1: mana=50 → mana=20 (< 30, теперь должен перейти)
-    const states = await update([[1, [[1, 20]]]])
-    expect(states).toContainEqual([1, 1])  // Брана 1 изменилась
+    const nextStates = await update([[1, [[1, 20]]]])
+    expect(nextStates).toContainEqual([1, 1])  // Брана 1 изменилась
   })
 })
 

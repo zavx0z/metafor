@@ -93,13 +93,16 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
 
     test("должен выполнить переход, когда длина меньше или равна", async () => {
       const collapses: Collapse[][] = [[[1, { 0: { length: { lte: 3 } } }]], [null]]
-      // write() с пустым массивом (длина 0 ≤ 3), поэтому УСЛОВИЕ length:lte:3 = TRUE
-      // После write() state=1 (терминальное), update не меняет
+      // write() с пустым массивом (длина 0 ≤ 3) — TAKT 0: инициализация без перехода
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
-      // update с массивом длины 3: length:lte:3 = TRUE, но state уже 1 (терминальное)
+      // update() — TAKT 1: длина 0 ≤ 3 → переход в state=1
+      const states1 = await update([[0, []]])
+      expect(states1).toContainEqual([0, 1])
+      
+      // update с массивом длины 3: state уже 1 (терминальное), изменений нет
       const resultStates = await update([[0, [[0, [1, 2, 3]]]]])
       expect(resultStates).toEqual([])  // Уже в терминальном состоянии
     })
@@ -108,11 +111,15 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
   describe("Оператор IS_EMPTY (пустой массив)", () => {
     test("должен выполнить переход, когда массив пустой", async () => {
       const collapses: Collapse[][] = [[[1, { 0: { isEmpty: true } }]], [null]]
-      // write() с пустым массивом []: isEmpty:true = TRUE → переход в state=1
+      // write() с пустым массивом [] — TAKT 0: инициализация без перехода
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
+      // update() — TAKT 1: isEmpty=true → переход в state=1
+      const states1 = await update([[0, []]])
+      expect(states1).toContainEqual([0, 1])
+      
       // update с непустым массивом: state уже 1 (терминальное)
       const resultStates = await update([[0, [[0, [1]]]]])
       expect(resultStates).toEqual([])  // Уже в терминальном состоянии
@@ -120,11 +127,16 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
 
     test("не должен выполнить переход, когда массив не пустой", async () => {
       const collapses: Collapse[][] = [[[1, { 0: { isEmpty: true } }]], [null]]
-      // write() с пустым массивом []: isEmpty:true = TRUE → переход в state=1 (терминальное)
+      // write() с пустым массивом [] — TAKT 0: инициализация
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
+      // update() — TAKT 1: isEmpty=true → переход в state=1 (терминальное)
+      const states1 = await update([[0, []]])
+      expect(states1).toContainEqual([0, 1])
+      
+      // update с непустым массивом: state уже 1 (терминальное)
       const resultStates = await update([[0, [[0, [1]]]]])
       expect(resultStates).toEqual([])  // Уже в терминальном состоянии
     })
@@ -168,36 +180,48 @@ describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
   describe("Непустые массивы в write()", () => {
     test("должен поддержать непустой массив чисел в params", async () => {
       const collapses: Collapse[][] = [[[1, { 0: { length: 3 } }]], [null]]
-      // write() с непустым массивом [1, 2, 3]: length=3 → УСЛОВИЕ ИСТИНА → переход в state=1
+      // write() с непустым массивом [1, 2, 3] — TAKT 0: инициализация без перехода
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
         branes: [{ state: 0, params: [[0, [1, 2, 3]]], collapses }],
       })
-      // После write() state=1 (терминальное), update не меняет
+      // update() — TAKT 1: length=3 → переход в state=1
+      const states1 = await update([[0, []]])
+      expect(states1).toContainEqual([0, 1])
+      
+      // После перехода state=1 (терминальное), update не меняет
       const resultStates = await update([[0, [[0, [1, 2, 3]]]]])
       expect(resultStates).toEqual([])  // Уже в терминальном состоянии
     })
 
     test("должен поддержать непустой массив строк в params", async () => {
       const collapses: Collapse[][] = [[[1, { 0: { include: "hero" } }]], [null]]
-      // write() с непустым массивом ["warrior", "hero"]: включает "hero" → УСЛОВИЕ ИСТИНА → переход
+      // write() с непустым массивом ["warrior", "hero"] — TAKT 0: инициализация
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "string" }],
         branes: [{ state: 0, params: [[0, ["warrior", "hero"]]], collapses }],
       })
-      // После write() state=1 (терминальное)
+      // update() — TAKT 1: включает "hero" → переход в state=1
+      const states1 = await update([[0, []]])
+      expect(states1).toContainEqual([0, 1])
+      
+      // После перехода state=1 (терминальное)
       const resultStates = await update([[0, [[0, ["mage"]]]]])
       expect(resultStates).toEqual([])  // Уже в терминальном состоянии
     })
 
     test("должен поддержать пустой массив с переходом при isEmpty", async () => {
       const collapses: Collapse[][] = [[[1, { 0: { isEmpty: true } }]], [null]]
-      // write() с пустым массивом []: isEmpty=true → УСЛОВИЕ ИСТИНА → переход
+      // write() с пустым массивом [] — TAKT 0: инициализация
       await write({
         fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
         branes: [{ state: 0, params: [[0, []]], collapses }],
       })
-      // После write() state=1 (терминальное)
+      // update() — TAKT 1: isEmpty=true → переход в state=1
+      const states1 = await update([[0, []]])
+      expect(states1).toContainEqual([0, 1])
+      
+      // После перехода state=1 (терминальное)
       const resultStates = await update([[0, [[0, [1]]]]])
       expect(resultStates).toEqual([])  // Уже в терминальном состоянии
     })

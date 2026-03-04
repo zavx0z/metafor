@@ -24,14 +24,16 @@ describe("write() — возврат начальных состояний", () 
       [[1, { 0: { gt: 50 } }]],  // IDLE → PATROL при hp > 50
       [null],
     ]
-    
-    // hp=100 > 50 → переход в state=1 после write()
-    const initialStates = await write({
+
+    // write() — TAKT 0: инициализация без перехода
+    await write({
       fields: [{ type: FieldType.F32 }],
       branes: [{ state: 0, params: [[0, 100]], collapses }],
     })
-    
-    expect(initialStates).toContainEqual([0, 1])  // Брана 0 перешла в state 1
+
+    // update() — TAKT 1: hp=100 > 50 → переход в state=1
+    const states = await update([[0, []]])
+    expect(states).toContainEqual([0, 1])  // Брана 0 перешла в state 1
   })
 
   test("должен вернуть пустой массив если переходов не было", async () => {
@@ -54,8 +56,9 @@ describe("write() — возврат начальных состояний", () 
       [[1, { 0: { gt: 50 } }]],
       [null],
     ]
-    
-    const initialStates = await write({
+
+    // write() — TAKT 0: инициализация
+    await write({
       fields: [{ type: FieldType.F32 }],
       branes: [
         { state: 0, params: [[0, 100]], collapses },  // 100 > 50 → state 1
@@ -63,10 +66,17 @@ describe("write() — возврат начальных состояний", () 
         { state: 0, params: [[0, 60]], collapses },   // 60 > 50 → state 1
       ],
     })
-    
-    expect(initialStates).toContainEqual([0, 1])  // Брана 0: 100 > 50
-    expect(initialStates).toContainEqual([2, 1])  // Брана 2: 60 > 50
-    expect(initialStates).not.toContainEqual([1, expect.anything()])  // Брана 1: 30 ≤ 50
+
+    // update() — TAKT 1: выполнение переходов
+    const states = await update([
+      [0, []],
+      [1, []],
+      [2, []],
+    ])
+
+    expect(states).toContainEqual([0, 1])  // Брана 0: 100 > 50
+    expect(states).toContainEqual([2, 1])  // Брана 2: 60 > 50
+    expect(states).not.toContainEqual([1, expect.anything()])  // Брана 1: 30 ≤ 50
   })
 
   test("должен вернуть состояния для ARRAY полей", async () => {
@@ -74,14 +84,16 @@ describe("write() — возврат начальных состояний", () 
       [[1, { 0: { length: 3 } }]],  // Переход при длине массива = 3
       [null],
     ]
-    
-    // Массив [1, 2, 3] имеет длину 3 → переход в state=1
-    const initialStates = await write({
+
+    // write() — TAKT 0: инициализация
+    await write({
       fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
       branes: [{ state: 0, params: [[0, [1, 2, 3]]], collapses }],
     })
-    
-    expect(initialStates).toContainEqual([0, 1])
+
+    // update() — TAKT 1: массив [1, 2, 3] имеет длину 3 → переход в state=1
+    const states = await update([[0, []]])
+    expect(states).toContainEqual([0, 1])
   })
 
   test("должен вернуть состояния для STRING полей", async () => {
@@ -89,14 +101,16 @@ describe("write() — возврат начальных состояний", () 
       [[1, { 0: { eq: "hero" } }]],
       [null],
     ]
-    
-    // "hero" === "hero" → переход в state=1
-    const initialStates = await write({
+
+    // write() — TAKT 0: инициализация
+    await write({
       fields: [{ type: FieldType.STRING_PTR }],
       branes: [{ state: 0, params: [[0, "hero"]], collapses }],
     })
-    
-    expect(initialStates).toContainEqual([0, 1])
+
+    // update() — TAKT 1: "hero" === "hero" → переход в state=1
+    const states = await update([[0, []]])
+    expect(states).toContainEqual([0, 1])
   })
 
   test("должен вернуть состояния для BOOL полей", async () => {
@@ -104,14 +118,16 @@ describe("write() — возврат начальных состояний", () 
       [[1, { 0: true }]],
       [null],
     ]
-    
-    // true === true → переход в state=1
-    const initialStates = await write({
+
+    // write() — TAKT 0: инициализация
+    await write({
       fields: [{ type: FieldType.BOOL }],
       branes: [{ state: 0, params: [[0, true]], collapses }],
     })
-    
-    expect(initialStates).toContainEqual([0, 1])
+
+    // update() — TAKT 1: true === true → переход в state=1
+    const states = await update([[0, []]])
+    expect(states).toContainEqual([0, 1])
   })
 
   test("должен вернуть состояния для enum полей", async () => {
@@ -119,14 +135,16 @@ describe("write() — возврат начальных состояний", () 
       [[1, { 0: "MAGE" }]],
       [null],
     ]
-    
-    // "MAGE" === "MAGE" → переход в state=1
-    const initialStates = await write({
+
+    // write() — TAKT 0: инициализация
+    await write({
       fields: [{ type: FieldType.U32, enum: ["WARRIOR", "MAGE", "ROGUE"] }],
       branes: [{ state: 0, params: [[0, "MAGE"]], collapses }],
     })
-    
-    expect(initialStates).toContainEqual([0, 1])
+
+    // update() — TAKT 1: "MAGE" === "MAGE" → переход в state=1
+    const states = await update([[0, []]])
+    expect(states).toContainEqual([0, 1])
   })
 
   test("должен работать с несколькими переходами в одной суперпозиции", async () => {
@@ -136,16 +154,18 @@ describe("write() — возврат начальных состояний", () 
       [null],
     ]
 
-    // hp=100 > 50 → переход в state=1 (PATROL)
-    const initialStates = await write({
+    // write() — TAKT 0: инициализация
+    await write({
       fields: [{ type: FieldType.F32 }],
       branes: [{ state: 0, params: [[0, 100]], collapses }],
     })
 
-    expect(initialStates).toContainEqual([0, 1])
+    // update() — TAKT 1: hp=100 > 50 → переход в state=1 (PATROL)
+    const states1 = await update([[0, []]])
+    expect(states1).toContainEqual([0, 1])
 
-    // update с hp=0 → переход в state=2 (DEAD)
-    // WGSL ставит LOCK=1 при первом переходе, нужно разблокировать
+    // update() — TAKT 2: hp=0 → переход в state=2 (DEAD)
+    // Разблокируем и обновляем поле
     const nextStates = await update([[0, [[0, 0]], false]])
     expect(nextStates).toContainEqual([0, 2])
   })
@@ -155,17 +175,24 @@ describe("write() — возврат начальных состояний", () 
       [[1, { 0: { gt: 50 } }]],
       [null],
     ]
-    
-    const initialStates = await write({
+
+    // write() — TAKT 0: инициализация
+    await write({
       fields: [{ type: FieldType.F32 }],
       branes: [
         { state: 0, params: [[0, 100]], collapses },  // → state 1
         { state: 0, params: [[0, 30]], collapses },   // → state 0 (без изменений)
       ],
     })
-    
+
+    // update() — TAKT 1: выполнение переходов
+    const states = await update([
+      [0, []],
+      [1, []],
+    ])
+
     // Возвращаются только изменённые
-    expect(initialStates).toContainEqual([0, 1])
-    expect(initialStates).not.toContainEqual([1, expect.anything()])
+    expect(states).toContainEqual([0, 1])
+    expect(states).not.toContainEqual([1, expect.anything()])
   })
 })

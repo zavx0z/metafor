@@ -238,7 +238,7 @@ describe("convertMetaToMonadJson", () => {
     }
 
     expect(() => convertMetaToMonadJson(meta as any)).toThrow(
-      "brane не найден или не является объектом"
+      "fields не найден или не является объектом"
     )
   })
 
