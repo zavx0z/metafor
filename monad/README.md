@@ -60,7 +60,7 @@ Birth-event нужен, чтобы:
 ### Кто снимает lock
 
 - `MONAD` снимает lock автоматически, если у нового состояния **нет намерения**.
-- `WEAK FORCE` (или orchestration-слой) снимает lock после исполнения процесса через `releaseLock()`.
+- `Weak Force` (или orchestration-слой) снимает lock после исполнения процесса через `releaseLock()`.
 
 ### Birth и lock
 

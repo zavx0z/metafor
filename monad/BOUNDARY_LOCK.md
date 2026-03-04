@@ -54,7 +54,7 @@
 |---|---|---|
 | `BOUNDARY` | Автоматически при реальном runtime-переходе | Никогда |
 | `MONAD` | Никогда | Автоматически, если у `newState` нет `intention` |
-| `WEAK FORCE` / orchestration | Никогда | Явно через `releaseLock()` после завершения процесса |
+| `Weak Force` / orchestration | Никогда | Явно через `releaseLock()` после завершения процесса |
 
 ---
 

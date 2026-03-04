@@ -28,7 +28,7 @@ function log(changed: BraneStateChange[]) {
   out.innerText += msg + "\n"
 }
 
-async function createActor(metaPath: string) {
+async function createAgent(metaPath: string) {
   const dsl = await loadDSL(metaPath)
   console.log(dsl)
   const actorId = createMonad({ fields: dsl.fields, values: {}, superposition: dsl.superposition })
@@ -36,4 +36,4 @@ async function createActor(metaPath: string) {
 }
 
 const HUB_DIRECTORY = "/github/"
-createActor(HUB_DIRECTORY + "zavx0z/git")
+createAgent(HUB_DIRECTORY + "zavx0z/git")
