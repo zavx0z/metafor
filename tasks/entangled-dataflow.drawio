@@ -1,596 +1,362 @@
 <mxfile host="65bd71144e">
-    <diagram id="Wgk-gjpy0anIBiY3rL-E" name="Page-1">
-        <mxGraphModel dx="4064" dy="4755" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
+    <diagram id="entangled-flow" name="Entangled Data Flow">
+        <mxGraphModel dx="924" dy="607" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
-                <mxCell id="54" value="Meta @dsl/meta" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;fillColor=light-dark(#FFFFFF,#333333);" vertex="1" parent="1">
-                    <mxGeometry width="470" height="300" as="geometry"/>
+                <mxCell id="100" value="Meta @dsl/meta" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;fillColor=light-dark(#FFFFFF,#333333);flipH=1;" parent="1" vertex="1">
+                    <mxGeometry x="34" y="324" width="470" height="180" as="geometry"/>
                 </mxCell>
-                <mxCell id="55" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="54">
-                    <mxGeometry y="30" width="470" height="30" as="geometry"/>
+                <mxCell id="101" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="100" vertex="1">
+                    <mxGeometry y="30" width="470" height="38" as="geometry"/>
                 </mxCell>
-                <mxCell id="56" value="name" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="55">
-                    <mxGeometry width="110" height="30" as="geometry">
-                        <mxRectangle width="110" height="30" as="alternateBounds"/>
+                <mxCell id="102" value="fields" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="101" vertex="1">
+                    <mxGeometry width="111" height="38" as="geometry">
+                        <mxRectangle width="111" height="38" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="57" value="string" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="55">
-                    <mxGeometry x="110" width="130" height="30" as="geometry">
+                <mxCell id="103" value="ɸ" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="101" vertex="1">
+                    <mxGeometry x="111" width="129" height="38" as="geometry">
+                        <mxRectangle width="129" height="38" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="104" value="Схема полей" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="101" vertex="1">
+                    <mxGeometry x="240" width="230" height="38" as="geometry">
+                        <mxRectangle width="230" height="38" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="105" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="100" vertex="1">
+                    <mxGeometry y="68" width="470" height="37" as="geometry"/>
+                </mxCell>
+                <mxCell id="106" value="superposition" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="105" vertex="1">
+                    <mxGeometry width="111" height="37" as="geometry">
+                        <mxRectangle width="111" height="37" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="107" value="Superposition&lt;𝛴, ɸ&gt;" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="105" vertex="1">
+                    <mxGeometry x="111" width="129" height="37" as="geometry">
+                        <mxRectangle width="129" height="37" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="108" value="Суперпозиция состояний" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="105" vertex="1">
+                    <mxGeometry x="240" width="230" height="37" as="geometry">
+                        <mxRectangle width="230" height="37" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="109" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="100" vertex="1">
+                    <mxGeometry y="105" width="470" height="38" as="geometry"/>
+                </mxCell>
+                <mxCell id="110" value="gravity" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="109" vertex="1">
+                    <mxGeometry width="111" height="38" as="geometry">
+                        <mxRectangle width="111" height="38" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="111" value="ParseNode[]?" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="109" vertex="1">
+                    <mxGeometry x="111" width="129" height="38" as="geometry">
+                        <mxRectangle width="129" height="38" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="112" value="AST иерархии акторов" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="109" vertex="1">
+                    <mxGeometry x="240" width="230" height="38" as="geometry">
+                        <mxRectangle width="230" height="38" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="113" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="100" vertex="1">
+                    <mxGeometry y="143" width="470" height="37" as="geometry"/>
+                </mxCell>
+                <mxCell id="114" value="bulk" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="113" vertex="1">
+                    <mxGeometry width="111" height="37" as="geometry">
+                        <mxRectangle width="111" height="37" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="115" value="BulkDeclaration" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="113" vertex="1">
+                    <mxGeometry x="111" width="129" height="37" as="geometry">
+                        <mxRectangle width="129" height="37" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="116" value="gravity + view" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="113" vertex="1">
+                    <mxGeometry x="240" width="230" height="37" as="geometry">
+                        <mxRectangle width="230" height="37" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="200" value="Gravity @force/gravity" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;fillColor=light-dark(#FFFFFF,#333333);flipH=1;" parent="1" vertex="1">
+                    <mxGeometry x="531" y="339" width="389" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="201" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="200" vertex="1">
+                    <mxGeometry y="30" width="389" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="202" value="Field Store" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="201" vertex="1">
+                    <mxGeometry width="126" height="30" as="geometry">
+                        <mxRectangle width="126" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="203" value="FieldRecord[]" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="201" vertex="1">
+                    <mxGeometry x="126" width="120" height="30" as="geometry">
+                        <mxRectangle width="120" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="204" value="uuid, type, schemas[]" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="201" vertex="1">
+                    <mxGeometry x="246" width="143" height="30" as="geometry">
+                        <mxRectangle width="143" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="205" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="200" vertex="1">
+                    <mxGeometry y="60" width="389" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="206" value="Schema Store" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="205" vertex="1">
+                    <mxGeometry width="126" height="30" as="geometry">
+                        <mxRectangle width="126" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="207" value="SchemaRecord[]" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="205" vertex="1">
+                    <mxGeometry x="126" width="120" height="30" as="geometry">
+                        <mxRectangle width="120" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="208" value="fieldUuid, name, label" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="205" vertex="1">
+                    <mxGeometry x="246" width="143" height="30" as="geometry">
+                        <mxRectangle width="143" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="209" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="200" vertex="1">
+                    <mxGeometry y="90" width="389" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="210" value="FlatStructure" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="209" vertex="1">
+                    <mxGeometry width="126" height="30" as="geometry">
+                        <mxRectangle width="126" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="211" value="{entangled, manifests}" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="209" vertex="1">
+                    <mxGeometry x="126" width="120" height="30" as="geometry">
+                        <mxRectangle width="120" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="212" value="fieldUuids в группах" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="209" vertex="1">
+                    <mxGeometry x="246" width="143" height="30" as="geometry">
+                        <mxRectangle width="143" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="213" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="200" vertex="1">
+                    <mxGeometry y="120" width="389" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="214" value="entangled.groups" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="213" vertex="1">
+                    <mxGeometry width="126" height="30" as="geometry">
+                        <mxRectangle width="126" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="215" value="EntangledGroup[]" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="213" vertex="1">
+                    <mxGeometry x="126" width="120" height="30" as="geometry">
+                        <mxRectangle width="120" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="216" value="fieldUuids[], conditionPath" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="213" vertex="1">
+                    <mxGeometry x="246" width="143" height="30" as="geometry">
+                        <mxRectangle width="143" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="300" value="Strong Force @space" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;fillColor=light-dark(#FFFFFF,#333333);flipH=1;" parent="1" vertex="1">
+                    <mxGeometry x="1004" y="354" width="420" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="301" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="300" vertex="1">
+                    <mxGeometry y="30" width="420" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="302" value="EntangledGroup" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="301" vertex="1">
+                    <mxGeometry width="130" height="30" as="geometry">
                         <mxRectangle width="130" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="58" value="Название компонента" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="55">
-                    <mxGeometry x="240" width="230" height="30" as="geometry">
-                        <mxRectangle width="230" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="59" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="54">
-                    <mxGeometry y="60" width="470" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="60" value="desc" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="59">
-                    <mxGeometry width="110" height="30" as="geometry">
+                <mxCell id="303" value="{uuid, fieldUuids, value}" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="301" vertex="1">
+                    <mxGeometry x="130" width="110" height="30" as="geometry">
                         <mxRectangle width="110" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="61" value="string?" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="59">
-                    <mxGeometry x="110" width="130" height="30" as="geometry">
+                <mxCell id="304" value="Strong Force UUID + значение" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="301" vertex="1">
+                    <mxGeometry x="240" width="180" height="30" as="geometry">
+                        <mxRectangle width="180" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="305" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="300" vertex="1">
+                    <mxGeometry y="60" width="420" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="306" value="manifests" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="305" vertex="1">
+                    <mxGeometry width="130" height="30" as="geometry">
                         <mxRectangle width="130" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="62" value="Описание компонента" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="59">
-                    <mxGeometry x="240" width="230" height="30" as="geometry">
-                        <mxRectangle width="230" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="63" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="54">
-                    <mxGeometry y="90" width="470" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="64" value="superposition" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="63">
-                    <mxGeometry width="110" height="30" as="geometry">
+                <mxCell id="307" value="Manifest[]" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="305" vertex="1">
+                    <mxGeometry x="130" width="110" height="30" as="geometry">
                         <mxRectangle width="110" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="65" value="Superposition&amp;lt;𝛴, ɸ&amp;gt;" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="63">
-                    <mxGeometry x="110" width="130" height="30" as="geometry">
+                <mxCell id="308" value="{fields: {schemaName: value}}" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="305" vertex="1">
+                    <mxGeometry x="240" width="180" height="30" as="geometry">
+                        <mxRectangle width="180" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="309" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="300" vertex="1">
+                    <mxGeometry y="90" width="420" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="310" value="→ Boundary" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="309" vertex="1">
+                    <mxGeometry width="130" height="30" as="geometry">
                         <mxRectangle width="130" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="66" value="Суперпозиция состояний и переходов" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="63">
-                    <mxGeometry x="240" width="230" height="30" as="geometry">
-                        <mxRectangle width="230" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="67" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="54">
-                    <mxGeometry y="120" width="470" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="68" value="processes" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="67">
-                    <mxGeometry width="110" height="30" as="geometry">
+                <mxCell id="311" value="entangledGroups" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="309" vertex="1">
+                    <mxGeometry x="130" width="110" height="30" as="geometry">
                         <mxRectangle width="110" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="69" value="ProcessesSchema?" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="67">
-                    <mxGeometry x="110" width="130" height="30" as="geometry">
+                <mxCell id="312" value="Без schema (обезличено)" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="309" vertex="1">
+                    <mxGeometry x="240" width="180" height="30" as="geometry">
+                        <mxRectangle width="180" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="400" value="Boundary @boundary/fields" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;fillColor=light-dark(#FFFFFF,#333333);flipH=1;" parent="1" vertex="1">
+                    <mxGeometry x="1476" y="339" width="420" height="150" as="geometry"/>
+                </mxCell>
+                <mxCell id="401" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="400" vertex="1">
+                    <mxGeometry y="30" width="420" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="402" value="Entangled Groups" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="401" vertex="1">
+                    <mxGeometry width="130" height="30" as="geometry">
                         <mxRectangle width="130" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="70" value="Снимок процессов" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="67">
-                    <mxGeometry x="240" width="230" height="30" as="geometry">
-                        <mxRectangle width="230" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="71" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="54">
-                    <mxGeometry y="150" width="470" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="72" value="reactions" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="71">
-                    <mxGeometry width="110" height="30" as="geometry">
+                <mxCell id="403" value="Map&lt;uuid, Group&gt;" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="401" vertex="1">
+                    <mxGeometry x="130" width="110" height="30" as="geometry">
                         <mxRectangle width="110" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="73" value="ReactionsSchema?" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="71">
-                    <mxGeometry x="110" width="130" height="30" as="geometry">
+                <mxCell id="404" value="braneIndices, value" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="401" vertex="1">
+                    <mxGeometry x="240" width="180" height="30" as="geometry">
+                        <mxRectangle width="180" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="405" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="400" vertex="1">
+                    <mxGeometry y="60" width="420" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="406" value="Blocks Store" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="405" vertex="1">
+                    <mxGeometry width="130" height="30" as="geometry">
                         <mxRectangle width="130" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="74" value="Снимок реакций" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="71">
-                    <mxGeometry x="240" width="230" height="30" as="geometry">
-                        <mxRectangle width="230" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="75" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="54">
-                    <mxGeometry y="180" width="470" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="76" value="fields" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="75">
-                    <mxGeometry width="110" height="30" as="geometry">
+                <mxCell id="407" value="BlockRecord[]" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="405" vertex="1">
+                    <mxGeometry x="130" width="110" height="30" as="geometry">
                         <mxRectangle width="110" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="77" value="ɸ" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="75">
-                    <mxGeometry x="110" width="130" height="30" as="geometry">
+                <mxCell id="408" value="uuid, groups[], shared, ptr" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="405" vertex="1">
+                    <mxGeometry x="240" width="180" height="30" as="geometry">
+                        <mxRectangle width="180" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="409" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="400" vertex="1">
+                    <mxGeometry y="90" width="420" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="410" value="Heap" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="409" vertex="1">
+                    <mxGeometry width="130" height="30" as="geometry">
                         <mxRectangle width="130" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="78" value="Схема полей" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="75">
-                    <mxGeometry x="240" width="230" height="30" as="geometry">
-                        <mxRectangle width="230" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="79" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="54">
-                    <mxGeometry y="210" width="470" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="80" value="gravity" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="79">
-                    <mxGeometry width="110" height="30" as="geometry">
+                <mxCell id="411" value="Uint32Array" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="409" vertex="1">
+                    <mxGeometry x="130" width="110" height="30" as="geometry">
                         <mxRectangle width="110" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="81" value="ParseNode[]?" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="79">
-                    <mxGeometry x="110" width="130" height="30" as="geometry">
+                <mxCell id="412" value="shared + local блоки" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="409" vertex="1">
+                    <mxGeometry x="240" width="180" height="30" as="geometry">
+                        <mxRectangle width="180" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="413" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="400" vertex="1">
+                    <mxGeometry y="120" width="420" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="414" value="→ Matrix" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="413" vertex="1">
+                    <mxGeometry width="130" height="30" as="geometry">
                         <mxRectangle width="130" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="82" value="Сериализованная gravity" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="79">
-                    <mxGeometry x="240" width="230" height="30" as="geometry">
-                        <mxRectangle width="230" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="83" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="54">
-                    <mxGeometry y="240" width="470" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="84" value="view" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="83">
-                    <mxGeometry width="110" height="30" as="geometry">
+                <mxCell id="415" value="braneDescriptors" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="413" vertex="1">
+                    <mxGeometry x="130" width="110" height="30" as="geometry">
                         <mxRectangle width="110" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="85" value="string?" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="83">
-                    <mxGeometry x="110" width="130" height="30" as="geometry">
+                <mxCell id="416" value="[block_ptr, bytecode_offset]" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="413" vertex="1">
+                    <mxGeometry x="240" width="180" height="30" as="geometry">
+                        <mxRectangle width="180" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="500" value="Matrix @boundary/matrix" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;fillColor=light-dark(#FFFFFF,#333333);flipH=1;" parent="1" vertex="1">
+                    <mxGeometry x="1948" y="354" width="420" height="120" as="geometry"/>
+                </mxCell>
+                <mxCell id="501" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="500" vertex="1">
+                    <mxGeometry y="30" width="420" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="502" value="Brane" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="501" vertex="1">
+                    <mxGeometry width="130" height="30" as="geometry">
                         <mxRectangle width="130" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="86" value="View-стили компонента" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="83">
-                    <mxGeometry x="240" width="230" height="30" as="geometry">
-                        <mxRectangle width="230" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="87" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="54">
-                    <mxGeometry y="270" width="470" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="88" value="mass" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="87">
-                    <mxGeometry width="110" height="30" as="geometry">
+                <mxCell id="503" value="values[]" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="501" vertex="1">
+                    <mxGeometry x="130" width="110" height="30" as="geometry">
                         <mxRectangle width="110" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="89" value="m?" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="87">
-                    <mxGeometry x="110" width="130" height="30" as="geometry">
+                <mxCell id="504" value="Данные для GPU" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="501" vertex="1">
+                    <mxGeometry x="240" width="180" height="30" as="geometry">
+                        <mxRectangle width="180" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="505" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="500" vertex="1">
+                    <mxGeometry y="60" width="420" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="506" value="Heap" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="505" vertex="1">
+                    <mxGeometry width="130" height="30" as="geometry">
                         <mxRectangle width="130" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="90" value="Масса" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="87">
-                    <mxGeometry x="240" width="230" height="30" as="geometry">
-                        <mxRectangle width="230" height="30" as="alternateBounds"/>
+                <mxCell id="507" value="Uint32Array" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="505" vertex="1">
+                    <mxGeometry x="130" width="110" height="30" as="geometry">
+                        <mxRectangle width="110" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="96" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;fontFamily=Helvetica;fontSize=16;fontColor=default;" edge="1" parent="1" source="87" target="91">
+                <mxCell id="508" value="Физическая память GPU" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="505" vertex="1">
+                    <mxGeometry x="240" width="180" height="30" as="geometry">
+                        <mxRectangle width="180" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="509" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="500" vertex="1">
+                    <mxGeometry y="90" width="420" height="30" as="geometry"/>
+                </mxCell>
+                <mxCell id="510" value="GPU Evolution" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="509" vertex="1">
+                    <mxGeometry width="130" height="30" as="geometry">
+                        <mxRectangle width="130" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="511" value="WGSL shader" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" parent="509" vertex="1">
+                    <mxGeometry x="130" width="110" height="30" as="geometry">
+                        <mxRectangle width="110" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="512" value="Эволюция суперпозиций" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="509" vertex="1">
+                    <mxGeometry x="240" width="180" height="30" as="geometry">
+                        <mxRectangle width="180" height="30" as="alternateBounds"/>
+                    </mxGeometry>
+                </mxCell>
+                <mxCell id="600" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontFamily=Helvetica;fontSize=16;fontColor=default;" parent="1" source="100" target="200" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="118" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;fontFamily=Helvetica;fontSize=16;fontColor=default;" edge="1" parent="1" source="75" target="97">
+                <mxCell id="601" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontFamily=Helvetica;fontSize=16;fontColor=default;" parent="1" source="200" target="300" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="189" value="" style="group" vertex="1" connectable="0" parent="1">
-                    <mxGeometry x="420" y="-130" width="760" height="690" as="geometry"/>
-                </mxCell>
-                <mxCell id="91" value="Mass @dsl/meta" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;fillColor=light-dark(#FFFFFF,#333333);" vertex="1" parent="189">
-                    <mxGeometry y="490" width="210" height="60" as="geometry"/>
-                </mxCell>
-                <mxCell id="92" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="91">
-                    <mxGeometry y="30" width="210" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="93" value="Record" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=center;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="92">
-                    <mxGeometry width="70" height="30" as="geometry">
-                        <mxRectangle width="70" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="94" value="string" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="92">
-                    <mxGeometry x="70" width="70" height="30" as="geometry">
-                        <mxRectangle width="70" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="95" value="any" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=center;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="92">
-                    <mxGeometry x="140" width="70" height="30" as="geometry">
-                        <mxRectangle width="70" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="97" value="Types @zavx0z/context" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;fillColor=light-dark(#FFFFFF,#333333);" vertex="1" parent="189">
-                    <mxGeometry x="80" y="235" width="310" height="180" as="geometry"/>
-                </mxCell>
-                <mxCell id="98" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="97">
-                    <mxGeometry y="30" width="310" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="99" value="string" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="98">
-                    <mxGeometry width="66" height="30" as="geometry">
-                        <mxRectangle width="66" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="100" value="FieldType&lt;string&gt;" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="98">
-                    <mxGeometry x="66" width="66" height="30" as="geometry">
-                        <mxRectangle width="66" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="101" value="Строковое поле" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="98">
-                    <mxGeometry x="132" width="178" height="30" as="geometry">
-                        <mxRectangle width="178" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="102" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="97">
-                    <mxGeometry y="60" width="310" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="103" value="number" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="102">
-                    <mxGeometry width="66" height="30" as="geometry">
-                        <mxRectangle width="66" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="104" value="FieldType&lt;number&gt;" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="102">
-                    <mxGeometry x="66" width="66" height="30" as="geometry">
-                        <mxRectangle width="66" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="105" value="Числовое поле" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="102">
-                    <mxGeometry x="132" width="178" height="30" as="geometry">
-                        <mxRectangle width="178" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="106" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="97">
-                    <mxGeometry y="90" width="310" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="107" value="boolean" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="106">
-                    <mxGeometry width="66" height="30" as="geometry">
-                        <mxRectangle width="66" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="108" value="FieldType&lt;boolean&gt;" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="106">
-                    <mxGeometry x="66" width="66" height="30" as="geometry">
-                        <mxRectangle width="66" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="109" value="Булевое поле" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="106">
-                    <mxGeometry x="132" width="178" height="30" as="geometry">
-                        <mxRectangle width="178" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="110" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="97">
-                    <mxGeometry y="120" width="310" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="111" value="enum" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="110">
-                    <mxGeometry width="66" height="30" as="geometry">
-                        <mxRectangle width="66" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="112" value="FieldType&lt;enum&gt;" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="110">
-                    <mxGeometry x="66" width="66" height="30" as="geometry">
-                        <mxRectangle width="66" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="113" value="Enum поле (строки или числа)" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="110">
-                    <mxGeometry x="132" width="178" height="30" as="geometry">
-                        <mxRectangle width="178" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="114" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="97">
-                    <mxGeometry y="150" width="310" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="115" value="array" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="114">
-                    <mxGeometry width="66" height="30" as="geometry">
-                        <mxRectangle width="66" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="116" value="FieldType&lt;T[]&gt;" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="114">
-                    <mxGeometry x="66" width="66" height="30" as="geometry">
-                        <mxRectangle width="66" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="117" value="Массив (требует generic)" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="114">
-                    <mxGeometry x="132" width="178" height="30" as="geometry">
-                        <mxRectangle width="178" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="119" value="string" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;fillColor=light-dark(#FFFFFF,#333333);" vertex="1" parent="189">
-                    <mxGeometry x="410" width="350" height="120" as="geometry"/>
-                </mxCell>
-                <mxCell id="120" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="119">
-                    <mxGeometry y="30" width="350" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="121" value="type" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=14;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="120">
-                    <mxGeometry width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="122" value="string" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="120">
-                    <mxGeometry x="100" width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="123" value="Тип поля" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="120">
-                    <mxGeometry x="200" width="150" height="30" as="geometry">
-                        <mxRectangle width="150" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="124" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="119">
-                    <mxGeometry y="60" width="350" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="125" value="required" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=14;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="124">
-                    <mxGeometry width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="126" value="boolean" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="124">
-                    <mxGeometry x="100" width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="127" value="Обязательность поля" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="124">
-                    <mxGeometry x="200" width="150" height="30" as="geometry">
-                        <mxRectangle width="150" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="128" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="119">
-                    <mxGeometry y="90" width="350" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="129" value="default" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=14;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="128">
-                    <mxGeometry width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="130" value="string?" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="128">
-                    <mxGeometry x="100" width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="131" value="Значение по умолчанию" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="128">
-                    <mxGeometry x="200" width="150" height="30" as="geometry">
-                        <mxRectangle width="150" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="132" value="number" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;fillColor=light-dark(#FFFFFF,#333333);" vertex="1" parent="189">
-                    <mxGeometry x="410" y="140" width="350" height="120" as="geometry"/>
-                </mxCell>
-                <mxCell id="133" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="132">
-                    <mxGeometry y="30" width="350" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="134" value="type" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=14;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="133">
-                    <mxGeometry width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="135" value="number" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="133">
-                    <mxGeometry x="100" width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="136" value="Тип поля" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="133">
-                    <mxGeometry x="200" width="150" height="30" as="geometry">
-                        <mxRectangle width="150" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="137" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="132">
-                    <mxGeometry y="60" width="350" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="138" value="required" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=14;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="137">
-                    <mxGeometry width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="139" value="boolean" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="137">
-                    <mxGeometry x="100" width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="140" value="Обязательность поля" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="137">
-                    <mxGeometry x="200" width="150" height="30" as="geometry">
-                        <mxRectangle width="150" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="141" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="132">
-                    <mxGeometry y="90" width="350" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="142" value="default" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=14;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="141">
-                    <mxGeometry width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="143" value="number?" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="141">
-                    <mxGeometry x="100" width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="144" value="Значение по умолчанию" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="141">
-                    <mxGeometry x="200" width="150" height="30" as="geometry">
-                        <mxRectangle width="150" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="145" value="boolean" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;fillColor=light-dark(#FFFFFF,#333333);" vertex="1" parent="189">
-                    <mxGeometry x="410" y="280" width="350" height="120" as="geometry"/>
-                </mxCell>
-                <mxCell id="146" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="145">
-                    <mxGeometry y="30" width="350" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="147" value="type" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=14;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="146">
-                    <mxGeometry width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="148" value="boolean" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="146">
-                    <mxGeometry x="100" width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="149" value="Тип поля" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="146">
-                    <mxGeometry x="200" width="150" height="30" as="geometry">
-                        <mxRectangle width="150" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="150" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="145">
-                    <mxGeometry y="60" width="350" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="151" value="required" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=14;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="150">
-                    <mxGeometry width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="152" value="boolean" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="150">
-                    <mxGeometry x="100" width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="153" value="Обязательность поля" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="150">
-                    <mxGeometry x="200" width="150" height="30" as="geometry">
-                        <mxRectangle width="150" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="154" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="145">
-                    <mxGeometry y="90" width="350" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="155" value="default" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=14;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="154">
-                    <mxGeometry width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="156" value="boolean?" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="154">
-                    <mxGeometry x="100" width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="157" value="Значение по умолчанию" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="154">
-                    <mxGeometry x="200" width="150" height="30" as="geometry">
-                        <mxRectangle width="150" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="158" value="enum" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;fillColor=light-dark(#FFFFFF,#333333);" vertex="1" parent="189">
-                    <mxGeometry x="410" y="430" width="350" height="120" as="geometry"/>
-                </mxCell>
-                <mxCell id="159" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="158">
-                    <mxGeometry y="30" width="350" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="160" value="type" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=14;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="159">
-                    <mxGeometry width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="161" value="enum" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="159">
-                    <mxGeometry x="100" width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="162" value="Тип поля" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="159">
-                    <mxGeometry x="200" width="150" height="30" as="geometry">
-                        <mxRectangle width="150" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="163" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="158">
-                    <mxGeometry y="60" width="350" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="164" value="values" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=14;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="163">
-                    <mxGeometry width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="165" value="T[]" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="163">
-                    <mxGeometry x="100" width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="166" value="Массив значений enum" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="163">
-                    <mxGeometry x="200" width="150" height="30" as="geometry">
-                        <mxRectangle width="150" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="167" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="158">
-                    <mxGeometry y="90" width="350" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="168" value="default" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=14;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="167">
-                    <mxGeometry width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="169" value="T?" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="167">
-                    <mxGeometry x="100" width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="170" value="Значение по умолчанию" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="167">
-                    <mxGeometry x="200" width="150" height="30" as="geometry">
-                        <mxRectangle width="150" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="171" value="array" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;fillColor=light-dark(#FFFFFF,#333333);" vertex="1" parent="189">
-                    <mxGeometry x="410" y="570" width="350" height="120" as="geometry"/>
-                </mxCell>
-                <mxCell id="172" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="171">
-                    <mxGeometry y="30" width="350" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="173" value="type" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=14;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="172">
-                    <mxGeometry width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="174" value="array" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="172">
-                    <mxGeometry x="100" width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="175" value="Тип поля" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="172">
-                    <mxGeometry x="200" width="150" height="30" as="geometry">
-                        <mxRectangle width="150" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="176" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="171">
-                    <mxGeometry y="60" width="350" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="177" value="required" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=14;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="176">
-                    <mxGeometry width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="178" value="boolean" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="176">
-                    <mxGeometry x="100" width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="179" value="Обязательность поля" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="176">
-                    <mxGeometry x="200" width="150" height="30" as="geometry">
-                        <mxRectangle width="150" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="180" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="171">
-                    <mxGeometry y="90" width="350" height="30" as="geometry"/>
-                </mxCell>
-                <mxCell id="181" value="default" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=14;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="180">
-                    <mxGeometry width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="182" value="T[]?" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="180">
-                    <mxGeometry x="100" width="100" height="30" as="geometry">
-                        <mxRectangle width="100" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="183" value="Массив значений" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="180">
-                    <mxGeometry x="200" width="150" height="30" as="geometry">
-                        <mxRectangle width="150" height="30" as="alternateBounds"/>
-                    </mxGeometry>
-                </mxCell>
-                <mxCell id="184" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;fontFamily=Helvetica;fontSize=16;fontColor=default;" edge="1" parent="189" source="98" target="119">
+                <mxCell id="602" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontFamily=Helvetica;fontSize=16;fontColor=default;" parent="1" source="300" target="400" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="185" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;fontFamily=Helvetica;fontSize=16;fontColor=default;" edge="1" parent="189" source="102" target="132">
+                <mxCell id="603" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;fontFamily=Helvetica;fontSize=16;fontColor=default;" parent="1" source="400" target="500" edge="1">
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
-                <mxCell id="186" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;fontFamily=Helvetica;fontSize=16;fontColor=default;" edge="1" parent="189" source="106" target="145">
-                    <mxGeometry relative="1" as="geometry"/>
-                </mxCell>
-                <mxCell id="187" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;fontFamily=Helvetica;fontSize=16;fontColor=default;" edge="1" parent="189" source="110" target="158">
-                    <mxGeometry relative="1" as="geometry"/>
-                </mxCell>
-                <mxCell id="188" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;fontFamily=Helvetica;fontSize=16;fontColor=default;" edge="1" parent="189" source="114" target="171">
-                    <mxGeometry relative="1" as="geometry"/>
+                <mxCell id="700" value="Entangled поток" style="text;html=1;align=center;fontStyle=1;fontFamily=Helvetica;fontSize=44;fontColor=default;flipH=1;" parent="1" vertex="1">
+                    <mxGeometry x="653" y="212" width="421" height="70" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>
