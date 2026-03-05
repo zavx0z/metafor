@@ -5,347 +5,342 @@
 
 ---
 
-## Часть 1: Анализ текущего состояния
+## Часть 1: Анализ
 
-### 1.1. Что есть сейчас
+### 1.1. Архитектура сторов
 
-#### space/client.ts
+#### Gravity (FORCE) — два стора
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Gravity Stores                                          │
+│                                                         │
+│ 1. Field Store (поле)                                   │
+│    - uuid: string                                       │
+│    - type: "string" | "number" | "enum" | ...           │
+│    - default?: unknown                                  │
+│    - schemas: string[]  ← ссылки на Schema.uuid         │
+│                                                         │
+│ 2. Schema Store (схема)                                 │
+│    - uuid: string                                       │
+│    - fieldUuid: string  ← ссылка на Field.uuid          │
+│    - name: string       ← имя в DSL (operation, args)   │
+│    - label?: string     ← человекочитаемое имя          │
+│    - default?: unknown  ← дефолт для этой схемы         │
+│                                                         │
+│ 3. Entangled (запутанность)                             │
+│    - fieldUuids: string[]  ← какие поля запутаны        │
+│    - conditionPath?: string                             │
+│    - iterationPath?: string                             │
+│    - children?: Entangled[]                             │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Ответственность:**
+- ✅ Извлекает зависимости из AST
+- ✅ Создаёт `Field` и `Schema`
+- ✅ Определяет запутанность через `fieldUuids`
+- ❌ **НЕ вычисляет значения**
+
+---
+
+#### Strong Force (SPACE) — один стор
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Strong Force Store                                      │
+│                                                         │
+│ EntangledField Store (обезличенные данные)              │
+│    - uuid: string         ← генерирует сам              │
+│    - fieldUuids: string[] ← из Gravity                  │
+│    - value: unknown       ← вычисленное значение        │
+│                                                         │
+│ Пример:                                                  │
+│   {                                                      │
+│     uuid: "ef-abc123",  ← Strong Force UUID             │
+│     fieldUuids: ["field-enum-001"],                      │
+│     value: "start"                                       │
+│   }                                                      │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Ответственность:**
+- ✅ Получает `FlatStructure` от Gravity
+- ✅ **Генерирует свои UUID** для групп запутанных полей
+- ✅ **Вычисляет значения** для полей
+- ✅ **Группирует** поля с одинаковыми значениями
+- ❌ **НЕ знает о schema/name/label**
+
+---
+
+#### Boundary (FIELDS) — два стора
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ Boundary Stores                                         │
+│                                                         │
+│ 1. Entangled Groups (группы для бран)                   │
+│    - uuid: string         ← из Strong Force             │
+│    - braneIndices: number[]                              │
+│    - fieldUuids: string[] ← из Strong Force             │
+│    - value: unknown       ← общее значение              │
+│                                                         │
+│ 2. Blocks (объединение в блоки)                         │
+│    - uuid: string         ← блок в heap                 │
+│    - groups: string[]     ← какие группы в блоке        │
+│    - shared: boolean      ← shared или local            │
+│    - ptr: number          ← позиция в heap              │
+└─────────────────────────────────────────────────────────┘
+```
+
+**Ответственность:**
+- ✅ Получает группы от Strong Force
+- ✅ **Создаёт shared блоки** для групп с одинаковыми значениями
+- ✅ **Маппит группы на блоки**
+- ✅ **Строит heap**
+- ❌ **НЕ знает о DSL/AST/schema**
+
+---
+
+### 1.2. Поток данных
+
+```
+┌─────────────────────────────────────────────────────────┐
+│ 1. DSL                                                  │
+│ .fields((field) => ({                                   │
+│   operation: field.enum(...),                           │
+│   op: field.enum(...)  ← тот же тип!                    │
+│ }))                                                     │
+│ .bulk({ gravity: ({ value, html }) => html`             │
+│   <meta-for fields={{                                   │
+│     operation: value.operation,                         │
+│     op: value.operation  ← то же значение!              │
+│   }} />                                                 │
+│ `})                                                     │
+└─────────────────────────────────────────────────────────┘
+         ↓ build
+┌─────────────────────────────────────────────────────────┐
+│ 2. meta.json                                            │
+└─────────────────────────────────────────────────────────┘
+         ↓ parse()
+┌─────────────────────────────────────────────────────────┐
+│ 3. AST (Node[])                                         │
+└─────────────────────────────────────────────────────────┘
+         ↓ traverseHierarchy()
+┌─────────────────────────────────────────────────────────┐
+│ 4. Gravity (FORCE) — зависимости                        │
+│                                                         │
+│ Field Store:                                            │
+│   field-enum-001: {                                     │
+│     type: "enum",                                       │
+│     schemas: ["schema-operation", "schema-op"]          │
+│   }                                                     │
+│                                                         │
+│ Schema Store:                                           │
+│   schema-operation: { fieldUuid: "field-enum-001",      │
+│                       name: "operation" }               │
+│   schema-op: { fieldUuid: "field-enum-001",             │
+│                name: "op" }                             │
+│                                                         │
+│ FlatStructure:                                          │
+│   entangled: {                                          │
+│     groups: [{ fieldUuids: ["field-enum-001"] }]        │
+│   }                                                     │
+│                                                         │
+│ ╰─ ПЕРЕДАЁТ: fieldUuids                                 │
+└─────────────────────────────────────────────────────────┘
+         ↓
+┌─────────────────────────────────────────────────────────┐
+│ 5. Strong Force (SPACE) — обезличенные данные           │
+│                                                         │
+│ EntangledField Store:                                   │
+│   ef-abc123: {                                          │
+│     uuid: "ef-abc123",       ← Strong Force UUID        │
+│     fieldUuids: ["field-enum-001"],                     │
+│     value: "start"                                      │
+│   }                                                     │
+│                                                         │
+│ manifests = [{                                          │
+│   fields: { operation: "start", op: "start" }           │
+│ }]                                                      │
+│                                                         │
+│ ╰─ ПЕРЕДАЁТ: { uuid, value } (без schema!)              │
+└─────────────────────────────────────────────────────────┘
+         ↓
+┌─────────────────────────────────────────────────────────┐
+│ 6. Boundary (FIELDS) — группы и блоки                   │
+│                                                         │
+│ Entangled Groups Store:                                 │
+│   ef-abc123: {                                          │
+│     uuid: "ef-abc123",                                  │
+│     braneIndices: [0, 1],                               │
+│     value: "start"                                      │
+│   }                                                     │
+│                                                         │
+│ Blocks Store:                                           │
+│   block-shared-001: {                                   │
+│     uuid: "block-shared-001",                           │
+│     groups: ["ef-abc123"],                              │
+│     shared: true,                                       │
+│     ptr: 0                                              │
+│   }                                                     │
+│                                                         │
+│ ╰─ СОЗДАЁТ: shared блок для группы                      │
+└─────────────────────────────────────────────────────────┘
+         ↓
+┌─────────────────────────────────────────────────────────┐
+│ 7. Heap — физическая память                             │
+│                                                         │
+│ heap: Uint32Array [                                     │
+│   /* shared блок #0 */                                  │
+│   1, 0, 0,  // local_count, entangled_count, lock       │
+│   meta,      // field descriptor                        │
+│   value,     // "start"                                 │
+│                                                         │
+│   /* брана 0 */                                         │
+│   0, 1, 0,   // local_count=0, entangled_count=1        │
+│   ptr0,      // ссылка на shared #0                     │
+│                                                         │
+│   /* брана 1 */                                         │
+│   0, 1, 0,   // local_count=0, entangled_count=1        │
+│   ptr0,      // ссылка на shared #0                     │
+│ ]                                                       │
+└─────────────────────────────────────────────────────────┘
+```
+
+---
+
+### 1.3. Формат данных
+
+#### Gravity → Strong Force
+
 ```typescript
-const schema = await loadDSL(HUB_DIRECTORY + "zavx0z/git")
-const hierarchy: Node[] = schema.bulk.gravity
-
-// ПУСТОЙ switch — ничего не делает
-for (const [key, value] of Object.entries(hierarchy)) {
-  switch (value.type) {
-    case "map": { break }
-    case "cond": { break }
-    case "log": { break }
-    case "meta": { break }
-  }
-}
-```
-
-**Проблема:** AST загружен, но не обрабатывается.
-
----
-
-#### force/gravity/func/
-```
-func/
-└── load.ts  // Только загрузка JSON
-```
-
-**Проблема:** Нет функций для обхода AST.
-
----
-
-#### monad/monad.ts
-```typescript
-export async function updateBoundary(): Promise<BraneStateChange[]> {
-  const allBranes: Brane[] = monadIds.map((monadId) => {
-    const monadValues = _monadParams.get(monadId)!
-    const valuesTuples = valuesToTuples(monadValues)
-    return { values: valuesTuples, state: 0, collapses: [...] }
-  })
-  
-  const data: Data = { fields: fieldsArray, branes: allBranes }
-  await fieldsWrite(data)  // ← БЕЗ entangled
-}
-```
-
-**Проблема:** `updateBoundary()` не передаёт запутанность в Boundary.
-
----
-
-#### @boundary/fields/index.ts
-```typescript
-export async function write(data: Data): Promise<void> {
-  // Нет параметра entangled
-}
-```
-
-**Проблема:** `fieldsWrite()` не принимает явную запутанность.
-
----
-
-### 1.2. Что нужно получить
-
-#### space/client.ts
-```typescript
-const schema = await loadDSL("zavx0z/git")
-
-// 1. Извлекаем структуру из AST
-const structure = traverseHierarchy(schema.bulk.gravity)
-
-// 2. Вычисляем значения
-const context = { value: { operation: "start" }, mass: {} }
-const manifests = evaluateConditions(structure, context)
-  .map(m => ({
-    src: evaluateTemplate(m.src, context),
-    fields: evaluateFields(m.fields, context)
-  }))
-
-// 3. Создаём монады
-for (const { src, fields } of manifests) {
-  const uuid = crypto.randomUUID()
-  createMonad({ uuid, fields })
-}
-
-// 4. Передаём явную запутанность
-await updateBoundary({ entangled: structure.entangled })
-```
-
----
-
-#### force/gravity/func/
-```
-func/
-├── load.ts           // ✅ Существует
-├── traverse.ts       // ⬜ traverseHierarchy()
-├── traverse.t.ts     // ⬜ Типы
-└── traverse.spec.ts  // ⬜ Тесты
-```
-
----
-
-#### monad/monad.ts
-```typescript
-export async function updateBoundary(params?: {
-  entangled?: EntangledStructure
-}): Promise<BraneStateChange[]> {
-  // ...
-  await fieldsWrite({ fields, branes }, params?.entangled)
-}
-```
-
----
-
-#### @boundary/fields/index.ts
-```typescript
-export async function write(
-  data: Data,
-  entangled?: EntangledStructure
-): Promise<void> {
-  // Использует явную запутанность
-}
-```
-
----
-
-### 1.3. Формат запутанности в DSL
-
-#### Простая запутанность
-```typescript
-.bulk({
-  gravity: ({ value, html }) => html`
-    ${value.operation && html`
-      <meta-for src="zavx0z/git-${value.operation}"
-        fields={{ operation: value.operation, args: value.args }} />
-    `}
-  `
-})
-```
-
----
-
-#### Вложенная запутанность (глубина через map)
-```typescript
-.bulk({
-  gravity: ({ value, mass, html }) => html`
-    ${value.operation && html`
-      <meta-for src="zavx0z/git-${value.operation}"
-        fields={{ operation: value.operation, args: value.args }}>
-
-        ${mass.items.map((item) => html`
-          <meta-for src="zavx0z/child-${item.type}"
-            fields={{
-              parentId: value.operation,  // ← из родителя
-              itemId: item.id,            // ← из итерации
-              itemType: item.type         // ← из итерации
-            }} />
-        `)}
-      </meta-for>
-    `}
-  `
-})
-```
-
----
-
-#### Запутанность с condition
-```typescript
-.bulk({
-  gravity: ({ value, mass, html }) => html`
-    ${value.operation && html`
-      <meta-for src="zavx0z/git-${value.operation}"
-        fields={{ operation: value.operation }}>
-        
-        ${mass.items.map((item) => html`
-          ${item.active && html`
-            <meta-for src="zavx0z/active-${item.type}"
-              fields={{
-                operation: value.operation,  // ← из root
-                itemId: item.id,             // ← из map
-                active: item.active          // ← из condition
-              }} />
-          `}
-        `)}
-      </meta-for>
-    `}
-  `
-})
-```
-
----
-
-### 1.4. Формат AST (@zavx0z/template)
-
-#### NodeLogical
-```typescript
+// FlatStructure
 {
-  type: "log",
-  data: "/value/operation",
-  child: [NodeMeta, ...]
-}
-```
-
-#### NodeCondition
-```typescript
-{
-  type: "cond",
-  data: "/context/flag",
-  expr: "flag ? 'a' : 'b'",
-  child: [[NodeMeta, ...], [NodeMeta, ...]]
-}
-```
-
-#### NodeMap
-```typescript
-{
-  type: "map",
-  data: "/mass/items",
-  child: [NodeMeta, ...]
-}
-```
-
-#### NodeMeta
-```typescript
-{
-  type: "meta",
-  tag: "meta-for",
-  string: {
-    src: { data: "/value/operation", expr: "zavx0z/git-${_[0]}" }
-  },
-  fields: {
-    data: ["/value/operation", "/value/args"],
-    expr: "{ operation: _[0], args: _[1] }"
-  }
-}
-```
-
----
-
-### 1.5. Формат Gravity (FlatStructure)
-
-```typescript
-interface FlatStructure {
-  conditions: string[]              // Пути условий
-  iterations: string[]              // Пути итераций
-  manifests: ManifestPath[]         // Манифесты с путями
-  entangled: EntangledStructure     // Явная запутанность
-}
-
-interface ManifestPath {
-  src: {
-    path: string | null
-    template: string
-  }
-  fields: FieldPath[]
-  context: {
-    conditions: string[]
-    iterations: string[]
-  }
-}
-
-interface FieldPath {
-  name: string
-  path: string
-}
-
-interface EntangledStructure {
-  groups: EntangledGroup[]
-}
-
-interface EntangledGroup {
-  conditionPath?: string
-  iterationPath?: string
-  fieldPaths: string[]
-  children?: EntangledGroup[]       // Вложенные группы
-}
-```
-
----
-
-### 1.6. Пример FlatStructure
-
-**DSL:**
-```typescript
-${value.operation && html`
-  <meta-for src="zavx0z/git-${value.operation}"
-    fields={{ operation: value.operation, args: value.args }}>
-    ${mass.items.map((item) => html`
-      <meta-for src="zavx0z/child-${item.type}"
-        fields={{ parentId: value.operation, itemId: item.id }} />
-    `)}
-  </meta-for>
-`}
-```
-
-**FlatStructure:**
-```typescript
-{
-  conditions: ["/value/operation"],
-  iterations: ["/mass/items"],
-  manifests: [
-    {
-      src: { path: "/value/operation", template: "zavx0z/git-${_[0]}" },
-      fields: [
-        { name: "operation", path: "/value/operation" },
-        { name: "args", path: "/value/args" }
-      ],
-      context: { conditions: ["/value/operation"], iterations: [] }
-    },
-    {
-      src: { path: "/mass/items", template: "zavx0z/child-${_[1]}" },
-      fields: [
-        { name: "parentId", path: "/value/operation" },
-        { name: "itemId", path: "[item]/id" }
-      ],
-      context: { conditions: ["/value/operation"], iterations: ["/mass/items"] }
-    }
-  ],
   entangled: {
-    groups: [
-      {
-        conditionPath: "/value/operation",
-        fieldPaths: ["/value/operation", "/value/args"],
-        children: [
-          {
-            iterationPath: "/mass/items",
-            fieldPaths: ["/value/operation", "[item]/id"]
-          }
-        ]
-      }
+    groups: [{
+      fieldUuids: ["field-enum-001"],  ← Gravity UUID
+      conditionPath: "/value/operation"
+    }]
+  },
+  manifests: [{
+    fields: [
+      { schemaUuid: "schema-operation", fieldUuid: "field-enum-001", path: "/value/operation" },
+      { schemaUuid: "schema-op", fieldUuid: "field-enum-001", path: "/value/operation" }
     ]
+  }]
+}
+```
+
+---
+
+#### Strong Force → Boundary
+
+```typescript
+// Strong Force передаёт Boundary
+{
+  manifests: [{
+    fields: { operation: "start", op: "start" }  ← Без schema!
+  }],
+  entangledGroups: [{
+    uuid: "ef-abc123",      ← Strong Force UUID
+    fieldUuids: ["field-enum-001"],
+    value: "start"
+  }]
+}
+```
+
+---
+
+#### Boundary Internal
+
+```typescript
+// Entangled Groups Store
+{
+  "ef-abc123": {
+    uuid: "ef-abc123",
+    braneIndices: [0, 1],
+    value: "start"
+  }
+}
+
+// Blocks Store
+{
+  "block-shared-001": {
+    uuid: "block-shared-001",
+    groups: ["ef-abc123"],
+    shared: true,
+    ptr: 0
   }
 }
 ```
+
+---
+
+### 1.4. Ключевые принципы
+
+| Уровень | Что знает | Чего НЕ знает |
+|---------|-----------|---------------|
+| **Gravity** | `Field.uuid`, `Schema.uuid`, `Schema.name`, `Schema.label` | Значения полей |
+| **Strong Force** | `Field.uuid`, `value`, **свой `uuid` для групп** | `Schema.name`, `Schema.label` |
+| **Boundary** | **Strong Force `uuid`**, `value`, `braneIndices` | `Field.uuid`, `Schema.*`, DSL |
 
 ---
 
 ## Часть 2: План реализации
 
-### 2.1. Этап 1: Gravity — traverseHierarchy
+### 2.1. Этап 1: Gravity — Field/Schema сторы
+
+**Файлы:**
+- `force/gravity/store/field.t.ts`
+- `force/gravity/store/field.ts`
+- `force/gravity/store/field.spec.ts`
+- `force/gravity/store/schema.t.ts`
+- `force/gravity/store/schema.ts`
+- `force/gravity/store/schema.spec.ts`
+
+**Типы (field.t.ts):**
+```typescript
+export type FieldType = "string" | "number" | "boolean" | "enum" | "array" | "object"
+
+export interface FieldRecord {
+  uuid: string
+  type: FieldType
+  default?: unknown
+  schemas: string[]  // Schema.uuid[]
+}
+
+export interface FieldStore {
+  get(uuid: string): FieldRecord | undefined
+  getByType(type: FieldType): FieldRecord[]
+  create(field: Omit<FieldRecord, 'uuid'>): string
+  addSchema(fieldUuid: string, schemaUuid: string): void
+  clear(): void
+}
+```
+
+**Типы (schema.t.ts):**
+```typescript
+export interface SchemaRecord {
+  uuid: string
+  fieldUuid: string  // Field.uuid
+  name: string       // Имя в DSL
+  label?: string
+  default?: unknown
+}
+
+export interface SchemaStore {
+  get(uuid: string): SchemaRecord | undefined
+  getByName(name: string): SchemaRecord | undefined
+  getByField(fieldUuid: string): SchemaRecord[]
+  create(schema: Omit<SchemaRecord, 'uuid'>): string
+  clear(): void
+}
+```
+
+---
+
+### 2.2. Этап 2: Gravity — traverseHierarchy
 
 **Файлы:**
 - `force/gravity/func/traverse.t.ts`
@@ -354,26 +349,17 @@ ${value.operation && html`
 
 **Типы (traverse.t.ts):**
 ```typescript
-export interface FieldPath {
-  name: string
-  path: string
-}
-
-export interface ManifestPath {
-  src: { path: string | null; template: string }
-  fields: FieldPath[]
-  context: { conditions: string[]; iterations: string[] }
+export interface FieldLink {
+  schemaUuid: string    // "schema-operation"
+  fieldUuid: string     // "field-enum-001"
+  path: string          // "/value/operation"
 }
 
 export interface EntangledGroup {
+  fieldUuids: string[]    // UUID полей из Gravity
   conditionPath?: string
   iterationPath?: string
-  fieldPaths: string[]
   children?: EntangledGroup[]
-}
-
-export interface EntangledStructure {
-  groups: EntangledGroup[]
 }
 
 export interface FlatStructure {
@@ -382,247 +368,171 @@ export interface FlatStructure {
   manifests: ManifestPath[]
   entangled: EntangledStructure
 }
-
-export interface TraverseContext {
-  conditions: string[]
-  iterations: string[]
-}
 ```
 
 **Функции (traverse.ts):**
 ```typescript
-export function traverseHierarchy(nodes: NodeType[]): FlatStructure
-
-function traverseNode(node: NodeType, context: TraverseContext): TraverseResult
-
-function traverseLogical(node: NodeLogical, context: TraverseContext): TraverseResult
-
-function traverseCondition(node: NodeCondition, context: TraverseContext): TraverseResult
-
-function traverseMap(node: NodeMap, context: TraverseContext): TraverseResult
-
-function traverseMeta(node: NodeMeta, context: TraverseContext): TraverseResult
-
-function extractFieldPaths(fields: Record<string, any>): FieldPath[]
-```
-
-**Тесты (traverse.spec.ts):**
-```typescript
-describe("traverseHierarchy", () => {
-  it("извлекает структуру из log → meta", () => {...})
-  it("извлекает структуру из map → meta", () => {...})
-  it("извлекает вложенную структуру: log → map → meta", () => {...})
-  it("извлекает запутанность с глубиной", () => {...})
-})
+export function traverseHierarchy(
+  nodes: NodeType[],
+  stores: {
+    fields: FieldStore
+    schemas: SchemaStore
+  }
+): FlatStructure
 ```
 
 ---
 
-### 2.2. Этап 2: Space — evaluateConditions/Fields
+### 2.3. Этап 3: Strong Force — генерация UUID для групп
 
 **Файл:** `space/client.ts`
 
 **Функции:**
 ```typescript
-interface EvaluateContext {
-  value: Record<string, unknown>
-  mass: Record<string, unknown>
-  mapStack?: MapContext[]
+interface EntangledFieldGroup {
+  uuid: string              // Strong Force генерирует
+  fieldUuids: string[]      // Из Gravity
+  value: unknown            // Вычисленное значение
 }
 
-interface MapContext {
-  item: unknown
-  index: number
-}
+function createEntangledGroups(
+  entangled: EntangledStructure,
+  manifests: ManifestPath[],
+  context: EvaluateContext
+): EntangledFieldGroup[]
 
-function evaluateConditions(structure: FlatStructure, context: EvaluateContext): ManifestPath[]
-
-function evaluateFields(fieldPaths: FieldPath[], context: EvaluateContext): Record<string, unknown>
-
-function evaluateTemplate(template: string, values: unknown[]): string
-
-function resolvePath(path: string, context: EvaluateContext): unknown
+function evaluateFieldLinks(
+  links: FieldLink[],
+  context: EvaluateContext
+): Record<string, unknown>  // { schemaName: value }
 ```
 
 **Код (client.ts):**
 ```typescript
-const schema = await loadDSL("zavx0z/git")
-const structure = traverseHierarchy(schema.bulk.gravity)
+// 1. Gravity → FlatStructure
+const structure = traverseHierarchy(schema.bulk.gravity, {
+  fields: fieldStore,
+  schemas: schemaStore
+})
 
-const context = { value: { operation: "start" }, mass: {} }
+// 2. Вычисляем значения
 const manifests = evaluateConditions(structure, context)
   .map(m => ({
-    src: evaluateTemplate(m.src.template, [resolvePath(m.src.path, context)]),
-    fields: evaluateFields(m.fields, context)
+    src: evaluateTemplate(m.src.template, [...]),
+    fields: evaluateFieldLinks(m.fields, context)
   }))
 
-for (const { src, fields } of manifests) {
-  const uuid = crypto.randomUUID()
-  createActor(uuid, src, parentUuid, orderKey)
-  createMonad({ uuid, fields })
-}
+// 3. Создаём группы Strong Force (обезличенные)
+const entangledGroups = createEntangledGroups(
+  structure.entangled,
+  manifests,
+  context
+)
+// entangledGroups = [{
+//   uuid: "ef-abc123",  ← Strong Force UUID
+//   fieldUuids: ["field-enum-001"],
+//   value: "start"
+// }]
 
-await updateBoundary({ entangled: structure.entangled })
-```
-
----
-
-### 2.3. Этап 3: Monad — updateBoundary с entangled
-
-**Файлы:**
-- `monad/monad.t.ts`
-- `monad/monad.ts`
-
-**Изменения:**
-```typescript
-// monad.t.ts
-export interface UpdateBoundaryParams {
-  entangled?: EntangledStructure
-}
-
-// monad.ts
-export async function updateBoundary(params?: UpdateBoundaryParams): Promise<BraneStateChange[]> {
-  // ...
-  await fieldsWrite({ fields, branes }, params?.entangled)
-}
-```
-
----
-
-### 2.4. Этап 4: Boundary — fieldsWrite с entangled
-
-**Файлы:**
-- `@boundary/fields/index.t.ts`
-- `@boundary/fields/index.ts`
-- `@boundary/fields/prepare.ts`
-- `@boundary/fields/entangled.ts`
-- `@boundary/fields/entangled.t.ts`
-
-**Изменения:**
-```typescript
-// index.t.ts
-export interface FieldsWriteParams {
-  fields: Record<string, unknown>[]
-  branes: Brane[]
-  entangled?: EntangledStructure
-}
-
-// index.ts
-export async function write(data: Data, entangled?: EntangledStructure): Promise<void> {
-  // Использует явную запутанность
-}
-
-// prepare.ts
-export function prepareData(data: Data, entangled?: EntangledStructure): PreparedData {
-  const values = data.branes.map(b => b.values)
-  const braneMapping = buildBraneMapping(values, entangled)
-  return { ...data, braneMapping }
-}
-
-// entangled.ts
-export function buildBraneMapping(
-  values: Value[][],
-  entangled?: EntangledStructure
-): BraneMapping {
-  if (!entangled) {
-    // Fallback: без запутанности (все поля local)
-    return { localFields: [...], braneEntangledMap: [...], entangledFields: new Map() }
-  }
-  
-  // Используем явную запутанность из DSL
-  for (const group of entangled.groups) {
-    // Создаём shared блоки
-  }
-}
-```
-
-**Удалить:**
-- `findEntangledGroups(values)` — больше не используется
-
----
-
-### 2.5. Этап 5: Интеграция и тесты
-
-**Integration тест:**
-```typescript
-// integration.spec.ts
-describe("полный поток запутанности", () => {
-  it("DSL → Matrix с вложенной запутанностью", async () => {
-    const schema = await loadDSL("zavx0z/git")
-    const structure = traverseHierarchy(schema.bulk.gravity)
-
-    const context = {
-      value: { operation: "start", args: "test" },
-      mass: { items: [{ id: 1, type: "child", active: true }] }
-    }
-    
-    const manifests = evaluateConditions(structure, context)
-      .map(m => ({
-        src: evaluateTemplate(m.src.template, [resolvePath(m.src.path, context)]),
-        fields: evaluateFields(m.fields, context)
-      }))
-    
-    for (const { src, fields } of manifests) {
-      createMonad({ uuid: crypto.randomUUID(), fields })
-    }
-    
-    await updateBoundary({ entangled: structure.entangled })
-    
-    const heap = getHeap()
-    expect(hasSharedBlocks(heap)).toBe(true)
-  })
+// 4. Передаём в Boundary
+await updateBoundary({
+  manifests,
+  entangledGroups  ← Без schema!
 })
+```
+
+---
+
+### 2.4. Этап 4: Boundary — группы и блоки
+
+**Файлы:**
+- `@boundary/fields/entangled.t.ts`
+- `@boundary/fields/entangled.ts`
+- `@boundary/fields/blocks.t.ts` (новый)
+- `@boundary/fields/blocks.ts` (новый)
+
+**Типы (entangled.t.ts):**
+```typescript
+export interface EntangledGroup {
+  uuid: string              // Из Strong Force
+  braneIndices: number[]
+  value: unknown
+}
+
+export interface EntangledAnalysis {
+  entangledGroups: Map<string, EntangledGroup>  // uuid → group
+}
+```
+
+**Типы (blocks.t.ts):**
+```typescript
+export interface BlockRecord {
+  uuid: string              // Блок в heap
+  groups: string[]          // EntangledGroup.uuid[]
+  shared: boolean
+  ptr: number               // Позиция в heap
+}
+
+export interface BlocksStore {
+  create(block: Omit<BlockRecord, 'uuid'>): string
+  get(uuid: string): BlockRecord | undefined
+  getByGroup(groupUuid: string): BlockRecord | undefined
+}
+```
+
+**Функции (entangled.ts):**
+```typescript
+export function findEntangledGroups(
+  values: [number, unknown][][],
+  entangledGroups: Array<{ uuid: string; value: unknown }>
+): EntangledAnalysis
+
+export function buildBraneMapping(
+  values: [number, unknown][][],
+  analysis: EntangledAnalysis,
+  blocks: BlocksStore
+): BraneMapping
 ```
 
 ---
 
 ## 3. Чек-лист реализации
 
-### Этап 1: Gravity
+### Этап 1: Gravity Stores
 
-- [ ] `traverse.t.ts` — типы
-- [ ] `traverse.ts` — `traverseHierarchy()`, `traverseLogical()`, `traverseCondition()`, `traverseMap()`, `traverseMeta()`
-- [ ] `traverse.ts` — `extractFieldPaths()`
-- [ ] `traverse.ts` — сбор `entangled.groups` с `children`
-- [ ] `traverse.spec.ts` — тест на `log → meta`
-- [ ] `traverse.spec.ts` — тест на `map → meta`
-- [ ] `traverse.spec.ts` — тест на `log → map → meta`
-- [ ] `traverse.spec.ts` — тест на `cond → meta`
-- [ ] `traverse.spec.ts` — тест на `log → cond → map → meta`
-- [ ] `traverse.spec.ts` — тест на `entangled.groups` с `children`
+- [ ] `field.t.ts` — `FieldRecord`, `FieldType`, `FieldStore`
+- [ ] `field.ts` — `create()`, `get()`, `addSchema()`
+- [ ] `field.spec.ts` — тесты на CRUD
+- [ ] `schema.t.ts` — `SchemaRecord`, `SchemaStore`
+- [ ] `schema.ts` — `create()`, `get()`, `getByName()`
+- [ ] `schema.spec.ts` — тесты на CRUD
 
-### Этап 2: Space
+### Этап 2: Gravity Traverse
 
-- [ ] `client.ts` — `evaluateConditions()`
-- [ ] `client.ts` — `evaluateFields()`
-- [ ] `client.ts` — `evaluateTemplate()`
-- [ ] `client.ts` — `resolvePath()` с `mapStack`
-- [ ] `client.ts` — интеграция с `traverseHierarchy()`
-- [ ] `client.ts` — вызов `updateBoundary({ entangled })`
+- [ ] `traverse.t.ts` — `FieldLink`, `EntangledGroup` (с `fieldUuids`)
+- [ ] `traverse.ts` — `traverseHierarchy()` с `stores`
+- [ ] `traverse.ts` — `extractFieldLinks()` с созданием `Field`/`Schema`
+- [ ] `traverse.spec.ts` — тест на `fieldUuids` в `entangled.groups`
 
-### Этап 3: Monad
+### Этап 3: Strong Force
 
-- [ ] `monad.t.ts` — `UpdateBoundaryParams`
-- [ ] `monad.ts` — `updateBoundary({ entangled })`
-- [ ] `monad.ts` — передача `entangled` в `fieldsWrite()`
+- [ ] `client.ts` — `createEntangledGroups()` с генерацией `uuid`
+- [ ] `client.ts` — `evaluateFieldLinks()` → `{ schemaName: value }`
+- [ ] `client.ts` — вызов `updateBoundary({ entangledGroups })`
 
 ### Этап 4: Boundary
 
-- [ ] `index.t.ts` — `FieldsWriteParams` с `entangled`
-- [ ] `index.ts` — `write(data, entangled)`
-- [ ] `prepare.ts` — `prepareData(data, entangled)`
-- [ ] `entangled.ts` — `buildBraneMapping(values, entangled)`
-- [ ] `entangled.t.ts` — типы
-- [ ] Удалить `findEntangledGroups()`
+- [ ] `entangled.t.ts` — `EntangledGroup` (с `uuid` из Strong Force)
+- [ ] `entangled.ts` — `findEntangledGroups()` с `entangledGroups`
+- [ ] `blocks.t.ts` — `BlockRecord`, `BlocksStore`
+- [ ] `blocks.ts` — `create()`, `get()`, `getByGroup()`
+- [ ] `entangled.ts` — `buildBraneMapping()` с `blocks`
 - [ ] `entangled.spec.ts` — тест на shared блоки
-- [ ] `entangled.spec.ts` — тест на вложенную запутанность
 
 ### Этап 5: Интеграция
 
-- [ ] `integration.spec.ts` — полный поток DSL → Matrix
-- [ ] `integration.spec.ts` — тест на простую запутанность
-- [ ] `integration.spec.ts` — тест на вложенную запутанность
-- [ ] `integration.spec.ts` — тест на запутанность с condition
+- [ ] `integration.spec.ts` — тест на поля с одинаковым типом/значением
+- [ ] `integration.spec.ts` — проверка shared блоков
 
 ---
 
@@ -630,22 +540,21 @@ describe("полный поток запутанности", () => {
 
 | Этап | Задачи | Время |
 |------|--------|-------|
-| **1. Gravity** | Типы, логика, тесты (5 тестов) | 2 часа |
-| **2. Space** | Вычисление значений, интеграция | 1 час |
-| **3. Monad** | Модификация `updateBoundary` | 0.5 часа |
-| **4. Boundary** | Модификация `fieldsWrite`, удаление | 1.5 часа |
-| **5. Интеграция** | Integration тесты (4 теста) | 1 час |
-| **Итого** | | **6 часов** |
+| **1. Gravity Stores** | `field.*`, `schema.*` | 2 часа |
+| **2. Gravity Traverse** | Модификация с `stores` | 1.5 часа |
+| **3. Strong Force** | `createEntangledGroups()` | 1 час |
+| **4. Boundary** | `entangled.*`, `blocks.*` | 1.5 часа |
+| **5. Интеграция** | Тесты | 0.5 часа |
+| **Итого** | | **6.5 часов** |
 
 ---
 
 ## 5. Критерии готовности
 
-- [ ] `traverseHierarchy()` извлекает `conditions`, `iterations`, `manifests`, `entangled`
-- [ ] `entangled.groups` содержит `children` для вложенности
-- [ ] `evaluateFields()` вычисляет значения для путей: `/value/*`, `[item]/*`, `../[item]/*`
-- [ ] `updateBoundary()` принимает `entangled`
-- [ ] `buildBraneMapping()` использует явную запутанность
-- [ ] `findEntangledGroups()` удалён
-- [ ] Integration тест на полный поток проходит
-- [ ] Shared блоки создаются для вложенной запутанности
+- [ ] `FieldStore` создаёт `FieldRecord` с `uuid`, `type`, `schemas[]`
+- [ ] `SchemaStore` создаёт `SchemaRecord` с `fieldUuid`, `name`, `label`
+- [ ] `Strong Force` генерирует свои `uuid` для групп
+- [ ] `Strong Force` НЕ передаёт `schemaUuid` в Boundary
+- [ ] `Boundary` использует `uuid` из Strong Force
+- [ ] `BlocksStore` создаёт shared блоки для групп
+- [ ] Integration тест на поля с одинаковыми значениями

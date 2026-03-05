@@ -1,0 +1,92 @@
+@startuml
+skinparam backgroundColor #1E1E1E
+skinparam sequenceMessageAlign center
+skinparam sequenceMessageFontColor #FFFFFF
+skinparam sequenceMessageArrowColor #00FF00
+skinparam sequenceParticipantFontColor #000000
+skinparam sequenceLifeLineBackgroundColor transparent
+skinparam sequenceLifeLineBorderColor #00FF00
+skinparam sequenceLifeLineBorderThickness 2
+skinparam arrowColor #00FF00
+skinparam lineColor #00FF00
+skinparam titleFontColor #FFFFFF
+skinparam titleFontSize 18
+skinparam titleFontStyle bold
+
+title "Запутанность полей: Поток данных"
+
+participant "DSL" as DSL #FFA500
+participant "meta.json" as JSON #FFA500
+participant "@zavx0z/template" as Parser #FFA500
+participant "traverseHierarchy()" as Traverse #90EE90
+database "<color:#FFFFFF>Field Store</color>" as FieldStore #90EE90
+database "<color:#FFFFFF>Schema Store</color>" as SchemaStore #90EE90
+participant "space/client.ts" as Space #87CEEB
+database "<color:#FFFFFF>EntangledField Store</color>" as EFStore #87CEEB
+participant "monad/monad.ts" as Monad #87CEEB
+participant "@boundary/fields/write()" as FieldsWrite #FFB6C1
+database "<color:#FFFFFF>Entangled Groups</color>" as EGroups #FFB6C1
+database "<color:#FFFFFF>Blocks Store</color>" as Blocks #FFB6C1
+database "<color:#FFFFFF>Heap</color>" as HeapDb #D3D3D3
+participant "@boundary/matrix/_initMatrix()" as Matrix #D3D3D3
+
+DSL -> JSON : <color:#FFFFFF>build()</color>
+JSON -> Parser : <color:#FFFFFF>loadDSL()</color>
+Parser -> Parser : <color:#FFFFFF>extractHtmlElements()</color>
+Parser --> AST : <color:#FFFFFF>NodeType[]</color>
+
+note over AST : NodeMeta fields\ndata: ["/value/operation", "/value/operation"]\nОдинаковые paths -> запутаны
+
+AST -> Traverse : <color:#FFFFFF>nodes: NodeType[]</color>
+Traverse -> FieldStore : <color:#FFFFFF>create({ type, schemas })</color>
+FieldStore --> Traverse : <color:#FFFFFF>fieldUuid: "field-enum-001"</color>
+Traverse -> SchemaStore : <color:#FFFFFF>create({ fieldUuid, name, label })</color>
+SchemaStore --> Traverse : <color:#FFFFFF>schemaUuid</color>
+
+note right of Traverse : Gravity определяет запутанность\nполя с одинаковыми paths -> запутаны
+
+Traverse --> Flat : <color:#FFFFFF>FlatStructure</color>
+
+note right of Flat : manifests: [{ fields: [...] }]\nentangledGroups: [{ fieldUuids: [...] }]
+
+Flat -> Space : <color:#FFFFFF>FlatStructure</color>
+Space -> Space : <color:#FFFFFF>evaluateConditions()</color>
+Space -> Space : <color:#FFFFFF>evaluateFieldLinks()</color>
+
+note right of Space : Strong Force вычисляет значения\nдля готовых групп из Gravity\nгенерирует свой uuid для группы
+
+Space -> EFStore : <color:#FFFFFF>create({ uuid, fieldUuids, value })</color>
+EFStore --> Space : <color:#FFFFFF>EntangledFieldGroup</color>
+Space --> SFOut : <color:#FFFFFF>{ manifests, entangledGroups }</color>
+
+note right of SFOut : uuid: свой UUID\nfieldUuids: из Gravity\nvalue: вычисленное
+
+SFOut -> Monad : <color:#FFFFFF>createMonad({ uuid, fields })</color>
+Monad -> Monad : <color:#FFFFFF>_monadParams.set(uuid, fields)</color>
+Monad --> UpdateBoundary : <color:#FFFFFF>{ manifests, entangledGroups }</color>
+
+UpdateBoundary -> FieldsWrite : <color:#FFFFFF>data, entangledGroups</color>
+FieldsWrite -> EGroups : <color:#FFFFFF>create({ uuid, braneIndices, value })</color>
+FieldsWrite -> Blocks : <color:#FFFFFF>create({ uuid, groups, shared })</color>
+Blocks --> FieldsWrite : <color:#FFFFFF>ptr: 0</color>
+FieldsWrite -> HeapDb : <color:#FFFFFF>buildHeap(braneMapping)</color>
+
+note right of HeapDb : Shared блок для группы\nс одинаковыми значениями
+
+HeapDb -> Matrix : <color:#FFFFFF>heap: Uint32Array</color>
+Matrix -> Matrix : <color:#FFFFFF>GPU buffer</color>
+Matrix --> GPU : <color:#FFFFFF>Shared blocks</color>
+
+note right of GPU : Брана 0 и Брана 1\nссылаются на один shared блок
+
+note bottom : Ключевое:\n1. Gravity определяет запутанность\n2. Gravity передаёт fieldUuids\n3. Strong Force вычисляет значения\n4. Strong Force генерирует UUID\n5. Boundary получает группы с values
+
+note right
+  <back:#FFA500><color:#000000> DSL/JSON/AST </color></back>
+  <back:#90EE90><color:#000000> Gravity (FORCE) </color></back>
+  <back:#87CEEB><color:#000000> Strong Force (SPACE) </color></back>
+  <back:#FFB6C1><color:#000000> Boundary (FIELDS) </color></back>
+  <back:#D3D3D3><color:#000000> Matrix/Heap </color></back>
+end note
+
+@enduml
