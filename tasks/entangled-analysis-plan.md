@@ -23,13 +23,13 @@
 │                                                         │
 │ 2. Schema Store (схема)                                 │
 │    - uuid: string                                       │
-│    - fieldUuid: string  ← ссылка на Field.uuid          │
+│    - field: string  ← ссылка на Field.uuid          │
 │    - name: string       ← имя в DSL (operation, args)   │
 │    - label?: string     ← человекочитаемое имя          │
 │    - default?: unknown  ← дефолт для этой схемы         │
 │                                                         │
 │ 3. Entangled (запутанность)                             │
-│    - fieldUuids: string[]  ← какие поля запутаны        │
+│    - field: string[]  ← какие поля запутаны        │
 │    - conditionPath?: string                             │
 │    - iterationPath?: string                             │
 │    - children?: Entangled[]                             │
@@ -39,7 +39,7 @@
 **Ответственность:**
 - ✅ Извлекает зависимости из AST
 - ✅ Создаёт `Field` и `Schema`
-- ✅ Определяет запутанность через `fieldUuids`
+- ✅ Определяет запутанность через `field`
 - ❌ **НЕ вычисляет значения**
 
 ---
