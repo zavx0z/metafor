@@ -1,0 +1,227 @@
+import { describe, it, expect } from "bun:test"
+import { parseCondition, enrichWithData } from "../../parser"
+import { extractMapParams, parseMap } from "../map"
+import { splitText } from "../text"
+import { parseText } from "../text"
+
+describe("data-parser", () => {
+  describe("parseMap", () => {
+    it("парсит простой map с одним параметром", () => {
+      const result = parseMap("fields.list.map((name) => html`")
+      expect(result.path).toBe("/fields/list")
+      expect(result.metadata?.params).toEqual(["name"])
+    })
+
+    it("парсит map с деструктуризацией", () => {
+      const result = parseMap("mass.data.map(({ title, nested }) => html`")
+      expect(result.path).toBe("/mass/data")
+      expect(result.metadata?.params).toEqual(["title", "nested"])
+    })
+
+    it("парсит map с несколькими параметрами", () => {
+      const result = parseMap("items.map((item, index) => html`")
+      expect(result.path).toBe("/items")
+      expect(result.metadata?.params).toEqual(["item", "index"])
+    })
+
+    it("парсит вложенный map в контексте", () => {
+      const context = { currentPath: "/mass/list", pathStack: ["/mass/list"], level: 1, mapParams: ["item"] }
+      const result = parseMap("nested.map((n) => html`", context)
+      expect(result.path).toBe("[item]/nested")
+      expect(result.metadata?.params).toEqual(["n"])
+    })
+
+    it("парсит вложенный map с полным путем", () => {
+      const context = { currentPath: "/mass/list", pathStack: ["/mass/list"], level: 1, mapParams: ["item"] }
+      const result = parseMap("item.nested.map((n) => html`", context)
+      expect(result.path).toBe("[item]/nested")
+    })
+  })
+
+  describe("extractMapParams", () => {
+    it("парсит простой параметр", () => {
+      const { params, isDestructured } = extractMapParams("name")
+      expect(params).toEqual(["name"])
+      expect(isDestructured).toBe(false)
+    })
+
+    it("парсит несколько параметров", () => {
+      const { params, isDestructured } = extractMapParams("item, index")
+      expect(params).toEqual(["item", "index"])
+      expect(isDestructured).toBe(false)
+    })
+
+    it("парсит деструктуризацию", () => {
+      const { params, isDestructured } = extractMapParams("{ title, nested }")
+      expect(params).toEqual(["title", "nested"])
+      expect(isDestructured).toBe(true)
+    })
+
+    it("парсит деструктуризацию с пробелами", () => {
+      const { params, isDestructured } = extractMapParams("{ title , nested }")
+      expect(params).toEqual(["title", "nested"])
+      expect(isDestructured).toBe(true)
+    })
+
+    it("возвращает пустой массив для пустых параметров", () => {
+      const { params, isDestructured } = extractMapParams("")
+      expect(params).toEqual([])
+      expect(isDestructured).toBe(false)
+    })
+  })
+
+  describe("parseCondition", () => {
+    it("парсит простое условие", () => {
+      const result = parseCondition("fields.flag")
+      expect(result.path).toBe("/fields/flag")
+      expect(result.metadata?.expression).toBe("_[0]")
+    })
+
+    it("парсит сложное условие", () => {
+      const result = parseCondition("fields.cond && fields.cond2")
+      expect(result.path).toEqual(["/fields/cond", "/fields/cond2"])
+      expect(result.metadata?.expression).toBe("_[0] && _[1]")
+    })
+
+    it("парсит условие с операторами", () => {
+      const result = parseCondition("fields.flag === fields.cond2")
+      expect(result.path).toEqual(["/fields/flag", "/fields/cond2"])
+      expect(result.metadata?.expression).toBe("_[0] === _[1]")
+    })
+  })
+
+  describe("parseText", () => {
+    it("парсит статический текст", () => {
+      const result = parseText("Hello, world!")
+      expect(result.value).toBe("Hello, world!")
+      expect(result.data).toBeUndefined()
+      expect(result.expr).toBeUndefined()
+    })
+
+    it("парсит текст с одной переменной", () => {
+      const result = parseText("Hello, ${name}!")
+      expect(result.data).toBe("/name")
+      expect(result.expr).toBe("Hello, ${_[0]}!")
+      expect(result.value).toBeUndefined()
+    })
+
+    it("парсит текст с переменной в контексте map", () => {
+      const context = { currentPath: "/fields/list", pathStack: ["/fields/list"], level: 1, mapParams: ["name"] }
+      const result = parseText("Hello, ${name}!", context)
+      expect(result.data).toBe("[item]")
+      expect(result.expr).toBe("Hello, ${_[0]}!")
+      expect(result.value).toBeUndefined()
+    })
+
+    it("парсит текст с несколькими переменными", () => {
+      const result = parseText("${title} - ${description}")
+      expect(result.data).toEqual(["/title", "/description"])
+      expect(result.expr).toBe("${_[0]} - ${_[1]}")
+      expect(result.value).toBeUndefined()
+    })
+  })
+
+  describe("splitText", () => {
+    it("разбивает статический текст", () => {
+      const parts = splitText("Hello, world!")
+      expect(parts).toEqual([{ type: "static", text: "Hello, world!" }])
+    })
+
+    it("разбивает текст с одной переменной", () => {
+      const parts = splitText("Hello, ${name}!")
+      expect(parts).toEqual([
+        { type: "static", text: "Hello, " },
+        { type: "dynamic", text: "${name}" },
+        { type: "static", text: "!" },
+      ])
+    })
+
+    it("разбивает текст с несколькими переменными", () => {
+      const parts = splitText("${title} - ${description}")
+      expect(parts).toEqual([
+        { type: "dynamic", text: "${title}" },
+        { type: "static", text: " - " },
+        { type: "dynamic", text: "${description}" },
+      ])
+    })
+
+    it("разбивает текст с переменной в начале", () => {
+      const parts = splitText("${name} is here")
+      expect(parts).toEqual([
+        { type: "dynamic", text: "${name}" },
+        { type: "static", text: " is here" },
+      ])
+    })
+
+    it("разбивает текст с переменной в конце", () => {
+      const parts = splitText("Hello, ${name}")
+      expect(parts).toEqual([
+        { type: "static", text: "Hello, " },
+        { type: "dynamic", text: "${name}" },
+      ])
+    })
+  })
+
+  describe("enrichWithData", () => {
+    it("обогащает простую иерархию", () => {
+      const enriched = enrichWithData([
+        {
+          type: "el",
+          tag: "div",
+          child: [
+            {
+              type: "text",
+              text: "Hello, ${name}!",
+            },
+          ],
+        },
+      ])
+      expect(enriched[0]?.type).toBe("el")
+      const element = enriched[0] as any
+      expect(element.child?.[0]?.type).toBe("text")
+      expect(element.child?.[0]?.data).toBe("/name")
+    })
+
+    it("обогащает иерархию с map", () => {
+      const enriched = enrichWithData([
+        {
+          type: "map",
+          text: "fields.list.map((name) => html`",
+          child: [
+            {
+              type: "el",
+              tag: "li",
+              child: [
+                {
+                  type: "text",
+                  text: "${name}",
+                },
+              ],
+            },
+          ],
+        },
+      ])
+      expect(enriched[0]?.type).toBe("map")
+      const mapNode = enriched[0] as any
+      expect(mapNode.data).toBe("/fields/list")
+      expect(mapNode.child?.[0]?.child?.[0]?.data).toBe("[item]")
+    })
+
+    it("обогащает иерархию с условием", () => {
+      const enriched = enrichWithData([
+        {
+          type: "cond",
+          text: "fields.flag",
+          child: [
+            { type: "el", tag: "div", child: [] },
+            { type: "el", tag: "span", child: [] },
+          ],
+        },
+      ])
+      expect(enriched[0]?.type).toBe("cond")
+      const condNode = enriched[0] as any
+      expect(condNode.data).toBe("/fields/flag")
+      expect(condNode.expr).toBeUndefined()
+    })
+  })
+})

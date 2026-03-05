@@ -1,6 +1,6 @@
 import type { Schema, Types, Update, Values } from "@zavx0z/context"
 import type { ProcessesDeclaration, ProcessesSchema } from "./process.t"
-import type { Node as ParseNode } from "@zavx0z/template"
+import type { Node as ParseNode } from "@dsl/template"
 import type { ReactionsSchema } from "./reactions.t"
 import type { Superposition } from "./states"
 import type { ReactionsDeclaration } from "./reactions"
@@ -471,7 +471,7 @@ export interface Meta<ɸ extends Schema = Schema, 𝛴 extends string = string, 
   reactions?: ReactionsSchema
   /** Схема полей */
   fields: ɸ
-  /** Сериализованная gravity как ParseNode[] из @zavx0z/template */
+  /** Сериализованная gravity как ParseNode[] из @dsl/template */
   gravity?: ParseNode[]
   /** View-стили компонента */
   view?: string

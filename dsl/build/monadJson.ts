@@ -8,7 +8,7 @@
 
 import type { ParsedProcess, ParsedDestroy } from "../meta/process.t"
 import type { ReactionsSchema } from "../meta/reactions.t"
-import type { Node as ParseNode } from "@zavx0z/template"
+import type { Node as ParseNode } from "@dsl/template"
 
 /**
  * Исходный объект MetaFor, полученный из chain API.
@@ -104,7 +104,7 @@ export interface ParsedProcessJson {
  * Содержит сериализованные gravity и view компоненты.
  */
 export interface ViewJson {
-  /** Сериализованное представление gravity как AST из @zavx0z/template */
+  /** Сериализованное представление gravity как AST из @dsl/template */
   gravity?: ParseNode[]
   /** Сериализованные view-стили как CSS строка */
   view?: string

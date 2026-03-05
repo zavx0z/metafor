@@ -2,7 +2,7 @@ import.meta.hot.accept()
 import { createMonad, updateBoundary, deleteMonad, releaseLock, type BraneStateChange } from "@boundary/monad"
 import { executeProcess, loadAction } from "../force/weak/load"
 import { loadDSL } from "../force/gravity/func/load"
-import { type Node } from "@zavx0z/template"
+import { type Node } from "@dsl/template"
 
 const status = document.getElementById("status")!
 status.innerText = "✅ WebGPU Active"

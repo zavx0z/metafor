@@ -2,7 +2,7 @@ import { $ } from "bun"
 
 export const typegen = async (entrypoint: string, destination: string) => {
   const isTTY = process.stdout.isTTY
-  const cmd = $`dts-bundle-generator --out-file ${destination} --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/renderer --external-inlines @zavx0z/template -- ${entrypoint}`
+  const cmd = $`dts-bundle-generator --out-file ${destination} --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --external-inlines @zavx0z/renderer --external-inlines @dsl/template -- ${entrypoint}`
   if (isTTY) {
     let spinnerActive = true
     const spinnerFrames = ["|", "/", "-", "\\"]

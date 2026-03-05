@@ -8,7 +8,7 @@
  */
 
 import type { Schema } from "@zavx0z/context"
-import type { Mass } from "@metafor/meta"
+import type { Mass } from "../../dsl/meta/metafor.t"
 import type { ProcessConfig, ActionFn } from "./load.t"
 
 /**

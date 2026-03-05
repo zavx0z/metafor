@@ -18,18 +18,19 @@
 │ 1. Field Store (поле)                                   │
 │    - uuid: string                                       │
 │    - type: "string" | "number" | "enum" | ...           │
-│    - default?: unknown                                  │
+│    - default?: unknown  ← runtime default (от родителя) │
+│    - values?: unknown[] ← значения для enum             │
 │    - schemas: string[]  ← ссылки на Schema.uuid         │
 │                                                         │
 │ 2. Schema Store (схема)                                 │
 │    - uuid: string                                       │
-│    - field: string  ← ссылка на Field.uuid          │
+│    - field: string  ← ссылка на Field.uuid              │
 │    - name: string       ← имя в DSL (operation, args)   │
 │    - label?: string     ← человекочитаемое имя          │
-│    - default?: unknown  ← дефолт для этой схемы         │
+│    - default?: unknown  ← design-time default (fallback)│
 │                                                         │
 │ 3. Entangled (запутанность)                             │
-│    - field: string[]  ← какие поля запутаны        │
+│    - fields: string[]  ← какие поля запутаны            │
 │    - conditionPath?: string                             │
 │    - iterationPath?: string                             │
 │    - children?: Entangled[]                             │
@@ -37,6 +38,7 @@
 ```
 
 **Ответственность:**
+
 - ✅ Извлекает зависимости из AST
 - ✅ Создаёт `Field` и `Schema`
 - ✅ Определяет запутанность через `field`
@@ -52,19 +54,20 @@
 │                                                         │
 │ EntangledField Store (обезличенные данные)              │
 │    - uuid: string         ← генерирует сам              │
-│    - fieldUuids: string[] ← из Gravity                  │
+│    - fields: string[]     ← из Gravity                  │
 │    - value: unknown       ← вычисленное значение        │
 │                                                         │
 │ Пример:                                                  │
 │   {                                                      │
 │     uuid: "ef-abc123",  ← Strong Force UUID             │
-│     fieldUuids: ["field-enum-001"],                      │
+│     fields: ["field-enum-001"],                          │
 │     value: "start"                                       │
 │   }                                                      │
 └─────────────────────────────────────────────────────────┘
 ```
 
 **Ответственность:**
+
 - ✅ Получает `FlatStructure` от Gravity
 - ✅ **Генерирует свои UUID** для групп запутанных полей
 - ✅ **Вычисляет значения** для полей
@@ -82,7 +85,7 @@
 │ 1. Entangled Groups (группы для бран)                   │
 │    - uuid: string         ← из Strong Force             │
 │    - braneIndices: number[]                              │
-│    - fieldUuids: string[] ← из Strong Force             │
+│    - fields: string[]     ← из Strong Force             │
 │    - value: unknown       ← общее значение              │
 │                                                         │
 │ 2. Blocks (объединение в блоки)                         │
@@ -94,6 +97,7 @@
 ```
 
 **Ответственность:**
+
 - ✅ Получает группы от Strong Force
 - ✅ **Создаёт shared блоки** для групп с одинаковыми значениями
 - ✅ **Маппит группы на блоки**
@@ -137,17 +141,17 @@
 │   }                                                     │
 │                                                         │
 │ Schema Store:                                           │
-│   schema-operation: { fieldUuid: "field-enum-001",      │
+│   schema-operation: { field: "field-enum-001",          │
 │                       name: "operation" }               │
-│   schema-op: { fieldUuid: "field-enum-001",             │
+│   schema-op: { field: "field-enum-001",                 │
 │                name: "op" }                             │
 │                                                         │
 │ FlatStructure:                                          │
 │   entangled: {                                          │
-│     groups: [{ fieldUuids: ["field-enum-001"] }]        │
+│     groups: [{ fields: ["field-enum-001"] }]            │
 │   }                                                     │
 │                                                         │
-│ ╰─ ПЕРЕДАЁТ: fieldUuids                                 │
+│ ╰─ ПЕРЕДАЁТ: fields                                     │
 └─────────────────────────────────────────────────────────┘
          ↓
 ┌─────────────────────────────────────────────────────────┐
@@ -156,7 +160,7 @@
 │ EntangledField Store:                                   │
 │   ef-abc123: {                                          │
 │     uuid: "ef-abc123",       ← Strong Force UUID        │
-│     fieldUuids: ["field-enum-001"],                     │
+│     fields: ["field-enum-001"],                         │
 │     value: "start"                                      │
 │   }                                                     │
 │                                                         │
@@ -219,14 +223,14 @@
 {
   entangled: {
     groups: [{
-      fieldUuids: ["field-enum-001"],  ← Gravity UUID
+      fields: ["field-enum-001"],  ← Gravity UUID
       conditionPath: "/value/operation"
     }]
   },
   manifests: [{
     fields: [
-      { schemaUuid: "schema-operation", fieldUuid: "field-enum-001", path: "/value/operation" },
-      { schemaUuid: "schema-op", fieldUuid: "field-enum-001", path: "/value/operation" }
+      { schema: "schema-operation", field: "field-enum-001", path: "/value/operation" },
+      { schema: "schema-op", field: "field-enum-001", path: "/value/operation" }
     ]
   }]
 }
@@ -244,7 +248,7 @@
   }],
   entangledGroups: [{
     uuid: "ef-abc123",      ← Strong Force UUID
-    fieldUuids: ["field-enum-001"],
+    fields: ["field-enum-001"],
     value: "start"
   }]
 }
@@ -287,11 +291,91 @@
 
 ---
 
+### 1.5. Валидация запутанных enum
+
+**Правило:** Запутанные поля (с одинаковым `Field.uuid`) должны иметь **одинаковые runtime значения**, но **default значения не обязаны совпадать**.
+
+**Пример:**
+
+```typescript
+// DSL — разные default (допустимо для всех полей)
+.fields((field) => ({
+  operation: field.enum("start", "stop").default("stop"),
+  op: field.enum("start", "stop").default("start"),  // ← другой default
+  count: field.number.default(0),
+  items: field.number.default(10),  // ← другой default
+}))
+
+// Gravity — одинаковые runtime значения (обязательно для enum)
+<meta-for fields={{
+  operation: "start",  // ← runtime enum
+  op: "start"          // ← должно совпадать!
+}} />
+```
+
+**Валидация:**
+
+- ✅ **Runtime значения** запутанных **enum** должны совпадать
+- ✅ **Default значения** (Field.default, Schema.default) не обязаны совпадать (для всех полей)
+
+---
+
+### 1.6. Механизм установки default значений
+
+**1. Gravity определяет default из DSL:**
+
+```typescript
+// DSL
+.fields((field) => ({
+  operation: field.enum("start", "stop").default("stop"),
+}))
+
+// Gravity → Schema Store
+Schema.default = "stop"  // для каждой схемы
+```
+
+**2. Field.default для запутанных полей:**
+
+```
+Field.default = default корневого родителя
+```
+
+- У всех запутанных полей **одинаковый Field.default**
+- Берётся от **корневого родителя** иерархии
+
+**3. Перемещение дерева на другого родителя:**
+
+```
+Было:
+Родитель A
+  ↓
+  Актор X (field: operation, default: "stop")
+
+Стало:
+Родитель B (НЕ передаёт поле operation)
+  ↓
+  Актор X (перемещён)
+```
+
+**Gravity:**
+
+1. Создаёт **новую Field запись** (новый uuid)
+2. `Field.default = "stop"` (от отсоединённого актора X)
+3. **Дети перепривязываются** к новому Field (через `schemas[]`)
+
+**Результат:**
+
+- У перемещённого актора **сохраняется его original default**
+- Дети **наследуют связи** от нового родителя
+
+---
+
 ## Часть 2: План реализации
 
 ### 2.1. Этап 1: Gravity — Field/Schema сторы
 
 **Файлы:**
+
 - `force/gravity/store/field.t.ts`
 - `force/gravity/store/field.ts`
 - `force/gravity/store/field.spec.ts`
@@ -300,30 +384,33 @@
 - `force/gravity/store/schema.spec.ts`
 
 **Типы (field.t.ts):**
+
 ```typescript
 export type FieldType = "string" | "number" | "boolean" | "enum" | "array" | "object"
 
 export interface FieldRecord {
   uuid: string
   type: FieldType
-  default?: unknown
-  schemas: string[]  // Schema.uuid[]
+  default?: unknown      // Runtime default (от родителя)
+  values?: unknown[]     // Значения для enum
+  schemas: string[]      // Schema.uuid[]
 }
 
 export interface FieldStore {
   get(uuid: string): FieldRecord | undefined
   getByType(type: FieldType): FieldRecord[]
   create(field: Omit<FieldRecord, 'uuid'>): string
-  addSchema(fieldUuid: string, schemaUuid: string): void
+  addSchema(field: string, schema: string): void
   clear(): void
 }
 ```
 
 **Типы (schema.t.ts):**
+
 ```typescript
 export interface SchemaRecord {
   uuid: string
-  fieldUuid: string  // Field.uuid
+  field: string  // Field.uuid
   name: string       // Имя в DSL
   label?: string
   default?: unknown
@@ -332,7 +419,7 @@ export interface SchemaRecord {
 export interface SchemaStore {
   get(uuid: string): SchemaRecord | undefined
   getByName(name: string): SchemaRecord | undefined
-  getByField(fieldUuid: string): SchemaRecord[]
+  getByField(uuid: string): SchemaRecord[]
   create(schema: Omit<SchemaRecord, 'uuid'>): string
   clear(): void
 }
@@ -343,20 +430,22 @@ export interface SchemaStore {
 ### 2.2. Этап 2: Gravity — traverseHierarchy
 
 **Файлы:**
+
 - `force/gravity/func/traverse.t.ts`
 - `force/gravity/func/traverse.ts`
 - `force/gravity/func/traverse.spec.ts`
 
 **Типы (traverse.t.ts):**
+
 ```typescript
 export interface FieldLink {
-  schemaUuid: string    // "schema-operation"
-  fieldUuid: string     // "field-enum-001"
-  path: string          // "/value/operation"
+  schema: string    // "schema-operation"
+  field: string     // "field-enum-001"
+  path: string      // "/value/operation"
 }
 
 export interface EntangledGroup {
-  fieldUuids: string[]    // UUID полей из Gravity
+  fields: string[]    // UUID полей из Gravity
   conditionPath?: string
   iterationPath?: string
   children?: EntangledGroup[]
@@ -371,6 +460,7 @@ export interface FlatStructure {
 ```
 
 **Функции (traverse.ts):**
+
 ```typescript
 export function traverseHierarchy(
   nodes: NodeType[],
@@ -388,10 +478,11 @@ export function traverseHierarchy(
 **Файл:** `space/client.ts`
 
 **Функции:**
+
 ```typescript
 interface EntangledFieldGroup {
   uuid: string              // Strong Force генерирует
-  fieldUuids: string[]      // Из Gravity
+  fields: string[]          // Из Gravity
   value: unknown            // Вычисленное значение
 }
 
@@ -408,6 +499,7 @@ function evaluateFieldLinks(
 ```
 
 **Код (client.ts):**
+
 ```typescript
 // 1. Gravity → FlatStructure
 const structure = traverseHierarchy(schema.bulk.gravity, {
@@ -430,7 +522,7 @@ const entangledGroups = createEntangledGroups(
 )
 // entangledGroups = [{
 //   uuid: "ef-abc123",  ← Strong Force UUID
-//   fieldUuids: ["field-enum-001"],
+//   fields: ["field-enum-001"],
 //   value: "start"
 // }]
 
@@ -446,12 +538,14 @@ await updateBoundary({
 ### 2.4. Этап 4: Boundary — группы и блоки
 
 **Файлы:**
+
 - `@boundary/fields/entangled.t.ts`
 - `@boundary/fields/entangled.ts`
 - `@boundary/fields/blocks.t.ts` (новый)
 - `@boundary/fields/blocks.ts` (новый)
 
 **Типы (entangled.t.ts):**
+
 ```typescript
 export interface EntangledGroup {
   uuid: string              // Из Strong Force
@@ -465,6 +559,7 @@ export interface EntangledAnalysis {
 ```
 
 **Типы (blocks.t.ts):**
+
 ```typescript
 export interface BlockRecord {
   uuid: string              // Блок в heap
@@ -481,6 +576,7 @@ export interface BlocksStore {
 ```
 
 **Функции (entangled.ts):**
+
 ```typescript
 export function findEntangledGroups(
   values: [number, unknown][][],
@@ -501,7 +597,7 @@ export function buildBraneMapping(
 ### Этап 1: Gravity Stores
 
 - [ ] `field.t.ts` — `FieldRecord`, `FieldType`, `FieldStore`
-- [ ] `field.ts` — `create()`, `get()`, `addSchema()`
+- [ ] `field.ts` — `create()`, `get()`, `addSchema(field, schema)`
 - [ ] `field.spec.ts` — тесты на CRUD
 - [ ] `schema.t.ts` — `SchemaRecord`, `SchemaStore`
 - [ ] `schema.ts` — `create()`, `get()`, `getByName()`
@@ -509,10 +605,10 @@ export function buildBraneMapping(
 
 ### Этап 2: Gravity Traverse
 
-- [ ] `traverse.t.ts` — `FieldLink`, `EntangledGroup` (с `fieldUuids`)
+- [ ] `traverse.t.ts` — `FieldLink`, `EntangledGroup` (с `fields`)
 - [ ] `traverse.ts` — `traverseHierarchy()` с `stores`
 - [ ] `traverse.ts` — `extractFieldLinks()` с созданием `Field`/`Schema`
-- [ ] `traverse.spec.ts` — тест на `fieldUuids` в `entangled.groups`
+- [ ] `traverse.spec.ts` — тест на `fields` в `entangled.groups`
 
 ### Этап 3: Strong Force
 
@@ -551,10 +647,10 @@ export function buildBraneMapping(
 
 ## 5. Критерии готовности
 
-- [ ] `FieldStore` создаёт `FieldRecord` с `uuid`, `type`, `schemas[]`
-- [ ] `SchemaStore` создаёт `SchemaRecord` с `fieldUuid`, `name`, `label`
+- [ ] `FieldStore` создаёт `FieldRecord` с `uuid`, `type`, `default`, `values`, `schemas[]`
+- [ ] `SchemaStore` создаёт `SchemaRecord` с `field`, `name`, `label`, `default`
 - [ ] `Strong Force` генерирует свои `uuid` для групп
-- [ ] `Strong Force` НЕ передаёт `schemaUuid` в Boundary
+- [ ] `Strong Force` НЕ передаёт `schema` в Boundary
 - [ ] `Boundary` использует `uuid` из Strong Force
 - [ ] `BlocksStore` создаёт shared блоки для групп
-- [ ] Integration тест на поля с одинаковыми значениями
+- [ ] Integration тест на запутанные поля

@@ -28,7 +28,7 @@
  * - Управление иерархией VDOM
  *
  * ### Шаблонизация
- * - Использует `@zavx0z/template` для рендеринга
+ * - Использует `@dsl/template` для рендеринга
  * - Поддержка JavaScript выражений в template literals
  * - Типобезопасный template API
  *
@@ -84,8 +84,7 @@
  * @packageDocumentation
  */
 import { contextSchema, type Schema, type Types as Fields } from "@zavx0z/context"
-import { parse, type NodeLogical, type NodeMeta, type Node as NodeType } from "@zavx0z/template"
-
+import { parse, type NodeLogical, type NodeMeta, type Node as NodeType } from "@dsl/template"
 
 import { validateNoUnconditionalCycles, type Superposition } from "./states"
 import { reactionsSchema, type ReactionsDeclaration } from "./reactions"
@@ -93,7 +92,6 @@ import { processesSchema, type ProcessesDeclaration, type ActionParams } from ".
 import { serializeStyle } from "./style"
 
 import type { MetaForConfig, MetaFor, BulkDeclaration, Meta, Mass, Self } from "./metafor.t"
-
 
 export type { MetaFor, Meta, Self, Mass, Superposition, NodeMeta, NodeType, NodeLogical, ActionParams }
 
