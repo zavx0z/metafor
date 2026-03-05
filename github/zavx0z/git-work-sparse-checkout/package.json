@@ -13,6 +13,5 @@
   },
   "scripts": {
     "build": "metafor-build src/meta.ts --out meta.json"
-  },
-
+  }
 }

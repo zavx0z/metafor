@@ -1,0 +1,112 @@
+<mxfile host="drawio-plugin" modified="2026-03-05T13:12:28.217Z" agent="Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/137.0.0.0 Safari/537.36" etag="e49No2ocfyOFrFPfBXZO" version="22.1.22" type="embed">
+  <diagram id="Wgk-gjpy0anIBiY3rL-E" name="Page-1">
+    <mxGraphModel dx="1611" dy="2576" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1600" pageHeight="1200" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="dsl-group" value="DSL" style="swimlane;html=1;startSize=23;horizontal=1;container=0;collapsible=0;childLayout=stackLayout;resizeParent=0;resizeLast=1;strokeColor=#FFA500;fillColor=#FFE0B0;fontColor=#000000;" parent="1" vertex="1">
+          <mxGeometry x="699" y="-410" width="300" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="dsl-code" value="&lt;b&gt;.fields()&lt;/b&gt;:&lt;br&gt;operation: field.enum(...)&lt;br&gt;op: field.enum(...)&lt;br&gt;&lt;br&gt;&lt;b&gt;.bulk()&lt;/b&gt;:&lt;br&gt;fields={{&lt;br&gt;  operation: value.operation,&lt;br&gt;  op: value.operation&lt;br&gt;}}" style="text;html=1;strokeColor=none;fillColor=#FFFFFF;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=12;fontFamily=Courier New;fontColor=#000000;" parent="dsl-group" vertex="1">
+          <mxGeometry y="23" width="300" height="177" as="geometry" />
+        </mxCell>
+        <mxCell id="json-group" value="meta.json" style="swimlane;html=1;startSize=23;horizontal=1;container=0;collapsible=0;childLayout=stackLayout;resizeParent=0;resizeLast=1;strokeColor=#FFA500;fillColor=#FFE0B0;fontColor=#000000;" parent="1" vertex="1">
+          <mxGeometry x="680" y="-150" width="350" height="200" as="geometry" />
+        </mxCell>
+        <mxCell id="json-code" value="&lt;b&gt;fields&lt;/b&gt;:&lt;br&gt;  operation: { type: &quot;enum&quot; }&lt;br&gt;  op: { type: &quot;enum&quot; }&lt;br&gt;&lt;br&gt;&lt;b&gt;gravity&lt;/b&gt;:&lt;br&gt;  NodeMeta {&lt;br&gt;    fields: {&lt;br&gt;      data: [&quot;/value/operation&quot;,&lt;br&gt;           &quot;/value/operation&quot;]&lt;br&gt;    }&lt;br&gt;  }" style="text;html=1;strokeColor=none;fillColor=#FFFFFF;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=11;fontFamily=Courier New;fontColor=#000000;" parent="json-group" vertex="1">
+          <mxGeometry y="23" width="350" height="177" as="geometry" />
+        </mxCell>
+        <mxCell id="gravity-group" value="Gravity (FORCE)" style="swimlane;html=1;startSize=23;horizontal=1;container=0;collapsible=0;childLayout=stackLayout;resizeParent=0;resizeLast=1;strokeColor=#90EE90;fillColor=#E0FFE0;fontColor=#000000;" parent="1" vertex="1">
+          <mxGeometry x="347.75" y="100" width="1047.5" height="400" as="geometry" />
+        </mxCell>
+        <mxCell id="gravity-traverse" value="&lt;b&gt;traverseHierarchy()&lt;/b&gt;&lt;br&gt;↓&lt;br&gt;извлекает пути из AST" style="text;html=1;strokeColor=#90EE90;fillColor=#FFFFFF;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#000000;" parent="gravity-group" vertex="1">
+          <mxGeometry y="23" width="200" height="377" as="geometry" />
+        </mxCell>
+        <mxCell id="gravity-field-store" value="&lt;b&gt;Field Store&lt;/b&gt;&lt;br&gt;────────────&lt;br&gt;field-enum-001:&lt;br&gt;  type: &quot;enum&quot;&lt;br&gt;  schemas: [&quot;schema-operation&quot;,&lt;br&gt;          &quot;schema-op&quot;]" style="text;html=1;strokeColor=#90EE90;fillColor=#FFFFFF;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=11;fontFamily=Courier New;fontColor=#000000;" parent="gravity-group" vertex="1">
+          <mxGeometry x="200" y="23" width="290" height="377" as="geometry" />
+        </mxCell>
+        <mxCell id="gravity-schema-store" value="&lt;b&gt;Schema Store&lt;/b&gt;&lt;br&gt;────────────&lt;br&gt;schema-operation:&lt;br&gt;  fieldUuid: &quot;field-enum-001&quot;&lt;br&gt;  name: &quot;operation&quot;&lt;br&gt;  label: &quot;Тип операции&quot;&lt;br&gt;&lt;br&gt;schema-op:&lt;br&gt;  fieldUuid: &quot;field-enum-001&quot;&lt;br&gt;  name: &quot;op&quot;&lt;br&gt;  label: &quot;Операция&quot;" style="text;html=1;strokeColor=#90EE90;fillColor=#FFFFFF;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=11;fontFamily=Courier New;fontColor=#000000;" parent="gravity-group" vertex="1">
+          <mxGeometry x="490" y="23" width="290" height="377" as="geometry" />
+        </mxCell>
+        <mxCell id="gravity-output" value="&lt;b&gt;FlatStructure&lt;/b&gt;&lt;br&gt;────────────&lt;br&gt;manifests: [{&lt;br&gt;  fields: [&lt;br&gt;    { schemaUuid: &quot;schema-operation&quot;,&lt;br&gt;      fieldUuid: &quot;field-enum-001&quot;,&lt;br&gt;      path: &quot;/value/operation&quot; },&lt;br&gt;    { schemaUuid: &quot;schema-op&quot;,&lt;br&gt;      fieldUuid: &quot;field-enum-001&quot;,&lt;br&gt;      path: &quot;/value/operation&quot; }&lt;br&gt;  ]&lt;br&gt;}]&lt;br&gt;entangled: {&lt;br&gt;  groups: [{&lt;br&gt;    fieldUuids: [&quot;field-enum-001&quot;]&lt;br&gt;  }]&lt;br&gt;}" style="text;html=1;strokeColor=#90EE90;fillColor=#FFFFFF;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=10;fontFamily=Courier New;fontColor=#000000;" parent="gravity-group" vertex="1">
+          <mxGeometry x="780" y="23" width="267.5" height="377" as="geometry" />
+        </mxCell>
+        <mxCell id="space-group" value="Strong Force (SPACE)" style="swimlane;html=1;startSize=23;horizontal=1;container=0;collapsible=0;childLayout=stackLayout;resizeParent=0;resizeLast=1;strokeColor=#87CEEB;fillColor=#E0E0FF;fontColor=#000000;" parent="1" vertex="1">
+          <mxGeometry x="471" y="550" width="816" height="280" as="geometry" />
+        </mxCell>
+        <mxCell id="space-evaluate" value="&lt;b&gt;evaluateConditions()&lt;/b&gt;&lt;br&gt;&lt;b&gt;evaluateFieldLinks()&lt;/b&gt;&lt;br&gt;↓&lt;br&gt;вычисляет значения по путям" style="text;html=1;strokeColor=#87CEEB;fillColor=#FFFFFF;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#000000;" parent="space-group" vertex="1">
+          <mxGeometry y="23" width="200" height="257" as="geometry" />
+        </mxCell>
+        <mxCell id="space-ef-store" value="&lt;b&gt;EntangledField Store&lt;/b&gt;&lt;br&gt;────────────────────&lt;br&gt;ef-abc123:&lt;br&gt;  uuid: &quot;ef-abc123&quot; ← генерирует сам&lt;br&gt;  fieldUuids: [&quot;field-enum-001&quot;]&lt;br&gt;  value: &quot;start&quot; ← вычисленное" style="text;html=1;strokeColor=#87CEEB;fillColor=#FFFFFF;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=11;fontFamily=Courier New;fontColor=#000000;" parent="space-group" vertex="1">
+          <mxGeometry x="200" y="23" width="340" height="257" as="geometry" />
+        </mxCell>
+        <mxCell id="space-output" value="&lt;b&gt;manifest (для Monad)&lt;/b&gt;&lt;br&gt;────────────────────&lt;br&gt;{&lt;br&gt;  fields: {&lt;br&gt;    operation: &quot;start&quot;,&lt;br&gt;    op: &quot;start&quot; ← одинаковые значения!&lt;br&gt;  },&lt;br&gt;  entangledGroups: [{&lt;br&gt;    uuid: &quot;ef-abc123&quot;,&lt;br&gt;    fieldUuids: [&quot;field-enum-001&quot;],&lt;br&gt;    value: &quot;start&quot;&lt;br&gt;  }]&lt;br&gt;}" style="text;html=1;strokeColor=#87CEEB;fillColor=#FFFFFF;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=10;fontFamily=Courier New;fontColor=#000000;" parent="space-group" vertex="1">
+          <mxGeometry x="540" y="23" width="276" height="257" as="geometry" />
+        </mxCell>
+        <mxCell id="monad-group" value="Monad" style="swimlane;html=1;startSize=23;horizontal=1;container=0;collapsible=0;childLayout=stackLayout;resizeParent=0;resizeLast=1;strokeColor=#87CEEB;fillColor=#E0E0FF;fontColor=#000000;" parent="1" vertex="1">
+          <mxGeometry x="704" y="870" width="350" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="monad-create" value="&lt;b&gt;createMonad()&lt;/b&gt;&lt;br&gt;↓&lt;br&gt;_monadParams.set(uuid, fields)&lt;br&gt;&lt;br&gt;&lt;b&gt;updateBoundary()&lt;/b&gt;&lt;br&gt;↓&lt;br&gt;передаёт в Boundary" style="text;html=1;strokeColor=#87CEEB;fillColor=#FFFFFF;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=11;fontColor=#000000;" parent="monad-group" vertex="1">
+          <mxGeometry y="23" width="350" height="117" as="geometry" />
+        </mxCell>
+        <mxCell id="boundary-group" value="Boundary (FIELDS)" style="swimlane;html=1;startSize=23;horizontal=1;container=0;collapsible=0;childLayout=stackLayout;resizeParent=0;resizeLast=1;strokeColor=#FFB6C1;fillColor=#FFE0E0;fontColor=#000000;" parent="1" vertex="1">
+          <mxGeometry x="456.5" y="1060" width="845" height="320" as="geometry" />
+        </mxCell>
+        <mxCell id="boundary-fields-write" value="&lt;b&gt;fieldsWrite()&lt;/b&gt;&lt;br&gt;↓&lt;br&gt;prepareData()" style="text;html=1;strokeColor=#FFB6C1;fillColor=#FFFFFF;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=12;fontColor=#000000;" parent="boundary-group" vertex="1">
+          <mxGeometry y="23" width="150" height="297" as="geometry" />
+        </mxCell>
+        <mxCell id="boundary-eg-store" value="&lt;b&gt;Entangled Groups&lt;/b&gt;&lt;br&gt;────────────────&lt;br&gt;ef-abc123:&lt;br&gt;  uuid: &quot;ef-abc123&quot;&lt;br&gt;  braneIndices: [0, 1]&lt;br&gt;  value: &quot;start&quot;" style="text;html=1;strokeColor=#FFB6C1;fillColor=#FFFFFF;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=11;fontFamily=Courier New;fontColor=#000000;" parent="boundary-group" vertex="1">
+          <mxGeometry x="150" y="23" width="240" height="297" as="geometry" />
+        </mxCell>
+        <mxCell id="boundary-blocks-store" value="&lt;b&gt;Blocks Store&lt;/b&gt;&lt;br&gt;────────────&lt;br&gt;block-shared-001:&lt;br&gt;  uuid: &quot;block-shared-001&quot;&lt;br&gt;  groups: [&quot;ef-abc123&quot;]&lt;br&gt;  shared: true&lt;br&gt;  ptr: 0 (позиция в heap)" style="text;html=1;strokeColor=#FFB6C1;fillColor=#FFFFFF;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=11;fontFamily=Courier New;fontColor=#000000;" parent="boundary-group" vertex="1">
+          <mxGeometry x="390" y="23" width="240" height="297" as="geometry" />
+        </mxCell>
+        <mxCell id="boundary-heap" value="&lt;b&gt;Heap (buildHeap)&lt;/b&gt;&lt;br&gt;────────────────&lt;br&gt;[&lt;br&gt;  /* shared блок #0 */&lt;br&gt;  1, 0, 0,  // counts, lock&lt;br&gt;  meta,     // descriptor&lt;br&gt;  &quot;start&quot;,  // value&lt;br&gt;  &lt;br&gt;  /* брана 0 */&lt;br&gt;  0, 1, 0,  // entangled_count=1&lt;br&gt;  ptr0,     // → shared #0&lt;br&gt;  &lt;br&gt;  /* брана 1 */&lt;br&gt;  0, 1, 0,&lt;br&gt;  ptr0      // → shared #0&lt;br&gt;]" style="text;html=1;strokeColor=#FFB6C1;fillColor=#FFFFFF;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=10;fontFamily=Courier New;fontColor=#000000;" parent="boundary-group" vertex="1">
+          <mxGeometry x="630" y="23" width="215" height="297" as="geometry" />
+        </mxCell>
+        <mxCell id="matrix-group" value="a" style="swimlane;html=1;startSize=23;horizontal=1;container=0;collapsible=0;childLayout=stackLayout;resizeParent=0;resizeLast=1;strokeColor=#D3D3D3;fillColor=#F0F0F0;fontColor=#000000;" parent="1" vertex="1">
+          <mxGeometry x="629" y="1430" width="500" height="140" as="geometry" />
+        </mxCell>
+        <mxCell id="matrix-init" value="&lt;b&gt;_initMatrix()&lt;/b&gt;&lt;br&gt;↓&lt;br&gt;heap → GPU buffer&lt;br&gt;&lt;br&gt;Брана 0 и Брана 1&lt;br&gt;ссылаются на один shared блок" style="text;html=1;strokeColor=#D3D3D3;fillColor=#FFFFFF;align=left;verticalAlign=top;whiteSpace=wrap;rounded=0;fontSize=11;fontColor=#000000;" parent="matrix-group" vertex="1">
+          <mxGeometry y="23" width="500" height="117" as="geometry" />
+        </mxCell>
+        <mxCell id="arrow1" value="build()" style="html=1;verticalAlign=bottom;endArrow=block;fontSize=12;fontColor=#000000;strokeColor=#00FF00;strokeWidth=2;" parent="1" source="dsl-group" target="json-group" edge="1">
+          <mxGeometry width="80" relative="1" as="geometry">
+            <mxPoint x="154" y="190" as="sourcePoint" />
+            <mxPoint x="204" y="190" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow2" value="parse()" style="html=1;verticalAlign=bottom;endArrow=block;fontSize=12;fontColor=#000000;strokeColor=#00FF00;strokeWidth=2;" parent="1" source="json-group" target="gravity-group" edge="1">
+          <mxGeometry width="80" relative="1" as="geometry">
+            <mxPoint x="554" y="190" as="sourcePoint" />
+            <mxPoint x="604" y="190" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow3" value="FlatStructure" style="html=1;verticalAlign=bottom;endArrow=block;fontSize=12;fontColor=#000000;strokeColor=#00FF00;strokeWidth=2;" parent="1" source="gravity-group" target="space-group" edge="1">
+          <mxGeometry width="80" relative="1" as="geometry">
+            <mxPoint x="604" y="490" as="sourcePoint" />
+            <mxPoint x="-146" y="530" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow4" value="manifest + entangledGroups" style="html=1;verticalAlign=bottom;endArrow=block;fontSize=12;fontColor=#000000;strokeColor=#00FF00;strokeWidth=2;" parent="1" source="space-group" target="monad-group" edge="1">
+          <mxGeometry width="80" relative="1" as="geometry">
+            <mxPoint x="454" y="670" as="sourcePoint" />
+            <mxPoint x="504" y="670" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow5" value="fieldsWrite(data, entangledGroups)" style="html=1;verticalAlign=bottom;endArrow=block;fontSize=12;fontColor=#000000;strokeColor=#00FF00;strokeWidth=2;" parent="1" source="monad-group" target="boundary-group" edge="1">
+          <mxGeometry width="80" relative="1" as="geometry">
+            <mxPoint x="854" y="670" as="sourcePoint" />
+            <mxPoint x="904" y="670" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="arrow6" value="heap: Uint32Array" style="html=1;verticalAlign=bottom;endArrow=block;fontSize=12;fontColor=#000000;strokeColor=#00FF00;strokeWidth=2;" parent="1" source="boundary-group" target="matrix-group" edge="1">
+          <mxGeometry width="80" relative="1" as="geometry">
+            <mxPoint x="904" y="850" as="sourcePoint" />
+            <mxPoint x="-146" y="870" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
