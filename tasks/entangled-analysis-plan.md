@@ -92,7 +92,7 @@
 │    - uuid: string         ← блок в heap                 │
 │    - groups: string[]     ← какие группы в блоке        │
 │    - shared: boolean      ← shared или local            │
-│    - ptr: number          ← позиция в heap              │
+│    - blockPtr: number     ← позиция в heap              │
 └─────────────────────────────────────────────────────────┘
 ```
 
@@ -186,7 +186,7 @@
 │     uuid: "block-shared-001",                           │
 │     groups: ["ef-abc123"],                              │
 │     shared: true,                                       │
-│     ptr: 0                                              │
+│     blockPtr: 0                                         │
 │   }                                                     │
 │                                                         │
 │ ╰─ СОЗДАЁТ: shared блок для группы                      │
@@ -203,11 +203,11 @@
 │                                                         │
 │   /* брана 0 */                                         │
 │   0, 1, 0,   // local_count=0, entangled_count=1        │
-│   ptr0,      // ссылка на shared #0                     │
+│   blockPtr0, // ссылка на shared #0                     │
 │                                                         │
 │   /* брана 1 */                                         │
 │   0, 1, 0,   // local_count=0, entangled_count=1        │
-│   ptr0,      // ссылка на shared #0                     │
+│   blockPtr0, // ссылка на shared #0                     │
 │ ]                                                       │
 └─────────────────────────────────────────────────────────┘
 ```
@@ -274,7 +274,7 @@
     uuid: "block-shared-001",
     groups: ["ef-abc123"],
     shared: true,
-    ptr: 0
+    blockPtr: 0
   }
 }
 ```
@@ -565,7 +565,7 @@ export interface BlockRecord {
   uuid: string              // Блок в heap
   groups: string[]          // EntangledGroup.uuid[]
   shared: boolean
-  ptr: number               // Позиция в heap
+  blockPtr: number          // Позиция в heap
 }
 
 export interface BlocksStore {
