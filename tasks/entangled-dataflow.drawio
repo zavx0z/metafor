@@ -1,12 +1,9 @@
 <mxfile host="65bd71144e">
     <diagram id="entangled-flow" name="Entangled Data Flow">
-        <mxGraphModel dx="1688" dy="431" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="none" math="0" shadow="0">
+        <mxGraphModel dx="2307" dy="1855" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="none" math="0" shadow="0">
             <root>
                 <mxCell id="0"/>
                 <mxCell id="1" parent="0"/>
-                <mxCell id="iB3CXa2FmsO-2bHBSgqK-701" style="edgeStyle=none;html=1;" edge="1" parent="1" source="100" target="iB3CXa2FmsO-2bHBSgqK-700">
-                    <mxGeometry relative="1" as="geometry"/>
-                </mxCell>
                 <mxCell id="100" value="Meta @dsl/meta" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;fillColor=light-dark(#FFFFFF,#333333);flipH=1;rounded=0;" parent="1" vertex="1">
                     <mxGeometry x="-124" y="353" width="470" height="120.57894736842121" as="geometry"/>
                 </mxCell>
@@ -65,7 +62,7 @@
                     </mxGeometry>
                 </mxCell>
                 <mxCell id="iB3CXa2FmsO-2bHBSgqK-700" value="&lt;span style=&quot;font-size: 16px; text-wrap-mode: nowrap;&quot;&gt;&lt;font style=&quot;color: light-dark(rgb(51, 51, 51), rgb(255, 255, 255));&quot;&gt;@force/gravity&lt;/font&gt;&lt;/span&gt;" style="shape=umlFrame;whiteSpace=wrap;html=1;pointerEvents=0;recursiveResize=0;container=1;collapsible=0;width=160;fillColor=#1ba1e2;fontColor=#ffffff;strokeColor=#006EAF;" vertex="1" parent="1">
-                    <mxGeometry x="408" y="287" width="500" height="450" as="geometry"/>
+                    <mxGeometry x="408" y="287" width="500" height="465" as="geometry"/>
                 </mxCell>
                 <mxCell id="200" value="Field Store (Array)" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;fillColor=light-dark(#FFFFFF,#333333);" parent="iB3CXa2FmsO-2bHBSgqK-700" vertex="1">
                     <mxGeometry x="20" y="50" width="450" height="120" as="geometry"/>
@@ -188,25 +185,37 @@
                     <mxGeometry y="30" width="450" height="30" as="geometry"/>
                 </mxCell>
                 <mxCell id="242" value="entangled" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="241">
-                    <mxGeometry width="130" height="30" as="geometry"/>
+                    <mxGeometry width="130" height="30" as="geometry">
+                        <mxRectangle width="130" height="30" as="alternateBounds"/>
+                    </mxGeometry>
                 </mxCell>
                 <mxCell id="243" value="EntangledGroup[]" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="241">
-                    <mxGeometry x="130" width="120" height="30" as="geometry"/>
+                    <mxGeometry x="130" width="120" height="30" as="geometry">
+                        <mxRectangle width="120" height="30" as="alternateBounds"/>
+                    </mxGeometry>
                 </mxCell>
                 <mxCell id="244" value="Группы запутанных полей" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="241">
-                    <mxGeometry x="250" width="200" height="30" as="geometry"/>
+                    <mxGeometry x="250" width="200" height="30" as="geometry">
+                        <mxRectangle width="200" height="30" as="alternateBounds"/>
+                    </mxGeometry>
                 </mxCell>
                 <mxCell id="245" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="240">
                     <mxGeometry y="60" width="450" height="30" as="geometry"/>
                 </mxCell>
                 <mxCell id="246" value="manifests" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="245">
-                    <mxGeometry width="130" height="30" as="geometry"/>
+                    <mxGeometry width="130" height="30" as="geometry">
+                        <mxRectangle width="130" height="30" as="alternateBounds"/>
+                    </mxGeometry>
                 </mxCell>
                 <mxCell id="247" value="Manifest[]" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;perimeterSpacing=0;" vertex="1" parent="245">
-                    <mxGeometry x="130" width="120" height="30" as="geometry"/>
+                    <mxGeometry x="130" width="120" height="30" as="geometry">
+                        <mxRectangle width="120" height="30" as="alternateBounds"/>
+                    </mxGeometry>
                 </mxCell>
                 <mxCell id="248" value="Манифесты акторов" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="245">
-                    <mxGeometry x="250" width="200" height="30" as="geometry"/>
+                    <mxGeometry x="250" width="200" height="30" as="geometry">
+                        <mxRectangle width="200" height="30" as="alternateBounds"/>
+                    </mxGeometry>
                 </mxCell>
                 <mxCell id="300" value="Strong Force @space" style="shape=table;startSize=30;container=1;collapsible=0;childLayout=tableLayout;strokeColor=default;fontSize=16;fillColor=light-dark(#FFFFFF,#333333);flipH=1;rounded=0;" parent="1" vertex="1">
                     <mxGeometry x="1004" y="354" width="420" height="120" as="geometry"/>
@@ -410,7 +419,7 @@
                     <mxGeometry relative="1" as="geometry"/>
                 </mxCell>
                 <mxCell id="700" value="Entangled поток" style="text;html=1;align=center;fontStyle=1;fontFamily=Helvetica;fontSize=44;fontColor=default;flipH=1;rounded=0;" vertex="1" parent="1">
-                    <mxGeometry x="653" y="212" width="421" height="70" as="geometry"/>
+                    <mxGeometry x="824" y="-119" width="421" height="70" as="geometry"/>
                 </mxCell>
             </root>
         </mxGraphModel>
