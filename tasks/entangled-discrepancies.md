@@ -1,6 +1,6 @@
 # 🔴 Несоответствия: entangled-analysis-plan.md vs entangled-dataflow.drawio vs entangled-plan.md
 
-**Дата:** 5 марта 2026  
+**Дата:** 5 марта 2026
 **Статус:** На утверждении
 
 ---
@@ -20,7 +20,7 @@
 | | default | ✅ | ✅ | ❌ | ✅ |
 | **Entangled Groups** | uuid | ✅ | ✅ | ❌ | ⚠️ |
 | | braneIndices | ✅ | ✅ (вложен) | ❌ | ✅ |
-| | fieldUuids | ✅ | ✅ (вложен) | ❌ | ✅ |
+| | fields | ✅ | ✅ (вложен) | ❌ | ✅ |
 | | value | ✅ | ✅ (вложен) | ❌ | ✅ |
 | **Blocks Store** | uuid | ✅ | ✅ | ❌ | ⚠️ |
 | | groups | ✅ | ✅ | ❌ | ⚠️ |
@@ -39,57 +39,85 @@
 
 ---
 
-## 🔴 Критические несоответствия
+## ✅ Выполненные несоответствия
 
-### 1. Field Store — поле `values` для enum
+### 1. Field Store — поле `values` для enum ✅
 
-| Документ | Статус |
-|----------|--------|
-| `entangled-analysis-plan.md` | ✅ **Есть `values?: unknown[]`** |
-| `entangled-dataflow.drawio` | ✅ **Есть `values`** (any[]?) — 5-я строка |
-| `entangled-plan.md` | ❌ **Нет упоминания** |
+**Решено:** Поле добавлено в `entangled-analysis-plan.md` и `entangled-dataflow.drawio`.
 
-**Статус:** ✅ **Выполнено** — поле добавлено в анализ и drawio
-
----
-
-### 2. Field Store — поле `default`
-
-| Документ | Описание |
-|----------|----------|
-| `entangled-analysis-plan.md` | ✅ `default?: unknown ← runtime default (от родителя)` |
-| `entangled-dataflow.drawio` | ✅ "Значение по умолчанию" |
-| `entangled-plan.md` | ❌ **Нет упоминания** |
-
-**Статус:** ✅ **Выполнено** — поле есть в анализе и drawio
+```typescript
+// FieldRecord
+values?: unknown[]  // Значения для enum
+```
 
 ---
 
-### 3. Schema Store — описание `default`
+### 2. Field Store — поле `default` ✅
 
-| Документ | Описание |
-|----------|----------|
-| `entangled-analysis-plan.md` | ✅ `default?: unknown ← design-time default (fallback)` |
-| `entangled-dataflow.drawio` | ✅ "Значение по умолчанию" |
-| `entangled-plan.md` | ❌ **Нет Schema Store** |
+**Решено:** Поле есть в анализе и drawio с описанием семантики.
 
-**Статус:** ✅ **Выполнено** — описание есть в анализе
-
----
-
-### 4. Entangled Groups — поле `fieldUuids`
-
-| Документ | Структура |
-|----------|-----------|
-| `entangled-analysis-plan.md` | ✅ `uuid`, `braneIndices`, `fieldUuids`, `value` |
-| `entangled-dataflow.drawio` | ✅ `uuid`, `Group` (`{braneIndices, value}`) — fieldUuids вложен в Group |
-| `entangled-plan.md` | ❌ **Нет описания** |
-
-**Статус:** ✅ **Выполнено** — fieldUuids передаётся обезличено в Boundary (вложен в Group)
+```typescript
+// FieldRecord
+default?: unknown  // Runtime default (от родителя)
+```
 
 ---
 
-### 5. Blocks Store — поле `ptr`
+### 3. Schema Store — описание `default` ✅
+
+**Решено:** Описание добавлено в анализ.
+
+```typescript
+// SchemaRecord
+default?: unknown  // Design-time default (fallback)
+```
+
+---
+
+### 4. Entangled Groups — поле `fields` (было `fieldUuids`) ✅
+
+**Решено:** Поле переименовано (убран постфикс `Uuids`), передаётся обезличено в Boundary.
+
+```typescript
+// EntangledGroup
+fields: string[]  // UUID полей из Gravity
+```
+
+---
+
+### 5. Убраны постфиксы `Uuid`/`Uuids` ✅
+
+**Решено:** Все поля переименованы:
+- `fieldUuid` → `field`
+- `fieldUuids` → `fields`
+- `schemaUuid` → `schema`
+
+---
+
+### 6. Валидация запутанных enum ✅
+
+**Решено:** Добавлен раздел **1.5. Валидация запутанных enum**.
+
+**Правило:**
+- ✅ **Runtime значения** запутанных **enum** должны совпадать
+- ✅ **Default значения** не обязаны совпадать (для всех полей)
+
+---
+
+### 7. Механизм установки default значений ✅
+
+**Решено:** Добавлен раздел **1.6. Механизм установки default значений**.
+
+**Правила:**
+1. Gravity определяет default из DSL → Schema.default
+2. Field.default для запутанных полей = default корневого родителя
+3. При перемещении дерева создаётся новая Field запись с default от отсоединённого актора
+
+---
+
+## 🔴 Критические несоответствия (требуют обсуждения)
+
+### 1. Blocks Store — поле `ptr`
 
 | Документ | Статус |
 |----------|--------|
@@ -99,29 +127,13 @@
 
 **Проблема:** В drawio отсутствует поле `ptr` (позиция в heap).
 
-**Вопрос:** Добавить `ptr` в Blocks Store?
+**Вопрос:** Добавить `ptr` в Blocks Store в drawio?
 
 **Решение:** ⬜ Ожидает обсуждения
 
 ---
 
-### 6. Manifests Store — тип поля `fields`
-
-| Документ | Структура |
-|----------|-----------|
-| `entangled-analysis-plan.md` | `actor`, `fields` (ManifestPath[]) |
-| `entangled-dataflow.drawio` | `actor`, `fields` (Manifest[]) |
-| `entangled-plan.md` | `manifests` с `src`, `fields` |
-
-**Проблема:** В drawio тип `Manifest[]`, но в анализе — структура с `actorUuid`.
-
-**Вопрос:** Уточнить тип поля `fields` в drawio?
-
-**Решение:** ⬜ Ожидает обсуждения
-
----
-
-### 7. Output (Map) — ключ и значение
+### 2. Output (Map) — ключ и значение
 
 | Документ | Ключ | Значение |
 |----------|------|----------|
@@ -132,3 +144,12 @@
 **Вопрос:** Что является ключом Map? UUID группы? UUID актора?
 
 **Решение:** ⬜ Ожидает обсуждения
+
+---
+
+## 📋 Итого
+
+| Статус | Количество |
+|--------|------------|
+| ✅ Выполнено | 7 |
+| 🔴 Требует обсуждения | 2 |
