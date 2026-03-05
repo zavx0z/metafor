@@ -127,7 +127,7 @@
                 <mxCell id="221" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="220">
                     <mxGeometry y="30" width="450" height="30" as="geometry"/>
                 </mxCell>
-                <mxCell id="222" value="fieldUuid" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="221">
+                <mxCell id="222" value="field" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="221">
                     <mxGeometry width="130" height="30" as="geometry">
                         <mxRectangle width="130" height="30" as="alternateBounds"/>
                     </mxGeometry>
@@ -137,7 +137,7 @@
                         <mxRectangle width="120" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="224" value="Ссылка на Field.uuid" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="221">
+                <mxCell id="224" value="Ссылка на поле" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="221">
                     <mxGeometry x="250" width="200" height="30" as="geometry">
                         <mxRectangle width="200" height="30" as="alternateBounds"/>
                     </mxGeometry>
@@ -244,7 +244,7 @@
                 <mxCell id="305" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" parent="300" vertex="1">
                     <mxGeometry y="60" width="450" height="30" as="geometry"/>
                 </mxCell>
-                <mxCell id="306" value="fieldUuids" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="305" vertex="1">
+                <mxCell id="306" value="fields" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" parent="305" vertex="1">
                     <mxGeometry width="130" height="30" as="geometry">
                         <mxRectangle width="130" height="30" as="alternateBounds"/>
                     </mxGeometry>
@@ -254,7 +254,7 @@
                         <mxRectangle width="120" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="308" value="UUID полей в группе" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="305" vertex="1">
+                <mxCell id="308" value="Поля в группе" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" parent="305" vertex="1">
                     <mxGeometry x="250" width="200" height="30" as="geometry">
                         <mxRectangle width="200" height="30" as="alternateBounds"/>
                     </mxGeometry>
@@ -283,7 +283,7 @@
                 <mxCell id="321" value="" style="shape=tableRow;horizontal=0;startSize=0;swimlaneHead=0;swimlaneBody=0;strokeColor=inherit;top=0;left=0;bottom=0;right=0;collapsible=0;dropTarget=0;fillColor=none;points=[[0,0.5],[1,0.5]];portConstraint=eastwest;fontSize=16;" vertex="1" parent="320">
                     <mxGeometry y="30" width="450" height="30" as="geometry"/>
                 </mxCell>
-                <mxCell id="322" value="actorUuid" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="321">
+                <mxCell id="322" value="actor" style="shape=partialRectangle;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=16;strokeWidth=1;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;html=1;whiteSpace=wrap;spacingLeft=4;spacingRight=4;" vertex="1" parent="321">
                     <mxGeometry width="130" height="30" as="geometry">
                         <mxRectangle width="130" height="30" as="alternateBounds"/>
                     </mxGeometry>
@@ -293,7 +293,7 @@
                         <mxRectangle width="120" height="30" as="alternateBounds"/>
                     </mxGeometry>
                 </mxCell>
-                <mxCell id="324" value="UUID актора" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="321">
+                <mxCell id="324" value="Актор" style="shape=partialRectangle;html=1;whiteSpace=wrap;connectable=0;strokeColor=default;overflow=hidden;fillColor=default;top=1;left=1;bottom=1;right=1;pointerEvents=1;fontSize=12;align=left;verticalAlign=middle;fontFamily=Helvetica;fontColor=default;" vertex="1" parent="321">
                     <mxGeometry x="250" width="200" height="30" as="geometry">
                         <mxRectangle width="200" height="30" as="alternateBounds"/>
                     </mxGeometry>
