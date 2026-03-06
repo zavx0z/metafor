@@ -57,9 +57,9 @@
 │                                                         │
 │  ╰─ Запутанность сериализована: paths в fields.data     │
 └─────────────────────────────────────────────────────────┘
-         ↓ loadDSL() + parse() from @dsl/template
+         ↓ loadDSL() + parse() from @metafor/template
 ┌─────────────────────────────────────────────────────────┐
-│ 3. AST (Node[])                                         │
+│ 3. AST (NodeType[])                                         │
 │                                                         │
 │  [                                                      │
 │    {                                                    │

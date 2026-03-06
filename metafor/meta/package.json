@@ -1,0 +1,38 @@
+{
+  "name": "@metafor/meta",
+  "author": "zavx0z",
+  "version": "0.4.1",
+  "type": "module",
+  "private": false,
+  "exports": {
+    ".": {
+      "import": "./dist/metafor.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./global": {
+      "types": "./global.d.ts"
+    }
+  },
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "global.d.ts",
+    "README.md",
+    "README.ru.md"
+  ],
+  "scripts": {
+    "pub": "bun run build && bun run typegen && bun publish --access public --tag latest",
+    "build": "bun run build:prod && bun run build:dev",
+    "typegen": "bunx dts-bundle-generator --out-file ./dist/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @zavx0z/context --no-check -- metafor.ts",
+    "clear": "rm -rf ./dist && rm -rf ./node_modules",
+    "build:watch": "bun run build:dev --watch",
+    "build:prod": "bun build metafor.ts --outdir ./dist --minify --entry-naming [name].min.[ext]",
+    "build:dev": "bun build metafor.ts  --outdir ./dist --sourcemap=linked",
+    "docs": "typedoc",
+    "doc:push": "bun run script/doc.push.ts"
+  },
+  "devDependencies": {
+    "@zavx0z/context": "^2.3.0",
+    "@metafor/template": "workspace:*"
+  }
+}

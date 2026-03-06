@@ -5,7 +5,7 @@
  */
 
 import type { Schema, Values } from "@zavx0z/context"
-import type { Mass, Self } from "../../dsl/meta/metafor.t"
+import type { Mass, Self } from "../../metafor/meta/metafor.t"
 
 /**
  * Конфигурация процесса для загрузки.

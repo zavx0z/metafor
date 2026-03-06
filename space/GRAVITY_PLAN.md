@@ -7,7 +7,7 @@
 - `space/client.ts` — скриптовый стиль (взаимодействия, оркестрация)
 - `force/gravity/func/` — чистые функции (обход AST, вычисление условий)
 - `force/gravity/store/` — явное состояние (граф иерархии, CRUD акторов, entangled)
-- `@dsl/template` — парсер template literals → AST (`Node[]`)
+- `@metafor/template` — парсер template literals → AST (`NodeType[]`)
 - `@boundary/fields` — вычисление запутанности (оптимизация GPU-памяти)
 
 **Архитектурные принципы:**
@@ -42,9 +42,9 @@ space/client.ts
   ↓
 loadDSL() → Schema
   ↓
-schema.gravity → Node[]
+schema.gravity → NodeType[]
   ↓
-traverseHierarchy(Node[], context) → string[]
+traverseHierarchy(NodeType[], context) → string[]
   ↓
 for each src: createActor(uuid, src, parentUuid, orderKey)
   ↓
@@ -374,7 +374,7 @@ export interface TraverseContext {
 /**
  * Обходит AST и собирает src акторов с учётом условий.
  *
- * @param nodes - AST от @dsl/template
+ * @param nodes - AST от @metafor/template
  * @param context - контекст для вычисления условий
  * @returns массив src для создания акторов
  *
@@ -389,7 +389,7 @@ export interface TraverseContext {
  * ```
  */
 export function traverseHierarchy(
-  nodes: Node[],
+  nodes: NodeType[],
   context: TraverseContext
 ): string[]
 
@@ -403,7 +403,7 @@ export function traverseHierarchy(
  * @internal
  */
 function traverseNode(
-  node: Node,
+  node: NodeType,
   context: TraverseContext
 ): string[]
 
@@ -572,7 +572,7 @@ import { between, first } from "force/gravity/store/order"
 import { createMonad, updateBoundary, deleteMonad } from "monad"
 
 async function syncActors(
-  nodes: Node[],
+  nodes: NodeType[],
   context: TraverseContext,
   parentUuid: string | null = null
 ) {
@@ -775,4 +775,4 @@ function shallowEqual(a: Record<string, unknown>, b: Record<string, unknown>): b
 - [old.md](./force/gravity/old.md) — архив концепций гравитации
 - [entangled-planning.md](./tasks/entangled-planning.md) — задача на планирование запутанности
 - [@boundary/fields/entangled.ts](./boundary/fields/entangled.ts) — анализ запутанности
-- [@dsl/template](./node_modules/@dsl/template/dist/index.d.ts) — типы узлов AST
+- [@metafor/template](./node_modules/@metafor/template/dist/index.d.ts) — типы узлов AST

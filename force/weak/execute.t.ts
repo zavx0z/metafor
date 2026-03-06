@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import type { Self } from "../../dsl/meta/metafor.t"
+import type { Self } from "../../metafor/meta/metafor.t"
 
 /**
  * Параметры для выполнения действия.

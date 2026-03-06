@@ -1,0 +1,10 @@
+{
+  "name": "@metafor/template",
+  "version": "2.6.2",
+  "description": "HTML шаблонизатор для MetaFor",
+  "author": "zavx0z",
+  "main": "./index.ts",
+  "types": "./index.t.ts",
+  "type": "module",
+  "private": true
+}

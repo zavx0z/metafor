@@ -2,7 +2,7 @@ import.meta.hot.accept()
 import { createMonad, updateBoundary, deleteMonad, releaseLock, type BraneStateChange } from "@boundary/monad"
 import { executeProcess, loadAction } from "../force/weak/load"
 import { loadDSL } from "../force/gravity/func/load"
-import { type Node } from "@dsl/template"
+import { type NodeType } from "@metafor/meta"
 
 const status = document.getElementById("status")!
 status.innerText = "✅ WebGPU Active"
@@ -33,7 +33,7 @@ function log(changed: BraneStateChange[]) {
 const HUB_DIRECTORY = "/github/"
 const schema = await loadDSL(HUB_DIRECTORY + "zavx0z/git")
 
-const hierarchy: Node[] = schema.bulk.gravity
+const hierarchy: NodeType[] = schema.bulk.gravity
 
 console.log(hierarchy)
 

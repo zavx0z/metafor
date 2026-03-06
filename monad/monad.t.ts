@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 import type { Intentions, Superposition, Intention } from "./types"
-import type { ParsedProcessJson } from "../dsl/build/monadJson"
+import type { ParsedProcessJson } from "../metafor/build/monadJson"
 import type { Collapse } from "@boundary/fields"
 import type { FieldsDefinition } from "./field"
 

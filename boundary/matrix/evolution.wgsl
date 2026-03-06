@@ -216,7 +216,7 @@ fn get_entangled_count(block_ptr: u32) -> u32 {
   return heap_safe(block_ptr + 1u);
 }
 
-fn find_field(block_ptr: u32, target_field_id: u32) -> vec4<u32> {
+fn find_field(block_ptr: u32, target_field_idx: u32) -> vec4<u32> {
   let local_count = heap_safe(block_ptr);
   // Дескрипторы полей начинаются сразу после заголовка (3 слова: local_count, entangled_count, lock)
   let header_base = block_ptr + 3u;
@@ -227,13 +227,13 @@ fn find_field(block_ptr: u32, target_field_id: u32) -> vec4<u32> {
       break;
     }
 
-    let field_id = heap_safe(header_base + i * 2u);
+    let field_idx = heap_safe(header_base + i * 2u);
     let meta_data = heap_safe(header_base + i * 2u + 1u);
 
-    if (field_id == target_field_id) {
+    if (field_idx == target_field_idx) {
       let offset_words = meta_data & 0xFFFFu;
       let value_ptr = block_ptr + offset_words;
-      return vec4<u32>(1u, field_id, meta_data, value_ptr);
+      return vec4<u32>(1u, field_idx, meta_data, value_ptr);
     }
 
     i = i + 1u;
@@ -242,10 +242,10 @@ fn find_field(block_ptr: u32, target_field_id: u32) -> vec4<u32> {
   return vec4<u32>(0u, 0u, 0u, 0u);
 }
 
-fn get_field_value_recursive(brane_index: u32, target_field_id: u32) -> f32 {
+fn get_field_value_recursive(brane_index: u32, target_field_idx: u32) -> f32 {
   // Ищем в локальном блоке поля
   let block_ptr = get_field_block_ptr(brane_index);
-  let result = find_field(block_ptr, target_field_id);
+  let result = find_field(block_ptr, target_field_idx);
 
   if (result.x == 1u) {
     let meta_data = result.z;
@@ -278,7 +278,7 @@ fn get_field_value_recursive(brane_index: u32, target_field_id: u32) -> f32 {
       continue;
     }
 
-    let entangled_result = find_field(entangled_ptr, target_field_id);
+    let entangled_result = find_field(entangled_ptr, target_field_idx);
     if (entangled_result.x == 1u) {
       let meta_data = entangled_result.z;
       let field_type = (meta_data >> 24u) & 0xFFu;
@@ -301,10 +301,10 @@ fn get_field_value_recursive(brane_index: u32, target_field_id: u32) -> f32 {
  * Получить сырое значение поля как u32.
  * Для строк возвращает string_id, для скаляров - битовое представление.
  */
-fn get_field_value_raw(brane_index: u32, target_field_id: u32) -> u32 {
+fn get_field_value_raw(brane_index: u32, target_field_idx: u32) -> u32 {
   // Ищем в локальном блоке поля
   let block_ptr = get_field_block_ptr(brane_index);
-  let result = find_field(block_ptr, target_field_id);
+  let result = find_field(block_ptr, target_field_idx);
 
   if (result.x == 1u) {
     return heap_safe(result.w);
@@ -329,7 +329,7 @@ fn get_field_value_raw(brane_index: u32, target_field_id: u32) -> u32 {
       continue;
     }
 
-    let entangled_result = find_field(entangled_ptr, target_field_id);
+    let entangled_result = find_field(entangled_ptr, target_field_idx);
     if (entangled_result.x == 1u) {
       return heap_safe(entangled_result.w);
     }
@@ -554,10 +554,10 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
     for (var k = 0u; k < cond_count; k = k + 1u) {
       let c_base = bytecode_base + cond_ptr + 1u + k * 4u;
       let field_type = bytecode[c_base];
-      let target_field_id = bytecode[c_base + 1u];
+      let target_field_idx = bytecode[c_base + 1u];
       let op = bytecode[c_base + 2u];
       let val_encoded = bytecode[c_base + 3u];
-      let real_val_raw = get_field_value_raw(idx, target_field_id);
+      let real_val_raw = get_field_value_raw(idx, target_field_idx);
 
       let cond_values_base = bytecode_base + cond_ptr + 1u;
       if (!check_cond(op, field_type, real_val_raw, val_encoded, cond_values_base)) {

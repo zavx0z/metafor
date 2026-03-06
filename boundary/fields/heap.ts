@@ -6,13 +6,13 @@
  * - local_count: количество локальных полей
  * - entangled_count: количество ссылок на entangled блоки
  * - lock: флаг блокировки переходов (1 слово)
- * - field_descriptors: [field_id, packed_meta] для каждого поля
+ * - field_descriptors: [field_idx, packed_meta] для каждого поля
  * - entangled_ptrs: указатели на entangled блоки
  * - values: значения полей
  *
  * @packageDocumentation
  */
-import type { PackedMeta, FieldMeta, HeapBlock, HeapLayout, HeapInput } from "./heap.t"
+import type { PackedMeta, FieldMeta, HeapLayout, HeapInput } from "./heap.t"
 import { TYPE } from "./opcodes"
 
 /**
@@ -188,7 +188,7 @@ function calculateBlockSizeEncoded(
   // Заголовок: [local_count, entangled_count, lock]
   const headerWords = 3
 
-  // Дескрипторы полей: [field_id, meta] * localCount
+  // Дескрипторы полей: [field_idx, meta] * localCount
   const descriptorWords = localCount * 2
 
   // Указатели на entangled блоки

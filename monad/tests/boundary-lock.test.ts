@@ -18,7 +18,7 @@ import {
   releaseLock,
   type BraneStateChange,
 } from "../monad"
-import type { ParsedProcessJson } from "../../dsl/build/monadJson"
+import type { ParsedProcessJson } from "../../metafor/build/monadJson"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 

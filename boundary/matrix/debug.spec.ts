@@ -32,9 +32,9 @@ describe("debug — утилиты отладки", () => {
       const heap = new Uint32Array([
         2, // local_count
         0, // entangled_count
-        0, // field_id=0
+        0, // field_idx=0
         packMeta(TYPE.FLOAT, 1, 4), // meta: type=FLOAT, size=1, offset=4
-        1, // field_id=1
+        1, // field_idx=1
         packMeta(TYPE.BOOL, 1, 5), // meta: type=BOOL, size=1, offset=5
         0x42c80000, // value for field 0 (100.0f)
         1, // value for field 1 (true)
@@ -67,7 +67,7 @@ describe("debug — утилиты отладки", () => {
       const heap = new Uint32Array([
         1, // local_count
         2, // entangled_count
-        0, // field_id=0
+        0, // field_idx=0
         packMeta(TYPE.UINT, 1, 3), // meta
         10, // entangled_ptr[0]
         20, // entangled_ptr[1]
@@ -95,7 +95,7 @@ describe("debug — утилиты отладки", () => {
       const heap = new Uint32Array([
         1, // local_count
         0, // entangled_count
-        0, // field_id
+        0, // field_idx
         packMeta(TYPE.STRING, 2, 2), // meta: size=2 для STRING
         42, // string_id
         0x12345678, // hash
@@ -116,7 +116,7 @@ describe("debug — утилиты отладки", () => {
       const heap = new Uint32Array([
         1, // local_count
         0, // entangled_count
-        0, // field_id
+        0, // field_idx
         packMeta(TYPE.ARRAY, 2, 2), // meta: size=2 для ARRAY
         10, // pointer
         0, // reserved
@@ -150,7 +150,7 @@ describe("debug — утилиты отладки", () => {
         // Condition block @ 5:
         1, // cond_count
         TYPE.FLOAT, // type
-        0, // field_id
+        0, // field_idx
         OP.GT, // op
         0x42480000, // val (50.0f)
       ])
@@ -231,7 +231,7 @@ describe("debug — утилиты отладки", () => {
         // Condition @ 5:
         1, // cond_count
         TYPE.UINT, // type
-        0, // field_id
+        0, // field_idx
         OP.IN, // op
         0, // val_encoded
       ])
@@ -303,7 +303,7 @@ describe("debug — утилиты отладки", () => {
         // Block 0
         1, // local_count
         0, // entangled_count
-        0, // field_id
+        0, // field_idx
         packMeta(TYPE.FLOAT, 1, 4), // meta
         0, // value
         // Array reserve (последнее слово = 0)

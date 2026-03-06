@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import { unpackMeta, TYPE, OP } from "@boundary/fields"
+import { unpackMeta } from "@boundary/fields"
 import type { StringAtlas } from "@boundary/atlas"
 import type {
   HeapStats,
