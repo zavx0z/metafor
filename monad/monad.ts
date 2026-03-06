@@ -7,7 +7,7 @@
 import {
   write as fieldsWrite,
   update as fieldsUpdate,
-} from "@boundary/fields"
+} from "@metafor/boundary"
 import type {
   IntentionsStore,
   IndexToUuidStore,
@@ -22,7 +22,7 @@ import type { MonadConfig, Intention } from "./types"
 import type { ParsedProcessJson } from "../metafor/build/monadJson"
 import { convertField } from "./field"
 import { convertToNumeric } from "./superposition"
-import type { Brane, BraneValue, Data, Field } from "@boundary/fields/types"
+import type { Brane, BraneValue, Data, Field } from "@boundary/fields"
 import { matrixHeapUpdate } from "../boundary/matrix/matrix"
 import {matrixStoreGet} from "@boundary/matrix"
 

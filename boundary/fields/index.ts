@@ -37,28 +37,55 @@
  * ```
  */
 
-import {getStringAtlas, resetStringAtlas} from "@boundary/atlas"
+import { getStringAtlas, resetStringAtlas } from "@boundary/atlas"
 import {
   matrixInit,
   matrixReadChanges,
   matrixStep,
   matrixHeapUpdate,
   matrixStoreGet,
-  matrixStoreReset
+  matrixStoreReset,
 } from "@boundary/matrix"
+import { storeReset, storeGet, storeRestore } from "@boundary/store"
 
-import {validateData} from "./validate"
-import {prepareData, type PreparedData} from "./prepare"
-import {buildHeap, findFieldOffset, packMeta, unpackMeta} from "./heap"
-import type {HeapInput} from "./heap.t"
-import {compileEnsemble, compileParsedConditions, compileSuperposition} from "./superposition"
-import type {CompiledRules} from "./superposition.t"
-import {encodeFieldValue, encodeValue, fieldTypeToBytecodeType, floatToUint, uintToFloat} from "./values"
-import type {EncodingContext} from "./values.t"
-import {buildBraneMapping, findEntangledGroups} from "./entangled"
-import {parseCondition} from "./condition"
-import {OP, TYPE} from "./opcodes"
-import type {Data, Field} from "./index.t.ts"
+import { validateData } from "./validate"
+import { prepareData, type PreparedData } from "./prepare"
+import { buildHeap, findFieldOffset, packMeta, unpackMeta } from "./heap"
+import type { HeapInput } from "./heap.t"
+import { compileEnsemble, compileParsedConditions, compileSuperposition } from "./superposition"
+import type { CompiledRules } from "./superposition.t"
+import { encodeFieldValue, encodeValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "./values"
+import type { EncodingContext } from "./values.t"
+import { buildBraneMapping, findEntangledGroups } from "./entangled"
+import { parseCondition } from "./condition"
+import { OP, TYPE } from "./opcodes"
+import type { Data, Field } from "./index.t.ts"
+
+// ============================================================================
+// ГЛОБАЛЬНОЕ СОСТОЯНИЕ
+// ============================================================================
+
+/**
+ * Mutex для предотвращения конкурентных вызовов write().
+ */
+let writeMutex: Promise<void> | null = null
+
+/**
+ * Mutex для предотвращения конкурентных вызовов update().
+ */
+let updateMutex: Promise<void> | null = null
+
+/**
+ * Сбрасывает состояние модуля (для тестов).
+ * @internal
+ */
+function reset(): void {
+  storeReset()
+  writeMutex = null
+  updateMutex = null
+  matrixStoreReset()
+  resetStringAtlas()
+}
 
 export {
   // Основное API
@@ -100,55 +127,12 @@ export type {
 }
 
 // Ре-экспорт типов
+export type { Field, Data, Brane, Collapse, BraneValue, FieldTypeValue } from "./index.t.ts"
+export { FieldType } from "./index.t.ts"
 
 // ============================================================================
-// ГЛОБАЛЬНОЕ СОСТОЯНИЕ
+// ВНУТРЕННЕЕ СОСТОЯНИЕ ДЛЯ СЕРИАЛИЗАЦИИ
 // ============================================================================
-
-/**
- * Определение полей из последнего вызова `write()`.
- */
-let fields: Field[] = []
-
-/**
- * Bytecode правила из последнего вызова `write()`.
- */
-let bytecode: Uint32Array | null = null
-
-/**
- * Bytecode offsets из последнего вызова `write()`.
- */
-let bytecodeOffsets: Uint32Array | null = null
-
-/**
- * Начальные состояния из последнего вызова `write()`.
- */
-let initialStates: Uint32Array | null = null
-
-/**
- * Mutex для предотвращения конкурентных вызовов write().
- */
-let writeMutex: Promise<void> | null = null
-
-/**
- * Mutex для предотвращения конкурентных вызовов update().
- */
-let updateMutex: Promise<void> | null = null
-
-/**
- * Сбрасывает состояние модуля (для тестов).
- * @internal
- */
-function reset(): void {
-  fields = []
-  bytecode = null
-  bytecodeOffsets = null
-  initialStates = null
-  writeMutex = null
-  updateMutex = null
-  matrixStoreReset()
-  resetStringAtlas()
-}
 
 /**
  * Внутреннее состояние для сериализации.
@@ -175,17 +159,18 @@ interface MatrixStateInternal {
  */
 function getMatrixState(): MatrixStateInternal {
   const runtimeState = matrixStoreGet()
+  const storeState = storeGet()
   const atlas = getStringAtlas()
   const atlasExport = atlas.exportData()
 
   return {
     heap: runtimeState.heap,
-    bytecode: bytecode!,
-    bytecodeOffsets: bytecodeOffsets!,
-    states: initialStates!,
+    bytecode: storeState.bytecode,
+    bytecodeOffsets: storeState.bytecodeOffsets,
+    states: storeState.initialStates,
     stringRegistry: atlasExport.registry,
     stringHeap: atlasExport.heap,
-    fields,
+    fields: storeState.fields,
     metadata: {
       arrayReserveSize: runtimeState.arrayReserveSize,
       heapAllocOffset: runtimeState.heapAllocOffset,
@@ -227,32 +212,36 @@ function getMatrixState(): MatrixStateInternal {
  */
 export async function write(data: Data): Promise<[number, number][]> {
   // Блокировка mutex для предотвращения конкурентных вызовов
-  if (writeMutex) {
-    await writeMutex
-  }
-
-  // Создаём promise для текущей операции (захват mutex)
+  const prevMutex = writeMutex
   let resolveMutex: (() => void) | undefined
   writeMutex = new Promise<void>((resolve) => {
     resolveMutex = resolve
   })
+
+  // Ждём завершения предыдущей операции (если есть)
+  if (prevMutex) {
+    await prevMutex
+  }
 
   try {
     // 0. Валидация входных данных
     validateData(data)
 
     // 1. Сброс предыдущего состояния
-    reset()
+    storeReset()
     resetStringAtlas() // Side effect перед prepareData()
+    matrixStoreReset()
 
     // 2. Подготовка данных (с side effects для интернирования строк)
     const prepared = prepareData(data)
 
-    // 3. Сохраняем глобальное состояние
-    fields = data.fields ?? []
-    bytecode = prepared.compiledRules.bytecode
-    bytecodeOffsets = prepared.compiledRules.bytecodeOffsets
-    initialStates = prepared.initialStates
+    // 3. Сохраняем глобальное состояние в общий store
+    storeRestore({
+      fields: data.fields ?? [],
+      bytecode: prepared.compiledRules.bytecode,
+      bytecodeOffsets: prepared.compiledRules.bytecodeOffsets,
+      initialStates: prepared.initialStates,
+    })
 
     // 4. Инициализация GPU
     const atlasExport = getStringAtlas().exportData()
@@ -333,15 +322,16 @@ export async function update(
   ]>,
 ): Promise<[number, number][]> {
   // Блокировка mutex для предотвращения конкурентных вызовов
-  if (updateMutex) {
-    await updateMutex
-  }
-
-  // Создаём promise для текущей операции (захват mutex)
+  const prevMutex = updateMutex
   let resolveMutex: (() => void) | undefined
   updateMutex = new Promise<void>((resolve) => {
     resolveMutex = resolve
   })
+
+  // Ждём завершения предыдущей операции (если есть)
+  if (prevMutex) {
+    await prevMutex
+  }
 
   try {
     const state = matrixStoreGet()
@@ -349,7 +339,13 @@ export async function update(
       throw new Error("Matrix not initialized. Call write() first.")
     }
 
-    const {heap, braneBlockPtrs} = state
+    const storeState = storeGet()
+    if (!storeState.fields.length) {
+      throw new Error("Store not initialized. Call write() first.")
+    }
+
+    const { heap, braneBlockPtrs } = state
+    const { fields } = storeState
 
     // Этап 1: Кодирование всех обновлений для всех бран
     const allHeapUpdates: Array<{ offset: number; value1: number; value2?: number }> = []
@@ -364,7 +360,7 @@ export async function update(
       // Обновление lock флага (если указан)
       if (lock !== undefined) {
         heap[blockPtr + 2] = lock ? 1 : 0
-        allHeapUpdates.push({offset: blockPtr + 2, value1: lock ? 1 : 0})
+        allHeapUpdates.push({ offset: blockPtr + 2, value1: lock ? 1 : 0 })
       }
 
       for (const [fieldIndex, value] of fieldUpdates) {
@@ -390,16 +386,16 @@ export async function update(
         // Добавление в список обновлений GPU
         if (fieldType === TYPE.ARRAY && Array.isArray(value)) {
           // Pointer и reserved
-          allHeapUpdates.push({offset: fieldOffset, value1: encoded.value1, value2: encoded.value2})
+          allHeapUpdates.push({ offset: fieldOffset, value1: encoded.value1, value2: encoded.value2 })
           // Данные массива: [length, item1, item2, ...]
           const arrayData = heap.slice(encoded.value1, encoded.value1 + 1 + (value as unknown[]).length)
           for (let i = 0; i < arrayData.length; i++) {
-            allHeapUpdates.push({offset: encoded.value1 + i, value1: arrayData[i]!})
+            allHeapUpdates.push({ offset: encoded.value1 + i, value1: arrayData[i]! })
           }
         } else if (fieldType === TYPE.STRING) {
-          allHeapUpdates.push({offset: fieldOffset, value1: encoded.value1, value2: encoded.value2})
+          allHeapUpdates.push({ offset: fieldOffset, value1: encoded.value1, value2: encoded.value2 })
         } else {
-          allHeapUpdates.push({offset: fieldOffset, value1: encoded.value1})
+          allHeapUpdates.push({ offset: fieldOffset, value1: encoded.value1 })
         }
       }
     }
@@ -444,7 +440,7 @@ function encodeFieldUpdate(
   state: ReturnType<typeof matrixStoreGet>,
 ): EncodedFieldUpdate {
   const fieldType = fieldTypeToBytecodeType(field.type)
-  const context: EncodingContext = {type: fieldType}
+  const context: EncodingContext = { type: fieldType }
   if (field.enum !== undefined) {
     context.enum = field.enum
   }
@@ -488,7 +484,7 @@ function encodeFieldUpdate(
     // Кодируем и записываем элементы
     const elementType = context.subType ?? TYPE.FLOAT
     for (let i = 0; i < arr.length; i++) {
-      const itemCtx: EncodingContext = {type: elementType}
+      const itemCtx: EncodingContext = { type: elementType }
       heap[heapAllocOffset + 1 + i] = encodeValue(arr[i], itemCtx).value1
     }
 
@@ -498,7 +494,7 @@ function encodeFieldUpdate(
     value1 = encodeValue(value, context).value1
   }
 
-  return {value1, value2}
+  return { value1, value2 }
 }
 
 /**

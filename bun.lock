@@ -16,6 +16,22 @@
         "typescript": "^5.9.3",
       },
     },
+    "boundary": {
+      "name": "@metafor/boundary",
+      "version": "0.0.1",
+      "dependencies": {
+        "@boundary/atlas": "workspace:*",
+        "@boundary/fields": "workspace:*",
+        "@boundary/matrix": "workspace:*",
+        "@boundary/store": "workspace:*",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
     "boundary/atlas": {
       "name": "@boundary/atlas",
       "version": "0.0.1",
@@ -47,6 +63,7 @@
         "@boundary/atlas": "workspace:*",
         "@boundary/dump": "workspace:*",
         "@boundary/matrix": "workspace:*",
+        "@boundary/store": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -61,6 +78,16 @@
       "dependencies": {
         "@boundary/atlas": "workspace:*",
       },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
+      },
+    },
+    "boundary/store": {
+      "name": "@boundary/store",
+      "version": "0.0.1",
       "devDependencies": {
         "@types/bun": "latest",
       },
@@ -280,9 +307,7 @@
     "monad": {
       "name": "@boundary/monad",
       "devDependencies": {
-        "@boundary/atlas": "workspace:*",
-        "@boundary/fields": "workspace:*",
-        "@boundary/matrix": "workspace:*",
+        "@metafor/boundary": "workspace:*",
       },
     },
     "space": {
@@ -310,6 +335,8 @@
 
     "@boundary/monad": ["@boundary/monad@workspace:monad"],
 
+    "@boundary/store": ["@boundary/store@workspace:boundary/store"],
+
     "@force/em": ["@force/em@workspace:force/em"],
 
     "@force/gravity": ["@force/gravity@workspace:force/gravity"],
@@ -319,6 +346,8 @@
     "@force/weak": ["@force/weak@workspace:force/weak"],
 
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.22.0", "https://registry.yarnpkg.com/@gerrit0/mini-shiki/-/mini-shiki-3.22.0.tgz", { "dependencies": { "@shikijs/engine-oniguruma": "^3.22.0", "@shikijs/langs": "^3.22.0", "@shikijs/themes": "^3.22.0", "@shikijs/types": "^3.22.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-jMpciqEVUBKE1QwU64S4saNMzpsSza6diNCk4MWAeCxO2+LFi2FIFmL2S0VDLzEJCxuvCbU783xi8Hp/gkM5CQ=="],
+
+    "@metafor/boundary": ["@metafor/boundary@workspace:boundary"],
 
     "@metafor/build": ["@metafor/build@workspace:metafor/build"],
 

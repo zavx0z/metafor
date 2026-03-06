@@ -6,6 +6,7 @@
   "private": true,
   "workspaces": [
     "boundary/*",
+    "boundary",
     "force/*",
     "metafor/*",
     "fixture",

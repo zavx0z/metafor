@@ -1,8 +1,18 @@
 {
   "name": "@metafor/boundary",
-  "module": "index.ts",
+  "version": "0.0.1",
   "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts"
+  },
   "private": true,
+  "dependencies": {
+    "@boundary/atlas": "workspace:*",
+    "@boundary/fields": "workspace:*",
+    "@boundary/matrix": "workspace:*",
+    "@boundary/store": "workspace:*"
+  },
   "devDependencies": {
     "@types/bun": "latest"
   },

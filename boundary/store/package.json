@@ -1,0 +1,17 @@
+{
+  "name": "@boundary/store",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "store.ts",
+  "exports": {
+    ".": "./store.ts",
+    "./types": "./store.t.ts"
+  },
+  "private": true,
+  "devDependencies": {
+    "@types/bun": "latest"
+  },
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

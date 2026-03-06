@@ -6,7 +6,7 @@
 import type { Intentions, Superposition, Intention } from "./types"
 import type { ParsedProcessJson } from "../metafor/build/monadJson"
 import type { FieldsDefinition } from "./field"
-import type { Collapse } from "@boundary/fields/types"
+import type { Collapse } from "@boundary/fields"
 
 /**
  * Индекс браны в Boundary (позиция в массиве).

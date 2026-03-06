@@ -5,13 +5,13 @@
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
-    "./types": "./index.t.ts",
     "./opcodes": "./opcodes.ts"
   },
   "private": true,
   "dependencies": {
     "@boundary/atlas": "workspace:*",
     "@boundary/matrix": "workspace:*",
+    "@boundary/store": "workspace:*",
     "@boundary/dump": "workspace:*"
   },
   "devDependencies": {

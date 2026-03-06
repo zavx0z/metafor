@@ -1,8 +1,14 @@
-import type {MatrixStateExport} from "./matrix.t.ts"
-import {GPUBackend} from "./backend.ts"
+import type { MatrixStateExport } from "./matrix.t.ts"
+import { GPUBackend } from "./backend.ts"
 
 /**
  * Глобальное состояние модуля.
+ *
+ * Хранит только GPU-специфичные данные:
+ * - backend — GPU ресурсы
+ * - heap — данные для поиска смещений полей
+ * - braneBlockPtrs — для update()
+ * - tracking ARRAY — для управления временной зоной
  */
 export const store = {
   /** GPU бэкенд. */
@@ -51,18 +57,4 @@ export function matrixStoreGet(): MatrixStateExport {
     arrayReserveSize: store.arrayReserveSize,
     arrayDataInvalidated: store.arrayDataInvalidated,
   }
-}
-
-/**
- * Восстанавливает состояние модуля из сериализованных данных.
- *
- * @param state - Состояние для восстановления
- * @internal
- */
-export function matrixStoreRestore(state: MatrixStateExport): void {
-  store.heap = state.heap
-  store.braneBlockPtrs = state.braneBlockPtrs
-  store.heapAllocOffset = state.heapAllocOffset
-  store.arrayReserveSize = state.arrayReserveSize
-  store.arrayDataInvalidated = state.arrayDataInvalidated
 }

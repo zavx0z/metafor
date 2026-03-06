@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import { FieldType, type Field, type FieldTypeValue } from "@boundary/fields/types";
+import { FieldType, type Field, type FieldTypeValue } from "@boundary/fields"
 
 /**
  * Определение поля на уровне MONAD (семантика).

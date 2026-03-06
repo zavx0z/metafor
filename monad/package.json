@@ -4,9 +4,7 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@boundary/fields": "workspace:*",
-    "@boundary/matrix": "workspace:*",
-    "@boundary/atlas": "workspace:*"
+    "@metafor/boundary": "workspace:*"
   },
   "scripts": {
     "typegen": "bunx dts-bundle-generator --out-file ./dist/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @boundary/matrix --no-check -- monad.ts",
