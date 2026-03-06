@@ -16,12 +16,13 @@
     "monad"
   ],
   "devDependencies": {
+    "@types/bun": "^1.3.10",
     "@types/node": "^25.3.4",
-    "dts-bundle-generator": "^9.5.1",
-    "typedoc": "^0.28.17",
-    "typedoc-plugin-merge-modules": "^7.0.0",
     "bun-webgpu": "^0.1.5",
-    "@types/bun": "^1.3.10"
+    "dts-bundle-generator": "^9.5.1",
+    "markdownlint-cli2": "^0.21.0",
+    "typedoc": "^0.28.17",
+    "typedoc-plugin-merge-modules": "^7.0.0"
   },
   "peerDependencies": {
     "typescript": "^5.9.3"
@@ -35,6 +36,7 @@
     "space:build": "bun build metafor.ts --outdir ./dist --sourcemap=linked",
     "zavx0z:build": "bun run --parallel --filter '@zavx0z/*' build",
     "zavx0z:watch": "bun run --parallel --filter '@zavx0z/*' build --watch",
-    "zavx0z:clean": "for dir in zavx0z/*/; do rm -f \"$dir\"/git*.json; done"
+    "zavx0z:clean": "for dir in zavx0z/*/; do rm -f \"$dir\"/git*.json; done",
+    "lint:md": "markdownlint-cli2 '**/*.md' '!**/tmp/**' '#**/node_modules/**' '#**/.git/**'"
   }
 }

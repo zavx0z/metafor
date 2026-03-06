@@ -6,7 +6,7 @@
 
 ## 📊 Поток явной запутанности
 
-```
+```text
 ┌─────────────────────────────────────────────────────────┐
 │ 1. DSL (github/zavx0z/git/meta.ts)                      │
 │                                                         │
@@ -221,6 +221,7 @@
 ### 1. Gravity — ТОЛЬКО структура
 
 **Было (неправильно):**
+
 ```typescript
 // Gravity вычисляет значения
 traverseHierarchy(nodes, { value: { operation: "start" } })
@@ -228,6 +229,7 @@ traverseHierarchy(nodes, { value: { operation: "start" } })
 ```
 
 **Стало (правильно):**
+
 ```typescript
 // Gravity извлекает пути
 traverseHierarchy(nodes)
@@ -243,6 +245,7 @@ traverseHierarchy(nodes)
 ### 2. Space — координирует значения + структуру
 
 **Ответственность:**
+
 - Вызывает `traverseHierarchy()` для структуры
 - Вычисляет значения для условий (`value.operation`)
 - Вычисляет значения для fields (`{ operation: "start" }`)
@@ -251,12 +254,14 @@ traverseHierarchy(nodes)
 ### 3. Boundary — использует явную запутанность
 
 **Было (неправильно):**
+
 ```typescript
 // Boundary вычисляет запутанность из значений
 findEntangledGroups(values)  // ← УДАЛИТЬ
 ```
 
 **Стало (правильно):**
+
 ```typescript
 // Boundary получает явную запутанность из DSL
 prepareData(data, entangled)  // ← entangled из Gravity
@@ -265,6 +270,7 @@ prepareData(data, entangled)  // ← entangled из Gravity
 ### 4. DSL — явное определение запутанности
 
 **Пример:**
+
 ```typescript
 .bulk({
   gravity: ({ value, html }) => html`
@@ -310,6 +316,7 @@ prepareData(data, entangled)  // ← entangled из Gravity
 | `force/gravity/func/traverse.spec.ts` | ⬜ | тесты на извлечение структуры |
 
 **API:**
+
 ```typescript
 export interface FieldPath {
   name: string
@@ -355,6 +362,7 @@ export function traverseHierarchy(
 | `space/client.ts` | ⬜ | `evaluateConditions()`, `evaluateFields()` |
 
 **API:**
+
 ```typescript
 function evaluateConditions(
   structure: FlatStructure,
@@ -384,6 +392,7 @@ function evaluateFields(
 | `@boundary/fields/entangled.t.ts` | ⬜ | типы для явной запутанности |
 
 **Удалить:**
+
 - ❌ `findEntangledGroups(values)` — больше не нужно
 
 ### 7. Heap → Matrix (без изменений)
@@ -400,11 +409,13 @@ function evaluateFields(
 ### Этап 1: Gravity — извлечение структуры
 
 **Файлы:**
+
 - `force/gravity/func/traverse.t.ts`
 - `force/gravity/func/traverse.ts`
 - `force/gravity/func/traverse.spec.ts`
 
 **Задачи:**
+
 - [ ] Определить типы: `FieldPath`, `ManifestPath`, `FlatStructure`, `EntangledStructure`
 - [ ] `traverseLogical()` — извлечь путь условия
 - [ ] `traverseCondition()` — извлечь пути веток
@@ -414,6 +425,7 @@ function evaluateFields(
 - [ ] Тесты на извлечение структуры
 
 **Пример вывода:**
+
 ```typescript
 {
   conditions: ["/value/operation"],
@@ -441,12 +453,14 @@ function evaluateFields(
 **Файл:** `space/client.ts`
 
 **Задачи:**
+
 - [ ] `evaluateConditions(structure, { value, core })` — вычислить условия
 - [ ] `evaluateFields(fieldPaths, { value, core })` — вычислить fields
 - [ ] `evaluateTemplate(template, { value, core })` — вычислить src
 - [ ] Интеграция с `traverseHierarchy()`
 
 **Пример:**
+
 ```typescript
 const structure = traverseHierarchy(schema.gravity)
 const activeManifests = evaluateConditions(structure, { value, core })
@@ -461,10 +475,12 @@ const manifests = activeManifests.map(m => ({
 ### Этап 3: Monad — передача явной запутанности
 
 **Файлы:**
+
 - `monad/monad.t.ts`
 - `monad/monad.ts`
 
 **Задачи:**
+
 - [ ] `UpdateBoundaryParams` с `entangled: EntangledStructure`
 - [ ] `updateBoundary({ manifests, entangled })`
 - [ ] Передача `entangled` в `fieldsWrite()`
@@ -474,12 +490,14 @@ const manifests = activeManifests.map(m => ({
 ### Этап 4: Boundary — использование явной запутанности
 
 **Файлы:**
+
 - `@boundary/fields/index.t.ts`
 - `@boundary/fields/prepare.ts`
 - `@boundary/fields/entangled.ts`
 - `@boundary/fields/entangled.t.ts`
 
 **Задачи:**
+
 - [ ] `FieldsWriteParams` с `entangled`
 - [ ] `prepareData(data, entangled)` — использовать явную запутанность
 - [ ] `buildBraneMapping(values, entangled)` — использовать явную запутанность

@@ -37,7 +37,7 @@
 
 ### 1.2. Поток данных
 
-```
+```text
 space/client.ts
   ↓
 loadDSL() → Schema
@@ -57,7 +57,7 @@ updateBoundary(entangled) → Boundary с общими блоками
 
 ### 1.3. Структура модулей
 
-```
+```text
 force/gravity/
 ├── func/
 │   ├── traverse.ts      # traverseHierarchy(), traverseNode()
@@ -101,7 +101,7 @@ space/
 
 **Зависимости между store:**
 
-```
+```text
 actor.ts → импортирует → graph.ts, order.ts
 graph.ts → импортирует → order.ts
 entangled.ts → импортирует → @boundary/fields/entangled
@@ -126,18 +126,21 @@ order.ts → нет зависимостей
 #### 1.6.1. Обход вместо парсинга
 
 **❌ Было (парсер):**
+
 ```typescript
 parseHierarchy(nodes, context): ActorDeclaration[]
 // ActorDeclaration { src, context, fields, superposition }
 ```
 
 **✅ Стало (обходчик):**
+
 ```typescript
 traverseHierarchy(nodes, context): string[]
 // ["zavx0z/git-start", "zavx0z/git-commit", ...]
 ```
 
 **Почему:**
+
 - `context` динамический — условия нужно вычислять на лету
 - `fields`/`superposition` берутся из DSL схемы, не из gravity
 - Простой массив src легче интегрировать с store
@@ -145,6 +148,7 @@ traverseHierarchy(nodes, context): string[]
 #### 1.6.2. Запутанность вычисляется в gravity
 
 **❌ Было:**
+
 ```typescript
 // @boundary/fields/prepare.ts
 prepareData(data: Data) {
@@ -153,6 +157,7 @@ prepareData(data: Data) {
 ```
 
 **✅ Стало:**
+
 ```typescript
 // client.ts
 const entangled = storeEntangled.computeEntangled(actors)
@@ -165,6 +170,7 @@ prepareData(data: Data) {
 ```
 
 **Почему:**
+
 - Gravity знает какие акторы создаются
 - Entangled должен вычисляться до `createMonad()`
 - Boundary получает готовые данные, не вычисляет
@@ -172,6 +178,7 @@ prepareData(data: Data) {
 #### 1.6.3. ActorRecord не содержит fields/superposition
 
 **❌ Было:**
+
 ```typescript
 interface ActorRecord {
   uuid: string
@@ -182,6 +189,7 @@ interface ActorRecord {
 ```
 
 **✅ Стало:**
+
 ```typescript
 interface ActorRecord {
   uuid: string
@@ -194,6 +202,7 @@ interface ActorRecord {
 ```
 
 **Почему:**
+
 - `fields` определяются в DSL файле актора
 - `superposition` определяется в DSL файле актора
 - Gravity только управляет иерархией, не знает о внутренностях
@@ -209,6 +218,7 @@ interface ActorRecord {
 **Статус:** ✅ Завершено (13 тестов)
 
 **API:**
+
 - `first()` — первый orderKey `[128]`
 - `last()` — последний orderKey `[255]`
 - `between(prev, next)` — вычисление промежуточного ключа
@@ -223,6 +233,7 @@ interface ActorRecord {
 **Статус:** ✅ Завершено (17 тестов)
 
 **API (DOM-подобный):**
+
 - `appendChild()` — добавить в конец
 - `insertBefore()` — вставить перед sibling
 - `removeChild()` — удалить (без потомков)
@@ -245,6 +256,7 @@ interface ActorRecord {
 **Статус:** ✅ Завершено (9 тестов)
 
 **API:**
+
 - `createActor(uuid, src, parentUuid, orderKey)` — создать
 - `getActor(uuid)` — получить по UUID
 - `updateActor(uuid, updates)` — обновить
@@ -253,6 +265,7 @@ interface ActorRecord {
 - `getActorsByParent(parentUuid)` — фильтрация по родителю
 
 **ActorRecord:**
+
 ```typescript
 interface ActorRecord {
   uuid: string
@@ -277,6 +290,7 @@ interface ActorRecord {
 Когда у нескольких монад **одинаковые значения полей**, нет смысла дублировать данные в GPU-памяти. Вместо этого создаётся **entangled блок** с общими данными.
 
 **Пример:**
+
 ```typescript
 // Монада 1: { count: 42 }
 // Монада 2: { count: 42 }  // ← одинаковое значение
@@ -312,6 +326,7 @@ export function _resetStore(): void
 ```
 
 **Зависимости:**
+
 - Импортирует `findEntangledGroups`, `buildBraneMapping` из `@boundary/fields/entangled`
 - Использует `getAllActors()` из `actor.ts`
 
@@ -355,6 +370,7 @@ async function syncActors() {
 **Нам не нужен парсер** — нам нужен **обходчик с вычислением условий на лету**.
 
 **Почему не парсер:**
+
 - `ActorDeclaration` с `context`/`fields`/`superposition` — лишняя сложность
 - Условия (`log`, `cond`) нужно вычислять во время обхода
 - `fields`/`superposition` берутся из DSL, не из gravity
@@ -448,6 +464,7 @@ function traverseMap(
 **Алгоритмы:**
 
 **`traverseLogical`:**
+
 ```typescript
 function traverseLogical(node, context): string[] {
   const condition = resolveCondition(node.data, node.expr, context)
@@ -457,6 +474,7 @@ function traverseLogical(node, context): string[] {
 ```
 
 **`traverseCondition`:**
+
 ```typescript
 function traverseCondition(node, context): string[] {
   const condition = resolveCondition(node.data, node.expr, context)
@@ -466,11 +484,12 @@ function traverseCondition(node, context): string[] {
 ```
 
 **`traverseMap`:**
+
 ```typescript
 function traverseMap(node, context): string[] {
   const array = resolvePath(node.data, context)  // массив из mass
   if (!Array.isArray(array)) return []
-  
+
   return array.flatMap(item => {
     const itemContext = { ...context, item }  // добавляем item в контекст
     return traverseChildren(node.child, itemContext)
@@ -544,6 +563,7 @@ export function resolvePath(
 ```
 
 **Операторы:**
+
 - Сравнение: `===`, `!==`, `>`, `<`, `>=`, `<=`
 - Логические: `&&`, `||`, `!`
 - Литералы: строки, числа, булевы

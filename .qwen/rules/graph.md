@@ -2,7 +2,7 @@
 
 ## 🎯 Назначение
 
-Документ описывает правила визуализации типов и связей между модулями `@metafor/meta` с помощью Draw.io.
+Документ описывает правила визуализации типов и связей между модулями с помощью Draw.io.
 
 ---
 
@@ -10,36 +10,35 @@
 
 ### 1.1. Формат таблицы
 
-Каждый тип из `@metafor/meta` представляется в виде таблицы с заголовком:
+Каждый тип представляется в виде таблицы с заголовком:
 
-```
-<TypeName> @metafor/meta
+``` text
+{Type} @{package}/{module}
 ```
 
 **Пример:**
 
-```
-Meta @metafor/meta
-Mass @metafor/meta
+``` text
+{Type} @{package}/{module}
 ```
 
 ### 1.2. Колонки таблицы
 
-| Колонка | Ширина | Описание |
-| ------- | ------ | -------- |
-| property | ~110px | Имя поля типа |
-| type | ~155px | Тип поля (с дженериками) |
-| label | ~245px | Описание поля на русском |
+| Колонка  | Ширина | Описание                 |
+| -------- | ------ | ------------------------ |
+| property | ~110px | Имя поля типа            |
+| type     | ~155px | Тип поля (с дженериками) |
+| label    | ~245px | Описание поля на русском |
 
 ### 1.3. Стиль элементов
 
-| Элемент | Стиль |
-| ------- | ----- |
-| Заголовок таблицы | `shape=table;startSize=30;fontSize=16` |
-| Строка таблицы | `shape=tableRow;horizontal=0` |
-| Ячейка property | `shape=partialRectangle;align=left;fontSize=16` |
-| Ячейка type | `shape=partialRectangle;fontSize=12` |
-| Ячейка label | `shape=partialRectangle;align=left;fontSize=12` |
+| Элемент           | Стиль                                           |
+| ----------------- | ----------------------------------------------- |
+| Заголовок таблицы | `shape=table;startSize=30;fontSize=16`          |
+| Строка таблицы    | `shape=tableRow;horizontal=0`                   |
+| Ячейка property   | `shape=partialRectangle;align=left;fontSize=16` |
+| Ячейка type       | `shape=partialRectangle;fontSize=12`            |
+| Ячейка label      | `shape=partialRectangle;align=left;fontSize=12` |
 
 ---
 
@@ -49,17 +48,15 @@ Mass @metafor/meta
 
 **Формат:**
 
-```
-<TypeName> @metafor/meta
+``` text
+{Type} @{package}/{module}
 ```
 
 **Примеры:**
 
-- ✅ `Meta @metafor/meta`
-- ✅ `Mass @metafor/meta`
-- ✅ `ProcessesSchema @metafor/meta`
-- ❌ `Meta` (без указания модуля)
-- ❌ `@metafor/meta Meta` (неверный порядок)
+- ✅ `{Type} @{package}/{module}`
+- ❌ `{Type}` (без указания модуля)
+- ❌ `@{package}/{module} {Type}` (неверный порядок)
 
 ### 2.2. Типы в колонке type
 
@@ -72,14 +69,14 @@ Mass @metafor/meta
 
 **Примеры:**
 
-```
+``` text
 string
 string?
 Superposition<𝛴, ɸ>
 ProcessesSchema?
 ParseNode[]
 m?
-```
+``` text
 
 ---
 
@@ -87,18 +84,18 @@ m?
 
 ### 3.1. Типы связей
 
-| Тип | Описание | Пример |
-| --- | -------- | ------ |
-| **Ссылка на тип** | Поле ссылается на другой тип | `mass` → `Mass` |
-| **Вложенность** | Тип содержит другой тип | `Meta` содержит `ProcessesSchema` |
+| Тип               | Описание                     | Пример                            |
+| ----------------- | ---------------------------- | --------------------------------- |
+| **Ссылка на тип** | Поле ссылается на другой тип | `mass` → `Mass`                   |
+| **Вложенность**   | Тип содержит другой тип      | `Meta` содержит `ProcessesSchema` |
 
 ### 3.2. Визуализация связи
 
 **Стиль ребра:**
 
-```xml
+``` xml
 style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;"
-```
+``` text
 
 **Направление:**
 
@@ -108,13 +105,14 @@ style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;"
 
 **Пример:**
 
-```xml
+``` xml
 <mxCell id="96" style="edgeStyle=none;html=1;exitX=1;exitY=0.5;" edge="1" source="87" target="91"/>
 ```
 
 Где:
-- `source="87"` — строка `mass` в таблице `Meta`
-- `target="91"` — таблица `Mass @metafor/meta`
+
+- `source="87"` — строка `{field}` в таблице `{Type}`
+- `target="91"` — таблица `{Class} @{package}/{module}`
 
 ---
 
@@ -130,8 +128,8 @@ style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;"
 
 **Пример:**
 
-```
-Meta @metafor/meta          Mass @metafor/meta
+``` text
+Type @{package}/{module}          Class @{package}/{module}
 x: 250, y: -900         x: 790, y: -580
 ```
 
@@ -151,31 +149,29 @@ x: 250, y: -900         x: 790, y: -580
 
 ## 5. Примеры
 
-### 5.1. Таблица Meta
+### 5.1. Таблица Type
 
-```
+``` text
 ┌─────────────────────────────────────────────────────────┐
-│ Meta @metafor/meta                                          │
+│ Type @{package}/{module}                                          │
 ├───────────┬─────────────────┬───────────────────────────┤
 │ property  │ type            │ label                     │
 ├───────────┼─────────────────┼───────────────────────────┤
 │ name      │ string          │ Название компонента       │
 │ desc      │ string?         │ Описание компонента       │
-│ superposition │ Superposition<𝛴, ɸ> │ Суперпозиция...   │
-│ processes │ ProcessesSchema?│ Снимок процессов          │
-│ reactions │ ReactionsSchema?│ Снимок реакций            │
-│ fields    │ ɸ               │ Схема полей               │
-│ gravity   │ ParseNode[]?    │ Сериализованная gravity   │
+│ data      │ Data?           │ Данные                    │
+│ config    │ Config?         │ Конфигурация              │
+│ fields    │ Fields          │ Схема полей               │
 │ view      │ string?         │ View-стили компонента     │
-│ mass      │ m? ─────────────┼──→ Масса                 │
+│ field     │ f? ─────────────┼──→ Поле                   │
 └───────────┴─────────────────┴───────────────────────────┘
 ```
 
-### 5.2. Таблица Mass
+### 5.2. Таблица Class
 
-```
+``` text
 ┌─────────────────────────────────────────┐
-│ Mass @metafor/meta                          │
+│ Class @{package}/{module}                          │
 ├───────────┬─────────────┬───────────────┤
 │ Record    │ string      │ any           │
 └───────────┴─────────────┴───────────────┘
@@ -183,10 +179,10 @@ x: 250, y: -900         x: 790, y: -580
 
 ### 5.3. Связь
 
-```
-Meta @metafor/meta                     Mass @metafor/meta
+``` text
+Type @{package}/{module}                     Class @{package}/{module}
 ┌──────────────────────┐          ┌──────────────────┐
-│ mass │ m? │ Масса    │─────────→│ Record │ string │
+│ field │ f? │ Поле    │─────────→│ Record │ string │
 └──────────────────────┘          └──────────────────┘
 ```
 
@@ -194,7 +190,7 @@ Meta @metafor/meta                     Mass @metafor/meta
 
 ## 6. Чек-лист перед сохранением
 
-- [ ] Заголовок таблицы в формате `<TypeName> @metafor/meta`
+- [ ] Заголовок таблицы в формате `{Type} @{package}/{module}`
 - [ ] Три колонки: property, type, label
 - [ ] Шрифт описания (label) = 12px
 - [ ] Шрифт типа (type) = 12px для сложных типов
@@ -233,24 +229,24 @@ Data Flow диаграммы показывают **поток данных** о
 
 **Уровни диаграммы:**
 
-```
+``` text
 ┌─────────────┐     ┌─────────────┐     ┌─────────────────┐
 │ Входные     │     │ Промежуточ- │     │ Выходные        │
 │ типы        │ ──→ │ ные типы    │ ──→ │ данные          │
 │ (Types)     │     │ (FieldType) │     │ (SchemaType)    │
 └─────────────┘     └─────────────┘     └─────────────────┘
-```
+``` text
 
-**Пример для `@metafor/meta`:**
+**Пример для `{Type} @{package}/{module}`:**
 
-```
-Types @zavx0z/context    FieldType (выход)    SchemaType
+``` text
+{Type} @{package}/{module}    {FieldType} (выход)    {SchemaType}
 ┌──────────────┐         ┌──────────────┐     ┌─────────────┐
-│ string       │───────→ │ string       │ ──→ │ SchemaType  │
-│ number       │───────→ │ number       │ ──→ │ SchemaType  │
-│ boolean      │───────→ │ boolean      │ ──→ │ SchemaType  │
-│ enum         │───────→ │ enum         │ ──→ │ SchemaType  │
-│ array        │───────→ │ array        │ ──→ │ SchemaType  │
+│ string       │───────→ │ string       │ ──→ │ {SchemaType}  │
+│ number       │───────→ │ number       │ ──→ │ {SchemaType}  │
+│ boolean      │───────→ │ boolean      │ ──→ │ {SchemaType}  │
+│ enum         │───────→ │ enum         │ ──→ │ {SchemaType}  │
+│ array        │───────→ │ array        │ ──→ │ {SchemaType}  │
 └──────────────┘         └──────────────┘     └─────────────┘
 ```
 
@@ -268,21 +264,21 @@ Types @zavx0z/context    FieldType (выход)    SchemaType
 - ✅ `enum`
 - ✅ `array`
 - ❌ `string.required()` (избыточно)
-- ❌ `FieldType<string>` (избыточно)
+- ❌ `{FieldType}<{Type}>` (избыточно)
 
 #### 8.3.2. Структура таблицы
 
 Каждая таблица выходных данных имеет **три колонки**:
 
-| Колонка | Ширина | Описание |
-| ------- | ------ | -------- |
-| property | ~100px | Имя поля структуры |
-| type | ~100px | Тип поля |
-| label | ~150px | Описание на русском |
+| Колонка  | Ширина | Описание            |
+| -------- | ------ | ------------------- |
+| property | ~100px | Имя поля структуры  |
+| type     | ~100px | Тип поля            |
+| label    | ~150px | Описание на русском |
 
 **Пример для `string`:**
 
-```
+``` text
 ┌────────────────────────────────────────────┐
 │ string                                     │
 ├───────────┬─────────────┬──────────────────┤
@@ -292,7 +288,7 @@ Types @zavx0z/context    FieldType (выход)    SchemaType
 │ required  │ boolean     │ Обязательность   │
 │ default   │ string?     │ Значение по ум.  │
 └───────────┴─────────────┴──────────────────┘
-```
+``` text
 
 #### 8.3.3. Типы полей
 
@@ -305,7 +301,7 @@ Types @zavx0z/context    FieldType (выход)    SchemaType
 
 **Примеры для всех типов:**
 
-```typescript
+``` typescript
 // string
 { type: "string", required: boolean, default: string? }
 
@@ -320,27 +316,27 @@ Types @zavx0z/context    FieldType (выход)    SchemaType
 
 // array
 { type: "array", required: boolean, default: T[]? }
-```
+``` text
 
 ### 8.4. Стили для Data Flow
 
 #### 8.4.1. Таблицы
 
-| Элемент | Стиль |
-| ------- | ----- |
-| Заголовок | `shape=table;startSize=30;fontSize=16` |
-| Строка | `shape=tableRow;horizontal=0` |
+| Элемент         | Стиль                                           |
+| --------------- | ----------------------------------------------- |
+| Заголовок       | `shape=table;startSize=30;fontSize=16`          |
+| Строка          | `shape=tableRow;horizontal=0`                   |
 | Ячейка property | `shape=partialRectangle;align=left;fontSize=14` |
-| Ячейка type | `shape=partialRectangle;fontSize=12` |
-| Ячейка label | `shape=partialRectangle;align=left;fontSize=12` |
+| Ячейка type     | `shape=partialRectangle;fontSize=12`            |
+| Ячейка label    | `shape=partialRectangle;align=left;fontSize=12` |
 
 #### 8.4.2. Связи
 
 **Стиль ребра:**
 
-```xml
+``` xml
 style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;"
-```
+``` text
 
 **Направление:**
 
@@ -359,8 +355,8 @@ style="edgeStyle=none;html=1;exitX=1;exitY=0.5;exitDx=0;exitDy=0;"
 
 **Пример компоновки:**
 
-```
-Types @zavx0z/context
+``` text
+{Type} @{package}/{module}
 ┌─────────────────┐
 │ string ─────────┼──→ string       ┌──→ number
 │ number ─────────┼──→ number       │
@@ -371,8 +367,8 @@ Types @zavx0z/context
 
 **Координаты (пример):**
 
-```
-Types:           x: 820,  y: -795,  w: 310px, h: 180px
+``` text
+{Type}:          x: 820,  y: -795,  w: 310px, h: 180px
 string:          x: 1170, y: -480,  w: 350px, h: 120px
 number:          x: 1550, y: -480,  w: 350px, h: 120px
 boolean:         x: 1170, y: -330,  w: 350px, h: 120px
@@ -385,8 +381,8 @@ array:           x: 1170, y: -180,  w: 350px, h: 120px
 **Пошаговая инструкция:**
 
 1. **Определить входные типы**
-   - Какие типы импортируются (например, из `@zavx0z/context`)
-   - Создать таблицу `Types @zavx0z/context`
+   - Какие типы импортируются (например, из `@{package}/{module}`)
+   - Создать таблицу `{Type} @{package}/{module}`
 
 2. **Определить выходные структуры**
    - Какие данные получаются после применения API
@@ -428,7 +424,7 @@ array:           x: 1170, y: -180,  w: 350px, h: 120px
 
 ### 9.1. Механика workflow
 
-```
+``` text
 ┌─────────────────────────────────────────────────────────┐
 │ 1. AI сделал изменения → git add                        │
 │ 2. Пользователь сделал изменения                        │
@@ -436,11 +432,11 @@ array:           x: 1170, y: -180,  w: 350px, h: 120px
 │ 4. AI: точечно редактирует только то, что не тронул     │
 │ 5. AI: git add (сохраняет новую версию)                 │
 └─────────────────────────────────────────────────────────┘
-```
+``` text
 
 **Команды для проверки:**
 
-```bash
+``` bash
 # После своих изменений
 git add tasks/file.drawio
 
@@ -450,13 +446,13 @@ git diff HEAD tasks/file.drawio
 # Или сравнить staged vs working copy
 git diff --cached tasks/file.drawio    # что в staging
 git diff tasks/file.drawio             # что изменено после staging
-```
+``` text
 
 ### 9.2. Поиск конкретных ячеек для редактирования
 
 **Вместо перечитывания всего файла — используем grep:**
 
-```bash
+``` bash
 # Найти ячейку по ID
 grep -n 'id="240"' tasks/file.drawio
 
@@ -468,11 +464,11 @@ grep -n 'parent="iB3CXa2FmsO-2bHBSgqK-700"' tasks/file.drawio
 
 # Посмотреть контекст (строки до и после)
 grep -n -A5 -B5 'FlatStructure' tasks/file.drawio
-```
+``` text
 
 **Пример workflow:**
 
-```bash
+``` bash
 # 1. Смотрим что изменил пользователь
 git diff HEAD tasks/entangled-dataflow.drawio | grep -A3 "FlatStructure"
 
@@ -495,14 +491,17 @@ git add tasks/entangled-dataflow.drawio
 ✅ **Обязательно:**
 
 1. **После каждого своего редактирования:**
-   ```bash
+
+   ``` bash
    git add tasks/filename.drawio
    ```
 
 2. **Перед новым редактированием:**
-   ```bash
+
+   ``` bash
    git diff HEAD tasks/filename.drawio
    ```
+
    — чтобы увидеть, что изменил пользователь
 
 3. **Использовать grep для поиска:**
@@ -528,23 +527,24 @@ git add tasks/entangled-dataflow.drawio
 
 ### 9.5. Пример правильного workflow
 
-**Сценарий:** Пользователь добавил контейнер `@force/gravity`
+**Сценарий:** Пользователь добавил контейнер
 
 **AI делает:**
-```bash
-# 1. Проверяет изменения
-git diff HEAD tasks/entangled-dataflow.drawio
 
-# Видит: пользователь добавил iB3CXa2FmsO-2bHBSgqK-700 контейнер
+``` bash
+# 1. Проверяет изменения
+git diff HEAD tasks/file.drawio
+
+# Видит: пользователь добавил контейнер
 
 # 2. Находит контейнер в файле
-grep -n 'iB3CXa2FmsO-2bHBSgqK-700' tasks/entangled-dataflow.drawio
+grep -n 'parent="..." tasks/file.drawio
 
 # 3. Добавляет таблицы ВНУТРЬ контейнера (не перезаписывая)
-<mxCell id="new-table" value="New Store" parent="iB3CXa2FmsO-2bHBSgqK-700">
+<mxCell id="new-table" value="New Store" parent="...">
 
 # 4. Сохраняет
-git add tasks/entangled-dataflow.drawio
+git add tasks/file.drawio
 ```
 
 ### 9.6. Чек-лист перед коммитом

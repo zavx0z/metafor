@@ -34,6 +34,7 @@
 **Проблема:** Output (Map) в @space/strong-force **не используется**.
 
 **Контекст:**
+
 - Strong Force **НЕ передаёт** `fieldUuids` в Boundary
 - Boundary **сам вычисляет** запутанность из значений полей (`findEntangledGroups(values)`)
 - Output с `key: uuid, value: EntangledGroup[]` **лишний**
@@ -63,6 +64,7 @@
 **Решено:** Поле переименовано для точности (это индекс, не идентификатор).
 
 **Где используется:**
+
 - `evolution.wgsl:find_field()` — поиск поля в heap по индексу
 - `evolution.wgsl:get_field_value_recursive()` — рекурсивный поиск в shared блоках
 - `evolution.wgsl:execute_transitions()` — чтение условий из bytecode

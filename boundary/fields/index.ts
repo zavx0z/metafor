@@ -46,7 +46,8 @@ import {
   matrixStoreGet,
   matrixStoreReset,
 } from "@boundary/matrix"
-import { storeReset, storeGet, storeRestore } from "@boundary/store"
+import { storeReset, storeGet, storeRestore } from "./store"
+import { storeRestore as commonStoreRestore, storeGet as commonStoreGet } from "@boundary/store"
 
 import { validateData } from "./validate"
 import { prepareData, type PreparedData } from "./prepare"
@@ -158,23 +159,23 @@ interface MatrixStateInternal {
  * @returns Состояние для serializeMatrix()
  */
 function getMatrixState(): MatrixStateInternal {
-  const runtimeState = matrixStoreGet()
-  const storeState = storeGet()
+  const localState = storeGet()  // @boundary/fields/store — fields + ARRAY tracking
+  const commonState = commonStoreGet()  // @boundary/store — общие данные
   const atlas = getStringAtlas()
   const atlasExport = atlas.exportData()
 
   return {
-    heap: runtimeState.heap,
-    bytecode: storeState.bytecode,
-    bytecodeOffsets: storeState.bytecodeOffsets,
-    states: storeState.initialStates,
+    heap: commonState.heap,
+    bytecode: commonState.bytecode,
+    bytecodeOffsets: commonState.bytecodeOffsets,
+    states: commonState.initialStates,
     stringRegistry: atlasExport.registry,
     stringHeap: atlasExport.heap,
-    fields: storeState.fields,
+    fields: localState.fields,
     metadata: {
-      arrayReserveSize: runtimeState.arrayReserveSize,
-      heapAllocOffset: runtimeState.heapAllocOffset,
-      braneBlockPtrs: runtimeState.braneBlockPtrs,
+      arrayReserveSize: localState.arrayReserveSize,
+      heapAllocOffset: localState.heapAllocOffset,
+      braneBlockPtrs: commonState.braneBlockPtrs,
     },
   }
 }
@@ -228,22 +229,31 @@ export async function write(data: Data): Promise<[number, number][]> {
     validateData(data)
 
     // 1. Сброс предыдущего состояния
-    storeReset()
+    storeReset()  // @boundary/fields/store — только fields
     resetStringAtlas() // Side effect перед prepareData()
-    matrixStoreReset()
+    matrixStoreReset()  // @boundary/matrix/store — только backend
 
     // 2. Подготовка данных (с side effects для интернирования строк)
     const prepared = prepareData(data)
 
-    // 3. Сохраняем глобальное состояние в общий store
+    // 3. Сохраняем локальное состояние (@boundary/fields/store)
     storeRestore({
       fields: data.fields ?? [],
+      heapAllocOffset: prepared.heapData.length - prepared.arrayReserveSize,
+      arrayReserveSize: prepared.arrayReserveSize,
+      arrayDataInvalidated: false,
+    })
+
+    // 4. Сохраняем общее состояние (@boundary/store)
+    commonStoreRestore({
       bytecode: prepared.compiledRules.bytecode,
       bytecodeOffsets: prepared.compiledRules.bytecodeOffsets,
       initialStates: prepared.initialStates,
+      heap: prepared.heapData,
+      braneBlockPtrs: prepared.heapLayout.blockPtrs,
     })
 
-    // 4. Инициализация GPU
+    // 5. Инициализация GPU
     const atlasExport = getStringAtlas().exportData()
     await matrixInit(
       {
@@ -258,9 +268,9 @@ export async function write(data: Data): Promise<[number, number][]> {
       prepared.arrayReserveSize,
     )
 
-    // 5. Во время инициализации шаг FSM не выполняется
+    // 6. Во время инициализации шаг FSM не выполняется
 
-    // 6. Возвращаем состояния после инициализации
+    // 7. Возвращаем состояния после инициализации
     return await matrixReadChanges()
   } finally {
     // Освобождение mutex
@@ -334,18 +344,18 @@ export async function update(
   }
 
   try {
-    const state = matrixStoreGet()
-    if (!state.heap) {
+    const commonState = commonStoreGet()  // @boundary/store — heap, braneBlockPtrs
+    if (!commonState.heap) {
       throw new Error("Matrix not initialized. Call write() first.")
     }
 
-    const storeState = storeGet()
-    if (!storeState.fields.length) {
+    const localState = storeGet()  // @boundary/fields/store — fields + ARRAY tracking
+    if (!localState.fields.length) {
       throw new Error("Store not initialized. Call write() first.")
     }
 
-    const { heap, braneBlockPtrs } = state
-    const { fields } = storeState
+    const { heap, braneBlockPtrs } = commonState
+    const { fields, heapAllocOffset } = localState
 
     // Этап 1: Кодирование всех обновлений для всех бран
     const allHeapUpdates: Array<{ offset: number; value1: number; value2?: number }> = []
@@ -377,7 +387,7 @@ export async function update(
         }
 
         // Кодирование значения
-        const encoded = encodeFieldUpdate(value, field, heap, state)
+        const encoded = encodeFieldUpdate(value, field, heap, heapAllocOffset)
         const fieldType = fieldTypeToBytecodeType(field.type)
 
         // Обновление heap (локально)
@@ -430,14 +440,14 @@ interface EncodedFieldUpdate {
  * @param value - Новое значение
  * @param field - Определение поля
  * @param heap - Heap данные
- * @param state - Текущее состояние matrix
+ * @param heapAllocOffset - Текущее смещение для ARRAY аллокаций
  * @returns Закодированное значение (value1, value2)
  */
 function encodeFieldUpdate(
   value: unknown,
   field: Field,
   heap: Uint32Array,
-  state: ReturnType<typeof matrixStoreGet>,
+  heapAllocOffset: number,
 ): EncodedFieldUpdate {
   const fieldType = fieldTypeToBytecodeType(field.type)
   const context: EncodingContext = { type: fieldType }
@@ -473,7 +483,6 @@ function encodeFieldUpdate(
     const arr = value as unknown[]
     // Аллоцируем: [length, item1, item2, ...]
     const arraySize = 1 + arr.length
-    const heapAllocOffset = state.heapAllocOffset
 
     if (heapAllocOffset + arraySize > heap.length) {
       throw new Error(`Heap overflow: need ${heapAllocOffset + arraySize}, have ${heap.length}`)

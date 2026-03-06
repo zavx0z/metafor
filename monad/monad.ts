@@ -4,9 +4,7 @@
  * @packageDocumentation
  */
 
-import { write as fieldsWrite, update as fieldsUpdate } from "@metafor/boundary"
-import { matrixStoreGet, matrixHeapUpdate } from "@boundary/matrix"
-
+import { write as fieldsWrite, update as fieldsUpdate, unlock } from "@metafor/boundary"
 import { convertField } from "./field"
 import { convertToNumeric } from "./superposition"
 
@@ -307,17 +305,11 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
 
   // Для birth без intention снимаем lock сразу, без шага эволюции
   if (monadsToUnlock.length > 0) {
-    const matrixState = matrixStoreGet()
     const uniqueMonadsToUnlock = Array.from(new Set(monadsToUnlock))
-    const unlockUpdates = uniqueMonadsToUnlock.map((id) => {
-      const index = _uuidToIndex.get(id)
-      if (index === undefined) {
-        throw new Error(`Monad ${id} not found in boundary`)
-      }
-      const blockPtr = matrixState.braneBlockPtrs[index]!
-      return { offset: blockPtr + 2, value1: 0 }
-    })
-    matrixHeapUpdate(unlockUpdates)
+    const indexes = uniqueMonadsToUnlock
+      .map((id) => _uuidToIndex.get(id))
+      .filter((index): index is number => index !== undefined)
+    unlock(indexes)
   }
 
   if (changes.length > 0 && _onStateChange.current) {
@@ -429,17 +421,11 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<BraneStateCh
 
   // Снимаем блокировку с бран без намерения напрямую, без дополнительного шага эволюции
   if (monadsToUnlock.length > 0) {
-    const matrixState = matrixStoreGet()
     const uniqueMonadsToUnlock = Array.from(new Set(monadsToUnlock))
-    const unlockUpdates = uniqueMonadsToUnlock.map((id) => {
-      const index = _uuidToIndex.get(id)
-      if (index === undefined) {
-        throw new Error(`Monad ${id} not found in boundary`)
-      }
-      const blockPtr = matrixState.braneBlockPtrs[index]!
-      return { offset: blockPtr + 2, value1: 0 }
-    })
-    matrixHeapUpdate(unlockUpdates)
+    const indexes = uniqueMonadsToUnlock
+      .map((id) => _uuidToIndex.get(id))
+      .filter((index): index is number => index !== undefined)
+    unlock(indexes)
   }
   // Пакетная отправка изменений
   if (changes.length > 0 && _onStateChange.current) {

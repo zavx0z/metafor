@@ -1,11 +1,12 @@
-import {GPUBackend} from "./backend"
-import {GPU} from "./device"
-import type {MatrixInitParams} from "./matrix.t"
-import type {StringAtlasExport} from "@boundary/atlas"
-import {matrixStoreReset, store} from "./store.ts"
+import { GPUBackend } from "./backend"
+import { GPU } from "./device"
+import type { MatrixInitParams } from "./matrix.t"
+import type { StringAtlasExport } from "@boundary/atlas"
+import { matrixStoreReset, store } from "./store.ts"
+import { store as boundaryStore } from "@boundary/store"
 
 // ============================================================================
-// STORE
+// INIT
 // ============================================================================
 
 /**
@@ -45,15 +46,17 @@ export async function matrixInit(
       false,
     )
 
-    store.heap = params.heap
-    store.braneBlockPtrs = blockPtrs
-    store.arrayReserveSize = reserveSize
-    store.heapAllocOffset = store.heap.length - reserveSize
-    store.arrayDataInvalidated = false
+    // Сохраняем данные в общее хранилище @boundary/store
+    boundaryStore.heap = params.heap
+    boundaryStore.braneBlockPtrs = blockPtrs
   } finally {
     resolveMutex?.()
   }
 }
+
+// ============================================================================
+// OPERATIONS
+// ============================================================================
 
 /**
  * Выполняет шаг эволюции GPU.
