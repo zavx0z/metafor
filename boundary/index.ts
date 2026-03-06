@@ -12,9 +12,9 @@
  *
  * ## Ответственность
  *
- * - Ре-экспорт API из @boundary/fields
- * - Ре-экспорт типов из @boundary/fields
- * - Сокрытие внутренней реализации (GPU, store, atlas)
+ * - Ре-экспорт API из @boundary/boundary
+ * - Ре-экспорт типов из @boundary/boundary
+ * - Сокрытие внутренней реализации (GPU, store, atlas, fields)
  *
  * @example
  * ```typescript
@@ -34,39 +34,40 @@
  * ```
  */
 
-import { storeGet } from "@boundary/store"
-import { matrixHeapUpdate } from "@boundary/matrix"
+export {
+  write,
+  update,
+  unlock,
+  prepareData,
+  validateData,
+  buildHeap,
+  findFieldOffset,
+  packMeta,
+  unpackMeta,
+  compileEnsemble,
+  compileSuperposition,
+  compileParsedConditions,
+  encodeValue,
+  encodeFieldValue,
+  fieldTypeToBytecodeType,
+  floatToUint,
+  uintToFloat,
+  findEntangledGroups,
+  buildBraneMapping,
+  parseCondition,
+  OP,
+  TYPE,
+  reset,
+  getMatrixState,
+  FieldType,
+} from "./boundary"
 
-export { write, update, FieldType } from "@boundary/fields"
-export type { Data, Field, Brane, Collapse, BraneValue } from "@boundary/fields"
-
-/**
- * Снимает блокировку с указанных бран.
- *
- * @param indexes - Индексы бран в матрице, с которых снять блокировку.
- *
- * @remarks
- * Используется для разблокировки бран после завершения процессов.
- * Lock находится по смещению `blockPtr + 2` в heap.
- * Установка в `0` снимает блокировку.
- *
- * @example
- * ```typescript
- * // Снять блокировку с бран 0, 1, 2
- * unlock([0, 1, 2])
- * ```
- */
-export function unlock(indexes: number[]): void {
-  const commonState = storeGet()
-  const { braneBlockPtrs } = commonState
-
-  const unlockUpdates = indexes.map((index) => {
-    const blockPtr = braneBlockPtrs[index]
-    if (blockPtr === undefined) {
-      throw new Error(`Brane at index ${index} not found in boundary`)
-    }
-    return { offset: blockPtr + 2, value1: 0 }
-  })
-
-  matrixHeapUpdate(unlockUpdates)
-}
+export type {
+  Data,
+  Field,
+  Brane,
+  Collapse,
+  BraneValue,
+  FieldTypeValue,
+  PreparedData,
+} from "./boundary"

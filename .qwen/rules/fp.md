@@ -149,6 +149,49 @@ export class Validator {
 }
 ```
 
+### 7. Именование для мутации
+
+**Суффикс `$` для мутабельных аргументов:**
+
+- `store$` — мутабельный store
+- `state$` — мутабельное состояние
+- `heap$` — мутабельный heap
+
+**Порядок аргументов:** `mutable$` → `data` → `options?`
+
+✅ Правильно:
+
+```typescript
+// Грязные функции (мутация)
+function write(store$: BoundaryStore, data: Data): void
+function update(heap$: Uint32Array, changes: Change[]): void
+function storeRestore(store$: BoundaryStore, state: BoundaryStore): void
+```
+
+❌ Неправильно:
+
+```typescript
+// Нет суффикса $ для мутабельных
+function write(store: BoundaryStore, data: Data): void  // ❌ неясно что мутация
+
+// Неправильный порядок
+function update(changes: Change[], heap$: Uint32Array): void  // ❌ mutable должен быть первым
+```
+
+**Чистые функции (без `$`):**
+
+```typescript
+function validate(data: Data): ValidationResult
+function compile(rules: Rules): Bytecode
+function encode(value: unknown): number
+```
+
+**Поиск мутаций:**
+
+```bash
+grep "function.*\$" .  # Все грязные функции
+```
+
 ## 📋 Чек-лист для кода
 
 Перед созданием функции спроси:
@@ -159,6 +202,93 @@ export class Validator {
 - [ ] Нужно ли **преобразовывать данные** внутри функции (значит, подготовка должна быть снаружи)?
 - [ ] Можно ли заменить класс на **простую функцию**?
 - [ ] Прозрачен ли **поток данных** (вход → выход, без скрытых шагов)?
+
+---
+
+## 🎭 Типы функций
+
+### Чистые функции (Pure)
+
+**Назначение:** обработка данных, валидация, кодирование, трансформация.
+
+**Признаки:**
+- Нет сайд-эффектов
+- Нет мутабельных аргументов
+- Вход → выход
+
+**Примеры:** `validate()`, `encode()`, `compile()`, `buildHeap()`
+
+### Грязные функции (Dirty)
+
+**Назначение:** мутация состояния, запись в хранилище.
+
+**Признаки:**
+- Мутабельные аргументы с `$`
+- Явная мутация входа
+
+**Примеры:** `write(store$: Store, data)`, `update(heap$: Uint32Array, changes)`
+
+**Именование:** суффикс `$` для мутабельных аргументов.
+
+### Функции-оркестраторы (Orchestrator)
+
+**Назначение:** координация конвейера данных, управление потоком выполнения.
+
+**Признаки:**
+- **Имеют сайд-эффекты** (вызывают грязные функции, меняют глобальное состояние)
+- **Не имеют мутабельных аргументов** (нет `$`)
+- Вызывают последовательность чистых и грязных функций
+- Возвращают результат конвейера
+
+**Примеры:** `prepareData()`, `write()`, `update()`
+
+**Пример оркестратора:**
+
+```typescript
+/**
+ * Этап 1: Подготовка данных (кодирование, компиляция, построение heap).
+ *
+ * @remarks
+ * **Функция-оркестратор с side effects:**
+ * - Вызывает `getStringAtlas().intern()` для строк (изменяет состояние атласа)
+ * - Вызывает `compileEnsemble()` (интернирует строки из правил)
+ *
+ * **Не является чистой функцией** — имеет side effects через StringAtlas.
+ */
+export function prepareData(data: Data): PreparedData {
+  // 1. Чистые функции
+  const entangledAnalysis = findEntangledGroups(values)
+  const braneMapping = buildBraneMapping(values, entangledBraneIds, entangledAnalysis)
+  
+  // 2. Side effect через глобальный реестр
+  const compiledRules = compileEnsemble(branes, fieldDefs)
+  // ↑ внутри: getStringAtlas().intern(string)
+  
+  // 3. Чистые функции
+  const heapLayout = buildHeap(heapInput)
+  
+  return { ... }
+}
+```
+
+**Где размещать:**
+- Оркестраторы — в `boundary.ts` (или `{domain}.ts`)
+- Чистые функции — в отдельных файлах (`validate.ts`, `encode.ts`, `heap.ts`)
+- Грязные функции — с суффиксом `$` для мутабельных аргументов
+
+**Иерархия:**
+
+```text
+boundary.ts (оркестраторы)
+  ↓
+fields/ (чистые функции)
+  ↓
+matrix/ (GPU backend)
+  ↓
+store/ (состояние)
+```
+
+**Важно:** оркестратор — это **допустимый тип функции** с side effects, но без мутабельных аргументов. Используется для координации конвейера данных.
 
 ## 🚫 Запрещено
 

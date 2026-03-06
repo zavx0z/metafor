@@ -3,7 +3,7 @@
  */
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
-import {write, update} from "@boundary/fields"
+import {write, update} from "../boundary"
 import {GPU, matrixStoreReset} from "@boundary/matrix"
 import { resetStringAtlas } from "@boundary/atlas"
 import { FieldType, type Collapse } from "../fields/index.t"

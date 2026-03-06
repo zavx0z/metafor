@@ -8,6 +8,7 @@
  * @see {@link BoundaryStore} — тип состояния с документацией полей
  */
 
+export type { BoundaryStore } from "./store.t.ts"
 import type { BoundaryStore } from "./store.t.ts"
 
 /**

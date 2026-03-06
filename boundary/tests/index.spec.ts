@@ -3,7 +3,7 @@
  * По образцу boundary/tests/field.logic.test.ts и boundary/tests/types/*.test.ts
  */
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
-import {write, update} from "@boundary/fields"
+import {write, update} from "../boundary"
 import {GPU, matrixStoreReset} from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 import { resetStringAtlas } from "@boundary/atlas"

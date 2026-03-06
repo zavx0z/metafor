@@ -46,6 +46,7 @@
     ".idea/**/*",
     ".cursor/**/*",
     ".vscode/**/*",
-    "./metafor.ts"
+    "./metafor.ts",
+    ".ai"
   ]
 }

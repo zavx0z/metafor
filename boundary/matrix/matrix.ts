@@ -3,7 +3,7 @@ import { GPU } from "./device"
 import type { MatrixInitParams } from "./matrix.t"
 import type { StringAtlasExport } from "@boundary/atlas"
 import { matrixStoreReset, store } from "./store.ts"
-import { store as boundaryStore } from "@boundary/store"
+import type { BoundaryStore } from "@boundary/store"
 
 // ============================================================================
 // INIT
@@ -12,6 +12,7 @@ import { store as boundaryStore } from "@boundary/store"
 /**
  * Инициализирует GPU backend с данными.
  *
+ * @param store$ - Общее хранилище (мутация: heap, braneBlockPtrs)
  * @param params - Параметры инициализации
  * @param atlasExport - Экспорт StringAtlas
  * @param blockPtrs - Смещения блоков бран в heap
@@ -19,6 +20,7 @@ import { store as boundaryStore } from "@boundary/store"
  * @internal
  */
 export async function matrixInit(
+  store$: BoundaryStore,
   params: MatrixInitParams,
   atlasExport: StringAtlasExport,
   blockPtrs: number[],
@@ -47,8 +49,8 @@ export async function matrixInit(
     )
 
     // Сохраняем данные в общее хранилище @boundary/store
-    boundaryStore.heap = params.heap
-    boundaryStore.braneBlockPtrs = blockPtrs
+    store$.heap = params.heap
+    store$.braneBlockPtrs = blockPtrs
   } finally {
     resolveMutex?.()
   }
