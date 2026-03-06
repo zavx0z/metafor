@@ -12,8 +12,8 @@
 import { test, expect, describe, beforeEach } from "bun:test"
 import { encodeValue, encodeFieldValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "../values"
 import { TYPE } from "../opcodes"
-import { FieldType } from "../index.t"
 import { resetStringAtlas } from "@boundary/atlas"
+import { FieldType } from "../index.t"
 
 describe("encodeValue — кодирование значений", () => {
   beforeEach(() => {

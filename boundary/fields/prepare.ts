@@ -10,8 +10,8 @@ import { compileEnsemble } from "./superposition"
 import type { CompiledRules } from "./superposition.t"
 import { encodeValue, fieldTypeToBytecodeType, encodeFieldValue } from "./values"
 import type { EncodingContext } from "./values.t"
-import { FieldType, type Data } from "./index.t"
 import { TYPE } from "./opcodes"
+import { FieldType, type Data } from "./index.t"
 
 /**
  * Подготовленные данные для GPU.

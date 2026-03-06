@@ -3,12 +3,12 @@
  * По образцу boundary/tests/field.logic.test.ts и boundary/tests/types/*.test.ts
  */
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
-import { write, update } from "@boundary/fields"
-import { resetMatrix } from "@boundary/matrix"
+import {write, update} from "@boundary/fields"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
-import { FieldType } from "@boundary/fields"
 import { resetStringAtlas } from "@boundary/atlas"
+import { matrixStateReset } from "../../matrix/matrix"
+import { FieldType } from "../index.t"
 
 // ============================================================================
 // SETUP: GPU один раз перед всеми тестами
@@ -23,7 +23,7 @@ beforeAll(async () => {
 describe("write / update — базовые переходы", () => {
   afterEach(() => {
     resetStringAtlas()
-    resetMatrix()
+    matrixStateReset()
   })
 
   test("должен перейти из IDLE в PATROL при hp > 50", async () => {
@@ -118,7 +118,7 @@ describe("write / update — базовые переходы", () => {
 describe("write / update — логические условия", () => {
   afterEach(() => {
     resetStringAtlas()
-    resetMatrix()
+    matrixStateReset()
   })
 
   test("должен перейти при isAlive === true", async () => {
@@ -174,7 +174,7 @@ describe("write / update — логические условия", () => {
 describe("write / update — множественные условия", () => {
   afterEach(() => {
     resetStringAtlas()
-    resetMatrix()
+    matrixStateReset()
   })
 
   test("должен перейти при выполнении обоих условий (hp > 50 И mana > 20)", async () => {
@@ -221,7 +221,7 @@ describe("write / update — множественные условия", () => {
 describe("write / update — entangled группы", () => {
   afterEach(() => {
     resetStringAtlas()
-    resetMatrix()
+    matrixStateReset()
   })
 
   test("должен создать entangled блок для одинаковых значений", async () => {
@@ -312,7 +312,7 @@ describe("write / update — entangled группы", () => {
 describe("write / update — многошаговая эволюция", () => {
   afterEach(() => {
     resetStringAtlas()
-    resetMatrix()
+    matrixStateReset()
   })
 
   test("должен пройти через несколько состояний", async () => {
@@ -361,7 +361,7 @@ describe("write / update — многошаговая эволюция", () => {
 describe("write / update — ошибки", () => {
   afterEach(() => {
     resetStringAtlas()
-    resetMatrix()
+    matrixStateReset()
   })
 
   test("должен бросить ошибку при update() до write()", async () => {
@@ -384,7 +384,7 @@ describe("write / update — ошибки", () => {
 describe("write / update — параллельные вызовы", () => {
   afterEach(() => {
     resetStringAtlas()
-    resetMatrix()
+    matrixStateReset()
   })
 
   /**
@@ -493,7 +493,7 @@ describe("write / update — параллельные вызовы", () => {
 describe("write / update — ARRAY поля", () => {
   afterEach(() => {
     resetStringAtlas()
-    resetMatrix()
+    matrixStateReset()
   })
 
   /**
@@ -552,7 +552,7 @@ describe("write / update — ARRAY поля", () => {
 describe("update() с блокировкой переходов", () => {
   afterEach(() => {
     resetStringAtlas()
-    resetMatrix()
+    matrixStateReset()
   })
 
   test("заблокированная брана не меняет состояние", async () => {

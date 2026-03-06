@@ -400,7 +400,6 @@ export function visualizeBytecode(bytecode: Uint32Array, offset: number): string
         const op = bytecode[condOffset + 2] ?? 0
         const valEncoded = bytecode[condOffset + 3] ?? 0
 
-        const typeName = getTypeName(type)
         const opName = getOpName(op)
         const valDecoded = type === 0 ? bitcastToF32(valEncoded) : valEncoded
 

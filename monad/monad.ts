@@ -7,12 +7,7 @@
 import {
   write as fieldsWrite,
   update as fieldsUpdate,
-  type Field,
-  type Data,
-  type Brane,
-  type BraneValue,
 } from "@boundary/fields"
-import { _updateMatrixHeap, getMatrixState } from "@boundary/matrix"
 import type {
   IntentionsStore,
   IndexToUuidStore,
@@ -27,6 +22,8 @@ import type { MonadConfig, Intention } from "./types"
 import type { ParsedProcessJson } from "../metafor/build/monadJson"
 import { convertField } from "./field"
 import { convertToNumeric } from "./superposition"
+import type { Brane, BraneValue, Data, Field } from "@boundary/fields/types"
+import { matrixHeapUpdate, matrixStateGet } from "../boundary/matrix/matrix"
 
 /**
  * Изменение состояния браны.
@@ -311,7 +308,7 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
 
   // Для birth без intention снимаем lock сразу, без шага эволюции
   if (monadsToUnlock.length > 0) {
-    const matrixState = getMatrixState()
+    const matrixState = matrixStateGet()
     const uniqueMonadsToUnlock = Array.from(new Set(monadsToUnlock))
     const unlockUpdates = uniqueMonadsToUnlock.map((id) => {
       const index = _uuidToIndex.get(id)
@@ -321,7 +318,7 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
       const blockPtr = matrixState.braneBlockPtrs[index]!
       return { offset: blockPtr + 2, value1: 0 }
     })
-    _updateMatrixHeap(unlockUpdates)
+    matrixHeapUpdate(unlockUpdates)
   }
 
   if (changes.length > 0 && _onStateChange.current) {
@@ -433,7 +430,7 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<BraneStateCh
 
   // Снимаем блокировку с бран без намерения напрямую, без дополнительного шага эволюции
   if (monadsToUnlock.length > 0) {
-    const matrixState = getMatrixState()
+    const matrixState = matrixStateGet()
     const uniqueMonadsToUnlock = Array.from(new Set(monadsToUnlock))
     const unlockUpdates = uniqueMonadsToUnlock.map((id) => {
       const index = _uuidToIndex.get(id)
@@ -443,7 +440,7 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<BraneStateCh
       const blockPtr = matrixState.braneBlockPtrs[index]!
       return { offset: blockPtr + 2, value1: 0 }
     })
-    _updateMatrixHeap(unlockUpdates)
+    matrixHeapUpdate(unlockUpdates)
   }
   // Пакетная отправка изменений
   if (changes.length > 0 && _onStateChange.current) {

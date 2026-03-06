@@ -37,28 +37,28 @@
  * ```
  */
 
-import { getStringAtlas, resetStringAtlas } from "@boundary/atlas"
+import {getStringAtlas, resetStringAtlas} from "@boundary/atlas"
 import {
-  _initMatrix,
-  _stepMatrix,
-  _readMatrixChanges,
-  _updateMatrixHeap,
-  resetMatrix,
-  getMatrixState as getMatrixRuntimeState,
+  matrixInit,
+  matrixReadChanges,
+  matrixStep,
+  matrixHeapUpdate,
+  matrixStateGet,
+  matrixStateReset
 } from "@boundary/matrix"
 
-import { validateData } from "./validate"
-import { prepareData, type PreparedData } from "./prepare"
-import { buildHeap, findFieldOffset, packMeta, unpackMeta } from "./heap"
-import type { HeapInput } from "./heap.t"
-import { compileEnsemble, compileSuperposition, compileParsedConditions } from "./superposition"
-import type { CompiledRules } from "./superposition.t"
-import { encodeValue, encodeFieldValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "./values"
-import type { EncodingContext } from "./values.t"
-import { findEntangledGroups, buildBraneMapping } from "./entangled"
-import { parseCondition } from "./condition"
-import { OP, TYPE } from "./opcodes"
-import type { Data, Field } from "./index.t"
+import {validateData} from "./validate"
+import {prepareData, type PreparedData} from "./prepare"
+import {buildHeap, findFieldOffset, packMeta, unpackMeta} from "./heap"
+import type {HeapInput} from "./heap.t"
+import {compileEnsemble, compileParsedConditions, compileSuperposition} from "./superposition"
+import type {CompiledRules} from "./superposition.t"
+import {encodeFieldValue, encodeValue, fieldTypeToBytecodeType, floatToUint, uintToFloat} from "./values"
+import type {EncodingContext} from "./values.t"
+import {buildBraneMapping, findEntangledGroups} from "./entangled"
+import {parseCondition} from "./condition"
+import {OP, TYPE} from "./opcodes"
+import type {Data, Field} from "./index.t.ts"
 
 export {
   // Основное API
@@ -100,15 +100,6 @@ export type {
 }
 
 // Ре-экспорт типов
-export { FieldType } from "./index.t"
-export type {
-  FieldTypeValue,
-  Field,
-  Brane,
-  Data,
-  Collapse,
-  BraneValue,
-} from "./index.t"
 
 // ============================================================================
 // ГЛОБАЛЬНОЕ СОСТОЯНИЕ
@@ -155,7 +146,7 @@ function reset(): void {
   initialStates = null
   writeMutex = null
   updateMutex = null
-  resetMatrix()
+  matrixStateReset()
   resetStringAtlas()
 }
 
@@ -183,7 +174,7 @@ interface MatrixStateInternal {
  * @returns Состояние для serializeMatrix()
  */
 function getMatrixState(): MatrixStateInternal {
-  const runtimeState = getMatrixRuntimeState()
+  const runtimeState = matrixStateGet()
   const atlas = getStringAtlas()
   const atlasExport = atlas.exportData()
 
@@ -265,7 +256,7 @@ export async function write(data: Data): Promise<[number, number][]> {
 
     // 4. Инициализация GPU
     const atlasExport = getStringAtlas().exportData()
-    await _initMatrix(
+    await matrixInit(
       {
         bytecode: prepared.compiledRules.bytecode,
         bytecodeOffsets: prepared.compiledRules.bytecodeOffsets,
@@ -281,7 +272,7 @@ export async function write(data: Data): Promise<[number, number][]> {
     // 5. Во время инициализации шаг FSM не выполняется
 
     // 6. Возвращаем состояния после инициализации
-    return await _readMatrixChanges()
+    return await matrixReadChanges()
   } finally {
     // Освобождение mutex
     resolveMutex?.()
@@ -316,7 +307,7 @@ export async function write(data: Data): Promise<[number, number][]> {
  * @returns Массив состояний: `[[braneIndex, state], ...]`
  *
  * @example
- * ```typescript
+ * ``` typescript
  * // Обновление одного поля одной браны
  * await update([[0, [[0, 100]]]])
  *
@@ -353,12 +344,12 @@ export async function update(
   })
 
   try {
-    const state = getMatrixRuntimeState()
+    const state = matrixStateGet()
     if (!state.heap) {
       throw new Error("Matrix not initialized. Call write() first.")
     }
 
-    const { heap, braneBlockPtrs, arrayReserveSize } = state
+    const {heap, braneBlockPtrs} = state
 
     // Этап 1: Кодирование всех обновлений для всех бран
     const allHeapUpdates: Array<{ offset: number; value1: number; value2?: number }> = []
@@ -373,7 +364,7 @@ export async function update(
       // Обновление lock флага (если указан)
       if (lock !== undefined) {
         heap[blockPtr + 2] = lock ? 1 : 0
-        allHeapUpdates.push({ offset: blockPtr + 2, value1: lock ? 1 : 0 })
+        allHeapUpdates.push({offset: blockPtr + 2, value1: lock ? 1 : 0})
       }
 
       for (const [fieldIndex, value] of fieldUpdates) {
@@ -399,28 +390,26 @@ export async function update(
         // Добавление в список обновлений GPU
         if (fieldType === TYPE.ARRAY && Array.isArray(value)) {
           // Pointer и reserved
-          allHeapUpdates.push({ offset: fieldOffset, value1: encoded.value1, value2: encoded.value2 })
+          allHeapUpdates.push({offset: fieldOffset, value1: encoded.value1, value2: encoded.value2})
           // Данные массива: [length, item1, item2, ...]
           const arrayData = heap.slice(encoded.value1, encoded.value1 + 1 + (value as unknown[]).length)
           for (let i = 0; i < arrayData.length; i++) {
-            allHeapUpdates.push({ offset: encoded.value1 + i, value1: arrayData[i]! })
+            allHeapUpdates.push({offset: encoded.value1 + i, value1: arrayData[i]!})
           }
         } else if (fieldType === TYPE.STRING) {
-          allHeapUpdates.push({ offset: fieldOffset, value1: encoded.value1, value2: encoded.value2 })
+          allHeapUpdates.push({offset: fieldOffset, value1: encoded.value1, value2: encoded.value2})
         } else {
-          allHeapUpdates.push({ offset: fieldOffset, value1: encoded.value1 })
+          allHeapUpdates.push({offset: fieldOffset, value1: encoded.value1})
         }
       }
     }
 
     // Этап 2: Частичная запись в GPU (все изменения за раз)
-    _updateMatrixHeap(allHeapUpdates)
+    matrixHeapUpdate(allHeapUpdates)
 
     // Этап 3: GPU step + read
-    _stepMatrix()
-    const changes = await _readMatrixChanges()
-
-    return changes
+    matrixStep()
+    return await matrixReadChanges()
   } finally {
     // Освобождение mutex
     resolveMutex?.()
@@ -452,10 +441,10 @@ function encodeFieldUpdate(
   value: unknown,
   field: Field,
   heap: Uint32Array,
-  state: ReturnType<typeof getMatrixRuntimeState>,
+  state: ReturnType<typeof matrixStateGet>,
 ): EncodedFieldUpdate {
   const fieldType = fieldTypeToBytecodeType(field.type)
-  const context: EncodingContext = { type: fieldType }
+  const context: EncodingContext = {type: fieldType}
   if (field.enum !== undefined) {
     context.enum = field.enum
   }
@@ -499,7 +488,7 @@ function encodeFieldUpdate(
     // Кодируем и записываем элементы
     const elementType = context.subType ?? TYPE.FLOAT
     for (let i = 0; i < arr.length; i++) {
-      const itemCtx: EncodingContext = { type: elementType }
+      const itemCtx: EncodingContext = {type: elementType}
       heap[heapAllocOffset + 1 + i] = encodeValue(arr[i], itemCtx).value1
     }
 
@@ -509,7 +498,7 @@ function encodeFieldUpdate(
     value1 = encodeValue(value, context).value1
   }
 
-  return { value1, value2 }
+  return {value1, value2}
 }
 
 /**

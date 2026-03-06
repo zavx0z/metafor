@@ -3,11 +3,11 @@
  */
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
-import { write, update } from "@boundary/fields"
-import { resetMatrix } from "@boundary/matrix"
+import {write, update, } from "@boundary/fields"
 import { GPU } from "@boundary/matrix"
-import { FieldType, type Collapse } from "@boundary/fields"
 import { resetStringAtlas } from "@boundary/atlas"
+import { matrixStateReset } from "../../matrix/matrix"
+import { FieldType, type Collapse } from "../index.t"
 
 describe("write() — возврат начальных состояний", () => {
   beforeAll(async () => {
@@ -16,7 +16,7 @@ describe("write() — возврат начальных состояний", () 
 
   afterEach(() => {
     resetStringAtlas()
-    resetMatrix()
+    matrixStateReset()
   })
 
   test("должен вернуть состояния после инициализации с переходом", async () => {

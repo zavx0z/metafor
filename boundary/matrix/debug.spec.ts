@@ -12,7 +12,6 @@
  */
 
 import { describe, it, expect } from "bun:test"
-import { getStringAtlas, resetStringAtlas, type StringAtlasExport } from "@boundary/atlas"
 import {
   dumpHeap,
   dumpBytecode,

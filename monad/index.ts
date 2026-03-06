@@ -28,7 +28,6 @@ export type {
   IndexToUuidStore,
 } from "./monad.t"
 export { convertField } from "./field"
-export type { Field, FieldType, BraneValue } from "@boundary/fields"
 export type { FieldDefinition, FieldsDefinition } from "./field"
 export type { MonadUpdate, BraneStateChange } from "./monad"
 export type { ParsedProcessJson } from "../metafor/build/monadJson"

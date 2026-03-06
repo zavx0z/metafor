@@ -3,8 +3,8 @@
  */
 import { test, expect, describe } from "bun:test"
 import { compileEnsemble } from "../superposition"
-import { FieldType } from "../index.t"
 import { OP } from "../opcodes"
+import { FieldType } from "../index.t"
 
 describe("Компиляция индивидуальных суперпозиций — функциональные тесты", () => {
   describe("compileEnsemble", () => {

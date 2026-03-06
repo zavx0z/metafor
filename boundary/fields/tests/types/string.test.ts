@@ -3,11 +3,11 @@
  */
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
-import { write, update } from "@boundary/fields"
-import { resetMatrix } from "@boundary/matrix"
+import {write, update} from "@boundary/fields"
 import { GPU } from "@boundary/matrix"
-import { FieldType, type Collapse } from "@boundary/fields"
 import { resetStringAtlas } from "@boundary/atlas"
+import { matrixStateReset } from "../../../matrix/matrix"
+import { FieldType, type Collapse } from "../../index.t"
 
 describe("matrix - тип STRING (строка) с bun-webgpu", () => {
   beforeAll(async () => {
@@ -16,7 +16,7 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
 
   afterEach(() => {
     resetStringAtlas()
-    resetMatrix()
+    matrixStateReset()
   })
 
   describe("Оператор EQ (равно)", () => {

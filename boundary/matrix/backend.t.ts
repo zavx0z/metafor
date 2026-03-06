@@ -3,7 +3,7 @@
  * Параметры инициализации GPU-бэкенда.
  * @internal
  */
-export interface BackendInitParams {
+export interface BackendConstructor {
   braneCount: number
   bytecode: Uint32Array
   bytecodeOffsets: Uint32Array

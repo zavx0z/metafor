@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import type { Collapse } from "@boundary/fields"
+import type { Collapse } from "@boundary/fields/types"
 import type { Superposition } from "./types"
 
 /**

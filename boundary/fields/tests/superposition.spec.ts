@@ -4,8 +4,8 @@
 import { test, expect, describe, beforeEach } from "bun:test"
 import { compileSuperposition, compileConditions, compileEnsemble } from "../superposition"
 import { OP } from "../opcodes"
-import { FieldType, type Collapse } from "../index.t"
 import { resetStringAtlas } from "@boundary/atlas"
+import { FieldType, type Collapse } from "../index.t"
 
 describe("compileConditions — компиляция условий", () => {
   beforeEach(() => {

@@ -21,13 +21,9 @@
 let device: GPUDevice | null = null
 
 if (navigator.gpu) {
-  try {
-    const adapter = await navigator.gpu.requestAdapter()
-    if (!adapter) throw new Error("No Adapter")
-    device = await adapter.requestDevice()
-  } catch (e) {
-    console.error("GPU-адаптер не найден:", e)
-  }
+  const adapter = await navigator.gpu.requestAdapter()
+  if (!adapter) throw new Error("No Adapter")
+  device = await adapter.requestDevice()
 }
 
 /**

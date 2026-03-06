@@ -21,7 +21,7 @@
  */
 import shaderSource from "./evolution.wgsl" with { type: "text" }
 import type { StringAtlasExport } from "@boundary/atlas"
-import type { BackendInitParams } from "./backend.t"
+import type { BackendConstructor } from "./backend.t"
 
 export class GPUBackend {
   protected readonly device: GPUDevice
@@ -35,21 +35,14 @@ export class GPUBackend {
   }
 
   /**
-   * Возвращает GPUDevice для использования в других компонентах.
-   * @internal
-   */
-  getDevice(): GPUDevice {
-    return this.device
-  }
-
-  /**
    * Инициализирует ресурсы GPU.
    * **Side Effect:** Аллоцирует буферы, компилирует шейдер, создает BindGroup.
    *
    * @param params - Данные для начальной загрузки в буферы.
+   * @param atlasExport
    * @param enableDebug - Включить debug-логирование.
    */
-  async init(params: BackendInitParams, atlasExport: StringAtlasExport, enableDebug = false) {
+  async init(params: BackendConstructor, atlasExport: StringAtlasExport, enableDebug = false) {
     if (enableDebug) {
       console.log("[GPUBackend] Creating shader module and compute pipeline")
     }
@@ -282,7 +275,7 @@ export class GPUBackend {
    */
   clear() {
     // Destroy all buffers
-    for (const [name, buffer] of Object.entries(this.buffers)) {
+    for (const [_, buffer] of Object.entries(this.buffers)) {
       buffer.destroy()
     }
     this.buffers = {}
