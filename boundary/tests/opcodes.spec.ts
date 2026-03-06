@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "bun:test"
-import { OP, TYPE } from "../opcodes"
+import { OP, TYPE } from "@boundary/fields/opcodes"
 
 describe("OP (коды операций)", () => {
   it("должен содержать все коды операций", () => {

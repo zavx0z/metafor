@@ -2,7 +2,7 @@
  * Тесты для чистых функций entangled analyzer.
  */
 import { test, expect, describe } from "bun:test"
-import { findEntangledGroups, buildBraneMapping } from "../entangled"
+import { findEntangledGroups, buildBraneMapping } from "../fields/entangled"
 
 describe("findEntangledGroups / buildBraneMapping — чистые функции", () => {
   describe("findEntangledGroups", () => {

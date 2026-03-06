@@ -10,10 +10,10 @@
  */
 
 import { test, expect, describe, beforeEach } from "bun:test"
-import { encodeValue, encodeFieldValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "../values"
-import { TYPE } from "../opcodes"
+import { encodeValue, encodeFieldValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "../fields/values"
+import { TYPE } from "@boundary/fields/opcodes"
 import { resetStringAtlas } from "@boundary/atlas"
-import { FieldType } from "../index.t"
+import { FieldType } from "../fields/index.t"
 
 describe("encodeValue — кодирование значений", () => {
   beforeEach(() => {

@@ -2,9 +2,9 @@
  * Тесты для prepareData.
  */
 import { test, expect, describe, beforeEach } from "bun:test"
-import { prepareData } from "../prepare"
+import { prepareData } from "../fields/prepare"
 import { resetStringAtlas } from "@boundary/atlas"
-import { FieldType, type Data } from "../index.t"
+import { FieldType, type Data } from "../fields/index.t"
 
 describe("prepareData — подготовка данных для GPU", () => {
   beforeEach(() => {

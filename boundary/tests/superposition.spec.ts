@@ -2,10 +2,10 @@
  * Тесты для модуля compileConditions.
  */
 import { test, expect, describe, beforeEach } from "bun:test"
-import { compileSuperposition, compileConditions, compileEnsemble } from "../superposition"
-import { OP } from "../opcodes"
+import { compileSuperposition, compileConditions, compileEnsemble } from "../fields/superposition"
+import { OP } from "@boundary/fields/opcodes"
 import { resetStringAtlas } from "@boundary/atlas"
-import { FieldType, type Collapse } from "../index.t"
+import { FieldType, type Collapse } from "../fields/index.t"
 
 describe("compileConditions — компиляция условий", () => {
   beforeEach(() => {

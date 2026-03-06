@@ -7,7 +7,7 @@ import {write, update} from "@boundary/fields"
 import {GPU, matrixStoreReset} from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 import { resetStringAtlas } from "@boundary/atlas"
-import { FieldType } from "../index.t"
+import { FieldType } from "../fields/index.t"
 
 // ============================================================================
 // SETUP: GPU один раз перед всеми тестами

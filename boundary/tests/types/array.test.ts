@@ -6,7 +6,7 @@ import { setupDevice } from "fixture/bunWebGPU"
 import {write, update} from "@boundary/fields"
 import {GPU, matrixStoreReset} from "@boundary/matrix"
 import { resetStringAtlas } from "@boundary/atlas"
-import { FieldType, type Collapse } from "../../index.t"
+import { FieldType, type Collapse } from "../../fields/index.t"
 
 describe("matrix - тип ARRAY (массив) с bun-webgpu", () => {
   beforeAll(async () => {

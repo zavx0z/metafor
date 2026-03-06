@@ -2,9 +2,9 @@
  * Тесты typeBridge.
  */
 import { describe, expect, test } from "bun:test"
-import { TYPE } from "../opcodes"
-import { fieldTypeToBytecodeType } from "../values"
-import { FieldType } from "../index.t"
+import { TYPE } from "@boundary/fields/opcodes"
+import { fieldTypeToBytecodeType } from "../fields/values"
+import { FieldType } from "../fields/index.t"
 
 describe("fieldTypeToBytecodeType", () => {
   test("маппит прямые соответствия FieldType -> TYPE", () => {

@@ -2,8 +2,8 @@
  * Тесты для validateData.
  */
 import { test, expect, describe } from "bun:test"
-import { validateData } from "../validate"
-import { FieldType, type Data } from "../index.t"
+import { validateData } from "../fields/validate"
+import { FieldType, type Data } from "../fields/index.t"
 
 describe("validateData — валидация входных данных", () => {
   test("должен принимать валидные данные", () => {
