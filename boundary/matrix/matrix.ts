@@ -1,86 +1,12 @@
-import { GPUBackend } from "./backend"
-import { GPU } from "./device"
-import type { MatrixStateExport, MatrixInitParams } from "./matrix.t"
-import type { StringAtlasExport } from "@boundary/atlas"
+import {GPUBackend} from "./backend"
+import {GPU} from "./device"
+import type {MatrixInitParams} from "./matrix.t"
+import type {StringAtlasExport} from "@boundary/atlas"
+import {matrixStoreReset, store} from "./store.ts"
 
 // ============================================================================
-// ГЛОБАЛЬНОЕ СОСТОЯНИЕ
+// STORE
 // ============================================================================
-
-/**
- * GPU бэкенд.
- */
-let backend: GPUBackend | null = null
-/**
- * Heap данные — только для поиска смещений полей и сериализации.
- */
-let heap: Uint32Array | null = null
-/**
- * Смещения блоков бран в heap — для update().
- */
-let braneBlockPtrs: number[] = []
-/**
- * Смещение для динамических аллокаций ARRAY в heap.
- */
-let heapAllocOffset: number = 0
-/**
- * Размер резервированной зоны для ARRAY в heap.
- */
-let arrayReserveSize: number = 0
-/**
- * Флаг: данные ARRAY невалидны после update().
- */
-let arrayDataInvalidated = false
-/**
- * Mutex для предотвращения конкурентных вызовов.
- */
-let operationMutex: Promise<void> | null = null
-
-/**
- * Сбрасывает состояние модуля (для тестов).
- * @internal
- */
-export function matrixStateReset(): void {
-  if (backend) {
-    backend.clear()
-    backend = null
-  }
-  heap = null
-  braneBlockPtrs = []
-  heapAllocOffset = 0
-  arrayReserveSize = 0
-  arrayDataInvalidated = false
-  operationMutex = null
-}
-
-/**
- * Получает текущее состояние модуля для сериализации.
- *
- * @returns Текущее состояние matrix
- */
-export function matrixStateGet(): MatrixStateExport {
-  return {
-    heap: heap!,
-    braneBlockPtrs,
-    heapAllocOffset,
-    arrayReserveSize,
-    arrayDataInvalidated,
-  }
-}
-
-/**
- * Восстанавливает состояние модуля из сериализованных данных.
- *
- * @param state - Состояние для восстановления
- * @internal
- */
-export function matrixStateRestore(state: MatrixStateExport): void {
-  heap = state.heap
-  braneBlockPtrs = state.braneBlockPtrs
-  heapAllocOffset = state.heapAllocOffset
-  arrayReserveSize = state.arrayReserveSize
-  arrayDataInvalidated = state.arrayDataInvalidated
-}
 
 /**
  * Инициализирует GPU backend с данными.
@@ -97,20 +23,20 @@ export async function matrixInit(
   blockPtrs: number[],
   reserveSize: number,
 ): Promise<void> {
-  if (operationMutex) {
-    await operationMutex
+  if (store.operationMutex) {
+    await store.operationMutex
   }
 
   let resolveMutex: (() => void) | undefined
-  operationMutex = new Promise<void>((resolve) => {
+  store.operationMutex = new Promise<void>((resolve) => {
     resolveMutex = resolve
   })
 
   try {
-    matrixStateReset()
+    matrixStoreReset()
 
-    backend = new GPUBackend(GPU.device)
-    await backend.init(
+    store.backend = new GPUBackend(GPU.device)
+    await store.backend.init(
       {
         braneCount: params.states.length,
         ...params,
@@ -119,11 +45,11 @@ export async function matrixInit(
       false,
     )
 
-    heap = params.heap
-    braneBlockPtrs = blockPtrs
-    arrayReserveSize = reserveSize
-    heapAllocOffset = heap.length - reserveSize
-    arrayDataInvalidated = false
+    store.heap = params.heap
+    store.braneBlockPtrs = blockPtrs
+    store.arrayReserveSize = reserveSize
+    store.heapAllocOffset = store.heap.length - reserveSize
+    store.arrayDataInvalidated = false
   } finally {
     resolveMutex?.()
   }
@@ -133,16 +59,16 @@ export async function matrixInit(
  * Выполняет шаг эволюции GPU.
  */
 export function matrixStep(): void {
-  if (!backend) throw new Error("Matrix not initialized")
-  backend.run()
+  if (!store.backend) throw new Error("Matrix not initialized")
+  store.backend.run()
 }
 
 /**
  * Читает изменённые состояния из GPU.
  */
 export async function matrixReadChanges(): Promise<[number, number][]> {
-  if (!backend) throw new Error("Matrix not initialized")
-  return await backend.readChanges()
+  if (!store.backend) throw new Error("Matrix not initialized")
+  return await store.backend.readChanges()
 }
 
 /**
@@ -151,6 +77,6 @@ export async function matrixReadChanges(): Promise<[number, number][]> {
  * @param updates - Массив обновлений
  */
 export function matrixHeapUpdate(updates: Array<{ offset: number; value1: number; value2?: number }>): void {
-  if (!backend) throw new Error("Matrix not initialized")
-  backend.updateHeapFields(updates)
+  if (!store.backend) throw new Error("Matrix not initialized")
+  store.backend.updateHeapFields(updates)
 }

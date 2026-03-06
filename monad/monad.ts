@@ -23,7 +23,8 @@ import type { ParsedProcessJson } from "../metafor/build/monadJson"
 import { convertField } from "./field"
 import { convertToNumeric } from "./superposition"
 import type { Brane, BraneValue, Data, Field } from "@boundary/fields/types"
-import { matrixHeapUpdate, matrixStateGet } from "../boundary/matrix/matrix"
+import { matrixHeapUpdate } from "../boundary/matrix/matrix"
+import {matrixStoreGet} from "@boundary/matrix"
 
 /**
  * Изменение состояния браны.
@@ -308,7 +309,7 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
 
   // Для birth без intention снимаем lock сразу, без шага эволюции
   if (monadsToUnlock.length > 0) {
-    const matrixState = matrixStateGet()
+    const matrixState = matrixStoreGet()
     const uniqueMonadsToUnlock = Array.from(new Set(monadsToUnlock))
     const unlockUpdates = uniqueMonadsToUnlock.map((id) => {
       const index = _uuidToIndex.get(id)
@@ -430,7 +431,7 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<BraneStateCh
 
   // Снимаем блокировку с бран без намерения напрямую, без дополнительного шага эволюции
   if (monadsToUnlock.length > 0) {
-    const matrixState = matrixStateGet()
+    const matrixState = matrixStoreGet()
     const uniqueMonadsToUnlock = Array.from(new Set(monadsToUnlock))
     const unlockUpdates = uniqueMonadsToUnlock.map((id) => {
       const index = _uuidToIndex.get(id)

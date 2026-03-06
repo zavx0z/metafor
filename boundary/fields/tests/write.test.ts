@@ -4,9 +4,8 @@
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import {write, update, } from "@boundary/fields"
-import { GPU } from "@boundary/matrix"
+import {GPU, matrixStoreReset} from "@boundary/matrix"
 import { resetStringAtlas } from "@boundary/atlas"
-import { matrixStateReset } from "../../matrix/matrix"
 import { FieldType, type Collapse } from "../index.t"
 
 describe("write() — возврат начальных состояний", () => {
@@ -16,7 +15,7 @@ describe("write() — возврат начальных состояний", () 
 
   afterEach(() => {
     resetStringAtlas()
-    matrixStateReset()
+    matrixStoreReset()
   })
 
   test("должен вернуть состояния после инициализации с переходом", async () => {

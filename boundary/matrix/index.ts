@@ -41,4 +41,5 @@
  */
 
 export {GPU} from "./device"
-export {matrixInit, matrixStateReset, matrixStateGet, matrixHeapUpdate, matrixReadChanges, matrixStep} from "./matrix"
+export {matrixInit, matrixHeapUpdate, matrixReadChanges, matrixStep} from "./matrix"
+export {matrixStoreGet, matrixStoreReset} from "./store.ts"

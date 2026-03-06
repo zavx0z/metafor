@@ -43,8 +43,8 @@ import {
   matrixReadChanges,
   matrixStep,
   matrixHeapUpdate,
-  matrixStateGet,
-  matrixStateReset
+  matrixStoreGet,
+  matrixStoreReset
 } from "@boundary/matrix"
 
 import {validateData} from "./validate"
@@ -146,7 +146,7 @@ function reset(): void {
   initialStates = null
   writeMutex = null
   updateMutex = null
-  matrixStateReset()
+  matrixStoreReset()
   resetStringAtlas()
 }
 
@@ -174,7 +174,7 @@ interface MatrixStateInternal {
  * @returns Состояние для serializeMatrix()
  */
 function getMatrixState(): MatrixStateInternal {
-  const runtimeState = matrixStateGet()
+  const runtimeState = matrixStoreGet()
   const atlas = getStringAtlas()
   const atlasExport = atlas.exportData()
 
@@ -344,7 +344,7 @@ export async function update(
   })
 
   try {
-    const state = matrixStateGet()
+    const state = matrixStoreGet()
     if (!state.heap) {
       throw new Error("Matrix not initialized. Call write() first.")
     }
@@ -441,7 +441,7 @@ function encodeFieldUpdate(
   value: unknown,
   field: Field,
   heap: Uint32Array,
-  state: ReturnType<typeof matrixStateGet>,
+  state: ReturnType<typeof matrixStoreGet>,
 ): EncodedFieldUpdate {
   const fieldType = fieldTypeToBytecodeType(field.type)
   const context: EncodingContext = {type: fieldType}
