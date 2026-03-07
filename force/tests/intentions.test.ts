@@ -10,7 +10,7 @@ import {
   releaseLock,
   type BraneStateChange,
 } from "../index"
-import type { MetaJson } from "../../metafor/build/monadJson"
+import type { MetaJson } from "@metafor/ast/dsl"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 

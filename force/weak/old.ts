@@ -7,8 +7,8 @@
 import type { Schema } from "@zavx0z/context";
 import type { Process, Processes } from "./old.t";
 import type { Mass } from "../gravity/old.t";
-import type { ProcessesSchema } from "../../metafor/meta/process.t";
-import { ProcessType } from "../../metafor/meta/process.t";
+import type { ProcessesSchema } from "../../metafor/dsl/process.t";
+import { ProcessType } from "../../metafor/dsl/process.t";
 
 export type { Process, Processes };
 

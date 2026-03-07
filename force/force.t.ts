@@ -5,7 +5,7 @@
  */
 import type { FieldsDefinition } from "./strong/field.t"
 import type { Collapse } from "@boundary/fields"
-import type { MetaJson } from "@metafor/build"
+import type { MetaJson } from "@metafor/ast"
 
 // ============================================================================
 // ОБЩИЕ ТИПЫ

@@ -1,4 +1,4 @@
-import "@metafor/meta"
+import { MetaFor } from "@metafor/dsl"
 
 export default MetaFor("git-work-add", { desc: "Git work-add — команда git" })
   .fields((field) => ({

@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import type { NodeType } from "@metafor/meta"
+import type { NodeType } from "@metafor/dsl"
 import { loadDSL } from "@force/gravity"
 
 export async function initial(path: string) {

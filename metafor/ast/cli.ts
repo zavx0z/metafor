@@ -2,7 +2,7 @@
 import { watch } from "fs"
 import { dirname, basename, join, isAbsolute } from "path"
 import { pathToFileURL } from "url"
-import "@metafor/meta"
+import { MetaFor } from "@metafor/dsl"
 
 // Обработка аргументов командной строки
 const args = process.argv.slice(2)
@@ -200,7 +200,7 @@ async function build(): Promise<boolean | string> {
     const tempCode = `
       import { pathToFileURL } from "url"
       import { convertMetaToMonadJson } from "${pathToFileURL(join(projectRoot, "dsl/build/monadJson.ts")).href}"
-      import "@metafor/meta"
+      import { MetaFor } from "@metafor/dsl"
 
       const sourceText = ${JSON.stringify(sourceText)}
       const inputFilePath = ${JSON.stringify(inputFilePath)}

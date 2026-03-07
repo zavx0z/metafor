@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { convertMetaToMonadJson, extractArrayElementTypesFromSource } from "../monadJson.ts"
-import "../../meta/metafor.ts"
+import { convertMetaToMonadJson, extractArrayElementTypesFromSource } from "../index.ts"
+import { MetaFor } from "../../dsl/metafor.ts"
 
 describe("convertMetaToMonadJson", () => {
   test("должен преобразовать fields с сохранением всех данных", () => {

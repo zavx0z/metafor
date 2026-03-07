@@ -21,7 +21,7 @@ import type {
 } from "./force.t"
 import type { FieldDefinition, FieldsDefinition } from "./strong/field.t"
 import type { MonadConfig, Intention } from "./force.t"
-import type { MetaJson } from "../metafor/build/monadJson"
+import type { MetaJson } from "@metafor/ast"
 import type { Brane, BraneValue, Data, Field } from "@boundary/fields"
 
 // ==================== Внутреннее состояние ====================

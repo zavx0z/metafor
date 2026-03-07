@@ -6,7 +6,7 @@
  *
  * @packageDocumentation
  */
-import type { Mass, Schema } from "@metafor/meta"
+import type { Mass, Schema } from "@metafor/dsl"
 import type { ProcessConfig, ActionFn } from "./load.t"
 
 /**

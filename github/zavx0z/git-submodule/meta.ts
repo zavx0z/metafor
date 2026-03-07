@@ -1,4 +1,4 @@
-import "@metafor/meta"
+import { MetaFor } from "@metafor/dsl"
 
 export default MetaFor("git-submodule", { desc: "Git submodule — управление субмодулями" })
   .fields((field) => ({

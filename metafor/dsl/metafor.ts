@@ -84,18 +84,18 @@
  * @packageDocumentation
  */
 import { contextSchema, type Schema, type Types as Fields } from "@zavx0z/context"
-import { parse, type NodeLogical, type NodeMeta, type NodeType } from "../template"
+import { parse, type NodeLogical, type NodeMeta, type NodeType } from "../template/index.ts"
 
 import { validateNoUnconditionalCycles, type Superposition } from "./states"
 import { reactionsSchema, type ReactionsDeclaration } from "./reactions"
 import { processesSchema, type ProcessesDeclaration, type ActionParams } from "./process"
 import { serializeStyle } from "./style"
 
-import type { MetaForConfig, MetaFor, BulkDeclaration, Meta, Mass, Self } from "./metafor.t"
+import type { MetaForConfig, MetaForFn, BulkDeclaration, Meta, Mass, Self } from "./metafor.t"
 
-export type { MetaFor, Meta, Self, Mass, Superposition, NodeMeta, NodeType, NodeLogical, ActionParams }
+export type { MetaForFn, Meta, Self, Mass, Superposition, NodeMeta, NodeType, NodeLogical, ActionParams }
 
-globalThis.MetaFor = function (name: string, config?: MetaForConfig) {
+export const MetaFor: MetaForFn = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc
   const dev = config?.dev ?? globalThis.DEV ?? false
   return {

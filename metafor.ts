@@ -1,5 +1,3 @@
-import "@metafor/meta"
-
 export async function load(src: string) {
   const [author, name] = src.split("/")
   if (!author || !name) {

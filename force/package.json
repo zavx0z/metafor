@@ -5,7 +5,7 @@
   "private": true,
   "devDependencies": {
     "@metafor/boundary": "workspace:*",
-    "@metafor/build": "workspace:*",
+    "@metafor/ast": "workspace:*",
     "@force/gravity": "workspace:*",
     "@force/strong": "workspace:*",
     "@force/weak": "workspace:*",

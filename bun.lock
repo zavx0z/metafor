@@ -107,8 +107,8 @@
         "@force/gravity": "workspace:*",
         "@force/strong": "workspace:*",
         "@force/weak": "workspace:*",
+        "@metafor/ast": "workspace:*",
         "@metafor/boundary": "workspace:*",
-        "@metafor/build": "workspace:*",
       },
     },
     "force/em": {
@@ -126,172 +126,175 @@
     "force/weak": {
       "name": "@force/weak",
       "devDependencies": {
-        "@metafor/meta": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git": {
       "name": "@zavx0z/git",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-collaborate": {
       "name": "@zavx0z/git-collaborate",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-config": {
       "name": "@zavx0z/git-config",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-error": {
       "name": "@zavx0z/git-error",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-examine": {
       "name": "@zavx0z/git-examine",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-history": {
       "name": "@zavx0z/git-history",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-history-commit": {
       "name": "@zavx0z/git-history-commit",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-plumbing": {
       "name": "@zavx0z/git-plumbing",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-start": {
       "name": "@zavx0z/git-start",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-start-clone": {
       "name": "@zavx0z/git-start-clone",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-start-init": {
       "name": "@zavx0z/git-start-init",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-stash": {
       "name": "@zavx0z/git-stash",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-submodule": {
       "name": "@zavx0z/git-submodule",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-work-add": {
       "name": "@zavx0z/git-work-add",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-work-clean": {
       "name": "@zavx0z/git-work-clean",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-work-mv": {
       "name": "@zavx0z/git-work-mv",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-work-restore": {
       "name": "@zavx0z/git-work-restore",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-work-rm": {
       "name": "@zavx0z/git-work-rm",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-work-sparse-checkout": {
       "name": "@zavx0z/git-work-sparse-checkout",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/meta": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
     "github/zavx0z/git-worktree": {
       "name": "@zavx0z/git-worktree",
       "version": "0.1.0",
       "devDependencies": {
-        "@metafor/build": "workspace:*",
-        "@metafor/meta": "workspace:*",
+        "@metafor/ast": "workspace:*",
+        "@metafor/dsl": "workspace:*",
       },
     },
-    "metafor/build": {
-      "name": "@metafor/build",
+    "metafor/ast": {
+      "name": "@metafor/ast",
       "bin": {
         "metafor-build": "./cli.ts",
+      },
+      "devDependencies": {
+        "@metafor/dsl": "workspace:*",
       },
     },
     "metafor/create-metafor": {
@@ -301,8 +304,8 @@
         "create-metafor": "dist/cli.js",
       },
     },
-    "metafor/meta": {
-      "name": "@metafor/meta",
+    "metafor/dsl": {
+      "name": "@metafor/dsl",
       "version": "0.4.1",
       "devDependencies": {
         "@metafor/template": "workspace:*",
@@ -337,13 +340,13 @@
 
     "@gerrit0/mini-shiki": ["@gerrit0/mini-shiki@3.22.0", "https://registry.yarnpkg.com/@gerrit0/mini-shiki/-/mini-shiki-3.22.0.tgz", { "dependencies": { "@shikijs/engine-oniguruma": "^3.22.0", "@shikijs/langs": "^3.22.0", "@shikijs/themes": "^3.22.0", "@shikijs/types": "^3.22.0", "@shikijs/vscode-textmate": "^10.0.2" } }, "sha512-jMpciqEVUBKE1QwU64S4saNMzpsSza6diNCk4MWAeCxO2+LFi2FIFmL2S0VDLzEJCxuvCbU783xi8Hp/gkM5CQ=="],
 
+    "@metafor/ast": ["@metafor/ast@workspace:metafor/ast"],
+
     "@metafor/boundary": ["@metafor/boundary@workspace:boundary"],
 
-    "@metafor/build": ["@metafor/build@workspace:metafor/build"],
+    "@metafor/dsl": ["@metafor/dsl@workspace:metafor/dsl"],
 
     "@metafor/force": ["@metafor/force@workspace:force"],
-
-    "@metafor/meta": ["@metafor/meta@workspace:metafor/meta"],
 
     "@metafor/template": ["@metafor/template@workspace:metafor/template"],
 

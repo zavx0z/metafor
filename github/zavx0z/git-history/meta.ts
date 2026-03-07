@@ -1,4 +1,4 @@
-import "@metafor/meta"
+import { MetaFor } from "@metafor/dsl"
 
 export default MetaFor("git-history", {
   desc: "Git history — команды управления историей (switch, checkout, commit, reset, revert)",

@@ -9,7 +9,7 @@
     "./monad": "./git-work-sparse-checkout.json"
   },
   "devDependencies": {
-    "@metafor/meta": "workspace:*"
+    "@metafor/dsl": "workspace:*"
   },
   "scripts": {
     "build": "metafor-build src/meta.ts --out meta.json"

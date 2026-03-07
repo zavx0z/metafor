@@ -1,4 +1,4 @@
-import "@metafor/meta"
+import { MetaFor } from "@metafor/dsl"
 
 const meta = MetaFor("git")
   .fields((field) => ({

@@ -1,6 +1,6 @@
 import type { Schema, Types, Update, Values } from "@zavx0z/context"
 import type { ProcessesDeclaration, ProcessesSchema } from "./process.t"
-import type { NodeType } from "../template"
+import type { NodeType } from "../template/index.t"
 import type { ReactionsSchema } from "./reactions.t"
 import type { Superposition } from "./states"
 import type { ReactionsDeclaration } from "./reactions"
@@ -90,7 +90,7 @@ export type Mass = Record<string, any>
  *   .bulk({ gravity: ({ value }) => html`<div>${value.name}</div>` })
  * ```
  */
-export type MetaFor = (
+export type MetaForFn = (
   name: string,
   config?: MetaForConfig,
 ) => {

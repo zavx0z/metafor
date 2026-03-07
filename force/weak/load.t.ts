@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import type { Schema, Values, Mass, Self } from "@metafor/meta"
+import type { Schema, Values, Mass, Self } from "@metafor/dsl"
 
 /**
  * Конфигурация процесса для загрузки.

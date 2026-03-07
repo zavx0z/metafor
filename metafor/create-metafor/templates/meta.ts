@@ -1,4 +1,4 @@
-import "@metafor/meta"
+import { MetaFor } from "@metafor/dsl"
 
 export default MetaFor("{{name}}", { desc: "{{description}}" })
   .fields((field) => ({

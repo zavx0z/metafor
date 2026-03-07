@@ -4,6 +4,6 @@
   "type": "module",
   "private": true,
   "devDependencies": {
-    "@metafor/meta": "workspace:*"
+    "@metafor/dsl": "workspace:*"
   }
 }

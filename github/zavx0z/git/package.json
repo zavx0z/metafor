@@ -9,8 +9,8 @@
     "./monad": "./git.json"
   },
   "devDependencies": {
-    "@metafor/meta": "workspace:*",
-    "@metafor/build": "workspace:*"
+    "@metafor/dsl": "workspace:*",
+    "@metafor/ast": "workspace:*"
   },
   "scripts": {
     "build": "metafor-build meta.ts --out meta.json"

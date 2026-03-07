@@ -1,4 +1,4 @@
-import "@metafor/meta"
+import { MetaFor } from "@metafor/dsl"
 
 export default MetaFor("git-examine", { desc: "Git examine — команды просмотра (show, status, diff, log)" })
   .fields((field) => ({
