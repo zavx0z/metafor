@@ -57,7 +57,6 @@ export {
   parseCondition,
   OP,
   TYPE,
-  reset,
   getMatrixState,
   FieldType,
 } from "./boundary"

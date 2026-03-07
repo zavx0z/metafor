@@ -3,7 +3,7 @@ import { GPU } from "./device"
 import type { MatrixInitParams } from "./matrix.t"
 import type { StringAtlasExport } from "@boundary/atlas"
 import { matrixStoreReset, store } from "./store.ts"
-import type { BoundaryStore } from "@boundary/store"
+import type { BoundaryStore } from "../store"
 
 // ============================================================================
 // INIT
@@ -48,7 +48,7 @@ export async function matrixInit(
       false,
     )
 
-    // Сохраняем данные в общее хранилище @boundary/store
+    // Сохраняем данные в общее хранилище boundary$
     store$.heap = params.heap
     store$.braneBlockPtrs = blockPtrs
   } finally {

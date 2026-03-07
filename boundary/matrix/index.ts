@@ -29,10 +29,10 @@
  * @example
  * ```typescript
  * import { GPUBackend, GPU, matrixInit, matrixStep } from "@boundary/matrix"
- * import { store as boundaryStore } from "@boundary/store"
+ * import { boundary$ } from "@boundary/boundary"
  *
  * // Инициализация GPU с инъекцией store$
- * await matrixInit(store$, { ... }, atlasExport, blockPtrs, reserveSize)
+ * await matrixInit(boundary$, { ... }, atlasExport, blockPtrs, reserveSize)
  *
  * // Выполнение шага
  * matrixStep()
@@ -43,4 +43,4 @@
 export { GPU } from "./device"
 export { matrixInit, matrixHeapUpdate, matrixReadChanges, matrixStep } from "./matrix"
 export { matrixStoreReset } from "./store.ts"
-export type { BoundaryStore } from "@boundary/store"
+export type { BoundaryStore } from "../store"

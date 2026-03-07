@@ -5,22 +5,11 @@
  */
 
 /**
- * Состояние локального хранилища `@boundary/fields`.
+ * Данные локального хранилища (без методов).
  *
- * Хранит данные, которые использует ТОЛЬКО `@boundary/fields`:
- * - {@link FieldsStore.fields | fields} — для кодирования значений в update()
- * - {@link FieldsStore.heapAllocOffset | heapAllocOffset}, {@link FieldsStore.arrayReserveSize | arrayReserveSize}, {@link FieldsStore.arrayDataInvalidated | arrayDataInvalidated} — для управления ARRAY аллокациями
- *
- * ## Почему локальное
- *
- * Эти данные не вынесены в `@boundary/store`, так как не используются другими пакетами.
- *
- * ## Жизненный цикл
- *
- * 1. **write()** — наполняет через `storeRestore()`
- * 2. **update()** — читает через `storeGet()` для кодирования и аллокации
+ * Используется для передачи состояния в `fields$.restore()`.
  */
-export interface FieldsStore {
+export interface FieldsData {
   /**
    * Определения полей из последнего вызова write().
    *
@@ -67,4 +56,33 @@ export interface FieldsStore {
    * Сбрасывается в `false` после следующего update().
    */
   arrayDataInvalidated: boolean
+}
+
+/**
+ * Состояние локального хранилища `@boundary/fields` с методами управления.
+ *
+ * Хранит данные, которые использует ТОЛЬКО `@boundary/fields`:
+ * - {@link FieldsData.fields | fields} — для кодирования значений в update()
+ * - {@link FieldsData.heapAllocOffset | heapAllocOffset}, {@link FieldsData.arrayReserveSize | arrayReserveSize}, {@link FieldsData.arrayDataInvalidated | arrayDataInvalidated} — для управления ARRAY аллокациями
+ *
+ * ## Почему локальное
+ *
+ * Эти данные не вынесены в `boundary$` (общее хранилище домена), так как не используются другими пакетами.
+ *
+ * ## Жизненный цикл
+ *
+ * 1. **write()** — наполняет через `fields$.restore()`
+ * 2. **update()** — читает напрямую из `fields$` для кодирования и аллокации
+ */
+export interface FieldsStore extends FieldsData {
+  /**
+   * Сбрасывает состояние хранилища.
+   */
+  reset(): void
+
+  /**
+   * Восстанавливает состояние хранилища из переданных данных.
+   * @param state - Данные для восстановления
+   */
+  restore(state: FieldsData): void
 }

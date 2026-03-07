@@ -37,35 +37,21 @@
  */
 
 import { getStringAtlas, resetStringAtlas } from "./atlas"
-import {
-  matrixInit,
-  matrixReadChanges,
-  matrixStep,
-  matrixHeapUpdate,
-  matrixStoreReset,
-} from "./matrix"
-import { storeRestore as commonStoreRestore, storeGet as commonStoreGet, store } from "./store"
-import { storeReset, storeGet, storeRestore } from "./fields/store"
+import { matrixInit, matrixReadChanges, matrixStep, matrixHeapUpdate, matrixStoreReset } from "./matrix"
+import { boundary$ } from "./store"
+import { fields$ } from "./fields/store"
 
 // Импорт чистых функций из @boundary/fields
 import {
   validateData,
   buildHeap,
   findFieldOffset,
-  packMeta,
-  unpackMeta,
   compileEnsemble,
-  compileSuperposition,
-  compileParsedConditions,
   encodeFieldValue,
   encodeValue,
   fieldTypeToBytecodeType,
-  floatToUint,
-  uintToFloat,
   findEntangledGroups,
   buildBraneMapping,
-  parseCondition,
-  OP,
   TYPE,
   FieldType,
   type Data,
@@ -114,7 +100,7 @@ let updateMutex: Promise<void> | null = null
  * @internal
  */
 function reset(): void {
-  storeReset()
+  fields$.reset()
   writeMutex = null
   updateMutex = null
   matrixStoreReset()
@@ -185,7 +171,7 @@ export function prepareData(data: Data): PreparedData {
   }
 
   // Кодирование local полей (принцип готового формата данных)
-  const encodedLocalFields = braneMapping.localFields.map(braneFields =>
+  const encodedLocalFields = braneMapping.localFields.map((braneFields) =>
     braneFields.map(([fieldIndex, value]) => {
       const meta = fieldMeta.get(fieldIndex)!
       const field = fieldDefs[fieldIndex]
@@ -195,7 +181,7 @@ export function prepareData(data: Data): PreparedData {
       }
       const encodedValue = encodeFieldValue(value, ctx)
       return [fieldIndex, encodedValue] as [number, number]
-    })
+    }),
   )
 
   // Динамический расчёт резерва для ARRAY на основе входных данных
@@ -251,7 +237,7 @@ export function prepareData(data: Data): PreparedData {
   }
 
   // Перекодируем local поля с ARRAY (теперь с allocateHeap)
-  const finalEncodedLocalFields = braneMapping.localFields.map(braneFields =>
+  const finalEncodedLocalFields = braneMapping.localFields.map((braneFields) =>
     braneFields.map(([fieldIndex, value]) => {
       const meta = fieldMeta.get(fieldIndex)!
       const field = fieldDefs[fieldIndex]
@@ -278,7 +264,7 @@ export function prepareData(data: Data): PreparedData {
       }
       const encodedValue = encodeValue(value, ctx)
       return [fieldIndex, encodedValue.value1] as [number, number]
-    })
+    }),
   )
 
   // Обновляем heapInput с финальными закодированными полями
@@ -378,8 +364,8 @@ interface MatrixStateInternal {
  * @returns Состояние для serializeMatrix()
  */
 export function getMatrixState(): MatrixStateInternal {
-  const localState = storeGet()
-  const commonState = commonStoreGet()
+  const localState = fields$
+  const commonState = boundary$
   const atlas = getStringAtlas()
   const atlasExport = atlas.exportData()
 
@@ -448,7 +434,7 @@ export async function write(data: Data): Promise<[number, number][]> {
     validateData(data)
 
     // 1. Сброс предыдущего состояния
-    storeReset()
+    fields$.reset()
     resetStringAtlas()
     matrixStoreReset()
 
@@ -456,15 +442,15 @@ export async function write(data: Data): Promise<[number, number][]> {
     const prepared = prepareData(data)
 
     // 3. Сохраняем локальное состояние (@boundary/fields/store)
-    storeRestore({
+    fields$.restore({
       fields: data.fields ?? [],
       heapAllocOffset: prepared.heapData.length - prepared.arrayReserveSize,
       arrayReserveSize: prepared.arrayReserveSize,
       arrayDataInvalidated: false,
     })
 
-    // 4. Сохраняем общее состояние (@boundary/store)
-    commonStoreRestore({
+    // 4. Сохраняем общее состояние (@boundary/boundary/store)
+    boundary$.restore({
       bytecode: prepared.compiledRules.bytecode,
       bytecodeOffsets: prepared.compiledRules.bytecodeOffsets,
       initialStates: prepared.initialStates,
@@ -475,7 +461,7 @@ export async function write(data: Data): Promise<[number, number][]> {
     // 5. Инициализация GPU с инъекцией store$
     const atlasExport = getStringAtlas().exportData()
     await matrixInit(
-      store,
+      boundary$,
       {
         bytecode: prepared.compiledRules.bytecode,
         bytecodeOffsets: prepared.compiledRules.bytecodeOffsets,
@@ -549,11 +535,7 @@ export async function write(data: Data): Promise<[number, number][]> {
  * ```
  */
 export async function update(
-  updates: Array<[
-    braneIndex: number,
-    fieldUpdates: Array<[fieldIndex: number, value: unknown]>,
-    lock?: boolean
-  ]>,
+  updates: Array<[braneIndex: number, fieldUpdates: Array<[fieldIndex: number, value: unknown]>, lock?: boolean]>,
 ): Promise<[number, number][]> {
   // Блокировка mutex для предотвращения конкурентных вызовов
   const prevMutex = updateMutex
@@ -568,12 +550,12 @@ export async function update(
   }
 
   try {
-    const commonState = commonStoreGet()
+    const commonState = boundary$
     if (!commonState.heap) {
       throw new Error("Matrix not initialized. Call write() first.")
     }
 
-    const localState = storeGet()
+    const localState = fields$
     if (!localState.fields.length) {
       throw new Error("Store not initialized. Call write() first.")
     }
@@ -667,7 +649,7 @@ export async function update(
  * ```
  */
 export function unlock(indexes: number[]): void {
-  const commonState = commonStoreGet()
+  const commonState = boundary$
   const { braneBlockPtrs } = commonState
 
   const unlockUpdates = indexes.map((index) => {
@@ -785,11 +767,7 @@ function buildBraneDescriptors(blockPtrs: number[], offsets: Uint32Array): Uint3
  * @param fieldIndex - Индекс поля
  * @returns Смещение значения или null
  */
-export function findFieldOffsetInHeap(
-  heap: Uint32Array,
-  blockPtr: number,
-  fieldIndex: number,
-): number | null {
+export function findFieldOffsetInHeap(heap: Uint32Array, blockPtr: number, fieldIndex: number): number | null {
   // Ищем в локальных полях
   const localOffset = findFieldOffset(heap, blockPtr, fieldIndex)
   if (localOffset !== null) {
@@ -839,9 +817,6 @@ export function writeValueToHeap(
 // Ре-экспорт типов
 export type { Field, Data, Brane, Collapse, BraneValue, FieldTypeValue } from "./fields"
 export { FieldType } from "./fields"
-
-// Ре-экспорт internal
-export { storeReset as reset } from "./fields/store"
 
 // Ре-экспорт чистых функций из fields
 export {

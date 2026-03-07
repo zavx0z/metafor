@@ -192,6 +192,76 @@ function encode(value: unknown): number
 grep "function.*\$" .  # Все грязные функции
 ```
 
+### 7.1. Мутабельное состояние с методами
+
+**Паттерн:** состояние и методы мутации в одном объекте с суффиксом `$`.
+
+✅ Правильно:
+
+```typescript
+// store.ts
+export const boundary$: BoundaryStore & {
+  reset(): void
+  restore(state: BoundaryStore): void
+} = {
+  bytecode: null as unknown as Uint32Array,
+  heap: null as unknown as Uint32Array,
+  braneBlockPtrs: [],
+  
+  reset() {
+    this.bytecode = null as unknown as Uint32Array
+    this.heap = null as unknown as Uint32Array
+    this.braneBlockPtrs = []
+  },
+  
+  restore(state: BoundaryStore) {
+    this.bytecode = state.bytecode
+    this.heap = state.heap
+    this.braneBlockPtrs = state.braneBlockPtrs
+  },
+}
+
+// Использование
+import { boundary$ } from "./store"
+boundary$.restore(state)
+boundary$.reset()
+```
+
+❌ Неправильно:
+
+```typescript
+// Отдельные функции для мутации
+export const store = { ... }
+export function storeReset() { ... }
+export function storeRestore(state) { ... }
+```
+
+**Преимущества паттерна:**
+
+- ✅ Суффикс `$` явно указывает на мутабельность
+- ✅ Методы имеют доступ к `this` — не нужно дублировать имя переменной
+- ✅ Один объект вместо трёх экспортов
+- ✅ Методы не передаются как параметры (чистые данные)
+
+**Именование:**
+
+| Объект | Суффикс | Методы |
+|--------|---------|--------|
+| `boundary$` | `$` | `reset()`, `restore()` |
+| `fields$` | `$` | `reset()`, `restore()` |
+| `matrix$` | `$` | `reset()`, `restore()` |
+
+**Применение:**
+
+```typescript
+// Оркестратор вызывает методы
+export function write(data: Data) {
+  // ... подготовка
+  boundary$.restore(preparedState)
+  fields$.restore(localState)
+}
+```
+
 ## 📋 Чек-лист для кода
 
 Перед созданием функции спроси:

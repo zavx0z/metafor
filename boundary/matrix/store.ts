@@ -7,12 +7,12 @@ import { GPUBackend } from "./backend.ts"
  *
  * ## Почему не хранит heap и braneBlockPtrs
  *
- * Эти данные вынесены в `@boundary/store` так как используются несколькими пакетами:
+ * Эти данные вынесены в `boundary$` (общее хранилище домена) так как используются несколькими пакетами:
  * - `@boundary/fields` — для update()
  * - `@boundary/matrix` — для GPU операций
  * - `@boundary/monad` — для unlock()
  *
- * @see `@boundary/store` — общее хранилище для heap, braneBlockPtrs
+ * @see `boundary$` — общее хранилище для heap, braneBlockPtrs
  */
 export interface MatrixStore {
   /** GPU бэкенд (buffers, device). */

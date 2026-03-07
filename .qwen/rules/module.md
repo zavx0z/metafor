@@ -67,11 +67,11 @@ export const store: StoreState = { field: '' }
 
 ## Store-файлы
 
-**Правило:** Для store создавай пару файлов:
+**Правило:** Для store создавай объект с состоянием и методами мутации.
 
 ```text
-{name}.t.ts  ← интерфейс {Name}Store
-{name}.ts    ← инстанс store: {Name}Store
+{name}.t.ts      ← интерфейс {Name}Store
+store.ts         ← инстанс {name}$: {Name}Store + методы
 ```
 
 **Пример:**
@@ -87,19 +87,55 @@ export interface ModuleStore {
 import type { ModuleStore } from './store.t.ts'
 
 /**
- * @property data {@link ModuleStore.data|описание}
- * @property offset {@link ModuleStore.offset|описание}
+ * @module store$ — локальное хранилище модуля.
+ *
+ * @property data {@link ModuleStore.data|данные для кодирования}
+ * @property offset {@link ModuleStore.offset|смещение для аллокаций}
  * @see {@link ModuleStore} — тип состояния
  */
-export const store: ModuleStore = {
+export const module$: ModuleStore & {
+  reset(): void
+  restore(state: ModuleStore): void
+} = {
   data: null as unknown as Uint32Array,
   offset: 0,
+  
+  reset() {
+    this.data = null as unknown as Uint32Array
+    this.offset = 0
+  },
+  
+  restore(state: ModuleStore) {
+    this.data = state.data
+    this.offset = state.offset
+  },
 }
 ```
 
+**Использование:**
+
+```typescript
+// Оркестратор
+import { module$ } from './store'
+
+export function write(data: Data) {
+  module$.restore(preparedState)
+}
+
+// Чтение напрямую
+const { data, offset } = module$
+```
+
+**Суффикс `$`:**
+
+- Указывает на мутабельность объекта
+- Методы `reset()` и `restore()` мутируют `this`
+- Чтение состояния — прямое обращение к полям
+
 **См. также:**
 
-* `.qwen/rules/tsdoc.md#2-Store-TSDoc` — формат документации store
+* `.qwen/rules/fp.md#7.1-Мутабельное-состояние-с-методами` — паттерн store$
+* `.qwen/rules/tsdoc.md#2-Store-TSDoc` — формат документации
 * `.qwen/rules/packages.md#2-Хранилища-store` — где размещать store
 
 ---

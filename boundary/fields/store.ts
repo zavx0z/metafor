@@ -1,5 +1,5 @@
 /**
- * @boundary/fields — локальное хранилище данных.
+ * @boundary/fields/store — локальное хранилище данных.
  *
  * @packageDocumentation
  *
@@ -8,6 +8,7 @@
  * @see {@link FieldsStore} — тип состояния с документацией полей
  */
 
+export type { FieldsStore, FieldsData } from "./store.t.ts"
 import type { Field } from "./index.t.ts"
 import type { FieldsStore } from "./store.t.ts"
 
@@ -23,43 +24,23 @@ import type { FieldsStore } from "./store.t.ts"
  *
  * @see {@link FieldsStore} — тип состояния с документацией полей
  */
-export const store: FieldsStore = {
+export const fields$: FieldsStore = {
   fields: [] as Field[],
   heapAllocOffset: 0,
   arrayReserveSize: 0,
   arrayDataInvalidated: false,
-}
 
-/**
- * Сбрасывает состояние store.
- * @internal
- */
-export function storeReset(): void {
-  store.fields = [] as Field[]
-  store.heapAllocOffset = 0
-  store.arrayReserveSize = 0
-  store.arrayDataInvalidated = false
-}
+  reset() {
+    this.fields = [] as Field[]
+    this.heapAllocOffset = 0
+    this.arrayReserveSize = 0
+    this.arrayDataInvalidated = false
+  },
 
-/**
- * Получает текущее состояние store.
- */
-export function storeGet(): FieldsStore {
-  return {
-    fields: store.fields,
-    heapAllocOffset: store.heapAllocOffset,
-    arrayReserveSize: store.arrayReserveSize,
-    arrayDataInvalidated: store.arrayDataInvalidated,
-  }
-}
-
-/**
- * Восстанавливает состояние store.
- * @internal
- */
-export function storeRestore(state: FieldsStore): void {
-  store.fields = state.fields
-  store.heapAllocOffset = state.heapAllocOffset
-  store.arrayReserveSize = state.arrayReserveSize
-  store.arrayDataInvalidated = state.arrayDataInvalidated
+  restore(state: FieldsStore) {
+    this.fields = state.fields
+    this.heapAllocOffset = state.heapAllocOffset
+    this.arrayReserveSize = state.arrayReserveSize
+    this.arrayDataInvalidated = state.arrayDataInvalidated
+  },
 }

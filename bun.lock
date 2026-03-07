@@ -24,7 +24,6 @@
         "@boundary/atlas": "workspace:*",
         "@boundary/fields": "workspace:*",
         "@boundary/matrix": "workspace:*",
-        "@boundary/store": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -64,7 +63,6 @@
         "@boundary/atlas": "workspace:*",
         "@boundary/dump": "workspace:*",
         "@boundary/matrix": "workspace:*",
-        "@boundary/store": "workspace:*",
       },
       "devDependencies": {
         "@types/bun": "latest",
@@ -79,16 +77,6 @@
       "dependencies": {
         "@boundary/atlas": "workspace:*",
       },
-      "devDependencies": {
-        "@types/bun": "latest",
-      },
-      "peerDependencies": {
-        "typescript": "^5",
-      },
-    },
-    "boundary/store": {
-      "name": "@boundary/store",
-      "version": "0.0.1",
       "devDependencies": {
         "@types/bun": "latest",
       },
@@ -299,9 +287,6 @@
       "bin": {
         "metafor-build": "./cli.ts",
       },
-      "peerDependencies": {
-        "typescript": "^5",
-      },
     },
     "metafor/create-metafor": {
       "name": "create-metafor",
@@ -325,10 +310,7 @@
     "space": {
       "name": "space",
       "devDependencies": {
-        "@force/weak": "workspace:*",
-        "@metafor/build": "workspace:*",
         "@metafor/force": "workspace:*",
-        "@metafor/meta": "workspace:*",
       },
     },
   },
@@ -344,8 +326,6 @@
     "@boundary/fields": ["@boundary/fields@workspace:boundary/fields"],
 
     "@boundary/matrix": ["@boundary/matrix@workspace:boundary/matrix"],
-
-    "@boundary/store": ["@boundary/store@workspace:boundary/store"],
 
     "@force/em": ["@force/em@workspace:force/em"],
 

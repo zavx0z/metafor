@@ -23,9 +23,9 @@
 ```text
 metafor/                            ← проект (metafor)
 ├── boundary/                       ← домен (@metafor/boundary)
-│   ├── boundary/store/             ← пакет (@boundary/store)
 │   ├── boundary/fields/            ← пакет (@boundary/fields)
-│   └── boundary/matrix/            ← пакет (@boundary/matrix)
+│   ├── boundary/matrix/            ← пакет (@boundary/matrix)
+│   └── boundary/store.ts           ← общее хранилище (boundary$)
 ├── force/                          ← домен (@metafor/force)
 │   ├── force/monad/                ← пакет (@force/monad)
 │   └── force/em/                   ← пакет (@force/em)
@@ -40,10 +40,10 @@ metafor/                            ← проект (metafor)
 
 ### Типы хранилищ
 
-| Тип           | Путь к пакету         | Файл store                    | Имя пакета            | Для чего                             |
-| ------------- | --------------------- | ----------------------------- | --------------------- | ------------------------------------ |
-| **Локальное** | `{domain}/{package}/` | `{domain}/{package}/store.ts` | `@{domain}/{package}` | Данные для одного пакета             |
-| **Общее**     | `{domain}/store/`     | `{domain}/store/store.ts`     | `@{domain}/store`     | Данные для нескольких пакетов домена |
+| Тип           | Путь к модулю       | Файл store              | Имя переменной | Для чего                             |
+| ------------- | ------------------- | ----------------------- | -------------- | ------------------------------------ |
+| **Локальное** | `{domain}/{package}/` | `{package}/store.ts`    | `{name}$`      | Данные для одного пакета             |
+| **Общее**     | `{domain}/`         | `{domain}/store.ts`     | `{domain}$`    | Данные для нескольких пакетов домена |
 
 ### Правило размещения данных
 
@@ -58,20 +58,20 @@ metafor/                            ← проект (metafor)
 
 ```typescript
 // ❌ НЕПРАВИЛЬНО: данные одного пакета в общем store
-// boundary/store/store.ts
-export const store = {
+// boundary/store.ts
+export const boundary$ = {
   fieldsConfig: Config[],  // Использует только @boundary/fields
 }
 
 // ✅ ПРАВИЛЬНО: данные одного пакета локально
 // boundary/fields/store.ts
-export const store = {
+export const fields$ = {
   fieldsConfig: Config[],
 }
 
 // ✅ ПРАВИЛЬНО: общие данные в общем store
-// boundary/store/store.ts
-export const store = {
+// boundary/store.ts
+export const boundary$ = {
   heap: Uint32Array | null,      // Используют: @boundary/fields, @boundary/matrix
   braneBlockPtrs: number[],      // Используют: @boundary/fields, @boundary/matrix
 }
@@ -84,8 +84,8 @@ export const store = {
 Перед добавлением поля в store спроси:
 
 1. Какие пакеты будут использовать это поле?
-2. Это 2+ пакета **домена**? → **Общее хранилище домена**
-3. Это 1 пакет? → **Локальное хранилище пакета**
+2. Это 2+ пакета **домена**? → **Общее хранилище домена** (`boundary$`)
+3. Это 1 пакет? → **Локальное хранилище пакета** (`fields$`, `matrix$`)
 
 ---
 
@@ -94,7 +94,7 @@ export const store = {
 ```text
 {domain}/{package}/orchestrator
     ↓
-{domain}/store/
+{domain}/store.ts (boundary$)
     ↓
 {domain}/{package}/executor
 ```
@@ -102,31 +102,59 @@ export const store = {
 | Пакет           | Ответственность                    | Пример             |
 | --------------- | ---------------------------------- | ------------------ |
 | **Оркестратор** | Валидация, кодирование, компиляция | `@boundary/fields` |
-| **Хранилище**   | Общие данные между пакетами домена | `@boundary/store`  |
+| **Хранилище**   | Общие данные между пакетами домена | `boundary$`        |
 | **Исполнитель** | Низкоуровневые операции            | `@boundary/matrix` |
 | **Семантика**   | Бизнес-логика, состояния           | `@force/monad`     |
 
 ---
 
-## Структура store-пакета
+## Структура store-модуля
+
+**Правило:** store — это модуль внутри пакета, не отдельный пакет.
 
 ```text
-{domain}/store/
-├── store.t.ts      ← интерфейс {Domain}Store
-├── store.ts        ← инстанс store
-└── package.json    ← имя: @{domain}/store
+{domain}/{package}/
+├── {package}.ts        ← оркестратор пакета
+├── store.t.ts          ← интерфейс {Package}Store
+├── store.ts            ← инстанс {name}$ с методами
+└── package.json        ← имя: @{domain}/{package}
 ```
 
 **Пример:**
 
 ```text
-boundary/store/
-├── store.t.ts      ← интерфейс BoundaryStore
-├── store.ts        ← инстанс store: BoundaryStore
-└── package.json    ← имя: @boundary/store
+boundary/fields/
+├── fields.ts           ← оркестратор @boundary/fields
+├── store.t.ts          ← интерфейс FieldsStore
+├── store.ts            ← инстанс fields$ с методами
+└── package.json        ← имя: @boundary/fields
 ```
+
+**Общее хранилище домена:**
+
+Если данные используют несколько пакетов домена — создай store-модуль в корне домена:
+
+```text
+boundary/
+├── boundary.ts         ← оркестратор домена
+├── store.t.ts          ← интерфейс BoundaryStore
+├── store.ts            ← инстанс boundary$ с методами
+├── fields/
+│   ├── fields.ts
+│   └── store.ts        ← локальное fields$
+├── matrix/
+│   └── matrix.ts
+└── package.json        ← имя: @boundary/boundary
+```
+
+**Правило размещения:**
+
+| Ситуация | Где хранить | Имя |
+|----------|-------------|-----|
+| Использует **один** пакет | `{package}/store.ts` | `fields$`, `matrix$` |
+| Используют **несколько** пакетов домена | `{domain}/store.ts` | `boundary$` |
 
 **См. также:**
 
-* `.qwen/rules/module.md#3-Store-файлы` — структура файлов store
-* `.qwen/rules/tsdoc.md#2-Store-TSDoc` — формат документации
+* `.qwen/rules/module.md#Store-файлы` — структура файлов store
+* `.qwen/rules/fp.md#7.1-Мутабельное-состояние-с-методами` — паттерн store$

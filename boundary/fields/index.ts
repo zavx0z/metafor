@@ -30,7 +30,7 @@
  * ```
  */
 
-import { storeReset } from "./store"
+import { fields$ } from "./store"
 import { validateData } from "./validate"
 import { buildHeap, findFieldOffset, packMeta, unpackMeta } from "./heap"
 import type { HeapInput } from "./heap.t"
@@ -73,7 +73,7 @@ export {
   OP,
   TYPE,
   // Internal
-  storeReset,
+  fields$,
 }
 
 export type {

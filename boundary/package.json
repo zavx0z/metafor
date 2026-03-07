@@ -10,8 +10,7 @@
   "dependencies": {
     "@boundary/atlas": "workspace:*",
     "@boundary/fields": "workspace:*",
-    "@boundary/matrix": "workspace:*",
-    "@boundary/store": "workspace:*"
+    "@boundary/matrix": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest"
