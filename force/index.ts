@@ -17,3 +17,4 @@ export {
 } from "./force"
 
 export { convertField } from "./field"
+export type { FieldDefinition, FieldsDefinition, BraneStateChange, MonadUpdate } from "./index.t"

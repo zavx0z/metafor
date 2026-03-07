@@ -9,7 +9,7 @@ import {
   getProcessSchema,
   releaseLock,
   type BraneStateChange,
-} from "../force"
+} from "../index"
 import type { ParsedProcessJson } from "../../metafor/build/monadJson"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"

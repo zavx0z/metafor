@@ -6,7 +6,7 @@
 
 import { write as fieldsWrite, update as fieldsUpdate, unlock } from "@metafor/boundary"
 import { convertField } from "./field"
-import { convertToNumeric } from "./superposition"
+import { convertToNumeric } from "./superposition.t"
 
 import type {
   IntentionsStore,
@@ -16,27 +16,13 @@ import type {
   SuperpositionsStore,
   UuidToIndexStore,
   ProcessesStore,
+  BraneStateChange,
+  MonadUpdate,
 } from "./force.t"
-import type { FieldDefinition, FieldsDefinition } from "./field"
+import type { FieldDefinition, FieldsDefinition } from "./field.t"
 import type { MonadConfig, Intention } from "./force.t"
 import type { ParsedProcessJson } from "../metafor/build/monadJson"
 import type { Brane, BraneValue, Data, Field } from "@boundary/fields"
-
-/**
- * Изменение состояния браны.
- */
-export interface BraneStateChange {
-  /** UUID монады */
-  monadId: MonadId
-  /** Предыдущее состояние (undefined при первой инициализации) */
-  oldState: string | undefined
-  /** Текущее состояние */
-  newState: string
-  /** Намерение (ключ процесса) если есть */
-  intention?: Intention | null
-  /** Текущие значения монады */
-  values: Record<string, unknown>
-}
 
 // ==================== Внутреннее состояние ====================
 const _globalFields: Map<string, [number, Field]> = new Map()
@@ -317,18 +303,6 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
   }
 
   return changes
-}
-
-/**
- * Обновление одной или нескольких монад.
- */
-export interface MonadUpdate {
-  /** UUID монады */
-  uuid: string
-  /** Новые значения полей (пустой объект для разблокировки без изменений) */
-  fields?: Record<string, unknown>
-  /** Если true, блокирует переходы; если false — разблокирует; undefined — не менять */
-  lock?: boolean
 }
 
 /**

@@ -7,7 +7,7 @@ import {
   onStateChange,
   _resetState,
   type BraneStateChange,
-} from "../force"
+} from "../index"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 

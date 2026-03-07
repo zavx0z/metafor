@@ -3,7 +3,7 @@
  *
  * @packageDocumentation
  */
-import type { FieldsDefinition } from "./field"
+import type { FieldsDefinition } from "./field.t"
 import type { Collapse } from "@boundary/fields"
 import type { ParsedProcessJson } from "../metafor/build/monadJson"
 
@@ -198,3 +198,35 @@ export type UuidToIndexStore = Map<MonadId, BraneIndex>
  * - **Значение:** {@link MonadId}
  */
 export type IndexToUuidStore = Map<BraneIndex, MonadId>
+
+// ============================================================================
+// ТИПЫ ДЛЯ FORCE.TS
+// ============================================================================
+
+/**
+ * Изменение состояния браны.
+ */
+export interface BraneStateChange {
+  /** UUID монады */
+  monadId: MonadId
+  /** Предыдущее состояние (undefined при первой инициализации) */
+  oldState: string | undefined
+  /** Текущее состояние */
+  newState: string
+  /** Намерение (ключ процесса) если есть */
+  intention?: Intention | null
+  /** Текущие значения монады */
+  values: Record<string, unknown>
+}
+
+/**
+ * Обновление одной или нескольких монад.
+ */
+export interface MonadUpdate {
+  /** UUID монады */
+  uuid: string
+  /** Новые значения полей (пустой объект для разблокировки без изменений) */
+  fields?: Record<string, unknown>
+  /** Если true, блокирует переходы; если false — разблокирует; undefined — не менять */
+  lock?: boolean
+}
