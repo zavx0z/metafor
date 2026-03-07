@@ -1,15 +1,38 @@
 # Архитектура пакетов и хранилищ
 
-## Иерархия пакетов
+## Определения
 
-``` text
- @{project}/ (корень проекта)
- ├── @{project}/{domain} (домен)
- │   ├── @{domain}/{package}
- ├── @{project}/{domain}
+| Термин     | Путь                  | Имя пакета            | Пример              |
+| ---------- | --------------------- | --------------------- | ------------------- |
+| **Проект** | `{project}/`          | `{project}`           | `metafor`           |
+| **Домен**  | `{domain}/`           | `@{project}/{domain}` | `@metafor/boundary` |
+| **Пакет**  | `{domain}/{package}/` | `@{domain}/{package}` | `@boundary/fields`  |
+
+**Структура:**
+
+```text
+{project}/
+├── {domain}/                       ← домен
+│   ├── {domain}/{package}/         ← пакет
+│   └── {domain}/{package}/         ← пакет
+└── {domain}/                       ← другой домен
 ```
 
-**Правило импортов:** пакеты могут импортировать из вышестоящего root, но не наоборот.
+**Пример:**
+
+```text
+metafor/                            ← проект (metafor)
+├── boundary/                       ← домен (@metafor/boundary)
+│   ├── boundary/store/             ← пакет (@boundary/store)
+│   ├── boundary/fields/            ← пакет (@boundary/fields)
+│   └── boundary/matrix/            ← пакет (@boundary/matrix)
+├── force/                          ← домен (@metafor/force)
+│   ├── force/monad/                ← пакет (@force/monad)
+│   └── force/em/                   ← пакет (@force/em)
+└── space/                          ← домен (@metafor/space)
+```
+
+**Правило импортов:** пакеты могут импортировать из вышестоящего уровня, но не наоборот.
 
 ---
 
@@ -17,10 +40,10 @@
 
 ### Типы хранилищ
 
-| Тип       | Где                  | Для чего                             |
-| --------- | -------------------- | ------------------------------------ |
-| Локальное | `@{pkg}/store.ts`    | Данные для одного пакета             |
-| Общее     | `@{domain}/store.ts` | Данные для нескольких пакетов domain |
+| Тип           | Путь к пакету         | Файл store                    | Имя пакета            | Для чего                             |
+| ------------- | --------------------- | ----------------------------- | --------------------- | ------------------------------------ |
+| **Локальное** | `{domain}/{package}/` | `{domain}/{package}/store.ts` | `@{domain}/{package}` | Данные для одного пакета             |
+| **Общее**     | `{domain}/store/`     | `{domain}/store/store.ts`     | `@{domain}/store`     | Данные для нескольких пакетов домена |
 
 ### Правило размещения данных
 
@@ -29,28 +52,28 @@
 | Ситуация                                | Где хранить                      |
 | --------------------------------------- | -------------------------------- |
 | Использует **один** пакет               | Локальное хранилище этого пакета |
-| Используют **несколько** пакетов domain | Общее хранилище domain           |
+| Используют **несколько** пакетов домена | Общее хранилище домена           |
 
 ### Пример
 
 ```typescript
 // ❌ НЕПРАВИЛЬНО: данные одного пакета в общем store
-// @{domain}/store.ts
+// boundary/store/store.ts
 export const store = {
-  localData: string[],  // Использует только один пакет
+  fieldsConfig: Config[],  // Использует только @boundary/fields
 }
 
 // ✅ ПРАВИЛЬНО: данные одного пакета локально
-// @{domain}/{package}/store.ts
+// boundary/fields/store.ts
 export const store = {
-  localData: string[],
+  fieldsConfig: Config[],
 }
 
 // ✅ ПРАВИЛЬНО: общие данные в общем store
-// @{domain}/store.ts
+// boundary/store/store.ts
 export const store = {
-  sharedData: Uint32Array | null,      // {package}-a + {package}-b + {package}-c
-  offsets: number[],                   // {package}-a + {package}-b + {package}-c
+  heap: Uint32Array | null,      // Используют: @boundary/fields, @boundary/matrix
+  braneBlockPtrs: number[],      // Используют: @boundary/fields, @boundary/matrix
 }
 ```
 
@@ -61,40 +84,46 @@ export const store = {
 Перед добавлением поля в store спроси:
 
 1. Какие пакеты будут использовать это поле?
-1. Это 2+ пакета? → **Общее хранилище domain**
-1. Это 1 пакет? → **Локальное хранилище пакета**
-1. Пакет импортирует из нижестоящего root? → **Ошибка архитектуры**
+2. Это 2+ пакета **домена**? → **Общее хранилище домена**
+3. Это 1 пакет? → **Локальное хранилище пакета**
 
 ---
 
 ## Поток данных
 
-``` text
-@{domain}/{orchestrator}
-    ↓ write()
-@{domain}/store
-    ↓ init()
-@{domain}/{executor}
-    ↓ storeGet()
-@{domain}/{semantics}
+```text
+{domain}/{package}/orchestrator
+    ↓
+{domain}/store/
+    ↓
+{domain}/{package}/executor
 ```
 
-| Пакет       | Ответственность                    |
-| ----------- | ---------------------------------- |
-| Оркестратор | Валидация, кодирование, компиляция |
-| Хранилище   | Общие данные между пакетами domain |
-| Исполнитель | Низкоуровневые операции            |
-| Семантика   | Бизнес-логика, состояния           |
+| Пакет           | Ответственность                    | Пример             |
+| --------------- | ---------------------------------- | ------------------ |
+| **Оркестратор** | Валидация, кодирование, компиляция | `@boundary/fields` |
+| **Хранилище**   | Общие данные между пакетами домена | `@boundary/store`  |
+| **Исполнитель** | Низкоуровневые операции            | `@boundary/matrix` |
+| **Семантика**   | Бизнес-логика, состояния           | `@force/monad`     |
 
 ---
 
 ## Структура store-пакета
 
-``` text
-@{domain}/store/
-├── store.t.ts  ← интерфейс DomainStore
-├── store.ts    ← инстанс store: DomainStore
-└── package.json
+```text
+{domain}/store/
+├── store.t.ts      ← интерфейс {Domain}Store
+├── store.ts        ← инстанс store
+└── package.json    ← имя: @{domain}/store
+```
+
+**Пример:**
+
+```text
+boundary/store/
+├── store.t.ts      ← интерфейс BoundaryStore
+├── store.ts        ← инстанс store: BoundaryStore
+└── package.json    ← имя: @boundary/store
 ```
 
 **См. также:**

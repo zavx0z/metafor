@@ -5,7 +5,7 @@
     "@metafor/build": "workspace:*",
     "@metafor/meta": "workspace:*",
     "@force/weak": "workspace:*",
-    "@boundary/monad": "workspace:*"
+    "@metafor/force": "workspace:*"
   },
   "scripts": {
     "app": "bun server"

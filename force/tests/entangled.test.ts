@@ -6,7 +6,7 @@ import {
   _resetState,
   onStateChange,
   type BraneStateChange,
-} from "../monad"
+} from "../force"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 

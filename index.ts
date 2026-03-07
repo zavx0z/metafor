@@ -1,4 +1,4 @@
-import { createMonad, onStateChange, updateBoundary } from "@boundary/monad"
+import { createMonad, onStateChange, updateBoundary } from "@metafor/force"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 GPU._device = await setupDevice()

@@ -1,5 +1,5 @@
 /**
- * Monad — минимальный конечный автомат (модуль).
+ * Force — домен бизнес-логики (монады, состояния, намерения).
  *
  * @packageDocumentation
  */
@@ -16,9 +16,9 @@ import type {
   SuperpositionsStore,
   UuidToIndexStore,
   ProcessesStore,
-} from "./monad.t"
+} from "./force.t"
 import type { FieldDefinition, FieldsDefinition } from "./field"
-import type { MonadConfig, Intention } from "./types"
+import type { MonadConfig, Intention } from "./force.t"
 import type { ParsedProcessJson } from "../metafor/build/monadJson"
 import type { Brane, BraneValue, Data, Field } from "@boundary/fields"
 

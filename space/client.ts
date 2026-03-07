@@ -1,5 +1,6 @@
 import.meta.hot.accept()
-import { createMonad, updateBoundary, deleteMonad, releaseLock, type BraneStateChange } from "@boundary/monad"
+import { createMonad, updateBoundary, deleteMonad, releaseLock } from "@metafor/force"
+import type { BraneStateChange } from "@metafor/force/index.t"
 import { executeProcess, loadAction } from "../force/weak/load"
 import { loadDSL } from "../force/gravity/func/load"
 import { type NodeType } from "@metafor/meta"

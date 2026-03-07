@@ -5,7 +5,7 @@
  */
 
 import type { Collapse } from "@boundary/fields"
-import type { Superposition } from "./types"
+import type { Superposition } from "./force.t"
 
 /**
  * Результат конвертации суперпозиции.

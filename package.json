@@ -5,15 +5,15 @@
   "type": "module",
   "private": true,
   "workspaces": [
-    "boundary/*",
     "boundary",
+    "boundary/*",
+    "force",
     "force/*",
     "metafor/*",
-    "fixture",
     "bulk/*",
     "space",
     "github/**/*",
-    "monad"
+    "fixture"
   ],
   "devDependencies": {
     "@types/bun": "^1.3.10",
