@@ -196,7 +196,7 @@ interface ActorRecord {
   src: string
   parentUuid: string | null
   orderKey: Uint8Array
-  monadId?: string
+  actorId?: string
   status: 'pending' | 'active' | 'deleted'
 }
 ```
@@ -272,7 +272,7 @@ interface ActorRecord {
   src: string
   parentUuid: string | null
   orderKey: Uint8Array
-  monadId?: string
+  actorId?: string
   status: 'pending' | 'active' | 'deleted'
 }
 ```
@@ -287,13 +287,13 @@ interface ActorRecord {
 
 **Контекст:**
 
-Когда у нескольких монад **одинаковые значения полей**, нет смысла дублировать данные в GPU-памяти. Вместо этого создаётся **entangled блок** с общими данными.
+Когда у нескольких акторов **одинаковые значения полей**, нет смысла дублировать данные в GPU-памяти. Вместо этого создаётся **entangled блок** с общими данными.
 
 **Пример:**
 
 ```typescript
-// Монада 1: { count: 42 }
-// Монада 2: { count: 42 }  // ← одинаковое значение
+// Актор 1: { count: 42 }
+// Актор 2: { count: 42 }  // ← одинаковое значение
 // Вместо хранения дважды → общий entangled блок
 ```
 
@@ -335,14 +335,14 @@ export function _resetStore(): void
 ```typescript
 // client.ts
 import { computeEntangled } from "force/gravity/store/entangled"
-import { updateBoundary } from "monad"
+import { updateBoundary } from "force"
 
 async function syncActors() {
   const actors = storeActor.getAllActors()
   const entangled = computeEntangled(actors)
   
   for (const actor of actors) {
-    createMonad({ uuid: actor.uuid, ... })
+    createActor({ uuid: actor.uuid, ... })
   }
   
   await updateBoundary(entangled)  // ← передача готовых данных
@@ -611,8 +611,8 @@ async function syncActors(
   // 4. Удаляем лишних
   for (const uuid of toDelete) {
     const actor = getActor(uuid)
-    if (actor?.monadId) {
-      deleteActor(actor.monadId)
+    if (actor?.actorId) {
+      deleteActor(actor.actorId)
     }
     deleteActor(uuid)
     removeChild(parentUuid, uuid)
@@ -652,11 +652,11 @@ async function syncActors(
 
 **Задачи:**
 
-1. [ ] Импорт из `func/traverse`, `store/*`, `monad`
+1. [ ] Импорт из `func/traverse`, `store/*`, `force`
 2. [ ] Diff desired vs current
-3. [ ] Создание акторов + монад
-4. [ ] Удаление акторов + монад
-5. [ ] Связь `ActorRecord.uuid → monadId`
+3. [ ] Создание акторов + акторов
+4. [ ] Удаление акторов + акторов
+5. [ ] Связь `ActorRecord.uuid → actorId`
 6. [ ] Вычисление и передача `entangled`
 7. [ ] Логирование изменений
 
@@ -727,7 +727,7 @@ function shallowEqual(a: Record<string, unknown>, b: Record<string, unknown>): b
 1. [ ] `traverseHierarchy()` с `log`/`cond`/`map`
 2. [ ] `computeEntangled()` с одинаковыми values
 3. [ ] `updateBoundary(entangled)` с общими блоками
-4. [ ] Полный цикл: AST → монады → boundary
+4. [ ] Полный цикл: AST → акторовы → boundary
 
 ---
 
@@ -785,7 +785,7 @@ function shallowEqual(a: Record<string, unknown>, b: Record<string, unknown>): b
 | **Запутанность** | Оптимизация GPU-памяти через общие блоки для одинаковых полей |
 | **Обходчик** | Функция `traverseHierarchy()` — обход AST с вычислением условий |
 | **Парсер** | ❌ Не используется — условия вычисляются на лету |
-| **ActorRecord** | Запись актора в store (uuid, src, parentUuid, orderKey, monadId, status) |
+| **ActorRecord** | Запись актора в store (uuid, src, parentUuid, orderKey, actorId, status) |
 | **EntangledData** | Готовые данные для `updateBoundary()` (entangledBraneIds, analysis) |
 
 ---

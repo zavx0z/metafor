@@ -139,11 +139,11 @@
 │    //   fields: { operation: "start", args: "" }        │
 │    // }]                                                │
 │                                                         │
-│    // 4. Создаём акторы + монады                        │
+│    // 4. Создаём акторы + акторовы                        │
 │    for (const { src, fields } of manifests) {           │
 │      const uuid = crypto.randomUUID()                   │
 │      createActor(uuid, src, parentUuid, orderKey)       │
-│      createMonad({ uuid, fields })                      │
+│      createActor({ uuid, fields })                      │
 │    }                                                    │
 │                                                         │
 │    // 5. Передаём ЯВНУЮ запутанность в Boundary         │
@@ -153,9 +153,9 @@
 │    })                                                   │
 │  }                                                      │
 └─────────────────────────────────────────────────────────┘
-         ↓ updateBoundary() from monad/monad.ts
+         ↓ updateBoundary() from force/force.ts
 ┌─────────────────────────────────────────────────────────┐
-│ 6. Monad (подготовка для Boundary)                      │
+│ 6. Force (подготовка для Boundary)                      │
 │                                                         │
 │  updateBoundary({ manifests, entangled })               │
 │    ↓                                                    │
@@ -375,12 +375,12 @@ function evaluateFields(
 ): Record<string, unknown>
 ```
 
-### 5. Monad — передача явной запутанности (модификация)
+### 5. Force — передача явной запутанности (модификация)
 
 | Файл | Статус | Задачи |
 |------|--------|--------|
-| `monad/monad.ts` | ⬜ | `updateBoundary({ manifests, entangled })` |
-| `monad/monad.t.ts` | ⬜ | типы для явной запутанности |
+| `force/force.ts` | ⬜ | `updateBoundary({ manifests, entangled })` |
+| `force/force.t.ts` | ⬜ | типы для явной запутанности |
 
 ### 6. Boundary — использование явной запутанности (модификация)
 
@@ -472,12 +472,12 @@ const manifests = activeManifests.map(m => ({
 
 ---
 
-### Этап 3: Monad — передача явной запутанности
+### Этап 3: Force — передача явной запутанности
 
 **Файлы:**
 
-- `monad/monad.t.ts`
-- `monad/monad.ts`
+- `force/force.t.ts`
+- `force/force.ts`
 
 **Задачи:**
 
@@ -587,7 +587,7 @@ test("полный поток: DSL → Matrix с явной запутаннос
       fields: evaluateFields(m.fields, { value: { operation: "start" } })
     }))
 
-  // 4. Monad → Boundary
+  // 4. Force → Boundary
   await updateBoundary({ manifests, entangled: structure.entangled })
 
   // 5. Boundary → Heap
@@ -616,7 +616,7 @@ test("полный поток: DSL → Matrix с явной запутаннос
 |------|-------|
 | **Этап 1: Gravity** | 2 часа |
 | **Этап 2: Space** | 1 час |
-| **Этап 3: Monad** | 0.5 часа |
+| **Этап 3: Force** | 0.5 часа |
 | **Этап 4: Boundary** | 1.5 часа |
 | **Тесты** | 1 час |
 | **Итого** | **6 часов** |
