@@ -2,9 +2,6 @@
   "name": "space",
   "private": true,
   "devDependencies": {
-    "@metafor/build": "workspace:*",
-    "@metafor/meta": "workspace:*",
-    "@force/weak": "workspace:*",
     "@metafor/force": "workspace:*"
   },
   "scripts": {

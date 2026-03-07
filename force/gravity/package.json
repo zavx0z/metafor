@@ -1,7 +1,7 @@
 {
   "name": "@force/gravity",
   "module": "index.ts",
-  "types": "index.t.ts",
+  "types": "index.ts",
   "type": "module",
   "private": true,
   "devDependencies": {}
