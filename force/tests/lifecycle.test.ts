@@ -1,8 +1,8 @@
 import { describe, it, expect, beforeAll, afterEach } from "bun:test"
 import {
-  createMonad,
-  deleteMonad,
-  updateMonads,
+  createActor,
+  deleteActor,
+  updateActors,
   updateBoundary,
   onStateChange,
   _resetState,
@@ -15,11 +15,11 @@ beforeAll(async () => {
   GPU._device = await setupDevice()
 })
 
-const _createdMonadIds: string[] = []
+const _createdActorIds: string[] = []
 
 afterEach(() => {
   _resetState()
-  _createdMonadIds.length = 0
+  _createdActorIds.length = 0
 })
 
 describe("Monad — Жизненный цикл", () => {
@@ -39,7 +39,7 @@ describe("Monad — Жизненный цикл", () => {
     })
 
     const uuid = crypto.randomUUID()
-    const monadUuid = createMonad({
+    const actorUuid = createActor({
       uuid,
       fields: { hp: { type: "number" } },
       values: { hp: 30 },
@@ -49,7 +49,7 @@ describe("Monad — Жизненный цикл", () => {
       },
       intentions: {},
     })
-    _createdMonadIds.push(monadUuid)
+    _createdActorIds.push(actorUuid)
 
     await updateBoundary()
 
@@ -57,14 +57,14 @@ describe("Monad — Жизненный цикл", () => {
     expect(stateChanged).toBe(false) // событие рождения игнорируется фильтром runtimeChanges
 
     // Обновляем hp → должен перейти в PATROL
-    await updateMonads([{ uuid: monadUuid, fields: { hp: 80 } }])
+    await updateActors([{ uuid: actorUuid, fields: { hp: 80 } }])
 
     expect(stateChanged).toBe(true)
     expect(oldState).toBe("IDLE")
     expect(currentState).toBe("PATROL")
 
     // Удаляем монаду
-    deleteMonad(monadUuid)
+    deleteActor(actorUuid)
     expect(true).toBe(true)
   })
 
@@ -75,7 +75,7 @@ describe("Monad — Жизненный цикл", () => {
     onStateChange((changes) => {
       for (const change of changes) {
         if (change.oldState === undefined) continue
-        if (change.monadId === _createdMonadIds[0]) {
+        if (change.actorId === _createdActorIds[0]) {
           states1.push(change.newState)
         } else {
           states2.push(change.newState)
@@ -84,7 +84,7 @@ describe("Monad — Жизненный цикл", () => {
     })
 
     const uuid1 = crypto.randomUUID()
-    const monadUuid1 = createMonad({
+    const actorUuid1 = createActor({
       uuid: uuid1,
       fields: { hp: { type: "number" } },
       values: { hp: 100 },
@@ -94,10 +94,10 @@ describe("Monad — Жизненный цикл", () => {
       },
       intentions: {},
     })
-    _createdMonadIds.push(monadUuid1)
+    _createdActorIds.push(actorUuid1)
 
     const uuid2 = crypto.randomUUID()
-    const monadUuid2 = createMonad({
+    const actorUuid2 = createActor({
       uuid: uuid2,
       fields: { hp: { type: "number" } },
       values: { hp: 30 },
@@ -107,15 +107,15 @@ describe("Monad — Жизненный цикл", () => {
       },
       intentions: {},
     })
-    _createdMonadIds.push(monadUuid2)
+    _createdActorIds.push(actorUuid2)
 
     await updateBoundary()
 
     // Обновляем первую монаду → PATROL
-    await updateMonads([{ uuid: monadUuid1, fields: { hp: 80 } }])
+    await updateActors([{ uuid: actorUuid1, fields: { hp: 80 } }])
 
     // Обновляем вторую монаду → остаётся IDLE (hp=30 не <= 0)
-    await updateMonads([{ uuid: monadUuid2, fields: { hp: 30 } }])
+    await updateActors([{ uuid: actorUuid2, fields: { hp: 30 } }])
 
     expect(states1).toEqual(["PATROL"])
     expect(states2).toEqual([])
@@ -127,42 +127,42 @@ describe("Monad — Жизненный цикл", () => {
     onStateChange((changes) => {
       for (const change of changes) {
         if (change.oldState === undefined) continue
-        const count = callbackCounts.get(change.monadId) ?? 0
-        callbackCounts.set(change.monadId, count + 1)
+        const count = callbackCounts.get(change.actorId) ?? 0
+        callbackCounts.set(change.actorId, count + 1)
       }
     })
 
     // Создаём две монады с разными полями для избежания конфликтов
     const uuid1 = crypto.randomUUID()
-    const monadUuid1 = createMonad({
+    const actorUuid1 = createActor({
       uuid: uuid1,
       fields: { hp1: { type: "number" } },
       values: { hp1: 100 },
       superposition: { IDLE: { PATROL: { hp1: { gt: 50 } } }, PATROL: null },
       intentions: {},
     })
-    _createdMonadIds.push(monadUuid1)
+    _createdActorIds.push(actorUuid1)
 
     const uuid2 = crypto.randomUUID()
-    const monadUuid2 = createMonad({
+    const actorUuid2 = createActor({
       uuid: uuid2,
       fields: { hp2: { type: "number" } },
       values: { hp2: 100 },
       superposition: { IDLE: { PATROL: { hp2: { gt: 50 } } }, PATROL: null },
       intentions: {},
     })
-    _createdMonadIds.push(monadUuid2)
+    _createdActorIds.push(actorUuid2)
 
     await updateBoundary()
 
-    await updateMonads([{ uuid: monadUuid1, fields: { hp1: 80 } }])
-    await updateMonads([{ uuid: monadUuid2, fields: { hp2: 80 } }])
+    await updateActors([{ uuid: actorUuid1, fields: { hp1: 80 } }])
+    await updateActors([{ uuid: actorUuid2, fields: { hp2: 80 } }])
 
-    expect(callbackCounts.get(monadUuid1)).toBe(1)
-    expect(callbackCounts.get(monadUuid2)).toBe(1)
+    expect(callbackCounts.get(actorUuid1)).toBe(1)
+    expect(callbackCounts.get(actorUuid2)).toBe(1)
   })
 
-  it("должен блокировать переходы при lock=true в updateMonads()", async () => {
+  it("должен блокировать переходы при lock=true в updateActors()", async () => {
     let stateChanged = false
 
     onStateChange((changes) => {
@@ -173,7 +173,7 @@ describe("Monad — Жизненный цикл", () => {
     })
 
     const uuid = crypto.randomUUID()
-    const monadUuid = createMonad({
+    const actorUuid = createActor({
       uuid,
       fields: { hp: { type: "number" } },
       values: { hp: 30 },
@@ -183,17 +183,17 @@ describe("Monad — Жизненный цикл", () => {
       },
       intentions: {},
     })
-    _createdMonadIds.push(monadUuid)
+    _createdActorIds.push(actorUuid)
 
     await updateBoundary()
 
     // Обновляем hp с блокировкой → НЕ должен перейти в PATROL
-    await updateMonads([{ uuid: monadUuid, fields: { hp: 80 }, lock: true }])
+    await updateActors([{ uuid: actorUuid, fields: { hp: 80 }, lock: true }])
 
     expect(stateChanged).toBe(false)
 
     // Разблокировка (FSM проверит переход по текущим данным)
-    await updateMonads([{ uuid: monadUuid, fields: {}, lock: false }])
+    await updateActors([{ uuid: actorUuid, fields: {}, lock: false }])
 
     expect(stateChanged).toBe(true)
   })
@@ -209,7 +209,7 @@ describe("Monad — Жизненный цикл", () => {
     })
 
     const uuid = crypto.randomUUID()
-    const monadUuid = createMonad({
+    const actorUuid = createActor({
       uuid,
       fields: { hp: { type: "number" } },
       values: { hp: 30 },
@@ -219,17 +219,17 @@ describe("Monad — Жизненный цикл", () => {
       },
       intentions: {},
     })
-    _createdMonadIds.push(monadUuid)
+    _createdActorIds.push(actorUuid)
 
     await updateBoundary()
 
     // Обновляем hp с блокировкой → поле обновлено, но переход не сработал
-    await updateMonads([{ uuid: monadUuid, fields: { hp: 80 }, lock: true }])
+    await updateActors([{ uuid: actorUuid, fields: { hp: 80 }, lock: true }])
 
     expect(stateChanges).toHaveLength(0)
 
     // Разблокировка (FSM проверит переход по текущим данным)
-    await updateMonads([{ uuid: monadUuid, fields: {}, lock: false }])
+    await updateActors([{ uuid: actorUuid, fields: {}, lock: false }])
 
     expect(stateChanges).toEqual(["PATROL"])
   })
@@ -245,7 +245,7 @@ describe("Monad — Жизненный цикл", () => {
     })
 
     const uuid = crypto.randomUUID()
-    const monadUuid = createMonad({
+    const actorUuid = createActor({
       uuid,
       fields: { hp: { type: "number" } },
       values: { hp: 30 },
@@ -255,16 +255,16 @@ describe("Monad — Жизненный цикл", () => {
       },
       intentions: {},
     })
-    _createdMonadIds.push(monadUuid)
+    _createdActorIds.push(actorUuid)
 
     await updateBoundary()
 
     // Обновляем hp с блокировкой
-    await updateMonads([{ uuid: monadUuid, fields: { hp: 80 }, lock: true }])
+    await updateActors([{ uuid: actorUuid, fields: { hp: 80 }, lock: true }])
     expect(stateChanges).toHaveLength(0)
 
     // Разблокировка (FSM проверит переход по текущим данным)
-    await updateMonads([{ uuid: monadUuid, fields: {}, lock: false }])
+    await updateActors([{ uuid: actorUuid, fields: {}, lock: false }])
 
     expect(stateChanges).toEqual(["PATROL"])
   })

@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterEach } from "bun:test"
 import {
-  createMonad,
-  updateMonads,
+  createActor,
+  updateActors,
   updateBoundary,
   onStateChange,
   _resetState,
@@ -14,11 +14,11 @@ beforeAll(async () => {
   GPU._device = await setupDevice()
 })
 
-const _createdMonadIds: string[] = []
+const _createdActorIds: string[] = []
 
 afterEach(() => {
   _resetState()
-  _createdMonadIds.length = 0
+  _createdActorIds.length = 0
 })
 
 describe("Monad — Enum переходы", () => {
@@ -38,7 +38,7 @@ describe("Monad — Enum переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
         values: { status: "idle" },
@@ -48,10 +48,10 @@ describe("Monad — Enum переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { status: "active" } }])
+      await updateActors([{ uuid: monadUuid, fields: { status: "active" } }])
 
       expect(resultStates).toEqual(["ACTIVE"])
     })
@@ -61,7 +61,7 @@ describe("Monad — Enum переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
         values: { status: "idle" },
@@ -71,10 +71,10 @@ describe("Monad — Enum переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { status: "paused" } }])
+      await updateActors([{ uuid: monadUuid, fields: { status: "paused" } }])
 
       expect(resultStates).toEqual([])
     })
@@ -86,7 +86,7 @@ describe("Monad — Enum переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
         values: { status: "idle" },
@@ -96,10 +96,10 @@ describe("Monad — Enum переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { status: "active" } }])
+      await updateActors([{ uuid: monadUuid, fields: { status: "active" } }])
 
       expect(resultStates).toEqual(["CHANGED"])
     })
@@ -111,7 +111,7 @@ describe("Monad — Enum переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
         values: { status: "idle" },
@@ -121,10 +121,10 @@ describe("Monad — Enum переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { status: "paused" } }])
+      await updateActors([{ uuid: monadUuid, fields: { status: "paused" } }])
 
       expect(resultStates).toEqual(["NOT_IDLE"])
     })
@@ -134,7 +134,7 @@ describe("Monad — Enum переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { status: { type: "enum<string>", values: ["idle", "active", "paused"] } },
         values: { status: "idle" },
@@ -144,10 +144,10 @@ describe("Monad — Enum переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { status: "idle" } }])
+      await updateActors([{ uuid: monadUuid, fields: { status: "idle" } }])
 
       expect(resultStates).toEqual([])
     })
@@ -159,7 +159,7 @@ describe("Monad — Enum переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { role: { type: "enum<string>", values: ["ally", "enemy", "neutral"] } },
         values: { role: "ally" },
@@ -169,10 +169,10 @@ describe("Monad — Enum переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { role: "ally" } }])
+      await updateActors([{ uuid: monadUuid, fields: { role: "ally" } }])
 
       expect(resultStates).toEqual(["ALLY"])
     })
@@ -184,7 +184,7 @@ describe("Monad — Enum переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { priority: { type: "enum<string>", values: ["low", "medium", "high"] } },
         values: { priority: "low" },
@@ -194,10 +194,10 @@ describe("Monad — Enum переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { priority: "high" } }])
+      await updateActors([{ uuid: monadUuid, fields: { priority: "high" } }])
 
       expect(resultStates).toEqual(["URGENT"])
     })
@@ -207,7 +207,7 @@ describe("Monad — Enum переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { priority: { type: "enum<string>", values: ["low", "medium", "high"] } },
         values: { priority: "low" },
@@ -217,10 +217,10 @@ describe("Monad — Enum переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { priority: "low" } }])
+      await updateActors([{ uuid: monadUuid, fields: { priority: "low" } }])
 
       expect(resultStates).toEqual([])
     })

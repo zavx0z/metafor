@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterEach } from "bun:test"
 import {
-  createMonad,
-  updateMonads,
+  createActor,
+  updateActors,
   updateBoundary,
   onStateChange,
   _resetState,
@@ -14,11 +14,11 @@ beforeAll(async () => {
   GPU._device = await setupDevice()
 })
 
-const _createdMonadIds: string[] = []
+const _createdActorIds: string[] = []
 
 afterEach(() => {
   _resetState()
-  _createdMonadIds.length = 0
+  _createdActorIds.length = 0
 })
 
 describe("Monad — Булевы переходы", () => {
@@ -37,7 +37,7 @@ describe("Monad — Булевы переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { isAlive: { type: "boolean" } },
         values: { isAlive: false },
@@ -47,10 +47,10 @@ describe("Monad — Булевы переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { isAlive: true } }])
+      await updateActors([{ uuid: monadUuid, fields: { isAlive: true } }])
 
       expect(resultStates).toEqual(["ACTIVE"])
     })
@@ -60,7 +60,7 @@ describe("Monad — Булевы переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { isActive: { type: "boolean" } },
         values: { isActive: true },
@@ -70,10 +70,10 @@ describe("Monad — Булевы переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { isActive: false } }])
+      await updateActors([{ uuid: monadUuid, fields: { isActive: false } }])
 
       expect(resultStates).toEqual(["INACTIVE"])
     })
@@ -85,7 +85,7 @@ describe("Monad — Булевы переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { isConnected: { type: "boolean" } },
         values: { isConnected: false },
@@ -95,10 +95,10 @@ describe("Monad — Булевы переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { isConnected: true } }])
+      await updateActors([{ uuid: monadUuid, fields: { isConnected: true } }])
 
       expect(resultStates).toEqual(["CONNECTED"])
     })
@@ -108,7 +108,7 @@ describe("Monad — Булевы переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { isConnected: { type: "boolean" } },
         values: { isConnected: true },
@@ -118,10 +118,10 @@ describe("Monad — Булевы переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { isConnected: false } }])
+      await updateActors([{ uuid: monadUuid, fields: { isConnected: false } }])
 
       expect(resultStates).toEqual(["DISCONNECTED"])
     })
@@ -133,7 +133,7 @@ describe("Monad — Булевы переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { isEnabled: { type: "boolean" } },
         values: { isEnabled: true },
@@ -143,10 +143,10 @@ describe("Monad — Булевы переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { isEnabled: false } }])
+      await updateActors([{ uuid: monadUuid, fields: { isEnabled: false } }])
 
       expect(resultStates).toEqual(["DISABLED"])
     })
@@ -156,7 +156,7 @@ describe("Monad — Булевы переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { isEnabled: { type: "boolean" } },
         values: { isEnabled: false },
@@ -166,10 +166,10 @@ describe("Monad — Булевы переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { isEnabled: true } }])
+      await updateActors([{ uuid: monadUuid, fields: { isEnabled: true } }])
 
       expect(resultStates).toEqual(["ENABLED"])
     })

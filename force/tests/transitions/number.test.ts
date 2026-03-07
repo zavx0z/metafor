@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterEach } from "bun:test"
 import {
-  createMonad,
-  updateMonads,
+  createActor,
+  updateActors,
   updateBoundary,
   onStateChange,
   _resetState,
@@ -14,11 +14,11 @@ beforeAll(async () => {
   GPU._device = await setupDevice()
 })
 
-const _createdMonadIds: string[] = []
+const _createdActorIds: string[] = []
 
 afterEach(() => {
   _resetState()
-  _createdMonadIds.length = 0
+  _createdActorIds.length = 0
 })
 
 describe("Monad — Числовые переходы", () => {
@@ -38,7 +38,7 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { hp: { type: "number" } },
         values: { hp: 30 },
@@ -48,10 +48,10 @@ describe("Monad — Числовые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { hp: 80 } }])
+      await updateActors([{ uuid: monadUuid, fields: { hp: 80 } }])
 
       expect(resultStates).toEqual(["PATROL"])
     })
@@ -61,7 +61,7 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { hp: { type: "number" } },
         values: { hp: 30 },
@@ -71,10 +71,10 @@ describe("Monad — Числовые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { hp: 50 } }])
+      await updateActors([{ uuid: monadUuid, fields: { hp: 50 } }])
 
       expect(resultStates).toEqual([])
     })
@@ -86,7 +86,7 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { hp: { type: "number" } },
         values: { hp: 30 },
@@ -96,10 +96,10 @@ describe("Monad — Числовые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { hp: 50 } }])
+      await updateActors([{ uuid: monadUuid, fields: { hp: 50 } }])
 
       expect(resultStates).toEqual(["PATROL"])
     })
@@ -109,7 +109,7 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { hp: { type: "number" } },
         values: { hp: 30 },
@@ -119,10 +119,10 @@ describe("Monad — Числовые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { hp: 49 } }])
+      await updateActors([{ uuid: monadUuid, fields: { hp: 49 } }])
 
       expect(resultStates).toEqual([])
     })
@@ -134,7 +134,7 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { hp: { type: "number" } },
         values: { hp: 100 },
@@ -144,10 +144,10 @@ describe("Monad — Числовые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { hp: 20 } }])
+      await updateActors([{ uuid: monadUuid, fields: { hp: 20 } }])
 
       expect(resultStates).toEqual(["WEAK"])
     })
@@ -157,7 +157,7 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { hp: { type: "number" } },
         values: { hp: 100 },
@@ -167,10 +167,10 @@ describe("Monad — Числовые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { hp: 30 } }])
+      await updateActors([{ uuid: monadUuid, fields: { hp: 30 } }])
 
       expect(resultStates).toEqual([])
     })
@@ -182,7 +182,7 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { hp: { type: "number" } },
         values: { hp: 100 },
@@ -192,10 +192,10 @@ describe("Monad — Числовые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { hp: 30 } }])
+      await updateActors([{ uuid: monadUuid, fields: { hp: 30 } }])
 
       expect(resultStates).toEqual(["WEAK"])
     })
@@ -205,7 +205,7 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { hp: { type: "number" } },
         values: { hp: 100 },
@@ -215,10 +215,10 @@ describe("Monad — Числовые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { hp: 31 } }])
+      await updateActors([{ uuid: monadUuid, fields: { hp: 31 } }])
 
       expect(resultStates).toEqual([])
     })
@@ -230,7 +230,7 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { hp: { type: "number" } },
         values: { hp: 100 },
@@ -240,10 +240,10 @@ describe("Monad — Числовые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { hp: 50 } }])
+      await updateActors([{ uuid: monadUuid, fields: { hp: 50 } }])
 
       expect(resultStates).toEqual(["CRITICAL"])
     })
@@ -253,7 +253,7 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { hp: { type: "number" } },
         values: { hp: 100 },
@@ -263,10 +263,10 @@ describe("Monad — Числовые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { hp: 51 } }])
+      await updateActors([{ uuid: monadUuid, fields: { hp: 51 } }])
 
       expect(resultStates).toEqual([])
     })
@@ -278,7 +278,7 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { hp: { type: "number" } },
         values: { hp: 100 },
@@ -288,10 +288,10 @@ describe("Monad — Числовые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { hp: 80 } }])
+      await updateActors([{ uuid: monadUuid, fields: { hp: 80 } }])
 
       expect(resultStates).toEqual(["CHANGED"])
     })
@@ -301,7 +301,7 @@ describe("Monad — Числовые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { hp: { type: "number" } },
         values: { hp: 100 },
@@ -311,10 +311,10 @@ describe("Monad — Числовые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { hp: 100 } }])
+      await updateActors([{ uuid: monadUuid, fields: { hp: 100 } }])
 
       expect(resultStates).toEqual([])
     })

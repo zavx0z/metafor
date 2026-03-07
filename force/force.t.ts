@@ -52,7 +52,7 @@ export type Intention = string
 export type Intentions = Record<string, Intention | null>
 
 /**
- * Конфигурация монады.
+ * Конфигурация актора.
  *
  * @remarks
  * **Порядок переходов в суперпозиции важен!**
@@ -62,7 +62,7 @@ export type Intentions = Record<string, Intention | null>
  * @example
  * ```typescript
  * const uuid = crypto.randomUUID()
- * createMonad({
+ * createActor({
  *   uuid,
  *   fields: {
  *     hp: { type: "number" },
@@ -88,8 +88,8 @@ export type Intentions = Record<string, Intention | null>
  * })
  * ```
  */
-export interface MonadConfig {
-  /** UUID монады (генерируется вызывающей стороной) */
+export interface ActorConfig {
+  /** UUID актора (генерируется вызывающей стороной) */
   uuid: string
   fields: FieldsDefinition
   values: Record<string, unknown>
@@ -119,30 +119,30 @@ export interface NumericSuperposition {
 }
 
 /**
- * Уникальный идентификатор монады (UUID v4).
+ * Уникальный идентификатор актора (UUID v4).
  *
  * @example
  * ```ts
- * const id: MonadId = crypto.randomUUID()
+ * const id: ActorId = crypto.randomUUID()
  * ```
  */
-export type MonadId = string
+export type ActorId = string
 
 /**
- * Хранилище конфигурации полей для каждой монады.
+ * Хранилище конфигурации полей для каждого актора.
  *
- * - **Ключ:** {@link MonadId}
+ * - **Ключ:** {@link ActorId}
  * - **Значение:** {@link FieldsDefinition} — схема типов полей
  */
-export type FieldsStore = Map<MonadId, FieldsDefinition>
+export type FieldsStore = Map<ActorId, FieldsDefinition>
 
 /**
- * Хранилище карты намерений для каждой монады.
+ * Хранилище карты намерений для каждого актора.
  *
- * - **Ключ:** {@link MonadId}
+ * - **Ключ:** {@link ActorId}
  * - **Значение:** {@link Intentions} — ключи процессов для выполнения при смене состояния
  */
-export type IntentionsStore = Map<MonadId, Intentions>
+export type IntentionsStore = Map<ActorId, Intentions>
 
 /**
  * Хранилище схем процессов из DSL.
@@ -152,52 +152,52 @@ export type IntentionsStore = Map<MonadId, Intentions>
  *
  * @remarks
  * Схемы процессов загружаются из DSL-декларации и используются координатором
- * для выполнения процессов при изменении состояний монад.
+ * для выполнения процессов при изменении состояний акторов.
  */
 export type ProcessesStore = Map<Intention, MetaJson>
 
 /**
- * Хранилище runtime-параметров каждой монады.
+ * Хранилище runtime-параметров каждого актора.
  *
- * - **Ключ:** {@link MonadId}
+ * - **Ключ:** {@link ActorId}
  * - **Значение:** `Record<string, unknown>` — изменяемые данные браны
  */
-export type ParamsStore = Map<MonadId, Record<string, unknown>>
+export type ParamsStore = Map<ActorId, Record<string, unknown>>
 
 /**
- * Хранилище суперпозиции (правила перехода) для каждой монады.
+ * Хранилище суперпозиции (правила перехода) для каждого актора.
  *
- * - **Ключ:** {@link MonadId}
+ * - **Ключ:** {@link ActorId}
  * - **Значение:** {@link Superposition} — статичная конфигурация переходов (формат Force)
  *
  * @remarks
  * Хранится в формате Force (с именами). При `updateBoundary()` конвертируется в {@link NumericSuperposition}.
  */
-export type SuperpositionsStore = Map<MonadId, Superposition>
+export type SuperpositionsStore = Map<ActorId, Superposition>
 
 /**
- * Хранилище текущего состояния каждой монады.
+ * Хранилище текущего состояния каждого актора.
  *
- * - **Ключ:** {@link MonadId}
+ * - **Ключ:** {@link ActorId}
  * - **Значение:** имя текущего состояния (`string`)
  */
-export type StatesStore = Map<MonadId, string>
+export type StatesStore = Map<ActorId, string>
 
 /**
- * Маппинг UUID монады в индекс в Boundary.
+ * Маппинг UUID актора в индекс в Boundary.
  *
- * - **Ключ:** {@link MonadId}
+ * - **Ключ:** {@link ActorId}
  * - **Значение:** {@link BraneIndex} — позиция в массиве бран Boundary
  */
-export type UuidToIndexStore = Map<MonadId, BraneIndex>
+export type UuidToIndexStore = Map<ActorId, BraneIndex>
 
 /**
- * Обратный маппинг: индекс в Boundary → UUID монады.
+ * Обратный маппинг: индекс в Boundary → UUID актора.
  *
  * - **Ключ:** {@link BraneIndex} — позиция в массиве бран Boundary
- * - **Значение:** {@link MonadId}
+ * - **Значение:** {@link ActorId}
  */
-export type IndexToUuidStore = Map<BraneIndex, MonadId>
+export type IndexToUuidStore = Map<BraneIndex, ActorId>
 
 // ============================================================================
 // ТИПЫ ДЛЯ FORCE.TS
@@ -207,23 +207,23 @@ export type IndexToUuidStore = Map<BraneIndex, MonadId>
  * Изменение состояния браны.
  */
 export interface BraneStateChange {
-  /** UUID монады */
-  monadId: MonadId
+  /** UUID актора */
+  actorId: ActorId
   /** Предыдущее состояние (undefined при первой инициализации) */
   oldState: string | undefined
   /** Текущее состояние */
   newState: string
   /** Намерение (ключ процесса) если есть */
   intention?: Intention | null
-  /** Текущие значения монады */
+  /** Текущие значения актора */
   values: Record<string, unknown>
 }
 
 /**
- * Обновление одной или нескольких монад.
+ * Обновление одного или нескольких акторов.
  */
-export interface MonadUpdate {
-  /** UUID монады */
+export interface ActorUpdate {
+  /** UUID актора */
   uuid: string
   /** Новые значения полей (пустой объект для разблокировки без изменений) */
   fields?: Record<string, unknown>

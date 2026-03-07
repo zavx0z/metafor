@@ -1,5 +1,5 @@
 /**
- * Force — домен бизнес-логики (монады, состояния, намерения).
+ * Force — домен бизнес-логики (акторы, состояния, намерения).
  *
  * @packageDocumentation
  */
@@ -35,9 +35,9 @@ export async function initial(path: string) {
 }
 
 export {
-  createMonad,
-  deleteMonad,
-  updateMonads,
+  createActor,
+  deleteActor,
+  updateActors,
   updateBoundary,
   onStateChange,
   registerProcesses,
@@ -47,4 +47,4 @@ export {
 } from "./force"
 
 export { convertField } from "./strong/field"
-export type { FieldDefinition, FieldsDefinition, BraneStateChange, MonadUpdate } from "./index.t"
+export type { FieldDefinition, FieldsDefinition, BraneStateChange, ActorUpdate } from "./force.t"

@@ -18,7 +18,7 @@
 - ✅ **Граф иерархии** — из `force/gravity/old.md` (childrenView, orderKey)
 - ✅ **UUID генерация** — перед сохранением в store
 - ✅ **Store зависимостей** — actor → graph → order
-- ✅ **Запутанность вычисляется в gravity** — передаётся готовой в `updateBoundary()`
+- ✅ **Запутанность вычисляется в gravity** — передаётся готовой в boundary
 
 ---
 
@@ -28,8 +28,8 @@
 
 | Делает | Не делает |
 | ------ | --------- |
-| Обходит AST → `string[]` (src акторов) | Не вызывает `createMonad()`/`deleteMonad()` |
-| Вычисляет условия (`log`, `cond`) на лету | Не знает о внутренностях монад |
+| Обходит AST → `string[]` (src акторов) | Не вызывает `createActor()`/`deleteActor()` |
+| Вычисляет условия (`log`, `cond`) на лету | Не знает о внутренностях акторов |
 | Хранит граф иерархии (childrenView) | Не управляет состоянием автомата |
 | Генерирует orderKey для порядка | Не обрабатывает HTML элементы (`el`, `text`) |
 | CRUD операции над акторами | Не хранит `fields`/`superposition` (это в DSL) |
@@ -50,7 +50,7 @@ for each src: createActor(uuid, src, parentUuid, orderKey)
   ↓
 computeEntangled(actors) → EntangledData
   ↓
-for each actor: createMonad({ uuid, fields, values, superposition })
+for each actor: createActor({ uuid, fields, values, superposition })
   ↓
 updateBoundary(entangled) → Boundary с общими блоками
 ```
@@ -172,7 +172,7 @@ prepareData(data: Data) {
 **Почему:**
 
 - Gravity знает какие акторы создаются
-- Entangled должен вычисляться до `createMonad()`
+- Entangled должен вычисляться до `createActor()`
 - Boundary получает готовые данные, не вычисляет
 
 #### 1.6.3. ActorRecord не содержит fields/superposition
@@ -589,7 +589,7 @@ import { createActor, getAllActors } from "force/gravity/store/actor"
 import { computeEntangled } from "force/gravity/store/entangled"
 import { appendChild, getRoots, getChildren } from "force/gravity/store/graph"
 import { between, first } from "force/gravity/store/order"
-import { createMonad, updateBoundary, deleteMonad } from "monad"
+import { createActor, updateBoundary, deleteActor } from "force"
 
 async function syncActors(
   nodes: NodeType[],
@@ -598,52 +598,52 @@ async function syncActors(
 ) {
   // 1. Обход AST → [src, src, src]
   const srcs = traverseHierarchy(nodes, context)
-  
+
   // 2. Получаем текущих акторов
-  const current = parentUuid === null 
-    ? getRoots() 
+  const current = parentUuid === null
+    ? getRoots()
     : getChildren(parentUuid)
-  
+
   // 3. Вычисляем diff
   const toCreate = srcs.filter(src => !current.some(a => a.src === src))
   const toDelete = current.filter(uuid => !srcs.some(src => src === uuid))
-  
+
   // 4. Удаляем лишних
   for (const uuid of toDelete) {
     const actor = getActor(uuid)
     if (actor?.monadId) {
-      deleteMonad(actor.monadId)
+      deleteActor(actor.monadId)
     }
     deleteActor(uuid)
     removeChild(parentUuid, uuid)
   }
-  
+
   // 5. Создаём новых
   for (const src of toCreate) {
     const siblings = parentUuid === null ? getRoots() : getChildren(parentUuid)
-    const prevOrderKey = siblings.length > 0 
-      ? getOrderKey(siblings[siblings.length - 1]!) 
+    const prevOrderKey = siblings.length > 0
+      ? getOrderKey(siblings[siblings.length - 1]!)
       : null
     const orderKey = between(prevOrderKey, null)
-    
+
     const uuid = crypto.randomUUID()
     createActor(uuid, src, parentUuid, orderKey)
     appendChild(parentUuid, uuid)
   }
-  
-  // 6. Создаём монады для всех акторов
+
+  // 6. Создаём акторов для всех записей
   const actors = getAllActors()
   for (const actor of actors) {
     // Получаем fields/superposition из DSL схемы
     const schema = await loadDSL(actor.src)
-    createMonad({
+    createActor({
       uuid: actor.uuid,
       fields: schema.fields,
       values: context.value,
       superposition: schema.superposition
     })
   }
-  
+
   // 7. Вычисляем запутанность и передаём в boundary
   const entangled = computeEntangled(actors)
   await updateBoundary(entangled)

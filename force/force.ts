@@ -1,5 +1,5 @@
 /**
- * Force — домен бизнес-логики (монады, состояния, намерения).
+ * Force — домен бизнес-логики (акторы, состояния, намерения).
  *
  * @packageDocumentation
  */
@@ -11,16 +11,16 @@ import { convertToNumeric } from "../boundary/fields/superposition"
 import type {
   IntentionsStore,
   IndexToUuidStore,
-  MonadId,
+  ActorId,
   StatesStore,
   SuperpositionsStore,
   UuidToIndexStore,
   ProcessesStore,
   BraneStateChange,
-  MonadUpdate,
+  ActorUpdate,
 } from "./force.t"
 import type { FieldDefinition, FieldsDefinition } from "./strong/field.t"
-import type { MonadConfig, Intention } from "./force.t"
+import type { ActorConfig, Intention } from "./force.t"
 import type { MetaJson } from "@metafor/ast"
 import type { Brane, BraneValue, Data, Field } from "@boundary/fields"
 
@@ -31,12 +31,12 @@ const _intentions: IntentionsStore = new Map()
 const _processes: ProcessesStore = new Map()
 const _superpositions: SuperpositionsStore = new Map()
 const _states: StatesStore = new Map()
-const _monadParams: Map<MonadId, Record<string, unknown>> = new Map()
+const _actorParams: Map<ActorId, Record<string, unknown>> = new Map()
 const _uuidToIndex: UuidToIndexStore = new Map()
 const _indexToUuid: IndexToUuidStore = new Map()
-const _stateMaps: Map<MonadId, string[]> = new Map() // states для reverse-маппинга
+const _stateMaps: Map<ActorId, string[]> = new Map() // states для reverse-маппинга
 const _onStateChange: { current: ((changes: BraneStateChange[]) => void) | null } = { current: null }
-const _monadIds: Set<MonadId> = new Set()
+const _actorIds: Set<ActorId> = new Set()
 let _nextFieldIndex = 0
 let _fieldsDefinition: FieldsDefinition = {}
 
@@ -48,12 +48,12 @@ export function _resetState(): void {
   _processes.clear()
   _superpositions.clear()
   _states.clear()
-  _monadParams.clear()
+  _actorParams.clear()
   _uuidToIndex.clear()
   _indexToUuid.clear()
   _stateMaps.clear()
   _onStateChange.current = null
-  _monadIds.clear()
+  _actorIds.clear()
   _nextFieldIndex = 0
   _fieldsDefinition = {}
 }
@@ -98,10 +98,10 @@ function valuesToTuples(values: Record<string, unknown>): [number, BraneValue][]
 }
 
 /**
- * Создаёт монаду и регистрирует её в системе.
+ * Создаёт актора (эмерджентный паттерн) и регистрирует его в системе.
  *
- * @param config - Конфигурация монады.
- * @returns UUID монады.
+ * @param config - Конфигурация актора (поля, суперпозиция, намерения).
+ * @returns UUID актора.
  *
  * @remarks
  * **Порядок переходов в суперпозиции важен!**
@@ -111,7 +111,7 @@ function valuesToTuples(values: Record<string, unknown>): [number, BraneValue][]
  * @example
  * ```typescript
  * const uuid = crypto.randomUUID()
- * createMonad({
+ * createActor({
  *   uuid,
  *   fields: {
  *     hp: { type: "number" },
@@ -138,9 +138,9 @@ function valuesToTuples(values: Record<string, unknown>): [number, BraneValue][]
  * })
  * ```
  */
-export function createMonad(config: MonadConfig): string {
+export function createActor(config: ActorConfig): string {
   const uuid = config.uuid
-  _monadIds.add(uuid)
+  _actorIds.add(uuid)
   for (const [name, def] of Object.entries(config.fields)) {
     const registeredField = convertField(def as FieldDefinition)
     addMonadField(name, registeredField)
@@ -149,21 +149,21 @@ export function createMonad(config: MonadConfig): string {
       _fieldsDefinition[name] = def as FieldDefinition
     }
   }
-  _monadParams.set(uuid, { ...config.values })
+  _actorParams.set(uuid, { ...config.values })
   _intentions.set(uuid, config.intentions ?? {})
   _superpositions.set(uuid, config.superposition)
-  // Состояние не устанавливается — монада рождается в неопределённом состоянии
+  // Состояние не устанавливается — актор рождается в неопределённом состоянии
   return uuid
 }
 
 /**
- * Удаляет монаду.
+ * Удаляет актора.
  *
- * @param uuid - {@link MonadId} монады.
+ * @param uuid - {@link ActorId} актора.
  */
-export function deleteMonad(uuid: MonadId): void {
-  _monadIds.delete(uuid)
-  _monadParams.delete(uuid)
+export function deleteActor(uuid: ActorId): void {
+  _actorIds.delete(uuid)
+  _actorParams.delete(uuid)
   _intentions.delete(uuid)
   _superpositions.delete(uuid)
   _states.delete(uuid)
@@ -213,8 +213,8 @@ export function getProcessSchema(processKey: Intention): MetaJson | undefined {
  * @returns Массив изменений состояний (только birth-events при первой инициализации)
  */
 export async function updateBoundary(): Promise<BraneStateChange[]> {
-  const monadIds = Array.from(_monadIds)
-  if (monadIds.length === 0) {
+  const actorIds = Array.from(_actorIds)
+  if (actorIds.length === 0) {
     return []
   }
   // Собираем поля в массив Field[]
@@ -222,17 +222,17 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
   for (const [_, [index, field]] of _globalFields.entries()) {
     fieldsArray[index] = field
   }
-  // Конвертируем values и superposition для каждой монады
-  const allBranes: Brane[] = monadIds.map((monadId) => {
-    const monadValues = _monadParams.get(monadId)!
-    const valuesTuples = valuesToTuples(monadValues)
-    const monadSuperposition = _superpositions.get(monadId)!
-    const converted = convertToNumeric(monadSuperposition, _fieldNameIndex)
+  // Конвертируем values и superposition для каждого актора
+  const allBranes: Brane[] = actorIds.map((actorId) => {
+    const actorValues = _actorParams.get(actorId)!
+    const valuesTuples = valuesToTuples(actorValues)
+    const actorSuperposition = _superpositions.get(actorId)!
+    const converted = convertToNumeric(actorSuperposition, _fieldNameIndex)
     // Сохраняем states для reverse-маппинга
-    _stateMaps.set(monadId, converted.states)
+    _stateMaps.set(actorId, converted.states)
     // Находим индекс начального состояния
-    // Если состояние не установлено (монада рождается) — используем первое состояние из суперпозиции
-    const currentState = _states.get(monadId)
+    // Если состояние не установлено (актор рождается) — используем первое состояние из суперпозиции
+    const currentState = _states.get(actorId)
     const initialStateName = currentState ?? converted.states[0]!
     const initialStateIndex = converted.states.indexOf(initialStateName)
     if (initialStateIndex === -1) {
@@ -253,46 +253,46 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
   // Маппинги
   _uuidToIndex.clear()
   _indexToUuid.clear()
-  monadIds.forEach((monadId, i) => {
-    _uuidToIndex.set(monadId, i)
-    _indexToUuid.set(i, monadId)
+  actorIds.forEach((actorId, i) => {
+    _uuidToIndex.set(actorId, i)
+    _indexToUuid.set(i, actorId)
   })
 
-  // Инициализация состояния всех монад с эмитом только birth-событий
+  // Инициализация состояния всех акторов с эмитом только birth-событий
   // (без runtime-переходов, т.к. updateBoundary не выполняет шаг FSM)
   const changes: BraneStateChange[] = []
-  const monadsToUnlock: MonadId[] = []
+  const actorsToUnlock: ActorId[] = []
 
-  for (const monadId of monadIds) {
-    const stateMap = _stateMaps.get(monadId)
+  for (const actorId of actorIds) {
+    const stateMap = _stateMaps.get(actorId)
     if (!stateMap || stateMap.length === 0) {
-      throw new Error(`State map not found for monad ${monadId}`)
+      throw new Error(`State map not found for actor ${actorId}`)
     }
 
-    const old = _states.get(monadId)
+    const old = _states.get(actorId)
     if (old === undefined) {
       const firstState = stateMap[0]!
-      _states.set(monadId, firstState)
+      _states.set(actorId, firstState)
 
-      const intention = _intentions.get(monadId)?.[firstState]
+      const intention = _intentions.get(actorId)?.[firstState]
       changes.push({
-        monadId,
+        actorId,
         oldState: undefined,
         newState: firstState,
         intention: intention ?? null,
-        values: _monadParams.get(monadId)!,
+        values: _actorParams.get(actorId)!,
       })
 
       if (!intention) {
-        monadsToUnlock.push(monadId)
+        actorsToUnlock.push(actorId)
       }
     }
   }
 
   // Для birth без intention снимаем lock сразу, без шага эволюции
-  if (monadsToUnlock.length > 0) {
-    const uniqueMonadsToUnlock = Array.from(new Set(monadsToUnlock))
-    const indexes = uniqueMonadsToUnlock
+  if (actorsToUnlock.length > 0) {
+    const uniqueActorsToUnlock = Array.from(new Set(actorsToUnlock))
+    const indexes = uniqueActorsToUnlock
       .map((id) => _uuidToIndex.get(id))
       .filter((index): index is number => index !== undefined)
     unlock(indexes)
@@ -309,21 +309,21 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
  * Обновляет поля бран и выполняет шаг эволюции через @boundary/fields.
  *
  * @param updates - Массив обновлений: `[{ uuid, fields, lock }, ...]`
- * @throws {Error} Если Boundary не инициализирован. Вызовите updateBoundary() перед updateMonads().
+ * @throws {Error} Если Boundary не инициализирован. Вызовите updateBoundary() перед updateActors().
  *
  * @example
  * ```typescript
  * // Обновить одну монаду
- * await updateMonads([{ uuid: 'uuid', fields: { hp: 80 } }])
+ * await updateActors([{ uuid: 'uuid', fields: { hp: 80 } }])
  *
  * // Обновить с блокировкой
- * await updateMonads([{ uuid: 'uuid', fields: { hp: 80 }, lock: true }])
+ * await updateActors([{ uuid: 'uuid', fields: { hp: 80 }, lock: true }])
  *
  * // Разблокировать без изменения полей
- * await updateMonads([{ uuid: 'uuid', fields: {}, lock: false }])
+ * await updateActors([{ uuid: 'uuid', fields: {}, lock: false }])
  * ```
  */
-export async function updateMonads(updates: MonadUpdate[]): Promise<BraneStateChange[]> {
+export async function updateActors(updates: ActorUpdate[]): Promise<BraneStateChange[]> {
   if (updates.length === 0) {
     return []
   }
@@ -333,13 +333,13 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<BraneStateCh
   for (const { uuid, fields = {}, lock } of updates) {
     const index = _uuidToIndex.get(uuid)
     if (index === undefined) {
-      throw new Error(`Monad ${uuid} not found in boundary`)
+      throw new Error(`Actor ${uuid} not found in boundary`)
     }
 
-    // Обновляем params монады
-    const monadParams = _monadParams.get(uuid)
-    if (monadParams) {
-      _monadParams.set(uuid, { ...monadParams, ...fields })
+    // Обновляем params актора
+    const actorParams = _actorParams.get(uuid)
+    if (actorParams) {
+      _actorParams.set(uuid, { ...actorParams, ...fields })
     }
 
     // Конвертируем в кортежи для update()
@@ -364,39 +364,39 @@ export async function updateMonads(updates: MonadUpdate[]): Promise<BraneStateCh
 
   // Обрабатываем изменения состояний
   const changes: BraneStateChange[] = []
-  const monadsToUnlock: MonadId[] = []
+  const actorsToUnlock: ActorId[] = []
 
   stateChanges.forEach(([braneIndex, stateIndex]) => {
-    const monadId = _indexToUuid.get(braneIndex)
-    if (!monadId) return
-    const stateMap = _stateMaps.get(monadId)
+    const actorId = _indexToUuid.get(braneIndex)
+    if (!actorId) return
+    const stateMap = _stateMaps.get(actorId)
     if (!stateMap) {
-      throw new Error(`State map not found for monad ${monadId}`)
+      throw new Error(`State map not found for actor ${actorId}`)
     }
     const current = stateMap[stateIndex]!
-    const old = _states.get(monadId)
+    const old = _states.get(actorId)
     if (old !== undefined && current !== old) {
-      _states.set(monadId, current)
-      const intentions = _intentions.get(monadId)
+      _states.set(actorId, current)
+      const intentions = _intentions.get(actorId)
       const intention = intentions?.[current]
       changes.push({
-        monadId,
+        actorId,
         oldState: old,
         newState: current,
         intention: intention ?? null,
-        values: _monadParams.get(monadId)!,
+        values: _actorParams.get(actorId)!,
       })
       // Авто-снятие блокировки если нет намерения (TAKT 2)
       if (!intention) {
-        monadsToUnlock.push(monadId)
+        actorsToUnlock.push(actorId)
       }
     }
   })
 
   // Снимаем блокировку с бран без намерения напрямую, без дополнительного шага эволюции
-  if (monadsToUnlock.length > 0) {
-    const uniqueMonadsToUnlock = Array.from(new Set(monadsToUnlock))
-    const indexes = uniqueMonadsToUnlock
+  if (actorsToUnlock.length > 0) {
+    const uniqueActorsToUnlock = Array.from(new Set(actorsToUnlock))
+    const indexes = uniqueActorsToUnlock
       .map((id) => _uuidToIndex.get(id))
       .filter((index): index is number => index !== undefined)
     unlock(indexes)
@@ -427,11 +427,11 @@ export function onStateChange(callback: (changes: BraneStateChange[]) => void): 
 }
 
 /**
- * Снимает блокировку с монад после завершения процессов.
+ * Снимает блокировку с акторов после завершения процессов.
  *
  * Вызывается WEAK FORCE после завершения всех процессов для разблокировки бран.
  *
- * @param monadIds - UUIDs монад для разблокировки. Если не указаны, разблокируются все.
+ * @param actorIds - UUIDs акторов для разблокировки. Если не указаны, разблокируются все.
  *
  * @example
  * ```typescript
@@ -442,8 +442,8 @@ export function onStateChange(callback: (changes: BraneStateChange[]) => void): 
  * await releaseLock()
  * ```
  */
-export async function releaseLock(monadIds?: MonadId[]): Promise<BraneStateChange[]> {
-  const uuidsToUnlock = monadIds ?? Array.from(_monadIds)
+export async function releaseLock(actorIds?: ActorId[]): Promise<BraneStateChange[]> {
+  const uuidsToUnlock = actorIds ?? Array.from(_actorIds)
 
   if (uuidsToUnlock.length === 0) {
     return []
@@ -455,5 +455,5 @@ export async function releaseLock(monadIds?: MonadId[]): Promise<BraneStateChang
     lock: false,
   }))
 
-  return await updateMonads(unlockUpdates)
+  return await updateActors(unlockUpdates)
 }

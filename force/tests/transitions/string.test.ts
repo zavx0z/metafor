@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterEach } from "bun:test"
 import {
-  createMonad,
-  updateMonads,
+  createActor,
+  updateActors,
   updateBoundary,
   onStateChange,
   _resetState,
@@ -14,11 +14,11 @@ beforeAll(async () => {
   GPU._device = await setupDevice()
 })
 
-const _createdMonadIds: string[] = []
+const _createdActorIds: string[] = []
 
 afterEach(() => {
   _resetState()
-  _createdMonadIds.length = 0
+  _createdActorIds.length = 0
 })
 
 describe("Monad — Строковые переходы", () => {
@@ -38,7 +38,7 @@ describe("Monad — Строковые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { command: { type: "string" } },
         values: { command: "" },
@@ -48,10 +48,10 @@ describe("Monad — Строковые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { command: "attack" } }])
+      await updateActors([{ uuid: monadUuid, fields: { command: "attack" } }])
 
       expect(resultStates).toEqual(["ATTACK"])
     })
@@ -61,7 +61,7 @@ describe("Monad — Строковые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { command: { type: "string" } },
         values: { command: "" },
@@ -71,10 +71,10 @@ describe("Monad — Строковые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { command: "defend" } }])
+      await updateActors([{ uuid: monadUuid, fields: { command: "defend" } }])
 
       expect(resultStates).toEqual([])
     })
@@ -86,7 +86,7 @@ describe("Monad — Строковые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { status: { type: "string" } },
         values: { status: "normal" },
@@ -96,10 +96,10 @@ describe("Monad — Строковые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { status: "critical" } }])
+      await updateActors([{ uuid: monadUuid, fields: { status: "critical" } }])
 
       expect(resultStates).toEqual(["ABNORMAL"])
     })
@@ -109,7 +109,7 @@ describe("Monad — Строковые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { status: { type: "string" } },
         values: { status: "normal" },
@@ -119,10 +119,10 @@ describe("Monad — Строковые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { status: "normal" } }])
+      await updateActors([{ uuid: monadUuid, fields: { status: "normal" } }])
 
       expect(resultStates).toEqual([])
     })
@@ -134,7 +134,7 @@ describe("Monad — Строковые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { color: { type: "string" } },
         values: { color: "" },
@@ -144,10 +144,10 @@ describe("Monad — Строковые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { color: "red" } }])
+      await updateActors([{ uuid: monadUuid, fields: { color: "red" } }])
 
       expect(resultStates).toEqual(["ACTIVE"])
     })
@@ -157,7 +157,7 @@ describe("Monad — Строковые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { color: { type: "string" } },
         values: { color: "" },
@@ -167,10 +167,10 @@ describe("Monad — Строковые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { color: "blue" } }])
+      await updateActors([{ uuid: monadUuid, fields: { color: "blue" } }])
 
       expect(resultStates).toEqual([])
     })
@@ -182,7 +182,7 @@ describe("Monad — Строковые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { role: { type: "string" } },
         values: { role: "" },
@@ -192,10 +192,10 @@ describe("Monad — Строковые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { role: "ally" } }])
+      await updateActors([{ uuid: monadUuid, fields: { role: "ally" } }])
 
       expect(resultStates).toEqual(["ALLY"])
     })
@@ -205,7 +205,7 @@ describe("Monad — Строковые переходы", () => {
       onStateChange(createStateChangeHandler(resultStates))
 
       const uuid = crypto.randomUUID()
-      const monadUuid = createMonad({
+      const monadUuid = createActor({
         uuid,
         fields: { role: { type: "string" } },
         values: { role: "enemy" },
@@ -215,10 +215,10 @@ describe("Monad — Строковые переходы", () => {
         },
         intentions: {},
       })
-      _createdMonadIds.push(monadUuid)
+      _createdActorIds.push(monadUuid)
 
       await updateBoundary()
-      await updateMonads([{ uuid: monadUuid, fields: { role: "enemy" } }])
+      await updateActors([{ uuid: monadUuid, fields: { role: "enemy" } }])
 
       expect(resultStates).toEqual([])
     })
