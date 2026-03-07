@@ -3,7 +3,7 @@
  *
  * @packageDocumentation
  */
-import type { FieldsDefinition } from "./field.t"
+import type { FieldsDefinition } from "./strong/field.t"
 import type { Collapse } from "@boundary/fields"
 import type { ParsedProcessJson } from "../metafor/build/monadJson"
 

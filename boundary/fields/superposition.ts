@@ -14,6 +14,8 @@ import type {Collapse, Field} from "./index.t"
 import type { FieldBytecode, CompiledRules, ConditionInstruction } from "./superposition.t"
 import type { EncodingContext } from "./values.t"
 import type { ParsedCheck } from "./condition.t"
+import type { Superposition } from "../../force/force.t"
+import type { ConvertedSuperposition } from "@metafor/force/strong/superposition.t"
 
 /**
  * Результат компиляции условий с кучей для списков.
@@ -357,5 +359,81 @@ export function compileEnsemble(
   return {
     bytecode: new Uint32Array(allBytecode),
     bytecodeOffsets: new Uint32Array(offsets),
+  }
+}
+/**
+ * Конвертирует суперпозицию из формата Force в формат Boundary.
+ *
+ * @remarks
+ * Force оперирует именами состояний и полей (семантика).
+ * Boundary оперирует индексами состояний и полей (вычисления).
+ *
+ * @param superposition - Формат Force: { IDLE: { PATROL: { hp: { gt: 50 } } } }
+ * @param fieldNameIndex - Маппинг имён полей в индексы.
+ * @returns ConvertedSuperposition с states для Force и boundary для Boundary.
+ *
+ * @example
+ * ```typescript
+ * const superposition = {
+ *   IDLE: { PATROL: { hp: { gt: 50 } } },
+ *   PATROL: null
+ * }
+ * const fieldNameIndex = new Map([["hp", 0]])
+ * const result = convertToNumeric(superposition, fieldNameIndex)
+ * // result.states = ["IDLE", "PATROL"]
+ * // result.boundary = {
+ * //   transitions: [
+ * //     [[1, { 0: { gt: 50 } }]],  // ← кортеж [to, conditions]
+ * //     [null]
+ * //   ]
+ * // }
+ * ```
+ */
+
+export function convertToNumeric(
+  superposition: Superposition,
+  fieldNameIndex: Map<string, number>
+): ConvertedSuperposition {
+  const states = Object.keys(superposition)
+  const stateIndex = new Map<string, number>()
+  states.forEach((name, i) => stateIndex.set(name, i))
+
+  const transitions: Array<Array<Collapse>> = []
+
+  for (const fromState of states) {
+    const transObj = superposition[fromState]
+    if (!transObj) {
+      transitions.push([null])
+      continue
+    }
+
+    const fromTransitions: Array<Collapse> = []
+    for (const [toState, conditions] of Object.entries(transObj)) {
+      const toIdx = stateIndex.get(toState)
+      if (toIdx === undefined) {
+        throw new Error(`Unknown state: ${toState}`)
+      }
+      if (!conditions) {
+        fromTransitions.push(null)
+      } else {
+        // Конвертируем имена полей → индексы
+        const converted: Record<number, any> = {}
+        for (const [fieldName, cond] of Object.entries(conditions)) {
+          const fieldIdx = fieldNameIndex.get(fieldName)
+          if (fieldIdx === undefined) {
+            throw new Error(`Field '${fieldName}' not found`)
+          }
+          converted[fieldIdx] = cond
+        }
+        fromTransitions.push([toIdx, converted])
+      }
+    }
+
+    transitions.push(fromTransitions)
+  }
+
+  return {
+    states,
+    boundary: { transitions },
   }
 }

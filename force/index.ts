@@ -16,5 +16,5 @@ export {
   _resetState,
 } from "./force"
 
-export { convertField } from "./field"
+export { convertField } from "./strong/field"
 export type { FieldDefinition, FieldsDefinition, BraneStateChange, MonadUpdate } from "./index.t"

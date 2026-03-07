@@ -108,6 +108,13 @@
     },
     "force": {
       "name": "@metafor/force",
+      "devDependencies": {
+        "@force/em": "workspace:*",
+        "@force/gravity": "workspace:*",
+        "@force/strong": "workspace:*",
+        "@force/weak": "workspace:*",
+        "@metafor/boundary": "workspace:*",
+      },
     },
     "force/em": {
       "name": "@force/em",
@@ -115,14 +122,11 @@
     "force/gravity": {
       "name": "@force/gravity",
     },
-    "force/monad": {
-      "name": "@force/monad",
-      "devDependencies": {
-        "@metafor/boundary": "workspace:*",
-      },
-    },
     "force/strong": {
       "name": "@force/strong",
+      "devDependencies": {
+        "@boundary/fields": "workspace:*",
+      },
     },
     "force/weak": {
       "name": "@force/weak",
@@ -317,9 +321,9 @@
     "space": {
       "name": "space",
       "devDependencies": {
-        "@force/monad": "workspace:*",
         "@force/weak": "workspace:*",
         "@metafor/build": "workspace:*",
+        "@metafor/force": "workspace:*",
         "@metafor/meta": "workspace:*",
       },
     },
@@ -342,8 +346,6 @@
     "@force/em": ["@force/em@workspace:force/em"],
 
     "@force/gravity": ["@force/gravity@workspace:force/gravity"],
-
-    "@force/monad": ["@force/monad@workspace:force/monad"],
 
     "@force/strong": ["@force/strong@workspace:force/strong"],
 

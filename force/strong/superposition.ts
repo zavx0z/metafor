@@ -1,34 +1,23 @@
 /**
- * Типы для superposition.ts.
+ * Конвертация суперпозиций из формата MONAD в формат BOUNDARY.
  *
  * @packageDocumentation
  */
 
 import type { Collapse } from "@boundary/fields"
-import type { Superposition } from "./force.t"
+import type { Superposition } from "../force.t"
+import type { ConvertedSuperposition } from "./superposition.t"
 
 /**
- * Результат конвертации суперпозиции.
- */
-export interface ConvertedSuperposition {
-  /** Имена состояний для reverse-маппинга (хранятся в Force). */
-  states: string[]
-  /** Суперпозиция для Boundary (только индексы). */
-  boundary: {
-    transitions: Array<Array<Collapse>>
-  }
-}
-
-/**
- * Конвертирует суперпозицию из формата Force в формат Boundary.
+ * Конвертирует суперпозицию уровня MONAD в суперпозицию уровня BOUNDARY.
  *
  * @remarks
- * Force оперирует именами состояний и полей (семантика).
- * Boundary оперирует индексами состояний и полей (вычисления).
+ * MONAD оперирует именами состояний и полей (семантика).
+ * BOUNDARY оперирует индексами состояний и полей (вычисления).
  *
- * @param superposition - Формат Force: { IDLE: { PATROL: { hp: { gt: 50 } } } }
+ * @param superposition - Формат MONAD: { IDLE: { PATROL: { hp: { gt: 50 } } } }
  * @param fieldNameIndex - Маппинг имён полей в индексы.
- * @returns ConvertedSuperposition с states для Force и boundary для Boundary.
+ * @returns ConvertedSuperposition с states для Monad и boundary для Boundary.
  *
  * @example
  * ```typescript
@@ -49,7 +38,7 @@ export interface ConvertedSuperposition {
  */
 export function convertToNumeric(
   superposition: Superposition,
-  fieldNameIndex: Map<string, number>
+  fieldNameIndex: Map<string, number>,
 ): ConvertedSuperposition {
   const states = Object.keys(superposition)
   const stateIndex = new Map<string, number>()

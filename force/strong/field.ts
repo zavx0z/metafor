@@ -23,25 +23,25 @@ export function convertField(def: FieldDefinition): Field {
 
   switch (typeStr) {
     case "number":
-      fieldType = 0 /* FieldType.F32 */
+      fieldType = FieldType.F32
       break
     case "boolean":
-      fieldType = 2 /* FieldType.BOOL */
+      fieldType = FieldType.BOOL
       break
     case "string":
-      fieldType = 3 /* FieldType.STRING_PTR */
+      fieldType = FieldType.STRING_PTR
       break
     case "array<string>":
-      fieldType = 4 /* FieldType.ARRAY_PTR */
+      fieldType = FieldType.ARRAY_PTR
       elementType = "string"
       break
     case "array<number>":
-      fieldType = 4 /* FieldType.ARRAY_PTR */
+      fieldType = FieldType.ARRAY_PTR
       elementType = "number"
       break
     case "enum<string>":
     case "enum<number>":
-      fieldType = 1 /* FieldType.U32 */
+      fieldType = FieldType.U32
       break
     default:
       throw new Error(`Unknown field type: '${typeStr}'`)

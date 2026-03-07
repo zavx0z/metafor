@@ -16,7 +16,7 @@ export type {
   UuidToIndexStore,
   IndexToUuidStore,
 } from "./force.t"
-export type { FieldDefinition, FieldsDefinition } from "./field.t"
+export type { FieldDefinition, FieldsDefinition } from "./strong/field.t"
 export type { MonadUpdate, BraneStateChange } from "./force.t"
-export type { ConvertedSuperposition } from "./superposition.t"
+export type { ConvertedSuperposition } from "./strong/superposition.t"
 export type { ParsedProcessJson } from "../metafor/build/monadJson"

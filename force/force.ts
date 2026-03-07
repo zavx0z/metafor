@@ -5,8 +5,8 @@
  */
 
 import { write as fieldsWrite, update as fieldsUpdate, unlock } from "@metafor/boundary"
-import { convertField } from "./field"
-import { convertToNumeric } from "./superposition.t"
+import { convertField } from "./strong/field"
+import { convertToNumeric } from "../boundary/fields/superposition"
 
 import type {
   IntentionsStore,
@@ -19,7 +19,7 @@ import type {
   BraneStateChange,
   MonadUpdate,
 } from "./force.t"
-import type { FieldDefinition, FieldsDefinition } from "./field.t"
+import type { FieldDefinition, FieldsDefinition } from "./strong/field.t"
 import type { MonadConfig, Intention } from "./force.t"
 import type { ParsedProcessJson } from "../metafor/build/monadJson"
 import type { Brane, BraneValue, Data, Field } from "@boundary/fields"
