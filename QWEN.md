@@ -202,6 +202,7 @@ Skills — инструменты автоматизации рутинных з
 **Порядок:** `mutable$` → `data` → `options?`
 
 **Пример:**
+
 ```typescript
 function write(store$: Store, data: Data): void
 ```
