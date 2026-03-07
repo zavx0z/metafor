@@ -1,9 +1,9 @@
-import { createMonad, onStateChange, updateBoundary } from "@metafor/force"
+import { createActor, onStateChange, updateBoundary } from "@metafor/force"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 GPU._device = await setupDevice()
 
-const root = createMonad({
+const root = createActor({
   uuid: crypto.randomUUID(),
   fields: {
     hp: { type: "number" },

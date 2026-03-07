@@ -3,11 +3,11 @@ import {
   createActor,
   updateActors,
   updateBoundary,
-  _resetState,
   onStateChange,
   registerProcesses,
   getProcessSchema,
   releaseLock,
+  force$,
   type BraneStateChange,
 } from "../index"
 import type { MetaJson } from "@metafor/ast/dsl"
@@ -21,7 +21,7 @@ beforeAll(async () => {
 const _createdActorIds: string[] = []
 
 afterEach(() => {
-  _resetState()
+  force$.reset()
   _createdActorIds.length = 0
 })
 

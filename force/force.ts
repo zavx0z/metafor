@@ -9,30 +9,14 @@ import { convertField } from "./strong/field"
 import { convertToNumeric } from "../boundary/fields/superposition"
 import { force$ } from "./store"
 
-import type {
-  IndexToUuidStore,
-  ActorId,
-  BraneStateChange,
-  ActorUpdate,
-} from "./force.t"
+import type { ActorId, BraneStateChange, ActorUpdate } from "./force.t"
 import type { FieldDefinition } from "./strong/field.t"
 import type { ActorConfig, Intention } from "./force.t"
 import type { MetaJson } from "@metafor/ast"
-import type { Brane, BraneValue, Data, Field } from "@boundary/fields"
-
-// ==================== Экспорт для тестов ====================
-
-/**
- * Сбрасывает состояние FORCE-домена.
- *
- * @internal Для тестов.
- */
-export function _resetState(): void {
-  force$.reset()
-}
+import type { Brane, Data, Field } from "@boundary/fields"
+import { valuesToTuples } from "./strong/value"
 
 // ==================== Функции ====================
-
 /**
  * Добавляет поле в глобальное хранилище.
  *
@@ -54,20 +38,6 @@ function addField(name: string, field: Field): number {
   force$.globalFields.set(name, [newIndex, field])
   force$.fieldNameIndex.set(name, newIndex)
   return newIndex
-}
-
-/**
- * Конвертирует values из Record в кортежи [fieldIndex, value].
- */
-function valuesToTuples(values: Record<string, unknown>): [number, BraneValue][] {
-  const tuples: [number, BraneValue][] = []
-  for (const [name, value] of Object.entries(values)) {
-    const fieldIndex = force$.fieldNameIndex.get(name)
-    if (fieldIndex !== undefined) {
-      tuples.push([fieldIndex, value as BraneValue])
-    }
-  }
-  return tuples
 }
 
 /**
@@ -417,16 +387,11 @@ export function onStateChange(callback: (changes: BraneStateChange[]) => void): 
  */
 export async function releaseLock(actorIds?: ActorId[]): Promise<BraneStateChange[]> {
   const uuidsToUnlock = actorIds ?? Array.from(force$.actorIds)
-
-  if (uuidsToUnlock.length === 0) {
-    return []
-  }
-
+  if (uuidsToUnlock.length === 0) return []
   const unlockUpdates = uuidsToUnlock.map((uuid) => ({
     uuid,
     fields: {},
     lock: false,
   }))
-
   return await updateActors(unlockUpdates)
 }

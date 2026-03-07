@@ -3,8 +3,8 @@ import {
   createActor,
   updateActors,
   updateBoundary,
-  _resetState,
   onStateChange,
+  force$,
   type BraneStateChange,
 } from "../index"
 import { GPU } from "@boundary/matrix"
@@ -17,7 +17,7 @@ beforeAll(async () => {
 const _createdActorIds: string[] = []
 
 afterEach(() => {
-  _resetState()
+  force$.reset()
   _createdActorIds.length = 0
 })
 

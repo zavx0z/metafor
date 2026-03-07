@@ -4,9 +4,8 @@
  * @packageDocumentation
  */
 
-export type { MonadConfig, Intention, Intentions, Update } from "./force.t"
+export type { Intention, Intentions, Update } from "./force.t"
 export type {
-  MonadId,
   FieldsStore,
   IntentionsStore,
   ProcessesStore,
@@ -17,6 +16,6 @@ export type {
   IndexToUuidStore,
 } from "./force.t"
 export type { FieldDefinition, FieldsDefinition } from "./strong/field.t"
-export type { MonadUpdate, BraneStateChange } from "./force.t"
+export type { BraneStateChange } from "./force.t"
 export type { ConvertedSuperposition } from "./strong/superposition.t"
 export type { MetaJson as ParsedProcessJson } from "@metafor/ast/dsl"
