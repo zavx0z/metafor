@@ -114,6 +114,7 @@
         "@force/strong": "workspace:*",
         "@force/weak": "workspace:*",
         "@metafor/boundary": "workspace:*",
+        "@metafor/build": "workspace:*",
       },
     },
     "force/em": {
@@ -130,6 +131,9 @@
     },
     "force/weak": {
       "name": "@force/weak",
+      "devDependencies": {
+        "@metafor/meta": "workspace:*",
+      },
     },
     "github/zavx0z/git": {
       "name": "@zavx0z/git",

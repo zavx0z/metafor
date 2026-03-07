@@ -1,17 +1,14 @@
 {
   "name": "@metafor/build",
   "module": "cli.ts",
+  "types": "index.t.ts",
   "type": "module",
   "private": false,
   "bin": {
     "metafor-build": "./cli.ts"
   },
-  "peerDependencies": {
-    "typescript": "^5"
-  },
   "scripts": {
     "build": "bun cli ./example/meta.ts",
-    "build:watch": "bun cli ./example/meta.ts --watch",
-    "test": "bun test"
+    "build:watch": "bun cli ./example/meta.ts --watch"
   }
 }

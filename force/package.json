@@ -5,14 +5,10 @@
   "private": true,
   "devDependencies": {
     "@metafor/boundary": "workspace:*",
+    "@metafor/build": "workspace:*",
     "@force/gravity": "workspace:*",
     "@force/strong": "workspace:*",
     "@force/weak": "workspace:*",
     "@force/em": "workspace:*"
-  },
-  "scripts": {
-    "typegen": "bunx dts-bundle-generator --out-file ./dist/index.d.ts --export-referenced-types true --inline-declare-global true --inline-declare-externals true --external-inlines @boundary/matrix --no-check -- force.ts",
-    "build:prod": "bun build force.ts --outdir ./dist --minify --entry-naming [name].min.[ext]",
-    "build:dev": "bun build force.ts  --outdir ./dist --sourcemap=linked"
   }
 }

@@ -21,7 +21,7 @@ import type {
 } from "./force.t"
 import type { FieldDefinition, FieldsDefinition } from "./strong/field.t"
 import type { MonadConfig, Intention } from "./force.t"
-import type { ParsedProcessJson } from "../metafor/build/monadJson"
+import type { MetaJson } from "../metafor/build/monadJson"
 import type { Brane, BraneValue, Data, Field } from "@boundary/fields"
 
 // ==================== Внутреннее состояние ====================
@@ -191,9 +191,9 @@ export function deleteMonad(uuid: MonadId): void {
  * })
  * ```
  */
-export function registerProcesses(processes: Record<Intention, ParsedProcessJson>): void {
+export function registerProcesses(processes: Record<Intention, MetaJson>): void {
   for (const [key, schema] of Object.entries(processes)) {
-    _processes.set(key, schema as ParsedProcessJson)
+    _processes.set(key, schema as MetaJson)
   }
 }
 
@@ -203,7 +203,7 @@ export function registerProcesses(processes: Record<Intention, ParsedProcessJson
  * @param processKey - Ключ процесса (ID намерения).
  * @returns Схема процесса или undefined если не найдена.
  */
-export function getProcessSchema(processKey: Intention): ParsedProcessJson | undefined {
+export function getProcessSchema(processKey: Intention): MetaJson | undefined {
   return _processes.get(processKey)
 }
 

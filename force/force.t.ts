@@ -5,7 +5,7 @@
  */
 import type { FieldsDefinition } from "./strong/field.t"
 import type { Collapse } from "@boundary/fields"
-import type { ParsedProcessJson } from "../metafor/build/monadJson"
+import type { MetaJson } from "@metafor/build"
 
 // ============================================================================
 // ОБЩИЕ ТИПЫ
@@ -148,13 +148,13 @@ export type IntentionsStore = Map<MonadId, Intentions>
  * Хранилище схем процессов из DSL.
  *
  * - **Ключ:** {@link Intention} — ключ процесса (ID намерения)
- * - **Значение:** {@link ParsedProcessJson} — схема процесса (src, read, write, label, desc)
+ * - **Значение:** {@link MetaJson} — схема процесса (src, read, write, label, desc)
  *
  * @remarks
  * Схемы процессов загружаются из DSL-декларации и используются координатором
  * для выполнения процессов при изменении состояний монад.
  */
-export type ProcessesStore = Map<Intention, ParsedProcessJson>
+export type ProcessesStore = Map<Intention, MetaJson>
 
 /**
  * Хранилище runtime-параметров каждой монады.

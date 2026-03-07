@@ -6,9 +6,7 @@
  *
  * @packageDocumentation
  */
-
-import type { Schema } from "@zavx0z/context"
-import type { Mass } from "../../metafor/meta/metafor.t"
+import type { Mass, Schema } from "@metafor/meta"
 import type { ProcessConfig, ActionFn } from "./load.t"
 
 /**

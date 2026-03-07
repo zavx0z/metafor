@@ -17,7 +17,7 @@ describe("loadAction", () => {
 
     expect(typeof actionFn).toBe("function")
 
-    const result = await (actionFn as ActionFn<any, any, any>)({
+    const result = (actionFn as ActionFn<any, any, any>)({
       self: { atom: "test", path: "0", meta: "test" },
       field: { name: { type: "string" } },
       value: { name: "test" },
@@ -32,7 +32,7 @@ describe("loadAction", () => {
       importSpecifier: "commit",
     })
 
-    const result = await (actionFn as ActionFn<any, any, any>)({
+    const result = (actionFn as ActionFn<any, any, any>)({
       self: { atom: "test", path: "0", meta: "test" },
       field: { id: { type: "number" } },
       value: { id: 42 },
@@ -44,7 +44,7 @@ describe("loadAction", () => {
   test("загружает модуль со строкой-путем", async () => {
     const actionFn = await loadAction(`${fixturesPath}/default-export.ts`)
 
-    const result = await (actionFn as ActionFn<any, any, any>)({
+    const result = (actionFn as ActionFn<any, any, any>)({
       self: { atom: "test", path: "0", meta: "test" },
       field: { name: { type: "string" } },
       value: { name: "hello" },

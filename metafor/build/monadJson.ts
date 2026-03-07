@@ -51,7 +51,7 @@ type ArrayElementType = "string" | "number"
  * Распарсенный процесс в формате JSON.
  * Содержит строковые представления функций для десериализации.
  */
-export interface ParsedProcessJson {
+export interface MetaJson {
   /** Тип процесса: action или finally */
   type: "action" | "finally"
   /** Название процесса */
@@ -177,7 +177,7 @@ export interface MonadJson {
    * Процессы с обработчиками.
    * Содержит строковые представления функций для десериализации в runtime.
    */
-  processes?: Record<string, ParsedProcessJson>
+  processes?: Record<string, MetaJson>
   /**
    * Реакции на события других атомов.
    * Содержит карту реакций и маппинг суперпозиций.
@@ -360,7 +360,7 @@ export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): Mon
   const superposition = meta.superposition || {}
 
   // Преобразуем processes в JSON формат
-  const processesJson: Record<string, ParsedProcessJson> | undefined = meta.processes
+  const processesJson: Record<string, MetaJson> | undefined = meta.processes
     ? Object.entries(meta.processes).reduce(
         (acc, [key, process]) => {
           const parsed = process as ParsedProcess | ParsedDestroy
@@ -450,7 +450,7 @@ export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): Mon
           }
           return acc
         },
-        {} as Record<string, ParsedProcessJson>,
+        {} as Record<string, MetaJson>,
       )
     : undefined
 

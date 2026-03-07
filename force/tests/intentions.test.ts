@@ -10,7 +10,7 @@ import {
   releaseLock,
   type BraneStateChange,
 } from "../index"
-import type { ParsedProcessJson } from "../../metafor/build/monadJson"
+import type { MetaJson } from "../../metafor/build/monadJson"
 import { GPU } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 
@@ -26,7 +26,7 @@ afterEach(() => {
 })
 
 // Моковые схемы процессов из DSL
-const mockProcesses: Record<string, ParsedProcessJson> = {
+const mockProcesses: Record<string, MetaJson> = {
   patrolProcess: {
     type: "action",
     label: "Патруль",

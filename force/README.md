@@ -215,11 +215,3 @@ await releaseLock([id])
 3. Реагируйте на runtime-логику через `updateMonads()` + `onStateChange`.
 4. Для состояний с намерением удерживайте lock до завершения процесса и вызывайте `releaseLock()`.
 5. Разделяйте обработку birth и runtime в доменных обработчиках явно.
-
----
-
-## Тесты
-
-```bash
-bun test monad/tests
-```

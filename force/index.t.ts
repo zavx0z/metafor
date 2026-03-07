@@ -19,4 +19,4 @@ export type {
 export type { FieldDefinition, FieldsDefinition } from "./strong/field.t"
 export type { MonadUpdate, BraneStateChange } from "./force.t"
 export type { ConvertedSuperposition } from "./strong/superposition.t"
-export type { ParsedProcessJson } from "../metafor/build/monadJson"
+export type { MetaJson as ParsedProcessJson } from "../metafor/build/monadJson"

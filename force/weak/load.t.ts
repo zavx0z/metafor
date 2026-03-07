@@ -4,8 +4,7 @@
  * @packageDocumentation
  */
 
-import type { Schema, Values } from "@zavx0z/context"
-import type { Mass, Self } from "../../metafor/meta/metafor.t"
+import type { Schema, Values, Mass, Self } from "@metafor/meta"
 
 /**
  * Конфигурация процесса для загрузки.
@@ -25,6 +24,9 @@ export interface ProcessConfig {
  * @template m - Тип массы атома
  * @template Res - Тип возвращаемого значения
  */
-export type ActionFn<ɸ extends Schema, m extends Mass, Res> = (
-  params: { self: Self; field: ɸ; value: Values<ɸ>; mass: m },
-) => Res | Promise<Res>
+export type ActionFn<ɸ extends Schema, m extends Mass, Res> = (params: {
+  self: Self
+  field: ɸ
+  value: Values<ɸ>
+  mass: m
+}) => Res | Promise<Res>
