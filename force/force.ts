@@ -7,55 +7,28 @@
 import { write as fieldsWrite, update as fieldsUpdate, unlock } from "@metafor/boundary"
 import { convertField } from "./strong/field"
 import { convertToNumeric } from "../boundary/fields/superposition"
+import { force$ } from "./store"
 
 import type {
-  IntentionsStore,
   IndexToUuidStore,
   ActorId,
-  StatesStore,
-  SuperpositionsStore,
-  UuidToIndexStore,
-  ProcessesStore,
   BraneStateChange,
   ActorUpdate,
 } from "./force.t"
-import type { FieldDefinition, FieldsDefinition } from "./strong/field.t"
+import type { FieldDefinition } from "./strong/field.t"
 import type { ActorConfig, Intention } from "./force.t"
 import type { MetaJson } from "@metafor/ast"
 import type { Brane, BraneValue, Data, Field } from "@boundary/fields"
 
-// ==================== Внутреннее состояние ====================
-const _globalFields: Map<string, [number, Field]> = new Map()
-const _fieldNameIndex: Map<string, number> = new Map()
-const _intentions: IntentionsStore = new Map()
-const _processes: ProcessesStore = new Map()
-const _superpositions: SuperpositionsStore = new Map()
-const _states: StatesStore = new Map()
-const _actorParams: Map<ActorId, Record<string, unknown>> = new Map()
-const _uuidToIndex: UuidToIndexStore = new Map()
-const _indexToUuid: IndexToUuidStore = new Map()
-const _stateMaps: Map<ActorId, string[]> = new Map() // states для reverse-маппинга
-const _onStateChange: { current: ((changes: BraneStateChange[]) => void) | null } = { current: null }
-const _actorIds: Set<ActorId> = new Set()
-let _nextFieldIndex = 0
-let _fieldsDefinition: FieldsDefinition = {}
+// ==================== Экспорт для тестов ====================
 
-// Экспорт для тестов
+/**
+ * Сбрасывает состояние FORCE-домена.
+ *
+ * @internal Для тестов.
+ */
 export function _resetState(): void {
-  _globalFields.clear()
-  _fieldNameIndex.clear()
-  _intentions.clear()
-  _processes.clear()
-  _superpositions.clear()
-  _states.clear()
-  _actorParams.clear()
-  _uuidToIndex.clear()
-  _indexToUuid.clear()
-  _stateMaps.clear()
-  _onStateChange.current = null
-  _actorIds.clear()
-  _nextFieldIndex = 0
-  _fieldsDefinition = {}
+  force$.reset()
 }
 
 // ==================== Функции ====================
@@ -68,8 +41,8 @@ export function _resetState(): void {
  * @returns Индекс поля.
  * @throws {Error} Если тип поля конфликтует с существующим.
  */
-function addMonadField(name: string, field: Field): number {
-  const existing = _globalFields.get(name)
+function addField(name: string, field: Field): number {
+  const existing = force$.globalFields.get(name)
   if (existing) {
     const [existingIndex, existingField] = existing
     if (existingField.type !== field.type) {
@@ -77,9 +50,9 @@ function addMonadField(name: string, field: Field): number {
     }
     return existingIndex
   }
-  const newIndex = _nextFieldIndex++
-  _globalFields.set(name, [newIndex, field])
-  _fieldNameIndex.set(name, newIndex)
+  const newIndex = force$.nextFieldIndex++
+  force$.globalFields.set(name, [newIndex, field])
+  force$.fieldNameIndex.set(name, newIndex)
   return newIndex
 }
 
@@ -89,7 +62,7 @@ function addMonadField(name: string, field: Field): number {
 function valuesToTuples(values: Record<string, unknown>): [number, BraneValue][] {
   const tuples: [number, BraneValue][] = []
   for (const [name, value] of Object.entries(values)) {
-    const fieldIndex = _fieldNameIndex.get(name)
+    const fieldIndex = force$.fieldNameIndex.get(name)
     if (fieldIndex !== undefined) {
       tuples.push([fieldIndex, value as BraneValue])
     }
@@ -140,18 +113,18 @@ function valuesToTuples(values: Record<string, unknown>): [number, BraneValue][]
  */
 export function createActor(config: ActorConfig): string {
   const uuid = config.uuid
-  _actorIds.add(uuid)
+  force$.actorIds.add(uuid)
   for (const [name, def] of Object.entries(config.fields)) {
     const registeredField = convertField(def as FieldDefinition)
-    addMonadField(name, registeredField)
+    addField(name, registeredField)
     if (config.values[name] !== undefined) {
-      // Сохраняем в _fieldsDefinition для последующего write()
-      _fieldsDefinition[name] = def as FieldDefinition
+      // Сохраняем в fieldsDefinition для последующего write()
+      force$.fieldsDefinition[name] = def as FieldDefinition
     }
   }
-  _actorParams.set(uuid, { ...config.values })
-  _intentions.set(uuid, config.intentions ?? {})
-  _superpositions.set(uuid, config.superposition)
+  force$.actorParams.set(uuid, { ...config.values })
+  force$.intentions.set(uuid, config.intentions ?? {})
+  force$.superpositions.set(uuid, config.superposition)
   // Состояние не устанавливается — актор рождается в неопределённом состоянии
   return uuid
 }
@@ -162,12 +135,12 @@ export function createActor(config: ActorConfig): string {
  * @param uuid - {@link ActorId} актора.
  */
 export function deleteActor(uuid: ActorId): void {
-  _actorIds.delete(uuid)
-  _actorParams.delete(uuid)
-  _intentions.delete(uuid)
-  _superpositions.delete(uuid)
-  _states.delete(uuid)
-  _uuidToIndex.delete(uuid)
+  force$.actorIds.delete(uuid)
+  force$.actorParams.delete(uuid)
+  force$.intentions.delete(uuid)
+  force$.superpositions.delete(uuid)
+  force$.states.delete(uuid)
+  force$.uuidToIndex.delete(uuid)
 }
 
 /**
@@ -193,7 +166,7 @@ export function deleteActor(uuid: ActorId): void {
  */
 export function registerProcesses(processes: Record<Intention, MetaJson>): void {
   for (const [key, schema] of Object.entries(processes)) {
-    _processes.set(key, schema as MetaJson)
+    force$.processes.set(key, schema as MetaJson)
   }
 }
 
@@ -204,7 +177,7 @@ export function registerProcesses(processes: Record<Intention, MetaJson>): void 
  * @returns Схема процесса или undefined если не найдена.
  */
 export function getProcessSchema(processKey: Intention): MetaJson | undefined {
-  return _processes.get(processKey)
+  return force$.processes.get(processKey)
 }
 
 /**
@@ -213,26 +186,26 @@ export function getProcessSchema(processKey: Intention): MetaJson | undefined {
  * @returns Массив изменений состояний (только birth-events при первой инициализации)
  */
 export async function updateBoundary(): Promise<BraneStateChange[]> {
-  const actorIds = Array.from(_actorIds)
+  const actorIds = Array.from(force$.actorIds)
   if (actorIds.length === 0) {
     return []
   }
   // Собираем поля в массив Field[]
   const fieldsArray: Field[] = []
-  for (const [_, [index, field]] of _globalFields.entries()) {
+  for (const [_, [index, field]] of force$.globalFields.entries()) {
     fieldsArray[index] = field
   }
   // Конвертируем values и superposition для каждого актора
   const allBranes: Brane[] = actorIds.map((actorId) => {
-    const actorValues = _actorParams.get(actorId)!
+    const actorValues = force$.actorParams.get(actorId)!
     const valuesTuples = valuesToTuples(actorValues)
-    const actorSuperposition = _superpositions.get(actorId)!
-    const converted = convertToNumeric(actorSuperposition, _fieldNameIndex)
+    const actorSuperposition = force$.superpositions.get(actorId)!
+    const converted = convertToNumeric(actorSuperposition, force$.fieldNameIndex)
     // Сохраняем states для reverse-маппинга
-    _stateMaps.set(actorId, converted.states)
+    force$.stateMaps.set(actorId, converted.states)
     // Находим индекс начального состояния
     // Если состояние не установлено (актор рождается) — используем первое состояние из суперпозиции
-    const currentState = _states.get(actorId)
+    const currentState = force$.states.get(actorId)
     const initialStateName = currentState ?? converted.states[0]!
     const initialStateIndex = converted.states.indexOf(initialStateName)
     if (initialStateIndex === -1) {
@@ -251,11 +224,11 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
   }
   await fieldsWrite(data)
   // Маппинги
-  _uuidToIndex.clear()
-  _indexToUuid.clear()
+  force$.uuidToIndex.clear()
+  force$.indexToUuid.clear()
   actorIds.forEach((actorId, i) => {
-    _uuidToIndex.set(actorId, i)
-    _indexToUuid.set(i, actorId)
+    force$.uuidToIndex.set(actorId, i)
+    force$.indexToUuid.set(i, actorId)
   })
 
   // Инициализация состояния всех акторов с эмитом только birth-событий
@@ -264,23 +237,23 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
   const actorsToUnlock: ActorId[] = []
 
   for (const actorId of actorIds) {
-    const stateMap = _stateMaps.get(actorId)
+    const stateMap = force$.stateMaps.get(actorId)
     if (!stateMap || stateMap.length === 0) {
       throw new Error(`State map not found for actor ${actorId}`)
     }
 
-    const old = _states.get(actorId)
+    const old = force$.states.get(actorId)
     if (old === undefined) {
       const firstState = stateMap[0]!
-      _states.set(actorId, firstState)
+      force$.states.set(actorId, firstState)
 
-      const intention = _intentions.get(actorId)?.[firstState]
+      const intention = force$.intentions.get(actorId)?.[firstState]
       changes.push({
         actorId,
         oldState: undefined,
         newState: firstState,
         intention: intention ?? null,
-        values: _actorParams.get(actorId)!,
+        values: force$.actorParams.get(actorId)!,
       })
 
       if (!intention) {
@@ -293,13 +266,13 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
   if (actorsToUnlock.length > 0) {
     const uniqueActorsToUnlock = Array.from(new Set(actorsToUnlock))
     const indexes = uniqueActorsToUnlock
-      .map((id) => _uuidToIndex.get(id))
+      .map((id) => force$.uuidToIndex.get(id))
       .filter((index): index is number => index !== undefined)
     unlock(indexes)
   }
 
-  if (changes.length > 0 && _onStateChange.current) {
-    _onStateChange.current(changes)
+  if (changes.length > 0 && force$.onStateChange.current) {
+    force$.onStateChange.current(changes)
   }
 
   return changes
@@ -331,20 +304,20 @@ export async function updateActors(updates: ActorUpdate[]): Promise<BraneStateCh
   const allUpdates: Array<[number, Array<[number, unknown]>, boolean?]> = []
 
   for (const { uuid, fields = {}, lock } of updates) {
-    const index = _uuidToIndex.get(uuid)
+    const index = force$.uuidToIndex.get(uuid)
     if (index === undefined) {
       throw new Error(`Actor ${uuid} not found in boundary`)
     }
 
     // Обновляем params актора
-    const actorParams = _actorParams.get(uuid)
+    const actorParams = force$.actorParams.get(uuid)
     if (actorParams) {
-      _actorParams.set(uuid, { ...actorParams, ...fields })
+      force$.actorParams.set(uuid, { ...actorParams, ...fields })
     }
 
     // Конвертируем в кортежи для update()
     const fieldUpdates = Object.entries(fields).map(([name, value]) => {
-      const fieldIndex = _fieldNameIndex.get(name)
+      const fieldIndex = force$.fieldNameIndex.get(name)
       if (fieldIndex === undefined) {
         throw new Error(`Field '${name}' not found`)
       }
@@ -367,24 +340,24 @@ export async function updateActors(updates: ActorUpdate[]): Promise<BraneStateCh
   const actorsToUnlock: ActorId[] = []
 
   stateChanges.forEach(([braneIndex, stateIndex]) => {
-    const actorId = _indexToUuid.get(braneIndex)
+    const actorId = force$.indexToUuid.get(braneIndex)
     if (!actorId) return
-    const stateMap = _stateMaps.get(actorId)
+    const stateMap = force$.stateMaps.get(actorId)
     if (!stateMap) {
       throw new Error(`State map not found for actor ${actorId}`)
     }
     const current = stateMap[stateIndex]!
-    const old = _states.get(actorId)
+    const old = force$.states.get(actorId)
     if (old !== undefined && current !== old) {
-      _states.set(actorId, current)
-      const intentions = _intentions.get(actorId)
+      force$.states.set(actorId, current)
+      const intentions = force$.intentions.get(actorId)
       const intention = intentions?.[current]
       changes.push({
         actorId,
         oldState: old,
         newState: current,
         intention: intention ?? null,
-        values: _actorParams.get(actorId)!,
+        values: force$.actorParams.get(actorId)!,
       })
       // Авто-снятие блокировки если нет намерения (TAKT 2)
       if (!intention) {
@@ -397,13 +370,13 @@ export async function updateActors(updates: ActorUpdate[]): Promise<BraneStateCh
   if (actorsToUnlock.length > 0) {
     const uniqueActorsToUnlock = Array.from(new Set(actorsToUnlock))
     const indexes = uniqueActorsToUnlock
-      .map((id) => _uuidToIndex.get(id))
+      .map((id) => force$.uuidToIndex.get(id))
       .filter((index): index is number => index !== undefined)
     unlock(indexes)
   }
   // Пакетная отправка изменений
-  if (changes.length > 0 && _onStateChange.current) {
-    _onStateChange.current(changes)
+  if (changes.length > 0 && force$.onStateChange.current) {
+    force$.onStateChange.current(changes)
   }
   return changes
 }
@@ -416,14 +389,14 @@ export async function updateActors(updates: ActorUpdate[]): Promise<BraneStateCh
  * @example
  * ```typescript
  * onStateChange((changes) => {
- *   for (const { monadId, oldState, newState, intention, values } of changes) {
- *     console.log(`${monadId}: ${oldState} → ${newState}, intention: ${intention}`)
+ *   for (const { actorId, oldState, newState, intention, values } of changes) {
+ *     console.log(`${actorId}: ${oldState} → ${newState}, intention: ${intention}`)
  *   }
  * })
  * ```
  */
 export function onStateChange(callback: (changes: BraneStateChange[]) => void): void {
-  _onStateChange.current = callback
+  force$.onStateChange.current = callback
 }
 
 /**
@@ -443,7 +416,7 @@ export function onStateChange(callback: (changes: BraneStateChange[]) => void): 
  * ```
  */
 export async function releaseLock(actorIds?: ActorId[]): Promise<BraneStateChange[]> {
-  const uuidsToUnlock = actorIds ?? Array.from(_actorIds)
+  const uuidsToUnlock = actorIds ?? Array.from(force$.actorIds)
 
   if (uuidsToUnlock.length === 0) {
     return []

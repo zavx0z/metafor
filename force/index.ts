@@ -46,5 +46,8 @@ export {
   _resetState,
 } from "./force"
 
+export { force$ } from "./store"
+export type { ForceStoreState } from "./store.t"
+
 export { convertField } from "./strong/field"
 export type { FieldDefinition, FieldsDefinition, BraneStateChange, ActorUpdate } from "./force.t"
