@@ -1,5 +1,8 @@
 import { serve } from "bun"
 import index from "./index.html"
+import { join } from "node:path"
+
+const ROOT_DIRECTORY = join(import.meta.dir, "../../")
 
 const server = serve({
   port: 3000,
@@ -12,7 +15,7 @@ const server = serve({
     "/github/*": async (req) => {
       try {
         const path = new URL(req.url).pathname
-        return new Response(Bun.file(path.replace("/github", "../github")))
+        return new Response(Bun.file(join(ROOT_DIRECTORY, path)))
       } catch (e) {
         console.error(e)
         return new Response("Not Found", { status: 404 })
@@ -21,7 +24,7 @@ const server = serve({
     "/_bun/client/proc/*": async (req) => {
       try {
         const path = new URL(req.url).pathname
-        return new Response(Bun.file(path.replace("/_bun/client", "./")))
+        return new Response(Bun.file(join(import.meta.dir, path.replace("/_bun/client/proc", ""))))
       } catch (e) {
         console.error(e)
         return new Response("Not Found", { status: 404 })

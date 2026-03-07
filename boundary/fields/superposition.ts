@@ -389,7 +389,6 @@ export function compileEnsemble(
  * // }
  * ```
  */
-
 export function convertToNumeric(
   superposition: Superposition,
   fieldNameIndex: Map<string, number>

@@ -1,5 +1,5 @@
 {
-  "name": "space",
+  "name": "@web/app",
   "private": true,
   "devDependencies": {
     "@metafor/force": "workspace:*"
