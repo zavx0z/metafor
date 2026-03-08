@@ -46,4 +46,9 @@ export interface ForceStoreState {
   nextFieldIndex: number
   /** Определение полей для write() */
   fieldsDefinition: FieldsDefinition
+
+  /** Сбрасывает состояние хранилища */
+  reset(): void
+  /** Восстанавливает состояние хранилища */
+  restore(state: ForceStoreState): void
 }

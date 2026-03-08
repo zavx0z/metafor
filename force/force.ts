@@ -7,24 +7,13 @@
 import { write as fieldsWrite, update as fieldsUpdate, unlock } from "@metafor/boundary"
 import { convertField } from "./strong/field"
 import { convertToNumeric } from "../boundary/fields/superposition"
-import { force$, resetForceStore } from "./store"
+import { force$ } from "./store"
 
 import type { ActorId, BraneStateChange, ActorUpdate } from "./force.t"
 import type { FieldDefinition } from "./strong/field.t"
 import type { ActorConfig } from "./force.t"
 import type { Brane, Data, Field } from "@boundary/fields"
 import { valuesToTuples } from "./strong/value"
-
-// ==================== Экспорт для тестов ====================
-
-/**
- * Сбрасывает состояние FORCE-домена.
- *
- * @internal Для тестов.
- */
-export function _resetState(): void {
-  resetForceStore(force$)
-}
 
 // ==================== Функции ====================
 /**

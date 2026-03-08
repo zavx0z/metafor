@@ -34,23 +34,12 @@ export async function initial(path: string) {
   }
 }
 
-export {
-  createActor,
-  deleteActor,
-  updateActors,
-  updateBoundary,
-  onStateChange,
-  releaseLock,
-  _resetState,
-} from "./force"
+export { createActor, deleteActor, updateActors, updateBoundary, onStateChange, releaseLock } from "./force"
 
-export { force$, resetForceStore, restoreForceStore } from "./store"
+export { force$ } from "./store"
 export type { ForceStoreState } from "./store.t"
 
-export {
-  registerProcesses,
-  getProcessSchema,
-} from "./weak"
+export { registerProcesses, getProcessSchema } from "./weak"
 
 export { convertField } from "./strong/field"
 export type { BraneStateChange, ActorUpdate } from "./force.t"

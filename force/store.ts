@@ -38,47 +38,36 @@ export const force$: ForceStoreState = {
   actorIds: new Set(),
   nextFieldIndex: 0,
   fieldsDefinition: {},
-}
 
-/**
- * Сбрасывает состояние FORCE-домена.
- *
- * @param store$ - Стор для сброса.
- */
-export function resetForceStore(store$: ForceStoreState): void {
-  store$.globalFields.clear()
-  store$.fieldNameIndex.clear()
-  store$.intentions.clear()
-  store$.superpositions.clear()
-  store$.states.clear()
-  store$.actorParams.clear()
-  store$.uuidToIndex.clear()
-  store$.indexToUuid.clear()
-  store$.stateMaps.clear()
-  store$.onStateChange.current = null
-  store$.actorIds.clear()
-  store$.nextFieldIndex = 0
-  store$.fieldsDefinition = {}
-}
+  reset() {
+    this.globalFields.clear()
+    this.fieldNameIndex.clear()
+    this.intentions.clear()
+    this.superpositions.clear()
+    this.states.clear()
+    this.actorParams.clear()
+    this.uuidToIndex.clear()
+    this.indexToUuid.clear()
+    this.stateMaps.clear()
+    this.onStateChange.current = null
+    this.actorIds.clear()
+    this.nextFieldIndex = 0
+    this.fieldsDefinition = {}
+  },
 
-/**
- * Восстанавливает состояние FORCE-домена.
- *
- * @param store$ - Стор для восстановления.
- * @param state - Состояние для восстановления.
- */
-export function restoreForceStore(store$: ForceStoreState, state: ForceStoreState): void {
-  store$.globalFields = state.globalFields
-  store$.fieldNameIndex = state.fieldNameIndex
-  store$.intentions = state.intentions
-  store$.superpositions = state.superpositions
-  store$.states = state.states
-  store$.actorParams = state.actorParams
-  store$.uuidToIndex = state.uuidToIndex
-  store$.indexToUuid = state.indexToUuid
-  store$.stateMaps = state.stateMaps
-  store$.onStateChange = state.onStateChange
-  store$.actorIds = state.actorIds
-  store$.nextFieldIndex = state.nextFieldIndex
-  store$.fieldsDefinition = state.fieldsDefinition
+  restore(state: ForceStoreState) {
+    this.globalFields = state.globalFields
+    this.fieldNameIndex = state.fieldNameIndex
+    this.intentions = state.intentions
+    this.superpositions = state.superpositions
+    this.states = state.states
+    this.actorParams = state.actorParams
+    this.uuidToIndex = state.uuidToIndex
+    this.indexToUuid = state.indexToUuid
+    this.stateMaps = state.stateMaps
+    this.onStateChange = state.onStateChange
+    this.actorIds = state.actorIds
+    this.nextFieldIndex = state.nextFieldIndex
+    this.fieldsDefinition = state.fieldsDefinition
+  },
 }

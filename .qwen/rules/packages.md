@@ -114,20 +114,20 @@ export const boundary$ = {
 
 ```text
 {domain}/{package}/
-├── {package}.ts        ← оркестратор пакета
-├── store.t.ts          ← интерфейс {Package}Store
-├── store.ts            ← инстанс {name}$ с методами
-└── package.json        ← имя: @{domain}/{package}
+├── {package}.ts       ← оркестратор пакета
+├── store.t.ts         ← интерфейс {Package}Store
+├── store.ts           ← инстанс {name}$ с методами reset()/restore()
+└── package.json       ← имя: @{domain}/{package}
 ```
 
 **Пример:**
 
 ```text
 boundary/fields/
-├── fields.ts           ← оркестратор @boundary/fields
-├── store.t.ts          ← интерфейс FieldsStore
-├── store.ts            ← инстанс fields$ с методами
-└── package.json        ← имя: @boundary/fields
+├── fields.ts          ← оркестратор @boundary/fields
+├── store.t.ts         ← интерфейс FieldsStore
+├── store.ts           ← инстанс fields$ с методами
+└── package.json       ← имя: @boundary/fields
 ```
 
 **Общее хранилище домена:**
@@ -136,15 +136,15 @@ boundary/fields/
 
 ```text
 boundary/
-├── boundary.ts         ← оркестратор домена
-├── store.t.ts          ← интерфейс BoundaryStore
-├── store.ts            ← инстанс boundary$ с методами
+├── boundary.ts        ← оркестратор домена
+├── store.t.ts         ← интерфейс BoundaryStore
+├── store.ts           ← инстанс boundary$ с методами
 ├── fields/
 │   ├── fields.ts
-│   └── store.ts        ← локальное fields$
+│   └── store.ts       ← локальное fields$
 ├── matrix/
 │   └── matrix.ts
-└── package.json        ← имя: @boundary/boundary
+└── package.json       ← имя: @boundary/boundary
 ```
 
 **Правило размещения:**
@@ -153,6 +153,32 @@ boundary/
 |----------|-------------|-----|
 | Использует **один** пакет | `{package}/store.ts` | `fields$`, `matrix$` |
 | Используют **несколько** пакетов домена | `{domain}/store.ts` | `boundary$` |
+
+**API store-объекта:**
+
+Если store требует методы `reset()` и `restore()` — размещай их **внутри объекта**:
+
+```typescript
+// ✅ ПРАВИЛЬНО: методы внутри объекта
+export const boundary$: BoundaryStore = {
+  heap: null as unknown as Uint32Array,
+  braneBlockPtrs: [],
+
+  reset() {
+    this.heap = null as unknown as Uint32Array
+    this.braneBlockPtrs = []
+  },
+
+  restore(state: BoundaryStore) {
+    this.heap = state.heap
+    this.braneBlockPtrs = state.braneBlockPtrs
+  },
+}
+
+// ❌ НЕПРАВИЛЬНО: отдельные функции экспорта
+export function resetBoundaryStore(store$: BoundaryStore): void { ... }
+export function restoreBoundaryStore(store$: BoundaryStore, state: BoundaryStore): void { ... }
+```
 
 **См. также:**
 
