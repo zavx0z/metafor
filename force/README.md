@@ -1,8 +1,8 @@
-# `@boundary/monad`
+# `@metafor/force`
 
 Минимальный FSM-координатор в архитектуре MetaFor.
 
-`MONAD` не вычисляет переходы сам.  
+`FORCE` не вычисляет переходы сам.
 Он:
 
 1. хранит семантику (`"IDLE"`, `"PATROL"`, имена полей),
@@ -16,13 +16,13 @@
 
 `updateBoundary()` в текущей модели:
 
-- **пересобирает/синхронизирует boundary** под актуальный набор монад,
+- **пересобирает/синхронизирует boundary** под актуальный набор акторов,
 - **не выполняет runtime-шаг переходов** (не делает эволюцию FSM),
-- **но эмитит birth-events** для новых монад.
+- **но эмитит birth-events** для новых акторов.
 
 Birth-event нужен, чтобы:
 
-- оповестить систему о появлении новой монады,
+- оповестить систему о появлении нового актора,
 - запустить процесс первого состояния (если есть `intention`),
 - отделить фазу создания от runtime-эволюции.
 
@@ -39,15 +39,15 @@ Birth-event нужен, чтобы:
 
 Есть два типа событий:
 
-1. **Birth-event** (инициализация монады)
+1. **Birth-event** (инициализация актора)
    - `oldState === undefined`
 2. **Runtime transition** (рабочий переход)
    - `oldState !== undefined`
 
 Гарантия текущей модели:
 
-- `updateBoundary()` → только birth-events (если есть новые монады),
-- `updateMonads()` → только runtime transitions.
+- `updateBoundary()` → только birth-events (если есть новые акторы),
+- `updateActors()` → только runtime transitions.
 
 ---
 
@@ -59,7 +59,7 @@ Birth-event нужен, чтобы:
 
 ### Кто снимает lock
 
-- `MONAD` снимает lock автоматически, если у нового состояния **нет намерения**.
+- `FORCE` снимает lock автоматически, если у нового состояния **нет намерения**.
 - `Weak Force` (или orchestration-слой) снимает lock после исполнения процесса через `releaseLock()`.
 
 ### Birth и lock
@@ -70,14 +70,14 @@ Birth-event нужен, чтобы:
 
 ## API
 
-## `createMonad(config): string`
+## `createActor(config): string`
 
-Создаёт монаду и возвращает `monadId`.
+Создаёт актора и возвращает `actorId`.
 
 Поля:
 
 - `fields`: схема полей,
-- `params`: значения полей,
+- `values`: значения полей,
 - `superposition`: граф переходов,
 - `intentions?`: карта `state -> processKey`.
 
@@ -89,23 +89,23 @@ Birth-event нужен, чтобы:
 
 Поведение:
 
-- пересобирает boundary под текущий набор монад,
-- обновляет внутренние маппинги `monadId <-> braneIndex`,
-- фиксирует начальное состояние новых монад,
+- пересобирает boundary под текущий набор акторов,
+- обновляет внутренние маппинги `actorId <-> braneIndex`,
+- фиксирует начальное состояние новых акторов,
 - эмитит только birth-events (`oldState: undefined`),
 - runtime-переходы в этом вызове не вычисляет.
 
-Возвращает массив birth-изменений (или `[]`, если новых монад нет).
+Возвращает массив birth-изменений (или `[]`, если новых акторов нет).
 
 ---
 
-## `updateMonads(updates): Promise<BraneStateChange[]>`
+## `updateActors(updates): Promise<BraneStateChange[]>`
 
 Обновляет поля и запускает runtime-эволюцию FSM.
 
 Формат:
 
-- `{ id, fields?, lock? }`
+- `{ uuid, fields?, lock? }`
 
 `lock`:
 
@@ -125,19 +125,19 @@ Birth-event нужен, чтобы:
 
 `callback(changes)` получает массив `BraneStateChange`:
 
-- `monadId`
+- `actorId`
 - `oldState`
 - `newState`
 - `intention`
-- `params`
+- `values`
 
 ---
 
-## `releaseLock(monadIds?): Promise<void>`
+## `releaseLock(actorIds?): Promise<void>`
 
 Явно снимает lock:
 
-- для перечисленных `monadIds`,
+- для перечисленных `actorIds`,
 - или для всех, если аргумент не передан.
 
 Используйте после завершения процесса действия.
@@ -156,9 +156,9 @@ Birth-event нужен, чтобы:
 
 ---
 
-## `deleteMonad(id): void`
+## `deleteActor(id): void`
 
-Удаляет монаду из MONAD-слоя.
+Удаляет актора из FORCE-слоя.
 
 ---
 
@@ -166,14 +166,14 @@ Birth-event нужен, чтобы:
 
 ```ts
 import {
-  createMonad,
+  createActor,
   updateBoundary,
-  updateMonads,
+  updateActors,
   onStateChange,
   releaseLock,
-} from "@boundary/monad"
+} from "@metafor/force"
 
-const id = createMonad({
+const id = createActor({
   fields: { hp: { type: "number" } },
   values: { hp: 30 },
   superposition: {
@@ -189,9 +189,9 @@ const id = createMonad({
 onStateChange((changes) => {
   for (const c of changes) {
     if (c.oldState === undefined) {
-      console.log(`[BIRTH] ${c.monadId}: ${c.newState}, intention=${c.intention}`)
+      console.log(`[BIRTH] ${c.actorId}: ${c.newState}, intention=${c.intention}`)
     } else {
-      console.log(`[RUN] ${c.monadId}: ${c.oldState} -> ${c.newState}, intention=${c.intention}`)
+      console.log(`[RUN] ${c.actorId}: ${c.oldState} -> ${c.newState}, intention=${c.intention}`)
     }
   }
 })
@@ -200,7 +200,7 @@ onStateChange((changes) => {
 await updateBoundary()
 
 // Runtime-такт
-await updateMonads([{ id, fields: { hp: 80 } }])
+await updateActors([{ uuid: id, fields: { hp: 80 } }])
 
 // После завершения процесса
 await releaseLock([id])
@@ -210,8 +210,8 @@ await releaseLock([id])
 
 ## Практические рекомендации
 
-1. После `createMonad()` / `deleteMonad()` вызывайте `updateBoundary()`.
+1. После `createActor()` / `deleteActor()` вызывайте `updateBoundary()`.
 2. Используйте birth-events из `updateBoundary()` для инициализационной оркестрации.
-3. Реагируйте на runtime-логику через `updateMonads()` + `onStateChange`.
+3. Реагируйте на runtime-логику через `updateActors()` + `onStateChange`.
 4. Для состояний с намерением удерживайте lock до завершения процесса и вызывайте `releaseLock()`.
 5. Разделяйте обработку birth и runtime в доменных обработчиках явно.

@@ -7,14 +7,24 @@
 import { write as fieldsWrite, update as fieldsUpdate, unlock } from "@metafor/boundary"
 import { convertField } from "./strong/field"
 import { convertToNumeric } from "../boundary/fields/superposition"
-import { force$ } from "./store"
+import { force$, resetForceStore } from "./store"
 
 import type { ActorId, BraneStateChange, ActorUpdate } from "./force.t"
 import type { FieldDefinition } from "./strong/field.t"
-import type { ActorConfig, Intention } from "./force.t"
-import type { MetaJson } from "@metafor/ast"
+import type { ActorConfig } from "./force.t"
 import type { Brane, Data, Field } from "@boundary/fields"
 import { valuesToTuples } from "./strong/value"
+
+// ==================== Экспорт для тестов ====================
+
+/**
+ * Сбрасывает состояние FORCE-домена.
+ *
+ * @internal Для тестов.
+ */
+export function _resetState(): void {
+  resetForceStore(force$)
+}
 
 // ==================== Функции ====================
 /**
@@ -111,43 +121,6 @@ export function deleteActor(uuid: ActorId): void {
   force$.superpositions.delete(uuid)
   force$.states.delete(uuid)
   force$.uuidToIndex.delete(uuid)
-}
-
-/**
- * Регистрирует схемы процессов из DSL.
- *
- * @param processes - Объект с ключами процессов и их схемами из DSL.
- *
- * @example
- * ```typescript
- * registerProcesses({
- *   patrolProcess: {
- *     type: "action",
- *     label: "Патруль",
- *     action: { src: "./actions/patrol.ts", read: ["position"] }
- *   },
- *   deathProcess: {
- *     type: "action",
- *     label: "Смерть",
- *     action: { src: "./actions/death.ts", read: ["hp"] }
- *   }
- * })
- * ```
- */
-export function registerProcesses(processes: Record<Intention, MetaJson>): void {
-  for (const [key, schema] of Object.entries(processes)) {
-    force$.processes.set(key, schema as MetaJson)
-  }
-}
-
-/**
- * Получает схему процесса по ключу.
- *
- * @param processKey - Ключ процесса (ID намерения).
- * @returns Схема процесса или undefined если не найдена.
- */
-export function getProcessSchema(processKey: Intention): MetaJson | undefined {
-  return force$.processes.get(processKey)
 }
 
 /**

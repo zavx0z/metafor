@@ -28,7 +28,7 @@
     "typescript": "^5.9.3"
   },
   "scripts": {
-    "dev": "bun index",
+    "dev": "bun --filter @app/web dev",
     "upd": "bun update --latest && bun i",
     "clear": "rm -rf node_modules && bun run --parallel --filter '*' clear",
     "typegen": "bun --filter @metafor/dsl typegen",

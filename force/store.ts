@@ -12,7 +12,6 @@ import type { ForceStoreState } from "./store.t"
  * @property globalFields {@link ForceStoreState.globalFields|глобальные поля}
  * @property fieldNameIndex {@link ForceStoreState.fieldNameIndex|маппинг имён полей}
  * @property intentions {@link ForceStoreState.intentions|намерения акторов}
- * @property processes {@link ForceStoreState.processes|схемы процессов}
  * @property superpositions {@link ForceStoreState.superpositions|суперпозиции}
  * @property states {@link ForceStoreState.states|текущие состояния}
  * @property actorParams {@link ForceStoreState.actorParams|параметры акторов}
@@ -25,14 +24,10 @@ import type { ForceStoreState } from "./store.t"
  * @property fieldsDefinition {@link ForceStoreState.fieldsDefinition|определение полей}
  * @see {@link ForceStoreState} — тип состояния
  */
-export const force$: ForceStoreState & {
-  reset(): void
-  restore(state: ForceStoreState): void
-} = {
+export const force$: ForceStoreState = {
   globalFields: new Map(),
   fieldNameIndex: new Map(),
   intentions: new Map(),
-  processes: new Map(),
   superpositions: new Map(),
   states: new Map(),
   actorParams: new Map(),
@@ -43,38 +38,47 @@ export const force$: ForceStoreState & {
   actorIds: new Set(),
   nextFieldIndex: 0,
   fieldsDefinition: {},
+}
 
-  reset() {
-    this.globalFields.clear()
-    this.fieldNameIndex.clear()
-    this.intentions.clear()
-    this.processes.clear()
-    this.superpositions.clear()
-    this.states.clear()
-    this.actorParams.clear()
-    this.uuidToIndex.clear()
-    this.indexToUuid.clear()
-    this.stateMaps.clear()
-    this.onStateChange.current = null
-    this.actorIds.clear()
-    this.nextFieldIndex = 0
-    this.fieldsDefinition = {}
-  },
+/**
+ * Сбрасывает состояние FORCE-домена.
+ *
+ * @param store$ - Стор для сброса.
+ */
+export function resetForceStore(store$: ForceStoreState): void {
+  store$.globalFields.clear()
+  store$.fieldNameIndex.clear()
+  store$.intentions.clear()
+  store$.superpositions.clear()
+  store$.states.clear()
+  store$.actorParams.clear()
+  store$.uuidToIndex.clear()
+  store$.indexToUuid.clear()
+  store$.stateMaps.clear()
+  store$.onStateChange.current = null
+  store$.actorIds.clear()
+  store$.nextFieldIndex = 0
+  store$.fieldsDefinition = {}
+}
 
-  restore(state: ForceStoreState) {
-    this.globalFields = state.globalFields
-    this.fieldNameIndex = state.fieldNameIndex
-    this.intentions = state.intentions
-    this.processes = state.processes
-    this.superpositions = state.superpositions
-    this.states = state.states
-    this.actorParams = state.actorParams
-    this.uuidToIndex = state.uuidToIndex
-    this.indexToUuid = state.indexToUuid
-    this.stateMaps = state.stateMaps
-    this.onStateChange = state.onStateChange
-    this.actorIds = state.actorIds
-    this.nextFieldIndex = state.nextFieldIndex
-    this.fieldsDefinition = state.fieldsDefinition
-  },
+/**
+ * Восстанавливает состояние FORCE-домена.
+ *
+ * @param store$ - Стор для восстановления.
+ * @param state - Состояние для восстановления.
+ */
+export function restoreForceStore(store$: ForceStoreState, state: ForceStoreState): void {
+  store$.globalFields = state.globalFields
+  store$.fieldNameIndex = state.fieldNameIndex
+  store$.intentions = state.intentions
+  store$.superpositions = state.superpositions
+  store$.states = state.states
+  store$.actorParams = state.actorParams
+  store$.uuidToIndex = state.uuidToIndex
+  store$.indexToUuid = state.indexToUuid
+  store$.stateMaps = state.stateMaps
+  store$.onStateChange = state.onStateChange
+  store$.actorIds = state.actorIds
+  store$.nextFieldIndex = state.nextFieldIndex
+  store$.fieldsDefinition = state.fieldsDefinition
 }

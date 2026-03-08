@@ -1,10 +1,10 @@
 {
-  "name": "@web/app",
+  "name": "@app/web",
   "private": true,
   "devDependencies": {
     "@metafor/force": "workspace:*"
   },
   "scripts": {
-    "app": "bun server"
+    "dev": "bun server"
   }
 }

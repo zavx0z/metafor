@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect, beforeAll, afterEach } from "bun:test"
-import {
+import { resetForceStore,
   createActor,
   updateActors,
   updateBoundary,
@@ -29,7 +29,7 @@ beforeAll(async () => {
 const _createdActorIds: string[] = []
 
 afterEach(() => {
-  force$.reset()
+  resetForceStore(force$)
   _createdActorIds.length = 0
 })
 

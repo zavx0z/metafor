@@ -38,7 +38,7 @@ let actors: Map<string, ActorRecord> = new Map()
  *   "./component.ts",
  *   null,
  *   first()
- * )
+ * )р
  * ```
  */
 export function createActor(

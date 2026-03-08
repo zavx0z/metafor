@@ -40,13 +40,17 @@ export {
   updateActors,
   updateBoundary,
   onStateChange,
-  registerProcesses,
-  getProcessSchema,
   releaseLock,
+  _resetState,
 } from "./force"
 
-export { force$ } from "./store"
+export { force$, resetForceStore, restoreForceStore } from "./store"
 export type { ForceStoreState } from "./store.t"
+
+export {
+  registerProcesses,
+  getProcessSchema,
+} from "./weak"
 
 export { convertField } from "./strong/field"
 export type { BraneStateChange, ActorUpdate } from "./force.t"

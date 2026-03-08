@@ -11,7 +11,6 @@ import type {
   StatesStore,
   SuperpositionsStore,
   UuidToIndexStore,
-  ProcessesStore,
   BraneStateChange,
 } from "./force.t"
 import type { FieldDefinition, FieldsDefinition } from "./strong/field.t"
@@ -27,8 +26,6 @@ export interface ForceStoreState {
   fieldNameIndex: Map<string, number>
   /** Намерения акторов: ActorId → { состояние → намерение } */
   intentions: IntentionsStore
-  /** Схемы процессов: ключ → схема */
-  processes: ProcessesStore
   /** Суперпозиции состояний акторов */
   superpositions: SuperpositionsStore
   /** Текущие состояния акторов */
