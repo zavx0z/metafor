@@ -12,11 +12,14 @@ Apply this rule when designing CPU/GPU, server/client, browser/node, or other ru
 
 ## Scope boundary
 
-This rule defines runtime/backend class-owned state policy. Store semantics are in `rules/project/stores.md`, and backend API symmetry is in `rules/architecture/backends.md`.
+This rule defines runtime/backend class-owned state policy. Store semantics are in `rules/project/stores.md`, backend API symmetry is in `rules/architecture/backends.md`, and staged input flow is in `rules/architecture/dataflow.md`.
 
 ## Requirements
 
 - Use a class to isolate an execution environment or backend.
+- Runtime adapters are post-branch implementation adapters.
+- Runtime adapters own only branch-local technical materialization for their implementation.
+- Runtime adapters are not preparation layers.
 - Parallel backends that implement one runtime role must share one strict abstract contract.
 - Prefer `interface` for that shared contract by default.
 - Use `abstract class` for the shared contract only when there is a real shared lifecycle or shared base behavior.
@@ -26,6 +29,7 @@ This rule defines runtime/backend class-owned state policy. Store semantics are 
 - Backend-local fields must not become a second source of truth for package/domain state.
 - Keep data on `this` only when backend behavior needs it across calls.
 - Package-level and domain-level store objects must not live in `this`.
+- Prepared input may enter the adapter, but branch-local technical state must be derived from it after branching.
 - Temporary per-call computation data must stay local to the function that computes it.
 - Do not store temporary computation data in `this`.
 - Do not promote temporary per-call data into long-lived instance fields without clear backend-local need.
@@ -56,6 +60,7 @@ gpu.step(boundary$, runtime)
 Do not:
 
 - use class instance state to hide external package or domain stores;
+- use runtime adapters as the ownership layer for preparation data;
 - treat backend-local fields as package/domain stores;
 - create backend-specific public verbs for the same semantic operation;
 - move temporary per-call data into long-lived runtime fields.

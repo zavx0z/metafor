@@ -1,216 +1,324 @@
-# Task: Fix rule violations introduced by the recent Matrix refactor
+# Task: Generalize the architecture rules around data flow so they work for any project level
 
 ## Context
 
-The recent Matrix refactor introduced multiple architectural and rule-level mistakes.
+The current rule pack already covers:
 
-This task is NOT about continuing the refactor freely.
-This task is about identifying and correcting the mistakes created by the previous agent.
+- module structure
+- package ownership
+- store semantics
+- runtime/backend adapters
+- backend API symmetry
+- testing
 
-You must work from the current repository state and the current rule system.
-Do not invent a new architecture.
-Do not expand scope.
-Do not rewrite unrelated code.
+However, one important architectural rule is still missing in a sufficiently general form:
 
-Your goal is to restore compliance with the project rules and with the clarified project style discussed in this session.
+the system does not yet define data flow itself as a first-class architectural principle.
+
+This is causing ambiguity in practice:
+
+- it is hard to tell where data is prepared
+- it is hard to tell where execution actually begins
+- it is hard to tell where one shared input branches into backend- or implementation-specific representations
+- it is hard to draw a data-flow diagram directly from the rules
+- abstractions remain too high-level and do not sufficiently constrain how data moves through the system
+
+This task must fix that.
 
 ---
 
 ## Primary objective
 
-Fix the mistakes introduced in `boundary/matrix` and related testing/rule usage by applying the existing rule system correctly and minimally.
+Add and refine architecture rules so that data flow is described explicitly and generically enough to apply to any project level, not only to Matrix or this repository.
+
+The new rules must be universal and reusable.
+They must describe architectural stages and responsibilities in a way that works for:
+
+- domain preparation pipelines
+- runtime systems
+- backend adapters
+- server/client boundaries
+- CPU/GPU variants
+- any layered execution architecture built on staged data flow
 
 ---
 
-## Required review scope
+## Core principle to introduce
 
-Review at least:
+Architecture must explicitly describe data flow as staged transformation:
 
-- `AGENT.md`
+### Stage 1 — Preparation
+
+A preparation layer validates, normalizes, compiles, encodes, or assembles data.
+
+### Stage 2 — Common execution input
+
+Preparation produces one explicit backend-agnostic / implementation-agnostic input object.
+
+This is the single input point into the execution subsystem.
+
+### Stage 3 — Branching / materialization
+
+Only after that common input point may the flow branch into implementation-specific materialization:
+
+- CPU/GPU
+- server/client
+- browser/node
+- adapter A / adapter B
+- local/remote execution
+- any other parallel implementation path
+
+### Stage 4 — Execution
+
+Each branch executes the same abstract contract using its own local technical representation.
+
+---
+
+## Universal architectural distinctions that must become explicit
+
+The updated rules must clearly distinguish these categories:
+
+### 1. Preparation data
+
+Intermediate data used to validate, normalize, encode, compile, assemble, or derive a common execution input.
+
+### 2. Common prepared input
+
+The minimal shared input required by all parallel implementations of one execution role.
+
+### 3. Branch-local materialization
+
+Implementation-specific technical state derived from the common prepared input after branching.
+
+### 4. Source-of-truth stores
+
+Package/domain-level owned persistent state with explicit ownership and invariants.
+
+### 5. Temporary per-call computation data
+
+Ephemeral local variables that do not belong in stores and do not need to persist in long-lived instance state.
+
+---
+
+## Important universal rule
+
+Do not confuse these categories.
+
+The rules must explicitly prevent:
+
+- preparation logic becoming runtime/backend ownership
+- source-of-truth store being confused with prepared input
+- branch-local context being confused with store
+- temporary local data being promoted into store or long-lived instance fields
+- one implementation receiving conceptually different input than another implementation of the same role
+
+---
+
+## Scope of rule updates
+
+Review and refine at minimum:
+
 - `rules/architecture/packages.md`
 - `rules/architecture/modules.md`
-- `rules/engineering/fp.md`
-- all changed files in `boundary/matrix/**`
-- all Matrix-related tests added or moved by the previous agent
+- `rules/architecture/backends.md`
+- `rules/project/stores.md`
+- `rules/project/runtime.adapters.md`
+- `AGENT.md`
+- `QWEN.md` only if trigger wording requires a small change
+
+You may add one new dedicated rule file if needed, but only if that improves clarity without bloating the pack.
+
+Preferred possible location:
+
+- `rules/architecture/dataflow.md`
+
+If you add it:
+
+- keep it universal
+- do not make it Matrix-specific
+- update trigger maps minimally
 
 ---
 
-## What went wrong and must be fixed
+## What the new rules must say, in universal form
 
-### 1. External store handling was corrupted
+The resulting architecture rules must make these statements explicit:
 
-The previous agent treated external store-like data incorrectly.
+### A. Every execution subsystem should have one explicit common input point
 
-Problems to detect:
+If multiple implementations perform the same runtime or execution role, they must begin from one shared prepared input contract.
 
-- external package/domain store hidden inside class instance state
-- store decomposed into fragmented function parameters
-- store access became less obvious than `store$.field`
+### B. Branching happens after the common input point
 
-Required correction:
+Implementation-specific state or resources must only appear after the shared input enters the execution subsystem.
 
-- if an external package/domain store is used, keep it explicit
-- do not hide it as instance-owned state
-- do not explode it into signature fragments when it is conceptually one store
-- restore obvious access style through the store object
+### C. The common input contains only truly shared data
 
-Important:
-This rule applies specifically to real package/domain store objects.
-Do not misuse `$` for ordinary local technical data.
+Do not place implementation-specific convenience data into the common input unless it is genuinely part of the shared execution contract.
 
----
+### D. Implementation-specific context is local technical materialization
 
-### 2. `$` naming was applied too broadly
+Branch-local execution context is not a store and not a source of truth by default.
 
-The previous agent treated `$` as a generic marker for any mutable thing.
+### E. Store, prepared input, and implementation-local context are different architectural entities
 
-Problems to detect:
+These must remain distinct both in naming and in ownership.
 
-- local technical runtime structures named like store objects
-- temporary or helper-level mutable values named as if they were package/domain stores
-- fake store semantics introduced through naming
+### F. The rules should be usable to draw a direct data-flow diagram
 
-Required correction:
+A reader should be able to infer:
 
-- keep `$` only for real package/domain store objects
-- ordinary local runtime fields must use ordinary names
-- internal technical class fields must not pretend to be stores
-
-Examples of acceptable ordinary instance fields:
-
-- `states`
-- `bufferedChanges`
-- `context`
-- `device`
-- `pipeline`
+- where preparation happens
+- where common input is formed
+- where branching happens
+- where execution happens
+- which data stays shared
+- which data becomes branch-local
 
 ---
 
-### 3. Runtime class role became unclear
+## Required changes by rule area
 
-The previous agent used classes in a way that blurred the boundary between:
+### 1. `rules/architecture/packages.md`
 
-- backend adapter
-- external store owner
-- temporary computation container
+Add concise but universal guidance that package placement should respect data-flow stage ownership:
 
-Required correction:
+- preparation ownership
+- common input ownership
+- execution ownership
+- branch-local ownership
 
-- a class may exist only as an isolated execution/backend adapter
-- it may hold backend-local persistent technical fields
-- it must not become hidden owner of external package/domain store
-- temporary computation data must remain local to the function where it is used
-- do not put temporary data into store
-- do not add unnecessary instance fields for one-step computation
+Do not make this file long.
+Keep it package-level.
+
+### 2. `rules/architecture/modules.md`
+
+Clarify that module structure should reflect stage boundaries where relevant:
+
+- preparation modules
+- orchestration entry modules
+- branch-specific modules
+- helper modules
+- type modules
+
+Do not overload this file with runtime philosophy.
+Keep it structural.
+
+### 3. `rules/architecture/backends.md`
+
+Extend it so backend symmetry includes one shared conceptual input model before branching.
+
+The file must make it clear that:
+
+- symmetry is not only about method names and signatures
+- symmetry also means parallel implementations branch from the same prepared input contract
+
+### 4. `rules/project/stores.md`
+
+Refine it so store semantics are explicitly distinguished from:
+
+- prepared input objects
+- branch-local technical contexts
+- temporary local computation data
+
+Do not broaden `$`.
+Keep store semantics strict.
+
+### 5. `rules/project/runtime.adapters.md`
+
+Refine it so runtime adapters are explicitly defined as:
+
+- post-branch implementation adapters
+- owners of branch-local technical materialization only
+- not preparation layers
+- not source-of-truth store owners
+
+### 6. Optional new file: `rules/architecture/dataflow.md`
+
+If needed, introduce a new universal rule dedicated to data flow stages.
+
+If you add this file, it must define:
+
+- preparation
+- common input
+- branching
+- branch-local materialization
+- execution
+- source-of-truth store distinction
+- temporary data distinction
+
+It must remain universal and reusable across projects.
 
 ---
 
-### 4. Backend symmetry drifted
+## Requirements for universality
 
-The previous agent introduced or encouraged asymmetry between CPU and GPU runtime operations.
+The new rule wording must NOT depend on:
 
-Required correction:
+- Matrix
+- Fields
+- MetaFor-specific terms
+- GPU-specific logic
+- one exact project layout
 
-- CPU and GPU implementations must expose the same semantic operations
-- do not invent asymmetric semantic names when the operation is the same
-- prefer backend distinction through module namespace, not through operation renaming
-- preserve one stable contract across implementations
+Instead, it must work for any architecture where:
 
-Target style:
-
-- same operation names across CPU/GPU
-- backend distinguished by module path / namespace
-
----
-
-### 5. Module boundaries became muddled
-
-Problems to detect:
-
-- orchestration mixed with helper logic
-- public surface mixed with implementation detail
-- technical state handling spread across too many unrelated files without a clear center
-
-Required correction:
-
-- restore clear module roles according to the existing module rule
-- public API through `index.ts`
-- orchestrator as coordination point
-- helpers focused
-- types isolated in `*.t.ts`
-- stores only where there is true ownership
-
----
-
-### 6. Test ownership and placement were mishandled
-
-Problems to detect:
-
-- Matrix-specific tests placed above the owning package
-- package-local logic validated from generic shared test folders
-- helper imports treated as justification for moving tests out of the owning package
-
-Required correction:
-
-- if the test validates Matrix behavior, keep it inside Matrix
-- helper import origin does not change test ownership
-- top-level tests are only for true cross-package integration
-- do not add dependencies only to support package-local tests when relative monorepo imports are enough
-
----
-
-### 7. CPU/GPU parity was not properly proven
-
-Problems to detect:
-
-- no clear canonical parity cases
-- no deterministic repeated execution checks
-- no proof that CPU and GPU produce the same observable results
-- hidden state reuse between tests
-
-Required correction:
-
-- use one canonical case set for both runtimes
-- compare CPU and GPU results directly
-- verify repeated deterministic execution
-- ensure fresh setup per test
-- report any behavioral divergence as a rule violation, not as a cosmetic difference
+- one layer prepares data
+- another layer accepts common prepared input
+- parallel implementations materialize local execution context
+- execution proceeds under one shared contract
 
 ---
 
 ## Required implementation approach
 
-### Step 1 — Diagnose before editing
+### Step 1 — Diagnose the missing rule
 
-Before changing files, produce a concise diagnosis table:
+Produce a compact diagnosis:
 
-- file
-- detected problem
-- violated rule
-- required minimal correction
+- what current ambiguity exists
+- why current architecture rules are insufficient
+- why data flow must be a first-class rule
 
-Do not skip this step.
+### Step 2 — Draft the universal data-flow architecture rule
 
-### Step 2 — Make minimal corrections
+Either:
 
-Fix only what is necessary to restore rule compliance.
+- refine existing files only,
+or
+- add one dedicated universal `dataflow` rule plus minimal supporting refinements elsewhere
 
-Do not:
+Choose the cleaner option.
 
-- perform unrelated cleanup
-- rename large areas for style only
-- move files without ownership reason
-- continue speculative refactoring
+### Step 3 — Align adjacent rules
 
-### Step 3 — Preserve useful structure
+Adjust:
 
-If the previous agent introduced something useful, keep it.
-Only remove the parts that violate the rules or the clarified project style.
+- packages
+- modules
+- backends
+- stores
+- runtime adapters
 
-### Step 4 — Verify by tests
+so their boundaries stay clean and consistent with the new data-flow rule.
 
-Run targeted Matrix tests first.
-Then run the broader test suite required by the project workflow.
+### Step 4 — Update entry triggers if needed
+
+Only if needed, add a small trigger in:
+
+- `AGENT.md`
+- `QWEN.md`
+
+for tasks involving:
+
+- data flow
+- staged architecture
+- preparation vs execution
+- shared input vs backend-local materialization
+
+### Step 5 — Verify diagram-readiness
+
+At the end, confirm that the final rules are sufficient to draw a direct staged data-flow diagram for a new system without guessing hidden architectural conventions.
 
 ---
 
@@ -218,12 +326,16 @@ Then run the broader test suite required by the project workflow.
 
 Provide:
 
-1. A short diagnosis of each introduced mistake
+1. A diagnosis summary
 2. The exact files changed
-3. The reason for each change
-4. The minimal architectural correction applied
-5. The final test result
-6. Any remaining issue that could not be safely fixed in this task
+3. The exact universal architectural rule text added or refined
+4. A short explanation of why the new wording is universal rather than project-specific
+5. A short note describing the final staged data-flow model in plain language
+6. A confirmation that the rule pack now distinguishes:
+   - store
+   - prepared input
+   - branch-local context
+   - temporary local data
 
 ---
 
@@ -231,14 +343,13 @@ Provide:
 
 The task is complete only when all of the following are true:
 
-- external package/domain store is no longer mishandled
-- `$` naming is no longer used for ordinary local technical state
-- runtime classes only hold backend-local persistent technical fields
-- temporary computation data is not stored unnecessarily
-- CPU and GPU expose symmetric semantic operations
-- Matrix tests live with Matrix unless they are true cross-package integration tests
-- CPU/GPU parity is explicitly checked
-- the fix is minimal and does not discard useful existing structure
+- the rule pack explicitly defines staged data flow
+- the rule pack defines one shared prepared input point before branching
+- the rule pack distinguishes common input from branch-local materialization
+- the rule pack distinguishes store from prepared input and from local context
+- the rule wording is universal and reusable across projects
+- the rule pack is more useful for drawing data-flow diagrams directly
+- no project-specific terminology is required to understand the new architecture rule
 
 ---
 
@@ -246,18 +357,24 @@ The task is complete only when all of the following are true:
 
 Do not:
 
-- rewrite Matrix from scratch
-- replace the architecture with a new personal preference
-- hide external store inside class instance state
-- use `$` for ordinary local technical values
-- move Matrix package tests into top-level shared test directories
-- add dependencies only to support local test helpers
-- declare the task complete without explicit parity verification
+- make the rule Matrix-specific
+- make the rule GPU-specific
+- use project-only terms as the primary abstraction
+- weaken existing store/runtime/backend distinctions
+- collapse multiple rule responsibilities into one bloated file
+- turn this into a code refactor task
 
 ---
 
 ## Final instruction
 
-Treat this task as a repair task, not as an open-ended refactor.
+Treat data flow as a universal architecture rule.
 
-The goal is to remove the mistakes introduced by the previous agent while preserving the useful parts of the current codebase.
+The goal is to make the rule pack strong enough that, for any project layer, an agent can tell:
+
+- where data is prepared,
+- where shared execution input is formed,
+- where branching begins,
+- what stays common,
+- what becomes local,
+- and how to diagram the architecture without guessing.

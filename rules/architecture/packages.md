@@ -13,7 +13,10 @@ Apply this rule when deciding package placement for state, orchestration, and re
 ## Requirements
 
 - State is owned by the package or domain that owns its lifecycle and invariants.
+- Preparation belongs to the package or domain that owns validation, normalization, compilation, encoding, or assembly for that stage.
+- The common prepared input belongs to the package or domain that owns the shared execution contract for that role.
 - Orchestration is owned by the package that coordinates multi-step behavior.
+- Branch-local materialization belongs to the implementation package or module that materializes that branch after the shared input point.
 - Place responsibilities upward only when ownership is truly shared.
 - Keep dependency direction from broader context toward narrower implementation.
 - Keep cross-package boundaries explicit and cycle-free.
@@ -41,6 +44,7 @@ Do not:
 ## Checklist
 
 - [ ] State and orchestration ownership are explicit
+- [ ] Preparation, common input, and branch-local ownership are explicit
 - [ ] Upward placement is justified by shared ownership
 - [ ] Cross-package boundaries are clear and cycle-free
 - [ ] Tests live in the package that owns validated behavior

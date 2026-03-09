@@ -12,13 +12,15 @@ Apply this rule when naming or shaping state objects, passing state through APIs
 
 ## Scope boundary
 
-This rule defines store semantics and store ownership only. Runtime class state policy is in `rules/project/runtime.adapters.md`, and naming constraints are in `rules/project/naming.md`.
+This rule defines store semantics and store ownership only. Runtime class state policy is in `rules/project/runtime.adapters.md`, naming constraints are in `rules/project/naming.md`, and staged input flow is in `rules/architecture/dataflow.md`.
 
 ## Requirements
 
 - Use `$` suffix only for real package-level or domain-level source-of-truth store objects.
 - Persistence alone is not enough to classify a value as a store.
 - Backend-local persistent technical fields are not stores.
+- Prepared input objects are not stores by default.
+- Branch-local technical contexts are not stores by default.
 - Pass external stores as whole objects.
 - Do not split an external store into signature fragments such as `heap`, `bytecode`, `offsets`, or `blockPtrs`.
 - Keep access style explicit as `store$.field`.
@@ -30,7 +32,9 @@ This rule defines store semantics and store ownership only. Runtime class state 
 ## State classes
 
 - Package/domain store: source-of-truth state with package/domain ownership and `$` naming.
+- Prepared input: shared execution input object, not a source-of-truth store by default.
 - Backend-local technical fields: adapter/runtime implementation fields on `this`, without store semantics and without `$`.
+- Branch-local technical context: implementation-specific materialization derived after branching, without store semantics by default.
 - Temporary computation data: per-call local variables, not stored in `this` and not stored in package/domain stores.
 
 ## Direct answers
@@ -38,6 +42,7 @@ This rule defines store semantics and store ownership only. Runtime class state 
 - Use `$` only when the value is a real package or domain store.
 - Persistence by itself never justifies `$` naming.
 - A real store is package/domain source-of-truth state with explicit ownership and invariants.
+- A prepared input object is not a store just because multiple implementations consume it.
 - Local mutable technical objects must not be named `state$`, `heap$`, or `changes$`.
 - `boundary$` is valid when it is an external domain or package store passed into operations.
 - `this.state$` is invalid for package or domain store ownership because it hides external source of truth in backend instance state.
