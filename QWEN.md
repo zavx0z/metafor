@@ -44,7 +44,7 @@ Read first:
 | Structuring a module                                                                   | `rules/architecture/modules.md`                                        |
 | Package ownership, orchestration ownership, or cross-package boundaries                | `rules/architecture/packages.md`                                       |
 | Designing symmetric backend APIs                                                       | `rules/architecture/backends.md`                                       |
-| Designing staged data flow, preparation vs execution, or shared input before branching | `rules/architecture/dataflow.md`                                       |
+| Designing staged data flow, multi-stage preparation, or shared input before branching  | `rules/architecture/dataflow.md`                                       |
 | Building dependency or type graphs                                                     | `rules/architecture/graphs.md`                                         |
 | Working with package/domain store decisions or `$` store semantics                     | `rules/project/stores.md`                                              |
 | Working with CPU/GPU, server/client, adapters, or runtime classes                      | `rules/project/runtime.adapters.md` + `rules/architecture/backends.md` |

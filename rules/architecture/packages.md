@@ -13,7 +13,8 @@ Apply this rule when deciding package placement for state, orchestration, and re
 ## Requirements
 
 - State is owned by the package or domain that owns its lifecycle and invariants.
-- Preparation belongs to the package or domain that owns validation, normalization, compilation, encoding, or assembly for that stage.
+- Preparation ownership may itself be staged across packages or layers.
+- Each preparation stage belongs to the package or domain that owns validation, normalization, compilation, encoding, or assembly for that stage.
 - The common prepared input belongs to the package or domain that owns the shared execution contract for that role.
 - Orchestration is owned by the package that coordinates multi-step behavior.
 - Branch-local materialization belongs to the implementation package or module that materializes that branch after the shared input point.
@@ -31,6 +32,7 @@ Use this ownership check before placement:
 3. Who reads it?
 4. Is the sharing structural or accidental?
 5. Which package owns the validated behavior?
+6. Is this an upstream preparation contributor or the owner of the shared prepared input contract?
 
 ## Forbidden
 

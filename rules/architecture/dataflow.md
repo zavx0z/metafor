@@ -22,7 +22,9 @@ Treat execution flow as these stages:
 Stage rules:
 
 - Preparation validates, normalizes, compiles, encodes, assembles, or derives execution data.
-- Preparation produces one explicit common prepared input for one execution role.
+- Preparation may be multi-stage and may span several layers, modules, or packages.
+- No single package is required to own the entire preparation chain.
+- One explicit common prepared input appears only after the full preparation chain for one execution role completes.
 - The common prepared input is the single shared input point into parallel implementations of that role.
 - Branching may happen only after the common prepared input exists.
 - Branch-local materialization may derive implementation-specific technical representations from that common input.
@@ -31,6 +33,7 @@ Stage rules:
 Keep these data classes distinct:
 
 - Preparation data: intermediate data used before the common input exists.
+- Preparation chain: one or more upstream preparation stages that lead to the common prepared input.
 - Common prepared input: minimal shared input required by all implementations of one execution role.
 - Branch-local materialization: implementation-specific technical context derived after branching.
 - Source-of-truth store: owned package/domain state with explicit ownership and invariants.
@@ -41,6 +44,7 @@ Keep these data classes distinct:
 Do not:
 
 - treat preparation data as execution-owned branch state;
+- collapse a multi-stage preparation chain into one artificial owner when ownership is actually distributed;
 - treat common prepared input as a source-of-truth store by default;
 - place implementation-specific convenience data into the common prepared input unless it is truly shared by all implementations of that role;
 - let one backend or implementation begin from a conceptually different prepared input than another implementation of the same role;
@@ -48,7 +52,7 @@ Do not:
 
 ## Checklist
 
-- [ ] Preparation is explicit
+- [ ] Preparation is explicit, even when it spans multiple stages
 - [ ] One common prepared input exists before branching
 - [ ] Branch-local materialization begins only after the common input point
 - [ ] Store, prepared input, branch-local context, and temporary data are distinct
