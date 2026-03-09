@@ -1,5 +1,10 @@
 import { findFieldOffset, OP, TYPE, uintToFloat } from "@boundary/fields"
 
+/**
+ * Читает сырое значение поля из heap (локального или entangled блока).
+ *
+ * @see gpu/evolution.wgsl:get_field_value_raw() — WGSL-эквивалент
+ */
 function readFieldValueRaw(heap: Uint32Array, blockPtr: number, fieldIndex: number): number {
   const localOffset = findFieldOffset(heap, blockPtr, fieldIndex)
   if (localOffset !== null) {
@@ -28,6 +33,11 @@ function readBytecodeWord(bytecode: Uint32Array, offset: number): number {
   return bytecode[offset] ?? 0
 }
 
+/**
+ * Проверяет условие перехода (EQ/NEQ/GT/LT/GTE/LTE/IN/NOT_IN/INCLUDE/NOT_INCLUDE/LENGTH/IS_EMPTY).
+ *
+ * @see gpu/evolution.wgsl:check_cond() — WGSL-эквивалент
+ */
 function evaluateCondition(
   heap: Uint32Array,
   bytecode: Uint32Array,
@@ -94,6 +104,11 @@ function evaluateCondition(
   return false
 }
 
+/**
+ * Вычисляет следующее состояние браны на основе bytecode.
+ *
+ * @see gpu/evolution.wgsl:main() (строки 515-560) — WGSL-эквивалент логики переходов
+ */
 export function evaluateBraneNextState(
   heap: Uint32Array,
   bytecode: Uint32Array,

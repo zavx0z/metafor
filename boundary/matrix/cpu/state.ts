@@ -8,13 +8,19 @@ export function createCpuRuntimeState(initialStates: Uint32Array): CpuRuntimeSta
   }
 }
 
-export function setCpuStepResult(state: CpuRuntimeState, nextStates: Uint32Array, changes: MatrixChanges): void {
-  state.states = nextStates
-  state.bufferedChanges = changes
+/**
+ * Устанавливает результат шага (мутирует state$).
+ */
+export function setCpuStepResult(state$: CpuRuntimeState, nextStates: Uint32Array, changes: MatrixChanges): void {
+  state$.states = nextStates
+  state$.bufferedChanges = changes
 }
 
-export function takeBufferedChanges(state: CpuRuntimeState): MatrixChanges {
-  const changes = state.bufferedChanges
-  state.bufferedChanges = []
+/**
+ * Забирает буферизованные изменения и очищает буфер (мутирует state$).
+ */
+export function takeBufferedChanges(state$: CpuRuntimeState): MatrixChanges {
+  const changes = state$.bufferedChanges
+  state$.bufferedChanges = []
   return changes
 }

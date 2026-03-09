@@ -6,15 +6,15 @@ import { createCpuRuntimeState, setCpuStepResult, takeBufferedChanges } from "./
 
 export class CPUMatrixRuntime implements MatrixRuntime {
   private readonly store$: BoundaryStore
-  private readonly state: CpuRuntimeState
+  private readonly state$: CpuRuntimeState
 
   constructor(store$: BoundaryStore, initialStates: Uint32Array) {
     this.store$ = store$
-    this.state = createCpuRuntimeState(initialStates)
+    this.state$ = createCpuRuntimeState(initialStates)
   }
 
   get states(): Uint32Array {
-    return this.state.states
+    return this.state$.states
   }
 
   step(): void {
@@ -23,17 +23,17 @@ export class CPUMatrixRuntime implements MatrixRuntime {
       this.store$.braneBlockPtrs,
       this.store$.bytecode,
       this.store$.bytecodeOffsets,
-      this.state.states,
+      this.state$.states,
     )
-    setCpuStepResult(this.state, result.nextStates, result.changes)
+    setCpuStepResult(this.state$, result.nextStates, result.changes)
   }
 
   async readChanges(): Promise<MatrixChanges> {
-    return takeBufferedChanges(this.state)
+    return takeBufferedChanges(this.state$)
   }
 
   statesSnapshot(): Uint32Array {
-    return this.state.states
+    return this.state$.states
   }
 
   heapUpdate(_updates: MatrixHeapUpdate[]): void {
@@ -41,6 +41,6 @@ export class CPUMatrixRuntime implements MatrixRuntime {
   }
 
   clear(): void {
-    setCpuStepResult(this.state, new Uint32Array(0), [])
+    setCpuStepResult(this.state$, new Uint32Array(0), [])
   }
 }

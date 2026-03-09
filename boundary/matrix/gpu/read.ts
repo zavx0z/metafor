@@ -1,20 +1,25 @@
 import type { MatrixChanges } from "../matrix.t.ts"
 
+/**
+ * Читает изменения состояний из GPU (оркестрация).
+ *
+ * Мутабельные буферы: dirtyFlagsBuffer$, statesBuffer$, stagingBuffer$ (копируются)
+ */
 export async function readGpuChanges(
   device: GPUDevice,
-  dirtyFlagsBuffer: GPUBuffer,
-  statesBuffer: GPUBuffer,
-  stagingBuffer: GPUBuffer,
+  dirtyFlagsBuffer$: GPUBuffer,
+  statesBuffer$: GPUBuffer,
+  stagingBuffer$: GPUBuffer,
 ): Promise<MatrixChanges> {
-  const braneCount = statesBuffer.size / 4
+  const braneCount = statesBuffer$.size / 4
   const cmd = device.createCommandEncoder()
 
-  cmd.copyBufferToBuffer(dirtyFlagsBuffer, 0, stagingBuffer, 0, braneCount * 4)
-  cmd.copyBufferToBuffer(statesBuffer, 0, stagingBuffer, braneCount * 4, braneCount * 4)
+  cmd.copyBufferToBuffer(dirtyFlagsBuffer$, 0, stagingBuffer$, 0, braneCount * 4)
+  cmd.copyBufferToBuffer(statesBuffer$, 0, stagingBuffer$, braneCount * 4, braneCount * 4)
   device.queue.submit([cmd.finish()])
 
-  await stagingBuffer.mapAsync(GPUMapMode.READ)
-  const data = new Uint32Array(stagingBuffer.getMappedRange().slice(0))
+  await stagingBuffer$.mapAsync(GPUMapMode.READ)
+  const data = new Uint32Array(stagingBuffer$.getMappedRange().slice(0))
   const dirtyFlags = data.slice(0, braneCount)
   const states = data.slice(braneCount, braneCount * 2)
 
@@ -25,6 +30,6 @@ export async function readGpuChanges(
     }
   }
 
-  stagingBuffer.unmap()
+  stagingBuffer$.unmap()
   return changes
 }

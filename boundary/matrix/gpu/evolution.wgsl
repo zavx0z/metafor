@@ -300,6 +300,8 @@ fn get_field_value_recursive(brane_index: u32, target_field_idx: u32) -> f32 {
 /**
  * Получить сырое значение поля как u32.
  * Для строк возвращает string_id, для скаляров - битовое представление.
+ *
+ * @see cpu/transition.ts:readFieldValueRaw() — TypeScript-эквивалент
  */
 fn get_field_value_raw(brane_index: u32, target_field_idx: u32) -> u32 {
   // Ищем в локальном блоке поля
@@ -345,14 +347,16 @@ fn get_field_value_raw(brane_index: u32, target_field_idx: u32) -> u32 {
 // ============================================================================
 
 /**
- * Проверка условия для поля.
- * 
+ * Проверка условия для поля (EQ/NEQ/GT/LT/GTE/LTE/IN/NOT_IN/INCLUDE/NOT_INCLUDE/LENGTH/IS_EMPTY).
+ *
  * @param op - Код операции (OP.EQ, OP.NEQ, OP.IN, ...)
  * @param field_type - Тип поля (TYPE.FLOAT=0, TYPE.UINT=1, TYPE.BOOL=2, TYPE.STRING=3, TYPE.ARRAY=4)
  * @param val_a_raw - Сырое значение поля из кучи (для строк = string_id)
  * @param val_b_raw - Значение из байткода или указатель на список
  * @param cond_values_base - База секции значений в cond-блоке (первое слово первой инструкции)
  * @returns true если условие выполнено
+ *
+ * @see cpu/transition.ts:evaluateCondition() — TypeScript-эквивалент
  */
 fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, cond_values_base: u32) -> bool {
   // Для ARRAY поддерживаем скалярные сравнения по длине.
@@ -517,6 +521,20 @@ fn check_cond(op: u32, field_type: u32, val_a_raw: u32, val_b_raw: u32, cond_val
 }
 
 // WORKGROUP_SIZE = 64 (константа определена выше, но @workgroup_size требует literal)
+
+/**
+ * Главная функция compute shader — вычисляет переходы для всех бран.
+ *
+ * Алгоритм:
+ * 1. Проверка lock-флага (пропуск если заблокирована)
+ * 2. Чтение текущего состояния из states buffer
+ * 3. Итерация по переходам из bytecode
+ * 4. Проверка условий через check_cond()
+ * 5. Запись нового состояния в states buffer (in-place)
+ * 6. Установка dirty-флага если состояние изменилось
+ *
+ * @see cpu/transition.ts:evaluateBraneNextState() — TypeScript-эквивалент логики переходов
+ */
 @compute @workgroup_size(64)
 fn main(@builtin(global_invocation_id) id: vec3<u32>) {
   let idx = id.x;
