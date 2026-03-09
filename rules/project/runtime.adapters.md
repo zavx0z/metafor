@@ -17,6 +17,9 @@ This rule defines runtime/backend class-owned state policy. Store semantics are 
 ## Requirements
 
 - Use a class to isolate an execution environment or backend.
+- Parallel backends that implement one runtime role must share one strict abstract contract.
+- Prefer `interface` for that shared contract by default.
+- Use `abstract class` for the shared contract only when there is a real shared lifecycle or shared base behavior.
 - A class may keep only backend-local persistent technical fields.
 - Backend-local instance fields are ordinary technical fields, not stores.
 - Simple internal fields on `this` are allowed, for example `this.states`, `this.bufferedChanges`, `this.device`, `this.pipeline`, `this.context`.
@@ -29,6 +32,14 @@ This rule defines runtime/backend class-owned state policy. Store semantics are 
 - Do not store temporary computation data in package or domain stores.
 - Keep semantic operation names aligned across backends.
 - Express backend difference by module namespace, not by inventing different operation names.
+- Keep contract shape aligned across backends for the same operation:
+  - same required arguments;
+  - same optional arguments;
+  - same return shape;
+  - same public meaning.
+- Do not use convenience signature drift where one backend requires external state in a method but another backend does not.
+- If external state is part of the contract, all backend implementations must accept it in the same place.
+- If external state is not part of the contract, none of the backend implementations may require it in that operation.
 
 ## Preferred style
 
@@ -48,6 +59,8 @@ Do not:
 - treat backend-local fields as package/domain stores;
 - create backend-specific public verbs for the same semantic operation;
 - move temporary per-call data into long-lived runtime fields.
+- allow required/optional signature drift between backend implementations of one operation.
+- rely on nominally shared types while backend method semantics differ.
 
 ## Checklist
 
@@ -55,3 +68,5 @@ Do not:
 - [ ] `this` fields are backend-local technical state only
 - [ ] External store ownership is not moved into class instance state
 - [ ] Same semantic operation names exist across backend modules
+- [ ] One strict shared abstract contract is used for parallel backends
+- [ ] Required/optional arguments and return shape match across backends

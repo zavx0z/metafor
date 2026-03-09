@@ -1,36 +1,36 @@
 import type { MatrixChanges } from "../matrix.t.ts"
-import type { BoundaryStore } from "../../store.t.ts"
+import type { CpuRuntimeContext } from "./index.t.ts"
 import { evaluateBraneNextState } from "./transition"
 import { applyStateChange } from "./change"
 
 /**
  * Выполняет шаг эволюции на CPU (оркестрация).
  *
- * Мутабельные параметры: store$.heap, states
+ * Мутабельные параметры: context.heap, states
  * Возвращаемые значения: nextStates (новая копия), changes (новый массив)
  */
 export function executeCpuStep(
-  store$: BoundaryStore,
+  context: CpuRuntimeContext,
   states: Uint32Array,
 ): { nextStates: Uint32Array; changes: MatrixChanges } {
   const nextStates = states.slice()
   const changes: MatrixChanges = []
 
-  for (let braneIndex = 0; braneIndex < store$.braneBlockPtrs.length; braneIndex++) {
-    const blockPtr = store$.braneBlockPtrs[braneIndex]
+  for (let braneIndex = 0; braneIndex < context.blockPtrs.length; braneIndex++) {
+    const blockPtr = context.blockPtrs[braneIndex]
     if (blockPtr === undefined) {
       continue
     }
 
-    if ((store$.heap[blockPtr + 2] ?? 0) === 1) {
+    if ((context.heap[blockPtr + 2] ?? 0) === 1) {
       continue
     }
 
     const currentState = states[braneIndex] ?? 0
     const nextState = evaluateBraneNextState(
-      store$.heap,
-      store$.bytecode,
-      store$.bytecodeOffsets[braneIndex] ?? 0,
+      context.heap,
+      context.bytecode,
+      context.bytecodeOffsets[braneIndex] ?? 0,
       blockPtr,
       currentState,
     )
@@ -39,7 +39,7 @@ export function executeCpuStep(
       continue
     }
 
-    applyStateChange(nextStates, store$.heap, blockPtr, braneIndex, nextState, changes)
+    applyStateChange(nextStates, context.heap, blockPtr, braneIndex, nextState, changes)
   }
 
   return { nextStates, changes }

@@ -1,6 +1,5 @@
 
 import type { StringAtlasExport } from "@boundary/atlas"
-import type { BoundaryStore } from "../store"
 import type { MatrixMode } from "./store.t.ts"
 
 /**
@@ -44,7 +43,7 @@ export type MatrixChanges = Array<[number, number]>
  * Единый контракт runtime матрицы.
  */
 export interface MatrixRuntime {
-  step(store$?: BoundaryStore): void
+  step(): void
   readChanges(): Promise<MatrixChanges>
   heapUpdate(updates: MatrixHeapUpdate[]): void
   clear(): void
@@ -55,9 +54,9 @@ export interface MatrixRuntime {
  * Общий контекст инициализации runtime.
  */
 export interface MatrixRuntimeInitContext {
-  store$: BoundaryStore
   params: MatrixInitParams
   atlasExport: StringAtlasExport
+  blockPtrs: number[]
 }
 
 /**

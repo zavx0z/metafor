@@ -11,6 +11,7 @@ import {
   createMultipleBranesFixture,
   createLockedBraneFixture,
   createFieldUpdateFixture,
+  createCpuRuntimeContext,
   createIsolatedStore,
 } from "./shared/fixtures"
 
@@ -21,7 +22,7 @@ describe("CPU runtime — specific tests", () => {
   test("statesSnapshot returns Uint32Array", () => {
     const fixture = createSimpleBraneFixture()
     const store = createIsolatedStore(fixture)
-    const runtime = new CPUMatrixRuntime(fixture.initialStates)
+    const runtime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
 
     const snapshot = runtime.statesSnapshot()
     expect(snapshot).toBeInstanceOf(Uint32Array)
@@ -31,7 +32,7 @@ describe("CPU runtime — specific tests", () => {
   test("heapUpdate is no-op (uses shared heap)", () => {
     const fixture = createSimpleBraneFixture()
     const store = createIsolatedStore(fixture)
-    const runtime = new CPUMatrixRuntime(fixture.initialStates)
+    const runtime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
 
     // CPU runtime использует общий heap, heapUpdate — no-op
     expect(() => runtime.heapUpdate([{ offset: 0, value1: 100 }])).not.toThrow()
@@ -40,9 +41,9 @@ describe("CPU runtime — specific tests", () => {
   test("clear resets state", () => {
     const fixture = createSimpleBraneFixture()
     const store = createIsolatedStore(fixture)
-    const runtime = new CPUMatrixRuntime(fixture.initialStates)
+    const runtime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
 
-    runtime.step(store)
+    runtime.step()
     runtime.clear()
 
     const snapshot = runtime.statesSnapshot()
@@ -57,9 +58,9 @@ describe("CPU runtime — scenario tests", () => {
   test("simpleTransition — 1 brane hp > 50", async () => {
     const fixture = createSimpleBraneFixture()
     const store = createIsolatedStore(fixture)
-    const runtime = new CPUMatrixRuntime(fixture.initialStates)
+    const runtime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
 
-    runtime.step(store)
+    runtime.step()
     const changes = await runtime.readChanges()
 
     expect(changes).toHaveLength(1)
@@ -69,9 +70,9 @@ describe("CPU runtime — scenario tests", () => {
   test("multipleBranes — 3 branes different conditions", async () => {
     const fixture = createMultipleBranesFixture()
     const store = createIsolatedStore(fixture)
-    const runtime = new CPUMatrixRuntime(fixture.initialStates)
+    const runtime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
 
-    runtime.step(store)
+    runtime.step()
     const changes = await runtime.readChanges()
 
     // Браны 0 и 2 (hp > 50) должны перейти, брана 1 (hp = 30) нет
@@ -83,9 +84,9 @@ describe("CPU runtime — scenario tests", () => {
   test("lockFlag — locked brane does not transition", async () => {
     const fixture = createLockedBraneFixture()
     const store = createIsolatedStore(fixture)
-    const runtime = new CPUMatrixRuntime(fixture.initialStates)
+    const runtime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
 
-    runtime.step(store)
+    runtime.step()
     const changes = await runtime.readChanges()
 
     // Locked брана не должна переходить
@@ -94,11 +95,10 @@ describe("CPU runtime — scenario tests", () => {
 
   test("fieldUpdate — update field value and verify transition", async () => {
     const fixture = createFieldUpdateFixture()
-    const store = createIsolatedStore(fixture)
-    const runtime = new CPUMatrixRuntime(fixture.initialStates)
+    const runtime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
 
     // Сначала hp = 40, перехода нет
-    runtime.step(store)
+    runtime.step()
     let changes = await runtime.readChanges()
     expect(changes).toHaveLength(0)
 
@@ -106,13 +106,13 @@ describe("CPU runtime — scenario tests", () => {
     const blockPtr = fixture.blockPtrs[0]!
     
     // Используем findFieldOffset для нахождения смещения поля 0 (hp)
-    const fieldOffset = findFieldOffset(store.heap, blockPtr, 0)
+    const fieldOffset = findFieldOffset(fixture.heap, blockPtr, 0)
     expect(fieldOffset).not.toBeNull()
 
     if (fieldOffset !== null) {
-      store.heap[fieldOffset] = floatToUint(100) // Устанавливаем hp = 100 (encoded)
+      fixture.heap[fieldOffset] = floatToUint(100) // Устанавливаем hp = 100 (encoded)
 
-      runtime.step(store)
+      runtime.step()
       changes = await runtime.readChanges()
 
       // Теперь должен быть переход
@@ -124,9 +124,9 @@ describe("CPU runtime — scenario tests", () => {
   test("dirtyFlagsAccuracy — only changed branes reported", async () => {
     const fixture = createMultipleBranesFixture()
     const store = createIsolatedStore(fixture)
-    const runtime = new CPUMatrixRuntime(fixture.initialStates)
+    const runtime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
 
-    runtime.step(store)
+    runtime.step()
     const changes = await runtime.readChanges()
 
     // Только браны 0 и 2 должны быть в changes
@@ -140,12 +140,12 @@ describe("CPU runtime — scenario tests", () => {
   test("determinism — multiple steps produce consistent results", async () => {
     const fixture = createSimpleBraneFixture()
     const store = createIsolatedStore(fixture)
-    const runtime = new CPUMatrixRuntime(fixture.initialStates)
+    const runtime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
 
-    runtime.step(store)
+    runtime.step()
     const changes1 = await runtime.readChanges()
 
-    runtime.step(store)
+    runtime.step()
     const changes2 = await runtime.readChanges()
 
     // После первого шага состояние = 1 (терминальное), изменений больше нет

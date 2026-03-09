@@ -34,7 +34,7 @@ export async function matrixInit(
 
   try {
     matrixStoreReset()
-    const selected = await createMatrixRuntime({ store$, params, atlasExport })
+    const selected = await createMatrixRuntime({ params, atlasExport, blockPtrs })
     store.initialized = true
     store.mode = selected.mode
     store.runtime = selected.runtime
@@ -56,10 +56,10 @@ export async function matrixInit(
 /**
  * Выполняет один шаг активного runtime матрицы.
  */
-export function matrixStep(store$: BoundaryStore): void {
+export function matrixStep(): void {
   if (!store.initialized) throw new Error("Matrix not initialized")
   if (!store.runtime) throw new Error("Matrix runtime not initialized")
-  store.runtime.step(store$)
+  store.runtime.step()
 }
 
 /**
@@ -90,8 +90,8 @@ export function matrixHeapUpdate(updates: MatrixHeapUpdate[]): void {
 /**
  * Выполняет шаг матрицы и возвращает список изменившихся состояний.
  */
-export async function matrixRunStep(store$: BoundaryStore): Promise<MatrixChanges> {
+export async function matrixRunStep(): Promise<MatrixChanges> {
   if (!store.initialized) throw new Error("Matrix not initialized")
-  matrixStep(store$)
+  matrixStep()
   return await matrixReadChanges()
 }

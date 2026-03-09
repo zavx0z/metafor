@@ -6,7 +6,7 @@ import { CPUMatrixRuntime } from "../../matrix/cpu"
 import { GPUMatrixRuntime } from "../../matrix/gpu"
 import {
   createFieldUpdateFixture,
-  createIsolatedStore,
+  createCpuRuntimeContext,
   createLockedBraneFixture,
   createMatrixInitParams,
   createMultipleBranesFixture,
@@ -20,15 +20,14 @@ async function createRuntimePair(fixture: ReturnType<typeof createSimpleBraneFix
     return null
   }
 
-  const cpuStore = createIsolatedStore(fixture)
-  const cpuRuntime = new CPUMatrixRuntime(fixture.initialStates)
+  const cpuRuntime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
 
   resetStringAtlas()
   const params = createMatrixInitParams(fixture)
   const atlasExport = { registry: new Uint32Array([0]), heap: new Uint32Array([0]), count: 0 }
   const gpuRuntime = await GPUMatrixRuntime.create(device, params, atlasExport)
 
-  return { cpuStore, cpuRuntime, gpuRuntime }
+  return { cpuRuntime, gpuRuntime }
 }
 
 describe("CPU/GPU parity — canonical cases", () => {
@@ -36,9 +35,9 @@ describe("CPU/GPU parity — canonical cases", () => {
     const pair = await createRuntimePair(createSimpleBraneFixture())
     if (!pair) return
 
-    const { cpuStore, cpuRuntime, gpuRuntime } = pair
+    const { cpuRuntime, gpuRuntime } = pair
     try {
-      cpuRuntime.step(cpuStore)
+      cpuRuntime.step()
       gpuRuntime.step()
 
       const cpuChanges = await cpuRuntime.readChanges()
@@ -54,9 +53,9 @@ describe("CPU/GPU parity — canonical cases", () => {
     const pair = await createRuntimePair(createMultipleBranesFixture())
     if (!pair) return
 
-    const { cpuStore, cpuRuntime, gpuRuntime } = pair
+    const { cpuRuntime, gpuRuntime } = pair
     try {
-      cpuRuntime.step(cpuStore)
+      cpuRuntime.step()
       gpuRuntime.step()
 
       const cpuChanges = await cpuRuntime.readChanges()
@@ -72,9 +71,9 @@ describe("CPU/GPU parity — canonical cases", () => {
     const pair = await createRuntimePair(createLockedBraneFixture())
     if (!pair) return
 
-    const { cpuStore, cpuRuntime, gpuRuntime } = pair
+    const { cpuRuntime, gpuRuntime } = pair
     try {
-      cpuRuntime.step(cpuStore)
+      cpuRuntime.step()
       gpuRuntime.step()
 
       const cpuChanges = await cpuRuntime.readChanges()
@@ -91,22 +90,22 @@ describe("CPU/GPU parity — canonical cases", () => {
     const pair = await createRuntimePair(fixture)
     if (!pair) return
 
-    const { cpuStore, cpuRuntime, gpuRuntime } = pair
+    const { cpuRuntime, gpuRuntime } = pair
     try {
-      cpuRuntime.step(cpuStore)
+      cpuRuntime.step()
       gpuRuntime.step()
       expect(await cpuRuntime.readChanges()).toEqual([])
       expect(await gpuRuntime.readChanges()).toEqual([])
 
       const blockPtr = fixture.blockPtrs[0]!
-      const fieldOffset = findFieldOffset(cpuStore.heap, blockPtr, 0)
+      const fieldOffset = findFieldOffset(fixture.heap, blockPtr, 0)
       expect(fieldOffset).not.toBeNull()
       if (fieldOffset === null) return
 
-      cpuStore.heap[fieldOffset] = floatToUint(100)
+      fixture.heap[fieldOffset] = floatToUint(100)
       gpuRuntime.heapUpdate([{ offset: fieldOffset, value1: floatToUint(100) }])
 
-      cpuRuntime.step(cpuStore)
+      cpuRuntime.step()
       gpuRuntime.step()
 
       const cpuChanges = await cpuRuntime.readChanges()
@@ -123,14 +122,14 @@ describe("CPU/GPU parity — canonical cases", () => {
       const pair = await createRuntimePair(createSimpleBraneFixture())
       if (!pair) return null
 
-      const { cpuStore, cpuRuntime, gpuRuntime } = pair
+      const { cpuRuntime, gpuRuntime } = pair
       try {
-        cpuRuntime.step(cpuStore)
+        cpuRuntime.step()
         gpuRuntime.step()
         const cpuFirst = normalizeChanges(await cpuRuntime.readChanges())
         const gpuFirst = normalizeChanges(await gpuRuntime.readChanges())
 
-        cpuRuntime.step(cpuStore)
+        cpuRuntime.step()
         gpuRuntime.step()
         const cpuSecond = normalizeChanges(await cpuRuntime.readChanges())
         const gpuSecond = normalizeChanges(await gpuRuntime.readChanges())

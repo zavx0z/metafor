@@ -23,6 +23,7 @@ This rule defines store semantics and store ownership only. Runtime class state 
 - Do not split an external store into signature fragments such as `heap`, `bytecode`, `offsets`, or `blockPtrs`.
 - Keep access style explicit as `store$.field`.
 - Do not hide package or domain stores inside backend instance fields.
+- When parallel backends share one operation contract, store presence in that contract must stay symmetric across implementations.
 - Treat store as source of truth, not scratch space.
 - Keep temporary computation data in local function variables.
 

@@ -46,7 +46,7 @@ Read first:
 | Designing symmetric backend APIs                                        | `rules/architecture/backends.md`    |
 | Building dependency or type graphs                                      | `rules/architecture/graphs.md`      |
 | Working with package/domain store decisions or `$` store semantics      | `rules/project/stores.md`           |
-| Working with CPU/GPU, server/client, adapters, or runtime classes       | `rules/project/runtime.adapters.md` |
+| Working with CPU/GPU, server/client, adapters, or runtime classes       | `rules/project/runtime.adapters.md` + `rules/architecture/backends.md` |
 | Naming decisions for stores or backend-local technical state            | `rules/project/naming.md`           |
 | Working with MetaFor DSL or `meta.ts`                                   | `rules/project/metafor.md`          |
 

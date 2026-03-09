@@ -7,6 +7,7 @@ import { boundary$ } from "../../../store"
 import { compileEnsemble, buildHeap, FieldType, floatToUint, type Field, type Brane } from "../../../fields"
 import { resetStringAtlas } from "@boundary/atlas"
 import type { MatrixInitParams, MatrixRuntime } from "../../matrix.t"
+import type { CpuRuntimeContext } from "../../cpu/index.t.ts"
 import type { BoundaryStore } from "../../../store.t"
 
 /**
@@ -185,6 +186,18 @@ export function createMatrixInitParams(fixture: ReturnType<typeof createSimpleBr
     states: fixture.initialStates,
     braneDescriptors: createBraneDescriptors(fixture.blockPtrs, fixture.bytecodeOffsets),
     heap: fixture.heap,
+  }
+}
+
+/**
+ * Создаёт backend-local контекст для CPU runtime.
+ */
+export function createCpuRuntimeContext(fixture: ReturnType<typeof createSimpleBraneFixture>): CpuRuntimeContext {
+  return {
+    heap: fixture.heap,
+    blockPtrs: fixture.blockPtrs,
+    bytecode: fixture.bytecode,
+    bytecodeOffsets: fixture.bytecodeOffsets,
   }
 }
 

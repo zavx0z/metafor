@@ -210,9 +210,8 @@ describe("CPU/GPU parity", () => {
     
     // Создаём CPU runtime
     const { CPUMatrixRuntime } = await import("../../matrix/cpu")
-    const { createIsolatedStore } = await import("./shared/fixtures")
-    const cpuStore = createIsolatedStore(fixture)
-    const cpuRuntime = new CPUMatrixRuntime(fixture.initialStates)
+    const { createCpuRuntimeContext } = await import("./shared/fixtures")
+    const cpuRuntime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
 
     // Создаём GPU runtime
     resetStringAtlas()
@@ -221,7 +220,7 @@ describe("CPU/GPU parity", () => {
     const gpuRuntime = await GPUMatrixRuntime.create(device, params, atlasExport)
 
     // Выполняем step на обоих runtime
-    cpuRuntime.step(cpuStore)
+    cpuRuntime.step()
     gpuRuntime.step()
 
     // Читаем изменения
@@ -246,9 +245,8 @@ describe("CPU/GPU parity", () => {
     
     // CPU runtime
     const { CPUMatrixRuntime } = await import("../../matrix/cpu")
-    const { createIsolatedStore } = await import("./shared/fixtures")
-    const cpuStore = createIsolatedStore(fixture)
-    const cpuRuntime = new CPUMatrixRuntime(fixture.initialStates)
+    const { createCpuRuntimeContext } = await import("./shared/fixtures")
+    const cpuRuntime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
 
     // GPU runtime
     resetStringAtlas()
@@ -256,7 +254,7 @@ describe("CPU/GPU parity", () => {
     const atlasExport = { registry: new Uint32Array([0]), heap: new Uint32Array([0]), count: 0 }
     const gpuRuntime = await GPUMatrixRuntime.create(device, params, atlasExport)
 
-    cpuRuntime.step(cpuStore)
+    cpuRuntime.step()
     gpuRuntime.step()
 
     const cpuChanges = await cpuRuntime.readChanges()

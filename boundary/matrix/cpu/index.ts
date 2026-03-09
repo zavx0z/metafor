@@ -1,13 +1,14 @@
-import type { BoundaryStore } from "../../store"
 import type { MatrixChanges, MatrixHeapUpdate, MatrixRuntime } from "../matrix.t"
-import type { CpuRuntimeState } from "./index.t.ts"
+import type { CpuRuntimeContext, CpuRuntimeState } from "./index.t.ts"
 import { executeCpuStep } from "./step"
 import { createCpuRuntimeState, setCpuStepResult, takeBufferedChanges } from "./state"
 
 export class CPUMatrixRuntime implements MatrixRuntime {
+  private readonly context: CpuRuntimeContext
   private readonly state: CpuRuntimeState
 
-  constructor(initialStates: Uint32Array) {
+  constructor(context: CpuRuntimeContext, initialStates: Uint32Array) {
+    this.context = context
     this.state = createCpuRuntimeState(initialStates)
   }
 
@@ -15,11 +16,8 @@ export class CPUMatrixRuntime implements MatrixRuntime {
     return this.state.states
   }
 
-  step(store$?: BoundaryStore): void {
-    if (!store$) {
-      throw new Error("CPUMatrixRuntime.step() requires BoundaryStore")
-    }
-    const result = executeCpuStep(store$, this.state.states)
+  step(): void {
+    const result = executeCpuStep(this.context, this.state.states)
     setCpuStepResult(this.state, result.nextStates, result.changes)
   }
 
