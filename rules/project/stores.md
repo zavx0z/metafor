@@ -55,9 +55,14 @@ Do not:
 Valid:
 
 ```typescript
-export function step(boundary$: BoundaryStore, runtime: Runtime): void {
-  const nextOffset = boundary$.offset + 1
-  boundary$.offset = nextOffset
+export function activateAccount(
+  accountStore$: AccountStore,
+  activatedAtEpochMs: number,
+): void {
+  if (accountStore$.lifecycleStatus !== "active") {
+    accountStore$.lifecycleStatus = "active"
+    accountStore$.activatedAtEpochMs = activatedAtEpochMs
+  }
 }
 ```
 
