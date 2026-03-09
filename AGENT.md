@@ -34,6 +34,7 @@ Read these first:
 | Using or defining tools/skills | `rules/governance/tools.md` |
 | Writing or editing Markdown | `rules/engineering/markdown.md` |
 | Writing or editing TSDoc | `rules/engineering/tsdoc.md` |
+| Writing, moving, or reviewing tests | `rules/engineering/testing.md` |
 | Writing pure functions or handling mutation boundaries | `rules/engineering/fp.md` |
 | Structuring a module | `rules/architecture/modules.md` |
 | Structuring packages or placing stores | `rules/architecture/packages.md` |

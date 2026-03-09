@@ -37,6 +37,6 @@
     "zavx0z:build": "bun run --parallel --filter '@zavx0z/*' build",
     "zavx0z:watch": "bun run --parallel --filter '@zavx0z/*' build --watch",
     "zavx0z:clean": "for dir in zavx0z/*/; do rm -f \"$dir\"/git*.json; done",
-    "lint:md": "markdownlint-cli2 '**/*.md' '!**/tmp/**' '#**/node_modules/**' '#**/.git/**'"
+    "lint:md": "markdownlint-cli2 '**/*.md' '!**/tmp/**' '!**/.ai/**'  '#**/node_modules/**' '#**/.git/**'"
   }
 }
