@@ -10,6 +10,10 @@ Keep store semantics strict so mutable runtime details are not confused with pac
 
 Apply this rule when naming or shaping state objects, passing state through APIs, or deciding where state should live.
 
+## Scope boundary
+
+This rule defines store semantics and store ownership only. Runtime class state policy is in `rules/project/runtime.adapters.md`, and naming constraints are in `rules/project/naming.md`.
+
 ## Requirements
 
 - Use `$` suffix only for real package-level or domain-level source-of-truth store objects.
@@ -31,6 +35,7 @@ Apply this rule when naming or shaping state objects, passing state through APIs
 ## Direct answers
 
 - Use `$` only when the value is a real package or domain store.
+- Persistence by itself never justifies `$` naming.
 - A real store is package/domain source-of-truth state with explicit ownership and invariants.
 - Local mutable technical objects must not be named `state$`, `heap$`, or `changes$`.
 - `boundary$` is valid when it is an external domain or package store passed into operations.

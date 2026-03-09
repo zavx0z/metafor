@@ -10,6 +10,10 @@ Use classes to isolate execution environments while keeping domain and package s
 
 Apply this rule when designing CPU/GPU, server/client, browser/node, or other runtime/backend adapters.
 
+## Scope boundary
+
+This rule defines runtime/backend class-owned state policy. Store semantics are in `rules/project/stores.md`, and backend API symmetry is in `rules/architecture/backends.md`.
+
 ## Requirements
 
 - Use a class to isolate an execution environment or backend.
@@ -17,6 +21,7 @@ Apply this rule when designing CPU/GPU, server/client, browser/node, or other ru
 - Backend-local instance fields are ordinary technical fields, not stores.
 - Simple internal fields on `this` are allowed, for example `this.states`, `this.bufferedChanges`, `this.device`, `this.pipeline`, `this.context`.
 - Backend-local fields must not become a second source of truth for package/domain state.
+- Keep data on `this` only when backend behavior needs it across calls.
 - Package-level and domain-level store objects must not live in `this`.
 - Temporary per-call computation data must stay local to the function that computes it.
 - Do not store temporary computation data in `this`.

@@ -55,3 +55,5 @@ Read first:
 1. Direct user request
 2. This file
 3. Matched files in `rules/`
+
+If matched rules conflict, prefer the narrower rule for the current task.

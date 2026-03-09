@@ -36,6 +36,7 @@ Do not:
 
 - put core orchestration logic into `index.ts`;
 - mix external API export concerns with helper internals in one file role;
+- scatter one module responsibility across multiple files without a clear orchestrator center;
 - create local store files when the module does not own persistent store state.
 
 ## Checklist

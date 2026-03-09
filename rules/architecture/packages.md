@@ -19,6 +19,8 @@ Apply this rule when deciding package placement for state, orchestration, and re
 - Keep cross-package boundaries explicit and cycle-free.
 - Package tests belong to the package that owns the validated behavior.
 
+Start with the narrowest owner and move placement upward only when shared ownership is proven.
+
 Use this ownership check before placement:
 
 1. Who owns the lifecycle?
