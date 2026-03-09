@@ -14,10 +14,13 @@ Apply this rule when designing CPU/GPU, server/client, browser/node, or other ru
 
 - Use a class to isolate an execution environment or backend.
 - A class may keep only backend-local persistent technical fields.
+- Backend-local instance fields are ordinary technical fields, not stores.
 - Simple internal fields on `this` are allowed, for example `this.states`, `this.bufferedChanges`, `this.device`, `this.pipeline`, `this.context`.
+- Backend-local fields must not become a second source of truth for package/domain state.
 - Package-level and domain-level store objects must not live in `this`.
-- Temporary computation data must stay local to a function.
+- Temporary per-call computation data must stay local to the function that computes it.
 - Do not store temporary computation data in `this`.
+- Do not promote temporary per-call data into long-lived instance fields without clear backend-local need.
 - Do not store temporary computation data in package or domain stores.
 - Keep semantic operation names aligned across backends.
 - Express backend difference by module namespace, not by inventing different operation names.
@@ -37,6 +40,7 @@ gpu.step(boundary$, runtime)
 Do not:
 
 - use class instance state to hide external package or domain stores;
+- treat backend-local fields as package/domain stores;
 - create backend-specific public verbs for the same semantic operation;
 - move temporary per-call data into long-lived runtime fields.
 

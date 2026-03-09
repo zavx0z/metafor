@@ -10,6 +10,10 @@ Prevent semantic drift caused by names that imply store ownership where none exi
 
 Apply this rule when naming store objects, runtime fields, and mutable technical values.
 
+## Scope boundary
+
+This rule is naming-only. Store ownership rules live in `rules/project/stores.md`, and runtime class ownership rules live in `rules/project/runtime.adapters.md`.
+
 ## Requirements
 
 - Use `$` naming only for real package-level or domain-level stores.

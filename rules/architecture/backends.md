@@ -10,6 +10,10 @@ Keep one stable public contract across backends while allowing internal implemen
 
 Apply this rule when designing or reviewing parallel backend modules such as CPU and GPU variants.
 
+## Scope boundary
+
+This rule covers API symmetry only. It does not define runtime class state ownership.
+
 ## Requirements
 
 - Use the same operation names across backends for the same semantics.

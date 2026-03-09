@@ -12,8 +12,9 @@ Apply this rule when naming or shaping state objects, passing state through APIs
 
 ## Requirements
 
-- Use `$` suffix only for real package-level or domain-level store objects.
-- A real store is persistent owned state that serves multiple operations over time.
+- Use `$` suffix only for real package-level or domain-level source-of-truth store objects.
+- Persistence alone is not enough to classify a value as a store.
+- Backend-local persistent technical fields are not stores.
 - Pass external stores as whole objects.
 - Do not split an external store into signature fragments such as `heap`, `bytecode`, `offsets`, or `blockPtrs`.
 - Keep access style explicit as `store$.field`.
@@ -21,10 +22,16 @@ Apply this rule when naming or shaping state objects, passing state through APIs
 - Treat store as source of truth, not scratch space.
 - Keep temporary computation data in local function variables.
 
+## State classes
+
+- Package/domain store: source-of-truth state with package/domain ownership and `$` naming.
+- Backend-local technical fields: adapter/runtime implementation fields on `this`, without store semantics and without `$`.
+- Temporary computation data: per-call local variables, not stored in `this` and not stored in package/domain stores.
+
 ## Direct answers
 
 - Use `$` only when the value is a real package or domain store.
-- A real store is owned, persistent, shared state for a package or domain contract.
+- A real store is package/domain source-of-truth state with explicit ownership and invariants.
 - Local mutable technical objects must not be named `state$`, `heap$`, or `changes$`.
 - `boundary$` is valid when it is an external domain or package store passed into operations.
 - `this.state$` is invalid for package or domain store ownership because it hides external source of truth in backend instance state.

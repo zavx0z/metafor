@@ -23,6 +23,13 @@ File roles:
 
 Keep these roles separate.
 
+Practical guidance:
+
+- Keep `index.ts` and `index.t.ts` thin and focused on external API exposure.
+- Keep one clear orchestrator as the coordination center for module behavior.
+- Keep helpers narrow and composable instead of spreading orchestration across many helper files.
+- Keep module types in `*.t.ts` rather than scattering them across runtime files.
+
 ## Forbidden
 
 Do not:

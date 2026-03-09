@@ -10,6 +10,10 @@ Keep most logic pure and explicit. Isolate effects in orchestrators and make mut
 
 Apply this rule when writing functions, coordinators, and state-changing code.
 
+## Scope boundary
+
+This rule is generic. It does not define store ownership, `$` naming policy, or runtime class state policy.
+
 ## Requirements
 
 Pure functions should:

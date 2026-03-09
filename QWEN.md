@@ -9,6 +9,25 @@ Read first:
 - `rules/governance/session.md`
 - `rules/governance/rules.edit.md`
 
+## Workflow
+
+1. Identify task triggers.
+2. Read all rules matched by those triggers.
+3. Apply the narrowest relevant rule first, then broader rules.
+4. Verify outcome against rule checklists.
+
+## Context discipline
+
+- Keep this file and only matched rule files in active context.
+- Do not preload unrelated rules.
+- Follow cross-links only when required by a matched rule.
+
+## Rule-reading discipline
+
+- Do not act from memory when a matching rule exists.
+- If multiple triggers apply, read all matched rules before implementation.
+- If a rule-based change fails, reread the same rule before patching behavior.
+
 ## Trigger map
 
 | Trigger                                                                 | Rule                                |
@@ -31,4 +50,8 @@ Read first:
 | Naming decisions for stores or backend-local technical state            | `rules/project/naming.md`           |
 | Working with MetaFor DSL or `meta.ts`                                   | `rules/project/metafor.md`          |
 
-If multiple triggers apply, read all matched rules before implementation.
+## Priority
+
+1. Direct user request
+2. This file
+3. Matched files in `rules/`
