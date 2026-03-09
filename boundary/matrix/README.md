@@ -1,6 +1,6 @@
 # 🗂️ Структура буферов Matrix
 
-**Компоненты:** `GPUBackend`, `StringAtlas`, `evolution.wgsl`
+**Компоненты:** `matrix.ts`, `runtime.ts`, `cpu/index.ts`, `gpu/index.ts`, `gpu/evolution.wgsl`
 
 ---
 
@@ -460,7 +460,7 @@ if (next_state != current_state) {
 **Процесс сброса (перед compute pass):**
 
 ```typescript
-// В GPUBackend.run():
+// В GPUMatrixRuntime.step():
 const cmd = this.device.createCommandEncoder()
 cmd.clearBuffer(this.buffers.dirtyFlags, 0, this.buffers.dirtyFlags.size)
 ```
@@ -569,12 +569,12 @@ async readChanges(): Promise<[number, number][]> {
 │    ├─→ allocateHeap для ARRAY полей                     │
 │    └─→ getStringAtlas().intern() → stringRegistry/Heap  │
 │                                                         │
-│ 3. GPUBackend.init()                                    │
+│ 3. GPUMatrixRuntime.create()                            │
 │    ├─→ Создание GPU-буферов (10 шт)                     │
 │    ├─→ dirtyFlags: 1 u32 на брану                       │
 │    └─→ Запись данных в VRAM                             │
 │                                                         │
-│ 4. backend.readChanges()                                │
+│ 4. runtime.readChanges()                                │
 │    └─→ Чтение изменений после инициализации             │
 │       (обычно пусто до первого update())               │
 └─────────────────────────────────────────────────────────┘
@@ -596,10 +596,10 @@ async readChanges(): Promise<[number, number][]> {
 │ 3. Обновление lock-флагов (если lock передан в кортеже) │
 │    └─→ heap[block_ptr + 2] = lock ? 1 : 0               │
 │                                                         │
-│ 4. GPUBackend.updateHeapFields()                        │
+│ 4. runtime.heapUpdate()                                 │
 │    └─→ writeBuffer(heap, offset, data)                  │
 │                                                         │
-│ 5. GPUBackend.run()                                     │
+│ 5. runtime.step()                                       │
 │    ├─→ clearBuffer(dirtyFlags) ← Сброс флагов           │
 │    ├─→ dispatchWorkgroups()                             │
 │    │   └─→ evolution.wgsl: main()                       │
@@ -612,7 +612,7 @@ async readChanges(): Promise<[number, number][]> {
 │    │       └─→ atomicStore(&dirty_flags[idx], 1u)        │
 │    └─→ НЕТ копирования (in-place обновление)            │
 │                                                         │
-│ 6. GPUBackend.readChanges()                             │
+│ 6. runtime.readChanges()                                │
 │    ├─→ copy(dirtyFlags → stagingBuffer)                 │
 │    ├─→ copy(states → stagingBuffer)                     │
 │    ├─→ mapAsync(stagingBuffer)                          │
@@ -629,7 +629,7 @@ async readChanges(): Promise<[number, number][]> {
 
 ```text
 ┌─────────────────────────────────────────────────────────┐
-│ GPUBackend.readChanges()                                │
+│ runtime.readChanges()                                   │
 ├─────────────────────────────────────────────────────────┤
 │ 1. copy(dirtyFlags → stagingBuffer[0:count])            │
 │ 2. copy(states → stagingBuffer[count:2×count])          │
@@ -818,7 +818,7 @@ dumpStringAtlas(atlas)
 import { GPU } from "./device"
 
 const device = GPU._device
-const dirtyFlags = await device.queue.readBuffer(backend.buffers.dirtyFlags)
+const dirtyFlags = await device.queue.readBuffer(gpuBuffers.dirtyFlags)
 console.log("Dirty flags:", new Uint32Array(dirtyFlags))
 
 // Вывод:
@@ -905,13 +905,13 @@ await update([
 
 ## 📖 Связанные документы
 
-- [`index.ts`](./index.ts) — Основное API matrix
-- [`gpu/Backend.ts`](./gpu/Backend.ts) — GPU драйвер
+- [`index.ts`](./index.ts) — Публичный фасад `@boundary/matrix`
+- [`matrix.ts`](./matrix.ts) — Внешний API и оркестрация runtime
+- [`runtime.ts`](./runtime.ts) — Выбор среды и dynamic import
+- [`device.ts`](./device.ts) — Определение GPU и resolve режима
+- [`cpu/index.ts`](./cpu/index.ts) — CPU runtime
+- [`gpu/index.ts`](./gpu/index.ts) — GPU runtime
 - [`gpu/evolution.wgsl`](./gpu/evolution.wgsl) — WGSL шейдер эволюции
-- [`StringAtlas.ts`](./StringAtlas.ts) — Система интернирования строк
-- [`heap.ts`](./heap.ts) — Управление heap памятью
-- [`superposition.ts`](./superposition.ts) — Компиляция bytecode
 - [`debug.ts`](./debug.ts) — Утилиты для отладки
-- [`params.ts`](./params.ts) — Кодирование значений для GPU
 
 ---

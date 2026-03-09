@@ -1,37 +1,22 @@
-import { GPUBackend } from "./backend.ts"
-
-/**
- * Состояние локального хранилища `@boundary/matrix`.
- *
- * Хранит ТОЛЬКО GPU-специфичные данные.
- *
- * ## Почему не хранит heap и braneBlockPtrs
- *
- * Эти данные вынесены в `boundary$` (общее хранилище домена) так как используются несколькими пакетами:
- * - `@boundary/fields` — для update()
- * - `@boundary/matrix` — для GPU операций
- * - `@boundary/monad` — для unlock()
- *
- * @see `boundary$` — общее хранилище для heap, braneBlockPtrs
- */
-export interface MatrixStore {
-  /** GPU бэкенд (buffers, device). */
-  backend: GPUBackend | null
-  /** Mutex для предотвращения конкурентных вызовов. */
-  operationMutex: Promise<void> | null
-}
+import type { MatrixStore } from "./store.t.ts"
 
 /**
  * Глобальное состояние модуля `@boundary/matrix`.
  *
- * @property backend {@link MatrixStore.backend|GPU ресурсы (buffers, device)}
+ * @property runtime {@link MatrixStore.runtime|активный runtime матрицы}
  * @property operationMutex {@link MatrixStore.operationMutex|mutex для предотвращения конкурентных вызовов}
+ * @property initialized {@link MatrixStore.initialized|флаг готовности boundary runtime}
+ * @property mode {@link MatrixStore.mode|выбранная среда выполнения матрицы}
+ * @property cpuStates {@link MatrixStore.cpuStates|снимок состояний для CPU режима}
  *
  * @see {@link MatrixStore} — тип состояния
  */
 export const store: MatrixStore = {
-  backend: null,
+  runtime: null,
   operationMutex: null,
+  initialized: false,
+  mode: "cpu",
+  cpuStates: new Uint32Array(0),
 }
 
 /**
@@ -39,9 +24,12 @@ export const store: MatrixStore = {
  * @internal
  */
 export function matrixStoreReset(): void {
-  if (store.backend) {
-    store.backend.clear()
+  if (store.runtime) {
+    store.runtime.clear()
   }
-  store.backend = null
+  store.runtime = null
   store.operationMutex = null
+  store.initialized = false
+  store.mode = "cpu"
+  store.cpuStates = new Uint32Array(0)
 }

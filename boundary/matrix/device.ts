@@ -1,37 +1,32 @@
+import type { MatrixMode } from "./store.t.ts"
+import type { MatrixBackendPreference } from "./device.t.ts"
+
 /**
- * GPU Device — глобальное WebGPU устройство для boundary.
+ * GPU Device — определение и загрузка WebGPU устройства для boundary/matrix.
  *
  * @packageDocumentation
  *
- * **Инициализация:**
- * - Ленивая: при первом импорте модуля
- * - Автоматическая: `navigator.gpu.requestAdapter()`
- *
- * **Использование:**
- * ```typescript
- * import { GPU } from "./device"
- * const device = GPU.device  // Может выбросить Error если GPU недоступен
- * ```
+ * Модуль не должен падать в окружениях без `navigator.gpu` (например, server/runtime).
+ * Поэтому инициализация выполняется только по запросу через `ensureGPUDevice()`.
  */
 
-/**
- * Глобальное GPU-устройство (fp.md п.5).
- * Инициализируется лениво при загрузке модуля.
- */
-let device: GPUDevice | null = null
+type MaybeGpuNavigator = {
+  gpu?: {
+    requestAdapter: () => Promise<GPUAdapter | null>
+  }
+}
 
-if (navigator.gpu) {
-  const adapter = await navigator.gpu.requestAdapter()
-  if (!adapter) throw new Error("No Adapter")
-  device = await adapter.requestDevice()
+function getNavigatorGpu(): MaybeGpuNavigator["gpu"] | undefined {
+  const maybeNavigator = (globalThis as { navigator?: MaybeGpuNavigator }).navigator
+  return maybeNavigator?.gpu
 }
 
 /**
  * Глобальное GPU-устройство для boundary.
- * Устанавливается в тестах перед созданием экземпляров Boundary.
+ * В тестах может устанавливаться напрямую: `GPU._device = ...`.
  */
 export const GPU = {
-  _device: device as unknown as GPUDevice,
+  _device: null as GPUDevice | null,
 
   /**
    * Текущее GPU-устройство.
@@ -41,4 +36,52 @@ export const GPU = {
     if (!this._device) throw new Error("GPU-устройство не установлено.")
     return this._device
   },
+}
+
+/**
+ * Пытается получить GPU-устройство из текущей среды.
+ * Возвращает `null`, если WebGPU недоступен или инициализация не удалась.
+ */
+export async function ensureGPUDevice(): Promise<GPUDevice | null> {
+  if (GPU._device) {
+    return GPU._device
+  }
+
+  const gpu = getNavigatorGpu()
+  if (!gpu) {
+    return null
+  }
+
+  try {
+    const adapter = await gpu.requestAdapter()
+    if (!adapter) {
+      return null
+    }
+    GPU._device = await adapter.requestDevice()
+    return GPU._device
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Определяет режим матрицы по конфигурации и доступности среды.
+ */
+export async function resolveMatrixMode(): Promise<MatrixMode> {
+  const configured = (process.env.METAFOR_MATRIX_BACKEND ?? "cpu").toLowerCase() as MatrixBackendPreference
+
+  if (configured === "gpu") {
+    const device = await ensureGPUDevice()
+    if (!device) {
+      throw new Error("METAFOR_MATRIX_BACKEND=gpu, но GPU-устройство недоступно в текущей среде.")
+    }
+    return "gpu"
+  }
+
+  if (configured === "auto") {
+    const device = await ensureGPUDevice()
+    return device ? "gpu" : "cpu"
+  }
+
+  return "cpu"
 }

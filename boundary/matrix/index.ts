@@ -1,38 +1,37 @@
 /**
- * @boundary/matrix — GPU runtime для эволюции суперпозиций.
+ * @boundary/matrix — слой matrix с CPU/GPU адаптерами для boundary runtime.
  *
  * @packageDocumentation
  *
  * ## Ответственность
  *
- * Низкоуровневый GPU-драйвер:
- * - `GPUBackend` — класс для управления GPU-ресурсами
  * - `GPU` — глобальное GPU-устройство
- * - `matrixInit()` — инициализация GPU (принимает `boundaryStore$`)
- * - `matrixStep()` — выполнение шага
- * - `matrixReadChanges()` — чтение изменений
- * - `matrixHeapUpdate()` — обновление heap на GPU
+ * - `matrixInit()` — инициализация matrix c выбором среды
+ * - `matrixStep()/matrixReadChanges()` — шаг + чтение изменений
+ * - `matrixHeapUpdate()` — синхронизация heap с активным адаптером
  *
  * ## Состояние
  *
- * Хранит только GPU-специфичные данные:
- * - `backend` — GPU-ресурсы (buffers, device)
+ * Хранит runtime-состояние:
+ * - `mode` — выбранная среда (`cpu`/`gpu`)
+ * - `runtime` — выбранная реализация среды
  *
- * Общие данные (heap, braneBlockPtrs) передаются через `boundaryStore$` в `matrixInit()`.
+ * Общие данные (`heap`, `braneBlockPtrs`) передаются через `boundaryStore$` в `matrixInit()`.
  *
  * ## Чего НЕ делает
  *
  * - НЕ содержит `write()`/`update()` — это оркестрация в `@boundary/fields`
  * - НЕ хранит heap/braneBlockPtrs — передаются через `boundaryStore$`
  * - НЕ содержит бизнес-логику
+ * - НЕ является источником истины для текущего minimal runtime
  *
  * @example
  * ```typescript
- * import { GPUBackend, GPU, matrixInit, matrixStep } from "@boundary/matrix"
+ * import { GPU, matrixInit, matrixStep } from "@boundary/matrix"
  * import { boundary$ } from "@boundary/boundary"
  *
  * // Инициализация GPU с инъекцией store$
- * await matrixInit(boundary$, { ... }, atlasExport, blockPtrs, reserveSize)
+ * await matrixInit(boundary$, { ... }, atlasExport, blockPtrs)
  *
  * // Выполнение шага
  * matrixStep()
@@ -41,6 +40,6 @@
  */
 
 export { GPU } from "./device"
-export { matrixInit, matrixHeapUpdate, matrixReadChanges, matrixStep } from "./matrix"
+export { matrixInit, matrixHeapUpdate, matrixReadChanges, matrixStep, matrixRunStep } from "./matrix"
 export { matrixStoreReset } from "./store.ts"
 export type { BoundaryStore } from "../store"

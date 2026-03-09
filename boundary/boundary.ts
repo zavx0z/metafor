@@ -1,21 +1,24 @@
 /**
- * @boundary/boundary — оркестратор конвейера GPU-эволюции суперпозиций.
+ * @boundary/boundary — оркестратор детерминированной эволюции суперпозиций.
  *
  * @packageDocumentation
  *
  * ## Конвейер данных
  *
- * Модуль реализует полный конвейер для выполнения FSM на GPU:
+ * Модуль реализует минимальный рабочий контур Boundary:
  *
- * 1. **validateData()** — валидация входных данных (чистая функция)
- * 2. **prepareData()** — кодирование, компиляция, построение heap (side effects)
- * 3. **write()** — инициализация GPU (оркестратор)
- * 4. **update()** — эволюция (оркестратор)
+ * 1. **validateData()** — валидация входных данных
+ * 2. **prepareData()** — кодирование, компиляция, построение heap
+ * 3. **write()** — фиксация снимка boundary в минимальном формате
+ * 4. **update()** — детерминированный шаг по heap и bytecode
  *
  * ## Принцип работы
  *
  * Каждая брана — это набор полей в heap с индивидуальным bytecode FSM.
- * Compute shader выполняет все переходы параллельно (1 поток на брану).
+ * Источником истины сейчас являются `heap`, `bytecode` и CPU-исполнитель,
+ * чтобы контур `boundary -> force` был рабочим и воспроизводимым.
+ * GPU-слой остаётся отдельным адаптером и может быть возвращён как ускоритель,
+ * не меняя внешний контракт Boundary.
  *
  * ## Голографический принцип
  *
@@ -63,7 +66,9 @@
  */
 
 import { getStringAtlas, resetStringAtlas } from "./atlas"
-import { matrixInit, matrixReadChanges, matrixStep, matrixHeapUpdate, matrixStoreReset } from "./matrix"
+import { matrixHeapUpdate, matrixInit, matrixRunStep, matrixStoreReset } from "./matrix"
+import { store as matrix$ } from "./matrix/store.ts"
+import type { MatrixHeapUpdate } from "./matrix/matrix.t"
 import { boundary$ } from "./store"
 import { fields$ } from "./fields/store"
 
@@ -92,7 +97,7 @@ import {
 // ============================================================================
 
 /**
- * Подготовленные данные для GPU.
+ * Подготовленные данные для runtime Boundary.
  */
 export interface PreparedData {
   fieldMeta: Map<number, { fieldType: number; fieldSize: number }>
@@ -399,7 +404,7 @@ export function getMatrixState(): MatrixStateInternal {
     heap: commonState.heap,
     bytecode: commonState.bytecode,
     bytecodeOffsets: commonState.bytecodeOffsets,
-    states: commonState.initialStates,
+    states: matrix$.cpuStates,
     stringRegistry: atlasExport.registry,
     stringHeap: atlasExport.heap,
     fields: localState.fields,
@@ -416,14 +421,14 @@ export function getMatrixState(): MatrixStateInternal {
 // ============================================================================
 
 /**
- * Инициализирует матрицу (загружает данные на GPU) и возвращает начальные состояния.
+ * Инициализирует boundary-снимок и возвращает начальные изменения.
  *
  * @remarks
  * **Side Effects:**
  * - Сбрасывает StringAtlas
- * - Аллоцирует GPU-буферы
- * - НЕ выполняет step() во время инициализации
- * - Возвращает изменения после инициализации (обычно пусто до первого update())
+ * - Пересобирает `heap`, `bytecode`, `initialStates`
+ * - НЕ выполняет шаг эволюции во время инициализации
+ * - Возвращает изменения после инициализации (обычно пусто до первого `update()`)
  *
  * **Голографический принцип:**
  * - Boundary хранит всю информацию о системе в heap
@@ -489,7 +494,6 @@ export async function write(data: Data): Promise<[number, number][]> {
       braneBlockPtrs: prepared.heapLayout.blockPtrs,
     })
 
-    // 5. Инициализация GPU с инъекцией store$
     const atlasExport = getStringAtlas().exportData()
     await matrixInit(
       boundary$,
@@ -502,13 +506,10 @@ export async function write(data: Data): Promise<[number, number][]> {
       },
       atlasExport,
       prepared.heapLayout.blockPtrs,
-      prepared.arrayReserveSize,
     )
 
-    // 6. Во время инициализации шаг FSM не выполняется
-
-    // 7. Возвращаем состояния после инициализации
-    return await matrixReadChanges()
+    // Минимальная рабочая реализация не выполняет шаг при write().
+    return []
   } finally {
     // Освобождение mutex
     resolveMutex?.()
@@ -525,9 +526,8 @@ export async function write(data: Data): Promise<[number, number][]> {
  * @remarks
  * **Side Effects:**
  * - Обновляет heap
- * - Выполняет step() автоматически
- * - Читает состояния из GPU
- * - Сбрасывает heapAllocOffset после шага (для повторного использования зоны ARRAY)
+ * - Выполняет детерминированный шаг Boundary поверх текущего `heap`
+ * - Обновляет локальный снимок состояний
  *
  * **Голографический принцип:**
  * - Обновления полей изменяют возмущения квантового поля
@@ -586,10 +586,6 @@ export async function update(
 
   try {
     const commonState = boundary$
-    if (!commonState.heap) {
-      throw new Error("Matrix not initialized. Call write() first.")
-    }
-
     const localState = fields$
     if (!localState.fields.length) {
       throw new Error("Store not initialized. Call write() first.")
@@ -598,8 +594,7 @@ export async function update(
     const { heap, braneBlockPtrs } = commonState
     const { fields, heapAllocOffset } = localState
 
-    // Этап 1: Кодирование всех обновлений для всех бран
-    const allHeapUpdates: Array<{ offset: number; value1: number; value2?: number }> = []
+    const allHeapUpdates: MatrixHeapUpdate[] = []
 
     for (const [braneIndex, fieldUpdates, lock] of updates) {
       if (braneIndex < 0 || braneIndex >= braneBlockPtrs.length) {
@@ -633,12 +628,8 @@ export async function update(
 
         // Обновление heap (локально)
         writeValueToHeap(heap, fieldOffset, fieldType, encoded.value1, encoded.value2)
-
-        // Добавление в список обновлений GPU
         if (fieldType === TYPE.ARRAY && Array.isArray(value)) {
-          // Pointer и reserved
           allHeapUpdates.push({ offset: fieldOffset, value1: encoded.value1, value2: encoded.value2 })
-          // Данные массива: [length, item1, item2, ...]
           const arrayData = heap.slice(encoded.value1, encoded.value1 + 1 + (value as unknown[]).length)
           for (let i = 0; i < arrayData.length; i++) {
             allHeapUpdates.push({ offset: encoded.value1 + i, value1: arrayData[i]! })
@@ -651,12 +642,8 @@ export async function update(
       }
     }
 
-    // Этап 2: Частичная запись в GPU (все изменения за раз)
     matrixHeapUpdate(allHeapUpdates)
-
-    // Этап 3: GPU step + read
-    matrixStep()
-    return await matrixReadChanges()
+    return await matrixRunStep()
   } finally {
     // Освобождение mutex
     resolveMutex?.()
@@ -689,13 +676,14 @@ export async function update(
  */
 export function unlock(indexes: number[]): void {
   const commonState = boundary$
-  const { braneBlockPtrs } = commonState
+  const { heap, braneBlockPtrs } = commonState
 
   const unlockUpdates = indexes.map((index) => {
     const blockPtr = braneBlockPtrs[index]
     if (blockPtr === undefined) {
       throw new Error(`Brane at index ${index} not found in boundary`)
     }
+    heap[blockPtr + 2] = 0
     return { offset: blockPtr + 2, value1: 0 }
   })
 
