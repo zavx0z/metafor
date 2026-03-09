@@ -17,8 +17,7 @@ Pure functions should:
 - receive only the data they actually need;
 - return new data instead of mutating inputs;
 - avoid hidden state;
-- avoid side effects;
-- avoid callback-style control injection when direct data flow is enough.
+- avoid side effects.
 
 Use orchestrators for:
 
@@ -31,9 +30,8 @@ Use orchestrators for:
 Mutation discipline:
 
 - make mutable inputs explicit;
-- prefer naming mutable values with a `$` suffix, such as `store$`, `heap$`, or `state$`;
-- use argument order `mutable$` → `data` → `options?` when practical;
-- keep mutation near the orchestration boundary.
+- keep mutation near the orchestration boundary;
+- keep transformation helpers pure and deterministic.
 
 ## Forbidden
 
@@ -42,7 +40,7 @@ Do not:
 - hide mutation inside a function presented as pure;
 - pass large ambient context when a small data object is enough;
 - mix orchestration and transformation in the same helper without need;
-- use classes as default containers for hidden mutable state.
+- create effectful helpers when orchestration is the correct boundary.
 
 ## Examples
 
@@ -60,8 +58,8 @@ function normalizeInput(input: Input): Output {
 Explicit mutation boundary:
 
 ```typescript
-function write(store$: Store, data: Data): void {
-  store$.value = data.value
+function write(state: Store, data: Data): void {
+  state.value = data.value
 }
 ```
 

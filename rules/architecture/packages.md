@@ -1,47 +1,36 @@
 # Package Architecture
 
-This rule defines package boundaries, store placement, and dependency direction.
+This rule defines package ownership, state placement, orchestration ownership, and cross-package boundaries.
 
 ## Purpose
 
-Place data where it is actually used, keep ownership clear, and prevent dependency inversion mistakes.
+Keep ownership explicit so state and orchestration live at the correct package level.
 
 ## When to apply
 
-Apply this rule when deciding where code, state, or tests should live between packages or domains.
+Apply this rule when deciding package placement for state, orchestration, and responsibilities.
 
 ## Requirements
 
-- Keep data in the narrowest scope that truly owns and uses it.
-- Use a package-local store when the state belongs to one package.
-- Move state to a higher shared store only when multiple packages need the same owned data.
-- Let dependency direction flow from broader context to narrower implementation, not the reverse.
-- Prefer explicit ownership over convenience imports.
-- Keep package-specific tests inside the package that owns the validated logic.
-- Use higher-level test locations only for true cross-package integration.
-
-When deciding store placement, package placement, or test placement, ask:
-
-1. Who owns this data?
-2. Who writes it?
-3. Who reads it?
-4. Is the sharing structural or accidental?
-5. Which package actually owns the behavior being validated?
+- State is owned by the package or domain that owns its lifecycle and invariants.
+- Orchestration is owned by the package that coordinates multi-step behavior.
+- Place responsibilities upward only when ownership is truly shared.
+- Keep dependency direction from broader context toward narrower implementation.
+- Keep cross-package boundaries explicit and cycle-free.
+- Package tests belong to the package that owns the validated behavior.
 
 ## Forbidden
 
 Do not:
 
-- place shared state in an arbitrary package just because it is nearby;
-- move data upward before there is a real multi-package need;
-- let lower-level packages own higher-level orchestration state;
-- create dependency cycles across packages;
-- move package-specific tests to a shared top-level test directory just because they use helper code from a parent package or a sibling package.
+- place state in a package that does not own it;
+- move ownership upward without real shared ownership;
+- let lower-level packages own higher-level orchestration;
+- create cross-package dependency cycles.
 
 ## Checklist
 
-- [ ] State ownership is explicit
-- [ ] Store scope matches actual usage
-- [ ] Dependency direction is consistent
-- [ ] No package owns state just by convenience
-- [ ] Tests live with the package that owns the validated behavior
+- [ ] State and orchestration ownership are explicit
+- [ ] Upward placement is justified by shared ownership
+- [ ] Cross-package boundaries are clear and cycle-free
+- [ ] Tests live in the package that owns validated behavior

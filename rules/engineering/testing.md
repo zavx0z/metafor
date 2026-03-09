@@ -1,56 +1,48 @@
 # Testing
 
-This rule defines how tests should be placed, how test ownership is determined, and how package-local tests should import helper code inside the monorepo.
+This rule defines test ownership, monorepo test imports, top-level integration boundaries, and backend runtime parity coverage.
 
 ## Purpose
 
-Keep tests close to the logic they validate, preserve package ownership, avoid top-level test sprawl, and prevent artificial dependencies created only for package-local testing.
+Keep tests where behavior ownership is clear, avoid artificial dependency churn, and enforce comparable backend behavior.
 
 ## When to apply
 
-Apply this rule when writing, moving, restructuring, or reviewing tests.
+Apply this rule when writing, moving, or reviewing tests.
 
 ## Requirements
 
 ### Test ownership
 
-- Place a test inside the package whose logic it validates.
-- Determine test ownership by the behavior under test, not by where helper functions come from.
-- If a test validates `matrix`, it must live in the `matrix` package, even when it uses helper code from parent or sibling packages.
-- Use a higher-level test location only when validating a real cross-package integration contract.
+- A test lives in the package whose logic it validates.
+- Helper import origin does not change test ownership.
 
-### Monorepo imports for package-local tests
+### Monorepo imports
 
-- Package-local tests may import helper functions, fixtures, field decoders, builders, or domain utilities from parent packages, sibling packages, or other monorepo locations by relative path.
-- Relative imports for package-local tests may traverse upward as needed, including up to the project root, when that is the clearest and smallest solution.
-- Using helper code from another package does not change ownership of the test.
-- Prefer relative monorepo imports for package-local tests over adding package dependencies that exist only to support tests.
+- Package-local tests may use relative imports across the monorepo.
+- Package-local tests may traverse upward when needed.
+- Do not add dependencies only to support package-local test imports.
 
-### Dependency discipline
+### Top-level tests
 
-- Do not add `dependencies` or `devDependencies` to a package only to make its internal tests import monorepo helper code.
-- Add a dependency only when the tested package truly depends on that package as part of its real package contract.
-- Keep test-only support lightweight and local.
+- Use top-level tests only for true multi-package integration behavior.
 
-### Test structure
+### Runtime parity
 
-- Keep package-specific test fixtures and helpers near the package that owns the tests.
-- Shared top-level test utilities are allowed only when they support true integration testing across multiple packages.
-- Prefer test inputs and assertions that express domain meaning rather than opaque numeric or indexed values whenever helper functions can make the test clearer.
+- When one package has multiple backends, run the same canonical cases against each backend.
 
 ## Forbidden
 
 Do not:
 
-- place package-specific tests in a shared top-level test directory just because they use helper functions from parent or sibling packages;
-- treat imported helper origin as test ownership;
-- add package dependencies solely for package-local tests when relative imports are sufficient;
-- hide ownership of tested behavior behind a generic shared test folder.
+- move package-local behavior tests into shared top-level folders because helpers are imported from elsewhere;
+- redefine test ownership by helper location;
+- add dependencies only for internal test helper access;
+- keep backend-specific case sets that break parity for the same contract.
 
 ## Checklist
 
-- [ ] The test lives in the package that owns the validated logic
-- [ ] Helper imports do not redefine test ownership
-- [ ] Relative monorepo imports are used when they avoid artificial dependencies
-- [ ] No dependency was added only for internal package tests
-- [ ] Top-level test placement is used only for true integration coverage
+- [ ] Test location matches behavior ownership
+- [ ] Monorepo relative imports are used when they avoid artificial dependencies
+- [ ] Top-level tests are true multi-package integrations
+- [ ] Canonical backend cases run for each backend variant

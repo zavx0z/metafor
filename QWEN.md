@@ -1,12 +1,34 @@
 # QWEN Guide
 
-Use `~/.qwen/QWEN.md` as the primary guide for this project.
+Entry map for agents that start from `QWEN.md`.
 
-This file exists only for compatibility with agents that automatically look for `QWEN.md`.
+## Session start
 
-## Required action
+Read first:
 
-1. Read `~/.qwen/QWEN.md`
-2. Then read only the relevant files from `~/.qwen/rules/`
+- `rules/governance/session.md`
+- `rules/governance/rules.edit.md`
 
-Do not duplicate project rules here.
+## Trigger map
+
+| Trigger                                                                 | Rule                                |
+| ----------------------------------------------------------------------- | ----------------------------------- |
+| Working with session history or prior discussion                        | `rules/governance/session.md`       |
+| Creating a new rule                                                     | `rules/governance/rules.md`         |
+| Updating an existing rule                                               | `rules/governance/rules.edit.md`    |
+| Using or defining tools/skills                                          | `rules/governance/tools.md`         |
+| Writing or editing Markdown                                             | `rules/engineering/markdown.md`     |
+| Writing or editing TSDoc                                                | `rules/engineering/tsdoc.md`        |
+| Writing, moving, or reviewing tests                                     | `rules/engineering/testing.md`      |
+| Test placement or monorepo test imports                                 | `rules/engineering/testing.md`      |
+| Writing pure functions or handling mutation boundaries                  | `rules/engineering/fp.md`           |
+| Structuring a module                                                    | `rules/architecture/modules.md`     |
+| Package ownership, orchestration ownership, or cross-package boundaries | `rules/architecture/packages.md`    |
+| Designing symmetric backend APIs                                        | `rules/architecture/backends.md`    |
+| Building dependency or type graphs                                      | `rules/architecture/graphs.md`      |
+| Working with package/domain store decisions or `$` store semantics      | `rules/project/stores.md`           |
+| Working with CPU/GPU, server/client, adapters, or runtime classes       | `rules/project/runtime.adapters.md` |
+| Naming decisions for stores or backend-local technical state            | `rules/project/naming.md`           |
+| Working with MetaFor DSL or `meta.ts`                                   | `rules/project/metafor.md`          |
+
+If multiple triggers apply, read all matched rules before implementation.

@@ -1,0 +1,65 @@
+# Store Semantics
+
+This rule defines what a real store is and when `$` naming is allowed.
+
+## Purpose
+
+Keep store semantics strict so mutable runtime details are not confused with package or domain state.
+
+## When to apply
+
+Apply this rule when naming or shaping state objects, passing state through APIs, or deciding where state should live.
+
+## Requirements
+
+- Use `$` suffix only for real package-level or domain-level store objects.
+- A real store is persistent owned state that serves multiple operations over time.
+- Pass external stores as whole objects.
+- Do not split an external store into signature fragments such as `heap`, `bytecode`, `offsets`, or `blockPtrs`.
+- Keep access style explicit as `store$.field`.
+- Do not hide package or domain stores inside backend instance fields.
+- Treat store as source of truth, not scratch space.
+- Keep temporary computation data in local function variables.
+
+## Direct answers
+
+- Use `$` only when the value is a real package or domain store.
+- A real store is owned, persistent, shared state for a package or domain contract.
+- Local mutable technical objects must not be named `state$`, `heap$`, or `changes$`.
+- `boundary$` is valid when it is an external domain or package store passed into operations.
+- `this.state$` is invalid for package or domain store ownership because it hides external source of truth in backend instance state.
+
+## Forbidden
+
+Do not:
+
+- use `$` for any mutable value by default;
+- rename temporary objects to look like stores;
+- copy external store ownership into runtime class instance state;
+- use store for temporary intermediate computation buffers.
+
+## Examples
+
+Valid:
+
+```typescript
+export function step(boundary$: BoundaryStore, runtime: Runtime): void {
+  const nextOffset = boundary$.offset + 1
+  boundary$.offset = nextOffset
+}
+```
+
+Invalid:
+
+```typescript
+class CpuRuntime {
+  state$: BoundaryStore
+}
+```
+
+## Checklist
+
+- [ ] `$` is used only for real package or domain stores
+- [ ] External store is passed whole and accessed as `store$.field`
+- [ ] Package/domain store is not hidden in `this`
+- [ ] Temporary data stays local, not in store
