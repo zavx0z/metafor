@@ -18,6 +18,6 @@ export async function createMatrixRuntime(context: MatrixRuntimeInitContext): Pr
   }
 
   const { CPUMatrixRuntime } = await import("./cpu")
-  const runtime = new CPUMatrixRuntime(context.store$, context.params.states)
+  const runtime = new CPUMatrixRuntime(context.params.states)
   return { mode, runtime }
 }

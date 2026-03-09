@@ -56,10 +56,10 @@ export async function matrixInit(
 /**
  * Выполняет один шаг активного runtime матрицы.
  */
-export function matrixStep(): void {
+export function matrixStep(store$: BoundaryStore): void {
   if (!store.initialized) throw new Error("Matrix not initialized")
   if (!store.runtime) throw new Error("Matrix runtime not initialized")
-  store.runtime.step()
+  store.runtime.step(store$)
 }
 
 /**
@@ -90,8 +90,8 @@ export function matrixHeapUpdate(updates: MatrixHeapUpdate[]): void {
 /**
  * Выполняет шаг матрицы и возвращает список изменившихся состояний.
  */
-export async function matrixRunStep(): Promise<MatrixChanges> {
+export async function matrixRunStep(store$: BoundaryStore): Promise<MatrixChanges> {
   if (!store.initialized) throw new Error("Matrix not initialized")
-  matrixStep()
+  matrixStep(store$)
   return await matrixReadChanges()
 }

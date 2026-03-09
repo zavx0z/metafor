@@ -643,7 +643,7 @@ export async function update(
     }
 
     matrixHeapUpdate(allHeapUpdates)
-    return await matrixRunStep()
+    return await matrixRunStep(boundary$)
   } finally {
     // Освобождение mutex
     resolveMutex?.()

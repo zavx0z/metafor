@@ -44,7 +44,7 @@ export type MatrixChanges = Array<[number, number]>
  * Единый контракт runtime матрицы.
  */
 export interface MatrixRuntime {
-  step(): void
+  step(store$?: BoundaryStore): void
   readChanges(): Promise<MatrixChanges>
   heapUpdate(updates: MatrixHeapUpdate[]): void
   clear(): void

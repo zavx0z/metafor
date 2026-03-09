@@ -1,5 +1,6 @@
 import shaderSource from "./evolution.wgsl" with { type: "text" }
 import type { StringAtlasExport } from "@boundary/atlas"
+import type { BoundaryStore } from "../../store"
 import type { MatrixChanges, MatrixHeapUpdate, MatrixInitParams, MatrixRuntime } from "../matrix.t"
 import type { GpuRuntimeContext } from "./index.t.ts"
 import { destroyBuffers } from "./buffer"
@@ -20,7 +21,7 @@ export class GPUMatrixRuntime implements MatrixRuntime {
     return new GPUMatrixRuntime(context)
   }
 
-  step(): void {
+  step(_store$?: BoundaryStore): void {
     runGpuStep(
       this.context.device,
       this.context.pipeline,
