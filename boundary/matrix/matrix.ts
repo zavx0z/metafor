@@ -1,5 +1,5 @@
 import type { MatrixChanges, MatrixHeapUpdate } from "./matrix.t"
-import { matrixStoreReset, store } from "./store.ts"
+import { matrixStoreReset, store } from "./state"
 import type { BoundaryStore } from "../store"
 import { createMatrixRuntime } from "./runtime"
 

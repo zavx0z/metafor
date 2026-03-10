@@ -4,7 +4,7 @@
  * Проверяет:
  * - dumpHeap() — дамп heap блоков
  * - dumpBytecode() — дамп bytecode
- * - dumpStringAtlas() — дамп атласа строк
+ * - dumpStringTable() — дамп string table
  * - getHeapStats() — статистика heap
  * - visualizeBytecode() — визуализация bytecode
  * - getTypeName() / getOpName() — имена типов и операций
@@ -15,12 +15,11 @@ import { describe, it, expect } from "bun:test"
 import {
   dumpHeap,
   dumpBytecode,
-  dumpStringAtlas,
+  dumpStringTable,
   getHeapStats,
   visualizeBytecode,
   dumpMatrix,
 } from "./debug"
-import { StringAtlas } from "@boundary/atlas"
 import { packMeta } from "@boundary/fields"
 import { TYPE, OP } from "@boundary/fields"
 
@@ -243,13 +242,11 @@ describe("debug — утилиты отладки", () => {
     })
   })
 
-  describe("dumpStringAtlas()", () => {
-    it("должен дампуать строки из атласа", () => {
-      const atlas = new StringAtlas()
-      atlas.intern("hello")
-      atlas.intern("world")
+  describe("dumpStringTable()", () => {
+    it("должен дампуать строки из таблицы", () => {
+      const stringTable = ["hello", "world"]
 
-      const dump = dumpStringAtlas(atlas)
+      const dump = dumpStringTable(stringTable)
 
       expect(dump.count).toBe(2)
       expect(dump.strings).toHaveLength(2)
@@ -258,38 +255,33 @@ describe("debug — утилиты отладки", () => {
     })
 
     it("должен включать метаданные строк", () => {
-      const atlas = new StringAtlas()
-      const id = atlas.intern("test")
-      const meta = atlas.getMeta(id)!
+      const stringTable = ["test"]
 
-      const dump = dumpStringAtlas(atlas)
+      const dump = dumpStringTable(stringTable)
 
       expect(dump.strings[0]).toEqual({
         id: 0,
         value: "test",
-        length: meta.length,
-        hash: meta.hash,
-        pointer: meta.pointer,
+        length: 4,
+        hash: expect.any(Number),
+        pointer: 0,
       })
     })
 
     it("должен обрабатывать Unicode строки", () => {
-      const atlas = new StringAtlas()
-      atlas.intern("привет")
-      atlas.intern("👋")
-      atlas.intern("世界")
+      const stringTable = ["привет", "👋", "世界"]
 
-      const dump = dumpStringAtlas(atlas)
+      const dump = dumpStringTable(stringTable)
 
       expect(dump.strings[0]?.value).toBe("привет")
       expect(dump.strings[1]?.value).toBe("👋")
       expect(dump.strings[2]?.value).toBe("世界")
     })
 
-    it("должен обрабатывать пустой атлас", () => {
-      const atlas = new StringAtlas()
+    it("должен обрабатывать пустую таблицу", () => {
+      const stringTable: string[] = []
 
-      const dump = dumpStringAtlas(atlas)
+      const dump = dumpStringTable(stringTable)
 
       expect(dump.count).toBe(0)
       expect(dump.strings).toEqual([])
@@ -540,8 +532,9 @@ describe("debug — утилиты отладки", () => {
 
       const bytecodeOffsets = new Uint32Array([0])
       const braneBlockPtrs = [0]
+      const stringTable: string[] = []
 
-      const dump = await dumpMatrix(heap, bytecode, bytecodeOffsets, braneBlockPtrs)
+      const dump = await dumpMatrix(heap, bytecode, bytecodeOffsets, braneBlockPtrs, stringTable)
 
       expect(dump.braneCount).toBe(1)
       expect(dump.heapBlocks).toHaveLength(1)
@@ -563,8 +556,9 @@ describe("debug — утилиты отладки", () => {
 
       const bytecodeOffsets = new Uint32Array([0, 1])
       const braneBlockPtrs = [0, 2]
+      const stringTable: string[] = []
 
-      const dump = await dumpMatrix(heap, bytecode, bytecodeOffsets, braneBlockPtrs)
+      const dump = await dumpMatrix(heap, bytecode, bytecodeOffsets, braneBlockPtrs, stringTable)
 
       expect(dump.braneCount).toBe(2)
       expect(dump.heapBlocks).toHaveLength(2)

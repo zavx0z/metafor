@@ -5,7 +5,6 @@ import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import {write, update} from "../../boundary"
 import {GPU, matrixStoreReset} from "@boundary/matrix"
-import { resetStringAtlas } from "@boundary/atlas"
 import { FieldType, type Collapse } from "../../fields/index.t"
 
 describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
@@ -14,7 +13,6 @@ describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
   })
 
   afterEach(() => {
-    resetStringAtlas()
     matrixStoreReset()
   })
 

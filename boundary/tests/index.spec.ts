@@ -6,7 +6,6 @@ import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import {write, update} from "../boundary"
 import {GPU, matrixStoreReset} from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
-import { resetStringAtlas } from "@boundary/atlas"
 import { FieldType } from "../fields/index.t"
 
 // ============================================================================
@@ -21,7 +20,6 @@ beforeAll(async () => {
 // ============================================================================
 describe("write / update — базовые переходы", () => {
   afterEach(() => {
-    resetStringAtlas()
     matrixStoreReset()
   })
 
@@ -116,7 +114,6 @@ describe("write / update — базовые переходы", () => {
 // ============================================================================
 describe("write / update — логические условия", () => {
   afterEach(() => {
-    resetStringAtlas()
     matrixStoreReset()
   })
 
@@ -172,7 +169,6 @@ describe("write / update — логические условия", () => {
 // ============================================================================
 describe("write / update — множественные условия", () => {
   afterEach(() => {
-    resetStringAtlas()
     matrixStoreReset()
   })
 
@@ -219,7 +215,6 @@ describe("write / update — множественные условия", () => {
 // ============================================================================
 describe("write / update — entangled группы", () => {
   afterEach(() => {
-    resetStringAtlas()
     matrixStoreReset()
   })
 
@@ -310,7 +305,6 @@ describe("write / update — entangled группы", () => {
 // ============================================================================
 describe("write / update — многошаговая эволюция", () => {
   afterEach(() => {
-    resetStringAtlas()
     matrixStoreReset()
   })
 
@@ -359,7 +353,6 @@ describe("write / update — многошаговая эволюция", () => {
 // ============================================================================
 describe("write / update — ошибки", () => {
   afterEach(() => {
-    resetStringAtlas()
     matrixStoreReset()
   })
 
@@ -382,7 +375,6 @@ describe("write / update — ошибки", () => {
 // ============================================================================
 describe("write / update — параллельные вызовы", () => {
   afterEach(() => {
-    resetStringAtlas()
     matrixStoreReset()
   })
 
@@ -491,7 +483,6 @@ describe("write / update — параллельные вызовы", () => {
 // ============================================================================
 describe("write / update — ARRAY поля", () => {
   afterEach(() => {
-    resetStringAtlas()
     matrixStoreReset()
   })
 
@@ -550,7 +541,6 @@ describe("write / update — ARRAY поля", () => {
 // ============================================================================
 describe("update() с блокировкой переходов", () => {
   afterEach(() => {
-    resetStringAtlas()
     matrixStoreReset()
   })
 

@@ -33,6 +33,33 @@ function destroyContext(context: GpuRuntimeContext): void {
   ])
 }
 
+/**
+ * GPU Matrix runtime.
+ *
+ * ## CRITICAL PERFORMANCE NOTE
+ *
+ * **This is a temporary implementation with known performance limitations.**
+ *
+ * Current behavior on `heapUpdate()`:
+ * - **Full context rebuild**: Destroys and recreates ALL GPU buffers
+ * - **Full deriveMatrixData()**: Re-derives packed execution forms from canonical store
+ * - **Full bind group recreation**: Re-creates pipeline bind groups
+ *
+ * This is O(N) where N = total heap + bytecode + string table size.
+ *
+ * **Why this is unacceptable for production:**
+ * - GPU buffer allocation is expensive (driver overhead)
+ * - Data transfer CPU→GPU on every update blocks the pipeline
+ * - Does not scale with number of branes or field updates
+ *
+ * **Correct future implementation:**
+ * - Partial buffer updates via `GPUQueue.writeBuffer()` with offsets
+ * - Incremental deriveMatrixData() that only re-encodes changed fields
+ * - Dirty tracking at canonical store level to identify minimal changes
+ *
+ * **DO NOT use this implementation as a model for production code.**
+ * This exists only as a fallback until incremental sync is implemented.
+ */
 export class GPUMatrixRuntime implements MatrixRuntime {
   private context: GpuRuntimeContext
   private readonly store: BoundaryStore
@@ -80,8 +107,15 @@ export class GPUMatrixRuntime implements MatrixRuntime {
     return [...this.lastStates]
   }
 
+  /**
+   * **PERFORMANCE CRITICAL: Full rebuild on every update.**
+   *
+   * This is a temporary fallback implementation.
+   * See class-level JSDoc for details.
+   */
   heapUpdate(_updates: MatrixHeapUpdate[]): void {
     void this.enqueue(() => {
+      // FULL REBUILD: This is the performance bottleneck
       const nextContext = createGpuRuntimeContext(this.context.device, shaderSource, this.store, false)
       destroyContext(this.context)
       this.context = nextContext

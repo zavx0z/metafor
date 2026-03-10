@@ -4,12 +4,10 @@
 import { test, expect, describe, beforeEach } from "bun:test"
 import { compileSuperposition, compileConditions, compileEnsemble } from "../fields/superposition"
 import { OP } from "@boundary/fields/opcodes"
-import { resetStringAtlas } from "@boundary/atlas"
 import { FieldType, type Collapse } from "../fields/index.t"
 
 describe("compileConditions — компиляция условий", () => {
   beforeEach(() => {
-    resetStringAtlas()
   })
 
   test("должен компилировать простое условие gt", () => {
@@ -73,7 +71,6 @@ describe("compileConditions — компиляция условий", () => {
 
 describe("compileSuperposition — компиляция суперпозиции", () => {
   beforeEach(() => {
-    resetStringAtlas()
   })
 
   test("должен компилировать суперпозицию с 2 состояниями", () => {

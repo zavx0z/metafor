@@ -1,5 +1,5 @@
-import { createStringAtlasExport } from "@boundary/fields"
-import type { StoredStringTable } from "@boundary/fields"
+import { createStringAtlasExport } from "../../fields/string-table"
+import type { StoredStringTable } from "../../fields/string-table"
 
 export function createUniforms(braneCount: number): Uint32Array {
   return new Uint32Array([braneCount, 0, 0, 0])

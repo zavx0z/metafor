@@ -42,5 +42,5 @@
 
 export { GPU } from "./device"
 export { matrixInit, matrixHeapUpdate, matrixReadChanges, matrixStep, matrixRunStep } from "./matrix"
-export { matrixStoreReset } from "./store.ts"
+export { matrixStoreReset } from "./state"
 export type { BoundaryStore } from "../store"

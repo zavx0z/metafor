@@ -22,21 +22,19 @@ import {
   validateData,
   type BraneValue,
   type Data,
-  type Field,
   type FlattenedBoundaryInput,
 } from "./fields"
+import type { Field } from "./fields/index.t"
 
 export type PreparedData = BoundaryData
 
 let writeMutex: Promise<void> | null = null
 let updateMutex: Promise<void> | null = null
-let fieldSchema: Field[] = []
 
 function reset(): void {
   boundary$.reset()
   writeMutex = null
   updateMutex = null
-  fieldSchema = []
   matrixStoreReset()
 }
 
@@ -86,12 +84,12 @@ interface MatrixStateInternal {
 export function getMatrixState(): MatrixStateInternal {
   const derived = deriveMatrixData(boundary$)
   const atlasExport = createStringAtlasExport(boundary$.stringTable)
-  const fields = (fieldSchema.length ? fieldSchema : boundary$.fields).map((field) => {
+  const fields = boundary$.fields.map((field) => {
     const normalizedField: Field = { type: field.type }
     if (field.elementType !== undefined) {
       normalizedField.elementType = field.elementType
     }
-    if ("enum" in field && Array.isArray(field.enum)) {
+    if (field.enum !== undefined) {
       normalizedField.enum = field.enum
     }
     return normalizedField
@@ -129,9 +127,7 @@ export async function write(data: Data): Promise<[number, number][]> {
     boundary$.reset()
     matrixStoreReset()
     const flattened = flattenBoundaryData(data)
-    const nextFieldSchema = flattened.fields.map((field) => ({ ...field }))
     const prepared = assembleStoredBoundaryData(flattened)
-    fieldSchema = nextFieldSchema
     boundary$.restore(prepared)
     await matrixInit(boundary$)
     return []
@@ -187,7 +183,7 @@ export async function update(
       }
 
       for (const [fieldIndex, value] of fieldUpdates) {
-        const field = fieldSchema[fieldIndex]
+        const field = boundary$.fields[fieldIndex]
         if (!field) {
           throw new Error(`Field ${fieldIndex} not defined`)
         }

@@ -5,7 +5,6 @@
  */
 
 import { unpackMeta } from "@boundary/fields"
-import type { StringAtlas } from "@boundary/atlas"
 import type {
   HeapStats,
   HeapBlockDump,
@@ -158,46 +157,60 @@ export function dumpBytecode(bytecode: Uint32Array, offset: number): BytecodeDum
 }
 
 /**
- * Дамп StringAtlas.
+ * Дамп string table.
  *
- * @param atlas - StringAtlas для дампа
- * @returns Структурированный дамп атласа
+ * @param stringTable - String table для дампа
+ * @returns Структурированный дамп строк
  *
  * @example
  * ```typescript
- * const atlas = getStringAtlas()
- * const dump = dumpStringAtlas(atlas)
+ * const dump = dumpStringTable(boundary$.stringTable)
  * console.log(`Strings: ${dump.count}`)
  * ```
  */
-export function dumpStringAtlas(atlas: StringAtlas): StringAtlasDump {
-  const exported = atlas.exportData()
+export function dumpStringTable(stringTable: string[]): StringAtlasDump {
   const strings: StringDump[] = []
 
-  for (let i = 0; i < exported.count; i++) {
-    const ptr = exported.registry[i * 3] ?? 0
-    const len = exported.registry[i * 3 + 1] ?? 0
-    const hash = exported.registry[i * 3 + 2] ?? 0
-
-    const codePoints: number[] = []
-    for (let j = 0; j < len; j++) {
-      codePoints.push(exported.heap[ptr + j] ?? 0)
-    }
-    const str = String.fromCodePoint(...codePoints)
+  for (let i = 0; i < stringTable.length; i++) {
+    const str = stringTable[i] ?? ""
+    const hash = fnv1a32(str)
 
     strings.push({
       id: i,
       value: str,
-      length: len,
+      length: str.length,
       hash,
-      pointer: ptr,
+      pointer: i,
     })
   }
 
   return {
-    count: exported.count,
+    count: stringTable.length,
     strings,
   }
+}
+
+function fnv1a32(str: string): number {
+  const FNV_PRIME = 0x01000193
+  const FNV_OFFSET = 0x811c9dc5
+
+  let hash = FNV_OFFSET >>> 0
+
+  for (let i = 0; i < str.length; i++) {
+    const codePoint = str.codePointAt(i)!
+    hash ^= codePoint & 0xff
+    hash = Math.imul(hash, FNV_PRIME) >>> 0
+    hash ^= (codePoint >> 8) & 0xff
+    hash = Math.imul(hash, FNV_PRIME) >>> 0
+    hash ^= (codePoint >> 16) & 0xff
+    hash = Math.imul(hash, FNV_PRIME) >>> 0
+    hash ^= (codePoint >> 24) & 0xff
+    hash = Math.imul(hash, FNV_PRIME) >>> 0
+
+    if (codePoint > 0xffff) i++
+  }
+
+  return hash >>> 0
 }
 
 /**
@@ -266,6 +279,7 @@ export async function dumpMatrix(
   bytecode: Uint32Array,
   bytecodeOffsets: Uint32Array,
   braneBlockPtrs: number[],
+  stringTable: string[],
 ): Promise<MatrixDump> {
   const heapBlocks: HeapBlockDump[] = []
   const bytecodeDumps: BytecodeDump[] = []
@@ -275,13 +289,8 @@ export async function dumpMatrix(
     bytecodeDumps.push(dumpBytecode(bytecode, bytecodeOffsets[i]!))
   }
 
-  let stringAtlas: StringAtlasDump | null = null
-  try {
-    const { getStringAtlas } = await import("@boundary/atlas")
-    stringAtlas = dumpStringAtlas(getStringAtlas())
-  } catch {
-    // StringAtlas может быть не доступен
-  }
+  // String dump из canonical store
+  const stringAtlas = dumpStringTable(stringTable)
 
   return {
     braneCount: braneBlockPtrs.length,

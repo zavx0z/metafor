@@ -7,9 +7,19 @@
 import type { ConditionOperator } from "./fields/condition.t"
 import type { FieldTypeValue } from "./fields/index.t"
 
+/**
+ * Canonical field schema record stored in Boundary store.
+ *
+ * Это единственный источник истины о схеме полей.
+ * Все runtime интерпретации должны читать из этого record.
+ */
 export interface BoundaryFieldRecord {
+  /** Field type (F32, U32, BOOL, STRING_PTR, ARRAY_PTR). */
   type: FieldTypeValue
+  /** Element type for ARRAY_PTR fields. */
   elementType?: "number" | "string" | "boolean"
+  /** Optional enum values for constrained fields. */
+  enum?: unknown[]
 }
 
 export type BoundaryScalarValue = number | boolean

@@ -21,6 +21,7 @@ function normalizeFieldRecord(field: Field): BoundaryFieldRecord {
   return {
     type: field.type,
     ...(field.elementType !== undefined ? { elementType: field.elementType } : {}),
+    ...(field.enum !== undefined ? { enum: field.enum } : {}),
   }
 }
 

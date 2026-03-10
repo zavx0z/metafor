@@ -1,21 +1,28 @@
-import {
-  buildHeap,
-  compileFlattenedEnsemble,
-  createFieldEncodingContext,
-  createStoredStringInterner,
-  encodeValue,
-  fieldTypeToBytecodeType,
-  FieldType,
-  TYPE,
-  type Field,
-  type FlattenedTransition,
-} from "../fields"
+/**
+ * @boundary/matrix/derived — derive packed execution forms from canonical Boundary store.
+ *
+ * Этот модуль трансформирует canonical stored data в packed execution forms
+ * для GPU runtime. Все функции чистые и не мутируют внешнее состояние.
+ *
+ * @packageDocumentation
+ */
+
+import { TYPE } from "../fields/opcodes"
 import type {
   BoundaryConditionRecord,
   BoundaryData,
   BoundaryFieldRecord,
   BoundaryFieldValueRecord,
 } from "../store.t"
+import { buildHeap } from "../fields/heap"
+import {
+  createPackContext,
+  encodeValue,
+  fieldTypeToBytecodeType,
+  type PackContext,
+} from "./pack"
+import { compileFlattenedEnsemble, type FlattenedTransition } from "./bytecode"
+import { createMatrixStringInterner } from "./string"
 
 export interface DerivedMatrixData {
   heap: Uint32Array
@@ -25,13 +32,24 @@ export interface DerivedMatrixData {
   states: Uint32Array
 }
 
-function toFieldDefinitions(fields: BoundaryFieldRecord[]): Field[] {
+/**
+ * Конвертировать BoundaryFieldRecord в Field definition для packing.
+ */
+function toFieldDefinitions(fields: BoundaryFieldRecord[]): Array<{
+  type: number
+  elementType?: "number" | "string" | "boolean"
+  enum?: unknown[]
+}> {
   return fields.map((field) => ({
     type: field.type,
     ...(field.elementType !== undefined ? { elementType: field.elementType } : {}),
+    ...(field.enum !== undefined ? { enum: field.enum } : {}),
   }))
 }
 
+/**
+ * Создать meta map для field encoding.
+ */
 function createFieldMetaMap(fields: BoundaryFieldRecord[]): Map<number, { fieldType: number; fieldSize: number }> {
   const meta = new Map<number, { fieldType: number; fieldSize: number }>()
   fields.forEach((field, fieldIndex) => {
@@ -42,6 +60,9 @@ function createFieldMetaMap(fields: BoundaryFieldRecord[]): Map<number, { fieldT
   return meta
 }
 
+/**
+ * Сгруппировать conditions по field index.
+ */
 function groupTransitionConditions(
   store: BoundaryData,
   conditionOffset: number,
@@ -73,6 +94,9 @@ function groupTransitionConditions(
   }))
 }
 
+/**
+ * Конвертировать canonical transitions в flattened format для bytecode компиляции.
+ */
 function toFlattenedTransitions(store: BoundaryData): Array<{ transitions: FlattenedTransition[][] }> {
   return store.branes.map((brane) => ({
     transitions: Array.from({ length: brane.stateCount }, (_, stateIndex) => {
@@ -100,6 +124,9 @@ function toFlattenedTransitions(store: BoundaryData): Array<{ transitions: Flatt
   }))
 }
 
+/**
+ * Собрать shared block fields из canonical store.
+ */
 function collectSharedBlockFields(store: BoundaryData): BoundaryFieldValueRecord[][] {
   return store.sharedBlocks.map((block) => {
     const fields: BoundaryFieldValueRecord[] = []
@@ -114,6 +141,9 @@ function collectSharedBlockFields(store: BoundaryData): BoundaryFieldValueRecord
   })
 }
 
+/**
+ * Собрать brane local fields из canonical store.
+ */
 function collectBraneLocalFields(store: BoundaryData): BoundaryFieldValueRecord[][] {
   return store.branes.map((brane) => {
     const fields: BoundaryFieldValueRecord[] = []
@@ -128,6 +158,9 @@ function collectBraneLocalFields(store: BoundaryData): BoundaryFieldValueRecord[
   })
 }
 
+/**
+ * Собрать brane shared block refs из canonical store.
+ */
 function collectBraneSharedBlockRefs(store: BoundaryData): number[][] {
   return store.branes.map((brane) => {
     const refs: number[] = []
@@ -142,11 +175,14 @@ function collectBraneSharedBlockRefs(store: BoundaryData): number[][] {
   })
 }
 
+/**
+ * Посчитать слова для array полей.
+ */
 function countArrayWords(fields: BoundaryFieldRecord[], values: BoundaryFieldValueRecord[]): number {
   let words = 0
   for (const entry of values) {
     const field = fields[entry.fieldIndex]
-    if (field?.type !== FieldType.ARRAY_PTR) {
+    if (field?.type !== 4) { // FieldType.ARRAY_PTR
       continue
     }
     const items = entry.value as Array<number | boolean>
@@ -155,16 +191,18 @@ function countArrayWords(fields: BoundaryFieldRecord[], values: BoundaryFieldVal
   return words
 }
 
+/**
+ * Создать block map для shared blocks.
+ */
 function createBlockMap(
   blocks: BoundaryFieldValueRecord[][],
   fields: BoundaryFieldRecord[],
   stringTable: string[],
-  fieldDefs: Field[],
+  fieldDefs: Array<{ type: number; elementType?: string; enum?: unknown[] }>,
   fieldMetaMap: Map<number, { fieldType: number; fieldSize: number }>,
   allocateHeap?: (size: number) => number,
   heap?: Uint32Array,
 ): Map<string, [number, number][]> {
-  const stringInterner = createStoredStringInterner(stringTable)
   const map = new Map<string, [number, number][]>()
 
   blocks.forEach((blockFields, blockIndex) => {
@@ -173,7 +211,12 @@ function createBlockMap(
       if (!meta) {
         throw new Error(`Field ${fieldIndex} not defined in canonical store`)
       }
-      const ctx = createFieldEncodingContext(meta.fieldType, fieldDefs[fieldIndex], stringInterner, allocateHeap, heap)
+      const ctx = createPackContext(
+        fields[fieldIndex]!,
+        stringTable,
+        allocateHeap,
+        heap,
+      )
       return [fieldIndex, encodeValue(value, ctx).value1] as [number, number]
     })
     map.set(`shared-${blockIndex}`, encodedFields)
@@ -182,36 +225,72 @@ function createBlockMap(
   return map
 }
 
+/**
+ * Создать local fields encoding.
+ */
 function createLocalFields(
   braneFields: BoundaryFieldValueRecord[][],
   fields: BoundaryFieldRecord[],
   stringTable: string[],
-  fieldDefs: Field[],
+  fieldDefs: Array<{ type: number; elementType?: string; enum?: unknown[] }>,
   fieldMetaMap: Map<number, { fieldType: number; fieldSize: number }>,
   allocateHeap?: (size: number) => number,
   heap?: Uint32Array,
 ): [number, number][][] {
-  const stringInterner = createStoredStringInterner(stringTable)
-
   return braneFields.map((entries) =>
     entries.map(({ fieldIndex, value }) => {
       const meta = fieldMetaMap.get(fieldIndex)
       if (!meta) {
         throw new Error(`Field ${fieldIndex} not defined in canonical store`)
       }
-      const ctx = createFieldEncodingContext(meta.fieldType, fieldDefs[fieldIndex], stringInterner, allocateHeap, heap)
+      const ctx = createPackContext(
+        fields[fieldIndex]!,
+        stringTable,
+        allocateHeap,
+        heap,
+      )
       return [fieldIndex, encodeValue(value, ctx).value1] as [number, number]
     }),
   )
 }
 
+/**
+ * Derive packed matrix data from canonical Boundary store.
+ *
+ * Это чистая функция — не мутирует входные данные.
+ *
+ * ## Pipeline steps:
+ *
+ * 1. **Schema projection** — field definitions и meta map для encoding
+ * 2. **Data collection** — сбор shared/local fields из canonical store
+ * 3. **Field encoding (pass 1)** — initial encoding без array allocation
+ * 4. **Heap building (pass 1)** — построение initial heap для расчёта sizes
+ * 5. **Array allocation** — резервирование места для array полей
+ * 6. **Field encoding (pass 2)** — final encoding с array pointers
+ * 7. **Heap building (pass 2)** — финальное построение heap
+ * 8. **Lock projection** — projection lock flags из canonical store
+ * 9. **Bytecode compilation** — компиляция transitions в bytecode
+ *
+ * @param store - Canonical Boundary store
+ * @returns DerivedMatrixData для GPU execution
+ */
 export function deriveMatrixData(store: BoundaryData): DerivedMatrixData {
+  // ============================================================================
+  // STEP 1: Schema projection
+  // ============================================================================
   const fieldDefs = toFieldDefinitions(store.fields)
   const fieldMetaMap = createFieldMetaMap(store.fields)
+
+  // ============================================================================
+  // STEP 2: Data collection from canonical store
+  // ============================================================================
   const sharedBlockFields = collectSharedBlockFields(store)
   const braneEntangledMap = collectBraneSharedBlockRefs(store)
   const braneLocalFields = collectBraneLocalFields(store)
 
+  // ============================================================================
+  // STEP 3-4: Field encoding (pass 1) + Heap building (pass 1)
+  // ============================================================================
   const initialSharedBlocks = createBlockMap(sharedBlockFields, store.fields, store.stringTable, fieldDefs, fieldMetaMap)
   const initialLocalFields = createLocalFields(braneLocalFields, store.fields, store.stringTable, fieldDefs, fieldMetaMap)
   const initialHeap = buildHeap({
@@ -221,6 +300,9 @@ export function deriveMatrixData(store: BoundaryData): DerivedMatrixData {
     fieldMeta: fieldMetaMap,
   })
 
+  // ============================================================================
+  // STEP 5: Array allocation — рассчитать размер для array полей
+  // ============================================================================
   const arrayWords =
     sharedBlockFields.reduce((sum, block) => sum + countArrayWords(store.fields, block), 0) +
     braneLocalFields.reduce((sum, fields) => sum + countArrayWords(store.fields, fields), 0)
@@ -233,6 +315,9 @@ export function deriveMatrixData(store: BoundaryData): DerivedMatrixData {
     return ptr
   }
 
+  // ============================================================================
+  // STEP 6-7: Field encoding (pass 2) + Heap building (pass 2)
+  // ============================================================================
   const finalSharedBlocks = createBlockMap(
     sharedBlockFields,
     store.fields,
@@ -259,6 +344,9 @@ export function deriveMatrixData(store: BoundaryData): DerivedMatrixData {
   })
   heap.set(finalHeap.heap)
 
+  // ============================================================================
+  // STEP 8: Lock projection — project lock flags из canonical store
+  // ============================================================================
   store.branes.forEach((brane, braneIndex) => {
     const blockPtr = finalHeap.blockPtrs[braneIndex]
     if (blockPtr === undefined) {
@@ -267,10 +355,13 @@ export function deriveMatrixData(store: BoundaryData): DerivedMatrixData {
     heap[blockPtr + 2] = brane.lock ? 1 : 0
   })
 
+  // ============================================================================
+  // STEP 9: Bytecode compilation — компиляция transitions
+  // ============================================================================
   const compiled = compileFlattenedEnsemble(
     toFlattenedTransitions(store),
-    fieldDefs,
-    createStoredStringInterner(store.stringTable),
+    store.fields,
+    store.stringTable,
   )
 
   return {
