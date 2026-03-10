@@ -13,7 +13,8 @@ import { resolveStringTableBuffers } from "./layout"
 import { createBindGroup } from "./pipeline"
 import { readGpuChanges } from "./read"
 import { runGpuStep } from "./step"
-import { updateGpuHeapFields } from "./heap"
+import type { ArrayHeapSlot } from "./heap"
+import { createInitialArrayHeapIndex, updateGpuHeapFields } from "./heap"
 import { createStringAtlasAppendExport } from "./string-pack"
 
 let gpuOperationQueue: Promise<void> = Promise.resolve()
@@ -51,19 +52,21 @@ function destroyContext(context: GpuRuntimeContext): void {
  *
  * Current behavior on `heapUpdate()`:
  * - Fast path: partial `GPUQueue.writeBuffer()` updates for scalar/string/lock changes
- * - Fallback path: targeted buffer refresh for structural changes (for example string table growth or array reallocation)
+ * - Reusable path: append-only string growth and array churn reuse existing GPU buffers while capacity allows
+ * - Fallback path: targeted buffer refresh only when reusable capacity is exhausted or layout is incompatible
  *
  * Structural refresh is still O(N) over the affected derived payload, but no longer destroys and recreates
  * the whole runtime context.
  *
  * **Remaining performance debt:**
- * - Structural updates still trigger buffer reallocation and full data transfer for affected buffers
- * - Array growth / new strings remain expensive until full incremental sync exists
- * - Mutation-heavy workloads still pay O(N) refresh cost for the affected derived slice
+ * - Structural updates still trigger buffer reallocation and full data transfer once reusable capacity is exhausted
+ * - No heap compaction yet; long-running workloads can accumulate fragmented free ranges
+ * - Canonical store + derived heap mirror + GPU buffers still duplicate runtime data in memory
+ * - Mutation-heavy workloads still pay O(N) refresh cost only on exhausted capacity / incompatible layout changes
  *
  * **Correct future implementation:**
- * - Incremental string buffer growth without buffer reallocation
- * - Incremental array allocation / compaction without re-deriving all heap blocks
+ * - Incremental string buffer growth without buffer reallocation once capacity is exhausted
+ * - Heap compaction / smarter free-list placement for long-running workloads
  * - Dirty tracking at canonical store level to identify minimal structural changes
  *
  * This runtime now uses partial sync where safe, but still keeps targeted structural refresh paths.
@@ -317,11 +320,20 @@ export class GPUMatrixRuntime implements MatrixRuntime {
     this.context.buffers.braneBlockPtrs = nextBraneBlockPtrs
     this.context.buffers.heap = nextHeap
     this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
-    this.context.heapMirror = nextDerived.heap
+    const nextHeapMirror = new Uint32Array(nextHeapCapacityWords)
+    nextHeapMirror.set(nextDerived.heap)
+    this.context.heapMirror = nextHeapMirror
     this.context.heapWords = nextHeapWords
     this.context.heapCapacityWords = nextHeapCapacityWords
     this.context.braneBlockPtrs = nextDerived.blockPtrs
     this.context.sharedBlockPtrs = nextDerived.sharedBlockPtrs
+    this.context.arraySlots = createInitialArrayHeapIndex(
+      nextDerived.heap,
+      nextDerived.blockPtrs,
+      nextDerived.sharedBlockPtrs,
+      this.store.fields,
+    )
+    this.context.arrayFreeList = []
     this.context.stringTableSize = this.store.stringTable.length
 
     destroyBuffers([previousBraneBlockPtrs, previousHeap])
@@ -330,7 +342,6 @@ export class GPUMatrixRuntime implements MatrixRuntime {
   private tryApplyHeapUpdates(updates: MatrixHeapUpdate[]): boolean {
     const writes: Array<{ offset: number; value1: number; value2?: number }> = []
     let heapMirror = this.context.heapMirror
-    let heapBufferRecreated = false
 
     for (const update of updates) {
       if (update.kind === "lock") {
@@ -351,7 +362,6 @@ export class GPUMatrixRuntime implements MatrixRuntime {
       if (nextResult.heapMirror && nextResult.heapMirror !== heapMirror) {
         heapMirror = nextResult.heapMirror
         this.replaceHeapBuffer(heapMirror)
-        heapBufferRecreated = true
       }
 
       for (const write of nextResult.writes) {
@@ -414,7 +424,12 @@ export class GPUMatrixRuntime implements MatrixRuntime {
     }
 
     const currentPtr = heapMirror[valueOffset] ?? 0
+    const currentSlot = this.context.arraySlots.get(valueOffset)
     if (value.length === 0) {
+      if (currentSlot) {
+        this.releaseArraySlot(currentSlot)
+        this.context.arraySlots.delete(valueOffset)
+      }
       heapMirror[valueOffset] = 0
       heapMirror[valueOffset + 1] = 0
       return { writes: [{ offset: valueOffset, value1: 0, value2: 0 }] }
@@ -422,19 +437,38 @@ export class GPUMatrixRuntime implements MatrixRuntime {
 
     const currentLength = currentPtr === 0 ? 0 : (heapMirror[currentPtr] ?? 0)
     if (currentLength !== value.length) {
-      const nextHeapMirror = new Uint32Array(heapMirror.length + 1 + value.length)
-      nextHeapMirror.set(heapMirror)
-      const nextPtr = heapMirror.length
-      nextHeapMirror[nextPtr] = value.length
-
       const field = this.store.fields[fieldIndex]
       if (!field) {
         return null
       }
 
+      const requiredSize = 1 + value.length
+      let targetSlot = currentSlot
+      if (targetSlot && targetSlot.size < requiredSize) {
+        this.releaseArraySlot(targetSlot)
+        this.context.arraySlots.delete(valueOffset)
+        targetSlot = undefined
+      }
+
+      if (!targetSlot) {
+        targetSlot = this.takeArraySlot(requiredSize)
+      }
+
+      let nextHeapMirror = heapMirror
+      if (!targetSlot) {
+        const allocation = this.allocateArrayTail(requiredSize, heapMirror)
+        nextHeapMirror = allocation.heapMirror
+        targetSlot = allocation.slot
+      }
+
+      if (currentSlot && targetSlot.ptr === currentSlot.ptr && currentSlot.size > requiredSize) {
+        this.releaseArraySlot({ ptr: currentSlot.ptr + requiredSize, size: currentSlot.size - requiredSize })
+      }
+
+      nextHeapMirror[targetSlot.ptr] = value.length
       const arrayContext = createPackContext(field, this.store.stringTable)
       value.forEach((item, index) => {
-        nextHeapMirror[nextPtr + 1 + index] = encodeValue(
+        nextHeapMirror[targetSlot.ptr + 1 + index] = encodeValue(
           item,
           {
             type: arrayContext.subType ?? VALUE_TYPE.FLOAT,
@@ -443,11 +477,18 @@ export class GPUMatrixRuntime implements MatrixRuntime {
         ).value1
       })
 
-      nextHeapMirror[valueOffset] = nextPtr
+      nextHeapMirror[valueOffset] = targetSlot.ptr
       nextHeapMirror[valueOffset + 1] = 0
+      this.context.arraySlots.set(valueOffset, { ptr: targetSlot.ptr, size: requiredSize })
       return {
         heapMirror: nextHeapMirror,
-        writes: [{ offset: valueOffset, value1: nextPtr, value2: 0 }],
+        writes: [
+          { offset: valueOffset, value1: targetSlot.ptr, value2: 0 },
+          ...Array.from({ length: requiredSize }, (_, index) => ({
+            offset: targetSlot!.ptr + index,
+            value1: nextHeapMirror[targetSlot!.ptr + index]!,
+          })),
+        ],
       }
     }
 
@@ -477,6 +518,7 @@ export class GPUMatrixRuntime implements MatrixRuntime {
     heapMirror[currentPtr] = value.length
     heapMirror[valueOffset] = currentPtr
     heapMirror[valueOffset + 1] = 0
+    this.context.arraySlots.set(valueOffset, { ptr: currentPtr, size: 1 + value.length })
 
     return {
       writes: [
@@ -493,8 +535,8 @@ export class GPUMatrixRuntime implements MatrixRuntime {
     const nextHeapWords = nextHeapMirror.length > 0 ? nextHeapMirror.length : 1
     if (nextHeapWords <= this.context.heapCapacityWords) {
       this.context.device.queue.writeBuffer(this.context.buffers.heap, 0, nextHeapMirror.buffer, nextHeapMirror.byteOffset, nextHeapMirror.byteLength)
-      this.context.heapWords = nextHeapWords
-      return
+    this.context.heapWords = nextHeapWords
+    return
     }
 
     const previousHeap = this.context.buffers.heap
@@ -511,5 +553,72 @@ export class GPUMatrixRuntime implements MatrixRuntime {
     this.context.heapCapacityWords = nextHeapCapacityWords
 
     destroyBuffers([previousHeap])
+  }
+
+  private allocateArrayTail(requiredSize: number, heapMirror: Uint32Array): { heapMirror: Uint32Array; slot: ArrayHeapSlot } {
+    const previousHeapWords = this.context.heapWords
+    const nextHeapWords = this.context.heapWords + requiredSize
+    if (nextHeapWords <= heapMirror.length) {
+      this.context.heapWords = nextHeapWords
+      return {
+        heapMirror,
+        slot: { ptr: previousHeapWords, size: requiredSize },
+      }
+    }
+
+    const expandedCapacityWords = nextCapacityWords(nextHeapWords)
+    const nextHeapMirror = new Uint32Array(expandedCapacityWords)
+    nextHeapMirror.set(heapMirror.subarray(0, this.context.heapWords))
+    this.context.heapWords = nextHeapWords
+    return {
+      heapMirror: nextHeapMirror,
+      slot: { ptr: previousHeapWords, size: requiredSize },
+    }
+  }
+
+  private takeArraySlot(requiredSize: number): ArrayHeapSlot | undefined {
+    let bestIndex = -1
+    let bestSize = Number.POSITIVE_INFINITY
+
+    for (let index = 0; index < this.context.arrayFreeList.length; index++) {
+      const slot = this.context.arrayFreeList[index]!
+      if (slot.size < requiredSize) {
+        continue
+      }
+      if (slot.size < bestSize) {
+        bestIndex = index
+        bestSize = slot.size
+      }
+    }
+
+    if (bestIndex === -1) {
+      return undefined
+    }
+
+    const slot = this.context.arrayFreeList.splice(bestIndex, 1)[0]!
+    if (slot.size > requiredSize) {
+      this.releaseArraySlot({ ptr: slot.ptr + requiredSize, size: slot.size - requiredSize })
+      return { ptr: slot.ptr, size: requiredSize }
+    }
+    return slot
+  }
+
+  private releaseArraySlot(slot: ArrayHeapSlot): void {
+    if (slot.size <= 0) {
+      return
+    }
+
+    let nextSlot = slot
+    const freeList = [...this.context.arrayFreeList, nextSlot].sort((left, right) => left.ptr - right.ptr)
+    const merged: ArrayHeapSlot[] = []
+    for (const candidate of freeList) {
+      const previous = merged[merged.length - 1]
+      if (previous && previous.ptr + previous.size === candidate.ptr) {
+        previous.size += candidate.size
+      } else {
+        merged.push({ ptr: candidate.ptr, size: candidate.size })
+      }
+    }
+    this.context.arrayFreeList = merged
   }
 }

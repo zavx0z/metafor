@@ -2,12 +2,19 @@ import type { BoundaryStore } from "../../store.t"
 import { deriveMatrixData } from "../derived"
 import type { GpuBufferMap, GpuRuntimeContext } from "./index.t.ts"
 import { createBuffer, createStorageBuffer, createStorageBufferWithCapacity, nextCapacityWords } from "./buffer"
+import { createInitialArrayHeapIndex } from "./heap"
 import { createUniforms, resolveStringTableBuffers } from "./layout"
 import { createBindGroup, createComputePipeline } from "./pipeline"
 import { debugLog } from "./debug"
 
 function createBraneBlockPtrs(blockPtrs: number[]): Uint32Array {
   return Uint32Array.from(blockPtrs)
+}
+
+function createHeapMirrorWithCapacity(heap: Uint32Array, capacityWords: number): Uint32Array {
+  const mirror = new Uint32Array(capacityWords)
+  mirror.set(heap)
+  return mirror
 }
 
 export function createGpuRuntimeContext(
@@ -60,11 +67,13 @@ export function createGpuRuntimeContext(
     buffers,
     stagingBuffer,
     braneCount,
-    heapMirror: derived.heap,
+    heapMirror: createHeapMirrorWithCapacity(derived.heap, heapCapacityWords),
     heapWords,
     heapCapacityWords,
     braneBlockPtrs: derived.blockPtrs,
     sharedBlockPtrs: derived.sharedBlockPtrs,
+    arraySlots: createInitialArrayHeapIndex(derived.heap, derived.blockPtrs, derived.sharedBlockPtrs, store$.fields),
+    arrayFreeList: [],
     stringTableSize: store$.stringTable.length,
     stringRegistryWords,
     stringRegistryCapacityWords,

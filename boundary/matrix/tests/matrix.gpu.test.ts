@@ -256,19 +256,15 @@ describe("GPU runtime — scenario tests", () => {
 
     const { runtime, store } = await createGpuRuntimeForFixture(createStringFieldUpdateFixture())
     const runtimeInternal = runtime as any
-    let appendCalls = 0
-    let refreshCalls = 0
-    const originalTryAppend = runtimeInternal.tryAppendStringBuffers.bind(runtimeInternal)
-    const originalRefresh = runtimeInternal.refreshStringBuffers.bind(runtimeInternal)
+    const stringRegistryBefore = runtimeInternal.context.buffers.stringRegistry
+    const stringHeapBefore = runtimeInternal.context.buffers.stringHeap
+    const registryWordsBefore = runtimeInternal.context.stringRegistryWords
+    const heapWordsBefore = runtimeInternal.context.stringHeapWords
+    const registryCapacityBefore = runtimeInternal.context.stringRegistryCapacityWords
+    const heapCapacityBefore = runtimeInternal.context.stringHeapCapacityWords
 
-    runtimeInternal.tryAppendStringBuffers = () => {
-      appendCalls++
-      return originalTryAppend()
-    }
-    runtimeInternal.refreshStringBuffers = () => {
-      refreshCalls++
-      return originalRefresh()
-    }
+    expect(registryCapacityBefore).toBeGreaterThan(registryWordsBefore)
+    expect(heapCapacityBefore).toBeGreaterThan(heapWordsBefore)
 
     setBraneFieldValue(store, 0, 0, "mage" as any)
     runtime.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])
@@ -276,8 +272,10 @@ describe("GPU runtime — scenario tests", () => {
     const changes = await runtime.readChanges()
 
     expect(changes).toEqual([[0, 1]])
-    expect(appendCalls).toBe(1)
-    expect(refreshCalls).toBe(0)
+    expect(runtimeInternal.context.buffers.stringRegistry).toBe(stringRegistryBefore)
+    expect(runtimeInternal.context.buffers.stringHeap).toBe(stringHeapBefore)
+    expect(runtimeInternal.context.stringRegistryWords).toBeGreaterThan(registryWordsBefore)
+    expect(runtimeInternal.context.stringHeapWords).toBeGreaterThan(heapWordsBefore)
   })
 
   test("array growth reuses existing heap buffer when capacity is enough", async () => {
@@ -285,12 +283,17 @@ describe("GPU runtime — scenario tests", () => {
     if (!device) return
 
     const { runtime, store } = await createGpuRuntimeForFixture(createArrayFieldUpdateFixture())
-    const heapBufferBefore = (runtime as any).context.buffers.heap
-    const braneBlockPtrsBefore = (runtime as any).context.buffers.braneBlockPtrs
-    const bytecodeBufferBefore = (runtime as any).context.buffers.bytecode
-    const statesBufferBefore = (runtime as any).context.buffers.states
-    const stringRegistryBefore = (runtime as any).context.buffers.stringRegistry
-    const pipelineBefore = (runtime as any).context.pipeline
+    const runtimeInternal = runtime as any
+    const heapBufferBefore = runtimeInternal.context.buffers.heap
+    const braneBlockPtrsBefore = runtimeInternal.context.buffers.braneBlockPtrs
+    const bytecodeBufferBefore = runtimeInternal.context.buffers.bytecode
+    const statesBufferBefore = runtimeInternal.context.buffers.states
+    const stringRegistryBefore = runtimeInternal.context.buffers.stringRegistry
+    const pipelineBefore = runtimeInternal.context.pipeline
+    const heapWordsBefore = runtimeInternal.context.heapWords
+    const heapCapacityBefore = runtimeInternal.context.heapCapacityWords
+
+    expect(heapCapacityBefore).toBeGreaterThan(heapWordsBefore)
 
     setBraneFieldValue(store, 0, 0, [1, 2] as any)
     runtime.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])
@@ -298,12 +301,42 @@ describe("GPU runtime — scenario tests", () => {
     const changes = await runtime.readChanges()
 
     expect(changes).toEqual([[0, 1]])
-    expect((runtime as any).context.buffers.heap).toBe(heapBufferBefore)
-    expect((runtime as any).context.buffers.braneBlockPtrs).toBe(braneBlockPtrsBefore)
-    expect((runtime as any).context.buffers.bytecode).toBe(bytecodeBufferBefore)
-    expect((runtime as any).context.buffers.states).toBe(statesBufferBefore)
-    expect((runtime as any).context.buffers.stringRegistry).toBe(stringRegistryBefore)
-    expect((runtime as any).context.pipeline).toBe(pipelineBefore)
+    expect(runtimeInternal.context.buffers.heap).toBe(heapBufferBefore)
+    expect(runtimeInternal.context.buffers.braneBlockPtrs).toBe(braneBlockPtrsBefore)
+    expect(runtimeInternal.context.buffers.bytecode).toBe(bytecodeBufferBefore)
+    expect(runtimeInternal.context.buffers.states).toBe(statesBufferBefore)
+    expect(runtimeInternal.context.buffers.stringRegistry).toBe(stringRegistryBefore)
+    expect(runtimeInternal.context.pipeline).toBe(pipelineBefore)
+    expect(runtimeInternal.context.heapWords).toBeGreaterThan(heapWordsBefore)
+  })
+
+  test("array churn reuses freed heap slots via free-list", async () => {
+    const device = await skipIfNoGpu()
+    if (!device) return
+
+    const { runtime, store } = await createGpuRuntimeForFixture(createArrayFieldUpdateFixture())
+    const runtimeInternal = runtime as any
+    const heapBufferBefore = runtimeInternal.context.buffers.heap
+    const valueOffset = runtimeInternal.context.arraySlots.keys().next().value as number
+
+    setBraneFieldValue(store, 0, 0, [1, 2, 3, 4] as any)
+    runtime.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])
+    const ptrAfterGrow = runtimeInternal.context.arraySlots.get(valueOffset)?.ptr
+    const heapWordsAfterGrow = runtimeInternal.context.heapWords
+
+    setBraneFieldValue(store, 0, 0, [] as any)
+    runtime.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])
+    expect(runtimeInternal.context.arrayFreeList.length).toBeGreaterThan(0)
+
+    setBraneFieldValue(store, 0, 0, [9, 10] as any)
+    runtime.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])
+    runtime.step()
+    const changes = await runtime.readChanges()
+
+    expect(changes).toEqual([[0, 1]])
+    expect(runtimeInternal.context.buffers.heap).toBe(heapBufferBefore)
+    expect(runtimeInternal.context.heapWords).toBe(heapWordsAfterGrow)
+    expect(runtimeInternal.context.arraySlots.get(valueOffset)?.ptr).toBe(ptrAfterGrow)
   })
 
   test("dirtyFlagsAccuracy — only changed branes reported", async () => {

@@ -1,4 +1,5 @@
 import type { MatrixChanges } from "../matrix.t.ts"
+import type { ArrayHeapSlot } from "./heap"
 
 export interface GpuBufferMap {
   braneBlockPtrs: GPUBuffer
@@ -24,6 +25,8 @@ export interface GpuRuntimeContext {
   heapCapacityWords: number
   braneBlockPtrs: number[]
   sharedBlockPtrs: number[]
+  arraySlots: Map<number, ArrayHeapSlot>
+  arrayFreeList: ArrayHeapSlot[]
   stringTableSize: number
   stringRegistryWords: number
   stringRegistryCapacityWords: number
