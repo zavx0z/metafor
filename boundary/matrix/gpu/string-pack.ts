@@ -32,6 +32,35 @@ export function createStringAtlasExport(stringTable: string[]): {
   }
 }
 
+export function createStringAtlasAppendExport(
+  stringTable: string[],
+  startIndex: number,
+  heapOffset: number,
+): {
+  registry: Uint32Array
+  heap: Uint32Array
+  count: number
+} {
+  const registry: number[] = []
+  const heap: number[] = []
+
+  for (let index = startIndex; index < stringTable.length; index++) {
+    const value = stringTable[index]!
+    const pointer = heapOffset + heap.length
+    const hash = fnv1a32(value)
+    const codePoints = encodeUtf32(value)
+
+    registry.push(pointer, codePoints.length, hash)
+    heap.push(...codePoints)
+  }
+
+  return {
+    registry: new Uint32Array(registry),
+    heap: new Uint32Array(heap),
+    count: stringTable.length - startIndex,
+  }
+}
+
 function encodeUtf32(str: string): number[] {
   const codePoints: number[] = []
   for (let i = 0; i < str.length; ) {

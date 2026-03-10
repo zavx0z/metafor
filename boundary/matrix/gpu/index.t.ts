@@ -23,6 +23,9 @@ export interface GpuRuntimeContext {
   braneBlockPtrs: number[]
   sharedBlockPtrs: number[]
   stringTableSize: number
+  stringRegistryWords: number
+  stringHeapWords: number
+  stringTableSnapshot: string[]
 }
 
 export interface GpuReadResult {

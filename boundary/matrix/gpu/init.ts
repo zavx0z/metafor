@@ -58,5 +58,8 @@ export function createGpuRuntimeContext(
     braneBlockPtrs: derived.blockPtrs,
     sharedBlockPtrs: derived.sharedBlockPtrs,
     stringTableSize: store$.stringTable.length,
+    stringRegistryWords: atlas.registry.length > 0 ? atlas.registry.length : 1,
+    stringHeapWords: atlas.heap.length > 0 ? atlas.heap.length : 1,
+    stringTableSnapshot: [...store$.stringTable],
   }
 }

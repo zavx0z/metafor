@@ -14,6 +14,7 @@ import { createBindGroup } from "./pipeline"
 import { readGpuChanges } from "./read"
 import { runGpuStep } from "./step"
 import { updateGpuHeapFields } from "./heap"
+import { createStringAtlasAppendExport } from "./string-pack"
 
 let gpuOperationQueue: Promise<void> = Promise.resolve()
 
@@ -128,7 +129,7 @@ export class GPUMatrixRuntime implements MatrixRuntime {
 
       const stringTableChanged = this.store.stringTable.length !== this.context.stringTableSize
       if (stringTableChanged) {
-        this.refreshStringBuffers()
+        this.syncStringBuffers()
       }
 
       if (!this.tryApplyHeapUpdates(updates)) {
@@ -151,6 +152,14 @@ export class GPUMatrixRuntime implements MatrixRuntime {
     return scheduled
   }
 
+  private syncStringBuffers(): void {
+    if (this.tryAppendStringBuffers()) {
+      return
+    }
+
+    this.refreshStringBuffers()
+  }
+
   private refreshStringBuffers(): void {
     const atlas = resolveStringTableBuffers(this.store.stringTable)
     const nextStringRegistry = createStorageBuffer(this.context.device, atlas.registry)
@@ -162,8 +171,83 @@ export class GPUMatrixRuntime implements MatrixRuntime {
     this.context.buffers.stringHeap = nextStringHeap
     this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
     this.context.stringTableSize = this.store.stringTable.length
+    this.context.stringRegistryWords = atlas.registry.length > 0 ? atlas.registry.length : 1
+    this.context.stringHeapWords = atlas.heap.length > 0 ? atlas.heap.length : 1
+    this.context.stringTableSnapshot = [...this.store.stringTable]
 
     destroyBuffers([previousStringRegistry, previousStringHeap])
+  }
+
+  private tryAppendStringBuffers(): boolean {
+    const previousTable = this.context.stringTableSnapshot
+    const nextTable = this.store.stringTable
+
+    if (nextTable.length < previousTable.length) {
+      return false
+    }
+
+    for (let index = 0; index < previousTable.length; index++) {
+      if (nextTable[index] !== previousTable[index]) {
+        return false
+      }
+    }
+
+    const appended = createStringAtlasAppendExport(nextTable, previousTable.length, this.context.stringHeapWords)
+    if (appended.count === 0) {
+      this.context.stringTableSize = nextTable.length
+      this.context.stringTableSnapshot = [...nextTable]
+      return true
+    }
+
+    const previousStringRegistry = this.context.buffers.stringRegistry
+    const previousStringHeap = this.context.buffers.stringHeap
+    const nextStringRegistry = this.context.device.createBuffer({
+      size: Math.max(1, this.context.stringRegistryWords + appended.registry.length) * 4,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+    })
+    const nextStringHeap = this.context.device.createBuffer({
+      size: Math.max(1, this.context.stringHeapWords + appended.heap.length) * 4,
+      usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
+    })
+
+    const command = this.context.device.createCommandEncoder()
+    if (this.context.stringRegistryWords > 0) {
+      command.copyBufferToBuffer(previousStringRegistry, 0, nextStringRegistry, 0, this.context.stringRegistryWords * 4)
+    }
+    if (this.context.stringHeapWords > 0) {
+      command.copyBufferToBuffer(previousStringHeap, 0, nextStringHeap, 0, this.context.stringHeapWords * 4)
+    }
+    this.context.device.queue.submit([command.finish()])
+
+    if (appended.registry.length > 0) {
+      this.context.device.queue.writeBuffer(
+        nextStringRegistry,
+        this.context.stringRegistryWords * 4,
+        appended.registry.buffer,
+        appended.registry.byteOffset,
+        appended.registry.byteLength,
+      )
+    }
+    if (appended.heap.length > 0) {
+      this.context.device.queue.writeBuffer(
+        nextStringHeap,
+        this.context.stringHeapWords * 4,
+        appended.heap.buffer,
+        appended.heap.byteOffset,
+        appended.heap.byteLength,
+      )
+    }
+
+    this.context.buffers.stringRegistry = nextStringRegistry
+    this.context.buffers.stringHeap = nextStringHeap
+    this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
+    this.context.stringTableSize = nextTable.length
+    this.context.stringRegistryWords += appended.registry.length
+    this.context.stringHeapWords += appended.heap.length
+    this.context.stringTableSnapshot = [...nextTable]
+
+    destroyBuffers([previousStringRegistry, previousStringHeap])
+    return true
   }
 
   private refreshHeapBuffers(): void {
@@ -189,6 +273,8 @@ export class GPUMatrixRuntime implements MatrixRuntime {
 
   private tryApplyHeapUpdates(updates: MatrixHeapUpdate[]): boolean {
     const writes: Array<{ offset: number; value1: number; value2?: number }> = []
+    let heapMirror = this.context.heapMirror
+    let heapBufferRecreated = false
 
     for (const update of updates) {
       if (update.kind === "lock") {
@@ -197,20 +283,27 @@ export class GPUMatrixRuntime implements MatrixRuntime {
           return false
         }
         writes.push({ offset: blockPtr + 2, value1: update.value ? 1 : 0 })
-        this.context.heapMirror[blockPtr + 2] = update.value ? 1 : 0
+        heapMirror[blockPtr + 2] = update.value ? 1 : 0
         continue
       }
 
-      const nextWrites = this.resolveFieldWrites(update.braneIndex, update.fieldIndex)
-      if (!nextWrites) {
+      const nextResult = this.resolveFieldWrites(update.braneIndex, update.fieldIndex, heapMirror)
+      if (!nextResult) {
         return false
       }
 
-      for (const write of nextWrites) {
+      if (nextResult.heapMirror && nextResult.heapMirror !== heapMirror) {
+        heapMirror = nextResult.heapMirror
+        this.replaceHeapBuffer(heapMirror)
+        heapBufferRecreated = true
+      }
+
+      for (const write of nextResult.writes) {
         writes.push(write)
       }
     }
 
+    this.context.heapMirror = heapMirror
     updateGpuHeapFields(this.context.device, this.context.buffers.heap, writes)
     return true
   }
@@ -218,7 +311,8 @@ export class GPUMatrixRuntime implements MatrixRuntime {
   private resolveFieldWrites(
     braneIndex: number,
     fieldIndex: number,
-  ): Array<{ offset: number; value1: number; value2?: number }> | null {
+    heapMirror: Uint32Array,
+  ): { writes: Array<{ offset: number; value1: number; value2?: number }>; heapMirror?: Uint32Array } | null {
     const location = findBraneFieldLocation(this.store, braneIndex, fieldIndex)
     const field = this.store.fields[fieldIndex]
     if (!location || !field) {
@@ -233,49 +327,72 @@ export class GPUMatrixRuntime implements MatrixRuntime {
       return null
     }
 
-    const valueOffset = findFieldValueOffset(this.context.heapMirror, blockPtr, fieldIndex)
+    const valueOffset = findFieldValueOffset(heapMirror, blockPtr, fieldIndex)
     if (valueOffset === null) {
       return null
     }
 
     if (field.type === FIELD_TYPE.ARRAY_PTR) {
-      return this.resolveArrayWrites(valueOffset, fieldIndex, location.record.value)
+      return this.resolveArrayWrites(heapMirror, valueOffset, fieldIndex, location.record.value)
     }
 
     const encoded = encodeValue(location.record.value, createPackContext(field, this.store.stringTable))
-    this.context.heapMirror[valueOffset] = encoded.value1
+    heapMirror[valueOffset] = encoded.value1
 
     if (field.type === FIELD_TYPE.STRING_PTR) {
-      this.context.heapMirror[valueOffset + 1] = encoded.value2
-      return [{ offset: valueOffset, value1: encoded.value1, value2: encoded.value2 }]
+      heapMirror[valueOffset + 1] = encoded.value2
+      return { writes: [{ offset: valueOffset, value1: encoded.value1, value2: encoded.value2 }] }
     }
 
-    return [{ offset: valueOffset, value1: encoded.value1 }]
+    return { writes: [{ offset: valueOffset, value1: encoded.value1 }] }
   }
 
   private resolveArrayWrites(
+    heapMirror: Uint32Array,
     valueOffset: number,
     fieldIndex: number,
     value: BoundaryStore["braneValues"][number]["value"],
-  ): Array<{ offset: number; value1: number; value2?: number }> | null {
+  ): { writes: Array<{ offset: number; value1: number; value2?: number }>; heapMirror?: Uint32Array } | null {
     if (!Array.isArray(value)) {
       return null
     }
 
-    const currentPtr = this.context.heapMirror[valueOffset] ?? 0
+    const currentPtr = heapMirror[valueOffset] ?? 0
     if (value.length === 0) {
-      this.context.heapMirror[valueOffset] = 0
-      this.context.heapMirror[valueOffset + 1] = 0
-      return [{ offset: valueOffset, value1: 0, value2: 0 }]
+      heapMirror[valueOffset] = 0
+      heapMirror[valueOffset + 1] = 0
+      return { writes: [{ offset: valueOffset, value1: 0, value2: 0 }] }
     }
 
-    if (currentPtr === 0) {
-      return null
-    }
-
-    const currentLength = this.context.heapMirror[currentPtr] ?? 0
+    const currentLength = currentPtr === 0 ? 0 : (heapMirror[currentPtr] ?? 0)
     if (currentLength !== value.length) {
-      return null
+      const nextHeapMirror = new Uint32Array(heapMirror.length + 1 + value.length)
+      nextHeapMirror.set(heapMirror)
+      const nextPtr = heapMirror.length
+      nextHeapMirror[nextPtr] = value.length
+
+      const field = this.store.fields[fieldIndex]
+      if (!field) {
+        return null
+      }
+
+      const arrayContext = createPackContext(field, this.store.stringTable)
+      value.forEach((item, index) => {
+        nextHeapMirror[nextPtr + 1 + index] = encodeValue(
+          item,
+          {
+            type: arrayContext.subType ?? VALUE_TYPE.FLOAT,
+            stringTable: this.store.stringTable,
+          },
+        ).value1
+      })
+
+      nextHeapMirror[valueOffset] = nextPtr
+      nextHeapMirror[valueOffset + 1] = 0
+      return {
+        heapMirror: nextHeapMirror,
+        writes: [{ offset: valueOffset, value1: nextPtr, value2: 0 }],
+      }
     }
 
     const field = this.store.fields[fieldIndex]
@@ -298,19 +415,34 @@ export class GPUMatrixRuntime implements MatrixRuntime {
     arrayWords[0] = value.length
     encodedItems.forEach((item, index) => {
       arrayWords[index + 1] = item
-      this.context.heapMirror[currentPtr + 1 + index] = item
+      heapMirror[currentPtr + 1 + index] = item
     })
 
-    this.context.heapMirror[currentPtr] = value.length
-    this.context.heapMirror[valueOffset] = currentPtr
-    this.context.heapMirror[valueOffset + 1] = 0
+    heapMirror[currentPtr] = value.length
+    heapMirror[valueOffset] = currentPtr
+    heapMirror[valueOffset + 1] = 0
 
-    return [
-      { offset: valueOffset, value1: currentPtr, value2: 0 },
-      ...Array.from(arrayWords).map((word, index) => ({
-        offset: currentPtr + index,
-        value1: word,
-      })),
-    ]
+    return {
+      writes: [
+        { offset: valueOffset, value1: currentPtr, value2: 0 },
+        ...Array.from(arrayWords).map((word, index) => ({
+          offset: currentPtr + index,
+          value1: word,
+        })),
+      ],
+    }
+  }
+
+  private replaceHeapBuffer(nextHeapMirror: Uint32Array): void {
+    const previousHeap = this.context.buffers.heap
+    const nextHeap = createStorageBuffer(
+      this.context.device,
+      nextHeapMirror.length > 0 ? nextHeapMirror : new Uint32Array(1),
+    )
+
+    this.context.buffers.heap = nextHeap
+    this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
+
+    destroyBuffers([previousHeap])
   }
 }

@@ -250,6 +250,36 @@ describe("GPU runtime — scenario tests", () => {
     expect((runtime as any).context.buffers.stringHeap).not.toBe(stringHeapBefore)
   })
 
+  test("append-only string growth uses incremental string append path", async () => {
+    const device = await skipIfNoGpu()
+    if (!device) return
+
+    const { runtime, store } = await createGpuRuntimeForFixture(createStringFieldUpdateFixture())
+    const runtimeInternal = runtime as any
+    let appendCalls = 0
+    let refreshCalls = 0
+    const originalTryAppend = runtimeInternal.tryAppendStringBuffers.bind(runtimeInternal)
+    const originalRefresh = runtimeInternal.refreshStringBuffers.bind(runtimeInternal)
+
+    runtimeInternal.tryAppendStringBuffers = () => {
+      appendCalls++
+      return originalTryAppend()
+    }
+    runtimeInternal.refreshStringBuffers = () => {
+      refreshCalls++
+      return originalRefresh()
+    }
+
+    setBraneFieldValue(store, 0, 0, "mage" as any)
+    runtime.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])
+    runtime.step()
+    const changes = await runtime.readChanges()
+
+    expect(changes).toEqual([[0, 1]])
+    expect(appendCalls).toBe(1)
+    expect(refreshCalls).toBe(0)
+  })
+
   test("array growth refreshes only heap-related buffers", async () => {
     const device = await skipIfNoGpu()
     if (!device) return
