@@ -10,11 +10,10 @@ import { convertToNumeric } from "../boundary/fields/superposition"
 import { flattenGravity, buildStrongEntanglement, projectEntanglementToBoundary } from "./strong/strong"
 import { force$ } from "./store"
 
-import type { ActorId, BraneStateChange, ActorUpdate } from "./force.t"
+import type { ActorId, BraneStateChange, ActorUpdate, UpdateBoundaryOptions } from "./force.t"
 import type { FieldDefinition } from "./strong/field.t"
 import type { ActorConfig } from "./force.t"
 import type { Brane, Data, Field } from "@boundary/fields"
-import type { NodeType } from "@metafor/dsl"
 import { valuesToTuples } from "./strong/value"
 
 // ==================== Функции ====================
@@ -51,6 +50,9 @@ function buildBoundaryEntanglement(actorIds: string[]) {
     actorId,
     braneIndex,
     fieldNames: Object.keys(force$.actorParams.get(actorId) ?? {}),
+    ...(force$.actorGravityBindings.get(actorId)
+      ? { binding: force$.actorGravityBindings.get(actorId)! }
+      : {}),
   }))
 
   const flattened = flattenGravity(gravity)
@@ -113,6 +115,11 @@ export function createActor(config: ActorConfig): string {
   force$.actorParams.set(uuid, { ...config.values })
   force$.intentions.set(uuid, config.intentions ?? {})
   force$.superpositions.set(uuid, config.superposition)
+  if (config.gravity) {
+    force$.actorGravityBindings.set(uuid, config.gravity)
+  } else {
+    force$.actorGravityBindings.delete(uuid)
+  }
   // Состояние не устанавливается — актор рождается в неопределённом состоянии
   return uuid
 }
@@ -129,13 +136,7 @@ export function deleteActor(uuid: ActorId): void {
   force$.superpositions.delete(uuid)
   force$.states.delete(uuid)
   force$.uuidToIndex.delete(uuid)
-}
-
-/**
- * Регистрирует parsed `bulk.gravity` AST как upstream источник actor connectivity.
- */
-export function setGravitySource(gravity: NodeType[] | null): void {
-  force$.gravitySource = gravity
+  force$.actorGravityBindings.delete(uuid)
 }
 
 /**
@@ -143,7 +144,11 @@ export function setGravitySource(gravity: NodeType[] | null): void {
  *
  * @returns Массив изменений состояний (только birth-events при первой инициализации)
  */
-export async function updateBoundary(): Promise<BraneStateChange[]> {
+export async function updateBoundary(options?: UpdateBoundaryOptions): Promise<BraneStateChange[]> {
+  if (options && "gravity" in options) {
+    force$.gravitySource = options.gravity ?? null
+  }
+
   const actorIds = Array.from(force$.actorIds)
   if (actorIds.length === 0) {
     return []

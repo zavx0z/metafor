@@ -39,6 +39,7 @@ export const force$: ForceStoreState = {
   nextFieldIndex: 0,
   fieldsDefinition: {},
   gravitySource: null,
+  actorGravityBindings: new Map(),
 
   reset() {
     this.globalFields.clear()
@@ -55,6 +56,7 @@ export const force$: ForceStoreState = {
     this.nextFieldIndex = 0
     this.fieldsDefinition = {}
     this.gravitySource = null
+    this.actorGravityBindings.clear()
   },
 
   restore(state: ForceStoreState) {
@@ -72,5 +74,6 @@ export const force$: ForceStoreState = {
     this.nextFieldIndex = state.nextFieldIndex
     this.fieldsDefinition = state.fieldsDefinition
     this.gravitySource = state.gravitySource
+    this.actorGravityBindings = state.actorGravityBindings
   },
 }

@@ -34,7 +34,7 @@ export async function initial(path: string) {
   }
 }
 
-export { createActor, deleteActor, updateActors, updateBoundary, onStateChange, releaseLock, setGravitySource } from "./force"
+export { createActor, deleteActor, updateActors, updateBoundary, onStateChange, releaseLock } from "./force"
 
 export { force$ } from "./store"
 export type { ForceStoreState } from "./store.t"
@@ -43,4 +43,4 @@ export { registerProcesses, getProcessSchema } from "./weak"
 
 export { convertField } from "./strong/field"
 export { flattenGravity, buildStrongEntanglement, projectEntanglementToBoundary } from "./strong/strong"
-export type { BraneStateChange, ActorUpdate } from "./force.t"
+export type { BraneStateChange, ActorUpdate, UpdateBoundaryOptions } from "./force.t"

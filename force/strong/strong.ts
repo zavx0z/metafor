@@ -1,14 +1,25 @@
-import type { NodeType } from "@metafor/dsl"
+import type { NodeMeta, NodeType } from "@metafor/dsl"
 import type { PreparedEntanglementProjection } from "../../boundary/fields/entangled.t"
 import type {
   FlatGravityActor,
   FlatGravityGraph,
   FlatGravityLink,
   FlatGravityScope,
+  GravityEntanglementPayload,
+  GravityRuntimeMatch,
+  GravityScopeKind,
   RuntimeActorSnapshot,
   StrongEntanglementBlock,
+  StrongEntanglementField,
   StrongEntanglementPlan,
 } from "./strong.t"
+
+type ProjectionContext = {
+  scopeStack: FlatGravityScope[]
+  actorStack: FlatGravityActor[]
+  parentKey: string
+  siblingCounters: Map<string, number>
+}
 
 const toArray = (value: string | string[] | undefined): string[] => {
   if (!value) return []
@@ -17,9 +28,11 @@ const toArray = (value: string | string[] | undefined): string[] => {
 
 const unique = <T>(values: T[]): T[] => Array.from(new Set(values))
 
+const sanitizeSegment = (value: string): string =>
+  value.replace(/[^a-zA-Z0-9:_-]+/g, "-").replace(/-+/g, "-")
+
 const toLeafField = (fieldPath: string): string | null => {
-  if (!fieldPath || fieldPath === "[index]") return null
-  if (fieldPath.startsWith("/mass/")) return null
+  if (!fieldPath || fieldPath === "[index]" || fieldPath.startsWith("/mass/")) return null
   const normalized = fieldPath
     .replace(/^\/fields\//, "")
     .replace(/^\.\.\//g, "")
@@ -27,12 +40,10 @@ const toLeafField = (fieldPath: string): string | null => {
     .replace(/\.\.\//g, "")
     .replace(/\[item\]\//g, "")
     .replace(/\//g, ".")
-  if (!normalized || normalized.startsWith("mass/")) {
-    return null
-  }
+
+  if (!normalized || normalized.startsWith("mass/")) return null
   const parts = normalized.split(".").filter(Boolean)
-  if (parts.length === 0) return null
-  return parts.join(".")
+  return parts.length > 0 ? parts.join(".") : null
 }
 
 const extractFieldRefs = (paths: string[]): string[] =>
@@ -43,14 +54,17 @@ const extractFieldRefs = (paths: string[]): string[] =>
   )
 
 const extractValueDataPaths = (value: unknown): string[] => {
-  if (!value || typeof value !== "object") {
-    return []
-  }
+  if (!value || typeof value !== "object") return []
   if ("data" in value) {
-    const data = (value as { data?: string | string[] }).data
-    return toArray(data)
+    return toArray((value as { data?: string | string[] }).data)
   }
   return []
+}
+
+const extractValueExpr = (value: unknown): string | undefined => {
+  if (!value || typeof value !== "object" || !("expr" in value)) return undefined
+  const expr = (value as { expr?: string }).expr
+  return expr || undefined
 }
 
 const stringifyTag = (tag: unknown): string => {
@@ -61,122 +75,182 @@ const stringifyTag = (tag: unknown): string => {
   return "meta"
 }
 
-type TraverseContext = {
-  scopeStack: FlatGravityScope[]
-  actorStack: FlatGravityActor[]
+const nextSegment = (counters: Map<string, number>, prefix: string): string => {
+  const current = counters.get(prefix) ?? 0
+  counters.set(prefix, current + 1)
+  return `${prefix}[${current}]`
+}
+
+const payloadSemanticKey = (kind: string, sourcePaths: string[], expr?: string): string => {
+  const normalizedPaths = sourcePaths.join("|")
+  return `${kind}:${normalizedPaths}:${expr ?? ""}`
+}
+
+const createPayload = (
+  payloads: GravityEntanglementPayload[],
+  ownerId: string,
+  kind: "scope" | "fields",
+  sourcePaths: string[],
+  expr?: string,
+): GravityEntanglementPayload | null => {
+  const fieldRefs = extractFieldRefs(sourcePaths)
+  if (fieldRefs.length === 0) return null
+  const payload: GravityEntanglementPayload = {
+    id: `payload:${payloads.length}`,
+    kind,
+    ownerId,
+    sourcePaths,
+    fieldRefs,
+    semanticKey: payloadSemanticKey(kind, sourcePaths, expr),
+    ...(expr ? { expr } : {}),
+  }
+  payloads.push(payload)
+  return payload
+}
+
+function collectActorProjection(
+  nodes: NodeType[],
+  scopes: FlatGravityScope[],
+  actors: FlatGravityActor[],
+  links: FlatGravityLink[],
+  payloads: GravityEntanglementPayload[],
+  context: ProjectionContext,
+): void {
+  for (const node of nodes) {
+    switch (node.type) {
+      case "map":
+      case "cond":
+      case "log": {
+        const segment = nextSegment(context.siblingCounters, node.type)
+        const key = `${context.parentKey}/${segment}`
+        const sourcePaths = toArray(node.data)
+        const scope: FlatGravityScope = {
+          id: `scope:${scopes.length}`,
+          kind: node.type as GravityScopeKind,
+          key,
+          dataPaths: sourcePaths,
+          fieldRefs: extractFieldRefs(sourcePaths),
+          payloadIds: [],
+          actorIds: [],
+          scopeIds: context.scopeStack.map((item) => item.id),
+          ...("expr" in node && node.expr ? { expr: node.expr } : {}),
+          ...(context.scopeStack.at(-1)?.id ? { parentScopeId: context.scopeStack.at(-1)!.id } : {}),
+          ...(context.actorStack.at(-1)?.id ? { parentActorId: context.actorStack.at(-1)!.id } : {}),
+        }
+        const payload = createPayload(payloads, scope.id, "scope", sourcePaths, "expr" in node ? node.expr : undefined)
+        if (payload) {
+          scope.payloadIds.push(payload.id)
+        }
+        scopes.push(scope)
+        if (scope.parentScopeId) {
+          links.push({
+            kind: "scope",
+            from: scope.parentScopeId,
+            to: scope.id,
+            payloadIds: [...scope.payloadIds],
+          })
+        }
+        if (scope.parentActorId) {
+          links.push({
+            kind: "scope",
+            from: scope.parentActorId,
+            to: scope.id,
+            payloadIds: [...scope.payloadIds],
+          })
+        }
+
+        collectActorProjection(node.child, scopes, actors, links, payloads, {
+          scopeStack: [...context.scopeStack, scope],
+          actorStack: context.actorStack,
+          parentKey: key,
+          siblingCounters: new Map(),
+        })
+        break
+      }
+      case "meta": {
+        const tag = stringifyTag(node.tag)
+        const segment = nextSegment(context.siblingCounters, `meta:${sanitizeSegment(tag)}`)
+        const key = `${context.parentKey}/${segment}`
+        const sourcePaths = extractValueDataPaths(node.fields)
+        const directFieldRefs = extractFieldRefs(sourcePaths)
+        const inheritedPayloadIds = context.scopeStack.flatMap((scope) => scope.payloadIds)
+        const actor: FlatGravityActor = {
+          id: `actor:${actors.length}`,
+          manifestIndex: actors.length,
+          key,
+          tag,
+          dataPaths: sourcePaths,
+          fieldRefs: unique([...context.scopeStack.flatMap((scope) => scope.fieldRefs), ...directFieldRefs]),
+          scopeIds: context.scopeStack.map((scope) => scope.id),
+          payloadIds: [],
+          entanglementPayloadIds: [...inheritedPayloadIds],
+          ...(context.actorStack.at(-1)?.id ? { parentActorId: context.actorStack.at(-1)!.id } : {}),
+          ...(context.scopeStack.at(-1)?.id ? { parentScopeId: context.scopeStack.at(-1)!.id } : {}),
+        }
+        const fieldPayload = createPayload(payloads, actor.id, "fields", sourcePaths, extractValueExpr(node.fields))
+        if (fieldPayload) {
+          actor.payloadIds.push(fieldPayload.id)
+          actor.entanglementPayloadIds.push(fieldPayload.id)
+        }
+
+        actors.push(actor)
+        context.scopeStack.forEach((scope) => {
+          scope.actorIds.push(actor.id)
+        })
+
+        if (actor.parentActorId) {
+          links.push({
+            kind: "hierarchy",
+            from: actor.parentActorId,
+            to: actor.id,
+            payloadIds: [...actor.entanglementPayloadIds],
+          })
+        }
+        if (actor.parentScopeId) {
+          links.push({
+            kind: "scope",
+            from: actor.parentScopeId,
+            to: actor.id,
+            payloadIds: [...actor.entanglementPayloadIds],
+          })
+        }
+
+        collectActorProjection((node as NodeMeta).child ?? [], scopes, actors, links, payloads, {
+          scopeStack: context.scopeStack,
+          actorStack: [...context.actorStack, actor],
+          parentKey: key,
+          siblingCounters: new Map(),
+        })
+        break
+      }
+      case "el":
+        collectActorProjection(node.child ?? [], scopes, actors, links, payloads, context)
+        break
+      default:
+        break
+    }
+  }
 }
 
 export function flattenGravity(source: NodeType[]): FlatGravityGraph {
   const scopes: FlatGravityScope[] = []
   const actors: FlatGravityActor[] = []
   const links: FlatGravityLink[] = []
+  const payloads: GravityEntanglementPayload[] = []
 
-  const visit = (nodes: NodeType[], context: TraverseContext): void => {
-    for (const node of nodes) {
-      switch (node.type) {
-        case "map":
-        case "cond":
-        case "log": {
-          const dataPaths = toArray(node.data)
-          const scope: FlatGravityScope = {
-            id: `scope:${scopes.length}`,
-            kind: node.type,
-            dataPaths,
-            fieldRefs: extractFieldRefs(dataPaths),
-            actorIds: [],
-            ...("expr" in node && node.expr ? { expr: node.expr } : {}),
-            ...(context.scopeStack.at(-1)?.id ? { parentScopeId: context.scopeStack.at(-1)!.id } : {}),
-            ...(context.actorStack.at(-1)?.id ? { parentActorId: context.actorStack.at(-1)!.id } : {}),
-          }
-          scopes.push(scope)
-          if (scope.parentScopeId) {
-            links.push({
-              kind: "scope",
-              from: scope.parentScopeId,
-              to: scope.id,
-              fieldRefs: scope.fieldRefs,
-            })
-          }
-          if (scope.parentActorId) {
-            links.push({
-              kind: "scope",
-              from: scope.parentActorId,
-              to: scope.id,
-              fieldRefs: scope.fieldRefs,
-            })
-          }
-          visit(node.child, {
-            scopeStack: [...context.scopeStack, scope],
-            actorStack: context.actorStack,
-          })
-          break
-        }
-        case "meta": {
-          const ownDataPaths = extractValueDataPaths(node.fields)
-          const inheritedFieldRefs = context.scopeStack.flatMap((scope) => scope.fieldRefs)
-          const ownFieldRefs = extractFieldRefs(ownDataPaths)
-          const actor: FlatGravityActor = {
-            id: `actor:${actors.length}`,
-            manifestIndex: actors.length,
-            tag: stringifyTag(node.tag),
-            dataPaths: ownDataPaths,
-            fieldRefs: unique([...inheritedFieldRefs, ...ownFieldRefs]),
-            scopeIds: context.scopeStack.map((scope) => scope.id),
-            ...(context.actorStack.at(-1)?.id ? { parentActorId: context.actorStack.at(-1)!.id } : {}),
-            ...(context.scopeStack.at(-1)?.id ? { parentScopeId: context.scopeStack.at(-1)!.id } : {}),
-          }
-          actors.push(actor)
-          context.scopeStack.forEach((scope) => {
-            scope.actorIds.push(actor.id)
-          })
-          if (actor.parentActorId) {
-            links.push({
-              kind: "hierarchy",
-              from: actor.parentActorId,
-              to: actor.id,
-              fieldRefs: actor.fieldRefs,
-            })
-          }
-          if (actor.parentScopeId) {
-            links.push({
-              kind: "scope",
-              from: actor.parentScopeId,
-              to: actor.id,
-              fieldRefs: actor.fieldRefs,
-            })
-          }
-          visit(node.child ?? [], {
-            scopeStack: context.scopeStack,
-            actorStack: [...context.actorStack, actor],
-          })
-          break
-        }
-        case "el":
-          visit(node.child ?? [], context)
-          break
-        default:
-          break
-      }
-    }
-  }
+  collectActorProjection(source, scopes, actors, links, payloads, {
+    scopeStack: [],
+    actorStack: [],
+    parentKey: "root",
+    siblingCounters: new Map(),
+  })
 
-  visit(source, { scopeStack: [], actorStack: [] })
-
-  return { source, scopes, actors, links }
-}
-
-const fieldMatches = (fieldName: string, graphFieldRef: string): boolean => {
-  if (fieldName === graphFieldRef) return true
-  const leaf = graphFieldRef.split(".").at(-1)
-  return fieldName === leaf
+  return { source, scopes, actors, links, payloads }
 }
 
 const buildActorAdjacency = (graph: FlatGravityGraph): Map<string, Set<string>> => {
   const adjacency = new Map<string, Set<string>>()
-
-  graph.actors.forEach((actor) => {
-    adjacency.set(actor.id, new Set())
-  })
+  graph.actors.forEach((actor) => adjacency.set(actor.id, new Set()))
 
   graph.actors.forEach((actor) => {
     if (actor.parentActorId) {
@@ -188,88 +262,196 @@ const buildActorAdjacency = (graph: FlatGravityGraph): Map<string, Set<string>> 
   graph.scopes.forEach((scope) => {
     const members = unique(scope.actorIds)
     if (members.length < 2) return
-    const root = members[0]!
+    const first = members[0]!
     for (let index = 1; index < members.length; index++) {
-      const member = members[index]!
-      adjacency.get(root)!.add(member)
-      adjacency.get(member)!.add(root)
+      const current = members[index]!
+      adjacency.get(first)!.add(current)
+      adjacency.get(current)!.add(first)
     }
   })
 
   return adjacency
 }
 
+const resolveRuntimeField = (
+  fieldRef: string,
+  runtime: RuntimeActorSnapshot,
+): string | null => {
+  const mapped = runtime.binding?.fieldMap?.[fieldRef]
+  if (mapped && runtime.fieldNames.includes(mapped)) {
+    return mapped
+  }
+
+  if (runtime.fieldNames.includes(fieldRef)) {
+    return fieldRef
+  }
+
+  const leaf = fieldRef.split(".").at(-1)
+  if (leaf && runtime.fieldNames.includes(leaf)) {
+    return leaf
+  }
+
+  return null
+}
+
+const buildBindings = (
+  graph: FlatGravityGraph,
+  runtimeActors: RuntimeActorSnapshot[],
+): {
+  matches: GravityRuntimeMatch[]
+  graphToRuntime: Map<string, RuntimeActorSnapshot>
+} => {
+  const graphByKey = new Map(graph.actors.map((actor) => [actor.key, actor]))
+  const matches: GravityRuntimeMatch[] = []
+  const graphToRuntime = new Map<string, RuntimeActorSnapshot>()
+
+  runtimeActors.forEach((runtime) => {
+    const actorKey = runtime.binding?.actorKey
+    if (!actorKey) return
+    const actor = graphByKey.get(actorKey)
+    if (!actor) return
+
+    matches.push({
+      actorId: runtime.actorId,
+      braneIndex: runtime.braneIndex,
+      actorKey,
+      graphActorId: actor.id,
+      runtimeFieldNames: runtime.fieldNames,
+    })
+    graphToRuntime.set(actor.id, runtime)
+  })
+
+  return { matches, graphToRuntime }
+}
+
+const connectedComponents = (
+  graphActorIds: string[],
+  targetActorIds: string[],
+  adjacency: Map<string, Set<string>>,
+): string[][] => {
+  const remainingTargets = new Set(targetActorIds)
+  const visited = new Set<string>()
+  const result: string[][] = []
+
+  while (remainingTargets.size > 0) {
+    const [start] = remainingTargets
+    const queue = [start!]
+    const component: string[] = []
+
+    while (queue.length > 0) {
+      const current = queue.shift()!
+      if (visited.has(current)) continue
+      visited.add(current)
+      if (remainingTargets.has(current)) {
+        remainingTargets.delete(current)
+        component.push(current)
+      }
+
+      const neighbours = adjacency.get(current) ?? new Set<string>()
+      neighbours.forEach((neighbour) => {
+        if (graphActorIds.includes(neighbour) && !visited.has(neighbour)) {
+          queue.push(neighbour)
+        }
+      })
+    }
+
+    result.push(component)
+  }
+
+  return result
+}
+
 export function buildStrongEntanglement(
   graph: FlatGravityGraph,
   runtimeActors: RuntimeActorSnapshot[],
 ): StrongEntanglementPlan {
-  if (graph.actors.length !== runtimeActors.length) {
-    throw new Error(
-      `Gravity actor count ${graph.actors.length} does not match runtime actor count ${runtimeActors.length}`,
-    )
-  }
-
+  const { matches, graphToRuntime } = buildBindings(graph, runtimeActors)
   const adjacency = buildActorAdjacency(graph)
   const blocksByMembership = new Map<string, StrongEntanglementBlock>()
+  const payloadGroups = new Map<string, GravityEntanglementPayload[]>()
 
-  const graphActorsById = new Map(graph.actors.map((actor, index) => [actor.id, { actor, runtime: runtimeActors[index]! }]))
+  graph.payloads.forEach((payload) => {
+    const group = payloadGroups.get(payload.semanticKey) ?? []
+    group.push(payload)
+    payloadGroups.set(payload.semanticKey, group)
+  })
 
-  const candidateFields = unique(graph.actors.flatMap((actor) => actor.fieldRefs))
-
-  candidateFields.forEach((fieldRef) => {
-    const participants = graph.actors
-      .filter((actor, index) =>
-        actor.fieldRefs.includes(fieldRef) &&
-        runtimeActors[index]!.fieldNames.some((fieldName) => fieldMatches(fieldName, fieldRef)),
+  payloadGroups.forEach((payloadGroup, semanticKey) => {
+    const payloadIds = payloadGroup.map((payload) => payload.id)
+    const fieldRefs = unique(payloadGroup.flatMap((payload) => payload.fieldRefs))
+    const actorIds = graph.actors
+      .filter((actor) =>
+        actor.entanglementPayloadIds.some((payloadId) => payloadIds.includes(payloadId)) &&
+        graphToRuntime.has(actor.id),
       )
       .map((actor) => actor.id)
 
-    if (participants.length < 2) return
+    if (actorIds.length < 2) return
 
-    const remaining = new Set(participants)
-    while (remaining.size > 0) {
-      const [start] = remaining
-      const queue = [start!]
-      const component = new Set<string>()
+    connectedComponents(
+      graph.actors.map((actor) => actor.id),
+      actorIds,
+      adjacency,
+    ).forEach((component) => {
+      if (component.length < 2) return
 
-      while (queue.length > 0) {
-        const current = queue.shift()!
-        if (component.has(current)) continue
-        component.add(current)
-        remaining.delete(current)
-
-        const neighbours = adjacency.get(current) ?? new Set<string>()
-        neighbours.forEach((neighbour) => {
-          if (remaining.has(neighbour)) {
-            queue.push(neighbour)
-          }
+      const entries = component
+        .map((actorId) => {
+          const actor = graph.actors.find((candidate) => candidate.id === actorId)!
+          const runtime = graphToRuntime.get(actorId)!
+          return { actor, runtime }
         })
-      }
-
-      if (component.size < 2) continue
-
-      const memberEntries = Array.from(component)
-        .map((actorId) => graphActorsById.get(actorId)!)
-        .filter(({ runtime }) => runtime.fieldNames.some((fieldName) => fieldMatches(fieldName, fieldRef)))
         .sort((left, right) => left.runtime.braneIndex - right.runtime.braneIndex)
 
-      if (memberEntries.length < 2) continue
-
-      const braneIndices = memberEntries.map(({ runtime }) => runtime.braneIndex)
-      const actorNodeIds = memberEntries.map(({ actor }) => actor.id)
-      const scopeIds = unique(memberEntries.flatMap(({ actor }) => actor.scopeIds))
-      const membershipKey = braneIndices.join(",")
-      const matchedFieldNames = unique(
-        memberEntries.flatMap(({ runtime }) =>
-          runtime.fieldNames.filter((fieldName) => fieldMatches(fieldName, fieldRef)),
-        ),
+      const resolvedFieldsByActor = entries.map(({ runtime }) =>
+        fieldRefs
+          .map((fieldRef) => ({
+            fieldRef,
+            fieldName: resolveRuntimeField(fieldRef, runtime),
+          }))
+          .filter((item): item is { fieldRef: string; fieldName: string } => item.fieldName !== null),
       )
 
-      if (matchedFieldNames.length === 0) continue
+      const allResolved = unique(resolvedFieldsByActor.flatMap((items) => items.map((item) => item.fieldName)))
+      const sharedFieldNames = allResolved.filter((fieldName) =>
+        resolvedFieldsByActor.every((items) => items.some((item) => item.fieldName === fieldName)),
+      )
+
+      if (sharedFieldNames.length === 0) return
+
+      const braneIndices = entries.map(({ runtime }) => runtime.braneIndex)
+      const membershipKey = braneIndices.join(",")
+      const actorNodeIds = entries.map(({ actor }) => actor.id)
+      const runtimeActorIds = entries.map(({ runtime }) => runtime.actorId)
+      const scopeIds = unique(entries.flatMap(({ actor }) => actor.scopeIds)).sort()
+
+      const fields: StrongEntanglementField[] = sharedFieldNames.map((fieldName) => {
+        const fieldRefs = unique(
+          resolvedFieldsByActor.flatMap((items) =>
+            items.filter((item) => item.fieldName === fieldName).map((item) => item.fieldRef),
+          ),
+        )
+        return {
+          fieldName,
+          fieldRef: fieldRefs[0]!,
+          payloadIds: [...payloadIds].sort(),
+          semanticKeys: [semanticKey],
+          representativeBraneIndex: braneIndices[0]!,
+        }
+      })
 
       const existing = blocksByMembership.get(membershipKey)
       if (existing) {
-        existing.fieldNames = unique([...existing.fieldNames, ...matchedFieldNames]).sort()
+        fields.forEach((field) => {
+          const prev = existing.fields.find((candidate) => candidate.fieldName === field.fieldName)
+          if (prev) {
+            prev.payloadIds = unique([...prev.payloadIds, ...field.payloadIds]).sort()
+            prev.semanticKeys = unique([...prev.semanticKeys, ...field.semanticKeys]).sort()
+          } else {
+            existing.fields.push(field)
+          }
+        })
+        existing.payloadIds = unique([...existing.payloadIds, ...payloadIds]).sort()
         existing.scopeIds = unique([...existing.scopeIds, ...scopeIds]).sort()
         return
       }
@@ -277,16 +459,25 @@ export function buildStrongEntanglement(
       blocksByMembership.set(membershipKey, {
         key: membershipKey,
         actorNodeIds,
+        runtimeActorIds,
         braneIndices,
-        fieldNames: matchedFieldNames.sort(),
-        scopeIds: scopeIds.sort(),
+        fields,
+        scopeIds,
+        payloadIds: [...payloadIds].sort(),
       })
-    }
+    })
   })
 
   return {
     graph,
-    blocks: Array.from(blocksByMembership.values()).sort((left, right) => left.key.localeCompare(right.key)),
+    bindings: matches,
+    blocks: Array.from(blocksByMembership.values())
+      .map((block) => ({
+        ...block,
+        fields: block.fields.sort((left, right) => left.fieldName.localeCompare(right.fieldName)),
+        payloadIds: unique(block.payloadIds).sort(),
+      }))
+      .sort((left, right) => left.key.localeCompare(right.key)),
   }
 }
 
@@ -299,12 +490,20 @@ export function projectEntanglementToBoundary(
       .map((block) => ({
         key: block.key,
         braneIndices: block.braneIndices,
-        fieldIndices: unique(
-          block.fieldNames
-            .map((fieldName) => fieldNameIndex.get(fieldName))
-            .filter((fieldIndex): fieldIndex is number => fieldIndex !== undefined),
-        ).sort((left, right) => left - right),
+        fields: block.fields
+          .map((field) => {
+            const fieldIndex = fieldNameIndex.get(field.fieldName)
+            if (fieldIndex === undefined) return null
+            return {
+              fieldIndex,
+              fieldName: field.fieldName,
+              payloadIds: field.payloadIds,
+              semanticKeys: field.semanticKeys,
+              representativeBraneIndex: field.representativeBraneIndex,
+            }
+          })
+          .filter((field): field is NonNullable<typeof field> => field !== null),
       }))
-      .filter((block) => block.fieldIndices.length > 0 && block.braneIndices.length > 1),
+      .filter((block) => (block.fields?.length ?? 0) > 0 && block.braneIndices.length > 1),
   }
 }

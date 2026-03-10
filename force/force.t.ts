@@ -6,6 +6,8 @@
 import type { FieldsDefinition } from "./strong/field.t"
 import type { Collapse } from "@boundary/fields"
 import type { MetaJson } from "@metafor/ast"
+import type { NodeType } from "@metafor/dsl"
+import type { GravityRuntimeBinding } from "./strong/strong.t"
 
 // ============================================================================
 // ОБЩИЕ ТИПЫ
@@ -95,6 +97,8 @@ export interface ActorConfig {
   values: Record<string, unknown>
   superposition: Superposition
   intentions?: Intentions
+  /** Явная привязка runtime-актора к gravity manifest node. */
+  gravity?: GravityRuntimeBinding
 }
 
 /**
@@ -229,4 +233,12 @@ export interface ActorUpdate {
   fields?: Record<string, unknown>
   /** Если true, блокирует переходы; если false — разблокирует; undefined — не менять */
   lock?: boolean
+}
+
+export interface UpdateBoundaryOptions {
+  /**
+   * Parsed gravity AST, входящий в preparation pipeline.
+   * Если передан, кешируется как текущий upstream gravity source.
+   */
+  gravity?: NodeType[] | null
 }

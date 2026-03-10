@@ -16,6 +16,7 @@ import type {
 import type { FieldDefinition, FieldsDefinition } from "./strong/field.t"
 import type { Field } from "@boundary/fields"
 import type { NodeType } from "@metafor/dsl"
+import type { GravityRuntimeBinding } from "./strong/strong.t"
 
 /**
  * Внутреннее состояние FORCE-домена.
@@ -49,6 +50,8 @@ export interface ForceStoreState {
   fieldsDefinition: FieldsDefinition
   /** Parsed bulk.gravity AST как upstream источник actor connectivity. */
   gravitySource: NodeType[] | null
+  /** Явные runtime bindings акторов к gravity actor keys. */
+  actorGravityBindings: Map<ActorId, GravityRuntimeBinding>
 
   /** Сбрасывает состояние хранилища */
   reset(): void

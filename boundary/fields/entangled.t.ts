@@ -49,8 +49,17 @@ export interface PreparedEntanglementBlock {
   key?: string
   /** Индексы бран, которые входят в shared-блок. */
   braneIndices: number[]
-  /** Индексы полей, которые должны быть shared внутри блока. */
-  fieldIndices: number[]
+  /**
+   * Явно подготовленные shared-поля блока.
+   *
+   * Это основной контракт для boundary materialization.
+   */
+  fields?: PreparedEntanglementField[]
+  /**
+   * Старый минимальный формат оставлен как fallback для совместимости.
+   * Новый pipeline должен заполнять `fields`.
+   */
+  fieldIndices?: number[]
 }
 
 /**
@@ -59,4 +68,17 @@ export interface PreparedEntanglementBlock {
 export interface PreparedEntanglementProjection {
   /** Полный набор shared-блоков для materialization. */
   blocks: PreparedEntanglementBlock[]
+}
+
+export interface PreparedEntanglementField {
+  /** Индекс поля в boundary field array. */
+  fieldIndex: number
+  /** Семантическое имя shared поля. */
+  fieldName: string
+  /** Gravity payloads, из которых поле было выведено. */
+  payloadIds: string[]
+  /** Нормализованные semantic keys gravity payloads. */
+  semanticKeys: string[]
+  /** Брана-репрезентант, из которой materialization может взять shared value. */
+  representativeBraneIndex?: number
 }

@@ -36,7 +36,15 @@ describe("prepared entanglement projection", () => {
           {
             key: "0,1",
             braneIndices: [0, 1],
-            fieldIndices: [0],
+            fields: [
+              {
+                fieldIndex: 0,
+                fieldName: "hp",
+                payloadIds: ["payload:hp"],
+                semanticKeys: ["fields:/fields/hp:"],
+                representativeBraneIndex: 0,
+              },
+            ],
           },
         ],
       },
@@ -62,7 +70,15 @@ describe("prepared entanglement projection", () => {
         blocks: [
           {
             braneIndices: [0, 1],
-            fieldIndices: [0],
+            fields: [
+              {
+                fieldIndex: 0,
+                fieldName: "hp",
+                payloadIds: ["payload:hp"],
+                semanticKeys: ["fields:/fields/hp:"],
+                representativeBraneIndex: 0,
+              },
+            ],
           },
         ],
       },

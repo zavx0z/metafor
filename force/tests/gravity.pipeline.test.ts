@@ -9,7 +9,6 @@ import {
   flattenGravity,
   force$,
   projectEntanglementToBoundary,
-  setGravitySource,
   updateBoundary,
 } from "../index"
 
@@ -22,91 +21,172 @@ afterEach(() => {
 })
 
 describe("gravity entanglement pipeline", () => {
-  test("flattenGravity сохраняет actor-only scopes и connectivity", () => {
-    const gravity = parse<any>(
+  test("actor-only gravity projection не зависит от HTML layout wrappers", () => {
+    const plain = parse<any>(
       ({ html, fields }) => html`
-        <div>
-          ${fields.gate
-            ? html`
-                <meta-parent fields=${fields.shared}>
-                  ${fields.items.map((item: any) => html`<meta-child fields=${item.shared} />`)}
-                </meta-parent>
-              `
-            : html`<meta-fallback fields=${fields.local} />`}
+        ${fields.gate
+          ? html`
+              <meta-parent fields=${fields.shared}>
+                ${fields.items.map((item: any) => html`<meta-child fields=${item.shared} />`)}
+              </meta-parent>
+            `
+          : html`<meta-fallback fields=${fields.local} />`}
+      `,
+    )
+    const wrapped = parse<any>(
+      ({ html, fields }) => html`
+        <div class="layout">
+          <section>
+            ${fields.gate
+              ? html`
+                  <div>
+                    <meta-parent fields=${fields.shared}>
+                      <span>
+                        ${fields.items.map((item: any) => html`<meta-child fields=${item.shared} />`)}
+                      </span>
+                    </meta-parent>
+                  </div>
+                `
+              : html`<aside><meta-fallback fields=${fields.local} /></aside>`}
+          </section>
         </div>
       `,
     )
 
-    const flattened = flattenGravity(gravity)
+    const plainGraph = flattenGravity(plain)
+    const wrappedGraph = flattenGravity(wrapped)
 
-    expect(flattened.scopes.map((scope) => scope.kind)).toEqual(["cond", "map"])
-    expect(flattened.actors).toHaveLength(3)
-    expect(flattened.actors[0]!.fieldRefs).toContain("gate")
-    expect(flattened.actors[0]!.fieldRefs).toContain("shared")
-    expect(flattened.actors[1]!.parentActorId).toBe(flattened.actors[0]!.id)
-    expect(flattened.actors[1]!.scopeIds).toEqual(["scope:0", "scope:1"])
-    expect(flattened.actors[1]!.fieldRefs).toContain("items")
-    expect(flattened.links.some((link) => link.kind === "hierarchy" && link.from === "actor:0" && link.to === "actor:1")).toBe(
-      true,
+    expect(plainGraph.actors.map((actor) => actor.key)).toEqual(wrappedGraph.actors.map((actor) => actor.key))
+    expect(plainGraph.payloads.map((payload) => payload.semanticKey)).toEqual(
+      wrappedGraph.payloads.map((payload) => payload.semanticKey),
     )
+    expect(plainGraph.scopes.map((scope) => scope.key)).toEqual(wrappedGraph.scopes.map((scope) => scope.key))
   })
 
-  test("strong строит blocks и boundary projection из flattened gravity", () => {
+  test("flattened graph preserves explicit gravity payload semantics", () => {
+    const gravity = parse<any>(
+      ({ html, fields }) => html`
+        ${fields.gate
+          ? html`
+              <meta-parent fields=${fields.shared}>
+                ${fields.items.map((item: any) => html`<meta-child fields=${item.shared} />`)}
+              </meta-parent>
+            `
+          : html`<meta-fallback fields=${fields.local} />`}
+      `,
+    )
+
+    const graph = flattenGravity(gravity)
+
+    expect(graph.actors).toHaveLength(3)
+    expect(graph.scopes.map((scope) => scope.kind)).toEqual(["cond", "map"])
+    expect(graph.payloads.some((payload) => payload.kind === "scope" && payload.semanticKey.includes("/fields/gate"))).toBe(true)
+    expect(graph.payloads.some((payload) => payload.kind === "fields" && payload.semanticKey.includes("/fields/shared"))).toBe(
+      true,
+    )
+    expect(graph.actors[1]!.key).toBe("root/cond[0]/meta:meta-parent[0]/map[0]/meta:meta-child[0]")
+    expect(graph.actors[1]!.entanglementPayloadIds.length).toBeGreaterThan(graph.actors[1]!.payloadIds.length)
+  })
+
+  test("strong builds blocks from explicit bindings and survives actor-count mismatch", () => {
     const gravity = parse<{ shared: number }>(
       ({ html, fields }) => html`
         <meta-a fields=${fields.shared}>
           <meta-b fields=${fields.shared} />
+          <meta-c fields=${fields.shared} />
         </meta-a>
       `,
     )
 
-    const flattened = flattenGravity(gravity)
-    const plan = buildStrongEntanglement(flattened, [
-      { actorId: "a", braneIndex: 0, fieldNames: ["shared", "mana"] },
-      { actorId: "b", braneIndex: 1, fieldNames: ["shared", "mana"] },
+    const graph = flattenGravity(gravity)
+    const plan = buildStrongEntanglement(graph, [
+      {
+        actorId: "runtime-b",
+        braneIndex: 1,
+        fieldNames: ["hp", "mana"],
+        binding: {
+          actorKey: "root/meta:meta-a[0]/meta:meta-b[0]",
+          fieldMap: { shared: "hp" },
+        },
+      },
+      {
+        actorId: "runtime-c",
+        braneIndex: 4,
+        fieldNames: ["hp", "energy"],
+        binding: {
+          actorKey: "root/meta:meta-a[0]/meta:meta-c[0]",
+          fieldMap: { shared: "hp" },
+        },
+      },
     ])
+
     const projection = projectEntanglementToBoundary(plan, new Map([
-      ["shared", 0],
+      ["hp", 0],
       ["mana", 1],
+      ["energy", 2],
     ]))
 
+    expect(plan.bindings).toHaveLength(2)
     expect(plan.blocks).toHaveLength(1)
-    expect(plan.blocks[0]!.braneIndices).toEqual([0, 1])
-    expect(plan.blocks[0]!.fieldNames).toEqual(["shared"])
+    expect(plan.blocks[0]!.braneIndices).toEqual([1, 4])
+    expect(plan.blocks[0]!.fields).toEqual([
+      {
+        fieldName: "hp",
+        fieldRef: "shared",
+        payloadIds: ["payload:0", "payload:1", "payload:2"],
+        semanticKeys: ["fields:/fields/shared:_[0]"],
+        representativeBraneIndex: 1,
+      },
+    ])
     expect(projection.blocks).toEqual([
       {
-        key: "0,1",
-        braneIndices: [0, 1],
-        fieldIndices: [0],
+        key: "1,4",
+        braneIndices: [1, 4],
+        fields: [
+          {
+            fieldIndex: 0,
+            fieldName: "hp",
+            payloadIds: ["payload:0", "payload:1", "payload:2"],
+            semanticKeys: ["fields:/fields/shared:_[0]"],
+            representativeBraneIndex: 1,
+          },
+        ],
       },
     ])
   })
 
-  test("updateBoundary доводит gravity-derived entanglement до matrix-ready heap", async () => {
+  test("updateBoundary доводит gravity-derived entanglement до matrix-ready heap через explicit bindings", async () => {
     const gravity = parse<{ shared: number }>(
       ({ html, fields }) => html`
         <meta-a fields=${fields.shared}>
           <meta-b fields=${fields.shared} />
+          <meta-c fields=${fields.shared} />
         </meta-a>
       `,
     )
 
-    setGravitySource(gravity)
-
-    createActor({
-      uuid: "actor-a",
-      fields: { shared: { type: "number" }, mana: { type: "number" } },
-      values: { shared: 100, mana: 10 },
-      superposition: { IDLE: null },
-    })
     createActor({
       uuid: "actor-b",
-      fields: { shared: { type: "number" }, mana: { type: "number" } },
-      values: { shared: 100, mana: 20 },
+      fields: { hp: { type: "number" }, mana: { type: "number" } },
+      values: { hp: 100, mana: 10 },
       superposition: { IDLE: null },
+      gravity: {
+        actorKey: "root/meta:meta-a[0]/meta:meta-b[0]",
+        fieldMap: { shared: "hp" },
+      },
+    })
+    createActor({
+      uuid: "actor-c",
+      fields: { hp: { type: "number" }, energy: { type: "number" } },
+      values: { hp: 100, energy: 20 },
+      superposition: { IDLE: null },
+      gravity: {
+        actorKey: "root/meta:meta-a[0]/meta:meta-c[0]",
+        fieldMap: { shared: "hp" },
+      },
     })
 
-    await updateBoundary()
+    await updateBoundary({ gravity })
 
     const matrixState = getMatrixState()
     const [firstPtr, secondPtr] = matrixState.metadata.braneBlockPtrs

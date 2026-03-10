@@ -11,6 +11,7 @@ import type {
   EntangledAnalysis,
   BraneMapping,
   PreparedEntanglementBlock,
+  PreparedEntanglementField,
   PreparedEntanglementProjection,
 } from "./entangled.t"
 
@@ -199,9 +200,24 @@ const valueEquals = (left: unknown, right: unknown): boolean => {
   return Object.is(left, right)
 }
 
+const normalizePreparedField = (field: PreparedEntanglementField): PreparedEntanglementField => ({
+  fieldIndex: field.fieldIndex,
+  fieldName: field.fieldName,
+  payloadIds: Array.from(new Set(field.payloadIds)).sort(),
+  semanticKeys: Array.from(new Set(field.semanticKeys)).sort(),
+  ...(field.representativeBraneIndex !== undefined
+    ? { representativeBraneIndex: field.representativeBraneIndex }
+    : {}),
+})
+
 const normalizeBlock = (block: PreparedEntanglementBlock): PreparedEntanglementBlock => ({
   braneIndices: Array.from(new Set(block.braneIndices)).sort((a, b) => a - b),
-  fieldIndices: Array.from(new Set(block.fieldIndices)).sort((a, b) => a - b),
+  ...(block.fields
+    ? { fields: block.fields.map(normalizePreparedField).sort((left, right) => left.fieldIndex - right.fieldIndex) }
+    : {}),
+  ...(block.fieldIndices
+    ? { fieldIndices: Array.from(new Set(block.fieldIndices)).sort((a, b) => a - b) }
+    : {}),
   ...(block.key ? { key: block.key } : {}),
 })
 
@@ -224,15 +240,25 @@ export function materializeEntanglement(
     if (block.braneIndices.length < 2) {
       throw new Error(`Entanglement block ${blockId}: requires at least 2 branes`)
     }
-    if (block.fieldIndices.length === 0) {
+    const preparedFields: PreparedEntanglementField[] = block.fields
+      ?? block.fieldIndices?.map((fieldIndex) => ({
+        fieldIndex,
+        fieldName: String(fieldIndex),
+        payloadIds: [],
+        semanticKeys: [],
+      } satisfies PreparedEntanglementField))
+      ?? []
+
+    if (preparedFields.length === 0) {
       throw new Error(`Entanglement block ${blockId}: requires at least 1 field`)
     }
 
-    const blockKey = block.key ?? `${block.braneIndices.join(",")}:${block.fieldIndices.join(",")}`
+    const blockKey = block.key ?? `${block.braneIndices.join(",")}:${preparedFields.map((field) => field.fieldIndex).join(",")}`
     const sharedValues: [number, unknown][] = []
 
-    block.fieldIndices.forEach((fieldIndex) => {
-      const referenceBrane = block.braneIndices[0]!
+    preparedFields.forEach((field) => {
+      const fieldIndex = field.fieldIndex
+      const referenceBrane = field.representativeBraneIndex ?? block.braneIndices[0]!
       const referenceEntry = values[referenceBrane]?.find(([candidate]) => candidate === fieldIndex)
 
       if (!referenceEntry) {
