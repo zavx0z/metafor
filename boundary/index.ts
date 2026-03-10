@@ -52,8 +52,6 @@ export {
   fieldTypeToBytecodeType,
   floatToUint,
   uintToFloat,
-  findEntangledGroups,
-  buildBraneMapping,
   materializeEntanglement,
   parseCondition,
   OP,

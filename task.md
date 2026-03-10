@@ -1,192 +1,253 @@
-## Goal
+# Task: Remove the legacy entanglement model completely and keep only prepared projection materialization
 
-Stabilize and formalize the current gravity-derived entanglement architecture after the latest refactor so the system clearly distinguishes between:
+## Context
 
-- gravity-driven entanglement membership,
-- runtime/boundary materialization readiness,
-- downstream boundary materialization.
+The current entanglement flow is in a transition state.
 
-The existing pipeline must remain intact:
+Right now `boundary/fields/entangled.ts` still contains two different models:
 
-gravity AST → actor projection → flattened gravity graph → strong entanglement membership → boundary projection → fields materialization → Matrix.
+### Legacy model
 
-This task does **not** redesign the pipeline.  
-It refines the architecture introduced in the latest commits so the separation between layers becomes explicit, stable, and encoded in types and contracts.
+- `findEntangledGroups(...)`
+- `buildBraneMapping(...)`
 
-## Current State
+This model derives entanglement directly from brane values inside `fields`.
 
-Recent changes already introduced important architectural improvements:
+### New model
 
-- `projectGravityActors()` creates an intermediate actor projection layer.
-- `flattenProjection()` converts the projection into a flat graph.
-- `GravityEntanglementPayload` now includes lineage information (`ownerKey`, `scopeLineageKeys`, `actorLineageKeys`).
-- `buildStrongEntanglement()` can keep gravity-driven membership even when no boundary-ready shared fields exist yet.
-- `StrongEntanglementBlock` contains `membershipSemanticKeys`.
-- Boundary projection emits blocks only when shared fields are ready for materialization.
+- `materializeEntanglement(values, projection)`
 
-These changes are correct and must be preserved.
+This model takes a prepared upstream entanglement projection and only materializes it into boundary-ready layout.
 
-However, the architecture currently contains two conceptual levels of entanglement that are not yet fully formalized in types or contracts.
+The architecture direction is already decided:
 
-## Core Problem
+- entanglement origin belongs upstream
+- boundary/fields must not remain the owner of legacy entanglement derivation
+- no fallback compatibility path should remain
 
-Two distinct levels of entanglement now exist in the system:
+This task must finish that migration.
 
-### 1. Strong membership entanglement
+---
 
-Actors belong to the same entangled structure because:
+## Primary objective
 
-- gravity payload lineage,
-- connectivity,
-- actor hierarchy,
-- runtime binding
+Delete the old entanglement model completely and make the new prepared-projection model the only valid path.
 
-indicate that they share the same entanglement semantics.
+No fallback.
+No compatibility layer.
+No parallel legacy path.
 
-This membership may exist even when boundary materialization is not yet possible.
+---
 
-### 2. Boundary-materializable entanglement
+## Files that must be reviewed
 
-A strong membership block becomes boundary-materializable only when:
+At minimum:
 
-- shared runtime fields can be resolved,
-- those fields can be projected into boundary prepared structures.
+- `boundary/fields/entangled.ts`
+- `boundary/fields/entangled.t.ts`
+- `boundary/fields/index.ts`
+- any imports or call sites using:
+  - `findEntangledGroups`
+  - `buildBraneMapping`
+  - old field-index-only projection logic
+- tests related to entanglement in:
+  - `boundary/tests/**`
+  - `force/tests/**`
+  - any other affected package
 
-The system already behaves this way internally, but the distinction is not yet encoded clearly in the architecture.
+Also review upstream usage:
 
-This task formalizes that distinction.
+- `force/strong/strong.ts`
+- any code producing `PreparedEntanglementProjection`
 
-## Required Actions
+---
 
-### 1. Formalize the two-level entanglement model
+## What must be removed
 
-Introduce an explicit distinction between:
+### 1. Legacy derivation functions
 
-- **membership-level entanglement blocks**
-- **boundary-materializable entanglement blocks**
+Delete the old derivation path from `fields`:
 
-This distinction must be visible in:
+- `findEntangledGroups(...)`
+- `buildBraneMapping(...)`
 
-- types
-- naming
-- structure of the pipeline
+`fields` must no longer derive entanglement groups from raw values as a first-class model.
 
-It must be impossible to confuse membership blocks with boundary-ready blocks.
+### 2. Legacy compatibility fallback
 
-### 2. Clarify the contract of `StrongEntanglementBlock`
+Delete the fallback path in `materializeEntanglement(...)` that accepts old field-index-only projection shape.
 
-Review the structure of `StrongEntanglementBlock`.
+Specifically:
 
-Ensure that the type clearly separates:
+- remove support for `fieldIndices`-only compatibility
+- remove any helper that reconstructs `PreparedEntanglementField[]` from legacy fallback input
+- remove any normalization that exists only to support the old projection shape
 
-- gravity-derived membership semantics
-- derived runtime/boundary readiness information
+The prepared projection contract must become strict.
 
-The type must explicitly encode that membership exists independently of boundary readiness.
+### 3. Legacy types if still present
 
-`membershipSemanticKeys` was a first step.  
-Extend the structure so the entire type clearly expresses this model.
+Remove any legacy-only types that existed only to support the old local derivation model or old fallback projection shape.
 
-### 3. Make boundary projection explicitly a narrowing phase
+Do not keep dead compatibility types.
 
-Refactor the boundary projection stage so that it is clearly implemented as:
+---
 
-membership blocks → projection narrowing → boundary-materializable blocks.
+## What must remain
 
-Boundary projection must **not** appear to rediscover entanglement.
+### 1. One strict upstream-to-boundary flow
 
-Instead, it should:
+The only valid entanglement flow must become:
 
-1. receive membership blocks
-2. resolve runtime fields
-3. produce prepared boundary blocks only when possible.
+upstream preparation
+→ prepared entanglement projection
+→ `materializeEntanglement(...)`
+→ boundary-ready layout
 
-Naming and structure should make this obvious.
+### 2. Strict projection contract
 
-### 4. Strengthen the prepared boundary contract
+`PreparedEntanglementProjection` and its block/field structure must be the only accepted contract.
 
-Prepared boundary projection must rely primarily on explicit prepared field structures.
+Boundary materialization must require:
 
-The canonical downstream representation must use explicit prepared field entries rather than legacy field index arrays.
+- explicit blocks
+- explicit prepared fields
+- no hidden reconstruction from legacy shorthand
 
-If compatibility fallbacks remain, they must be:
+### 3. Validation stays
 
-- minimal
-- isolated
-- clearly secondary.
+Boundary/fields should still validate the prepared projection against actual brane values.
 
-### 5. Ensure membership logic is gravity-driven
+That is good and should stay.
 
-Review `buildStrongEntanglement()`.
+But validation must not turn back into derivation.
 
-Ensure that membership formation is primarily driven by:
+---
 
-- gravity payload semantics
-- lineage
-- connectivity
-- runtime binding
+## Required architectural outcome
 
-Shared field resolution should act only as a **projection constraint**, not as the main source of entanglement membership.
+After this task:
 
-The code structure should clearly reflect this.
+- entanglement origin lives upstream
+- boundary/fields only materializes and validates upstream projection
+- there is one entanglement model, not two
+- there is one contract, not a new contract plus fallback legacy shorthand
 
-### 6. Preserve actor projection as a separate architectural layer
+---
 
-The architecture should remain structured as:
+## Important constraints
 
-1. parsed gravity AST
-2. actor projection
-3. flattened gravity graph
-4. strong membership entanglement
-5. boundary projection
-6. boundary materialization
-7. matrix-ready execution data
+### Do not reintroduce ownership drift
 
-Do not collapse projection and flattening back into a single generic traversal.
+Do not let boundary/fields remain a silent owner of entanglement origin.
 
-The projection layer must remain conceptually separate.
+### Do not keep fallback “just in case”
 
-### 7. Expand tests for the two-level model
+This task explicitly removes fallback paths.
 
-Add or extend tests that verify the architectural invariants.
+### Do not weaken the new upstream model
 
-At minimum ensure tests confirm:
+Do not simplify the upstream prepared projection just to preserve legacy compatibility.
 
-- gravity membership blocks can exist without boundary-ready fields
-- boundary projection only emits materializable blocks
-- membership remains intact even when boundary projection produces nothing
-- runtime actor binding continues to preserve membership semantics
-- prepared field projection is the canonical downstream path
+---
 
-The tests must validate architecture invariants, not only output values.
+## Tests
 
-### 8. Preserve end-to-end execution
+Update tests so they reflect the final strict model.
 
-After refactoring, the system must still execute the full path:
+Required:
 
-gravity AST → actor projection → flattened graph → strong membership entanglement → boundary projection → fields materialization → matrix-ready execution input.
+- remove tests that validate the old derivation path as supported behavior
+- update tests that depended on old fallback projection shape
+- keep tests for:
+  - valid prepared projection materialization
+  - divergence detection
+  - duplicate assignment errors
+  - missing field / out-of-range / invalid block validation
+- keep or add tests proving that entanglement now comes only from prepared projection
 
-Do not leave the repository in a partially refactored or non-executable state.
+If useful, add one negative test that confirms legacy shorthand or fallback input is rejected.
 
-## Constraints
+---
 
-- Do not redesign the pipeline again.
-- Do not remove the actor projection layer.
-- Do not involve `mass`.
-- Do not modify `weak`.
-- Do not reintroduce entanglement ownership into `boundary/fields`.
-- Do not revert to value-equality discovery.
-- Do not reduce the model to simple field-name coincidence.
-- Do not introduce backend-specific logic into gravity or strong layers.
+## Required implementation approach
 
-## Expected Result
+### Step 1 — Diagnose usage
 
-After completion:
+Before editing, list:
 
-- gravity payload semantics define entanglement membership upstream
-- strong membership blocks represent the canonical entanglement structure
-- boundary projection is a narrowing/materialization preparation step
-- boundary remains a pure downstream materialization layer
-- prepared field projection is the canonical downstream contract
-- the full path from gravity AST to matrix-ready execution data remains operational
-- the codebase clearly distinguishes membership entanglement from materializable entanglement
+- where old legacy functions are still exported or called
+- where old fallback projection shape is still accepted
+- which tests still depend on it
+
+### Step 2 — Remove legacy code
+
+Delete old derivation functions, legacy-only helpers, and fallback logic.
+
+### Step 3 — Tighten types
+
+Make the prepared entanglement projection contract strict and explicit.
+
+### Step 4 — Update tests
+
+Bring tests in line with the strict one-path architecture.
+
+### Step 5 — Verify architecture alignment
+
+Confirm:
+
+- upstream owns entanglement origin
+- boundary/fields only materializes and validates
+- no second model remains
+
+---
+
+## Required deliverables
+
+Provide:
+
+1. A short diagnosis of all legacy entanglement entry points removed
+2. The exact files changed
+3. The exact legacy functions/helpers/types deleted
+4. The final strict projection contract used
+5. The updated tests
+6. A short confirmation that no fallback path remains
+
+---
+
+## Acceptance criteria
+
+The task is complete only when all of the following are true:
+
+- `findEntangledGroups(...)` is removed
+- `buildBraneMapping(...)` is removed
+- no legacy field-index-only fallback remains in `materializeEntanglement(...)`
+- boundary/fields no longer derives entanglement origin
+- upstream prepared projection is the only supported entanglement source
+- tests reflect the strict one-path architecture
+- no compatibility shim remains
+
+---
+
+## Hard prohibitions
+
+Do not:
+
+- keep the legacy model behind an internal helper
+- keep a fallback path in `materializeEntanglement(...)`
+- preserve old projection shorthand for backward compatibility
+- move entanglement origin back into `fields`
+- leave dead exports or dead types behind
+
+---
+
+## Final instruction
+
+Finish the migration completely.
+
+There must be exactly one entanglement model in the system:
+upstream-prepared projection → boundary materialization.
+
+No fallback.
+No legacy derivation path.
+No second source of truth.

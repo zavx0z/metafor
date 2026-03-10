@@ -1,140 +1,90 @@
-/**
- * Тесты для модуля entangled — анализ запутанных групп бран.
- */
-import { test, expect, describe } from "bun:test"
-import { findEntangledGroups, buildBraneMapping } from "../fields/entangled"
-import type { EntangledGroup } from "../fields/entangled.t"
+import { describe, expect, test } from "bun:test"
+import { materializeEntanglement } from "../fields/entangled"
 
-describe("findEntangledGroups — поиск запутанных групп", () => {
-  test("должен найти entangled группу для идентичных бран", () => {
+describe("materializeEntanglement — prepared projection only", () => {
+  test("does not derive entanglement without prepared projection", () => {
     const values: [number, unknown][][] = [
-      [[0, 100], [1, true]], // брана 0
-      [[0, 100], [1, true]], // брана 1 (идентична)
+      [[0, 100]],
+      [[0, 100]],
     ]
-    const result = findEntangledGroups(values)
 
-    // Оба поля используются обеими бранами
-    expect(result.fieldUsage.get(0)).toEqual(new Set([0, 1]))
-    expect(result.fieldUsage.get(1)).toEqual(new Set([0, 1]))
+    const mapping = materializeEntanglement(values)
 
-    // Должна быть 1 entangled группа
-    expect(result.entangledGroups.size).toBe(1)
-    const group = result.entangledGroups.get("0,1")
-    expect(group).toBeDefined()
-    expect(group!.braneIndices).toEqual(new Set([0, 1]))
-    expect(group!.fieldIndices).toEqual(new Set([0, 1]))
-  })
-
-  test("не должен создавать entangled для разных значений", () => {
-    const values: [number, unknown][][] = [
-      [[0, 100], [1, true]],
-      [[0, 50], [1, false]],
-    ]
-    const result = findEntangledGroups(values)
-
-    // Нет entangled групп так как все значения разные
-    expect(result.entangledGroups.size).toBe(0)
-  })
-
-  test("должен создать entangled только для одинаковых полей", () => {
-    const values: [number, unknown][][] = [
-      [[0, 100], [1, true]], // брана 0
-      [[0, 100], [1, false]], // брана 1 (hp одинаковый, isAlive разный)
-    ]
-    const result = findEntangledGroups(values)
-
-    // Только поле 0 (hp) должно быть в entangled
-    expect(result.entangledGroups.size).toBe(1)
-    const group = result.entangledGroups.get("0,1")
-    expect(group).toBeDefined()
-    expect(group!.fieldIndices).toEqual(new Set([0]))
-  })
-
-  test("должен обработать 3 браны с частичным совпадением", () => {
-    const values: [number, unknown][][] = [
-      [[0, 100], [1, true]], // брана 0
-      [[0, 100], [1, true]], // брана 1 (идентична 0)
-      [[0, 50], [1, false]], // брана 2 (другие значения)
-    ]
-    const result = findEntangledGroups(values)
-
-    // Нет entangled так как брана 2 имеет другие значения
-    expect(result.entangledGroups.size).toBe(0)
-  })
-
-  test("должен обработать пустой вход", () => {
-    const values: [number, unknown][][] = []
-    const result = findEntangledGroups(values)
-
-    expect(result.fieldUsage.size).toBe(0)
-    expect(result.entangledGroups.size).toBe(0)
-  })
-})
-
-describe("buildBraneMapping — построение маппинга бран", () => {
-  test("должен создать правильный маппинг для identical бран", () => {
-    const values: [number, unknown][][] = [
-      [[0, 100], [1, true]],
-      [[0, 100], [1, true]],
-    ]
-    const analysis = findEntangledGroups(values)
-    const entangledBraneIds = new Map<string, number>([["0,1", 0]])
-    const result = buildBraneMapping(values, entangledBraneIds, analysis)
-
-    // Все поля в entangled, localFields пустые
-    expect(result.localFields[0]).toEqual([])
-    expect(result.localFields[1]).toEqual([])
-
-    // Обе браны ссылаются на entangled блок 0
-    expect(result.braneEntangledMap[0]).toEqual([0])
-    expect(result.braneEntangledMap[1]).toEqual([0])
-
-    // Поля для entangled блока
-    expect(result.entangledFields.get("0,1")).toEqual([
-      [0, 100],
-      [1, true],
+    expect(mapping.entangledFields.size).toBe(0)
+    expect(mapping.braneEntangledMap).toEqual([[], []])
+    expect(mapping.localFields).toEqual([
+      [[0, 100]],
+      [[0, 100]],
     ])
   })
 
-  test("должен разделить local и entangled поля", () => {
+  test("materializes shared values only from prepared blocks", () => {
     const values: [number, unknown][][] = [
-      [[0, 100], [1, 50]], // брана 0
-      [[0, 100], [1, 10]], // брана 1 (hp одинаковый, mana разный)
+      [[0, 100], [1, 10]],
+      [[0, 100], [1, 20]],
     ]
-    const analysis = findEntangledGroups(values)
-    const entangledBraneIds = new Map<string, number>([["0,1", 0]])
-    const result = buildBraneMapping(values, entangledBraneIds, analysis)
 
-    // Только hp в entangled
-    expect(result.entangledFields.get("0,1")).toEqual([[0, 100]])
+    const mapping = materializeEntanglement(values, {
+      blocks: [
+        {
+          key: "0,1",
+          braneIndices: [0, 1],
+          fields: [
+            {
+              fieldIndex: 0,
+              fieldName: "hp",
+              payloadIds: ["payload:hp"],
+              semanticKeys: ["fields:/fields/hp:"],
+              representativeBraneIndex: 0,
+            },
+          ],
+        },
+      ],
+    })
 
-    // mana локальное для каждой браны
-    expect(result.localFields[0]).toEqual([[1, 50]])
-    expect(result.localFields[1]).toEqual([[1, 10]])
-
-    // Обе браны ссылаются на entangled блок 0
-    expect(result.braneEntangledMap[0]).toEqual([0])
-    expect(result.braneEntangledMap[1]).toEqual([0])
+    expect(mapping.entangledFields.get("0,1")).toEqual([[0, 100]])
+    expect(mapping.braneEntangledMap).toEqual([[0], [0]])
+    expect(mapping.localFields).toEqual([
+      [[1, 10]],
+      [[1, 20]],
+    ])
   })
 
-  test("должен обработать брану без entangled", () => {
+  test("throws on duplicate prepared field assignment across blocks", () => {
     const values: [number, unknown][][] = [
-      [[0, 100]],
-      [[0, 50]],
+      [[0, 100], [1, 10]],
+      [[0, 100], [1, 20]],
     ]
-    const analysis = findEntangledGroups(values)
-    const entangledBraneIds = new Map<string, number>()
-    const result = buildBraneMapping(values, entangledBraneIds, analysis)
 
-    // Нет entangled
-    expect(result.entangledFields.size).toBe(0)
-
-    // Все поля локальные
-    expect(result.localFields[0]).toEqual([[0, 100]])
-    expect(result.localFields[1]).toEqual([[0, 50]])
-
-    // Нет entangled ссылок
-    expect(result.braneEntangledMap[0]).toEqual([])
-    expect(result.braneEntangledMap[1]).toEqual([])
+    expect(() =>
+      materializeEntanglement(values, {
+        blocks: [
+          {
+            key: "first",
+            braneIndices: [0, 1],
+            fields: [
+              {
+                fieldIndex: 0,
+                fieldName: "hp",
+                payloadIds: ["payload:hp:first"],
+                semanticKeys: ["fields:/fields/hp:first"],
+              },
+            ],
+          },
+          {
+            key: "second",
+            braneIndices: [0, 1],
+            fields: [
+              {
+                fieldIndex: 0,
+                fieldName: "hp",
+                payloadIds: ["payload:hp:second"],
+                semanticKeys: ["fields:/fields/hp:second"],
+              },
+            ],
+          },
+        ],
+      }),
+    ).toThrow("already assigned")
   })
 })

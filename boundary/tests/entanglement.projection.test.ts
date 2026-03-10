@@ -87,7 +87,7 @@ describe("prepared entanglement projection", () => {
     expect(() => prepareData(data)).toThrow("values diverge across branes")
   })
 
-  test("prepared fields are canonical when legacy fieldIndices are also present", () => {
+  test("legacy fieldIndices-only shorthand is rejected", () => {
     const data: Data = {
       fields: [
         { type: FieldType.F32 },
@@ -101,21 +101,11 @@ describe("prepared entanglement projection", () => {
         blocks: [
           {
             braneIndices: [0, 1],
-            fieldIndices: [1],
-            fields: [
-              {
-                fieldIndex: 0,
-                fieldName: "hp",
-                payloadIds: ["payload:hp"],
-                semanticKeys: ["fields:/fields/hp:"],
-                representativeBraneIndex: 0,
-              },
-            ],
-          },
+          } as any,
         ],
       },
     }
 
-    expect(() => prepareData(data)).not.toThrow()
+    expect(() => prepareData(data)).toThrow("requires at least 1 field")
   })
 })

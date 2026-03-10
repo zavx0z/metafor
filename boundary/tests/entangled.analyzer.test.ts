@@ -1,73 +1,78 @@
-/**
- * Тесты для чистых функций entangled analyzer.
- */
-import { test, expect, describe } from "bun:test"
-import { findEntangledGroups, buildBraneMapping } from "../fields/entangled"
+import { describe, expect, test } from "bun:test"
+import { materializeEntanglement } from "../fields/entangled"
 
-describe("findEntangledGroups / buildBraneMapping — чистые функции", () => {
-  describe("findEntangledGroups", () => {
-    test("должен найти entangled группу для одинаковых значений", () => {
-      const values: [number, unknown][][] = [
-        [[0, 100], [1, true]],
-        [[0, 100], [1, true]],
-      ]
-      const { fieldUsage, entangledGroups } = findEntangledGroups(values)
-      expect(fieldUsage.get(0)).toEqual(new Set([0, 1]))
-      expect(entangledGroups.size).toBe(1)
-    })
+describe("materializeEntanglement — strict projection validation", () => {
+  test("throws when a block has fewer than 2 branes", () => {
+    const values: [number, unknown][][] = [
+      [[0, 100]],
+    ]
 
-    test("не должен создавать entangled для разных значений", () => {
-      const values: [number, unknown][][] = [
-        [[0, 100], [1, true]],
-        [[0, 50], [1, false]],
-      ]
-      const { entangledGroups } = findEntangledGroups(values)
-      expect(entangledGroups.size).toBe(0)
-    })
-
-    test("должен создать entangled только для одинаковых полей", () => {
-      const values: [number, unknown][][] = [
-        [[0, 100], [1, true]],
-        [[0, 100], [1, false]],
-      ]
-      const { entangledGroups } = findEntangledGroups(values)
-      expect(entangledGroups.size).toBe(1)
-    })
-
-    test("должен обработать 3 браны с частичным совпадением", () => {
-      const values: [number, unknown][][] = [
-        [[0, 100], [1, true]],
-        [[0, 100], [1, true]],
-        [[0, 50], [1, false]],
-      ]
-      const { entangledGroups } = findEntangledGroups(values)
-      expect(entangledGroups.size).toBe(0)
-    })
+    expect(() =>
+      materializeEntanglement(values, {
+        blocks: [
+          {
+            braneIndices: [0],
+            fields: [
+              {
+                fieldIndex: 0,
+                fieldName: "hp",
+                payloadIds: ["payload:hp"],
+                semanticKeys: ["fields:/fields/hp:"],
+              },
+            ],
+          },
+        ],
+      }),
+    ).toThrow("requires at least 2 branes")
   })
 
-  describe("buildBraneMapping", () => {
-    test("должен создать правильный маппинг для identical бран", () => {
-      const values: [number, unknown][][] = [
-        [[0, 100], [1, true]],
-        [[0, 100], [1, true]],
-      ]
-      const analysis = findEntangledGroups(values)
-      const entangledBraneIds = new Map<string, number>([["0,1", 0]])
-      const result = buildBraneMapping(values, entangledBraneIds, analysis)
-      expect(result.localFields[0]).toEqual([])
-      expect(result.braneEntangledMap[0]).toEqual([0])
-    })
+  test("throws when a prepared field is missing in one of block branes", () => {
+    const values: [number, unknown][][] = [
+      [[0, 100]],
+      [[1, 100]],
+    ]
 
-    test("должен разделить local и entangled поля", () => {
-      const values: [number, unknown][][] = [
-        [[0, 100], [1, 50]],
-        [[0, 100], [1, 10]],
-      ]
-      const analysis = findEntangledGroups(values)
-      const entangledBraneIds = new Map<string, number>([["0,1", 0]])
-      const result = buildBraneMapping(values, entangledBraneIds, analysis)
-      expect(result.entangledFields.get("0,1")).toEqual([[0, 100]])
-      expect(result.localFields[0]).toEqual([[1, 50]])
-    })
+    expect(() =>
+      materializeEntanglement(values, {
+        blocks: [
+          {
+            braneIndices: [0, 1],
+            fields: [
+              {
+                fieldIndex: 0,
+                fieldName: "hp",
+                payloadIds: ["payload:hp"],
+                semanticKeys: ["fields:/fields/hp:"],
+              },
+            ],
+          },
+        ],
+      }),
+    ).toThrow("field 0 missing in brane 1")
+  })
+
+  test("throws when brane index is out of range", () => {
+    const values: [number, unknown][][] = [
+      [[0, 100]],
+      [[0, 100]],
+    ]
+
+    expect(() =>
+      materializeEntanglement(values, {
+        blocks: [
+          {
+            braneIndices: [0, 2],
+            fields: [
+              {
+                fieldIndex: 0,
+                fieldName: "hp",
+                payloadIds: ["payload:hp"],
+                semanticKeys: ["fields:/fields/hp:"],
+              },
+            ],
+          },
+        ],
+      }),
+    ).toThrow("out of range")
   })
 })

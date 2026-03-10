@@ -11,7 +11,7 @@
  * - **encodeValue()** — кодирование значений
  * - **buildHeap()** — построение heap layout
  * - **compileEnsemble()** — компиляция суперпозиций
- * - **findEntangledGroups()** — поиск запутанных групп
+ * - **materializeEntanglement()** — materialization prepared shared projection
  *
  * ## Принцип работы
  *
@@ -38,7 +38,7 @@ import { compileEnsemble, compileParsedConditions, compileSuperposition } from "
 import type { CompiledRules } from "./superposition.t"
 import { encodeFieldValue, encodeValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "./values"
 import type { EncodingContext } from "./values.t"
-import { buildBraneMapping, findEntangledGroups, materializeEntanglement } from "./entangled"
+import { materializeEntanglement } from "./entangled"
 import { parseCondition } from "./condition"
 import { OP, TYPE } from "./opcodes"
 
@@ -65,8 +65,6 @@ export {
   floatToUint,
   uintToFloat,
   // Entangled
-  findEntangledGroups,
-  buildBraneMapping,
   materializeEntanglement,
   // Condition
   parseCondition,

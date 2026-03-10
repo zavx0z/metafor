@@ -28,7 +28,7 @@ describe("prepareData — подготовка данных для GPU", () => {
     expect(result.initialStates).toHaveLength(1)
   })
 
-  test("должен подготовить данные с entangled группами", () => {
+  test("должен подготовить данные с entanglement только из prepared projection", () => {
     const data: Data = {
       fields: [{ type: FieldType.F32 }],
       branes: [
@@ -43,6 +43,22 @@ describe("prepareData — подготовка данных для GPU", () => {
           collapses: [[null]],
         },
       ],
+      entanglement: {
+        blocks: [
+          {
+            braneIndices: [0, 1],
+            fields: [
+              {
+                fieldIndex: 0,
+                fieldName: "hp",
+                payloadIds: ["payload:hp"],
+                semanticKeys: ["fields:/fields/hp:"],
+                representativeBraneIndex: 0,
+              },
+            ],
+          },
+        ],
+      },
     }
     const result = prepareData(data)
 

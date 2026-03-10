@@ -1,30 +1,8 @@
 /**
- * Типы для модуля entangled — анализ запутанных групп бран.
+ * Типы strict prepared entanglement materialization.
  *
  * @packageDocumentation
  */
-
-/**
- * Группа запутанных бран — браны с идентичными значениями полей.
- * Ключ — отсортированные индексы бран ("0,1,2").
- * Значение — набор индексов полей, которые одинаковы у всех бран группы.
- */
-export interface EntangledGroup {
-  /** Индексы бран в группе */
-  braneIndices: Set<number>
-  /** Индексы полей, которые одинаковы у всех бран */
-  fieldIndices: Set<number>
-}
-
-/**
- * Результат анализа запутанных групп.
- */
-export interface EntangledAnalysis {
-  /** Маппинг: индекс поля → набор индексов бран, использующих это поле */
-  fieldUsage: Map<number, Set<number>>
-  /** Найденные группы запутанных бран */
-  entangledGroups: Map<string, EntangledGroup>
-}
 
 /**
  * Маппинг браны → локальные поля + ссылки на entangled блоки.
@@ -52,14 +30,9 @@ export interface PreparedEntanglementBlock {
   /**
    * Явно подготовленные shared-поля блока.
    *
-   * Это основной контракт для boundary materialization.
+   * Это строгий контракт для boundary materialization.
    */
-  fields?: PreparedEntanglementField[]
-  /**
-   * Старый минимальный формат оставлен как fallback для совместимости.
-   * Новый pipeline должен заполнять `fields`.
-   */
-  fieldIndices?: number[]
+  fields: PreparedEntanglementField[]
 }
 
 /**
