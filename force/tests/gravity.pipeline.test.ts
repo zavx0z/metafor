@@ -155,6 +155,45 @@ describe("gravity entanglement pipeline", () => {
     ])
   })
 
+  test("strong keeps gravity-driven membership even when shared fields are not boundary-ready yet", () => {
+    const gravity = parse<{ shared: number }>(
+      ({ html, fields }) => html`
+        <meta-a fields=${fields.shared}>
+          <meta-b fields=${fields.shared} />
+          <meta-c fields=${fields.shared} />
+        </meta-a>
+      `,
+    )
+
+    const graph = flattenGravity(gravity)
+    const plan = buildStrongEntanglement(graph, [
+      {
+        actorId: "runtime-b",
+        braneIndex: 0,
+        fieldNames: ["hp"],
+        binding: {
+          actorKey: "root/meta:meta-a[0]/meta:meta-b[0]",
+          fieldMap: { shared: "hp" },
+        },
+      },
+      {
+        actorId: "runtime-c",
+        braneIndex: 3,
+        fieldNames: ["energy"],
+        binding: {
+          actorKey: "root/meta:meta-a[0]/meta:meta-c[0]",
+          fieldMap: { shared: "energy" },
+        },
+      },
+    ])
+
+    expect(plan.blocks).toHaveLength(1)
+    expect(plan.blocks[0]!.braneIndices).toEqual([0, 3])
+    expect(plan.blocks[0]!.membershipSemanticKeys).toEqual(["fields:/fields/shared:_[0]"])
+    expect(plan.blocks[0]!.fields).toEqual([])
+    expect(projectEntanglementToBoundary(plan, new Map([["hp", 0], ["energy", 1]])).blocks).toEqual([])
+  })
+
   test("updateBoundary доводит gravity-derived entanglement до matrix-ready heap через explicit bindings", async () => {
     const gravity = parse<{ shared: number }>(
       ({ html, fields }) => html`

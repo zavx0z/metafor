@@ -4,13 +4,48 @@ export type GravityScopeKind = "map" | "cond" | "log"
 export type GravityLinkKind = "scope" | "hierarchy"
 export type GravityPayloadKind = "scope" | "fields"
 
+export interface GravityProjectionScopeNode {
+  nodeKind: "scope"
+  id: string
+  kind: GravityScopeKind
+  key: string
+  dataPaths: string[]
+  fieldRefs: string[]
+  payloadIds: string[]
+  expr?: string
+  children: GravityProjectionNode[]
+}
+
+export interface GravityProjectionActorNode {
+  nodeKind: "actor"
+  id: string
+  manifestIndex: number
+  key: string
+  tag: string
+  dataPaths: string[]
+  fieldRefs: string[]
+  payloadIds: string[]
+  inheritedPayloadIds: string[]
+  children: GravityProjectionNode[]
+}
+
+export type GravityProjectionNode = GravityProjectionScopeNode | GravityProjectionActorNode
+
+export interface GravityActorProjection {
+  roots: GravityProjectionNode[]
+  payloads: GravityEntanglementPayload[]
+}
+
 export interface GravityEntanglementPayload {
   id: string
   kind: GravityPayloadKind
   ownerId: string
+  ownerKey: string
   sourcePaths: string[]
   fieldRefs: string[]
   semanticKey: string
+  scopeLineageKeys: string[]
+  actorLineageKeys: string[]
   expr?: string
 }
 
@@ -51,6 +86,7 @@ export interface FlatGravityLink {
 
 export interface FlatGravityGraph {
   source: NodeType[]
+  projection: GravityActorProjection
   scopes: FlatGravityScope[]
   actors: FlatGravityActor[]
   links: FlatGravityLink[]
@@ -93,6 +129,7 @@ export interface StrongEntanglementBlock {
   fields: StrongEntanglementField[]
   scopeIds: string[]
   payloadIds: string[]
+  membershipSemanticKeys: string[]
 }
 
 export interface StrongEntanglementPlan {

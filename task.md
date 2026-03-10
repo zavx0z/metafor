@@ -1,243 +1,242 @@
 ## Goal
 
-Refine and complete the newly introduced upstream entanglement pipeline so that the current implementation stops being a transitional heuristic bridge and becomes a stable architecture where gravity-derived entanglement is the real source-of-truth from parsed `bulk.gravity` AST down to `Matrix`.
+Stabilize and harden the current gravity-derived entanglement pipeline so that the implementation introduced in the latest `arch` commit becomes a durable architectural contract rather than a still-partially transitional refactor.
 
-This task is not about starting over.
+The current pipeline is already significantly improved and must be preserved:
 
-It is a continuation of the latest entanglement refactor already implemented in `arch`:
+- `bulk.gravity` is now flattened into an actor-oriented graph,
+- gravity payloads are explicit,
+- runtime actor binding is explicit,
+- `strong` builds entanglement blocks upstream,
+- `boundary/fields` consumes prepared projection instead of inventing entanglement locally.
 
-- upstream entanglement projection exists,
-- `boundary/fields` no longer owns entanglement discovery,
-- `flattenGravity()` exists,
-- `buildStrongEntanglement()` exists,
-- boundary projection exists,
-- the pipeline already reaches matrix-ready heap.
-
-The purpose of this task is to remove the remaining architectural weaknesses in that implementation and align it with the clarified target model.
+This task must continue that direction and remove the remaining architectural softness.
 
 ## Current State
 
-The latest commit already moved the system in the right direction:
+The latest commit already delivered several important corrections:
 
-- `boundary` now consumes prepared entanglement projection instead of discovering entanglement from raw values;
-- `PreparedEntanglementBlock` / `PreparedEntanglementProjection` were introduced;
-- `force/updateBoundary()` now uses an upstream path:
-  `gravity AST -> flatten -> strong blocks -> boundary projection`;
-- tests were added for projection materialization and gravity-to-matrix pipeline.
+- `flattenGravity()` now performs a single projection pass and explicitly collects scopes, actors, links, and gravity payloads;
+- `GravityEntanglementPayload` was introduced with `sourcePaths`, `fieldRefs`, `semanticKey`, and optional `expr`;
+- `buildStrongEntanglement()` now builds blocks from scope/payload structure instead of simple field-name coincidence only;
+- `GravityRuntimeBinding` and `GravityRuntimeMatch` were introduced to make runtime actor binding explicit;
+- the fragile `graph.actors.length === runtimeActors.length` assertion was removed;
+- `setGravitySource()` was removed, and gravity now enters the pipeline through `updateBoundary(options)`;
+- prepared boundary projection now includes explicit prepared fields, payload ids, semantic keys, and representative branes. 
 
-However, the current implementation is still transitional in several important ways:
+All of that is correct and must be kept. The task is now to refine what still remains weak or transitional.  [oai_citation:1‡[refactor] force - упрощение flattenGravity и улучшение привязки runtime-акторов
 
-1. `flattenGravity()` still traverses the generic template tree and uses regular `el` nodes as structural transport.
-   This means the extraction is not yet conceptually separated as a pure actor-hierarchy projection from gravity.
+### Основные изменения:
+- `flattenGravity()` теперь проходит по AST только один раз, явно собирая скоупы, акторы, ссылки и пэйлоады
+- Добавлена явная модель `GravityEntanglementPayload` с семантическими ключами
+- `buildStrongEntanglement()` строит блоки на основе скоупов и пэйлоадов, а не field-name coincidence
+- Добавлены `GravityRuntimeBinding` и `GravityRuntimeMatch` для явной привязки runtime-акторов к gravity-нодам
+- Удалена хрупкая ассерция `graph.actors.length === runtimeActors.length`
+- Удалён `setGravitySource()` в пользу передачи gravity через `updateBoundary(options)`
 
-2. `buildStrongEntanglement()` currently derives blocks mainly from:
-   - flattened field refs,
-   - adjacency,
-   - matching runtime field names.
-   This is better than old boundary equality discovery, but it still does not model gravity entanglement strongly enough as an explicit upstream structure.
+### Улучшения кода:
+- Упрощена навигация по AST в `flattenGravity()` за счёт единого `collectActorProjection`
+- Нормализация пэйлоадов и семантических ключей вынесена в отдельные функции
+- Типизация в `strong.t.ts` расширена для поддержки явной модели гравити-энтанглмента
+- Обновлены тесты для проверки независимости от HTML-обёрток и явных binding'ов](https://github.com/zavx0z/metafor/commit/4b7000222fca2af8f3cf1c5bf4e1849e81931e1f)
 
-3. There is a hard and fragile assumption:
-   `flattened gravity actor count === runtime actor count`.
-   This is not a stable architectural contract and must be removed.
+## Architectural Target
 
-4. `setGravitySource()` is currently a manual store registration bridge.
-   This is acceptable as a temporary step, but the gravity source path should become a proper part of the preparation pipeline rather than a manual side-channel.
+Use this exact target model:
 
-5. Boundary materialization still reconstructs shared values from raw brane values and validates equality across branes.
-   Validation is fine, but the current projection still does not carry a sufficiently explicit gravity-derived entanglement model.
+- `bulk.gravity` is the source of entanglement structure;
+- `mass` remains out of scope and must not participate;
+- `weak` remains out of scope and must not be modified;
+- regular HTML must not be part of the entanglement model;
+- parsed `bulk.gravity` must be projected into an actor-only structure;
+- that structure must preserve connectivity and gravity-side entanglement semantics strongly enough that `strong` is building blocks from gravity structure itself;
+- runtime binding between gravity actors and runtime actors must remain explicit and robust;
+- `boundary/fields` must remain downstream-only and must not regain entanglement ownership.
 
-## Clarified Target Model
+## Remaining Problems To Solve
 
-For this task, use the following clarified architecture as the target:
+### 1. Gravity projection is still traversed through generic template `el` nodes
 
-- `mass` does not participate in entanglement here;
-- `weak` remains out of scope;
-- regular HTML is irrelevant for entanglement;
-- `bulk.gravity` is the source of actor entanglement structure;
-- the parsed gravity AST must be projected into an actor-only flattened structure with preserved connectivity;
-- that flattened structure must preserve not only actor membership but also gravity entanglement values/signals strongly enough for `strong` to build blocks from gravity-derived structure rather than from loose field-name coincidence;
-- `strong` must build entanglement blocks from this flattened gravity structure;
-- runtime binding between flattened actor graph and runtime actors must not rely on naive positional equality or count equality;
-- `boundary` must continue to only materialize prepared shared-field blocks.
+Even though `el` nodes are no longer modeled as entanglement entities, they are still used as traversal carriers in `collectActorProjection(...)`.
+
+That is acceptable as an implementation detail today, but the architecture is still not fully clean conceptually.
+
+The next iteration must make the actor projection layer clearly represent:
+
+- actor manifestation,
+- actor scopes,
+- actor hierarchy,
+- actor connectivity,
+- gravity entanglement payloads,
+
+instead of still looking like a filtered traversal over a general template tree.
+
+Do not just remove recursion through `el`.
+Refine the projection model so that actor extraction is explicitly the primary concern.
+
+### 2. Gravity payloads are improved, but still too projection-like
+
+`GravityEntanglementPayload` is a major improvement, but it currently still behaves mostly like a normalized container for:
+
+- source paths,
+- field refs,
+- semantic key,
+- expr.
+
+This is better than the previous heuristic state, but the model still needs to become more clearly “gravity entanglement structure” rather than “annotated field-ref grouping”.
+
+Strengthen the payload model so it represents gravity-side entanglement more explicitly as a first-class upstream structure.
+
+### 3. Strong still closes the decision through runtime field intersection
+
+`buildStrongEntanglement()` is improved, but its final block formation still depends on finding runtime-resolved shared fields across all participating actors.
+
+That is acceptable operationally, but the architecture should lean more clearly toward:
+
+- gravity defines entanglement structure,
+- runtime mapping resolves projection into actual fields,
+- strong uses runtime field resolution as projection validation and narrowing,
+- not as the main ontological source of entanglement membership.
+
+Refine the implementation so entanglement membership is more clearly gravity-driven, while runtime field resolution is used for projection/materialization readiness.
+
+### 4. Boundary still reconstructs canonical shared values from brane values
+
+This is currently done through `representativeBraneIndex` and shared-value validation in `materializeEntanglement()`.
+
+This is acceptable as downstream materialization, but the upstream projection can still become cleaner and more explicit so that boundary depends less on reconstructing semantics from raw brane values.
+
+Do not move semantics down into boundary.
+Keep boundary downstream-only, but make the upstream contract cleaner.
 
 ## Required Actions
 
-### 1. Inspect and formalize the weaknesses of the current refactor
+### 1. Refine the actor-only gravity projection model
 
-Review the current implementation introduced in the last commit and explicitly identify where it is still transitional.
+Rework the gravity flattening layer so that it is explicitly modeled as actor projection rather than generic AST traversal.
 
-At minimum inspect:
+The output contract must clearly represent:
 
-- `force/strong/strong.ts`
-- `force/strong/strong.t.ts`
-- `force/force.ts`
-- `force/store.ts`
-- `boundary/fields/entangled.ts`
-- tests that were added in the last commit
+- actor scopes,
+- actor nodes,
+- actor-to-actor hierarchy,
+- scope-to-actor relationships,
+- projection links,
+- gravity entanglement payload ownership.
 
-The purpose of this step is not just reading — it is to drive the next refactor with a precise model of what is still heuristic and unstable.
+The implementation may still recurse through the parsed structure internally, but the resulting architecture must no longer conceptually depend on generic HTML/tree traversal.
 
-### 2. Refactor gravity flattening into a true actor-hierarchy projection
+### 2. Strengthen the gravity entanglement payload contract
 
-Refine `flattenGravity()` so it becomes a proper actor-only projection layer rather than a generic AST traversal with `el` passthrough.
+Refine `GravityEntanglementPayload` and adjacent graph structures so that they preserve gravity-side entanglement semantics more explicitly.
 
-The result must be conceptually clean:
+At minimum, the flattened model must preserve:
 
-- regular HTML nodes must not participate in the flattened actor graph as structural carriers;
-- the flattening stage must extract only actor-relevant information from gravity;
-- scopes from `logical`, `condition`, and `map` must remain preserved;
-- actor hierarchy must remain preserved;
-- projection links must remain preserved;
-- the output must be a gravity-derived actor graph, not a filtered general-purpose UI AST.
+- payload ownership,
+- payload lineage through scopes and actors,
+- payload semantic grouping,
+- payload participation in actor connectivity,
+- enough information to distinguish entanglement-carrying gravity payloads from incidental field references.
 
-Do not solve this by simply deleting recursion through `el`.
-Solve it by making the extraction model explicitly actor-oriented.
+The model must be strong enough that `strong` is consuming a real upstream entanglement structure, not merely enriched field metadata.
 
-### 3. Strengthen the flattened structure contract
+### 3. Separate entanglement membership from field materialization readiness
 
-The flattened structure must become a stable architectural contract for strong entanglement construction.
+Refactor `buildStrongEntanglement()` so that it distinguishes between:
 
-It must preserve enough information to represent:
+- membership of actors in an entanglement block,
+- field projection readiness for boundary materialization.
 
-- actor manifestation nodes,
-- scope lineage,
-- actor hierarchy,
-- connectivity edges,
-- gravity field-origin relationships,
-- gravity entanglement-relevant values or value-carriers as they exist at the AST/projection level.
+Membership should be driven primarily by:
 
-The contract must not be just:
+- gravity payload grouping,
+- connectivity,
+- scope/hierarchy relations,
+- explicit runtime binding.
 
-- actor ids,
-- scope ids,
-- field refs.
+Shared field resolution should remain important, but it should be treated as projection narrowing, not the sole determinant of entanglement membership.
 
-It must be rich enough that strong entanglement blocks can be built from actual gravity-derived connectivity/value structure rather than from field-name coincidence alone.
+### 4. Harden runtime binding as an architectural contract
 
-### 4. Make gravity entanglement explicit inside the flattened model
+Keep explicit `GravityRuntimeBinding`, but make the actor/runtime mapping strategy more formally grounded.
 
-This is the most important refinement.
+The code should clearly support cases where:
 
-Right now the implementation mostly preserves field refs and connectivity.
-That is not enough.
+- the gravity graph contains more actors than currently materialized runtime actors,
+- only a subset of gravity actors are bound,
+- runtime actor order differs from gravity projection order,
+- field names differ and must be mapped explicitly.
 
-You need to explicitly model the gravity-side entanglement payload that is extracted from AST.
+Do not allow hidden positional assumptions to reappear.
 
-The flattened gravity model must preserve not only that:
+### 5. Improve prepared entanglement projection clarity
 
-- two actor nodes are connected,
-- two actor nodes mention related field paths,
+Keep the richer boundary projection introduced in the latest commit, but refine it so that it is clearly the canonical downstream contract.
 
-but also the gravity-side entanglement values or value-projection semantics that make those actors belong to the same entangled structure.
+The preferred path should be through explicit prepared `fields`, not through fallback `fieldIndices`.
 
-In other words:
-the flattened model must represent gravity entanglement as a first-class upstream structure, not merely as a set of field-name hints.
+If compatibility fallback must remain temporarily, make the new explicit path clearly primary and ensure the rest of the pipeline uses it consistently.
 
-### 5. Refactor `buildStrongEntanglement()` to use gravity-derived structure, not count-equality and loose matching
+### 6. Keep `boundary/fields` downstream-only
 
-Remove the fragile architectural assumptions from `buildStrongEntanglement()`.
+Do not move any entanglement ownership back into boundary.
 
-Specifically:
+`boundary/fields` must remain responsible only for:
 
-- remove the hard dependency on `graph.actors.length === runtimeActors.length`;
-- remove reliance on simple positional correspondence between flattened actors and runtime actors;
-- reduce reliance on loose field-name coincidence as the main grouping mechanism.
+- normalization,
+- validation,
+- local/shared mapping,
+- materialization,
+- heap/build,
+- execution-ready data preparation.
 
-Replace it with a more stable binding approach between:
+It may validate shared-value consistency, but it must not regain responsibility for discovering why actors are entangled.
 
-- flattened gravity actor structure,
-- runtime actors / branes.
+### 7. Tighten tests around the refined model
 
-The binding must be explicit and architecturally meaningful.
-
-The strong layer must build entanglement blocks from:
-
-- flattened gravity structure,
-- preserved gravity entanglement semantics,
-- explicit actor/runtime correspondence,
-not from positional coincidence.
-
-### 6. Introduce a stable actor/runtime binding strategy
-
-Design and implement a real mapping between flattened gravity actor nodes and runtime actors.
-
-This mapping must survive cases where:
-
-- actor counts differ,
-- some runtime actors do not map 1:1 to flatten order,
-- gravity structure is richer than currently materialized runtime actors,
-- runtime actor creation order is not guaranteed to be identical to flattened order.
-
-Do not leave this as a hidden positional convention.
-
-Make it an explicit contract or preparation step.
-
-### 7. Keep boundary materialization downstream-only, but improve upstream explicitness
-
-`boundary/fields` should remain a materialization layer.
-Do not move entanglement origin back down.
-
-However, improve the upstream contract so that boundary is consuming a more explicit prepared entanglement projection.
-
-Validation in `materializeEntanglement()` is fine.
-But the upstream model should become more explicit, so boundary is less dependent on reconstructing the shared payload from raw brane values.
-
-Do not overcomplicate this into full backend-specific packing.
-Keep boundary downstream-only, but make the incoming projection cleaner and more explicit.
-
-### 8. Revisit gravity-source registration
-
-The current `setGravitySource()` approach is acceptable as a transition, but it is too manual as a long-term preparation contract.
-
-Refine the way gravity source enters the pipeline so it becomes a natural part of the preparation path instead of a side registration hack in the store.
-
-The solution should remain practical and minimal, but architecturally cleaner than the current manual registration approach.
-
-### 9. Update tests to reflect the refined architecture
-
-Expand or rewrite tests so they verify the refined, non-transitional model.
+Expand tests so they prove the refined architecture, not just the current behavior.
 
 At minimum cover:
 
-- actor-only gravity projection is independent from regular HTML layout;
-- flattened gravity structure preserves entanglement-relevant connectivity and value semantics;
-- strong entanglement blocks are built from gravity-derived structure rather than from positional coincidence;
-- runtime mapping is explicit and resilient;
-- boundary still only materializes prepared projection;
-- end-to-end path remains valid from gravity AST to matrix-ready prepared data.
+- actor-only gravity projection remains invariant under irrelevant HTML wrappers;
+- gravity payload semantics remain preserved in the flattened model;
+- strong block membership is gravity/payload/connectivity driven;
+- runtime actor binding is explicit and survives subset binding and order changes;
+- prepared boundary projection prefers explicit prepared fields;
+- boundary remains a pure materialization consumer;
+- the full path remains executable from gravity AST to matrix-ready data.
 
-### 10. Keep the pipeline executable end-to-end
+### 8. Keep the full path working end-to-end
 
-After the refactor, the repository must still support a working path:
+After refactor, the repository must still support this full path:
 
-`gravity AST -> actor-only flattened gravity structure -> strong entanglement blocks -> boundary projection -> fields materialization -> matrix-ready data`
+`parsed gravity AST -> actor-only gravity projection -> gravity entanglement payload graph -> strong entanglement blocks -> prepared boundary projection -> fields materialization -> matrix-ready execution input`
 
-Do not leave the system in a half-architected state.
+Do not leave the system in a partially refactored state.
 
 ## Constraints
 
-- Do not reintroduce entanglement ownership into `boundary/fields`.
 - Do not involve `mass`.
 - Do not modify `weak`.
+- Do not reintroduce entanglement ownership into `boundary/fields`.
+- Do not fall back to value-equality discovery as the primary entanglement model.
+- Do not reduce the architecture back to field-name coincidence.
 - Do not treat regular HTML layout as part of the entanglement model.
-- Do not keep positional count-equality as the core runtime binding mechanism.
-- Do not reduce the problem to field-name coincidence.
-- Do not push heap/layout/backend concerns into gravity or strong.
-- Do not rewrite the entire system unnecessarily.
-- Do not abandon the working path already introduced in the last commit.
-- Keep the existing refactor direction, but make it architecturally stable.
+- Do not rewrite unrelated parts of the system.
+- Do not abandon the improvements already introduced in the latest commit.
+- Keep changes minimal in surface area but strong in architecture.
 
 ## Expected Result
 
-After completion, the latest entanglement refactor should no longer be a transitional bridge.
+After completion, the current refactor should no longer feel like an improved transitional bridge.
 
-The repository should contain a stronger and more stable architecture where:
+The repository should contain a clearer and more stable architecture where:
 
-- `bulk.gravity` is truly treated as the source of entanglement structure;
-- parsed gravity is projected into an actor-only flattened graph;
-- the flattened graph preserves real entanglement-relevant connectivity and gravity-side value structure;
-- `strong` builds entanglement blocks from that structure rather than from positional coincidence;
-- runtime mapping between flattened actors and branes is explicit and stable;
-- `boundary/fields` remains only a materialization layer;
-- the path from gravity AST to matrix-ready prepared data remains executable and testable;
-- the implementation is closer to the clarified ontology rather than to a temporary heuristic bridge.
+- gravity is the real source of entanglement structure;
+- actor-only gravity projection is explicit and conceptually clean;
+- gravity entanglement payloads are first-class upstream structures;
+- strong block membership is driven by gravity structure plus explicit runtime binding;
+- field resolution is treated as projection into runtime/boundary space, not as the sole source of entanglement truth;
+- prepared boundary projection is explicit and rich enough for downstream materialization;
+- boundary remains purely downstream;
+- the full path from gravity AST to matrix-ready execution data remains working and testable.
