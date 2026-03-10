@@ -13,7 +13,8 @@ import type {
   GravityRuntimeMatch,
   GravityScopeKind,
   RuntimeActorSnapshot,
-  StrongEntanglementBlock,
+  StrongBoundaryNarrowing,
+  StrongMembershipEntanglementBlock,
   StrongEntanglementField,
   StrongEntanglementPlan,
 } from "./strong.t"
@@ -462,7 +463,7 @@ export function buildStrongEntanglement(
 ): StrongEntanglementPlan {
   const { matches, graphToRuntime } = buildBindings(graph, runtimeActors)
   const adjacency = buildActorAdjacency(graph)
-  const blocksByMembership = new Map<string, StrongEntanglementBlock>()
+  const blocksByMembership = new Map<string, StrongMembershipEntanglementBlock>()
 
   const payloadGroups = new Map<string, GravityEntanglementPayload[]>()
   graph.payloads.forEach((payload) => {
@@ -537,9 +538,13 @@ export function buildStrongEntanglement(
 
       const existing = blocksByMembership.get(membershipKey)
       if (existing) {
-        existing.payloadIds = unique([...existing.payloadIds, ...payloadIds]).sort()
-        existing.membershipSemanticKeys = unique([...existing.membershipSemanticKeys, semanticKey]).sort()
-        existing.scopeIds = unique([...existing.scopeIds, ...scopeIds]).sort()
+        existing.membership.payloadIds = unique([...existing.membership.payloadIds, ...payloadIds]).sort()
+        existing.membership.semanticKeys = unique([...existing.membership.semanticKeys, semanticKey]).sort()
+        existing.membership.scopeIds = unique([...existing.membership.scopeIds, ...scopeIds]).sort()
+        existing.readiness.sharedFieldNames = unique([
+          ...existing.readiness.sharedFieldNames,
+          ...fields.map((field) => field.fieldName),
+        ]).sort()
 
         fields.forEach((field) => {
           const prev = existing.fields.find((candidate) => candidate.fieldName === field.fieldName)
@@ -558,10 +563,16 @@ export function buildStrongEntanglement(
         actorNodeIds,
         runtimeActorIds,
         braneIndices,
+        membership: {
+          semanticKeys: [semanticKey],
+          scopeIds,
+          payloadIds: [...payloadIds].sort(),
+        },
+        readiness: {
+          sharedFieldNames: fields.map((field) => field.fieldName).sort(),
+          boundaryMaterializable: fields.length > 0,
+        },
         fields,
-        scopeIds,
-        payloadIds: [...payloadIds].sort(),
-        membershipSemanticKeys: [semanticKey],
       })
     })
   })
@@ -569,23 +580,32 @@ export function buildStrongEntanglement(
   return {
     graph,
     bindings: matches,
-    blocks: Array.from(blocksByMembership.values())
+    membershipBlocks: Array.from(blocksByMembership.values())
       .map((block) => ({
         ...block,
         fields: [...block.fields].sort((left, right) => left.fieldName.localeCompare(right.fieldName)),
-        payloadIds: unique(block.payloadIds).sort(),
-        membershipSemanticKeys: unique(block.membershipSemanticKeys).sort(),
+        membership: {
+          semanticKeys: unique(block.membership.semanticKeys).sort(),
+          scopeIds: unique(block.membership.scopeIds).sort(),
+          payloadIds: unique(block.membership.payloadIds).sort(),
+        },
+        readiness: {
+          sharedFieldNames: unique(block.readiness.sharedFieldNames).sort(),
+          boundaryMaterializable: block.fields.length > 0,
+        },
       }))
       .sort((left, right) => left.key.localeCompare(right.key)),
   }
 }
 
-export function projectEntanglementToBoundary(
+// Narrowing phase: membership blocks are filtered down to boundary-materializable blocks.
+export function narrowEntanglementMembershipToBoundary(
   plan: StrongEntanglementPlan,
   fieldNameIndex: Map<string, number>,
-): PreparedEntanglementProjection {
+): StrongBoundaryNarrowing {
   return {
-    blocks: plan.blocks
+    blocks: plan.membershipBlocks
+      .filter((block) => block.readiness.boundaryMaterializable)
       .map((block) => ({
         key: block.key,
         braneIndices: block.braneIndices,
@@ -605,4 +625,13 @@ export function projectEntanglementToBoundary(
       }))
       .filter((block) => block.fields.length > 0 && block.braneIndices.length > 1),
   }
+}
+
+// Backward-compatible adapter that returns the boundary projection contract.
+export function projectEntanglementToBoundary(
+  plan: StrongEntanglementPlan,
+  fieldNameIndex: Map<string, number>,
+): PreparedEntanglementProjection {
+  const narrowed = narrowEntanglementMembershipToBoundary(plan, fieldNameIndex)
+  return { blocks: narrowed.blocks }
 }

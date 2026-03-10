@@ -8,6 +8,7 @@ import {
   createActor,
   flattenGravity,
   force$,
+  narrowEntanglementMembershipToBoundary,
   projectEntanglementToBoundary,
   updateBoundary,
 } from "../index"
@@ -120,16 +121,25 @@ describe("gravity entanglement pipeline", () => {
       },
     ])
 
-    const projection = projectEntanglementToBoundary(plan, new Map([
+    const projection = narrowEntanglementMembershipToBoundary(plan, new Map([
       ["hp", 0],
       ["mana", 1],
       ["energy", 2],
     ]))
 
     expect(plan.bindings).toHaveLength(2)
-    expect(plan.blocks).toHaveLength(1)
-    expect(plan.blocks[0]!.braneIndices).toEqual([1, 4])
-    expect(plan.blocks[0]!.fields).toEqual([
+    expect(plan.membershipBlocks).toHaveLength(1)
+    expect(plan.membershipBlocks[0]!.braneIndices).toEqual([1, 4])
+    expect(plan.membershipBlocks[0]!.membership).toEqual({
+      semanticKeys: ["fields:/fields/shared:_[0]"],
+      scopeIds: [],
+      payloadIds: ["payload:0", "payload:1", "payload:2"],
+    })
+    expect(plan.membershipBlocks[0]!.readiness).toEqual({
+      sharedFieldNames: ["hp"],
+      boundaryMaterializable: true,
+    })
+    expect(plan.membershipBlocks[0]!.fields).toEqual([
       {
         fieldName: "hp",
         fieldRef: "shared",
@@ -187,10 +197,14 @@ describe("gravity entanglement pipeline", () => {
       },
     ])
 
-    expect(plan.blocks).toHaveLength(1)
-    expect(plan.blocks[0]!.braneIndices).toEqual([0, 3])
-    expect(plan.blocks[0]!.membershipSemanticKeys).toEqual(["fields:/fields/shared:_[0]"])
-    expect(plan.blocks[0]!.fields).toEqual([])
+    expect(plan.membershipBlocks).toHaveLength(1)
+    expect(plan.membershipBlocks[0]!.braneIndices).toEqual([0, 3])
+    expect(plan.membershipBlocks[0]!.membership.semanticKeys).toEqual(["fields:/fields/shared:_[0]"])
+    expect(plan.membershipBlocks[0]!.readiness).toEqual({
+      sharedFieldNames: [],
+      boundaryMaterializable: false,
+    })
+    expect(plan.membershipBlocks[0]!.fields).toEqual([])
     expect(projectEntanglementToBoundary(plan, new Map([["hp", 0], ["energy", 1]])).blocks).toEqual([])
   })
 

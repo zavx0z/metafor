@@ -221,6 +221,22 @@ const normalizeBlock = (block: PreparedEntanglementBlock): PreparedEntanglementB
   ...(block.key ? { key: block.key } : {}),
 })
 
+const resolvePreparedFields = (
+  block: PreparedEntanglementBlock,
+): PreparedEntanglementField[] => {
+  if (block.fields && block.fields.length > 0) {
+    return block.fields
+  }
+
+  // Legacy fallback for compatibility with old field-index-only projection.
+  return block.fieldIndices?.map((fieldIndex) => ({
+    fieldIndex,
+    fieldName: String(fieldIndex),
+    payloadIds: [],
+    semanticKeys: [],
+  } satisfies PreparedEntanglementField)) ?? []
+}
+
 /**
  * Материализует заранее подготовленную entanglement projection в brane layout.
  *
@@ -240,14 +256,7 @@ export function materializeEntanglement(
     if (block.braneIndices.length < 2) {
       throw new Error(`Entanglement block ${blockId}: requires at least 2 branes`)
     }
-    const preparedFields: PreparedEntanglementField[] = block.fields
-      ?? block.fieldIndices?.map((fieldIndex) => ({
-        fieldIndex,
-        fieldName: String(fieldIndex),
-        payloadIds: [],
-        semanticKeys: [],
-      } satisfies PreparedEntanglementField))
-      ?? []
+    const preparedFields = resolvePreparedFields(block)
 
     if (preparedFields.length === 0) {
       throw new Error(`Entanglement block ${blockId}: requires at least 1 field`)

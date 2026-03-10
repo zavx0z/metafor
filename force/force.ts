@@ -7,7 +7,11 @@
 import { write as fieldsWrite, update as fieldsUpdate, unlock } from "@metafor/boundary"
 import { convertField } from "./strong/field"
 import { convertToNumeric } from "../boundary/fields/superposition"
-import { flattenGravity, buildStrongEntanglement, projectEntanglementToBoundary } from "./strong/strong"
+import {
+  flattenGravity,
+  buildStrongEntanglement,
+  narrowEntanglementMembershipToBoundary,
+} from "./strong/strong"
 import { force$ } from "./store"
 
 import type { ActorId, BraneStateChange, ActorUpdate, UpdateBoundaryOptions } from "./force.t"
@@ -57,7 +61,7 @@ function buildBoundaryEntanglement(actorIds: string[]) {
 
   const flattened = flattenGravity(gravity)
   const plan = buildStrongEntanglement(flattened, runtimeActors)
-  return projectEntanglementToBoundary(plan, force$.fieldNameIndex)
+  return narrowEntanglementMembershipToBoundary(plan, force$.fieldNameIndex)
 }
 
 /**

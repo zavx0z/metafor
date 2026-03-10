@@ -121,19 +121,45 @@ export interface StrongEntanglementField {
   representativeBraneIndex: number
 }
 
-export interface StrongEntanglementBlock {
+export interface StrongEntanglementMembership {
+  semanticKeys: string[]
+  scopeIds: string[]
+  payloadIds: string[]
+}
+
+export interface StrongEntanglementReadiness {
+  sharedFieldNames: string[]
+  boundaryMaterializable: boolean
+}
+
+export interface StrongMembershipEntanglementBlock {
   key: string
   actorNodeIds: string[]
   runtimeActorIds: string[]
   braneIndices: number[]
+  membership: StrongEntanglementMembership
+  readiness: StrongEntanglementReadiness
   fields: StrongEntanglementField[]
-  scopeIds: string[]
-  payloadIds: string[]
-  membershipSemanticKeys: string[]
 }
 
 export interface StrongEntanglementPlan {
   graph: FlatGravityGraph
   bindings: GravityRuntimeMatch[]
-  blocks: StrongEntanglementBlock[]
+  membershipBlocks: StrongMembershipEntanglementBlock[]
+}
+
+export interface StrongBoundaryMaterializableBlock {
+  key: string
+  braneIndices: number[]
+  fields: {
+    fieldIndex: number
+    fieldName: string
+    payloadIds: string[]
+    semanticKeys: string[]
+    representativeBraneIndex: number
+  }[]
+}
+
+export interface StrongBoundaryNarrowing {
+  blocks: StrongBoundaryMaterializableBlock[]
 }

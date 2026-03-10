@@ -86,4 +86,36 @@ describe("prepared entanglement projection", () => {
 
     expect(() => prepareData(data)).toThrow("values diverge across branes")
   })
+
+  test("prepared fields are canonical when legacy fieldIndices are also present", () => {
+    const data: Data = {
+      fields: [
+        { type: FieldType.F32 },
+        { type: FieldType.F32 },
+      ],
+      branes: [
+        { values: [[0, 100], [1, 10]], state: 0, collapses: [[null]] },
+        { values: [[0, 100], [1, 20]], state: 0, collapses: [[null]] },
+      ],
+      entanglement: {
+        blocks: [
+          {
+            braneIndices: [0, 1],
+            fieldIndices: [1],
+            fields: [
+              {
+                fieldIndex: 0,
+                fieldName: "hp",
+                payloadIds: ["payload:hp"],
+                semanticKeys: ["fields:/fields/hp:"],
+                representativeBraneIndex: 0,
+              },
+            ],
+          },
+        ],
+      },
+    }
+
+    expect(() => prepareData(data)).not.toThrow()
+  })
 })

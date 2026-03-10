@@ -42,5 +42,10 @@ export type { ForceStoreState } from "./store.t"
 export { registerProcesses, getProcessSchema } from "./weak"
 
 export { convertField } from "./strong/field"
-export { flattenGravity, buildStrongEntanglement, projectEntanglementToBoundary } from "./strong/strong"
+export {
+  flattenGravity,
+  buildStrongEntanglement,
+  narrowEntanglementMembershipToBoundary,
+  projectEntanglementToBoundary,
+} from "./strong/strong"
 export type { BraneStateChange, ActorUpdate, UpdateBoundaryOptions } from "./force.t"
