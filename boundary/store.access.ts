@@ -2,6 +2,7 @@ import type {
   BoundaryBraneRecord,
   BoundaryData,
   BoundaryFieldValueRecord,
+  BoundarySharedBlockRecord,
   BoundaryStateRecord,
   BoundaryValue,
 } from "./store.t"
@@ -10,11 +11,19 @@ function getBrane(store: BoundaryData, braneIndex: number): BoundaryBraneRecord 
   return store.branes[braneIndex]
 }
 
-export function findBraneFieldRecord(
+function getSharedBlock(store: BoundaryData, blockIndex: number): BoundarySharedBlockRecord | undefined {
+  return store.sharedBlocks[blockIndex]
+}
+
+export type BoundaryFieldStorageLocation =
+  | { scope: "local"; record: BoundaryFieldValueRecord }
+  | { scope: "shared"; blockIndex: number; record: BoundaryFieldValueRecord }
+
+export function findBraneFieldLocation(
   store: BoundaryData,
   braneIndex: number,
   fieldIndex: number,
-): BoundaryFieldValueRecord | undefined {
+): BoundaryFieldStorageLocation | undefined {
   const brane = getBrane(store, braneIndex)
   if (!brane) {
     return undefined
@@ -24,7 +33,7 @@ export function findBraneFieldRecord(
   for (let valueIndex = brane.localValueOffset; valueIndex < localValueEnd; valueIndex++) {
     const record = store.braneValues[valueIndex]
     if (record?.fieldIndex === fieldIndex) {
-      return record
+      return { scope: "local", record }
     }
   }
 
@@ -35,7 +44,7 @@ export function findBraneFieldRecord(
       continue
     }
 
-    const block = store.sharedBlocks[blockIndex]
+    const block = getSharedBlock(store, blockIndex)
     if (!block) {
       continue
     }
@@ -44,12 +53,20 @@ export function findBraneFieldRecord(
     for (let valueIndex = block.valueOffset; valueIndex < blockValueEnd; valueIndex++) {
       const record = store.sharedValues[valueIndex]
       if (record?.fieldIndex === fieldIndex) {
-        return record
+        return { scope: "shared", blockIndex, record }
       }
     }
   }
 
   return undefined
+}
+
+export function findBraneFieldRecord(
+  store: BoundaryData,
+  braneIndex: number,
+  fieldIndex: number,
+): BoundaryFieldValueRecord | undefined {
+  return findBraneFieldLocation(store, braneIndex, fieldIndex)?.record
 }
 
 export function readBraneFieldValue(

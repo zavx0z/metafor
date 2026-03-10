@@ -25,6 +25,7 @@ import { compileFlattenedEnsemble, type FlattenedTransition } from "./bytecode"
 export interface DerivedMatrixData {
   heap: Uint32Array
   blockPtrs: number[]
+  sharedBlockPtrs: number[]
   bytecode: Uint32Array
   bytecodeOffsets: Uint32Array
   states: Uint32Array
@@ -345,6 +346,7 @@ export function deriveMatrixData(store: BoundaryData): DerivedMatrixData {
   return {
     heap,
     blockPtrs: finalHeap.blockPtrs,
+    sharedBlockPtrs: finalHeap.sharedBlockPtrs,
     bytecode: compiled.bytecode,
     bytecodeOffsets: compiled.bytecodeOffsets,
     states: Uint32Array.from(store.states),

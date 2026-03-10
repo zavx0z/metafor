@@ -1,10 +1,16 @@
 import type { MatrixMode } from "./store.t.ts"
 
-export interface MatrixHeapUpdate {
-  offset: number
-  value1: number
-  value2?: number
-}
+export type MatrixHeapUpdate =
+  | {
+      kind: "field"
+      braneIndex: number
+      fieldIndex: number
+    }
+  | {
+      kind: "lock"
+      braneIndex: number
+      value: boolean
+    }
 
 export type MatrixChanges = Array<[number, number]>
 

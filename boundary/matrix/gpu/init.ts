@@ -54,5 +54,9 @@ export function createGpuRuntimeContext(
     buffers,
     stagingBuffer,
     braneCount,
+    heapMirror: derived.heap,
+    braneBlockPtrs: derived.blockPtrs,
+    sharedBlockPtrs: derived.sharedBlockPtrs,
+    stringTableSize: store$.stringTable.length,
   }
 }

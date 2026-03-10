@@ -19,6 +19,10 @@ export interface GpuRuntimeContext {
   buffers: GpuBufferMap
   stagingBuffer: GPUBuffer
   braneCount: number
+  heapMirror: Uint32Array
+  braneBlockPtrs: number[]
+  sharedBlockPtrs: number[]
+  stringTableSize: number
 }
 
 export interface GpuReadResult {

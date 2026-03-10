@@ -8,6 +8,7 @@ import {
   createMultipleBranesFixture,
   createLockedBraneFixture,
   createFieldUpdateFixture,
+  createStringFieldUpdateFixture,
   createIsolatedStore,
   setBraneFieldValue,
 } from "./shared/fixtures"
@@ -143,14 +144,14 @@ describe("GPU runtime — specific tests", () => {
     expect(runtime.statesSnapshot()).toEqual([0])
   })
 
-  test("heapUpdate rebuilds GPU derived buffers from canonical store", async () => {
+  test("heapUpdate accepts explicit canonical updates", async () => {
     const device = await skipIfNoGpu()
     if (!device) return
 
     const fixture = createSimpleBraneFixture()
     const { runtime } = await createGpuRuntimeForFixture(fixture)
 
-    expect(() => runtime.heapUpdate([])).not.toThrow()
+    expect(() => runtime.heapUpdate([{ kind: "lock", braneIndex: 0, value: false }])).not.toThrow()
   })
 
   test("clear destroys GPU buffers", async () => {
@@ -211,13 +212,28 @@ describe("GPU runtime — scenario tests", () => {
     let changes = await runtime.readChanges()
     expect(changes).toHaveLength(0)
 
+    const heapBufferBefore = (runtime as any).context.buffers.heap
     setBraneFieldValue(store, 0, 0, 100)
-    runtime.heapUpdate([])
+    runtime.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])
     runtime.step()
     changes = await runtime.readChanges()
 
     expect(changes).toHaveLength(1)
     expect(changes[0]).toEqual([0, 1])
+    expect((runtime as any).context.buffers.heap).toBe(heapBufferBefore)
+  })
+
+  test("string table growth falls back to controlled rebuild", async () => {
+    const device = await skipIfNoGpu()
+    if (!device) return
+
+    const { runtime, store } = await createGpuRuntimeForFixture(createStringFieldUpdateFixture())
+    const heapBufferBefore = (runtime as any).context.buffers.heap
+
+    setBraneFieldValue(store, 0, 0, "mage" as any)
+    runtime.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])
+
+    expect((runtime as any).context.buffers.heap).not.toBe(heapBufferBefore)
   })
 
   test("dirtyFlagsAccuracy — only changed branes reported", async () => {

@@ -171,6 +171,7 @@ export async function update(
   try {
     requireInitializedStore(boundary$)
     const stringInterner = createStoredStringInterner(boundary$.stringTable)
+    const matrixUpdates: Array<{ kind: "field"; braneIndex: number; fieldIndex: number } | { kind: "lock"; braneIndex: number; value: boolean }> = []
 
     for (const [braneIndex, fieldUpdates, lock] of updates) {
       const brane = boundary$.branes[braneIndex]
@@ -180,6 +181,7 @@ export async function update(
 
       if (lock !== undefined) {
         brane.lock = lock
+        matrixUpdates.push({ kind: "lock", braneIndex, value: lock })
       }
 
       for (const [fieldIndex, value] of fieldUpdates) {
@@ -189,10 +191,11 @@ export async function update(
         }
         const record = findMutableFieldRecord(boundary$, braneIndex, fieldIndex)
         record.value = normalizeFieldValue(value, field, stringInterner)
+        matrixUpdates.push({ kind: "field", braneIndex, fieldIndex })
       }
     }
 
-    matrixHeapUpdate([])
+    matrixHeapUpdate(matrixUpdates)
     return await matrixRunStep()
   } finally {
     resolveMutex?.()
@@ -201,6 +204,7 @@ export async function update(
 
 export function unlock(indexes: number[]): void {
   requireInitializedStore(boundary$)
+  const matrixUpdates: Array<{ kind: "lock"; braneIndex: number; value: boolean }> = []
 
   for (const index of indexes) {
     const brane = boundary$.branes[index]
@@ -208,9 +212,10 @@ export function unlock(indexes: number[]): void {
       throw new Error(`Brane at index ${index} not found in boundary`)
     }
     brane.lock = false
+    matrixUpdates.push({ kind: "lock", braneIndex: index, value: false })
   }
 
-  matrixHeapUpdate([])
+  matrixHeapUpdate(matrixUpdates)
 }
 
 export type {

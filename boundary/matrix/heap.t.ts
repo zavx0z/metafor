@@ -15,6 +15,7 @@ export interface FieldMeta {
 export interface HeapLayout {
   heap: Uint32Array
   blockPtrs: number[]
+  sharedBlockPtrs: number[]
   blockSizes: number[]
 }
 

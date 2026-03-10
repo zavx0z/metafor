@@ -82,7 +82,7 @@ export function runMatrixTestSuite(createRuntime: RuntimeFactory, runtimeName: s
         // GPU runtime требует явного обновления
         // Формат: offset, value1, value2?
         // Находим смещение поля hp в heap
-        runtime!.heapUpdate([]) // Пустое обновление для совместимости
+        runtime!.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])
       }
 
       runtime!.step()

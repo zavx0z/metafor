@@ -28,7 +28,7 @@ describe("CPU runtime — specific tests", () => {
     const store = createIsolatedStore(fixture)
     const runtime = new CPUMatrixRuntime(store)
 
-    expect(() => runtime.heapUpdate([{ offset: 0, value1: 100 }])).not.toThrow()
+    expect(() => runtime.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])).not.toThrow()
   })
 
   test("clear resets state", () => {
@@ -83,7 +83,7 @@ describe("CPU runtime — scenario tests", () => {
     expect(changes).toHaveLength(0)
 
     setBraneFieldValue(store, 0, 0, 100)
-    runtime.heapUpdate([])
+    runtime.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])
     runtime.step()
     changes = await runtime.readChanges()
 

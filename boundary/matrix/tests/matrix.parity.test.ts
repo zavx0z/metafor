@@ -199,7 +199,7 @@ describe("CPU/GPU parity — canonical cases", () => {
 
       setBraneFieldValue(cpuStore, 0, 0, 100)
       setBraneFieldValue(gpuStore, 0, 0, 100)
-      gpuRuntime.heapUpdate([])
+      gpuRuntime.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])
 
       cpuRuntime.step()
       gpuRuntime.step()

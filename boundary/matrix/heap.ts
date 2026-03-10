@@ -73,8 +73,25 @@ export function buildHeap(input: HeapInput): HeapLayout {
   return {
     heap,
     blockPtrs: braneBlockPtrs,
+    sharedBlockPtrs: blockPtrs,
     blockSizes: braneBlockSizes,
   }
+}
+
+export function findFieldValueOffset(heap: Uint32Array, blockPtr: number, fieldIndex: number): number | null {
+  const localCount = heap[blockPtr] ?? 0
+  let descriptorOffset = blockPtr + 3
+
+  for (let index = 0; index < localCount; index++) {
+    const currentFieldIndex = heap[descriptorOffset] ?? -1
+    const packedMeta = heap[descriptorOffset + 1] ?? 0
+    if (currentFieldIndex === fieldIndex) {
+      return blockPtr + unpackMeta(packedMeta).offset
+    }
+    descriptorOffset += 2
+  }
+
+  return null
 }
 
 function calculateBlockSizeEncoded(

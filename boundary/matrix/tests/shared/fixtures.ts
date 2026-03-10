@@ -3,6 +3,7 @@
  */
 import { prepareData } from "../../../boundary"
 import { findBraneFieldRecord } from "../../../store.access"
+import { createStoredStringInterner, normalizeFieldValue } from "../../../fields"
 import { FieldType, type Collapse, type Data, type Field } from "../../../fields"
 import type { BoundaryData, BoundaryStore } from "../../../store.t"
 import type { MatrixRuntime } from "../../matrix.t"
@@ -28,13 +29,19 @@ export function setBraneFieldValue(
   store: BoundaryStore,
   braneIndex: number,
   fieldIndex: number,
-  value: number | boolean | Array<number | boolean>,
+  value: unknown,
 ): void {
   const record = findBraneFieldRecord(store, braneIndex, fieldIndex)
+  const field = store.fields[fieldIndex]
   if (!record) {
     throw new Error(`Field ${fieldIndex} not found in brane ${braneIndex}`)
   }
-  record.value = Array.isArray(value) ? [...value] : value
+  if (!field) {
+    throw new Error(`Field ${fieldIndex} not defined`)
+  }
+
+  const stringInterner = createStoredStringInterner(store.stringTable)
+  record.value = normalizeFieldValue(value, field as Field, stringInterner)
 }
 
 export function createSimpleBraneFixture() {
@@ -107,6 +114,25 @@ export function createFieldUpdateFixture() {
         state: 0,
         collapses: [
           [[1, { 0: { gt: 50 } }]],
+          [null],
+        ],
+      },
+    ],
+  })
+
+  return { fields, store }
+}
+
+export function createStringFieldUpdateFixture() {
+  const fields: Field[] = [{ type: FieldType.STRING_PTR }]
+  const store = createBaseStore({
+    fields,
+    branes: [
+      {
+        values: [[0, "hero"]],
+        state: 0,
+        collapses: [
+          [[1, { 0: { eq: "mage" } }]],
           [null],
         ],
       },
