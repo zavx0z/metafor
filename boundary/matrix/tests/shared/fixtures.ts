@@ -5,17 +5,19 @@
  */
 import { boundary$ } from "../../../store"
 import { compileEnsemble, buildHeap, FieldType, floatToUint, type Field, type Brane } from "../../../fields"
-import { resetStringAtlas } from "@boundary/atlas"
+import type { StoredStringTable } from "../../../fields"
 import type { MatrixInitParams, MatrixRuntime } from "../../matrix.t"
 import type { CpuRuntimeContext } from "../../cpu/index.t.ts"
 import type { BoundaryStore } from "../../../store.t"
+
+function createEmptyStringTable(): StoredStringTable {
+  return { values: [""] }
+}
 
 /**
  * Фикстура: 1 брана с простым условием hp > 50.
  */
 export function createSimpleBraneFixture() {
-  resetStringAtlas()
-
   const fields: Field[] = [{ type: FieldType.F32 }]
   const branes: Brane[] = [
     {
@@ -40,15 +42,13 @@ export function createSimpleBraneFixture() {
 
   const initialStates = new Uint32Array([0])
 
-  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, initialStates }
+  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, initialStates, stringTable: createEmptyStringTable() }
 }
 
 /**
  * Фикстура: 3 браны с разными условиями.
  */
 export function createMultipleBranesFixture() {
-  resetStringAtlas()
-
   const fields: Field[] = [{ type: FieldType.F32 }]
   const branes: Brane[] = [
     {
@@ -89,15 +89,13 @@ export function createMultipleBranesFixture() {
 
   const initialStates = new Uint32Array([0, 0, 0])
 
-  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, initialStates }
+  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, initialStates, stringTable: createEmptyStringTable() }
 }
 
 /**
  * Фикстура: брана с lock флагом.
  */
 export function createLockedBraneFixture() {
-  resetStringAtlas()
-
   const fields: Field[] = [{ type: FieldType.F32 }]
   const branes: Brane[] = [
     {
@@ -126,15 +124,13 @@ export function createLockedBraneFixture() {
 
   const initialStates = new Uint32Array([0])
 
-  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, initialStates }
+  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, initialStates, stringTable: createEmptyStringTable() }
 }
 
 /**
  * Фикстура: брана с 2 полями для теста field update.
  */
 export function createFieldUpdateFixture() {
-  resetStringAtlas()
-
   const fields: Field[] = [{ type: FieldType.F32 }, { type: FieldType.F32 }]
   const branes: Brane[] = [
     {
@@ -160,7 +156,7 @@ export function createFieldUpdateFixture() {
 
   const initialStates = new Uint32Array([0])
 
-  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, initialStates }
+  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, initialStates, stringTable: createEmptyStringTable() }
 }
 
 /**
@@ -173,6 +169,7 @@ export function createBoundaryStore(fixture: ReturnType<typeof createSimpleBrane
   store.initialStates = fixture.initialStates
   store.heap = fixture.heap
   store.braneBlockPtrs = fixture.blockPtrs
+  store.stringTable = fixture.stringTable
   return store
 }
 
@@ -211,6 +208,7 @@ export function createIsolatedStore(fixture: ReturnType<typeof createSimpleBrane
     initialStates: fixture.initialStates.slice(),
     heap: fixture.heap.slice(),
     braneBlockPtrs: [...fixture.blockPtrs],
+    stringTable: { values: [...fixture.stringTable.values] },
     reset: () => {
       throw new Error("reset not supported in isolated store")
     },

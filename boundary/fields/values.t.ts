@@ -24,6 +24,10 @@ export interface EncodingContext {
    * Ссылка на heap для записи данных (для ARRAY).
    */
   heap?: Uint32Array
+  /**
+   * Fields-owned canonical string ID resolver.
+   */
+  stringInterner?: { intern(value: string): number }
 }
 
 /**

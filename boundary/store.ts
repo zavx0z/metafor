@@ -28,6 +28,7 @@ export const boundary$: BoundaryStore = {
   initialStates: null as unknown as Uint32Array,
   heap: null as unknown as Uint32Array,
   braneBlockPtrs: [],
+  stringTable: { values: [""] },
 
   reset() {
     this.bytecode = null as unknown as Uint32Array
@@ -35,6 +36,7 @@ export const boundary$: BoundaryStore = {
     this.initialStates = null as unknown as Uint32Array
     this.heap = null as unknown as Uint32Array
     this.braneBlockPtrs = []
+    this.stringTable = { values: [""] }
   },
 
   restore(state: BoundaryStore) {
@@ -43,5 +45,6 @@ export const boundary$: BoundaryStore = {
     this.initialStates = state.initialStates
     this.heap = state.heap
     this.braneBlockPtrs = state.braneBlockPtrs
+    this.stringTable = state.stringTable
   },
 }

@@ -98,6 +98,13 @@ export interface BoundaryData {
    * | `@boundary/monad` | Использует для unlock() |
    */
   braneBlockPtrs: number[]
+
+  /**
+   * Canonical stored string table shared by heap and bytecode.
+   *
+   * GPU derives local `stringRegistry` and `stringHeap` from this table.
+   */
+  stringTable: import("./fields/stored.t").StoredStringTable
 }
 
 /**

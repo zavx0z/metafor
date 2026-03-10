@@ -34,13 +34,14 @@ import { fields$ } from "./store"
 import { validateData } from "./validate"
 import { buildHeap, findFieldOffset, packMeta, unpackMeta } from "./heap"
 import type { HeapInput } from "./heap.t"
-import { compileEnsemble, compileParsedConditions, compileSuperposition } from "./superposition"
+import { compileEnsemble, compileFlattenedEnsemble, compileFlattenedSuperposition, compileParsedConditions, compileSuperposition } from "./superposition"
 import type { CompiledRules } from "./superposition.t"
 import { encodeFieldValue, encodeValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "./values"
 import type { EncodingContext } from "./values.t"
 import { materializeEntanglement } from "./entangled"
 import { parseCondition } from "./condition"
 import { OP, TYPE } from "./opcodes"
+import { createStoredStringInterner, createStringAtlasExport, StoredStringInterner } from "./string-table"
 
 // ============================================================================
 // ЭКСПОРТ
@@ -56,6 +57,8 @@ export {
   unpackMeta,
   // Superposition
   compileEnsemble,
+  compileFlattenedEnsemble,
+  compileFlattenedSuperposition,
   compileSuperposition,
   compileParsedConditions,
   // Params
@@ -68,6 +71,10 @@ export {
   materializeEntanglement,
   // Condition
   parseCondition,
+  // Strings
+  createStoredStringInterner,
+  createStringAtlasExport,
+  StoredStringInterner,
   // Opcodes
   OP,
   TYPE,
@@ -83,4 +90,14 @@ export type {
 
 // Ре-экспорт типов
 export type { Field, Data, Brane, Collapse, BraneValue, FieldTypeValue } from "./index.t"
+export type {
+  FlattenedBoundaryInput,
+  FlattenedBraneInput,
+  FlattenedFieldChecks,
+  FlattenedTransition,
+  StoredBoundaryData,
+  StoredEntangledBlock,
+  StoredFieldMeta,
+  StoredStringTable,
+} from "./stored.t"
 export { FieldType } from "./index.t"

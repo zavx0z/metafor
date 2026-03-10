@@ -30,6 +30,16 @@ export interface FieldsData {
   fields: import("./index.t.ts").Field[]
 
   /**
+   * Canonical deduplicated string table shared by heap and bytecode.
+   */
+  stringTable: import("./stored.t").StoredStringTable
+
+  /**
+   * Mutable string interner that owns string IDs during updates.
+   */
+  stringInterner: import("./string-table").StoredStringInterner
+
+  /**
    * Текущее смещение для динамических аллокаций ARRAY в heap.
    *
    * Указывает на начало свободной зоны в heap для временных данных массивов.

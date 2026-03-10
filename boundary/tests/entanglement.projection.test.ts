@@ -13,12 +13,12 @@ describe("prepared entanglement projection", () => {
     }
 
     const prepared = prepareData(data)
-    const [firstPtr, secondPtr] = prepared.heapLayout.blockPtrs
+    const [firstPtr, secondPtr] = prepared.blockPtrs
 
-    expect(prepared.heapData[firstPtr!]!).toBe(1)
-    expect(prepared.heapData[firstPtr! + 1]!).toBe(0)
-    expect(prepared.heapData[secondPtr!]!).toBe(1)
-    expect(prepared.heapData[secondPtr! + 1]!).toBe(0)
+    expect(prepared.heap[firstPtr!]!).toBe(1)
+    expect(prepared.heap[firstPtr! + 1]!).toBe(0)
+    expect(prepared.heap[secondPtr!]!).toBe(1)
+    expect(prepared.heap[secondPtr! + 1]!).toBe(0)
   })
 
   test("boundary materializes shared блоки только из prepared projection", () => {
@@ -51,12 +51,12 @@ describe("prepared entanglement projection", () => {
     }
 
     const prepared = prepareData(data)
-    const [firstPtr, secondPtr] = prepared.heapLayout.blockPtrs
+    const [firstPtr, secondPtr] = prepared.blockPtrs
 
-    expect(prepared.heapData[firstPtr!]!).toBe(1)
-    expect(prepared.heapData[firstPtr! + 1]!).toBe(1)
-    expect(prepared.heapData[secondPtr!]!).toBe(1)
-    expect(prepared.heapData[secondPtr! + 1]!).toBe(1)
+    expect(prepared.heap[firstPtr!]!).toBe(1)
+    expect(prepared.heap[firstPtr! + 1]!).toBe(1)
+    expect(prepared.heap[secondPtr!]!).toBe(1)
+    expect(prepared.heap[secondPtr! + 1]!).toBe(1)
   })
 
   test("boundary валидирует projection и не materializes расходящиеся shared values", () => {

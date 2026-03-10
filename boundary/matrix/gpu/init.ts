@@ -1,8 +1,8 @@
-import type { StringAtlasExport } from "@boundary/atlas"
+import type { StoredStringTable } from "@boundary/fields"
 import type { MatrixInitParams } from "../matrix.t.ts"
 import type { GpuBufferMap, GpuRuntimeContext } from "./index.t.ts"
 import { createBuffer, createStorageBuffer } from "./buffer"
-import { createUniforms, resolveAtlasBuffers } from "./layout"
+import { createUniforms, resolveStringTableBuffers } from "./layout"
 import { createBindGroup, createComputePipeline } from "./pipeline"
 import { debugLog } from "./debug"
 
@@ -18,13 +18,13 @@ export function createGpuRuntimeContext(
   device: GPUDevice,
   shaderSource: string,
   params: MatrixInitParams,
-  atlasExport: StringAtlasExport,
+  stringTable: StoredStringTable,
   enableDebug = false,
 ): GpuRuntimeContext {
   debugLog(enableDebug, "[GPUMatrixRuntime] Creating shader module and compute pipeline")
   const pipeline = createComputePipeline(device, shaderSource)
 
-  const atlas = resolveAtlasBuffers(atlasExport)
+  const atlas = resolveStringTableBuffers(stringTable)
   const braneBlockPtrs = createBraneBlockPtrs(params.blockPtrs)
   const buffers: GpuBufferMap = {
     braneBlockPtrs: createStorageBuffer(device, braneBlockPtrs),

@@ -17,6 +17,7 @@ export async function readGpuChanges(
   cmd.copyBufferToBuffer(dirtyFlagsBuffer, 0, stagingBuffer, 0, braneCount * 4)
   cmd.copyBufferToBuffer(statesBuffer, 0, stagingBuffer, braneCount * 4, braneCount * 4)
   device.queue.submit([cmd.finish()])
+  await device.queue.onSubmittedWorkDone()
 
   await stagingBuffer.mapAsync(GPUMapMode.READ)
   const data = new Uint32Array(stagingBuffer.getMappedRange().slice(0))

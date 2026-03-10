@@ -14,6 +14,8 @@ import type {Collapse, Field} from "./index.t"
 import type { FieldBytecode, CompiledRules, ConditionInstruction } from "./superposition.t"
 import type { EncodingContext } from "./values.t"
 import type { ParsedCheck } from "./condition.t"
+import { createStoredStringInterner, type StringInterner } from "./string-table"
+import type { FlattenedTransition } from "./stored.t"
 import type { Superposition } from "../../force/force.t"
 import type { ConvertedSuperposition } from "@metafor/force/strong/superposition.t"
 
@@ -44,29 +46,48 @@ export interface CompiledConditionsResult {
  */
 export function compileSuperposition(
   collapses: Collapse[][],
-  fields: Field[]
+  fields: Field[],
+  stringInterner = createStoredStringInterner(),
 ): FieldBytecode {
-  const numStates = collapses.length
+  const flattened = collapses.map((stateTransitions) =>
+    stateTransitions.map((collapse) =>
+      collapse === null
+        ? { targetState: null, conditions: [] }
+        : {
+            targetState: collapse[0],
+            conditions: Object.entries(collapse[1]).map(([fieldIdxStr, condValue]) => ({
+              fieldIndex: Number(fieldIdxStr),
+              checks: parseCondition(condValue),
+            })),
+          },
+    ),
+  )
+
+  return compileFlattenedSuperposition(flattened, fields, stringInterner)
+}
+
+/**
+ * Компилирует уже расплющенную суперпозицию в байт-код.
+ */
+export function compileFlattenedSuperposition(
+  transitions: FlattenedTransition[][],
+  fields: Field[],
+  stringInterner: StringInterner,
+): FieldBytecode {
+  const numStates = transitions.length
 
   // === PASS 1: Собираем condition blocks с кучами ===
   const condBlocksData: { instructions: number[], heap: number[] }[] = []
   const stateTransitionsCount: number[] = []
 
-  for (const stateTransitions of collapses) {
-    const trCount = stateTransitions.filter(t => t !== null).length
+  for (const stateTransitions of transitions) {
+    const trCount = stateTransitions.filter((transition) => transition.targetState !== null).length
     stateTransitionsCount.push(trCount)
 
-    for (const collapse of stateTransitions) {
-      if (collapse === null) continue
-      const [, conditions] = collapse
+    for (const transition of stateTransitions) {
+      if (transition.targetState === null) continue
 
-      // Парсим условия перед компиляцией (принцип готового формата данных)
-      const parsedChecks = Object.entries(conditions).map(([fieldIdxStr, condValue]) => ({
-        fieldIndex: Number(fieldIdxStr),
-        checks: parseCondition(condValue),
-      }))
-
-      const { instructions, heap } = compileParsedConditions(parsedChecks, fields)
+      const { instructions, heap } = compileParsedConditions(transition.conditions, fields, stringInterner)
 
       // Собираем instructions в плоский массив
       const instrFlat: number[] = [instructions.length]  // cond_count
@@ -85,9 +106,9 @@ export function compileSuperposition(
   const stateTableLength = numStates
   // Для каждого состояния: 1 (tr_count) + trCount * 2 (target + cond_ptr)
   // Для null transition тоже добавляем 2 placeholder
-  const stateBlocksLength = collapses.reduce((sum, transitions) => {
-    const trCount = transitions.filter(t => t !== null).length
-    const nullCount = transitions.filter(t => t === null).length
+  const stateBlocksLength = transitions.reduce((sum, stateTransitions) => {
+    const trCount = stateTransitions.filter((transition) => transition.targetState !== null).length
+    const nullCount = stateTransitions.filter((transition) => transition.targetState === null).length
     return sum + 1 + trCount * 2 + nullCount * 2
   }, 0)
   const condBlocksStart = stateTableLength + stateBlocksLength
@@ -108,19 +129,18 @@ export function compileSuperposition(
     const stateBlockStart = stateTableLength + stateBlocks.length
     statePtrs.push(stateBlockStart)
 
-    const transitions = collapses[s]!
+    const stateTransitions = transitions[s]!
     const trCount = stateTransitionsCount[s]!
     stateBlocks.push(trCount)
 
-    for (const collapse of transitions) {
-      if (collapse === null) {
+    for (const transition of stateTransitions) {
+      if (transition.targetState === null) {
         stateBlocks.push(0)  // target placeholder
         stateBlocks.push(0)  // cond_ptr placeholder
         continue
       }
 
-      const [targetState] = collapse
-      stateBlocks.push(targetState)
+      stateBlocks.push(transition.targetState)
       stateBlocks.push(condBlockOffset)
 
       // Переходим к следующему condition block
@@ -174,11 +194,11 @@ function getArrayEncodingContext(
     ctx.subType !== undefined &&
     (op === OP.INCLUDE || op === OP.NOT_INCLUDE)
   ) {
-    return { type: ctx.subType }
+    return { type: ctx.subType, stringInterner: ctx.stringInterner }
   }
 
   // Для LENGTH, IS_EMPTY и сравнений длины — UINT
-  return { type: TYPE.UINT }
+  return { type: TYPE.UINT, stringInterner: ctx.stringInterner }
 }
 
 /**
@@ -193,7 +213,8 @@ function getArrayEncodingContext(
  */
 export function compileParsedConditions(
   parsedChecks: Array<{ fieldIndex: number; checks: ParsedCheck[] }>,
-  fields: Field[]
+  fields: Field[],
+  stringInterner: StringInterner = createStoredStringInterner(),
 ): CompiledConditionsResult {
   const instructions: ConditionInstruction[] = []
   const heap: number[] = []
@@ -230,7 +251,7 @@ export function compileParsedConditions(
 
   // Генерируем инструкции с правильными указателями
   for (const check of allChecks) {
-    const ctx: EncodingContext = { type: check.fieldType }
+    const ctx: EncodingContext = { type: check.fieldType, stringInterner }
     const field = fields[check.fieldIndex]
     if (field?.enum !== undefined) {
       ctx.enum = field.enum
@@ -324,13 +345,14 @@ export function compileParsedConditions(
  */
 export function compileConditions(
   conditions: Record<number, any>,
-  fields: Field[]
+  fields: Field[],
+  stringInterner = createStoredStringInterner(),
 ): CompiledConditionsResult {
   const parsedChecks = Object.entries(conditions).map(([fieldIdxStr, condValue]) => ({
     fieldIndex: Number(fieldIdxStr),
     checks: parseCondition(condValue),
   }))
-  return compileParsedConditions(parsedChecks, fields)
+  return compileParsedConditions(parsedChecks, fields, stringInterner)
 }
 
 /**
@@ -345,13 +367,37 @@ export function compileConditions(
  */
 export function compileEnsemble(
   branes: Array<{ collapses: Collapse[][] }>,
-  fields: Field[]
+  fields: Field[],
+  stringInterner = createStoredStringInterner(),
 ): CompiledRules {
   const allBytecode: number[] = []
   const offsets: number[] = []
 
   for (const brane of branes) {
-    const { bytecode } = compileSuperposition(brane.collapses, fields)
+    const { bytecode } = compileSuperposition(brane.collapses, fields, stringInterner)
+    offsets.push(allBytecode.length)
+    allBytecode.push(...bytecode)
+  }
+
+  return {
+    bytecode: new Uint32Array(allBytecode),
+    bytecodeOffsets: new Uint32Array(offsets),
+  }
+}
+
+/**
+ * Компилирует ансамбль уже расплющенных переходов.
+ */
+export function compileFlattenedEnsemble(
+  branes: Array<{ transitions: FlattenedTransition[][] }>,
+  fields: Field[],
+  stringInterner: StringInterner,
+): CompiledRules {
+  const allBytecode: number[] = []
+  const offsets: number[] = []
+
+  for (const brane of branes) {
+    const { bytecode } = compileFlattenedSuperposition(brane.transitions, fields, stringInterner)
     offsets.push(allBytecode.length)
     allBytecode.push(...bytecode)
   }

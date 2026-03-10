@@ -11,6 +11,7 @@
 export type { FieldsStore, FieldsData } from "./store.t.ts"
 import type { Field } from "./index.t.ts"
 import type { FieldsStore } from "./store.t.ts"
+import { createStoredStringInterner } from "./string-table"
 
 /**
  * Локальное состояние модуля `@boundary/fields`.
@@ -26,12 +27,16 @@ import type { FieldsStore } from "./store.t.ts"
  */
 export const fields$: FieldsStore = {
   fields: [] as Field[],
+  stringTable: { values: [""] },
+  stringInterner: createStoredStringInterner(),
   heapAllocOffset: 0,
   arrayReserveSize: 0,
   arrayDataInvalidated: false,
 
   reset() {
     this.fields = [] as Field[]
+    this.stringTable = { values: [""] }
+    this.stringInterner = createStoredStringInterner()
     this.heapAllocOffset = 0
     this.arrayReserveSize = 0
     this.arrayDataInvalidated = false
@@ -39,6 +44,8 @@ export const fields$: FieldsStore = {
 
   restore(state: FieldsStore) {
     this.fields = state.fields
+    this.stringTable = state.stringTable
+    this.stringInterner = state.stringInterner
     this.heapAllocOffset = state.heapAllocOffset
     this.arrayReserveSize = state.arrayReserveSize
     this.arrayDataInvalidated = state.arrayDataInvalidated

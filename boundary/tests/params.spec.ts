@@ -10,14 +10,16 @@
  */
 
 import { test, expect, describe, beforeEach } from "bun:test"
+import { createStoredStringInterner } from "../fields/string-table"
 import { encodeValue, encodeFieldValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "../fields/values"
 import { TYPE } from "@boundary/fields/opcodes"
-import { resetStringAtlas } from "@boundary/atlas"
 import { FieldType } from "../fields/index.t"
+
+let stringInterner = createStoredStringInterner()
 
 describe("encodeValue — кодирование значений", () => {
   beforeEach(() => {
-    resetStringAtlas()
+    stringInterner = createStoredStringInterner()
   })
 
   test("должен кодировать float через bitcast", () => {
@@ -53,11 +55,12 @@ describe("encodeValue — кодирование значений", () => {
   })
 
   test("должен интернировать строки через StringAtlas", () => {
-    const result1 = encodeValue("hero", { type: TYPE.STRING })
-    const result2 = encodeValue("hero", { type: TYPE.STRING })
+    const result1 = encodeValue("hero", { type: TYPE.STRING, stringInterner })
+    const result2 = encodeValue("hero", { type: TYPE.STRING, stringInterner })
     expect(result1.value1).toBe(result2.value1) // Одинаковый ID для одинаковой строки
     expect(result1.value2).toBe(0)
     expect(result2.value2).toBe(0)
+    expect(stringInterner.table.values).toEqual(["", "hero"])
   })
 
   test("должен кодировать числа как UINT", () => {
@@ -68,7 +71,7 @@ describe("encodeValue — кодирование значений", () => {
 
 describe("encodeFieldValue — кодирование значений для heap", () => {
   beforeEach(() => {
-    resetStringAtlas()
+    stringInterner = createStoredStringInterner()
   })
 
   test("должен кодировать float через bitcast", () => {
@@ -90,9 +93,10 @@ describe("encodeFieldValue — кодирование значений для he
   })
 
   test("должен интернировать строки через StringAtlas", () => {
-    const result1 = encodeFieldValue("hero", { type: TYPE.STRING })
-    const result2 = encodeFieldValue("hero", { type: TYPE.STRING })
+    const result1 = encodeFieldValue("hero", { type: TYPE.STRING, stringInterner })
+    const result2 = encodeFieldValue("hero", { type: TYPE.STRING, stringInterner })
     expect(result1).toBe(result2) // Одинаковый ID для одинаковой строки
+    expect(stringInterner.table.values).toEqual(["", "hero"])
   })
 
   test("должен кодировать числа как UINT", () => {

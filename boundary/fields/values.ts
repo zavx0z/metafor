@@ -12,7 +12,6 @@
  */
 
 import { TYPE } from "./opcodes"
-import { getStringAtlas } from "@boundary/atlas"
 import type { EncodingContext } from "./values.t"
 import { FieldType, type FieldTypeValue } from "./index.t"
 
@@ -32,10 +31,10 @@ export interface EncodedValueResult {
  *
  * ## Side Effects
  *
- * **Для TYPE.STRING:** Вызывает `getStringAtlas().intern()` — изменяет глобальное состояние таблицы строк.
+ * **Для TYPE.STRING:** Использует Fields-owned `stringInterner` для назначения canonical string_id.
  * **Для TYPE.ARRAY:** Может изменять heap при аллокации (в `encodeFieldUpdate()`).
  *
- * **Нарушение fp.md п.1:** Эта функция **не является чистой** из-за интернирования строк.
+ * Строковая дедупликация теперь выполняется через явный контекст, а не через глобальный singleton.
  *
  * ## Где использовать
  *
@@ -59,8 +58,8 @@ export interface EncodedValueResult {
  * // Enum → индекс
  * encodeValue("MAGE", { type: TYPE.UINT, enum: ["WARRIOR", "MAGE", "ROGUE"] }) → { value1: 1, value2: 0 }
  *
- * // String → canonical string_id (интернирует строку — side effect!)
- * encodeValue("hello", { type: TYPE.STRING }) → { value1: 42, value2: 0 }
+ * // String → canonical string_id
+ * encodeValue("hello", { type: TYPE.STRING, stringInterner }) → { value1: 42, value2: 0 }
  *
  * // Array → pointer + reserved
  * encodeValue([], { type: TYPE.ARRAY }) → { value1: 0, value2: 0 }
@@ -105,8 +104,10 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
     if (typeof value !== "string") {
       throw new Error(`Expected string for TYPE.STRING, got ${typeof value}`)
     }
-    const atlas = getStringAtlas()
-    const stringId = atlas.intern(value)
+    if (!context.stringInterner) {
+      throw new Error("TYPE.STRING encoding requires EncodingContext.stringInterner")
+    }
+    const stringId = context.stringInterner.intern(value)
     return {
       value1: stringId,
       value2: 0,
@@ -143,7 +144,7 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
       // Кодируем и записываем элементы
       const elementType = context.subType ?? TYPE.FLOAT
       for (let i = 0; i < arr.length; i++) {
-        const itemCtx: EncodingContext = { type: elementType }
+        const itemCtx: EncodingContext = { type: elementType, stringInterner: context.stringInterner }
         context.heap[ptr + 1 + i] = encodeValue(arr[i], itemCtx).value1
       }
       return { value1: ptr, value2: 0 }
@@ -162,8 +163,6 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
  * Закодировать значение поля для heap.
  *
  * @remarks
- * **Чистая функция:** Не имеет side effects.
- *
  * Обёртка над `encodeValue()` для упрощения кодирования полей.
  * Возвращает только `value1` (первое слово encoded значения).
  *

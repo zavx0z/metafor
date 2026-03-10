@@ -1,6 +1,5 @@
 import { ensureGPUDevice, resolveMatrixMode } from "./device"
 import type { MatrixRuntimeInitContext, MatrixRuntimeSelection } from "./matrix.t"
-import { getStringAtlas } from "../atlas"
 
 /**
  * Создаёт runtime матрицы (CPU/GPU) через динамический импорт.
@@ -14,7 +13,7 @@ export async function createMatrixRuntime(context: MatrixRuntimeInitContext): Pr
       throw new Error("GPU mode выбран, но GPU-устройство не инициализировано.")
     }
     const { GPUMatrixRuntime } = await import("./gpu")
-    const runtime = await GPUMatrixRuntime.create(device, context.params, getStringAtlas().exportData())
+    const runtime = await GPUMatrixRuntime.create(device, context.params, context.stringTable)
     return { mode, runtime }
   }
 

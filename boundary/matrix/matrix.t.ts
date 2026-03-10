@@ -1,5 +1,5 @@
-
 import type { MatrixMode } from "./store.t.ts"
+import type { StoredStringTable } from "../fields/stored.t"
 
 /**
  * Параметры инициализации runtime матрицы.
@@ -54,6 +54,7 @@ export interface MatrixRuntime {
  */
 export interface MatrixRuntimeInitContext {
   params: MatrixInitParams
+  stringTable: StoredStringTable
 }
 
 /**

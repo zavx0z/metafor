@@ -1,14 +1,37 @@
 /**
  * Тесты для prepareData.
  */
-import { test, expect, describe, beforeEach } from "bun:test"
-import { prepareData } from "../boundary"
-import { resetStringAtlas } from "../atlas"
+import { test, expect, describe } from "bun:test"
+import { flattenBoundaryData, prepareData } from "../boundary"
 import { FieldType, type Data } from "../fields/index.t"
+import { OP } from "../fields/opcodes"
 
 describe("prepareData — подготовка общих данных выполнения", () => {
-  beforeEach(() => {
-    resetStringAtlas()
+  test("Boundary flattening должен переводить nested conditions в parsed checks", () => {
+    const data: Data = {
+      fields: [{ type: FieldType.F32 }],
+      branes: [{
+        values: [[0, 100]],
+        state: 0,
+        collapses: [[[1, { 0: { gt: 50, lte: 100 } }]], [null]],
+      }],
+    }
+
+    const flattened = flattenBoundaryData(data)
+
+    expect(flattened.branes).toHaveLength(1)
+    expect(flattened.branes[0]?.transitions[0]?.[0]).toEqual({
+      targetState: 1,
+      conditions: [
+        {
+          fieldIndex: 0,
+          checks: [
+            { op: OP.GT, val: 50 },
+            { op: OP.LTE, val: 100 },
+          ],
+        },
+      ],
+    })
   })
 
   test("должен подготовить данные для 1 браны с 1 полем", () => {
@@ -22,10 +45,10 @@ describe("prepareData — подготовка общих данных выпо�
     }
     const result = prepareData(data)
 
-    expect(result.heapData).toBeInstanceOf(Uint32Array)
-    expect(result.heapData.length).toBeGreaterThan(0)
-    expect(result.compiledRules.bytecode).toBeInstanceOf(Uint32Array)
-    expect(result.initialStates).toHaveLength(1)
+    expect(result.heap).toBeInstanceOf(Uint32Array)
+    expect(result.heap.length).toBeGreaterThan(0)
+    expect(result.bytecode).toBeInstanceOf(Uint32Array)
+    expect(result.states).toHaveLength(1)
   })
 
   test("должен подготовить данные с entanglement только из prepared projection", () => {
@@ -62,14 +85,19 @@ describe("prepareData — подготовка общих данных выпо�
     }
     const result = prepareData(data)
 
-    expect(result.heapData).toBeInstanceOf(Uint32Array)
-    expect(result.heapLayout.blockPtrs).toHaveLength(2)
+    expect(result.heap).toBeInstanceOf(Uint32Array)
+    expect(result.blockPtrs).toHaveLength(2)
   })
 
-  test("должен интернировать строки через StringAtlas", () => {
+  test("Fields должен дедуплицировать строки в canonical string table", () => {
     const data: Data = {
       fields: [{ type: FieldType.STRING_PTR }],
       branes: [
+        {
+          values: [[0, "hello"]],
+          state: 0,
+          collapses: [[[1, { 0: { eq: "hello" } }]], [null]],
+        },
         {
           values: [[0, "hello"]],
           state: 0,
@@ -79,8 +107,9 @@ describe("prepareData — подготовка общих данных выпо�
     }
     const result = prepareData(data)
 
-    expect(result.heapData).toBeInstanceOf(Uint32Array)
-    expect(result.heapLayout.blockPtrs).toHaveLength(1)
+    expect(result.heap).toBeInstanceOf(Uint32Array)
+    expect(result.blockPtrs).toHaveLength(2)
+    expect(result.stringTable.values.filter((value) => value === "hello")).toHaveLength(1)
   })
 
   test("должен рассчитать arrayReserveSize для ARRAY полей", () => {
@@ -97,6 +126,6 @@ describe("prepareData — подготовка общих данных выпо�
     const result = prepareData(data)
 
     expect(result.arrayReserveSize).toBeGreaterThan(0)
-    expect(result.heapData.length).toBeGreaterThan(result.heapLayout.blockPtrs[0]!)
+    expect(result.heap.length).toBeGreaterThan(result.blockPtrs[0]!)
   })
 })
