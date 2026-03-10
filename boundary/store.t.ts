@@ -8,17 +8,17 @@ import type { ConditionOperator } from "./fields/condition.t"
 import type { FieldTypeValue } from "./fields/index.t"
 
 /**
- * Canonical field schema record stored in Boundary store.
+ * Каноническая запись схемы поля, хранящаяся в Boundary store.
  *
  * Это единственный источник истины о схеме полей.
- * Все runtime интерпретации должны читать из этого record.
+ * Все runtime-интерпретации читают схему только отсюда.
  */
 export interface BoundaryFieldRecord {
-  /** Field type (F32, U32, BOOL, STRING_PTR, ARRAY_PTR). */
+  /** Тип поля: `F32`, `U32`, `BOOL`, `STRING_PTR`, `ARRAY_PTR`. */
   type: FieldTypeValue
-  /** Element type for ARRAY_PTR fields. */
+  /** Тип элементов для `ARRAY_PTR`-поля. */
   elementType?: "number" | "string" | "boolean"
-  /** Optional enum values for constrained fields. */
+  /** Допустимые enum-значения, если поле ограничено перечислением. */
   enum?: unknown[]
 }
 
@@ -63,44 +63,44 @@ export interface BoundaryBraneRecord {
 }
 
 /**
- * Canonical global Boundary store.
+ * Каноническое глобальное хранилище Boundary.
  *
  * Это единственный источник истины для Matrix.
- * Store остаётся flat/index-based/readable в JS и не хранит packed
- * execution layout как canonical truth.
+ * Store остаётся плоским, индексным и читаемым в JS и не хранит packed
+ * execution layout как каноническую форму.
  */
 export interface BoundaryData {
   /** Минимальная field metadata table, которую читает Matrix. */
   fields: BoundaryFieldRecord[]
 
-  /** Canonical deduplicated string table. Индекс = stable string ID. */
+  /** Каноническая дедуплицированная таблица строк. Индекс = стабильный string id. */
   stringTable: string[]
 
-  /** Deduplicated shared field blocks for entangled branes. */
+  /** Дедуплицированные shared-блоки полей для entangled-бран. */
   sharedBlocks: BoundarySharedBlockRecord[]
 
-  /** Shared field values referenced by shared block descriptors. */
+  /** Shared-значения полей, на которые ссылаются дескрипторы shared-блоков. */
   sharedValues: BoundaryFieldValueRecord[]
 
-  /** Flat brane records with value/state/shared ranges and runtime lock. */
+  /** Плоские записи бран с диапазонами значений, состояний, shared-ссылок и lock-флагом. */
   branes: BoundaryBraneRecord[]
 
-  /** Mutable brane-local field values. */
+  /** Изменяемые локальные значения полей бран. */
   braneValues: BoundaryFieldValueRecord[]
 
-  /** Flat brane -> shared block references. */
+  /** Плоские ссылки `brane -> shared block`. */
   braneSharedBlockRefs: number[]
 
-  /** Canonical static state graph referenced by branes via offsets. */
+  /** Канонический статический граф состояний, на который браны ссылаются через offsets. */
   stateTable: BoundaryStateRecord[]
 
-  /** Canonical transition table referenced by state records. */
+  /** Каноническая таблица переходов, на которую ссылаются записи состояний. */
   transitions: BoundaryTransitionRecord[]
 
-  /** Canonical condition table referenced by transition records. */
+  /** Каноническая таблица условий, на которую ссылаются записи переходов. */
   conditions: BoundaryConditionRecord[]
 
-  /** Runtime state snapshot written and updated by Matrix. */
+  /** Снимок runtime-состояний, который Matrix пишет обратно в канонический store. */
   states: number[]
 }
 

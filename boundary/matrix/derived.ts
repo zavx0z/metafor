@@ -1,8 +1,8 @@
 /**
- * @boundary/matrix/derived — derive packed execution forms from canonical Boundary store.
+ * @boundary/matrix/derived — вывод производных execution-форм из канонического Boundary store.
  *
- * Этот модуль трансформирует canonical stored data в packed execution forms
- * для GPU runtime. Все функции чистые и не мутируют внешнее состояние.
+ * Этот модуль превращает канонические stored data в packed execution forms
+ * для GPU runtime. Все функции здесь чистые и не мутируют внешнее состояние.
  *
  * @packageDocumentation
  */
@@ -32,7 +32,7 @@ export interface DerivedMatrixData {
 }
 
 /**
- * Создать meta map для field encoding.
+ * Собирает метаданные полей для derived encoding.
  */
 function createFieldMetaMap(fields: BoundaryFieldRecord[]): Map<number, { fieldType: number; fieldSize: number }> {
   const meta = new Map<number, { fieldType: number; fieldSize: number }>()
@@ -79,7 +79,7 @@ function groupTransitionConditions(
 }
 
 /**
- * Конвертировать canonical transitions в flattened format для bytecode компиляции.
+ * Преобразует канонические transitions в flattened-форму для компиляции bytecode.
  */
 function toFlattenedTransitions(store: BoundaryData): Array<{ transitions: FlattenedTransition[][] }> {
   return store.branes.map((brane) => ({

@@ -5,10 +5,10 @@
  */
 
 import { matrixHeapUpdate, matrixInit, matrixRunStep, matrixStoreReset } from "./matrix"
-import { createStringAtlasExport } from "./matrix/gpu/string-pack"
 import { deriveMatrixData } from "./matrix/derived"
 import { findBraneFieldRecord } from "./store.access"
 import { boundary$ } from "./store"
+import { createStringAtlasExport } from "./string-pack"
 import type {
   BoundaryData,
   BoundaryFieldValueRecord,
@@ -81,6 +81,12 @@ interface MatrixStateInternal {
   }
 }
 
+/**
+ * Возвращает производный снимок состояния Matrix для debug/export.
+ *
+ * Этот снимок не является канонической truth-моделью. Он каждый раз
+ * заново выводится из канонического Boundary store.
+ */
 export function getMatrixState(): MatrixStateInternal {
   const derived = deriveMatrixData(boundary$)
   const atlasExport = createStringAtlasExport(boundary$.stringTable)

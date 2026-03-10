@@ -10,8 +10,7 @@ import { createMatrixRuntime } from "./runtime"
 /**
  * Инициализирует runtime матрицы и фиксирует выбранную среду.
  *
- * @param store$ - Общее хранилище `@boundary/boundary` с heap и bytecode.
- * @param params - Подготовленные данные для запуска matrix runtime.
+ * @param store$ - Каноническое хранилище `Boundary`, из которого runtime читает данные.
  * @internal
  */
 export async function matrixInit(
@@ -71,9 +70,10 @@ export async function matrixReadChanges(): Promise<MatrixChanges> {
 }
 
 /**
- * Синхронизирует обновления heap с активной средой матрицы.
+ * Синхронизирует канонические обновления store с активной средой матрицы.
  *
- * @param updates - Изменённые слова heap.
+ * CPU читает канонический store напрямую. GPU локально переводит эти обновления
+ * в частичную синхронизацию своих производных буферов.
  */
 export function matrixHeapUpdate(updates: MatrixHeapUpdate[]): void {
   if (!store.initialized) throw new Error("Matrix not initialized")

@@ -1,8 +1,8 @@
 /**
- * @boundary/matrix/pack — локальное кодирование значений для GPU execution.
+ * @boundary/matrix/pack — matrix-local кодирование значений для производных execution-форм.
  *
- * Этот модуль содержит функции для encoding/packing значений, необходимые
- * для deriveMatrixData и GPU runtime.
+ * Этот модуль кодирует значения из канонического Boundary store в формы,
+ * которые нужны derived packing и GPU runtime. Канонический store он не меняет.
  *
  * @packageDocumentation
  */
@@ -11,7 +11,7 @@ import type { BoundaryFieldRecord, BoundaryValue } from "../store.t"
 import { FIELD_TYPE, VALUE_TYPE } from "./constants"
 
 /**
- * Encoding context для кодирования значений.
+ * Контекст кодирования значения для derived packing.
  */
 export interface PackContext {
   type: number
@@ -23,7 +23,7 @@ export interface PackContext {
 }
 
 /**
- * Результат кодирования значения.
+ * Результат кодирования одного значения.
  */
 export interface EncodedValue {
   value1: number
@@ -31,9 +31,7 @@ export interface EncodedValue {
 }
 
 /**
- * fieldTypeToBytecodeType — маппинг field type в bytecode type.
- *
- * Это чистая функция конвертации.
+ * Преобразует тип поля из канонической схемы в execution-тип Matrix.
  */
 export function fieldTypeToBytecodeType(fieldType: BoundaryFieldRecord["type"]): number {
   switch (fieldType) {
@@ -53,7 +51,7 @@ export function fieldTypeToBytecodeType(fieldType: BoundaryFieldRecord["type"]):
 }
 
 /**
- * Создать pack context для поля.
+ * Создаёт контекст кодирования для конкретного поля канонической схемы.
  */
 export function createPackContext(
   field: BoundaryFieldRecord,
@@ -96,12 +94,12 @@ export function createPackContext(
 }
 
 /**
- * Кодировать значение для GPU heap.
+ * Кодирует значение из канонического store в derived execution-форму.
  *
- * Это чистая функция — не мутирует внешнее состояние.
+ * Это чистая функция: она не меняет канонический store и пишет только в
+ * переданные derived-буферы, если они явно указаны в контексте.
  */
 export function encodeValue(value: BoundaryValue, ctx: PackContext): EncodedValue {
-  // Enum handling
   if (ctx.enum) {
     if (value === null || value === 0) {
       return { value1: 0, value2: 0 }
@@ -116,18 +114,15 @@ export function encodeValue(value: BoundaryValue, ctx: PackContext): EncodedValu
     return { value1: idx, value2: 0 }
   }
 
-  // Float encoding
   if (ctx.type === VALUE_TYPE.FLOAT) {
     const buf = new Float32Array([Number(value)])
     return { value1: new Uint32Array(buf.buffer)[0]!, value2: 0 }
   }
 
-  // Bool encoding
   if (ctx.type === VALUE_TYPE.BOOL) {
     return { value1: value ? 1 : 0, value2: 0 }
   }
 
-  // String encoding (string ID)
   if (ctx.type === VALUE_TYPE.STRING) {
     if (value === null || value === 0) {
       return { value1: 0, value2: 0 }
@@ -138,11 +133,9 @@ export function encodeValue(value: BoundaryValue, ctx: PackContext): EncodedValu
     if (typeof value !== "string") {
       throw new Error(`Expected string for VALUE_TYPE.STRING, got ${typeof value}`)
     }
-    // Value is already a string ID from canonical store
     return { value1: value as number, value2: 0 }
   }
 
-  // Array encoding
   if (ctx.type === VALUE_TYPE.ARRAY) {
     if (!Array.isArray(value)) {
       throw new Error(`Expected array for VALUE_TYPE.ARRAY, got ${typeof value}`)
@@ -175,6 +168,5 @@ export function encodeValue(value: BoundaryValue, ctx: PackContext): EncodedValu
     return { value1: 0, value2: 0 }
   }
 
-  // Default: numeric value
   return { value1: Number(value), value2: 0 }
 }

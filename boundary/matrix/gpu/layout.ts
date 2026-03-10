@@ -1,4 +1,4 @@
-import { createStringAtlasExport } from "./string-pack"
+import { createStringAtlasExport } from "../../string-pack"
 
 export function createUniforms(braneCount: number): Uint32Array {
   return new Uint32Array([braneCount, 0, 0, 0])

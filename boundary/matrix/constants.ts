@@ -8,7 +8,7 @@
  */
 
 /**
- * Field type ids stored in canonical Boundary schema.
+ * Идентификаторы типов полей, которые записаны в канонической схеме Boundary store.
  */
 export const FIELD_TYPE = {
   F32: 0,
@@ -19,7 +19,7 @@ export const FIELD_TYPE = {
 } as const
 
 /**
- * Value type ids expected by GPU bytecode / heap layout.
+ * Идентификаторы execution-типов, которые ожидают bytecode и derived heap Matrix.
  */
 export const VALUE_TYPE = {
   FLOAT: 0,
@@ -30,9 +30,9 @@ export const VALUE_TYPE = {
 } as const
 
 /**
- * Condition op ids used by Matrix execution.
+ * Идентификаторы операций условий, которые использует Matrix execution.
  *
- * Значения должны совпадать с canonical conditions, которые пишет Fields.
+ * Значения должны совпадать с каноническими условиями, которые записывает Fields.
  */
 export const CONDITION_OP = {
   EQ: 0,

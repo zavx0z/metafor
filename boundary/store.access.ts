@@ -7,10 +7,16 @@ import type {
   BoundaryValue,
 } from "./store.t"
 
+/**
+ * Читает запись браны из канонического Boundary store.
+ */
 function getBrane(store: BoundaryData, braneIndex: number): BoundaryBraneRecord | undefined {
   return store.branes[braneIndex]
 }
 
+/**
+ * Читает shared-блок из канонического Boundary store.
+ */
 function getSharedBlock(store: BoundaryData, blockIndex: number): BoundarySharedBlockRecord | undefined {
   return store.sharedBlocks[blockIndex]
 }
@@ -19,6 +25,11 @@ export type BoundaryFieldStorageLocation =
   | { scope: "local"; record: BoundaryFieldValueRecord }
   | { scope: "shared"; blockIndex: number; record: BoundaryFieldValueRecord }
 
+/**
+ * Находит фактическое место хранения поля браны в каноническом store.
+ *
+ * Возвращает либо локальную запись, либо shared-запись вместе с индексом shared-блока.
+ */
 export function findBraneFieldLocation(
   store: BoundaryData,
   braneIndex: number,
@@ -61,6 +72,9 @@ export function findBraneFieldLocation(
   return undefined
 }
 
+/**
+ * Находит запись поля браны независимо от того, локальная она или shared.
+ */
 export function findBraneFieldRecord(
   store: BoundaryData,
   braneIndex: number,
@@ -69,6 +83,9 @@ export function findBraneFieldRecord(
   return findBraneFieldLocation(store, braneIndex, fieldIndex)?.record
 }
 
+/**
+ * Читает текущее значение поля браны из канонического store.
+ */
 export function readBraneFieldValue(
   store: BoundaryData,
   braneIndex: number,
@@ -77,6 +94,9 @@ export function readBraneFieldValue(
   return findBraneFieldRecord(store, braneIndex, fieldIndex)?.value
 }
 
+/**
+ * Возвращает запись состояния браны по индексу внутри её state graph.
+ */
 export function getBraneStateRecord(
   store: BoundaryData,
   braneIndex: number,

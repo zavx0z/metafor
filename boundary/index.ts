@@ -14,7 +14,7 @@
  *
  * - Ре-экспорт API из @boundary/boundary
  * - Ре-экспорт типов из @boundary/boundary
- * - Сокрытие внутренней реализации (runtime, store, atlas, fields)
+ * - Сокрытие внутренней реализации (runtime, canonical store, подготовка данных)
  *
  * @example
  * ```typescript
