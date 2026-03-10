@@ -49,7 +49,7 @@ export class GPUMatrixRuntime implements MatrixRuntime {
 
   clear(): void {
     destroyBuffers([
-      this.context.buffers.braneDescriptors,
+      this.context.buffers.braneBlockPtrs,
       this.context.buffers.heap,
       this.context.buffers.states,
       this.context.buffers.dirtyFlags,

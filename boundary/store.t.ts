@@ -34,7 +34,7 @@ export interface BoundaryData {
    * Индекс массива = индекс браны.
    * Значение = позиция в массиве bytecode где начинаются инструкции этой браны.
    *
-   * Нужно для построения `braneDescriptors` при инициализации GPU.
+   * Нужно для GPU runtime как отдельная таблица смещений bytecode.
    *
    * ## Кто использует
    *
@@ -42,7 +42,7 @@ export interface BoundaryData {
    * |-------|------------|
    * | `@boundary/fields`/`compileEnsemble()` | Вычисляет смещения для каждой браны |
    * | `@boundary/fields`/`write()` | Сохраняет через `boundary$.restore()` |
-   * | `@boundary/matrix` | Использует для построения `braneDescriptors` |
+   * | `@boundary/matrix` | Загружает как отдельный GPU-буфер `bytecodeOffsets` |
    */
   bytecodeOffsets: Uint32Array
 

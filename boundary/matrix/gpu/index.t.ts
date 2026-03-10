@@ -1,7 +1,7 @@
 import type { MatrixChanges } from "../matrix.t.ts"
 
 export interface GpuBufferMap {
-  braneDescriptors: GPUBuffer
+  braneBlockPtrs: GPUBuffer
   heap: GPUBuffer
   states: GPUBuffer
   dirtyFlags: GPUBuffer

@@ -1,84 +1,99 @@
-
 ### Goal
 
-Correct the Matrix input contract so that the shared Matrix entry point contains only canonical common execution input, while GPU-local derived materialization is created only after backend branching.
+Finish the Matrix GPU cleanup after the shared-input refactor by removing stale protocol inconsistencies, eliminating unnecessary duplication, and aligning the GPU data layout, WGSL implementation, and documentation around the most efficient runtime representation.
 
 ### Context
 
-The current Matrix initialization flow mixes two layers:
+The shared Matrix input was already corrected and now properly carries canonical common execution input through:
 
-- common prepared execution input
-- GPU-specific branch-local materialization
+- `heap`
+- `states`
+- `bytecode`
+- `bytecodeOffsets`
+- `blockPtrs`
 
-Current repository behavior shows:
+That part must remain intact.
 
-- `MatrixInitParams` includes `bytecode`, `bytecodeOffsets`, `states`, `braneDescriptors`, and `heap`
-- `blockPtrs` is passed separately through `MatrixRuntimeInitContext`
-- CPU runtime actually needs `heap`, `states`, `bytecode`, `bytecodeOffsets`, and `blockPtrs`
-- GPU runtime additionally needs GPU-local derived structures and string atlas buffers
-- `braneDescriptors` is currently built before backend branching even though it is a GPU-oriented derived representation
-- both CPU and GPU execute directly from `bytecode` and `bytecodeOffsets`; there is no separate canonical transition IR today
+However, the current GPU implementation is still internally inconsistent:
 
-The shared Matrix input is therefore defined incorrectly:
-- a shared item is missing from the canonical contract (`blockPtrs`)
-- a GPU-local derived item is incorrectly included in the shared contract (`braneDescriptors`)
+- `gpu/init.ts` builds `braneDescriptors` from both `blockPtrs` and `bytecodeOffsets`
+- `gpu/evolution.wgsl` reads `block_ptr` from `brane_descriptors`, but reads `bytecode_base` from the separate `bytecode_offsets` buffer
+- `boundary/matrix/README.md` still documents `braneDescriptors` as `[block_ptr, bytecode_offset, ...]`
+- README also contains at least one behavior mismatch with WGSL around lock handling
+
+This means the repository currently has an unresolved mismatch between:
+- actual WGSL consumption
+- GPU runtime materialization
+- documented GPU protocol
+
+From the current code path, there is real duplication of `bytecode_offset` data inside GPU-local materialization, even though the shared Matrix contract is already correct.
+
+The cleanup must choose one coherent GPU representation and then align code and documentation to that decision.
 
 ### Required Actions
 
-1. Update the shared Matrix initialization types so the canonical common Matrix input includes:
-   - `heap`
-   - `states`
-   - `bytecode`
-   - `bytecodeOffsets`
-   - `blockPtrs`
+1. Inspect the current GPU runtime data path end to end, including:
+   - `boundary/matrix/gpu/init.ts`
+   - `boundary/matrix/gpu/index.ts`
+   - `boundary/matrix/gpu/pipeline.ts`
+   - `boundary/matrix/gpu/evolution.wgsl`
+   - `boundary/matrix/README.md`
 
-2. Remove `braneDescriptors` from the shared Matrix input contract.
+2. Determine the minimal GPU-local representation that is best for the current runtime from the standpoint of:
+   - allocation cost
+   - upload cost
+   - runtime memory footprint
+   - direct indexed access in WGSL
+   - consistency with the existing execution model
 
-3. Refactor Matrix runtime initialization so:
-   - CPU runtime receives the shared input directly
-   - GPU runtime derives `braneDescriptors` only inside the GPU branch, after backend selection
-   - GPU-only inputs remain GPU-local and do not shape the shared Matrix contract
+3. Based on that determination, make the GPU representation fully coherent.
+   Choose one model and remove the other:
+   - either keep separate specialized buffers and remove redundant packed data,
+   - or keep one packed GPU descriptor representation and remove the redundant separate offset source.
 
-4. Keep `atlasExport` out of the canonical shared Matrix input shape.
-   It may still be passed into the GPU creation path as backend-local materialization input, but it must not define or pollute the shared execution contract.
+4. Remove all stale GPU-local duplication and dead protocol remnants related to the old descriptor layout.
 
-5. Update the relevant Matrix runtime wiring and helper code so the new contract is consistently used across:
-   - Matrix type definitions
-   - `matrixInit`
-   - `createMatrixRuntime`
-   - CPU runtime creation
-   - GPU runtime creation and GPU init helpers
+5. Align WGSL helper logic and comments with the actual chosen GPU buffer model.
 
-6. Remove or relocate any helper that exists only to precompute `braneDescriptors` before branching.
-   If a descriptor builder is still needed, keep it inside the GPU implementation boundary.
+6. Update GPU init helpers, buffer types, bind group wiring, and related naming so they describe the real representation and no longer imply an outdated layout.
 
-7. Update tests that assume the old input shape so they validate the corrected contract and still verify CPU/GPU parity.
+7. Update `boundary/matrix/README.md` so it matches the actual implementation exactly, including:
+   - real buffer structure
+   - real source of `block_ptr`
+   - real source of `bytecode_offset`
+   - actual lock behavior in the shader
+   - any other protocol details that currently diverge from code
 
-8. Run the relevant test suite and verify that:
-   - CPU runtime still behaves the same
-   - GPU runtime still behaves the same
-   - shared Matrix behavior remains unchanged
-   - the contract no longer exposes GPU-local derived input as shared input
+8. Verify that no old pre-refactor assumptions remain in Matrix-related code paths, especially:
+   - no GPU packaging convenience leaking back into shared Matrix input
+   - no stale descriptor builders outside the GPU branch
+   - no leftover comments or helper names that describe removed protocol shapes
+
+9. Run the relevant Matrix tests and confirm that:
+   - CPU behavior remains unchanged
+   - GPU behavior remains unchanged unless explicitly corrected by the chosen cleanup
+   - CPU/GPU parity still holds
+   - the final GPU protocol is internally consistent and free from obsolete duplicated paths
 
 ### Constraints
 
+- Do not reintroduce `braneDescriptors` or any other GPU-specific derived structure into the shared Matrix input contract.
+- Do not change the canonical shared Matrix input shape unless strictly required by a proven implementation issue.
 - Do not introduce a new transition IR.
-- Do not change transition semantics.
-- Do not change entanglement ownership or move preparation back into `boundary/fields`.
-- Do not expand the refactor beyond Matrix input contract correction and the minimum related wiring.
-- Do not keep `braneDescriptors` in the shared contract for convenience.
-- Do not remove `atlasExport` from GPU materialization if GPU still needs it internally.
-- Preserve the single shared runtime contract for CPU and GPU.
+- Do not change FSM semantics unless fixing a proven implementation/documentation mismatch that already exists.
+- Do not leave the repository in a mixed state where README, WGSL, and runtime wiring describe different GPU protocols.
+- Do not preserve duplicated GPU-local data without a justified performance reason grounded in the current implementation.
+- Keep the change limited to Matrix GPU cleanup and related documentation alignment.
 
 ### Expected Result
 
-Matrix has one corrected common prepared input contract based on real shared execution needs.
+The Matrix shared input contract remains clean and unchanged, while the GPU runtime becomes internally consistent.
 
 After completion:
 
-- `blockPtrs` is part of the shared Matrix input
-- `braneDescriptors` is no longer part of the shared Matrix input
-- GPU derives its own descriptor representation only after branching
-- CPU and GPU still execute from the same canonical prepared execution model
-- runtime behavior and parity remain intact
-- the Matrix entry point no longer reflects GPU packaging convenience instead of true shared input
+- GPU uses one coherent representation for brane execution metadata
+- redundant GPU-local duplication is removed
+- WGSL, runtime wiring, helper naming, and documentation all describe the same protocol
+- no stale legacy descriptor assumptions remain
+- Matrix CPU/GPU behavior stays aligned
+- the repository no longer contains misleading or obsolete GPU protocol code after the last refactor

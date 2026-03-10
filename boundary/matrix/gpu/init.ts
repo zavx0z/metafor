@@ -6,11 +6,10 @@ import { createUniforms, resolveAtlasBuffers } from "./layout"
 import { createBindGroup, createComputePipeline } from "./pipeline"
 import { debugLog } from "./debug"
 
-function createBraneDescriptors(blockPtrs: number[], bytecodeOffsets: Uint32Array): Uint32Array {
-  const descriptors = new Uint32Array(blockPtrs.length * 2)
+function createBraneBlockPtrs(blockPtrs: number[]): Uint32Array {
+  const descriptors = new Uint32Array(blockPtrs.length)
   for (let i = 0; i < blockPtrs.length; i++) {
-    descriptors[i * 2] = blockPtrs[i] ?? 0
-    descriptors[i * 2 + 1] = bytecodeOffsets[i] ?? 0
+    descriptors[i] = blockPtrs[i] ?? 0
   }
   return descriptors
 }
@@ -26,9 +25,9 @@ export function createGpuRuntimeContext(
   const pipeline = createComputePipeline(device, shaderSource)
 
   const atlas = resolveAtlasBuffers(atlasExport)
-  const braneDescriptors = createBraneDescriptors(params.blockPtrs, params.bytecodeOffsets)
+  const braneBlockPtrs = createBraneBlockPtrs(params.blockPtrs)
   const buffers: GpuBufferMap = {
-    braneDescriptors: createStorageBuffer(device, braneDescriptors),
+    braneBlockPtrs: createStorageBuffer(device, braneBlockPtrs),
     heap: createStorageBuffer(device, params.heap),
     states: createStorageBuffer(device, params.states, true),
     dirtyFlags: createBuffer(

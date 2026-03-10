@@ -51,7 +51,7 @@ struct Uniforms {
 }
 
 @group(0) @binding(0)
-var<storage, read> brane_descriptors: array<u32>;
+var<storage, read> brane_block_ptrs: array<u32>;
 @group(0) @binding(1)
 var<storage, read_write> heap: array<u32>;
 @group(0) @binding(2)
@@ -85,13 +85,13 @@ fn heap_safe(index: u32) -> u32 {
 }
 
 /**
- * Безопасный доступ к brane_descriptors с проверкой границ.
+ * Безопасный доступ к brane_block_ptrs с проверкой границ.
  */
-fn brane_descriptors_safe(index: u32) -> u32 {
-  if (index >= arrayLength(&brane_descriptors)) {
+fn brane_block_ptrs_safe(index: u32) -> u32 {
+  if (index >= arrayLength(&brane_block_ptrs)) {
     return 0u;
   }
-  return brane_descriptors[index];
+  return brane_block_ptrs[index];
 }
 
 /**
@@ -204,8 +204,7 @@ fn string_in_list(string_id: u32, abs_list_ptr: u32) -> bool {
 }
 
 fn get_field_block_ptr(brane_index: u32) -> u32 {
-  // brane_descriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
-  return brane_descriptors_safe(brane_index * 2u);
+  return brane_block_ptrs_safe(brane_index);
 }
 
 fn get_local_field_count(block_ptr: u32) -> u32 {
@@ -543,7 +542,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
   }
 
   // Получаем указатель на блок браны
-  let block_ptr = brane_descriptors[idx * 2u];
+  let block_ptr = brane_block_ptrs_safe(idx);
 
   // Проверка флага блокировки (3-е слово заголовка)
   let lock = heap_safe(block_ptr + 2u);
@@ -554,8 +553,7 @@ fn main(@builtin(global_invocation_id) id: vec3<u32>) {
   let current_state = states[idx];
   var next_state = current_state;
 
-  // Получаем смещение bytecode для этого поля
-  // brane_descriptors: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...]
+  // Смещение bytecode хранится в отдельном специализированном буфере.
   let bytecode_base = bytecode_offsets[idx];
 
   // Таблица состояний всегда в начале bytecode (offset 0)

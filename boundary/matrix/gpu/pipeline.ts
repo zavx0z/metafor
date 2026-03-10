@@ -12,7 +12,7 @@ export function createBindGroup(device: GPUDevice, pipeline: GPUComputePipeline,
   return device.createBindGroup({
     layout: pipeline.getBindGroupLayout(0),
     entries: [
-      { binding: 0, resource: { buffer: buffers.braneDescriptors } },
+      { binding: 0, resource: { buffer: buffers.braneBlockPtrs } },
       { binding: 1, resource: { buffer: buffers.heap } },
       { binding: 2, resource: { buffer: buffers.states } },
       { binding: 3, resource: { buffer: buffers.bytecode } },
