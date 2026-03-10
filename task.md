@@ -1,99 +1,57 @@
 ### Goal
 
-Finish the Matrix GPU cleanup after the shared-input refactor by removing stale protocol inconsistencies, eliminating unnecessary duplication, and aligning the GPU data layout, WGSL implementation, and documentation around the most efficient runtime representation.
+Perform the final documentation cleanup after the Matrix GPU protocol refactor so that the remaining docs and nearby comments exactly match the current implementation.
 
 ### Context
 
-The shared Matrix input was already corrected and now properly carries canonical common execution input through:
+The GPU cleanup has already been completed correctly in code:
 
-- `heap`
-- `states`
-- `bytecode`
-- `bytecodeOffsets`
-- `blockPtrs`
+- packed `braneDescriptors` was replaced by `braneBlockPtrs`
+- `bytecodeOffsets` remains a separate specialized GPU buffer
+- WGSL, bind group wiring, and GPU runtime types now follow that model
 
-That part must remain intact.
+The remaining issue is a small documentation inconsistency and a final sweep for stale wording.
 
-However, the current GPU implementation is still internally inconsistent:
+Confirmed remaining mismatch:
 
-- `gpu/init.ts` builds `braneDescriptors` from both `blockPtrs` and `bytecodeOffsets`
-- `gpu/evolution.wgsl` reads `block_ptr` from `brane_descriptors`, but reads `bytecode_base` from the separate `bytecode_offsets` buffer
-- `boundary/matrix/README.md` still documents `braneDescriptors` as `[block_ptr, bytecode_offset, ...]`
-- README also contains at least one behavior mismatch with WGSL around lock handling
+- `boundary/matrix/README.md` now says the GPU runtime uses **9 GPU buffers** plus one `stagingBuffer`
+- but later in the initialization flow section it still says `Создание GPU-буферов (10 шт)`
 
-This means the repository currently has an unresolved mismatch between:
-- actual WGSL consumption
-- GPU runtime materialization
-- documented GPU protocol
-
-From the current code path, there is real duplication of `bytecode_offset` data inside GPU-local materialization, even though the shared Matrix contract is already correct.
-
-The cleanup must choose one coherent GPU representation and then align code and documentation to that decision.
+This should be cleaned up together with any nearby stale wording that may still reflect the removed packed descriptor protocol.
 
 ### Required Actions
 
-1. Inspect the current GPU runtime data path end to end, including:
-   - `boundary/matrix/gpu/init.ts`
-   - `boundary/matrix/gpu/index.ts`
-   - `boundary/matrix/gpu/pipeline.ts`
-   - `boundary/matrix/gpu/evolution.wgsl`
+1. Update `boundary/matrix/README.md` so the initialization flow no longer says `10` GPU buffers if the actual implementation now uses `9`.
+
+2. Perform a short consistency sweep of the same README and closely related Matrix GPU comments to ensure there are no remaining stale references to:
+   - packed `braneDescriptors`
+   - `[block_ptr, bytecode_offset, ...]` as the active GPU layout
+   - outdated lock behavior
+   - outdated buffer counts
+
+3. Keep the cleanup minimal:
+   - no protocol redesign
+   - no code refactor
+   - no behavior changes
+   - documentation and comment alignment only
+
+4. Verify that the final wording consistently matches the current implementation across:
    - `boundary/matrix/README.md`
-
-2. Determine the minimal GPU-local representation that is best for the current runtime from the standpoint of:
-   - allocation cost
-   - upload cost
-   - runtime memory footprint
-   - direct indexed access in WGSL
-   - consistency with the existing execution model
-
-3. Based on that determination, make the GPU representation fully coherent.
-   Choose one model and remove the other:
-   - either keep separate specialized buffers and remove redundant packed data,
-   - or keep one packed GPU descriptor representation and remove the redundant separate offset source.
-
-4. Remove all stale GPU-local duplication and dead protocol remnants related to the old descriptor layout.
-
-5. Align WGSL helper logic and comments with the actual chosen GPU buffer model.
-
-6. Update GPU init helpers, buffer types, bind group wiring, and related naming so they describe the real representation and no longer imply an outdated layout.
-
-7. Update `boundary/matrix/README.md` so it matches the actual implementation exactly, including:
-   - real buffer structure
-   - real source of `block_ptr`
-   - real source of `bytecode_offset`
-   - actual lock behavior in the shader
-   - any other protocol details that currently diverge from code
-
-8. Verify that no old pre-refactor assumptions remain in Matrix-related code paths, especially:
-   - no GPU packaging convenience leaking back into shared Matrix input
-   - no stale descriptor builders outside the GPU branch
-   - no leftover comments or helper names that describe removed protocol shapes
-
-9. Run the relevant Matrix tests and confirm that:
-   - CPU behavior remains unchanged
-   - GPU behavior remains unchanged unless explicitly corrected by the chosen cleanup
-   - CPU/GPU parity still holds
-   - the final GPU protocol is internally consistent and free from obsolete duplicated paths
+   - nearby GPU-facing comments in the touched files, if needed
 
 ### Constraints
 
-- Do not reintroduce `braneDescriptors` or any other GPU-specific derived structure into the shared Matrix input contract.
-- Do not change the canonical shared Matrix input shape unless strictly required by a proven implementation issue.
-- Do not introduce a new transition IR.
-- Do not change FSM semantics unless fixing a proven implementation/documentation mismatch that already exists.
-- Do not leave the repository in a mixed state where README, WGSL, and runtime wiring describe different GPU protocols.
-- Do not preserve duplicated GPU-local data without a justified performance reason grounded in the current implementation.
-- Keep the change limited to Matrix GPU cleanup and related documentation alignment.
+- Do not modify the shared Matrix input contract.
+- Do not change runtime logic.
+- Do not reintroduce removed protocol terminology unless it is explicitly marked as historical.
+- Do not expand beyond final doc/comment cleanup.
 
 ### Expected Result
 
-The Matrix shared input contract remains clean and unchanged, while the GPU runtime becomes internally consistent.
+The Matrix GPU cleanup is fully closed out from a repository hygiene perspective.
 
 After completion:
 
-- GPU uses one coherent representation for brane execution metadata
-- redundant GPU-local duplication is removed
-- WGSL, runtime wiring, helper naming, and documentation all describe the same protocol
-- no stale legacy descriptor assumptions remain
-- Matrix CPU/GPU behavior stays aligned
-- the repository no longer contains misleading or obsolete GPU protocol code after the last refactor
+- README buffer counts are correct
+- no stale packed-descriptor wording remains in the relevant Matrix GPU docs/comments
+- documentation and implementation describe the same protocol without leftover contradictions
