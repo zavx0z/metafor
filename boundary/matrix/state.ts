@@ -21,6 +21,9 @@ export const store: MatrixStore = {
  * Reset matrix store state.
  */
 export function matrixStoreReset(): void {
+  if (store.runtime) {
+    store.runtime.clear()
+  }
   store.runtime = null
   store.operationMutex = null
   store.initialized = false

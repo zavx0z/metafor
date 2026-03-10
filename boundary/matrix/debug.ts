@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import { unpackMeta } from "@boundary/fields"
+import { unpackMeta } from "./heap"
 import type {
   HeapStats,
   HeapBlockDump,

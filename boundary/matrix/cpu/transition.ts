@@ -1,6 +1,6 @@
-import { OP, FieldType } from "@boundary/fields"
 import { getBraneStateRecord, readBraneFieldValue } from "../../store.access"
 import type { BoundaryConditionRecord, BoundaryData, BoundaryScalarValue, BoundaryValue } from "../../store.t"
+import { CONDITION_OP, FIELD_TYPE } from "../constants"
 
 function scalarEquals(left: BoundaryScalarValue, right: BoundaryScalarValue): boolean {
   return left === right
@@ -11,24 +11,24 @@ function arrayIncludes(values: BoundaryScalarValue[], target: BoundaryScalarValu
 }
 
 function evaluateScalarCondition(value: BoundaryScalarValue, condition: BoundaryConditionRecord): boolean {
-  if (Array.isArray(condition.value) && (condition.op === OP.IN || condition.op === OP.NOT_IN)) {
+  if (Array.isArray(condition.value) && (condition.op === CONDITION_OP.IN || condition.op === CONDITION_OP.NOT_IN)) {
     const found = condition.value.some((item) => scalarEquals(value, item))
-    return condition.op === OP.IN ? found : !found
+    return condition.op === CONDITION_OP.IN ? found : !found
   }
 
   const expected = condition.value as BoundaryScalarValue
   switch (condition.op) {
-    case OP.EQ:
+    case CONDITION_OP.EQ:
       return scalarEquals(value, expected)
-    case OP.NEQ:
+    case CONDITION_OP.NEQ:
       return !scalarEquals(value, expected)
-    case OP.GT:
+    case CONDITION_OP.GT:
       return Number(value) > Number(expected)
-    case OP.LT:
+    case CONDITION_OP.LT:
       return Number(value) < Number(expected)
-    case OP.GTE:
+    case CONDITION_OP.GTE:
       return Number(value) >= Number(expected)
-    case OP.LTE:
+    case CONDITION_OP.LTE:
       return Number(value) <= Number(expected)
     default:
       return false
@@ -39,20 +39,20 @@ function evaluateArrayCondition(value: BoundaryValue | undefined, condition: Bou
   const items = Array.isArray(value) ? value : []
 
   switch (condition.op) {
-    case OP.INCLUDE:
+    case CONDITION_OP.INCLUDE:
       return arrayIncludes(items, condition.value as BoundaryScalarValue)
-    case OP.NOT_INCLUDE:
+    case CONDITION_OP.NOT_INCLUDE:
       return !arrayIncludes(items, condition.value as BoundaryScalarValue)
-    case OP.LENGTH:
+    case CONDITION_OP.LENGTH:
       return items.length === Number(condition.value)
-    case OP.IS_EMPTY:
+    case CONDITION_OP.IS_EMPTY:
       return (items.length === 0) === Boolean(condition.value)
-    case OP.EQ:
-    case OP.NEQ:
-    case OP.GT:
-    case OP.LT:
-    case OP.GTE:
-    case OP.LTE:
+    case CONDITION_OP.EQ:
+    case CONDITION_OP.NEQ:
+    case CONDITION_OP.GT:
+    case CONDITION_OP.LT:
+    case CONDITION_OP.GTE:
+    case CONDITION_OP.LTE:
       return evaluateScalarCondition(items.length, condition)
     default:
       return false
@@ -63,7 +63,7 @@ function evaluateCondition(store: BoundaryData, braneIndex: number, condition: B
   const field = store.fields[condition.fieldIndex]
   const value = readBraneFieldValue(store, braneIndex, condition.fieldIndex)
 
-  if (field?.type === FieldType.ARRAY_PTR) {
+  if (field?.type === FIELD_TYPE.ARRAY_PTR) {
     return evaluateArrayCondition(value, condition)
   }
 

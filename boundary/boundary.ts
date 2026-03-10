@@ -5,6 +5,7 @@
  */
 
 import { matrixHeapUpdate, matrixInit, matrixRunStep, matrixStoreReset } from "./matrix"
+import { createStringAtlasExport } from "./matrix/gpu/string-pack"
 import { deriveMatrixData } from "./matrix/derived"
 import { findBraneFieldRecord } from "./store.access"
 import { boundary$ } from "./store"
@@ -16,7 +17,6 @@ import type {
 import {
   assembleStoredBoundaryData,
   createStoredStringInterner,
-  createStringAtlasExport,
   normalizeFieldValue,
   parseCondition,
   validateData,
@@ -258,7 +258,6 @@ export {
   floatToUint,
   uintToFloat,
   createStoredStringInterner,
-  createStringAtlasExport,
   materializeEntanglement,
   parseCondition,
   OP,

@@ -94,6 +94,7 @@ Fields отвечает за:
 - Fields дедуплицирует строки в каноническую **string table**
 - В stored data строки представлены только **индексами**
 - Никаких GPU atlas/buffer export как канонического stored form
+- UTF-32 packing и hash registry живут только в `matrix/gpu/*`
 
 ### Matrix (execution)
 
@@ -105,6 +106,7 @@ Matrix получает stored imprint (global store) и:
 Matrix может писать в global store runtime-результаты (например, новые состояния).
 
 **Matrix НЕ хранит separate schema truth** — всё читается из `boundary$.fields`.
+**Matrix НЕ тянет implementation helpers из Fields** — derived packing живёт в `matrix/*`.
 
 ## Практический принцип (вес vs гибкость)
 
@@ -129,6 +131,7 @@ Execution packing (особенно GPU buffers) должен происходи
 6. Строки в stored data — **индексы**, а GPU конвертирует текст локально?
 7. **Нет ли внешнего fieldSchema** вне boundary store?
 8. **Нет ли packed heap/bytecode** как canonical truth?
+9. **Не протекают ли GPU string packing / heap helpers обратно в Fields?**
 
 Если хоть один пункт = "нет", изменение нарушает контракт.
 

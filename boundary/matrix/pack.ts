@@ -7,9 +7,8 @@
  * @packageDocumentation
  */
 
-import { TYPE } from "../fields/opcodes"
 import type { BoundaryFieldRecord, BoundaryValue } from "../store.t"
-import type { FieldTypeValue } from "../fields/index.t"
+import { FIELD_TYPE, VALUE_TYPE } from "./constants"
 
 /**
  * Encoding context для кодирования значений.
@@ -36,20 +35,20 @@ export interface EncodedValue {
  *
  * Это чистая функция конвертации.
  */
-export function fieldTypeToBytecodeType(fieldType: FieldTypeValue): number {
+export function fieldTypeToBytecodeType(fieldType: BoundaryFieldRecord["type"]): number {
   switch (fieldType) {
-    case 0: // FieldType.F32
-      return TYPE.FLOAT
-    case 1: // FieldType.U32
-      return TYPE.UINT
-    case 2: // FieldType.BOOL
-      return TYPE.BOOL
-    case 3: // FieldType.STRING_PTR
-      return TYPE.STRING
-    case 4: // FieldType.ARRAY_PTR
-      return TYPE.ARRAY
+    case FIELD_TYPE.F32:
+      return VALUE_TYPE.FLOAT
+    case FIELD_TYPE.U32:
+      return VALUE_TYPE.UINT
+    case FIELD_TYPE.BOOL:
+      return VALUE_TYPE.BOOL
+    case FIELD_TYPE.STRING_PTR:
+      return VALUE_TYPE.STRING
+    case FIELD_TYPE.ARRAY_PTR:
+      return VALUE_TYPE.ARRAY
     default:
-      return TYPE.UINT
+      return VALUE_TYPE.UINT
   }
 }
 
@@ -82,13 +81,13 @@ export function createPackContext(
   if (field.elementType !== undefined) {
     switch (field.elementType) {
       case "number":
-        ctx.subType = TYPE.FLOAT
+        ctx.subType = VALUE_TYPE.FLOAT
         break
       case "string":
-        ctx.subType = TYPE.STRING
+        ctx.subType = VALUE_TYPE.STRING
         break
       case "boolean":
-        ctx.subType = TYPE.BOOL
+        ctx.subType = VALUE_TYPE.BOOL
         break
     }
   }
@@ -118,18 +117,18 @@ export function encodeValue(value: BoundaryValue, ctx: PackContext): EncodedValu
   }
 
   // Float encoding
-  if (ctx.type === TYPE.FLOAT) {
+  if (ctx.type === VALUE_TYPE.FLOAT) {
     const buf = new Float32Array([Number(value)])
     return { value1: new Uint32Array(buf.buffer)[0]!, value2: 0 }
   }
 
   // Bool encoding
-  if (ctx.type === TYPE.BOOL) {
+  if (ctx.type === VALUE_TYPE.BOOL) {
     return { value1: value ? 1 : 0, value2: 0 }
   }
 
   // String encoding (string ID)
-  if (ctx.type === TYPE.STRING) {
+  if (ctx.type === VALUE_TYPE.STRING) {
     if (value === null || value === 0) {
       return { value1: 0, value2: 0 }
     }
@@ -137,16 +136,16 @@ export function encodeValue(value: BoundaryValue, ctx: PackContext): EncodedValu
       return { value1: value, value2: 0 }
     }
     if (typeof value !== "string") {
-      throw new Error(`Expected string for TYPE.STRING, got ${typeof value}`)
+      throw new Error(`Expected string for VALUE_TYPE.STRING, got ${typeof value}`)
     }
     // Value is already a string ID from canonical store
     return { value1: value as number, value2: 0 }
   }
 
   // Array encoding
-  if (ctx.type === TYPE.ARRAY) {
+  if (ctx.type === VALUE_TYPE.ARRAY) {
     if (!Array.isArray(value)) {
-      throw new Error(`Expected array for TYPE.ARRAY, got ${typeof value}`)
+      throw new Error(`Expected array for VALUE_TYPE.ARRAY, got ${typeof value}`)
     }
     const arr = value as unknown[]
 
@@ -165,7 +164,7 @@ export function encodeValue(value: BoundaryValue, ctx: PackContext): EncodedValu
       }
 
       ctx.heap[ptr] = arr.length
-      const elementType = ctx.subType ?? TYPE.FLOAT
+      const elementType = ctx.subType ?? VALUE_TYPE.FLOAT
       for (let i = 0; i < arr.length; i++) {
         const itemCtx: PackContext = { type: elementType, stringTable: ctx.stringTable }
         ctx.heap[ptr + 1 + i] = encodeValue(arr[i] as BoundaryValue, itemCtx).value1
@@ -178,19 +177,4 @@ export function encodeValue(value: BoundaryValue, ctx: PackContext): EncodedValu
 
   // Default: numeric value
   return { value1: Number(value), value2: 0 }
-}
-
-/**
- * Intern string in local table.
- * Это упрощённая версия для matrix-local string interning.
- */
-export function internString(value: string, stringTable: string[]): number {
-  const normalized = value.normalize("NFC")
-  const existing = stringTable.indexOf(normalized)
-  if (existing !== -1) {
-    return existing
-  }
-  const id = stringTable.length
-  stringTable.push(normalized)
-  return id
 }

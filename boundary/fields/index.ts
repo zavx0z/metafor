@@ -28,7 +28,7 @@ import type { EncodingContext } from "./values.t"
 import { materializeEntanglement } from "./entangled"
 import { parseCondition } from "./condition"
 import { OP, TYPE } from "./opcodes"
-import { createStoredStringInterner, createStringAtlasExport, StoredStringInterner, type StoredStringTable } from "./string-table"
+import { createStoredStringInterner, StoredStringInterner, type StoredStringTable } from "./string-table"
 import { assembleStoredBoundaryData } from "./stored"
 
 export {
@@ -52,7 +52,6 @@ export {
   materializeEntanglement,
   parseCondition,
   createStoredStringInterner,
-  createStringAtlasExport,
   StoredStringInterner,
   assembleStoredBoundaryData,
   OP,

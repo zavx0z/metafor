@@ -1,5 +1,5 @@
 /**
- * @boundary/matrix/bytecode — компиляция transition в bytecode для GPU.
+ * @boundary/matrix/bytecode — компиляция canonical transitions в GPU bytecode.
  *
  * Этот модуль содержит функции для компиляции графов состояний в линейный
  * bytecode, оптимизированный для выполнения на WebGPU.
@@ -7,8 +7,8 @@
  * @packageDocumentation
  */
 
-import { OP, TYPE } from "../fields/opcodes"
 import type { BoundaryFieldRecord, BoundaryConditionRecord, BoundaryValue } from "../store.t"
+import { CONDITION_OP, VALUE_TYPE } from "./constants"
 import { fieldTypeToBytecodeType, encodeValue, type PackContext } from "./pack"
 
 /**
@@ -89,20 +89,20 @@ export function compileParsedConditions(
     if (field?.elementType !== undefined) {
       switch (field.elementType) {
         case "number":
-          ctx.subType = TYPE.FLOAT
+          ctx.subType = VALUE_TYPE.FLOAT
           break
         case "string":
-          ctx.subType = TYPE.STRING
+          ctx.subType = VALUE_TYPE.STRING
           break
         case "boolean":
-          ctx.subType = TYPE.BOOL
+          ctx.subType = VALUE_TYPE.BOOL
           break
       }
     }
 
     let valEncoded: number
 
-    if (Array.isArray(check.val) && (check.op === OP.IN || check.op === OP.NOT_IN)) {
+    if (Array.isArray(check.val) && (check.op === CONDITION_OP.IN || check.op === CONDITION_OP.NOT_IN)) {
       const ptr = heapOffset
       heap.push(check.val.length)
       for (const v of check.val) {
@@ -112,7 +112,7 @@ export function compileParsedConditions(
             throw new Error(`Value '${v}' not found in enum: [${ctx.enum}]`)
           }
           heap.push(encodeValue(idx, ctx).value1)
-        } else if (check.fieldType === TYPE.STRING && typeof v === "string") {
+        } else if (check.fieldType === VALUE_TYPE.STRING && typeof v === "string") {
           heap.push(encodeValue(v as unknown as BoundaryValue, ctx).value1)
         } else {
           heap.push(encodeValue(v as number | boolean, ctx).value1)
@@ -155,13 +155,13 @@ function getArrayEncodingContext(
   op: number,
   fieldType: number,
 ): PackContext {
-  if (fieldType !== TYPE.ARRAY) {
+  if (fieldType !== VALUE_TYPE.ARRAY) {
     return ctx
   }
 
   if (
     ctx.subType !== undefined &&
-    (op === OP.IN || op === OP.NOT_IN)
+    (op === CONDITION_OP.IN || op === CONDITION_OP.NOT_IN)
   ) {
     const nextContext: PackContext = { type: ctx.subType, stringTable: ctx.stringTable }
     if (ctx.enum !== undefined) {
@@ -170,7 +170,7 @@ function getArrayEncodingContext(
     return nextContext
   }
 
-  const nextContext: PackContext = { type: TYPE.UINT, stringTable: ctx.stringTable }
+  const nextContext: PackContext = { type: VALUE_TYPE.UINT, stringTable: ctx.stringTable }
   if (ctx.enum !== undefined) {
     nextContext.enum = ctx.enum
   }

@@ -56,7 +56,6 @@ export {
   floatToUint,
   uintToFloat,
   createStoredStringInterner,
-  createStringAtlasExport,
   materializeEntanglement,
   parseCondition,
   OP,

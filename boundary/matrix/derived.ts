@@ -7,22 +7,20 @@
  * @packageDocumentation
  */
 
-import { TYPE } from "../fields/opcodes"
 import type {
   BoundaryConditionRecord,
   BoundaryData,
   BoundaryFieldRecord,
   BoundaryFieldValueRecord,
 } from "../store.t"
-import { buildHeap } from "../fields/heap"
+import { VALUE_TYPE, FIELD_TYPE } from "./constants"
+import { buildHeap } from "./heap"
 import {
   createPackContext,
   encodeValue,
   fieldTypeToBytecodeType,
-  type PackContext,
 } from "./pack"
 import { compileFlattenedEnsemble, type FlattenedTransition } from "./bytecode"
-import { createMatrixStringInterner } from "./string"
 
 export interface DerivedMatrixData {
   heap: Uint32Array
@@ -33,28 +31,13 @@ export interface DerivedMatrixData {
 }
 
 /**
- * Конвертировать BoundaryFieldRecord в Field definition для packing.
- */
-function toFieldDefinitions(fields: BoundaryFieldRecord[]): Array<{
-  type: number
-  elementType?: "number" | "string" | "boolean"
-  enum?: unknown[]
-}> {
-  return fields.map((field) => ({
-    type: field.type,
-    ...(field.elementType !== undefined ? { elementType: field.elementType } : {}),
-    ...(field.enum !== undefined ? { enum: field.enum } : {}),
-  }))
-}
-
-/**
  * Создать meta map для field encoding.
  */
 function createFieldMetaMap(fields: BoundaryFieldRecord[]): Map<number, { fieldType: number; fieldSize: number }> {
   const meta = new Map<number, { fieldType: number; fieldSize: number }>()
   fields.forEach((field, fieldIndex) => {
     const fieldType = fieldTypeToBytecodeType(field.type)
-    const fieldSize = fieldType === TYPE.STRING || fieldType === TYPE.ARRAY ? 2 : 1
+    const fieldSize = fieldType === VALUE_TYPE.STRING || fieldType === VALUE_TYPE.ARRAY ? 2 : 1
     meta.set(fieldIndex, { fieldType, fieldSize })
   })
   return meta
@@ -182,7 +165,7 @@ function countArrayWords(fields: BoundaryFieldRecord[], values: BoundaryFieldVal
   let words = 0
   for (const entry of values) {
     const field = fields[entry.fieldIndex]
-    if (field?.type !== 4) { // FieldType.ARRAY_PTR
+    if (field?.type !== FIELD_TYPE.ARRAY_PTR) {
       continue
     }
     const items = entry.value as Array<number | boolean>
@@ -198,7 +181,6 @@ function createBlockMap(
   blocks: BoundaryFieldValueRecord[][],
   fields: BoundaryFieldRecord[],
   stringTable: string[],
-  fieldDefs: Array<{ type: number; elementType?: string; enum?: unknown[] }>,
   fieldMetaMap: Map<number, { fieldType: number; fieldSize: number }>,
   allocateHeap?: (size: number) => number,
   heap?: Uint32Array,
@@ -232,7 +214,6 @@ function createLocalFields(
   braneFields: BoundaryFieldValueRecord[][],
   fields: BoundaryFieldRecord[],
   stringTable: string[],
-  fieldDefs: Array<{ type: number; elementType?: string; enum?: unknown[] }>,
   fieldMetaMap: Map<number, { fieldType: number; fieldSize: number }>,
   allocateHeap?: (size: number) => number,
   heap?: Uint32Array,
@@ -278,7 +259,6 @@ export function deriveMatrixData(store: BoundaryData): DerivedMatrixData {
   // ============================================================================
   // STEP 1: Schema projection
   // ============================================================================
-  const fieldDefs = toFieldDefinitions(store.fields)
   const fieldMetaMap = createFieldMetaMap(store.fields)
 
   // ============================================================================
@@ -291,8 +271,8 @@ export function deriveMatrixData(store: BoundaryData): DerivedMatrixData {
   // ============================================================================
   // STEP 3-4: Field encoding (pass 1) + Heap building (pass 1)
   // ============================================================================
-  const initialSharedBlocks = createBlockMap(sharedBlockFields, store.fields, store.stringTable, fieldDefs, fieldMetaMap)
-  const initialLocalFields = createLocalFields(braneLocalFields, store.fields, store.stringTable, fieldDefs, fieldMetaMap)
+  const initialSharedBlocks = createBlockMap(sharedBlockFields, store.fields, store.stringTable, fieldMetaMap)
+  const initialLocalFields = createLocalFields(braneLocalFields, store.fields, store.stringTable, fieldMetaMap)
   const initialHeap = buildHeap({
     localFields: initialLocalFields,
     braneEntangledMap,
@@ -322,7 +302,6 @@ export function deriveMatrixData(store: BoundaryData): DerivedMatrixData {
     sharedBlockFields,
     store.fields,
     store.stringTable,
-    fieldDefs,
     fieldMetaMap,
     allocateHeap,
     heap,
@@ -331,7 +310,6 @@ export function deriveMatrixData(store: BoundaryData): DerivedMatrixData {
     braneLocalFields,
     store.fields,
     store.stringTable,
-    fieldDefs,
     fieldMetaMap,
     allocateHeap,
     heap,
