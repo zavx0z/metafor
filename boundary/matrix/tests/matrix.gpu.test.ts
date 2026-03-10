@@ -214,7 +214,6 @@ describe("CPU/GPU parity", () => {
     const cpuRuntime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
 
     // Создаём GPU runtime
-    resetStringAtlas()
     const params = createMatrixInitParams(fixture)
     const atlasExport = { registry: new Uint32Array([0]), heap: new Uint32Array([0]), count: 0 }
     const gpuRuntime = await GPUMatrixRuntime.create(device, params, atlasExport)
@@ -249,7 +248,6 @@ describe("CPU/GPU parity", () => {
     const cpuRuntime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
 
     // GPU runtime
-    resetStringAtlas()
     const params = createMatrixInitParams(fixture)
     const atlasExport = { registry: new Uint32Array([0]), heap: new Uint32Array([0]), count: 0 }
     const gpuRuntime = await GPUMatrixRuntime.create(device, params, atlasExport)

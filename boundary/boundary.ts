@@ -25,7 +25,7 @@
  * Boundary хранит всю информацию о системе в голографической форме:
  * - **Heap** — единое пространство данных, где каждая брана — возмущение поля
  * - **Entangled Branes** — shared блоки для бран с идентичными полями
- * - **StringAtlas** — интернирование строк, каждое уникальное значение в одном экземпляре
+ * - **StringAtlas** — canonical string table, из которой GPU локально материализует atlas buffers
  *
  * ## Двусторонняя связь BULK ↔ FORCE ↔ BOUNDARY
  *
@@ -146,13 +146,13 @@ function reset(): void {
  *
  * @remarks
  * **Функция-оркестратор с side effects:**
- * - Вызывает `getStringAtlas().intern()` для строк (изменяет состояние атласа)
- * - Вызывает `compileEnsemble()` (интернирует строки из правил)
+ * - Вызывает `getStringAtlas().intern()` для строк (обновляет canonical string table)
+ * - Вызывает `compileEnsemble()` (регистрирует строковые литералы из правил)
  *
- * **Не является чистой функцией** — имеет side effects через StringAtlas.
+ * **Не является чистой функцией** — имеет side effects через canonical string table.
  *
  * @param data - Конфигурация полей и бран
- * @returns Подготовленные данные для GPU
+ * @returns Подготовленные общие данные выполнения
  */
 export function prepareData(data: Data): PreparedData {
   // Извлекаем values из бран и материализуем уже подготовленный entanglement projection
@@ -481,7 +481,6 @@ export async function write(data: Data): Promise<[number, number][]> {
       braneBlockPtrs: prepared.heapLayout.blockPtrs,
     })
 
-    const atlasExport = getStringAtlas().exportData()
     await matrixInit(
       boundary$,
       {
@@ -491,7 +490,6 @@ export async function write(data: Data): Promise<[number, number][]> {
         blockPtrs: prepared.heapLayout.blockPtrs,
         heap: prepared.heapData,
       },
-      atlasExport,
     )
 
     // Минимальная рабочая реализация не выполняет шаг при write().
@@ -724,9 +722,9 @@ function encodeFieldUpdate(
   }
 
   let value1: number
-  let value2 = 0 // Для STRING (hash) и ARRAY (reserved)
+  let value2 = 0 // Для STRING/ARRAY второй слот зарезервирован
 
-  // Для STRING — интернируем и получаем hash
+  // Для STRING — получаем canonical string_id
   if (fieldType === TYPE.STRING && typeof value === "string") {
     const encoded = encodeValue(value, context)
     value1 = encoded.value1

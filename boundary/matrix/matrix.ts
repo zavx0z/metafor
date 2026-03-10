@@ -1,5 +1,4 @@
 import type { MatrixChanges, MatrixHeapUpdate, MatrixInitParams } from "./matrix.t"
-import type { StringAtlasExport } from "@boundary/atlas"
 import { matrixStoreReset, store } from "./store.ts"
 import type { BoundaryStore } from "../store"
 import { createMatrixRuntime } from "./runtime"
@@ -13,13 +12,11 @@ import { createMatrixRuntime } from "./runtime"
  *
  * @param store$ - Общее хранилище `@boundary/boundary` с heap и bytecode.
  * @param params - Подготовленные данные для запуска matrix runtime.
- * @param atlasExport - Экспорт `@boundary/atlas` для GPU-режима.
  * @internal
  */
 export async function matrixInit(
   store$: BoundaryStore,
   params: MatrixInitParams,
-  atlasExport: StringAtlasExport,
 ): Promise<void> {
   if (store.operationMutex) {
     await store.operationMutex
@@ -32,7 +29,7 @@ export async function matrixInit(
 
   try {
     matrixStoreReset()
-    const selected = await createMatrixRuntime({ params, atlasExport })
+    const selected = await createMatrixRuntime({ params })
     store.initialized = true
     store.mode = selected.mode
     store.runtime = selected.runtime

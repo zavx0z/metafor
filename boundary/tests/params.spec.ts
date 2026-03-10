@@ -56,6 +56,8 @@ describe("encodeValue — кодирование значений", () => {
     const result1 = encodeValue("hero", { type: TYPE.STRING })
     const result2 = encodeValue("hero", { type: TYPE.STRING })
     expect(result1.value1).toBe(result2.value1) // Одинаковый ID для одинаковой строки
+    expect(result1.value2).toBe(0)
+    expect(result2.value2).toBe(0)
   })
 
   test("должен кодировать числа как UINT", () => {

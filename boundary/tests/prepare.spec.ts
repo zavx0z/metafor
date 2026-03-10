@@ -6,7 +6,7 @@ import { prepareData } from "../boundary"
 import { resetStringAtlas } from "../atlas"
 import { FieldType, type Data } from "../fields/index.t"
 
-describe("prepareData — подготовка данных для GPU", () => {
+describe("prepareData — подготовка общих данных выполнения", () => {
   beforeEach(() => {
     resetStringAtlas()
   })

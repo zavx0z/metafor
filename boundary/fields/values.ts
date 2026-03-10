@@ -1,11 +1,11 @@
 /**
- * Кодирование значений для байт-кода GPU.
+ * Кодирование значений для prepared execution data.
  *
- * Преобразует JavaScript-значения в 32-битные целые числа для загрузки на GPU.
+ * Преобразует JavaScript-значения в 32-битные целые числа для общего prepared execution model.
  * Поддерживает:
  * - Float32 bitcast для чисел с плавающей точкой
  * - Кодирование enum в индексы
- * - Интернирование строк через StringAtlas (возвращает string_id + hash)
+ * - Интернирование строк в canonical string table (возвращает стабильный string_id)
  * - Кодирование массивов (возвращает pointer в heap)
  *
  * @packageDocumentation
@@ -18,12 +18,12 @@ import { FieldType, type FieldTypeValue } from "./index.t"
 
 /**
  * Результат кодирования значения.
- * Для скаляров value2 = 0, для STRING/ARRAY value2 содержит hash/reserved.
+ * Для скаляров value2 = 0, для STRING/ARRAY второй слот зарезервирован.
  */
 export interface EncodedValueResult {
   /** Первое слово: encoded value (scalar, string_id, pointer). */
   value1: number
-  /** Второе слово: 0 для скаляров, hash для STRING, reserved для ARRAY. */
+  /** Второе слово: 0 для скаляров, reserved для STRING/ARRAY. */
   value2: number
 }
 
@@ -32,7 +32,7 @@ export interface EncodedValueResult {
  *
  * ## Side Effects
  *
- * **Для TYPE.STRING:** Вызывает `getStringAtlas().intern()` — изменяет глобальное состояние атласа.
+ * **Для TYPE.STRING:** Вызывает `getStringAtlas().intern()` — изменяет глобальное состояние таблицы строк.
  * **Для TYPE.ARRAY:** Может изменять heap при аллокации (в `encodeFieldUpdate()`).
  *
  * **Нарушение fp.md п.1:** Эта функция **не является чистой** из-за интернирования строк.
@@ -59,8 +59,8 @@ export interface EncodedValueResult {
  * // Enum → индекс
  * encodeValue("MAGE", { type: TYPE.UINT, enum: ["WARRIOR", "MAGE", "ROGUE"] }) → { value1: 1, value2: 0 }
  *
- * // String → string_id + hash (интернирует строку — side effect!)
- * encodeValue("hello", { type: TYPE.STRING }) → { value1: 42, value2: hash }
+ * // String → canonical string_id (интернирует строку — side effect!)
+ * encodeValue("hello", { type: TYPE.STRING }) → { value1: 42, value2: 0 }
  *
  * // Array → pointer + reserved
  * encodeValue([], { type: TYPE.ARRAY }) → { value1: 0, value2: 0 }
@@ -96,7 +96,7 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
     return { value1: value ? 1 : 0, value2: 0 }
   }
 
-  // 4. STRING → string_id + hash
+  // 4. STRING → canonical string_id
   if (context.type === TYPE.STRING) {
     // null для optional-полей — кодируется как 0 (пустая строка)
     if (value === null) {
@@ -107,10 +107,9 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
     }
     const atlas = getStringAtlas()
     const stringId = atlas.intern(value)
-    const meta = atlas.getMeta(stringId)
     return {
       value1: stringId,
-      value2: meta ? meta.hash : 0,
+      value2: 0,
     }
   }
 

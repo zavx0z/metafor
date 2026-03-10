@@ -1,5 +1,4 @@
 
-import type { StringAtlasExport } from "@boundary/atlas"
 import type { MatrixMode } from "./store.t.ts"
 
 /**
@@ -55,7 +54,6 @@ export interface MatrixRuntime {
  */
 export interface MatrixRuntimeInitContext {
   params: MatrixInitParams
-  atlasExport: StringAtlasExport
 }
 
 /**

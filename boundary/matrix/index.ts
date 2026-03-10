@@ -31,7 +31,7 @@
  * import { boundary$ } from "@boundary/boundary"
  *
  * // Инициализация GPU с инъекцией store$
- * await matrixInit(boundary$, { ... , blockPtrs }, atlasExport)
+ * await matrixInit(boundary$, { ... , blockPtrs })
  *
  * // Выполнение шага
  * matrixStep()
