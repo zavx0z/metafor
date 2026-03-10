@@ -12,13 +12,13 @@
  *
  * ## Ответственность
  *
- * - Ре-экспорт API из @boundary/boundary
- * - Ре-экспорт типов из @boundary/boundary
+ * - Экспорт публичного API Boundary
+ * - Экспорт типов Boundary
  * - Сокрытие внутренней реализации (runtime, canonical store, подготовка данных)
  *
  * @example
  * ```typescript
- * import { write, update, FieldType } from "@boundary"
+ * import { write, update, unlock, FieldType } from "@boundary"
  *
  * // Инициализация
  * await write({
@@ -38,40 +38,18 @@ export {
   write,
   update,
   unlock,
-  flattenBoundaryData,
-  prepareData,
-  validateData,
-  buildHeap,
-  findFieldOffset,
-  packMeta,
-  unpackMeta,
-  compileEnsemble,
-  compileFlattenedEnsemble,
-  compileFlattenedSuperposition,
-  compileSuperposition,
-  compileParsedConditions,
-  encodeValue,
-  encodeFieldValue,
-  fieldTypeToBytecodeType,
-  floatToUint,
-  uintToFloat,
-  createStoredStringInterner,
-  materializeEntanglement,
-  parseCondition,
-  OP,
-  TYPE,
-  getMatrixState,
+  reset,
   FieldType,
 } from "./boundary"
 
 export type {
-  Data,
+  PreparedData,
   Field,
+  Data,
   Brane,
   Collapse,
   BraneValue,
   FieldTypeValue,
-  PreparedData,
   FlattenedBoundaryInput,
   FlattenedBraneInput,
   FlattenedFieldChecks,

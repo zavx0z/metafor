@@ -4,7 +4,8 @@
   "type": "module",
   "main": "index.ts",
   "exports": {
-    ".": "./index.ts"
+    ".": "./index.ts",
+    "./boundary": "./boundary.ts"
   },
   "private": true,
   "dependencies": {

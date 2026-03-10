@@ -2,13 +2,27 @@
  * @boundary/boundary — оркестратор детерминированной эволюции суперпозиций.
  *
  * @packageDocumentation
+ *
+ * ## Ответственность
+ *
+ * - `write()` — инициализация Boundary store из подготовленных данных
+ * - `update()` — обновление полей и шаг эволюции
+ * - `unlock()` — снятие блокировки с бран
+ *
+ * ## Архитектура
+ *
+ * Boundary получает подготовленные данные от `@boundary/fields` и оркестрирует
+ * инициализацию Matrix runtime.
+ *
+ * Boundary НЕ содержит:
+ * - подготовку данных (flatten/assemble) — это `@boundary/fields`
+ * - packed execution forms — это `@boundary/matrix`
+ * - debug/export утилиты — это `@boundary/matrix/debug`
  */
 
 import { matrixHeapUpdate, matrixInit, matrixRunStep, matrixStoreReset } from "./matrix"
-import { deriveMatrixData } from "./matrix/derived"
 import { findBraneFieldRecord } from "./store.access"
 import { boundary$ } from "./store"
-import { createStringAtlasExport } from "./string-pack"
 import type {
   BoundaryData,
   BoundaryFieldValueRecord,
@@ -64,57 +78,6 @@ export function flattenBoundaryData(data: Data): FlattenedBoundaryInput {
 
 export function prepareData(data: Data): PreparedData {
   return assembleStoredBoundaryData(flattenBoundaryData(data))
-}
-
-interface MatrixStateInternal {
-  heap: Uint32Array
-  bytecode: Uint32Array
-  bytecodeOffsets: Uint32Array
-  states: Uint32Array
-  stringRegistry: Uint32Array
-  stringHeap: Uint32Array
-  fields: Field[]
-  metadata: {
-    arrayReserveSize: number
-    heapAllocOffset: number
-    braneBlockPtrs: number[]
-  }
-}
-
-/**
- * Возвращает производный снимок состояния Matrix для debug/export.
- *
- * Этот снимок не является канонической truth-моделью. Он каждый раз
- * заново выводится из канонического Boundary store.
- */
-export function getMatrixState(): MatrixStateInternal {
-  const derived = deriveMatrixData(boundary$)
-  const atlasExport = createStringAtlasExport(boundary$.stringTable)
-  const fields = boundary$.fields.map((field) => {
-    const normalizedField: Field = { type: field.type }
-    if (field.elementType !== undefined) {
-      normalizedField.elementType = field.elementType
-    }
-    if (field.enum !== undefined) {
-      normalizedField.enum = field.enum
-    }
-    return normalizedField
-  })
-
-  return {
-    heap: derived.heap,
-    bytecode: derived.bytecode,
-    bytecodeOffsets: derived.bytecodeOffsets,
-    states: derived.states,
-    stringRegistry: atlasExport.registry,
-    stringHeap: atlasExport.heap,
-    fields,
-    metadata: {
-      arrayReserveSize: 0,
-      heapAllocOffset: derived.heap.length,
-      braneBlockPtrs: derived.blockPtrs,
-    },
-  }
 }
 
 export async function write(data: Data): Promise<[number, number][]> {
@@ -236,6 +199,7 @@ export type {
   FlattenedFieldChecks,
   FlattenedTransition,
 } from "./fields"
+
 export type {
   BoundaryData,
   BoundaryStore,
@@ -249,30 +213,7 @@ export type {
   BoundaryScalarValue,
   BoundaryValue,
 } from "./store.t"
+
 export { FieldType } from "./fields"
 
-export {
-  validateData,
-  buildHeap,
-  compileFlattenedEnsemble,
-  findFieldOffset,
-  packMeta,
-  unpackMeta,
-  compileEnsemble,
-  compileFlattenedSuperposition,
-  compileSuperposition,
-  compileParsedConditions,
-  normalizeFieldValue,
-  encodeValue,
-  encodeFieldValue,
-  fieldTypeToBytecodeType,
-  floatToUint,
-  uintToFloat,
-  createStoredStringInterner,
-  materializeEntanglement,
-  parseCondition,
-  OP,
-  TYPE,
-} from "./fields"
-
-export { reset }
+export { reset, boundary$ }

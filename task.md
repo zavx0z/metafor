@@ -1,224 +1,135 @@
-# Task: Perform full module-boundary audit, relocate misplaced logic, and normalize Russian TSDoc
+# Task: Remove `getMatrixState()`, eliminate all re-exports, leave only real Boundary API
 
 ## Communication rule
 
 The user communicates in **Russian**.
-All user-facing summaries, explanations, and reports must be in **Russian**.
+All user-facing summaries and explanations must be in **Russian**.
 
 ---
 
 ## Goal
 
-Perform a full audit of module/function placement across Boundary / Fields / Matrix / GPU and finish the architectural cleanup.
+Finish the final API and boundary cleanup:
 
-At the same time:
-
-- move every function/module to the level where it actually belongs
-- remove remaining cross-layer leaks
-- normalize TSDoc into **Russian**
+- remove `getMatrixState()` completely
+- remove all broad re-exports from `boundary.ts`
+- leave only the real Boundary public API
 - preserve the new canonical Boundary store architecture
-- keep all critical performance notes explicit
-- do not introduce semantic regressions
+- preserve CPU/GPU behavior
+- keep comments/TSDoc in Russian
 
-This task is polishing and boundary cleanup, not a return to the old packed-store model.
+This is a cleanup/polish task.
+Do not revert the canonical store refactor.
 
 ---
 
-## Architecture that must remain intact
+## Architectural rule to preserve
 
 - **Boundary** owns the canonical global store
-- **Fields** performs deduplication / preparation before writing to Boundary store
-- **Matrix** consumes canonical Boundary store
-- **CPU** executes directly from canonical store
+- **Fields** prepares/deduplicates before writing to Boundary store
+- **Matrix** consumes Boundary store
+- **CPU** reads canonical store directly
 - **GPU** derives local packed/buffer forms from canonical store
 
-Do not regress from this architecture.
+The public API must reflect this architecture instead of mixing layers back together.
 
 ---
 
-## Main issues to fix
+## Required changes
 
-### 1. Full module/function placement audit
+### 1. Delete `getMatrixState()`
+Remove `getMatrixState()` entirely.
 
-You must audit all touched modules and determine whether each function is located in the correct layer.
+Reason:
+- it is not part of the canonical architecture
+- it rebuilds derived packed forms from canonical store
+- it pulled GPU-local string packing up into `boundary.ts`
+- it acts like a compatibility/debug/export tail rather than real Boundary API
 
-Rule:
-- logic must live at the level where it is actually needed
-- no package should act as a convenience dump for helpers used elsewhere
-- no architectural layer should import implementation details from a lower/execution-specific layer unless that dependency is explicitly correct
+If anything still depends on it:
+- update the call site
+- or move truly necessary debug/export logic into a dedicated lower-level debug/export module
+- but do not keep `getMatrixState()` in `boundary.ts`
 
-Classify each significant function/module as one of:
-- Boundary canonical-store logic
-- Fields deduplication / normalization logic
-- Matrix canonical execution logic
-- Matrix derived packing logic
-- GPU-local execution/buffer logic
-- neutral low-level shared helper
-
-Move functions/modules accordingly.
+The expected end state is:
+- `getMatrixState()` no longer exists
 
 ---
 
-### 2. Remove remaining layer leaks
+### 2. Remove all re-exports from `boundary.ts`
+`boundary.ts` must stop acting as a convenience hub for re-exporting functions/types from:
+- `fields`
+- lower-level helpers
+- matrix-derived internals
+- packing/bytecode/heap helpers
 
-#### Known current leak
-`boundary.ts` still imports `createStringAtlasExport` from `matrix/gpu/string-pack`.
+This file must expose only the true Boundary public API.
 
-This is a wrong dependency direction:
-- Boundary must not depend on GPU-local implementation helpers
+#### Keep only real Boundary API exports
+Only leave exports that belong to Boundary as the top-level public interface, for example:
+- `write`
+- `update`
+- `unlock`
+- `flattenBoundaryData` only if it is intentionally public
+- `prepareData` only if it is intentionally public
+- `reset` only if it is intentionally public/test-facing by design
+- Boundary-level types that are genuinely part of the public API
 
-#### Required action
-Eliminate this leak.
+#### Remove re-export noise
+Do not re-export from `boundary.ts` things like:
+- fields internals
+- encoding helpers
+- heap helpers
+- bytecode helpers
+- string packing helpers
+- low-level matrix helpers
+- anything that belongs to another layer/module
 
-Choose one correct option:
-- move the export/debug helper to a lower layer where GPU-local packing is already valid
-- or move the needed functionality to a neutral export/debug helper layer
-- but do not keep `boundary -> matrix/gpu` dependency
-
-The result must have clean dependency direction.
-
----
-
-### 3. Re-check whether `atlas` package is still needed at all
-
-`fields/string-table.ts` no longer owns atlas/UTF-32 packing and GPU-local packing is now in `matrix/gpu/string-pack.ts`. 
-
-#### Required action
-Audit the old `boundary/atlas/*` package.
-
-If it is no longer used meaningfully:
-- remove it completely
-
-If some compatibility path still requires it:
-- isolate and deprecate it explicitly
-- ensure it is no longer part of the actual architecture
-
-Do not leave dead or misleading architectural packages in place.
+If some external code needs those modules, it must import them directly from their own location.
 
 ---
 
-### 4. Re-check `deriveMatrixData()` and matrix-local helper boundaries
+### 3. Keep module boundaries clean
+After removing re-exports, verify:
 
-`matrix/derived.ts` is now in a much better place and split into steps.  [oai_citation:6‡derived.ts](https://github.com/zavx0z/metafor/blob/arch/boundary/matrix/derived.ts)  
-But it still needs module-boundary review:
+- Boundary API remains Boundary-only
+- Fields modules are imported directly where needed
+- Matrix modules are imported directly where needed
+- no accidental new dependency leak is introduced
 
-- does every helper inside `matrix/derived.ts` truly belong there?
-- should some helpers move into:
-  - `matrix/pack`
-  - `matrix/bytecode`
-  - `matrix/heap`
-  - GPU-local modules
-  - neutral low-level helpers
-
-#### Required action
-Review and relocate helpers if needed so that:
-- derived packing stays modular
-- boundaries stay clear
-- future maintenance is easier
-
-Do not move things unnecessarily, but do not keep wrongly placed helpers either.
+This task is specifically about making the module graph honest.
 
 ---
 
-### 5. Re-check Boundary store schema ownership
+### 4. Update TSDoc/comments in Russian
+After removing `getMatrixState()` and re-exports:
 
-`BoundaryFieldRecord` now stores `enum`, which is correct.  [oai_citation:7‡store.t.ts](https://github.com/zavx0z/metafor/blob/arch/boundary/store.t.ts)
+- clean `boundary.ts` TSDoc
+- remove outdated descriptions of compatibility/export/debug behavior
+- keep comments in Russian
+- describe only the actual public Boundary API that remains
 
-#### Required action
-Verify that all schema information required by:
-- update normalization
-- CPU interpretation
-- GPU derived packing
-- debug/export helpers
-
-is now truly available from canonical Boundary store.
-
-If anything important still lives outside the store, move it into the store or make the dependency explicit and correct.
+Do not leave stale comments referring to removed exports or removed debug helpers.
 
 ---
 
-### 6. Russian TSDoc normalization
+### 5. Check for broken imports after re-export removal
+Because some code may have relied on `boundary.ts` as an aggregator, audit and fix imports across the repo.
 
-All touched modules must use **Russian TSDoc** consistently.
-
-That includes:
-- package documentation
-- public interfaces
-- exported functions/classes
-- critical architectural comments
-- critical performance notes
-
-#### Required action
-Normalize TSDoc/comment style so that:
-
-- it is written in Russian
-- it reflects the new architecture
-- it does not describe the old packed-store model as canonical truth
-- it clearly distinguishes:
-  - canonical store
-  - derived runtime forms
-  - CPU direct execution
-  - GPU local packing
-
-Do not leave mixed old/new narratives in comments.
-
----
-
-### 7. Preserve and improve critical performance notes
-
-The current GPU runtime now has meaningful performance notes and partial update behavior.  [oai_citation:8‡index.ts](https://github.com/zavx0z/metafor/blob/arch/boundary/matrix/gpu/index.ts)
-
-These notes must be preserved and improved where needed.
-
-#### Required action
-Keep explicit comments about:
-
-- canonical truth remaining in Boundary store
-- partial GPU update path
-- structural refresh fallback
-- remaining memory duplication
-- remaining O(N) refresh costs on exhausted capacity / incompatible layout
-- future optimization directions
-
-Do not hide performance debt.
-Do not overstate current performance.
-Be explicit and technically honest.
-
----
-
-### 8. Audit for semantic regressions
-
-Because module relocation can easily change behavior accidentally, you must check that:
-
-- CPU transition evaluation semantics remain unchanged
-- lock semantics remain unchanged
-- shared block / entangled value lookup semantics remain unchanged
-- string-id semantics remain unchanged
-- GPU derived packing remains behaviorally equivalent to previous correct version
-
-If behavior changes, explain and justify them explicitly.
+Expected rule after cleanup:
+- modules import from the actual owner module
+- not from a convenience re-export barrel
 
 ---
 
 ## Files to inspect
 
-At minimum inspect and fix as needed:
+At minimum:
 
 - `boundary/boundary.ts`
-- `boundary/store.ts`
-- `boundary/store.t.ts`
-- `boundary/store.access.ts`
-- `boundary/fields/*`
-- `boundary/matrix/derived.ts`
-- `boundary/matrix/constants.ts`
-- `boundary/matrix/pack.ts`
-- `boundary/matrix/bytecode.ts`
-- `boundary/matrix/heap.ts`
-- `boundary/matrix/cpu/*`
-- `boundary/matrix/gpu/*`
-- `boundary/atlas/*`
-
-Also inspect related tests and update them if module relocation affects them.
+- any files importing from `@boundary/boundary` / `boundary.ts`
+- tests relying on re-exported helpers
+- any code that referenced `getMatrixState()`
 
 ---
 
@@ -226,33 +137,30 @@ Also inspect related tests and update them if module relocation affects them.
 
 After completion verify all of the following:
 
-1. Every significant function/module is in the correct architectural layer.
-2. No remaining `boundary -> matrix/gpu` dependency leak exists.
-3. Matrix does not depend on misplaced Fields implementation helpers.
-4. Atlas package is either removed or explicitly reduced to non-architectural compatibility residue.
-5. Boundary store remains canonical truth.
-6. CPU still executes directly from canonical store.
+1. `getMatrixState()` is fully removed.
+2. `boundary.ts` no longer re-exports lower-level helpers.
+3. `boundary.ts` exposes only true Boundary API.
+4. No imports remain broken after re-export removal.
+5. Canonical Boundary store architecture is unchanged.
+6. CPU still executes correctly from canonical store.
 7. GPU still derives packed forms locally.
-8. No semantic regressions were introduced.
-9. TSDoc in touched files is Russian and aligned with the new architecture.
-10. Critical performance notes are preserved and explicit.
+8. No accidental semantic regression was introduced.
+9. TSDoc/comments in touched files are in Russian and reflect the final API honestly.
 
 ---
 
 ## Deliverables
 
-1. Refactored module/function placement
-2. Clean dependency graph between layers
-3. Russian TSDoc normalization in touched files
-4. Atlas cleanup/removal decision implemented
-5. Updated tests if needed
-6. Final Russian report including:
-   - what was moved and why
-   - what dependency leaks were removed
-   - whether `atlas` was deleted or deprecated
-   - whether all schema truth now lives in Boundary store
-   - what critical performance limitations still remain
-   - what was intentionally left as technical debt
+1. Code cleanup
+2. `getMatrixState()` removed
+3. Re-exports removed
+4. Imports fixed across the repo
+5. Updated Russian TSDoc/comments
+6. Final Russian summary including:
+   - what was removed
+   - what remains as the real Boundary API
+   - whether any callers had to be updated
+   - confirmation that canonical store architecture was preserved
 
 ---
 
@@ -260,9 +168,8 @@ After completion verify all of the following:
 
 The task is complete only if all of the following are true:
 
-- module/function placement matches actual responsibility boundaries
-- no architectural layer leaks remain in the touched area
-- Russian TSDoc is consistent and accurate
-- canonical Boundary store architecture is preserved
-- CPU/GPU behavior is still correct
-- critical performance caveats are documented explicitly
+- `getMatrixState()` does not exist anymore
+- `boundary.ts` is no longer a barrel for lower-level modules
+- only real Boundary API remains exported there
+- layer boundaries are cleaner than before
+- canonical store / CPU / GPU architecture remains correct

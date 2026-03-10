@@ -1,6 +1,7 @@
 import { afterEach, beforeAll, describe, expect, test } from "bun:test"
 import { GPU } from "@boundary/matrix"
-import { getMatrixState } from "@metafor/boundary"
+import { deriveMatrixData } from "@boundary/matrix/derived"
+import { boundary$ } from "../../boundary/boundary"
 import { parse } from "@metafor/template"
 import { setupDevice } from "fixture/bunWebGPU"
 import {
@@ -241,12 +242,12 @@ describe("gravity entanglement pipeline", () => {
 
     await updateBoundary({ gravity })
 
-    const matrixState = getMatrixState()
-    const [firstPtr, secondPtr] = matrixState.metadata.braneBlockPtrs
+    const derived = deriveMatrixData(boundary$)
+    const [firstPtr, secondPtr] = derived.blockPtrs
 
-    expect(matrixState.heap[firstPtr!]!).toBe(1)
-    expect(matrixState.heap[firstPtr! + 1]!).toBe(1)
-    expect(matrixState.heap[secondPtr!]!).toBe(1)
-    expect(matrixState.heap[secondPtr! + 1]!).toBe(1)
+    expect(derived.heap[firstPtr!]!).toBe(1)
+    expect(derived.heap[firstPtr! + 1]!).toBe(1)
+    expect(derived.heap[secondPtr!]!).toBe(1)
+    expect(derived.heap[secondPtr! + 1]!).toBe(1)
   })
 })
