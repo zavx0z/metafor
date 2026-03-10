@@ -1,6 +1,6 @@
 import shaderSource from "./evolution.wgsl" with { type: "text" }
-import type { StoredStringTable } from "@boundary/fields"
-import type { MatrixChanges, MatrixHeapUpdate, MatrixInitParams, MatrixRuntime } from "../matrix.t"
+import type { BoundaryStore } from "../../store.t"
+import type { MatrixChanges, MatrixHeapUpdate, MatrixRuntime } from "../matrix.t"
 import type { GpuRuntimeContext } from "./index.t.ts"
 import { destroyBuffers } from "./buffer"
 import { createGpuRuntimeContext } from "./init"
@@ -21,15 +21,17 @@ function enqueueGpuOperation<T>(task: () => Promise<T> | T): Promise<T> {
 
 export class GPUMatrixRuntime implements MatrixRuntime {
   private readonly context: GpuRuntimeContext
+  private lastStates: Uint32Array
   private pending: Promise<unknown> = Promise.resolve()
 
-  private constructor(context: GpuRuntimeContext) {
+  private constructor(context: GpuRuntimeContext, initialStates: Uint32Array) {
     this.context = context
+    this.lastStates = initialStates.slice()
   }
 
-  static async create(device: GPUDevice, params: MatrixInitParams, stringTable: StoredStringTable): Promise<GPUMatrixRuntime> {
-    const context = createGpuRuntimeContext(device, shaderSource, params, stringTable, false)
-    return new GPUMatrixRuntime(context)
+  static async create(device: GPUDevice, store: BoundaryStore): Promise<GPUMatrixRuntime> {
+    const context = createGpuRuntimeContext(device, shaderSource, store, false)
+    return new GPUMatrixRuntime(context, store.states)
   }
 
   step(): void {
@@ -45,18 +47,20 @@ export class GPUMatrixRuntime implements MatrixRuntime {
   }
 
   async readChanges(): Promise<MatrixChanges> {
-    return await this.enqueue(() =>
-      readGpuChanges(
+    return await this.enqueue(async () => {
+      const result = await readGpuChanges(
         this.context.device,
         this.context.buffers.dirtyFlags,
         this.context.buffers.states,
         this.context.stagingBuffer,
-      ),
-    )
+      )
+      this.lastStates = result.states
+      return result.changes
+    })
   }
 
-  statesSnapshot(): null {
-    return null
+  statesSnapshot(): Uint32Array {
+    return this.lastStates
   }
 
   heapUpdate(updates: MatrixHeapUpdate[]): void {
@@ -64,6 +68,7 @@ export class GPUMatrixRuntime implements MatrixRuntime {
   }
 
   clear(): void {
+    this.lastStates = new Uint32Array(0)
     void this.enqueue(() =>
       destroyBuffers([
         this.context.buffers.braneBlockPtrs,

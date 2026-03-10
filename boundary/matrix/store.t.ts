@@ -1,4 +1,5 @@
 import type { MatrixRuntime } from "./matrix.t.ts"
+import type { BoundaryStore } from "../store.t.ts"
 
 /**
  * Доступные реализации runtime матрицы.
@@ -21,6 +22,6 @@ export interface MatrixStore {
   /** Выбранная среда выполнения матрицы. */
   mode: MatrixMode
 
-  /** Снимок состояний для CPU-режима. */
-  cpuStates: Uint32Array
+  /** Canonical Boundary store, из которого Matrix читает и в который пишет runtime results. */
+  boundary: BoundaryStore | null
 }

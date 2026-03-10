@@ -7,7 +7,7 @@ import type { MatrixStore } from "./store.t.ts"
  * @property operationMutex {@link MatrixStore.operationMutex|mutex для предотвращения конкурентных вызовов}
  * @property initialized {@link MatrixStore.initialized|флаг готовности boundary runtime}
  * @property mode {@link MatrixStore.mode|выбранная среда выполнения матрицы}
- * @property cpuStates {@link MatrixStore.cpuStates|снимок состояний для CPU режима}
+ * @property boundary {@link MatrixStore.boundary|canonical Boundary store}
  *
  * @see {@link MatrixStore} — тип состояния
  */
@@ -16,7 +16,7 @@ export const store: MatrixStore = {
   operationMutex: null,
   initialized: false,
   mode: "cpu",
-  cpuStates: new Uint32Array(0),
+  boundary: null,
 }
 
 /**
@@ -31,5 +31,5 @@ export function matrixStoreReset(): void {
   store.operationMutex = null
   store.initialized = false
   store.mode = "cpu"
-  store.cpuStates = new Uint32Array(0)
+  store.boundary = null
 }

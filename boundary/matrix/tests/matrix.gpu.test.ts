@@ -12,7 +12,7 @@ import {
   createMultipleBranesFixture,
   createLockedBraneFixture,
   createFieldUpdateFixture,
-  createMatrixInitParams,
+  createIsolatedStore,
 } from "./shared/fixtures"
 
 /**
@@ -31,8 +31,9 @@ async function createGpuRuntimeForFixture(fixture: ReturnType<typeof createSimpl
     throw new Error("GPU not available")
   }
 
-  const params = createMatrixInitParams(fixture)
-  return await GPUMatrixRuntime.create(device, params, fixture.stringTable)
+  const store = createIsolatedStore(fixture)
+  const runtime = await GPUMatrixRuntime.create(device, store)
+  return { runtime, store }
 }
 
 let executableDevicePromise: Promise<GPUDevice | null> | null = null
@@ -144,15 +145,16 @@ function createU32Buffer(device: GPUDevice, data: Uint32Array, usage: GPUBufferU
  * Специфичные тесты для GPU runtime.
  */
 describe("GPU runtime — specific tests", () => {
-  test("statesSnapshot returns null (GPU states not directly readable)", async () => {
+  test("statesSnapshot returns canonical store snapshot", async () => {
     const device = await skipIfNoGpu()
     if (!device) return
 
     const fixture = createSimpleBraneFixture()
-    const runtime = await createGpuRuntimeForFixture(fixture)
+    const { runtime } = await createGpuRuntimeForFixture(fixture)
 
     const snapshot = runtime.statesSnapshot()
-    expect(snapshot).toBeNull()
+    expect(snapshot).toBeInstanceOf(Uint32Array)
+    expect(snapshot).toEqual(fixture.states)
   })
 
   test("heapUpdate updates GPU heap buffer", async () => {
@@ -160,7 +162,7 @@ describe("GPU runtime — specific tests", () => {
     if (!device) return
 
     const fixture = createSimpleBraneFixture()
-    const runtime = await createGpuRuntimeForFixture(fixture)
+    const { runtime } = await createGpuRuntimeForFixture(fixture)
 
     // GPU runtime требует явного обновления heap
     expect(() => runtime.heapUpdate([{ offset: 0, value1: 100 }])).not.toThrow()
@@ -171,7 +173,7 @@ describe("GPU runtime — specific tests", () => {
     if (!device) return
 
     const fixture = createSimpleBraneFixture()
-    const runtime = await createGpuRuntimeForFixture(fixture)
+    const { runtime } = await createGpuRuntimeForFixture(fixture)
 
     expect(() => runtime.clear()).not.toThrow()
   })
@@ -186,7 +188,7 @@ describe("GPU runtime — scenario tests", () => {
     if (!device) return
 
     const fixture = createSimpleBraneFixture()
-    const runtime = await createGpuRuntimeForFixture(fixture)
+    const { runtime } = await createGpuRuntimeForFixture(fixture)
 
     runtime.step()
     const changes = await runtime.readChanges()
@@ -200,7 +202,7 @@ describe("GPU runtime — scenario tests", () => {
     if (!device) return
 
     const fixture = createMultipleBranesFixture()
-    const runtime = await createGpuRuntimeForFixture(fixture)
+    const { runtime } = await createGpuRuntimeForFixture(fixture)
 
     runtime.step()
     const changes = await runtime.readChanges()
@@ -216,7 +218,7 @@ describe("GPU runtime — scenario tests", () => {
     if (!device) return
 
     const fixture = createLockedBraneFixture()
-    const runtime = await createGpuRuntimeForFixture(fixture)
+    const { runtime } = await createGpuRuntimeForFixture(fixture)
 
     runtime.step()
     const changes = await runtime.readChanges()
@@ -230,7 +232,7 @@ describe("GPU runtime — scenario tests", () => {
     if (!device) return
 
     const fixture = createFieldUpdateFixture()
-    const runtime = await createGpuRuntimeForFixture(fixture)
+    const { runtime, store } = await createGpuRuntimeForFixture(fixture)
 
     // Сначала hp = 40, перехода нет
     runtime.step()
@@ -239,8 +241,8 @@ describe("GPU runtime — scenario tests", () => {
 
     // Обновляем hp > 50 через heapUpdate
     // Находим смещение поля 0 (hp) в heap
-    const blockPtr = fixture.blockPtrs[0]!
-    const fieldOffset = findFieldOffset(fixture.heap, blockPtr, 0)
+    const blockPtr = store.blockPtrs[0]!
+    const fieldOffset = findFieldOffset(store.heap, blockPtr, 0)
     expect(fieldOffset).not.toBeNull()
 
     if (fieldOffset !== null) {
@@ -261,7 +263,7 @@ describe("GPU runtime — scenario tests", () => {
     if (!device) return
 
     const fixture = createMultipleBranesFixture()
-    const runtime = await createGpuRuntimeForFixture(fixture)
+    const { runtime } = await createGpuRuntimeForFixture(fixture)
 
     runtime.step()
     const changes = await runtime.readChanges()
@@ -279,7 +281,7 @@ describe("GPU runtime — scenario tests", () => {
     if (!device) return
 
     const fixture = createSimpleBraneFixture()
-    const runtime = await createGpuRuntimeForFixture(fixture)
+    const { runtime } = await createGpuRuntimeForFixture(fixture)
 
     runtime.step()
     const changes1 = await runtime.readChanges()
@@ -302,15 +304,15 @@ describe("CPU/GPU parity", () => {
     if (!device) return
 
     const fixture = createSimpleBraneFixture()
+    const cpuStore = createIsolatedStore(fixture)
+    const gpuStore = createIsolatedStore(fixture)
     
     // Создаём CPU runtime
     const { CPUMatrixRuntime } = await import("../../matrix/cpu")
-    const { createCpuRuntimeContext } = await import("./shared/fixtures")
-    const cpuRuntime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
+    const cpuRuntime = new CPUMatrixRuntime(cpuStore)
 
     // Создаём GPU runtime
-    const params = createMatrixInitParams(fixture)
-    const gpuRuntime = await GPUMatrixRuntime.create(device, params, fixture.stringTable)
+    const gpuRuntime = await GPUMatrixRuntime.create(device, gpuStore)
 
     // Выполняем step на обоих runtime
     cpuRuntime.step()
@@ -335,15 +337,15 @@ describe("CPU/GPU parity", () => {
     if (!device) return
 
     const fixture = createMultipleBranesFixture()
+    const cpuStore = createIsolatedStore(fixture)
+    const gpuStore = createIsolatedStore(fixture)
     
     // CPU runtime
     const { CPUMatrixRuntime } = await import("../../matrix/cpu")
-    const { createCpuRuntimeContext } = await import("./shared/fixtures")
-    const cpuRuntime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
+    const cpuRuntime = new CPUMatrixRuntime(cpuStore)
 
     // GPU runtime
-    const params = createMatrixInitParams(fixture)
-    const gpuRuntime = await GPUMatrixRuntime.create(device, params, fixture.stringTable)
+    const gpuRuntime = await GPUMatrixRuntime.create(device, gpuStore)
 
     cpuRuntime.step()
     gpuRuntime.step()

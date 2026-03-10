@@ -16,35 +16,35 @@ import type { BoundaryStore } from "./store.t.ts"
  *
  * @property bytecode {@link BoundaryStore.bytecode|скомпилированные правила переходов FSM}
  * @property bytecodeOffsets {@link BoundaryStore.bytecodeOffsets|смещения bytecode для каждой браны}
- * @property initialStates {@link BoundaryStore.initialStates|начальные состояния бран}
+ * @property states {@link BoundaryStore.states|runtime-состояния бран}
  * @property heap {@link BoundaryStore.heap|данные кучи (heap) для GPU}
- * @property braneBlockPtrs {@link BoundaryStore.braneBlockPtrs|смещения блоков бран в heap}
+ * @property blockPtrs {@link BoundaryStore.blockPtrs|смещения блоков бран в heap}
  *
  * @see {@link BoundaryStore} — тип состояния с документацией полей
  */
 export const boundary$: BoundaryStore = {
   bytecode: null as unknown as Uint32Array,
   bytecodeOffsets: null as unknown as Uint32Array,
-  initialStates: null as unknown as Uint32Array,
+  states: null as unknown as Uint32Array,
   heap: null as unknown as Uint32Array,
-  braneBlockPtrs: [],
+  blockPtrs: [],
   stringTable: { values: [""] },
 
   reset() {
     this.bytecode = null as unknown as Uint32Array
     this.bytecodeOffsets = null as unknown as Uint32Array
-    this.initialStates = null as unknown as Uint32Array
+    this.states = null as unknown as Uint32Array
     this.heap = null as unknown as Uint32Array
-    this.braneBlockPtrs = []
+    this.blockPtrs = []
     this.stringTable = { values: [""] }
   },
 
   restore(state: BoundaryStore) {
     this.bytecode = state.bytecode
     this.bytecodeOffsets = state.bytecodeOffsets
-    this.initialStates = state.initialStates
+    this.states = state.states
     this.heap = state.heap
-    this.braneBlockPtrs = state.braneBlockPtrs
+    this.blockPtrs = state.blockPtrs
     this.stringTable = state.stringTable
   },
 }

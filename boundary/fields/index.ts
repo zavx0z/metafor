@@ -36,12 +36,13 @@ import { buildHeap, findFieldOffset, packMeta, unpackMeta } from "./heap"
 import type { HeapInput } from "./heap.t"
 import { compileEnsemble, compileFlattenedEnsemble, compileFlattenedSuperposition, compileParsedConditions, compileSuperposition } from "./superposition"
 import type { CompiledRules } from "./superposition.t"
-import { encodeFieldValue, encodeValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "./values"
+import { createFieldEncodingContext, encodeFieldValue, encodeValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "./values"
 import type { EncodingContext } from "./values.t"
 import { materializeEntanglement } from "./entangled"
 import { parseCondition } from "./condition"
 import { OP, TYPE } from "./opcodes"
 import { createStoredStringInterner, createStringAtlasExport, StoredStringInterner } from "./string-table"
+import { assembleStoredBoundaryData } from "./stored"
 
 // ============================================================================
 // ЭКСПОРТ
@@ -62,6 +63,7 @@ export {
   compileSuperposition,
   compileParsedConditions,
   // Params
+  createFieldEncodingContext,
   encodeValue,
   encodeFieldValue,
   fieldTypeToBytecodeType,
@@ -75,6 +77,7 @@ export {
   createStoredStringInterner,
   createStringAtlasExport,
   StoredStringInterner,
+  assembleStoredBoundaryData,
   // Opcodes
   OP,
   TYPE,

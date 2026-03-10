@@ -1,4 +1,4 @@
-import type { MatrixChanges, MatrixHeapUpdate, MatrixRuntimeInitContext } from "./matrix.t"
+import type { MatrixChanges, MatrixHeapUpdate } from "./matrix.t"
 import { matrixStoreReset, store } from "./store.ts"
 import type { BoundaryStore } from "../store"
 import { createMatrixRuntime } from "./runtime"
@@ -16,7 +16,6 @@ import { createMatrixRuntime } from "./runtime"
  */
 export async function matrixInit(
   store$: BoundaryStore,
-  context: MatrixRuntimeInitContext,
 ): Promise<void> {
   if (store.operationMutex) {
     await store.operationMutex
@@ -29,17 +28,16 @@ export async function matrixInit(
 
   try {
     matrixStoreReset()
-    const selected = await createMatrixRuntime(context)
+    const selected = await createMatrixRuntime(store$)
     store.initialized = true
     store.mode = selected.mode
     store.runtime = selected.runtime
+    store.boundary = store$
 
-    // Единый снимок boundary нужен обеим средам.
-    store$.heap = context.params.heap
-    store$.braneBlockPtrs = context.params.blockPtrs
-    store$.stringTable = context.stringTable
-
-    store.cpuStates = selected.runtime.statesSnapshot() ?? context.params.states.slice()
+    const snapshot = selected.runtime.statesSnapshot()
+    if (snapshot) {
+      store$.states = snapshot
+    }
   } finally {
     resolveMutex?.()
   }
@@ -66,8 +64,8 @@ export async function matrixReadChanges(): Promise<MatrixChanges> {
   if (!store.runtime) throw new Error("Matrix runtime not initialized")
   const changes = await store.runtime.readChanges()
   const snapshot = store.runtime.statesSnapshot()
-  if (snapshot) {
-    store.cpuStates = snapshot
+  if (snapshot && store.boundary) {
+    store.boundary.states = snapshot
   }
   return changes
 }

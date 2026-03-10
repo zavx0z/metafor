@@ -47,20 +47,15 @@ export interface BoundaryData {
   bytecodeOffsets: Uint32Array
 
   /**
-   * Начальные состояния для каждой браны после write().
+   * Текущие runtime-состояния для каждой браны.
+   *
+   * После `write()` содержит стартовые состояния, после каждого шага Matrix
+   * обновляется до актуального runtime snapshot.
    *
    * Индекс массива = индекс браны.
-   * Значение = индекс начального состояния в state map этой браны.
-   *
-   * ## Кто использует
-   *
-   * | Пакет | Что делает |
-   * |-------|------------|
-   * | `@boundary/fields`/`prepareData()` | Вычисляет начальные состояния |
-   * | `@boundary/fields`/`write()` | Сохраняет через `boundary$.restore()` |
-   * | `@boundary/matrix` | Загружает в GPU buffer состояний |
+   * Значение = индекс текущего состояния в state map этой браны.
    */
-  initialStates: Uint32Array
+  states: Uint32Array
 
   /**
    * Данные кучи (heap) для GPU.
@@ -97,7 +92,7 @@ export interface BoundaryData {
    * | `@boundary/matrix` | Использует для GPU операций |
    * | `@boundary/monad` | Использует для unlock() |
    */
-  braneBlockPtrs: number[]
+  blockPtrs: number[]
 
   /**
    * Canonical stored string table shared by heap and bytecode.
@@ -111,8 +106,8 @@ export interface BoundaryData {
  * Состояние общего хранилища `@boundary/boundary` с методами управления.
  *
  * Хранит данные, которые используют несколько пакетов внутри `@metafor/boundary`:
- * - {@link BoundaryData.bytecode | bytecode}, {@link BoundaryData.bytecodeOffsets | bytecodeOffsets}, {@link BoundaryData.initialStates | initialStates} — для инициализации GPU
- * - {@link BoundaryData.heap | heap}, {@link BoundaryData.braneBlockPtrs | braneBlockPtrs} — для update() и unlock()
+ * - {@link BoundaryData.bytecode | bytecode}, {@link BoundaryData.bytecodeOffsets | bytecodeOffsets}, {@link BoundaryData.states | states} — canonical stored data + runtime states
+ * - {@link BoundaryData.heap | heap}, {@link BoundaryData.blockPtrs | blockPtrs} — indexed stored layout для update(), unlock() и Matrix
  *
  * ## Какие данные здесь НЕ хранятся
  *
@@ -124,7 +119,7 @@ export interface BoundaryData {
  * 1. **write()** — `@boundary/fields` заполняет через `boundary$.restore()`
  * 2. **update()** — `@boundary/fields` читает напрямую из `boundary$`
  * 3. **GPU инициализация** — `@boundary/matrix` загружает данные в буферы
- * 4. **unlock()** — `@boundary/monad` читает `braneBlockPtrs` для снятия блокировки
+ * 4. **unlock()** — читает `blockPtrs` для снятия блокировки
  */
 export interface BoundaryStore extends BoundaryData {
   /**

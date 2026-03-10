@@ -8,24 +8,22 @@
  * Модуль реализует минимальный рабочий контур Boundary:
  *
  * 1. **validateData()** — валидация входных данных
- * 2. **prepareData()** — кодирование, компиляция, построение heap
- * 3. **write()** — фиксация снимка boundary в минимальном формате
+ * 2. **prepareData()** — передача flattened input в Fields для deduplication/compaction
+ * 3. **write()** — фиксация canonical stored snapshot в global store
  * 4. **update()** — детерминированный шаг по heap и bytecode
  *
  * ## Принцип работы
  *
- * Каждая брана — это набор полей в heap с индивидуальным bytecode FSM.
- * Источником истины сейчас являются `heap`, `bytecode` и CPU-исполнитель,
- * чтобы контур `boundary -> force` был рабочим и воспроизводимым.
- * GPU-слой остаётся отдельным адаптером и может быть возвращён как ускоритель,
- * не меняя внешний контракт Boundary.
+ * Boundary выполняет flattening, Fields строит canonical stored imprint,
+ * а Matrix исполняет его на CPU/GPU. Источником истины является global store:
+ * `heap`, `blockPtrs`, `bytecode`, `bytecodeOffsets`, `stringTable` и runtime `states`.
  *
  * ## Голографический принцип
  *
  * Boundary хранит всю информацию о системе в голографической форме:
- * - **Heap** — единое пространство данных, где каждая брана — возмущение поля
- * - **Entangled Branes** — shared блоки для бран с идентичными полями
- * - **StringAtlas** — canonical string table, из которой GPU локально материализует atlas buffers
+ * - **Boundary** флаттенит вход на границе
+ * - **Fields** записывает дедуплицированный отпечаток
+ * - **Matrix** вычисляет эволюцию и пишет `states` обратно в тот же store
  *
  * ## Двусторонняя связь BULK ↔ FORCE ↔ BOUNDARY
  *
@@ -66,7 +64,6 @@
  */
 
 import { matrixHeapUpdate, matrixInit, matrixRunStep, matrixStoreReset } from "./matrix"
-import { store as matrix$ } from "./matrix/store.ts"
 import type { MatrixHeapUpdate } from "./matrix/matrix.t"
 import { boundary$ } from "./store"
 import { fields$ } from "./fields/store"
@@ -74,15 +71,13 @@ import { fields$ } from "./fields/store"
 // Импорт чистых функций из @boundary/fields
 import {
   validateData,
-  buildHeap,
-  compileFlattenedEnsemble,
   findFieldOffset,
+  createFieldEncodingContext,
   createStoredStringInterner,
   createStringAtlasExport,
-  encodeFieldValue,
+  assembleStoredBoundaryData,
   encodeValue,
   fieldTypeToBytecodeType,
-  materializeEntanglement,
   parseCondition,
   TYPE,
   FieldType,
@@ -90,9 +85,7 @@ import {
   type Data,
   type Field,
   type FlattenedBoundaryInput,
-  type EncodingContext,
   type StoredBoundaryData,
-  type StoredFieldMeta,
 } from "./fields"
 
 // ============================================================================
@@ -170,205 +163,7 @@ export function flattenBoundaryData(data: Data): FlattenedBoundaryInput {
  * @returns Canonical stored contract between Fields and Matrix
  */
 export function prepareData(data: Data): PreparedData {
-  const flattened = flattenBoundaryData(data)
-  const branes = flattened.branes
-  const fieldDefs = flattened.fields
-  const values = branes.map((b) => b.values)
-  const braneMapping = materializeEntanglement(values, flattened.entanglement)
-  const stringInterner = createStoredStringInterner()
-  const { fieldMeta, fieldMetaMap } = createFieldMeta(fieldDefs)
-
-  // Кодирование entangled полей (принцип готового формата данных)
-  const encodedEntangledFields = new Map<string, [number, number][]>()
-  for (const [key, entangledFields] of braneMapping.entangledFields.entries()) {
-    const encoded = entangledFields.map(([fieldIndex, value]) => {
-      const meta = fieldMetaMap.get(fieldIndex)!
-      const field = fieldDefs[fieldIndex]
-      const ctx = createFieldEncodingContext(meta.fieldType, field, stringInterner)
-      const encodedValue = encodeFieldValue(value, ctx)
-      return [fieldIndex, encodedValue] as [number, number]
-    })
-    encodedEntangledFields.set(key, encoded)
-  }
-
-  // Кодирование local полей (принцип готового формата данных)
-  const encodedLocalFields = braneMapping.localFields.map((braneFields) =>
-    braneFields.map(([fieldIndex, value]) => {
-      const meta = fieldMetaMap.get(fieldIndex)!
-      const field = fieldDefs[fieldIndex]
-      const ctx = createFieldEncodingContext(meta.fieldType, field, stringInterner)
-      const encodedValue = encodeFieldValue(value, ctx)
-      return [fieldIndex, encodedValue] as [number, number]
-    }),
-  )
-
-  // Динамический расчёт резерва для ARRAY на основе входных данных
-  // Формула: сумма максимальных размеров массивов для всех ARRAY_PTR полей
-  // Минимальный резерв: 256 слов (1KB) для небольших массивов
-  const MIN_ARRAY_RESERVE = 256
-  let arrayReserve = MIN_ARRAY_RESERVE
-
-  // Считаем потенциальный размер массивов из values
-  for (const brane of branes) {
-    for (const [fieldIndex, value] of brane.values) {
-      const field = fieldDefs[fieldIndex]
-      if (field?.type === FieldType.ARRAY_PTR && Array.isArray(value)) {
-        // Размер массива в heap: 1 (длина) + элементы
-        const arraySize = 1 + value.length
-        if (arraySize > arrayReserve) {
-          arrayReserve = arraySize
-        }
-      }
-    }
-  }
-
-  // Добавляем буфер 2x для будущих update() операций
-  arrayReserve *= 2
-
-  // Построение heap с уже закодированными значениями
-  const heapInput = {
-    localFields: encodedLocalFields,
-    braneEntangledMap: braneMapping.braneEntangledMap,
-    entangledFields: encodedEntangledFields,
-    fieldMeta: fieldMetaMap,
-  }
-  const heapLayout = buildHeap(heapInput)
-  let heapData = heapLayout.heap
-
-  // Расширяем heap с учётом резерва для ARRAY
-  const actualHeapSize = heapData.length + arrayReserve
-  const extendedHeap = new Uint32Array(actualHeapSize)
-  extendedHeap.set(heapData)
-  heapData = extendedHeap
-
-  // Сохраняем размер резерва для использования в update()
-  const arrayReserveSize = arrayReserve
-
-  // Аллокация массивов из values (после создания extendedHeap)
-  let heapAllocOffset = heapData.length - arrayReserveSize
-
-  // Функция аллокации для encodeValue
-  const allocateHeap = (size: number): number => {
-    const ptr = heapAllocOffset
-    heapAllocOffset += size
-    return ptr
-  }
-
-  // Перекодируем local поля с ARRAY (теперь с allocateHeap)
-  const finalEncodedLocalFields = braneMapping.localFields.map((braneFields) =>
-    braneFields.map(([fieldIndex, value]) => {
-      const meta = fieldMetaMap.get(fieldIndex)!
-      const field = fieldDefs[fieldIndex]
-      const ctx = createFieldEncodingContext(meta.fieldType, field, stringInterner, allocateHeap, heapData)
-      const encodedValue = encodeValue(value, ctx)
-      return [fieldIndex, encodedValue.value1] as [number, number]
-    }),
-  )
-
-  // Обновляем heapInput с финальными закодированными полями
-  const finalHeapInput = {
-    localFields: finalEncodedLocalFields,
-    braneEntangledMap: braneMapping.braneEntangledMap,
-    entangledFields: encodedEntangledFields,
-    fieldMeta: fieldMetaMap,
-  }
-  const finalHeapLayout = buildHeap(finalHeapInput)
-  heapData.set(finalHeapLayout.heap)
-
-  // Перекодируем entangled поля с ARRAY (теперь с allocateHeap)
-  const finalEncodedEntangledFields = new Map<string, [number, number][]>()
-  for (const [key, entangledFields] of braneMapping.entangledFields.entries()) {
-    const encoded = entangledFields.map(([fieldIndex, value]) => {
-      const meta = fieldMetaMap.get(fieldIndex)!
-      const field = fieldDefs[fieldIndex]
-      const ctx = createFieldEncodingContext(meta.fieldType, field, stringInterner, allocateHeap, heapData)
-      const encodedValue = encodeValue(value, ctx)
-      return [fieldIndex, encodedValue.value1] as [number, number]
-    })
-    finalEncodedEntangledFields.set(key, encoded)
-  }
-
-  // Финальное построение heap с entangled ARRAY
-  const ultimateHeapInput = {
-    localFields: finalEncodedLocalFields,
-    braneEntangledMap: braneMapping.braneEntangledMap,
-    entangledFields: finalEncodedEntangledFields,
-    fieldMeta: fieldMetaMap,
-  }
-  const ultimateHeapLayout = buildHeap(ultimateHeapInput)
-  heapData.set(ultimateHeapLayout.heap)
-
-  // Начальные состояния
-  const initialStates = new Uint32Array(branes.map((b) => b.state))
-  const compiledRules = compileFlattenedEnsemble(branes, fieldDefs, stringInterner)
-  const stringTable = stringInterner.table
-
-  return {
-    fieldMeta,
-    localFields: finalEncodedLocalFields,
-    braneEntangledMap: braneMapping.braneEntangledMap,
-    entangledFields: Array.from(finalEncodedEntangledFields.entries()).map(([key, fields]) => ({ key, fields })),
-    heap: heapData,
-    blockPtrs: ultimateHeapLayout.blockPtrs,
-    blockSizes: ultimateHeapLayout.blockSizes,
-    bytecode: compiledRules.bytecode,
-    bytecodeOffsets: compiledRules.bytecodeOffsets,
-    states: initialStates,
-    stringTable,
-    arrayReserveSize,
-  }
-}
-
-function createFieldMeta(fields: Field[]): {
-  fieldMeta: StoredFieldMeta[]
-  fieldMetaMap: Map<number, { fieldType: number; fieldSize: number }>
-} {
-  const fieldMeta: StoredFieldMeta[] = []
-  const fieldMetaMap = new Map<number, { fieldType: number; fieldSize: number }>()
-
-  fields.forEach((field, fieldIndex) => {
-    const fieldType = fieldTypeToBytecodeType(field.type)
-    const fieldSize = fieldType === TYPE.STRING || fieldType === TYPE.ARRAY ? 2 : 1
-    fieldMeta.push({ fieldIndex, fieldType, fieldSize })
-    fieldMetaMap.set(fieldIndex, { fieldType, fieldSize })
-  })
-
-  return { fieldMeta, fieldMetaMap }
-}
-
-function createFieldEncodingContext(
-  fieldType: number,
-  field: Field | undefined,
-  stringInterner: { intern(value: string): number },
-  allocateHeap?: (size: number) => number,
-  heap?: Uint32Array,
-): EncodingContext {
-  const context: EncodingContext = {
-    type: fieldType,
-    stringInterner,
-    allocateHeap,
-    heap,
-  }
-
-  if (field?.enum !== undefined) {
-    context.enum = field.enum
-  }
-
-  if (field?.elementType !== undefined) {
-    switch (field.elementType) {
-      case "number":
-        context.subType = TYPE.FLOAT
-        break
-      case "string":
-        context.subType = TYPE.STRING
-        break
-      case "boolean":
-        context.subType = TYPE.BOOL
-        break
-    }
-  }
-
-  return context
+  return assembleStoredBoundaryData(flattenBoundaryData(data))
 }
 
 // ============================================================================
@@ -407,14 +202,14 @@ export function getMatrixState(): MatrixStateInternal {
     heap: commonState.heap,
     bytecode: commonState.bytecode,
     bytecodeOffsets: commonState.bytecodeOffsets,
-    states: matrix$.cpuStates,
+    states: commonState.states,
     stringRegistry: atlasExport.registry,
     stringHeap: atlasExport.heap,
     fields: localState.fields,
     metadata: {
       arrayReserveSize: localState.arrayReserveSize,
       heapAllocOffset: localState.heapAllocOffset,
-      braneBlockPtrs: commonState.braneBlockPtrs,
+      braneBlockPtrs: commonState.blockPtrs,
     },
   }
 }
@@ -429,7 +224,7 @@ export function getMatrixState(): MatrixStateInternal {
  * @remarks
  * **Side Effects:**
  * - Сбрасывает локальное deduplicated stored state
- * - Пересобирает `heap`, `bytecode`, `initialStates`
+ * - Пересобирает canonical stored data (`heap`, `bytecode`, `states`, `blockPtrs`)
  * - НЕ выполняет шаг эволюции во время инициализации
  * - Возвращает изменения после инициализации (обычно пусто до первого `update()`)
  *
@@ -448,11 +243,11 @@ export function getMatrixState(): MatrixStateInternal {
  * @example
  * ```typescript
  * // Инициализация без шага FSM
- * const initialStates = await write({
+ * const initialChanges = await write({
  *   fields: [{ type: FieldType.F32 }],
  *   branes: [{ values: [[0, 100]], state: 0, collapses: [[[1, { 0: { gt: 50 } }]], [null]] }],
  * })
- * // initialStates = [] до первого update()
+ * // initialChanges = [] до первого update()
  * ```
  */
 export async function write(data: Data): Promise<[number, number][]> {
@@ -493,25 +288,13 @@ export async function write(data: Data): Promise<[number, number][]> {
     boundary$.restore({
       bytecode: prepared.bytecode,
       bytecodeOffsets: prepared.bytecodeOffsets,
-      initialStates: prepared.states,
+      states: prepared.states,
       heap: prepared.heap,
-      braneBlockPtrs: prepared.blockPtrs,
+      blockPtrs: prepared.blockPtrs,
       stringTable: prepared.stringTable,
     })
 
-    await matrixInit(
-      boundary$,
-      {
-        params: {
-          bytecode: prepared.bytecode,
-          bytecodeOffsets: prepared.bytecodeOffsets,
-          states: prepared.states,
-          blockPtrs: prepared.blockPtrs,
-          heap: prepared.heap,
-        },
-        stringTable: prepared.stringTable,
-      },
-    )
+    await matrixInit(boundary$)
 
     // Минимальная рабочая реализация не выполняет шаг при write().
     return []
@@ -596,17 +379,17 @@ export async function update(
       throw new Error("Store not initialized. Call write() first.")
     }
 
-    const { heap, braneBlockPtrs } = commonState
+    const { heap, blockPtrs } = commonState
     const { fields, heapAllocOffset, stringInterner } = localState
 
     const allHeapUpdates: MatrixHeapUpdate[] = []
 
     for (const [braneIndex, fieldUpdates, lock] of updates) {
-      if (braneIndex < 0 || braneIndex >= braneBlockPtrs.length) {
+      if (braneIndex < 0 || braneIndex >= blockPtrs.length) {
         throw new Error(`Brane index out of range: ${braneIndex}`)
       }
 
-      const blockPtr = braneBlockPtrs[braneIndex]!
+      const blockPtr = blockPtrs[braneIndex]!
 
       // Обновление lock флага (если указан)
       if (lock !== undefined) {
@@ -681,10 +464,10 @@ export async function update(
  */
 export function unlock(indexes: number[]): void {
   const commonState = boundary$
-  const { heap, braneBlockPtrs } = commonState
+  const { heap, blockPtrs } = commonState
 
   const unlockUpdates = indexes.map((index) => {
-    const blockPtr = braneBlockPtrs[index]
+    const blockPtr = blockPtrs[index]
     if (blockPtr === undefined) {
       throw new Error(`Brane at index ${index} not found in boundary`)
     }

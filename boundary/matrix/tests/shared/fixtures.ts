@@ -6,8 +6,7 @@
 import { boundary$ } from "../../../store"
 import { compileEnsemble, buildHeap, FieldType, floatToUint, type Field, type Brane } from "../../../fields"
 import type { StoredStringTable } from "../../../fields"
-import type { MatrixInitParams, MatrixRuntime } from "../../matrix.t"
-import type { CpuRuntimeContext } from "../../cpu/index.t.ts"
+import type { MatrixRuntime } from "../../matrix.t"
 import type { BoundaryStore } from "../../../store.t"
 
 function createEmptyStringTable(): StoredStringTable {
@@ -40,9 +39,9 @@ export function createSimpleBraneFixture() {
     ]),
   })
 
-  const initialStates = new Uint32Array([0])
+  const states = new Uint32Array([0])
 
-  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, initialStates, stringTable: createEmptyStringTable() }
+  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, states, stringTable: createEmptyStringTable() }
 }
 
 /**
@@ -87,9 +86,9 @@ export function createMultipleBranesFixture() {
     ]),
   })
 
-  const initialStates = new Uint32Array([0, 0, 0])
+  const states = new Uint32Array([0, 0, 0])
 
-  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, initialStates, stringTable: createEmptyStringTable() }
+  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, states, stringTable: createEmptyStringTable() }
 }
 
 /**
@@ -122,9 +121,9 @@ export function createLockedBraneFixture() {
   const blockPtr = blockPtrs[0]!
   heap[blockPtr + 2] = 1 // lock = true
 
-  const initialStates = new Uint32Array([0])
+  const states = new Uint32Array([0])
 
-  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, initialStates, stringTable: createEmptyStringTable() }
+  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, states, stringTable: createEmptyStringTable() }
 }
 
 /**
@@ -154,9 +153,9 @@ export function createFieldUpdateFixture() {
     ]),
   })
 
-  const initialStates = new Uint32Array([0])
+  const states = new Uint32Array([0])
 
-  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, initialStates, stringTable: createEmptyStringTable() }
+  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, states, stringTable: createEmptyStringTable() }
 }
 
 /**
@@ -166,36 +165,11 @@ export function createBoundaryStore(fixture: ReturnType<typeof createSimpleBrane
   const store = { ...boundary$ }
   store.bytecode = fixture.bytecode
   store.bytecodeOffsets = fixture.bytecodeOffsets
-  store.initialStates = fixture.initialStates
+  store.states = fixture.states
   store.heap = fixture.heap
-  store.braneBlockPtrs = fixture.blockPtrs
+  store.blockPtrs = fixture.blockPtrs
   store.stringTable = fixture.stringTable
   return store
-}
-
-/**
- * Создаёт параметры инициализации для GPU runtime.
- */
-export function createMatrixInitParams(fixture: ReturnType<typeof createSimpleBraneFixture>): MatrixInitParams {
-  return {
-    bytecode: fixture.bytecode,
-    bytecodeOffsets: fixture.bytecodeOffsets,
-    states: fixture.initialStates,
-    blockPtrs: fixture.blockPtrs,
-    heap: fixture.heap,
-  }
-}
-
-/**
- * Создаёт backend-local контекст для CPU runtime.
- */
-export function createCpuRuntimeContext(fixture: ReturnType<typeof createSimpleBraneFixture>): CpuRuntimeContext {
-  return {
-    heap: fixture.heap,
-    blockPtrs: fixture.blockPtrs,
-    bytecode: fixture.bytecode,
-    bytecodeOffsets: fixture.bytecodeOffsets,
-  }
 }
 
 /**
@@ -205,9 +179,9 @@ export function createIsolatedStore(fixture: ReturnType<typeof createSimpleBrane
   return {
     bytecode: fixture.bytecode.slice(),
     bytecodeOffsets: fixture.bytecodeOffsets.slice(),
-    initialStates: fixture.initialStates.slice(),
+    states: fixture.states.slice(),
     heap: fixture.heap.slice(),
-    braneBlockPtrs: [...fixture.blockPtrs],
+    blockPtrs: [...fixture.blockPtrs],
     stringTable: { values: [...fixture.stringTable.values] },
     reset: () => {
       throw new Error("reset not supported in isolated store")

@@ -1,276 +1,348 @@
-### Goal
+# Task: Refactor Boundary/Fields/Matrix data flow to the final stored-data contract
 
-Perform a full data-flow refactor so that the Boundary pipeline follows the agreed ontology precisely:
+## Communication rule
 
-- **Boundary** is the flattening boundary
-- **Fields** is the imprint layer where deduplication happens after flattening
-- **Matrix** consumes already flattened and deduplicated stored data
-- **CPU** executes directly from indexed stored data
-- **GPU** derives backend-local buffers from the same stored data
-
-This refactor must correct the current mismatch between the agreed architecture and the current implementation.
+The user communicates in **Russian**.
+All user-facing explanations, summaries, and follow-up questions must be in **Russian**.
 
 ---
 
-### Architectural Rule To Preserve
+## Goal
 
-This project is metaphor-first and the metaphor is architectural, not decorative.
+Refactor the current Boundary → Fields → Matrix pipeline so that it matches the agreed architecture exactly:
 
-- **Boundary** = the event-horizon-like flattening layer  
-  Data arriving at Boundary loses hierarchy and becomes flat.
+- **Boundary** performs flattening
+- **Fields** performs deduplication and compaction
+- **global Boundary store** contains only final flattened + deduplicated stored data plus Matrix-written runtime results
+- **Matrix** consumes the full store as the canonical source of truth
+- **CPU** executes directly over indexed stored data
+- **GPU** derives buffers locally from the same stored data
 
-- **Fields** = the imprint layer on the boundary  
-  Data written into Fields is deduplicated and compacted.
-
-- **Matrix** = the execution layer  
-  Matrix must consume only already flattened and deduplicated stored data.
-
-- **CPU** = direct indexed JavaScript execution over stored data  
-- **GPU** = buffer preparation and execution from the same stored data
-
-Do not violate this division of responsibility.
+The final architecture must eliminate any extra store data that Matrix does not read or write.
 
 ---
 
-### Current Repository State That Must Be Analyzed And Refactored
+## Metaphor / ontology rule (must be preserved)
 
-The current implementation still mixes responsibilities.
+This project is metaphor-first.
 
-1. `boundary/fields/index.t.ts` still exposes `Data` in object form with:
-   - `fields?: Field[]`
-   - `branes?: Brane[]`
-   - `Collapse[][]` transitions
-   - `values: [fieldIndex, BraneValue][]`  [oai_citation:0‡index.t.ts](https://github.com/zavx0z/metafor/blob/arch/boundary/fields/index.t.ts)
+- **Boundary** is the event-horizon-like boundary.
+  What approaches the boundary is stretched and flattened.
 
-2. `boundary/boundary.ts` currently performs most preparation in `prepareData()`:
-   - materializes entanglement
-   - compiles superpositions
-   - encodes values
-   - builds heap
-   - derives initial states  [oai_citation:1‡boundary.ts](https://github.com/zavx0z/metafor/blob/arch/boundary/boundary.ts)
+- **Fields** is the imprint layer on the boundary.
+  What is written on the boundary is deduplicated.
 
-3. `boundary/fields/superposition.ts` currently compiles transition objects into a compact linear bytecode layout:
-   - `state table`
-   - `state blocks`
-   - `condition blocks`
-   - heap for `IN/NOT_IN` lists  [oai_citation:2‡superposition.ts](https://github.com/zavx0z/metafor/blob/arch/boundary/fields/superposition.ts)
-   This is already a flattening-oriented representation of transitions.
+- **Matrix** consumes the imprint and computes over it.
 
-4. `boundary/fields/condition.ts` parses declarative conditions into atomic checks with `op` and `val`  [oai_citation:3‡condition.ts](https://github.com/zavx0z/metafor/blob/arch/boundary/fields/condition.ts)
-
-5. `boundary/fields/values.ts` still performs early string interning through `getStringAtlas().intern()` inside common preparation, so strings are still converted too early into atlas-dependent representation  [oai_citation:4‡values.ts](https://github.com/zavx0z/metafor/blob/arch/boundary/fields/values.ts)
-
-6. `boundary/fields/heap.t.ts` shows that the stored execution form is already intended to be flat and indexed:
-   - `HeapInput.localFields`
-   - `braneEntangledMap`
-   - `entangledFields`
-   - `fieldMeta`
-   - result `heap` + `blockPtrs`  [oai_citation:5‡heap.t.ts](https://github.com/zavx0z/metafor/blob/arch/boundary/fields/heap.t.ts)
-
-7. `boundary/matrix/matrix.t.ts` currently accepts only shared execution data:
-   - `heap`
-   - `states`
-   - `bytecode`
-   - `bytecodeOffsets`
-   - `blockPtrs`  [oai_citation:6‡matrix.t.ts](https://github.com/zavx0z/metafor/blob/arch/boundary/matrix/matrix.t.ts)
-   This direction is correct and must be preserved.
-
-8. `boundary/matrix/runtime.ts` removed `atlasExport` from shared Matrix init context, but still creates GPU string export in runtime orchestration through `getStringAtlas().exportData()` for the GPU branch  [oai_citation:7‡runtime.ts](https://github.com/zavx0z/metafor/blob/arch/boundary/matrix/runtime.ts)  
-   This is still not the final architecture.
-
-9. `boundary/matrix/gpu/init.ts` still expects atlas-export-shaped input to create `stringRegistry` and `stringHeap` buffers  [oai_citation:8‡init.ts](https://github.com/zavx0z/metafor/blob/arch/boundary/matrix/gpu/init.ts)
+This is not decorative language.
+It is the architectural rule for data-flow responsibilities.
 
 ---
 
-### Required Target Architecture
+## Required target model
 
-#### 1. Boundary responsibility
-Boundary must be the flattening layer.
+### 1. Boundary
 
-That means the incoming object/hierarchical data must be flattened before it is written into Fields.
+Boundary must do flattening only.
 
-This includes at minimum:
-- transition object graphs
-- nested condition structures
-- any remaining object-shaped execution data
+Boundary may:
 
-Boundary must convert them into flat relational/indexed forms.
+- parse nested input
+- flatten transitions and conditions
+- prepare local intermediate data
 
-Transition objects must not remain the canonical stored form.
+Boundary must not:
 
-#### 2. Fields responsibility
-Fields must be the deduplication layer.
+- keep intermediate preparation artifacts in the global store
+- treat temporary preparation structures as canonical data
 
-Fields must receive already flattened data and produce:
-- deduplicated string table
-- deduplicated value tables where justified
-- compact indexed relations
-- compact transition storage
-- compact stored data for Matrix
+### 2. Fields
 
-Fields must not be a GPU-buffer layer.
-Fields must not emit backend-specific buffer payloads.
+Fields must receive flattened input and produce the final canonical stored snapshot.
 
-Fields must own deduplication, compaction, indexing, and stored canonical data.
+Fields owns:
 
-#### 3. Matrix responsibility
-Matrix must consume only stored canonical data.
+- deduplication
+- compaction
+- canonical indexing
+- canonical string IDs
+- compact stored transition representation
+- final stored data contract
 
-Matrix must not be responsible for semantic flattening.
-Matrix must not depend on object graphs.
-Matrix must not depend on GPU-only payload crossing the shared boundary.
+### 3. Global store
 
-CPU must execute directly over indexed stored data.
-GPU must derive its buffers from the same stored data.
+Global store must contain only:
 
-#### 4. String responsibility
-Strings must be deduplicated in Fields by ID.
+- final flattened + deduplicated stored data from Fields
+- runtime results written by Matrix
 
-This means:
-- Fields must own canonical string IDs
-- stored data and transition conditions must reference strings by `stringId`
-- CPU must be able to resolve string IDs from canonical stored data
-- GPU must derive `stringRegistry` and `stringHeap` from the same canonical stored string table
-- do not keep early GPU-specific atlas export as the canonical common representation
+Global store must contain no:
 
-The current early atlas-dependent encoding in `boundary/fields/values.ts` is not the final architecture and must be redesigned.
+- temporary preparation structures
+- helper/intermediate flattening IR
+- backend-local buffers
+- GPU-only payload
+- hidden duplicate representations
+- data not used by Matrix for reading or writing
+
+### 4. Matrix
+
+Matrix must consume the full canonical store.
+
+CPU:
+
+- reads stored indexed data directly in JavaScript
+
+GPU:
+
+- derives buffers locally from the same stored data
+
+Matrix writes back runtime results into the store.
 
 ---
 
-### Refactor Work Required
+## Current repository problems to fix
 
-#### Phase 1 — define the canonical stored data contract
-Introduce and document one explicit stored data contract that sits between Fields and Matrix.
+### Problem A — deduplication still orchestrated in `boundary.ts`
 
-This contract must be:
-- flat
-- indexed
-- deduplicated
-- backend-neutral
-- sufficient for both CPU and GPU
+The current code moved in the right direction, but `boundary.ts` still performs too much Fields-owned work:
 
-It must explicitly cover:
-- field metadata
-- per-brane state data
-- per-brane field-value addressing
-- entanglement/shared-field relations
-- transition storage
-- string table / string IDs
-- any offsets/pointers required for execution
+- creates string interner
+- creates field meta
+- encodes values
+- builds heap
+- compiles flattened ensemble
+- assembles `StoredBoundaryData`
 
-Do not leave this implicit inside scattered helper outputs.
+This means the real Fields layer still does not fully own deduplication/compaction/stored-contract assembly.
 
-#### Phase 2 — move flattening to Boundary
-Refactor the current object-based transition and condition preparation so that Boundary is explicitly responsible for flattening.
+### Problem B — global store is still shaped around current Matrix runtime layout
 
-That means:
-- transition objects and nested condition objects must stop being the effective stored model
-- flatten them before writing to Fields
-- preserve compact linear transition encoding, but place it correctly in the flattening stage of the architecture
+Current global store still centers around:
 
-If the current bytecode layout is still the best compact form for transitions, keep it.  
-But treat it as the flattened transition storage generated by Boundary, not as a random implementation detail.
-
-#### Phase 3 — make Fields the canonical deduplication layer
-Refactor Fields so that it accepts flattened data and produces deduplicated stored data.
-
-This includes:
-- canonical string table with IDs
-- no raw duplicate strings repeated in stored data
-- no backend-specific atlas export as the stored contract
-- compact indexed forms for value storage and shared data
-
-The result from Fields must be the minimal stored form Matrix needs.
-
-#### Phase 4 — remove early atlas-specific common encoding
-Refactor string handling so that the common stored representation is canonical string IDs plus canonical stored string table, not GPU export structures.
-
-Current code still interns strings via `getStringAtlas().intern()` in common encoding logic and still routes GPU atlas materialization through runtime orchestration  [oai_citation:9‡values.ts](https://github.com/zavx0z/metafor/blob/arch/boundary/fields/values.ts)  [oai_citation:10‡runtime.ts](https://github.com/zavx0z/metafor/blob/arch/boundary/matrix/runtime.ts)
-
-That must be redesigned so that:
-- Fields owns canonical string deduplication
-- Matrix shared contract remains backend-neutral
-- GPU derives its local string buffers from canonical stored string data
-
-#### Phase 5 — keep Matrix shared input minimal and strict
-Preserve the direction already established in `MatrixInitParams`:
-- `heap`
-- `states`
 - `bytecode`
 - `bytecodeOffsets`
-- `blockPtrs`  [oai_citation:11‡matrix.t.ts](https://github.com/zavx0z/metafor/blob/arch/boundary/matrix/matrix.t.ts)
+- `initialStates`
+- `heap`
+- `braneBlockPtrs`
+- `stringTable`
 
-But after the refactor, ensure these are either:
-- the canonical stored data directly,
-- or a clean execution slice derived from the canonical stored contract without leaking backend-specific artifacts.
+This may still be too close to current execution packing rather than the cleanest canonical stored model.
 
-If additional canonical stored data must be passed to Matrix, it must be justified as truly shared CPU/GPU execution data.
+You must verify which structures are:
 
-#### Phase 6 — CPU/GPU final split
-After Matrix receives stored canonical data:
-- CPU executes directly from indexed stored data in JavaScript
-- GPU derives only its own local buffers from the same stored data
+- true canonical stored data
+- execution-specific packing details
 
-No GPU-only payload may cross the shared Boundary→Matrix contract.
+### Problem C — Matrix shared boundary still uses an execution-slice contract instead of full canonical store
 
----
+Current code still passes `params` plus `stringTable` into Matrix init.
+This is a transitional shape.
 
-### Explicit Non-Goals
+The final architecture requires:
 
-- Do not do a cosmetic refactor.
-- Do not merely rename types.
-- Do not keep object-graph transitions as the hidden true model.
-- Do not keep GPU atlas export as the real common representation under another name.
-- Do not move backend-specific materialization upward.
-- Do not expand scope into unrelated runtime redesign outside this data-flow correction.
+- Matrix consumes the full final store as the canonical data source
+- CPU and GPU derive what they need from that store
+- no extra hidden split between “real store” and “actual Matrix input” unless justified
 
----
+### Problem D — strings must exist only as canonical IDs in stored data
 
-### Required Deliverables
+Strings must not exist in stored data as backend-local atlas export or alternate runtime payload.
+Stored data must use canonical string IDs plus canonical deduplicated string table.
+GPU text/buffer conversion must stay local to GPU.
 
-1. A clearly defined canonical stored data contract between Fields and Matrix.
-2. Refactored Boundary flattening flow.
-3. Refactored Fields deduplication flow.
-4. Corrected string pipeline with canonical string IDs in stored data.
-5. Clean Matrix shared input with no GPU-only payload.
-6. CPU direct indexed execution preserved.
-7. GPU local buffer derivation preserved.
-8. Updated tests proving:
-   - flattening and deduplication are separated correctly
-   - strings are deduplicated by ID in stored data
-   - CPU/GPU both run from the same stored data model
-   - no backend-specific payload leaks through the shared boundary
+### Problem E — no unread/unwritten store data
+
+Every field in global store must be justified:
+
+- Matrix reads it
+- and/or Matrix writes it back
+
+If not, it must not be there.
 
 ---
 
-### Acceptance Criteria
+## Required implementation work
 
-The refactor is complete only if all of the following are true:
+### Phase 1 — define the final canonical global store
 
-- Boundary is clearly the flattening layer.
-- Fields is clearly the deduplication layer.
-- Matrix receives only flattened + deduplicated stored data.
-- CPU runs directly from indexed stored data.
-- GPU prepares buffers only from the same stored data.
-- Strings are deduplicated by ID in Fields.
-- No GPU-only atlas export crosses the shared Matrix boundary.
-- Transition data is stored in compact flat form, not as canonical nested objects.
-- The architecture matches the metaphor and the division of responsibility exactly.
+Refactor the current store contract so that the global Boundary store becomes the final canonical stored snapshot.
+
+The global store must contain only the data that:
+
+- survived Boundary flattening
+- survived Fields deduplication
+- is actually needed by Matrix
+
+You must explicitly classify each currently stored structure as one of:
+
+- canonical stored data
+- temporary preparation data
+- CPU-local execution detail
+- GPU-local execution detail
+- runtime result
+
+This classification must be reflected in code, not just in comments.
+
+### Phase 2 — move stored-data assembly fully into Fields
+
+Fields must become the actual producer of the final stored snapshot.
+
+That means the final stored contract must be assembled by Fields-owned logic, not by `boundary.ts` orchestration.
+
+Boundary may still:
+
+- flatten input
+- call Fields
+
+But Boundary must no longer be the effective owner of:
+
+- deduplication
+- stored string indexing
+- stored field-meta assembly
+- stored compact data assembly
+
+### Phase 3 — pass full store into Matrix
+
+Refactor Matrix initialization so Matrix consumes the full canonical store object directly.
+
+Do not keep a split where:
+
+- one part is “the real store”
+- another part is “Matrix params”
+unless that split is strictly internal and derived locally inside Matrix
+
+The architectural rule is:
+
+- global store is the stored imprint
+- Matrix consumes that imprint
+
+### Phase 4 — separate canonical store from backend-local preparation
+
+Keep only canonical stored data in the store.
+
+Any backend-local preparation must happen after Matrix receives the store:
+
+- CPU selects/reads indexed structures directly
+- GPU derives buffers locally
+
+Do not keep backend-local packing in the canonical store just because current CPU code uses it.
+
+### Phase 5 — review `bytecode`, `bytecodeOffsets`, `heap`, `blockPtrs`
+
+Perform an architectural classification of these structures:
+
+- `bytecode`
+- `bytecodeOffsets`
+- `heap`
+- `blockPtrs`
+
+Determine which of them are truly canonical stored data and which are execution packing details.
+
+Important:
+
+- Do not remove them blindly.
+- Do not keep them blindly.
+- Decide based on the new contract:
+  “global store contains only minimal flattened + deduplicated data actually used by Matrix.”
+
+Likely outcomes to consider:
+
+- compact transition representation may remain canonical
+- some current heap/layout structures may turn out to be execution preparation, not canonical truth
+
+Make the code reflect the final decision.
+
+### Phase 6 — enforce string contract
+
+Ensure:
+
+- stored string table is canonical and deduplicated in Fields
+- stored values and conditions use only string IDs / indices
+- GPU derives atlas/buffers locally from that table
+- no alternate string payload crosses the shared stored boundary
+
+### Phase 7 — store mutation discipline
+
+Preserve the mutable-store model:
+
+- Boundary starts from an empty store
+- Boundary/Fields fill only final stored data
+- Matrix writes runtime results back into the same store
+
+But enforce that temporary preparation data never leaks into the store.
 
 ---
 
-### Important Guidance For Implementation
+## Required files to inspect and likely refactor
 
-Be conservative with runtime semantics and aggressive with architectural clarity.
+At minimum inspect and refactor as needed:
 
-Preserve working execution behavior where possible, but do not preserve misplaced responsibilities for convenience.
+- `boundary/boundary.ts`
+- `boundary/store.ts`
+- `boundary/store.t.ts`
+- `boundary/fields/index.ts`
+- `boundary/fields/stored.t.ts`
+- `boundary/fields/string-table.ts`
+- `boundary/fields/values.ts`
+- `boundary/fields/values.t.ts`
+- `boundary/fields/superposition.ts`
+- `boundary/matrix/matrix.t.ts`
+- `boundary/matrix/matrix.ts`
+- `boundary/matrix/runtime.ts`
+- `boundary/matrix/cpu/*`
+- `boundary/matrix/gpu/*`
 
-If a current structure already matches the target architecture, keep it.
-If it violates the architecture, move it to the correct layer even if the old code currently “works”.
+Also inspect tests and update them.
 
-The final result must optimize for:
-- correctness of responsibility boundaries
-- flat indexed stored data
-- minimum memory duplication
-- CPU/GPU shared source of truth
-- clean future extensibility
+---
+
+## Validation requirements
+
+After the refactor, verify all of the following:
+
+1. Boundary flattening exists as a distinct responsibility.
+2. Fields owns final deduplicated stored-data assembly.
+3. Global store contains only final stored data plus Matrix-written runtime results.
+4. No temporary preparation structures leak into global store.
+5. No store field remains that Matrix neither reads nor writes.
+6. CPU executes directly from stored indexed data.
+7. GPU builds its buffers locally from the same stored data.
+8. Strings are canonicalized to IDs in stored data.
+9. GPU text conversion remains local.
+10. No backend-specific payload is stored as canonical truth.
+11. Existing runtime behavior is preserved unless a behavior change is strictly required by the corrected architecture.
+
+---
+
+## Deliverables
+
+1. Code refactor implementing the final stored-data contract
+2. Updated type contracts
+3. Updated store contracts
+4. Updated Matrix initialization flow
+5. Updated CPU/GPU data consumption paths
+6. Updated tests
+7. A short Russian summary:
+   - what was changed
+   - what was moved out of store
+   - what remains in store and why
+   - what Matrix reads
+   - what Matrix writes
+
+---
+
+## Acceptance criteria
+
+The task is complete only if all of these are true:
+
+- Boundary flattens
+- Fields deduplicates
+- global store contains only final stored data + Matrix runtime results
+- Matrix consumes the full store
+- CPU reads indexed stored data directly
+- GPU derives buffers locally
+- strings exist in stored data only via canonical indices
+- no unused data lives in the store
+- no temporary preparation artifacts live in the store
+- the resulting architecture matches the holographic metaphor exactly

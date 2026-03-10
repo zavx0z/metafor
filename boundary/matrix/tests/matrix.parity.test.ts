@@ -4,9 +4,8 @@ import { CPUMatrixRuntime } from "../../matrix/cpu"
 import { GPUMatrixRuntime } from "../../matrix/gpu"
 import {
   createFieldUpdateFixture,
-  createCpuRuntimeContext,
+  createIsolatedStore,
   createLockedBraneFixture,
-  createMatrixInitParams,
   createMultipleBranesFixture,
   createSimpleBraneFixture,
   normalizeChanges,
@@ -18,12 +17,12 @@ async function createRuntimePair(fixture: ReturnType<typeof createSimpleBraneFix
     return null
   }
 
-  const cpuRuntime = new CPUMatrixRuntime(createCpuRuntimeContext(fixture), fixture.initialStates)
+  const cpuStore = createIsolatedStore(fixture)
+  const gpuStore = createIsolatedStore(fixture)
+  const cpuRuntime = new CPUMatrixRuntime(cpuStore)
+  const gpuRuntime = await GPUMatrixRuntime.create(device, gpuStore)
 
-  const params = createMatrixInitParams(fixture)
-  const gpuRuntime = await GPUMatrixRuntime.create(device, params, fixture.stringTable)
-
-  return { cpuRuntime, gpuRuntime }
+  return { cpuRuntime, gpuRuntime, cpuStore, gpuStore }
 }
 
 let executableDevicePromise: Promise<GPUDevice | null> | null = null
@@ -191,19 +190,20 @@ describe("CPU/GPU parity — canonical cases", () => {
     const pair = await createRuntimePair(fixture)
     if (!pair) return
 
-    const { cpuRuntime, gpuRuntime } = pair
+    const { cpuRuntime, gpuRuntime, cpuStore, gpuStore } = pair
     try {
       cpuRuntime.step()
       gpuRuntime.step()
       expect(await cpuRuntime.readChanges()).toEqual([])
       expect(await gpuRuntime.readChanges()).toEqual([])
 
-      const blockPtr = fixture.blockPtrs[0]!
-      const fieldOffset = findFieldOffset(fixture.heap, blockPtr, 0)
+      const blockPtr = cpuStore.blockPtrs[0]!
+      const fieldOffset = findFieldOffset(cpuStore.heap, blockPtr, 0)
       expect(fieldOffset).not.toBeNull()
       if (fieldOffset === null) return
 
-      fixture.heap[fieldOffset] = floatToUint(100)
+      cpuStore.heap[fieldOffset] = floatToUint(100)
+      gpuStore.heap[fieldOffset] = floatToUint(100)
       gpuRuntime.heapUpdate([{ offset: fieldOffset, value1: floatToUint(100) }])
 
       cpuRuntime.step()

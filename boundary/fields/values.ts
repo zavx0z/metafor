@@ -13,7 +13,7 @@
 
 import { TYPE } from "./opcodes"
 import type { EncodingContext } from "./values.t"
-import { FieldType, type FieldTypeValue } from "./index.t"
+import { FieldType, type Field, type FieldTypeValue } from "./index.t"
 
 /**
  * Результат кодирования значения.
@@ -24,6 +24,41 @@ export interface EncodedValueResult {
   value1: number
   /** Второе слово: 0 для скаляров, reserved для STRING/ARRAY. */
   value2: number
+}
+
+export function createFieldEncodingContext(
+  fieldType: number,
+  field: Field | undefined,
+  stringInterner: { intern(value: string): number },
+  allocateHeap?: (size: number) => number,
+  heap?: Uint32Array,
+): EncodingContext {
+  const context: EncodingContext = {
+    type: fieldType,
+    stringInterner,
+    allocateHeap,
+    heap,
+  }
+
+  if (field?.enum !== undefined) {
+    context.enum = field.enum
+  }
+
+  if (field?.elementType !== undefined) {
+    switch (field.elementType) {
+      case "number":
+        context.subType = TYPE.FLOAT
+        break
+      case "string":
+        context.subType = TYPE.STRING
+        break
+      case "boolean":
+        context.subType = TYPE.BOOL
+        break
+    }
+  }
+
+  return context
 }
 
 /**

@@ -22,4 +22,5 @@ export interface GpuRuntimeContext {
 
 export interface GpuReadResult {
   changes: MatrixChanges
+  states: Uint32Array
 }

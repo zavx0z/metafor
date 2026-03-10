@@ -1,4 +1,4 @@
-import type { MatrixChanges } from "../matrix.t.ts"
+import type { GpuReadResult } from "./index.t.ts"
 
 /**
  * Читает изменения состояний из GPU (оркестрация).
@@ -10,7 +10,7 @@ export async function readGpuChanges(
   dirtyFlagsBuffer: GPUBuffer,
   statesBuffer: GPUBuffer,
   stagingBuffer: GPUBuffer,
-): Promise<MatrixChanges> {
+): Promise<GpuReadResult> {
   const braneCount = statesBuffer.size / 4
   const cmd = device.createCommandEncoder()
 
@@ -24,7 +24,7 @@ export async function readGpuChanges(
   const dirtyFlags = data.slice(0, braneCount)
   const states = data.slice(braneCount, braneCount * 2)
 
-  const changes: MatrixChanges = []
+  const changes: Array<[number, number]> = []
   for (let i = 0; i < braneCount; i++) {
     if (dirtyFlags[i]) {
       changes.push([i, states[i]!])
@@ -32,5 +32,5 @@ export async function readGpuChanges(
   }
 
   stagingBuffer.unmap()
-  return changes
+  return { changes, states }
 }

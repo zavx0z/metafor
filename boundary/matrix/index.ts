@@ -16,12 +16,13 @@
  * - `mode` — выбранная среда (`cpu`/`gpu`)
  * - `runtime` — выбранная реализация среды
  *
- * Общие данные (`heap`, `braneBlockPtrs`) передаются через `boundaryStore$` в `matrixInit()`.
+ * Matrix получает canonical `BoundaryStore` целиком и локально выводит из него
+ * CPU/GPU execution details.
  *
  * ## Чего НЕ делает
  *
  * - НЕ содержит `write()`/`update()` — это оркестрация в `@boundary/fields`
- * - НЕ хранит heap/braneBlockPtrs — передаются через `boundaryStore$`
+ * - НЕ хранит canonical stored data отдельно от `boundaryStore$`
  * - НЕ содержит бизнес-логику
  * - НЕ является источником истины для текущего minimal runtime
  *
@@ -30,8 +31,8 @@
  * import { GPU, matrixInit, matrixStep } from "@boundary/matrix"
  * import { boundary$ } from "@boundary/boundary"
  *
- * // Инициализация GPU с инъекцией store$
- * await matrixInit(boundary$, { ... , blockPtrs })
+ * // Инициализация Matrix из canonical store
+ * await matrixInit(boundary$)
  *
  * // Выполнение шага
  * matrixStep()
