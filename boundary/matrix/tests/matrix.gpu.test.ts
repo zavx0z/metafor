@@ -224,7 +224,7 @@ describe("GPU runtime — scenario tests", () => {
     expect((runtime as any).context.buffers.heap).toBe(heapBufferBefore)
   })
 
-  test("string table growth refreshes only string buffers", async () => {
+  test("string table growth reuses existing string buffers when capacity is enough", async () => {
     const device = await skipIfNoGpu()
     if (!device) return
 
@@ -246,8 +246,8 @@ describe("GPU runtime — scenario tests", () => {
     expect((runtime as any).context.buffers.bytecode).toBe(bytecodeBufferBefore)
     expect((runtime as any).context.buffers.states).toBe(statesBufferBefore)
     expect((runtime as any).context.pipeline).toBe(pipelineBefore)
-    expect((runtime as any).context.buffers.stringRegistry).not.toBe(stringRegistryBefore)
-    expect((runtime as any).context.buffers.stringHeap).not.toBe(stringHeapBefore)
+    expect((runtime as any).context.buffers.stringRegistry).toBe(stringRegistryBefore)
+    expect((runtime as any).context.buffers.stringHeap).toBe(stringHeapBefore)
   })
 
   test("append-only string growth uses incremental string append path", async () => {
@@ -280,7 +280,7 @@ describe("GPU runtime — scenario tests", () => {
     expect(refreshCalls).toBe(0)
   })
 
-  test("array growth refreshes only heap-related buffers", async () => {
+  test("array growth reuses existing heap buffer when capacity is enough", async () => {
     const device = await skipIfNoGpu()
     if (!device) return
 
@@ -298,8 +298,8 @@ describe("GPU runtime — scenario tests", () => {
     const changes = await runtime.readChanges()
 
     expect(changes).toEqual([[0, 1]])
-    expect((runtime as any).context.buffers.heap).not.toBe(heapBufferBefore)
-    expect((runtime as any).context.buffers.braneBlockPtrs).not.toBe(braneBlockPtrsBefore)
+    expect((runtime as any).context.buffers.heap).toBe(heapBufferBefore)
+    expect((runtime as any).context.buffers.braneBlockPtrs).toBe(braneBlockPtrsBefore)
     expect((runtime as any).context.buffers.bytecode).toBe(bytecodeBufferBefore)
     expect((runtime as any).context.buffers.states).toBe(statesBufferBefore)
     expect((runtime as any).context.buffers.stringRegistry).toBe(stringRegistryBefore)

@@ -20,11 +20,15 @@ export interface GpuRuntimeContext {
   stagingBuffer: GPUBuffer
   braneCount: number
   heapMirror: Uint32Array
+  heapWords: number
+  heapCapacityWords: number
   braneBlockPtrs: number[]
   sharedBlockPtrs: number[]
   stringTableSize: number
   stringRegistryWords: number
+  stringRegistryCapacityWords: number
   stringHeapWords: number
+  stringHeapCapacityWords: number
   stringTableSnapshot: string[]
 }
 

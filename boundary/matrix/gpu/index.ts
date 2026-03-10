@@ -7,7 +7,7 @@ import { findFieldValueOffset } from "../heap"
 import type { MatrixChanges, MatrixHeapUpdate, MatrixRuntime } from "../matrix.t"
 import { createPackContext, encodeValue } from "../pack"
 import type { GpuRuntimeContext } from "./index.t.ts"
-import { createStorageBuffer, destroyBuffers } from "./buffer"
+import { createStorageBuffer, createStorageBufferWithCapacity, destroyBuffers, nextCapacityWords } from "./buffer"
 import { createGpuRuntimeContext } from "./init"
 import { resolveStringTableBuffers } from "./layout"
 import { createBindGroup } from "./pipeline"
@@ -162,8 +162,20 @@ export class GPUMatrixRuntime implements MatrixRuntime {
 
   private refreshStringBuffers(): void {
     const atlas = resolveStringTableBuffers(this.store.stringTable)
-    const nextStringRegistry = createStorageBuffer(this.context.device, atlas.registry)
-    const nextStringHeap = createStorageBuffer(this.context.device, atlas.heap)
+    const nextStringRegistryWords = atlas.registry.length > 0 ? atlas.registry.length : 1
+    const nextStringHeapWords = atlas.heap.length > 0 ? atlas.heap.length : 1
+    const nextStringRegistryCapacityWords = nextCapacityWords(nextStringRegistryWords)
+    const nextStringHeapCapacityWords = nextCapacityWords(nextStringHeapWords)
+    const nextStringRegistry = createStorageBufferWithCapacity(
+      this.context.device,
+      atlas.registry.length > 0 ? atlas.registry : new Uint32Array(1),
+      nextStringRegistryCapacityWords,
+    )
+    const nextStringHeap = createStorageBufferWithCapacity(
+      this.context.device,
+      atlas.heap.length > 0 ? atlas.heap : new Uint32Array(1),
+      nextStringHeapCapacityWords,
+    )
     const previousStringRegistry = this.context.buffers.stringRegistry
     const previousStringHeap = this.context.buffers.stringHeap
 
@@ -171,8 +183,10 @@ export class GPUMatrixRuntime implements MatrixRuntime {
     this.context.buffers.stringHeap = nextStringHeap
     this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
     this.context.stringTableSize = this.store.stringTable.length
-    this.context.stringRegistryWords = atlas.registry.length > 0 ? atlas.registry.length : 1
-    this.context.stringHeapWords = atlas.heap.length > 0 ? atlas.heap.length : 1
+    this.context.stringRegistryWords = nextStringRegistryWords
+    this.context.stringRegistryCapacityWords = nextStringRegistryCapacityWords
+    this.context.stringHeapWords = nextStringHeapWords
+    this.context.stringHeapCapacityWords = nextStringHeapCapacityWords
     this.context.stringTableSnapshot = [...this.store.stringTable]
 
     destroyBuffers([previousStringRegistry, previousStringHeap])
@@ -199,14 +213,49 @@ export class GPUMatrixRuntime implements MatrixRuntime {
       return true
     }
 
+    const canGrowRegistryInPlace =
+      this.context.stringRegistryWords + appended.registry.length <= this.context.stringRegistryCapacityWords
+    const canGrowHeapInPlace =
+      this.context.stringHeapWords + appended.heap.length <= this.context.stringHeapCapacityWords
+    if (canGrowRegistryInPlace && canGrowHeapInPlace) {
+      if (appended.registry.length > 0) {
+        this.context.device.queue.writeBuffer(
+          this.context.buffers.stringRegistry,
+          this.context.stringRegistryWords * 4,
+          appended.registry.buffer,
+          appended.registry.byteOffset,
+          appended.registry.byteLength,
+        )
+      }
+      if (appended.heap.length > 0) {
+        this.context.device.queue.writeBuffer(
+          this.context.buffers.stringHeap,
+          this.context.stringHeapWords * 4,
+          appended.heap.buffer,
+          appended.heap.byteOffset,
+          appended.heap.byteLength,
+        )
+      }
+
+      this.context.stringTableSize = nextTable.length
+      this.context.stringRegistryWords += appended.registry.length
+      this.context.stringHeapWords += appended.heap.length
+      this.context.stringTableSnapshot = [...nextTable]
+      return true
+    }
+
     const previousStringRegistry = this.context.buffers.stringRegistry
     const previousStringHeap = this.context.buffers.stringHeap
+    const nextStringRegistryWords = this.context.stringRegistryWords + appended.registry.length
+    const nextStringHeapWords = this.context.stringHeapWords + appended.heap.length
+    const nextStringRegistryCapacityWords = nextCapacityWords(nextStringRegistryWords)
+    const nextStringHeapCapacityWords = nextCapacityWords(nextStringHeapWords)
     const nextStringRegistry = this.context.device.createBuffer({
-      size: Math.max(1, this.context.stringRegistryWords + appended.registry.length) * 4,
+      size: nextStringRegistryCapacityWords * 4,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
     })
     const nextStringHeap = this.context.device.createBuffer({
-      size: Math.max(1, this.context.stringHeapWords + appended.heap.length) * 4,
+      size: nextStringHeapCapacityWords * 4,
       usage: GPUBufferUsage.STORAGE | GPUBufferUsage.COPY_DST | GPUBufferUsage.COPY_SRC,
     })
 
@@ -242,8 +291,10 @@ export class GPUMatrixRuntime implements MatrixRuntime {
     this.context.buffers.stringHeap = nextStringHeap
     this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
     this.context.stringTableSize = nextTable.length
-    this.context.stringRegistryWords += appended.registry.length
-    this.context.stringHeapWords += appended.heap.length
+    this.context.stringRegistryWords = nextStringRegistryWords
+    this.context.stringRegistryCapacityWords = nextStringRegistryCapacityWords
+    this.context.stringHeapWords = nextStringHeapWords
+    this.context.stringHeapCapacityWords = nextStringHeapCapacityWords
     this.context.stringTableSnapshot = [...nextTable]
 
     destroyBuffers([previousStringRegistry, previousStringHeap])
@@ -253,9 +304,12 @@ export class GPUMatrixRuntime implements MatrixRuntime {
   private refreshHeapBuffers(): void {
     const nextDerived = deriveMatrixData(this.store)
     const nextBraneBlockPtrs = createStorageBuffer(this.context.device, Uint32Array.from(nextDerived.blockPtrs))
-    const nextHeap = createStorageBuffer(
+    const nextHeapWords = nextDerived.heap.length > 0 ? nextDerived.heap.length : 1
+    const nextHeapCapacityWords = nextCapacityWords(nextHeapWords)
+    const nextHeap = createStorageBufferWithCapacity(
       this.context.device,
       nextDerived.heap.length > 0 ? nextDerived.heap : new Uint32Array(1),
+      nextHeapCapacityWords,
     )
     const previousBraneBlockPtrs = this.context.buffers.braneBlockPtrs
     const previousHeap = this.context.buffers.heap
@@ -264,6 +318,8 @@ export class GPUMatrixRuntime implements MatrixRuntime {
     this.context.buffers.heap = nextHeap
     this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
     this.context.heapMirror = nextDerived.heap
+    this.context.heapWords = nextHeapWords
+    this.context.heapCapacityWords = nextHeapCapacityWords
     this.context.braneBlockPtrs = nextDerived.blockPtrs
     this.context.sharedBlockPtrs = nextDerived.sharedBlockPtrs
     this.context.stringTableSize = this.store.stringTable.length
@@ -434,14 +490,25 @@ export class GPUMatrixRuntime implements MatrixRuntime {
   }
 
   private replaceHeapBuffer(nextHeapMirror: Uint32Array): void {
+    const nextHeapWords = nextHeapMirror.length > 0 ? nextHeapMirror.length : 1
+    if (nextHeapWords <= this.context.heapCapacityWords) {
+      this.context.device.queue.writeBuffer(this.context.buffers.heap, 0, nextHeapMirror.buffer, nextHeapMirror.byteOffset, nextHeapMirror.byteLength)
+      this.context.heapWords = nextHeapWords
+      return
+    }
+
     const previousHeap = this.context.buffers.heap
-    const nextHeap = createStorageBuffer(
+    const nextHeapCapacityWords = nextCapacityWords(nextHeapWords)
+    const nextHeap = createStorageBufferWithCapacity(
       this.context.device,
       nextHeapMirror.length > 0 ? nextHeapMirror : new Uint32Array(1),
+      nextHeapCapacityWords,
     )
 
     this.context.buffers.heap = nextHeap
     this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
+    this.context.heapWords = nextHeapWords
+    this.context.heapCapacityWords = nextHeapCapacityWords
 
     destroyBuffers([previousHeap])
   }

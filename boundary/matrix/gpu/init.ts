@@ -1,7 +1,7 @@
 import type { BoundaryStore } from "../../store.t"
 import { deriveMatrixData } from "../derived"
 import type { GpuBufferMap, GpuRuntimeContext } from "./index.t.ts"
-import { createBuffer, createStorageBuffer } from "./buffer"
+import { createBuffer, createStorageBuffer, createStorageBufferWithCapacity, nextCapacityWords } from "./buffer"
 import { createUniforms, resolveStringTableBuffers } from "./layout"
 import { createBindGroup, createComputePipeline } from "./pipeline"
 import { debugLog } from "./debug"
@@ -23,10 +23,16 @@ export function createGpuRuntimeContext(
   const braneCount = store$.states.length
   const statesData = derived.states.length > 0 ? derived.states : new Uint32Array(1)
   const dirtyData = new Uint32Array(Math.max(1, braneCount))
+  const heapWords = derived.heap.length > 0 ? derived.heap.length : 1
+  const heapCapacityWords = nextCapacityWords(heapWords)
+  const stringRegistryWords = atlas.registry.length > 0 ? atlas.registry.length : 1
+  const stringRegistryCapacityWords = nextCapacityWords(stringRegistryWords)
+  const stringHeapWords = atlas.heap.length > 0 ? atlas.heap.length : 1
+  const stringHeapCapacityWords = nextCapacityWords(stringHeapWords)
 
   const buffers: GpuBufferMap = {
     braneBlockPtrs: createStorageBuffer(device, createBraneBlockPtrs(derived.blockPtrs)),
-    heap: createStorageBuffer(device, derived.heap.length > 0 ? derived.heap : new Uint32Array(1)),
+    heap: createStorageBufferWithCapacity(device, derived.heap.length > 0 ? derived.heap : new Uint32Array(1), heapCapacityWords),
     states: createStorageBuffer(device, statesData, true),
     dirtyFlags: createBuffer(
       device,
@@ -36,8 +42,8 @@ export function createGpuRuntimeContext(
     bytecode: createStorageBuffer(device, derived.bytecode.length > 0 ? derived.bytecode : new Uint32Array(1)),
     bytecodeOffsets: createStorageBuffer(device, derived.bytecodeOffsets.length > 0 ? derived.bytecodeOffsets : new Uint32Array(1)),
     uniforms: createBuffer(device, createUniforms(braneCount), GPUBufferUsage.UNIFORM | GPUBufferUsage.COPY_DST),
-    stringRegistry: createStorageBuffer(device, atlas.registry),
-    stringHeap: createStorageBuffer(device, atlas.heap),
+    stringRegistry: createStorageBufferWithCapacity(device, atlas.registry.length > 0 ? atlas.registry : new Uint32Array(1), stringRegistryCapacityWords),
+    stringHeap: createStorageBufferWithCapacity(device, atlas.heap.length > 0 ? atlas.heap : new Uint32Array(1), stringHeapCapacityWords),
   }
 
   const stagingBuffer = device.createBuffer({
@@ -55,11 +61,15 @@ export function createGpuRuntimeContext(
     stagingBuffer,
     braneCount,
     heapMirror: derived.heap,
+    heapWords,
+    heapCapacityWords,
     braneBlockPtrs: derived.blockPtrs,
     sharedBlockPtrs: derived.sharedBlockPtrs,
     stringTableSize: store$.stringTable.length,
-    stringRegistryWords: atlas.registry.length > 0 ? atlas.registry.length : 1,
-    stringHeapWords: atlas.heap.length > 0 ? atlas.heap.length : 1,
+    stringRegistryWords,
+    stringRegistryCapacityWords,
+    stringHeapWords,
+    stringHeapCapacityWords,
     stringTableSnapshot: [...store$.stringTable],
   }
 }
