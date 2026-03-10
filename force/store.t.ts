@@ -15,6 +15,7 @@ import type {
 } from "./force.t"
 import type { FieldDefinition, FieldsDefinition } from "./strong/field.t"
 import type { Field } from "@boundary/fields"
+import type { NodeType } from "@metafor/dsl"
 
 /**
  * Внутреннее состояние FORCE-домена.
@@ -46,6 +47,8 @@ export interface ForceStoreState {
   nextFieldIndex: number
   /** Определение полей для write() */
   fieldsDefinition: FieldsDefinition
+  /** Parsed bulk.gravity AST как upstream источник actor connectivity. */
+  gravitySource: NodeType[] | null
 
   /** Сбрасывает состояние хранилища */
   reset(): void

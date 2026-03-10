@@ -38,6 +38,7 @@ export const force$: ForceStoreState = {
   actorIds: new Set(),
   nextFieldIndex: 0,
   fieldsDefinition: {},
+  gravitySource: null,
 
   reset() {
     this.globalFields.clear()
@@ -53,6 +54,7 @@ export const force$: ForceStoreState = {
     this.actorIds.clear()
     this.nextFieldIndex = 0
     this.fieldsDefinition = {}
+    this.gravitySource = null
   },
 
   restore(state: ForceStoreState) {
@@ -69,5 +71,6 @@ export const force$: ForceStoreState = {
     this.actorIds = state.actorIds
     this.nextFieldIndex = state.nextFieldIndex
     this.fieldsDefinition = state.fieldsDefinition
+    this.gravitySource = state.gravitySource
   },
 }

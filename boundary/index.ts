@@ -54,6 +54,7 @@ export {
   uintToFloat,
   findEntangledGroups,
   buildBraneMapping,
+  materializeEntanglement,
   parseCondition,
   OP,
   TYPE,

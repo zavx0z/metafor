@@ -38,7 +38,7 @@ import { compileEnsemble, compileParsedConditions, compileSuperposition } from "
 import type { CompiledRules } from "./superposition.t"
 import { encodeFieldValue, encodeValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "./values"
 import type { EncodingContext } from "./values.t"
-import { buildBraneMapping, findEntangledGroups } from "./entangled"
+import { buildBraneMapping, findEntangledGroups, materializeEntanglement } from "./entangled"
 import { parseCondition } from "./condition"
 import { OP, TYPE } from "./opcodes"
 
@@ -67,6 +67,7 @@ export {
   // Entangled
   findEntangledGroups,
   buildBraneMapping,
+  materializeEntanglement,
   // Condition
   parseCondition,
   // Opcodes

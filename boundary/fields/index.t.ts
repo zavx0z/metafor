@@ -145,4 +145,11 @@ export interface Data {
   fields?: Field[]
   /** Браны. Может отсутствовать или быть пустым. */
   branes?: Brane[]
+  /**
+   * Подготовленная shared-fields projection из upstream entanglement pipeline.
+   *
+   * Если не передана, Boundary не пытается самостоятельно выводить entanglement
+   * из raw values и материализует только локальные поля.
+   */
+  entanglement?: import("./entangled.t").PreparedEntanglementProjection
 }

@@ -81,8 +81,7 @@ import {
   encodeFieldValue,
   encodeValue,
   fieldTypeToBytecodeType,
-  findEntangledGroups,
-  buildBraneMapping,
+  materializeEntanglement,
   TYPE,
   FieldType,
   type Data,
@@ -156,23 +155,11 @@ function reset(): void {
  * @returns Подготовленные данные для GPU
  */
 export function prepareData(data: Data): PreparedData {
-  // Извлекаем values из бран для анализа entangled
+  // Извлекаем values из бран и материализуем уже подготовленный entanglement projection
   const branes = data.branes ?? []
   const fieldDefs = data.fields ?? []
   const values = branes.map((b) => b.values)
-
-  // Анализ entangled групп (чистая функция)
-  const entangledAnalysis = findEntangledGroups(values)
-
-  // Создаём маппинг entangledBraneIds
-  const entangledBraneIds = new Map<string, number>()
-  let nextEntangledId = 0
-  entangledAnalysis.entangledGroups.forEach((_, key) => {
-    entangledBraneIds.set(key, nextEntangledId++)
-  })
-
-  // Построение маппинга бран (чистая функция)
-  const braneMapping = buildBraneMapping(values, entangledBraneIds, entangledAnalysis)
+  const braneMapping = materializeEntanglement(values, data.entanglement)
 
   // Компиляция суперпозиций (чистая функция) — интернирует строки из IN списков
   const compiledRules = compileEnsemble(branes, fieldDefs)
@@ -862,6 +849,7 @@ export {
   uintToFloat,
   findEntangledGroups,
   buildBraneMapping,
+  materializeEntanglement,
   parseCondition,
   OP,
   TYPE,

@@ -6,7 +6,13 @@
  *
  * @packageDocumentation
  */
-import type { EntangledGroup, EntangledAnalysis, BraneMapping } from "./entangled.t"
+import type {
+  EntangledGroup,
+  EntangledAnalysis,
+  BraneMapping,
+  PreparedEntanglementBlock,
+  PreparedEntanglementProjection,
+} from "./entangled.t"
 
 /**
  * Анализирует значения бран и определяет entangled группы.
@@ -177,6 +183,96 @@ export function buildBraneMapping(
     braneEntangledMap[idx] = entangledIds
     localFields[idx] = localBrane
   })
+
+  return {
+    localFields,
+    braneEntangledMap,
+    entangledFields,
+  }
+}
+
+const valueEquals = (left: unknown, right: unknown): boolean => {
+  if (Array.isArray(left) && Array.isArray(right)) {
+    if (left.length !== right.length) return false
+    return left.every((value, idx) => Object.is(value, right[idx]))
+  }
+  return Object.is(left, right)
+}
+
+const normalizeBlock = (block: PreparedEntanglementBlock): PreparedEntanglementBlock => ({
+  braneIndices: Array.from(new Set(block.braneIndices)).sort((a, b) => a - b),
+  fieldIndices: Array.from(new Set(block.fieldIndices)).sort((a, b) => a - b),
+  ...(block.key ? { key: block.key } : {}),
+})
+
+/**
+ * Материализует заранее подготовленную entanglement projection в brane layout.
+ *
+ * Boundary не выводит shared-блоки из значений, а только валидирует пришедшую
+ * projection и раскладывает поля по local/shared частям.
+ */
+export function materializeEntanglement(
+  values: [number, unknown][][],
+  projection?: PreparedEntanglementProjection,
+): BraneMapping {
+  const blocks = projection?.blocks?.map(normalizeBlock) ?? []
+  const entangledFields = new Map<string, [number, unknown][]>()
+  const braneEntangledMap = values.map(() => [] as number[])
+  const entangledAssignments = values.map(() => new Set<number>())
+
+  blocks.forEach((block, blockId) => {
+    if (block.braneIndices.length < 2) {
+      throw new Error(`Entanglement block ${blockId}: requires at least 2 branes`)
+    }
+    if (block.fieldIndices.length === 0) {
+      throw new Error(`Entanglement block ${blockId}: requires at least 1 field`)
+    }
+
+    const blockKey = block.key ?? `${block.braneIndices.join(",")}:${block.fieldIndices.join(",")}`
+    const sharedValues: [number, unknown][] = []
+
+    block.fieldIndices.forEach((fieldIndex) => {
+      const referenceBrane = block.braneIndices[0]!
+      const referenceEntry = values[referenceBrane]?.find(([candidate]) => candidate === fieldIndex)
+
+      if (!referenceEntry) {
+        throw new Error(`Entanglement block ${blockKey}: field ${fieldIndex} missing in brane ${referenceBrane}`)
+      }
+
+      const [, referenceValue] = referenceEntry
+
+      block.braneIndices.forEach((braneIndex) => {
+        if (braneIndex < 0 || braneIndex >= values.length) {
+          throw new Error(`Entanglement block ${blockKey}: brane ${braneIndex} out of range`)
+        }
+
+        const fieldEntry = values[braneIndex]!.find(([candidate]) => candidate === fieldIndex)
+        if (!fieldEntry) {
+          throw new Error(`Entanglement block ${blockKey}: field ${fieldIndex} missing in brane ${braneIndex}`)
+        }
+        if (!valueEquals(fieldEntry[1], referenceValue)) {
+          throw new Error(`Entanglement block ${blockKey}: field ${fieldIndex} values diverge across branes`)
+        }
+        if (entangledAssignments[braneIndex]!.has(fieldIndex)) {
+          throw new Error(`Entanglement block ${blockKey}: field ${fieldIndex} already assigned for brane ${braneIndex}`)
+        }
+      })
+
+      block.braneIndices.forEach((braneIndex) => {
+        entangledAssignments[braneIndex]!.add(fieldIndex)
+      })
+      sharedValues.push([fieldIndex, referenceValue])
+    })
+
+    entangledFields.set(blockKey, sharedValues)
+    block.braneIndices.forEach((braneIndex) => {
+      braneEntangledMap[braneIndex]!.push(blockId)
+    })
+  })
+
+  const localFields = values.map((braneValues, braneIndex) =>
+    braneValues.filter(([fieldIndex]) => !entangledAssignments[braneIndex]!.has(fieldIndex)),
+  )
 
   return {
     localFields,

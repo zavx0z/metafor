@@ -7,12 +7,14 @@
 import { write as fieldsWrite, update as fieldsUpdate, unlock } from "@metafor/boundary"
 import { convertField } from "./strong/field"
 import { convertToNumeric } from "../boundary/fields/superposition"
+import { flattenGravity, buildStrongEntanglement, projectEntanglementToBoundary } from "./strong/strong"
 import { force$ } from "./store"
 
 import type { ActorId, BraneStateChange, ActorUpdate } from "./force.t"
 import type { FieldDefinition } from "./strong/field.t"
 import type { ActorConfig } from "./force.t"
 import type { Brane, Data, Field } from "@boundary/fields"
+import type { NodeType } from "@metafor/dsl"
 import { valuesToTuples } from "./strong/value"
 
 // ==================== Функции ====================
@@ -37,6 +39,23 @@ function addField(name: string, field: Field): number {
   force$.globalFields.set(name, [newIndex, field])
   force$.fieldNameIndex.set(name, newIndex)
   return newIndex
+}
+
+function buildBoundaryEntanglement(actorIds: string[]) {
+  const gravity = force$.gravitySource
+  if (!gravity || gravity.length === 0) {
+    return { blocks: [] }
+  }
+
+  const runtimeActors = actorIds.map((actorId, braneIndex) => ({
+    actorId,
+    braneIndex,
+    fieldNames: Object.keys(force$.actorParams.get(actorId) ?? {}),
+  }))
+
+  const flattened = flattenGravity(gravity)
+  const plan = buildStrongEntanglement(flattened, runtimeActors)
+  return projectEntanglementToBoundary(plan, force$.fieldNameIndex)
 }
 
 /**
@@ -113,6 +132,13 @@ export function deleteActor(uuid: ActorId): void {
 }
 
 /**
+ * Регистрирует parsed `bulk.gravity` AST как upstream источник actor connectivity.
+ */
+export function setGravitySource(gravity: NodeType[] | null): void {
+  force$.gravitySource = gravity
+}
+
+/**
  * Создаёт/пересоздаёт Boundary со всеми бранами.
  *
  * @returns Массив изменений состояний (только birth-events при первой инициализации)
@@ -153,6 +179,7 @@ export async function updateBoundary(): Promise<BraneStateChange[]> {
   const data: Data = {
     fields: fieldsArray,
     branes: allBranes,
+    entanglement: buildBoundaryEntanglement(actorIds),
   }
   await fieldsWrite(data)
   // Маппинги

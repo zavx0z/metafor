@@ -37,3 +37,26 @@ export interface BraneMapping {
   /** Поля для каждого entangled блока: ключ → [fieldIndex, value][] */
   entangledFields: Map<string, [number, unknown][]>
 }
+
+/**
+ * Подготовленный блок shared-полей, пришедший сверху.
+ *
+ * Boundary получает уже готовую membership/field projection и только
+ * валидирует её и материализует в layout для heap.
+ */
+export interface PreparedEntanglementBlock {
+  /** Стабильный ключ блока. Если не задан — вычисляется из membership/fields. */
+  key?: string
+  /** Индексы бран, которые входят в shared-блок. */
+  braneIndices: number[]
+  /** Индексы полей, которые должны быть shared внутри блока. */
+  fieldIndices: number[]
+}
+
+/**
+ * Boundary-ready projection entanglement блоков.
+ */
+export interface PreparedEntanglementProjection {
+  /** Полный набор shared-блоков для materialization. */
+  blocks: PreparedEntanglementBlock[]
+}
