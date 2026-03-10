@@ -2,9 +2,55 @@
  * Тесты для prepareData.
  */
 import { test, expect, describe } from "bun:test"
-import { flattenBoundaryData, prepareData } from "../boundary"
+import { flattenBoundaryData, prepareData, type BoundaryData } from "../boundary"
 import { FieldType, type Data } from "../fields/index.t"
 import { OP } from "../fields/opcodes"
+
+function getBraneLocalValues(store: BoundaryData, braneIndex: number) {
+  const brane = store.branes[braneIndex]
+  if (!brane) {
+    return []
+  }
+  return store.braneValues.slice(brane.localValueOffset, brane.localValueOffset + brane.localValueCount)
+}
+
+function getBraneSharedBlockIds(store: BoundaryData, braneIndex: number) {
+  const brane = store.branes[braneIndex]
+  if (!brane) {
+    return []
+  }
+  return store.braneSharedBlockRefs.slice(brane.sharedBlockRefOffset, brane.sharedBlockRefOffset + brane.sharedBlockRefCount)
+}
+
+function getSharedBlockValues(store: BoundaryData, blockIndex: number) {
+  const block = store.sharedBlocks[blockIndex]
+  if (!block) {
+    return []
+  }
+  return store.sharedValues.slice(block.valueOffset, block.valueOffset + block.valueCount)
+}
+
+function getBraneStateTransitions(store: BoundaryData, braneIndex: number, stateIndex: number) {
+  const brane = store.branes[braneIndex]
+  if (!brane || stateIndex < 0 || stateIndex >= brane.stateCount) {
+    return []
+  }
+
+  const state = store.stateTable[brane.stateOffset + stateIndex]
+  if (!state) {
+    return []
+  }
+
+  return store.transitions
+    .slice(state.transitionOffset, state.transitionOffset + state.transitionCount)
+    .map((transition) => ({
+      targetState: transition.targetState,
+      conditions: store.conditions.slice(
+        transition.conditionOffset,
+        transition.conditionOffset + transition.conditionCount,
+      ),
+    }))
+}
 
 describe("prepareData — подготовка canonical JS store", () => {
   test("Boundary flattening должен переводить nested conditions в parsed checks", () => {
@@ -34,7 +80,7 @@ describe("prepareData — подготовка canonical JS store", () => {
     })
   })
 
-  test("должен подготовить flat JS store для 1 браны с 1 полем", () => {
+  test("должен подготовить flat indexed JS store для 1 браны с 1 полем", () => {
     const result = prepareData({
       fields: [{ type: FieldType.F32 }],
       branes: [{
@@ -45,17 +91,20 @@ describe("prepareData — подготовка canonical JS store", () => {
     })
 
     expect(result.fields).toEqual([{ type: FieldType.F32 }])
-    expect(result.branes).toHaveLength(1)
     expect(result.sharedBlocks).toEqual([])
+    expect(result.sharedValues).toEqual([])
     expect(result.states).toEqual([0])
-    expect(result.branes[0]?.localFields).toEqual([{ fieldIndex: 0, value: 100 }])
-    expect(result.branes[0]?.transitions[0]?.[0]).toEqual({
-      targetState: 1,
-      conditions: [{ fieldIndex: 0, op: OP.GT, value: 50 }],
-    })
+    expect(getBraneLocalValues(result, 0)).toEqual([{ fieldIndex: 0, value: 100 }])
+    expect(getBraneStateTransitions(result, 0, 0)).toEqual([
+      {
+        targetState: 1,
+        conditions: [{ fieldIndex: 0, op: OP.GT, value: 50 }],
+      },
+    ])
+    expect(getBraneStateTransitions(result, 0, 1)).toEqual([])
   })
 
-  test("должен подготовить данные с entanglement только из prepared projection", () => {
+  test("должен подготовить entanglement как shared blocks + refs", () => {
     const result = prepareData({
       fields: [{ type: FieldType.F32 }],
       branes: [
@@ -81,14 +130,14 @@ describe("prepareData — подготовка canonical JS store", () => {
     })
 
     expect(result.sharedBlocks).toHaveLength(1)
-    expect(result.sharedBlocks[0]?.fields).toEqual([{ fieldIndex: 0, value: 100 }])
-    expect(result.branes[0]?.localFields).toEqual([])
-    expect(result.branes[1]?.localFields).toEqual([])
-    expect(result.branes[0]?.sharedBlockIds).toEqual([0])
-    expect(result.branes[1]?.sharedBlockIds).toEqual([0])
+    expect(getSharedBlockValues(result, 0)).toEqual([{ fieldIndex: 0, value: 100 }])
+    expect(getBraneLocalValues(result, 0)).toEqual([])
+    expect(getBraneLocalValues(result, 1)).toEqual([])
+    expect(getBraneSharedBlockIds(result, 0)).toEqual([0])
+    expect(getBraneSharedBlockIds(result, 1)).toEqual([0])
   })
 
-  test("Fields должен дедуплицировать строки в canonical string table", () => {
+  test("Fields должен дедуплицировать строки и state graph в canonical store", () => {
     const result = prepareData({
       fields: [{ type: FieldType.STRING_PTR }],
       branes: [
@@ -100,17 +149,19 @@ describe("prepareData — подготовка canonical JS store", () => {
         {
           values: [[0, "hello"]],
           state: 0,
-          collapses: [[null]],
+          collapses: [[[1, { 0: { eq: "hello" } }]], [null]],
         },
       ],
     })
 
     expect(result.stringTable.filter((value) => value === "hello")).toHaveLength(1)
-    expect(result.branes[0]?.localFields).toEqual([{ fieldIndex: 0, value: 1 }])
-    expect(result.branes[1]?.localFields).toEqual([{ fieldIndex: 0, value: 1 }])
-    expect(result.branes[0]?.transitions[0]?.[0]?.conditions).toEqual([
-      { fieldIndex: 0, op: OP.EQ, value: 1 },
+    expect(getBraneLocalValues(result, 0)).toEqual([{ fieldIndex: 0, value: 1 }])
+    expect(getBraneLocalValues(result, 1)).toEqual([{ fieldIndex: 0, value: 1 }])
+    expect(getBraneStateTransitions(result, 0, 0)).toEqual([
+      { targetState: 1, conditions: [{ fieldIndex: 0, op: OP.EQ, value: 1 }] },
     ])
+    expect(result.branes[0]?.stateOffset).toBe(result.branes[1]?.stateOffset)
+    expect(result.stateTable).toHaveLength(2)
   })
 
   test("должен хранить ARRAY поля в canonical JS store без heap reserve", () => {
@@ -125,7 +176,9 @@ describe("prepareData — подготовка canonical JS store", () => {
       ],
     })
 
-    expect(result.branes[0]?.localFields).toEqual([{ fieldIndex: 0, value: [1, 2, 3, 4, 5] }])
+    expect(getBraneLocalValues(result, 0)).toEqual([{ fieldIndex: 0, value: [1, 2, 3, 4, 5] }])
     expect(result.sharedBlocks).toEqual([])
+    expect(result.transitions).toEqual([])
+    expect(result.conditions).toEqual([])
   })
 })

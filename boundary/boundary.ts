@@ -6,6 +6,7 @@
 
 import { matrixHeapUpdate, matrixInit, matrixRunStep, matrixStoreReset } from "./matrix"
 import { deriveMatrixData } from "./matrix/derived"
+import { findBraneFieldRecord } from "./store.access"
 import { boundary$ } from "./store"
 import type {
   BoundaryData,
@@ -59,7 +60,7 @@ export function flattenBoundaryData(data: Data): FlattenedBoundaryInput {
         ),
       ),
     })),
-    entanglement: data.entanglement,
+    ...(data.entanglement !== undefined ? { entanglement: data.entanglement } : {}),
   }
 }
 
@@ -85,11 +86,16 @@ interface MatrixStateInternal {
 export function getMatrixState(): MatrixStateInternal {
   const derived = deriveMatrixData(boundary$)
   const atlasExport = createStringAtlasExport(boundary$.stringTable)
-  const fields = (fieldSchema.length ? fieldSchema : boundary$.fields).map((field) => ({
-    type: field.type,
-    ...(field.elementType !== undefined ? { elementType: field.elementType } : {}),
-    ...(field.enum !== undefined ? { enum: field.enum } : {}),
-  }))
+  const fields = (fieldSchema.length ? fieldSchema : boundary$.fields).map((field) => {
+    const normalizedField: Field = { type: field.type }
+    if (field.elementType !== undefined) {
+      normalizedField.elementType = field.elementType
+    }
+    if ("enum" in field && Array.isArray(field.enum)) {
+      normalizedField.enum = field.enum
+    }
+    return normalizedField
+  })
 
   return {
     heap: derived.heap,
@@ -141,22 +147,13 @@ function requireInitializedStore(store: BoundaryStore): void {
 }
 
 function findMutableFieldRecord(store: BoundaryStore, braneIndex: number, fieldIndex: number): BoundaryFieldValueRecord {
-  const brane = store.branes[braneIndex]
-  if (!brane) {
+  if (!store.branes[braneIndex]) {
     throw new Error(`Brane index out of range: ${braneIndex}`)
   }
 
-  const localField = brane.localFields.find((field) => field.fieldIndex === fieldIndex)
-  if (localField) {
-    return localField
-  }
-
-  for (const sharedBlockId of brane.sharedBlockIds) {
-    const sharedBlock = store.sharedBlocks[sharedBlockId]
-    const sharedField = sharedBlock?.fields.find((field) => field.fieldIndex === fieldIndex)
-    if (sharedField) {
-      return sharedField
-    }
+  const fieldRecord = findBraneFieldRecord(store, braneIndex, fieldIndex)
+  if (fieldRecord) {
+    return fieldRecord
   }
 
   throw new Error(`Field ${fieldIndex} not found in brane ${braneIndex}`)
@@ -239,6 +236,7 @@ export type {
   BoundaryFieldValueRecord,
   BoundaryConditionRecord,
   BoundaryTransitionRecord,
+  BoundaryStateRecord,
   BoundarySharedBlockRecord,
   BoundaryBraneRecord,
   BoundaryScalarValue,

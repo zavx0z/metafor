@@ -83,6 +83,7 @@ export type {
   BoundaryFieldValueRecord,
   BoundaryConditionRecord,
   BoundaryTransitionRecord,
+  BoundaryStateRecord,
   BoundarySharedBlockRecord,
   BoundaryBraneRecord,
   BoundaryScalarValue,

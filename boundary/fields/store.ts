@@ -27,7 +27,7 @@ import { createStoredStringInterner } from "./string-table"
  */
 export const fields$: FieldsStore = {
   fields: [] as Field[],
-  stringTable: { values: [""] },
+  stringTable: [""],
   stringInterner: createStoredStringInterner(),
   heapAllocOffset: 0,
   arrayReserveSize: 0,
@@ -35,7 +35,7 @@ export const fields$: FieldsStore = {
 
   reset() {
     this.fields = [] as Field[]
-    this.stringTable = { values: [""] }
+    this.stringTable = [""]
     this.stringInterner = createStoredStringInterner()
     this.heapAllocOffset = 0
     this.arrayReserveSize = 0

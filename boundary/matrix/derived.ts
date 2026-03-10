@@ -15,7 +15,6 @@ import type {
   BoundaryData,
   BoundaryFieldRecord,
   BoundaryFieldValueRecord,
-  BoundaryValue,
 } from "../store.t"
 
 export interface DerivedMatrixData {
@@ -43,9 +42,20 @@ function createFieldMetaMap(fields: BoundaryFieldRecord[]): Map<number, { fieldT
   return meta
 }
 
-function groupConditions(conditions: BoundaryConditionRecord[]): FlattenedTransition["conditions"] {
+function groupTransitionConditions(
+  store: BoundaryData,
+  conditionOffset: number,
+  conditionCount: number,
+): FlattenedTransition["conditions"] {
   const grouped = new Map<number, BoundaryConditionRecord[]>()
-  for (const condition of conditions) {
+  const conditionEnd = conditionOffset + conditionCount
+
+  for (let conditionIndex = conditionOffset; conditionIndex < conditionEnd; conditionIndex++) {
+    const condition = store.conditions[conditionIndex]
+    if (!condition) {
+      continue
+    }
+
     const list = grouped.get(condition.fieldIndex)
     if (list) {
       list.push(condition)
@@ -65,13 +75,71 @@ function groupConditions(conditions: BoundaryConditionRecord[]): FlattenedTransi
 
 function toFlattenedTransitions(store: BoundaryData): Array<{ transitions: FlattenedTransition[][] }> {
   return store.branes.map((brane) => ({
-    transitions: brane.transitions.map((stateTransitions) =>
-      stateTransitions.map((transition) => ({
-        targetState: transition.targetState,
-        conditions: groupConditions(transition.conditions),
-      })),
-    ),
+    transitions: Array.from({ length: brane.stateCount }, (_, stateIndex) => {
+      const state = store.stateTable[brane.stateOffset + stateIndex]
+      if (!state) {
+        return []
+      }
+
+      const transitionEnd = state.transitionOffset + state.transitionCount
+      const stateTransitions: FlattenedTransition[] = []
+      for (let transitionIndex = state.transitionOffset; transitionIndex < transitionEnd; transitionIndex++) {
+        const transition = store.transitions[transitionIndex]
+        if (!transition) {
+          continue
+        }
+
+        stateTransitions.push({
+          targetState: transition.targetState,
+          conditions: groupTransitionConditions(store, transition.conditionOffset, transition.conditionCount),
+        })
+      }
+
+      return stateTransitions
+    }),
   }))
+}
+
+function collectSharedBlockFields(store: BoundaryData): BoundaryFieldValueRecord[][] {
+  return store.sharedBlocks.map((block) => {
+    const fields: BoundaryFieldValueRecord[] = []
+    const valueEnd = block.valueOffset + block.valueCount
+    for (let valueIndex = block.valueOffset; valueIndex < valueEnd; valueIndex++) {
+      const field = store.sharedValues[valueIndex]
+      if (field) {
+        fields.push(field)
+      }
+    }
+    return fields
+  })
+}
+
+function collectBraneLocalFields(store: BoundaryData): BoundaryFieldValueRecord[][] {
+  return store.branes.map((brane) => {
+    const fields: BoundaryFieldValueRecord[] = []
+    const valueEnd = brane.localValueOffset + brane.localValueCount
+    for (let valueIndex = brane.localValueOffset; valueIndex < valueEnd; valueIndex++) {
+      const field = store.braneValues[valueIndex]
+      if (field) {
+        fields.push(field)
+      }
+    }
+    return fields
+  })
+}
+
+function collectBraneSharedBlockRefs(store: BoundaryData): number[][] {
+  return store.branes.map((brane) => {
+    const refs: number[] = []
+    const refEnd = brane.sharedBlockRefOffset + brane.sharedBlockRefCount
+    for (let refIndex = brane.sharedBlockRefOffset; refIndex < refEnd; refIndex++) {
+      const blockId = store.braneSharedBlockRefs[refIndex]
+      if (blockId !== undefined) {
+        refs.push(blockId)
+      }
+    }
+    return refs
+  })
 }
 
 function countArrayWords(fields: BoundaryFieldRecord[], values: BoundaryFieldValueRecord[]): number {
@@ -115,7 +183,7 @@ function createBlockMap(
 }
 
 function createLocalFields(
-  branes: BoundaryData["branes"],
+  braneFields: BoundaryFieldValueRecord[][],
   fields: BoundaryFieldRecord[],
   stringTable: string[],
   fieldDefs: Field[],
@@ -125,8 +193,8 @@ function createLocalFields(
 ): [number, number][][] {
   const stringInterner = createStoredStringInterner(stringTable)
 
-  return branes.map((brane) =>
-    brane.localFields.map(({ fieldIndex, value }) => {
+  return braneFields.map((entries) =>
+    entries.map(({ fieldIndex, value }) => {
       const meta = fieldMetaMap.get(fieldIndex)
       if (!meta) {
         throw new Error(`Field ${fieldIndex} not defined in canonical store`)
@@ -140,11 +208,12 @@ function createLocalFields(
 export function deriveMatrixData(store: BoundaryData): DerivedMatrixData {
   const fieldDefs = toFieldDefinitions(store.fields)
   const fieldMetaMap = createFieldMetaMap(store.fields)
-  const sharedBlockFields = store.sharedBlocks.map((block) => block.fields)
-  const braneEntangledMap = store.branes.map((brane) => brane.sharedBlockIds)
+  const sharedBlockFields = collectSharedBlockFields(store)
+  const braneEntangledMap = collectBraneSharedBlockRefs(store)
+  const braneLocalFields = collectBraneLocalFields(store)
 
   const initialSharedBlocks = createBlockMap(sharedBlockFields, store.fields, store.stringTable, fieldDefs, fieldMetaMap)
-  const initialLocalFields = createLocalFields(store.branes, store.fields, store.stringTable, fieldDefs, fieldMetaMap)
+  const initialLocalFields = createLocalFields(braneLocalFields, store.fields, store.stringTable, fieldDefs, fieldMetaMap)
   const initialHeap = buildHeap({
     localFields: initialLocalFields,
     braneEntangledMap,
@@ -153,8 +222,8 @@ export function deriveMatrixData(store: BoundaryData): DerivedMatrixData {
   })
 
   const arrayWords =
-    store.sharedBlocks.reduce((sum, block) => sum + countArrayWords(store.fields, block.fields), 0) +
-    store.branes.reduce((sum, brane) => sum + countArrayWords(store.fields, brane.localFields), 0)
+    sharedBlockFields.reduce((sum, block) => sum + countArrayWords(store.fields, block), 0) +
+    braneLocalFields.reduce((sum, fields) => sum + countArrayWords(store.fields, fields), 0)
 
   const heap = new Uint32Array(initialHeap.heap.length + arrayWords)
   let heapAllocOffset = initialHeap.heap.length
@@ -174,7 +243,7 @@ export function deriveMatrixData(store: BoundaryData): DerivedMatrixData {
     heap,
   )
   const finalLocalFields = createLocalFields(
-    store.branes,
+    braneLocalFields,
     store.fields,
     store.stringTable,
     fieldDefs,
@@ -190,7 +259,6 @@ export function deriveMatrixData(store: BoundaryData): DerivedMatrixData {
   })
   heap.set(finalHeap.heap)
 
-  // Canonical lock lives in Boundary store; GPU-only heap mirror must preserve it.
   store.branes.forEach((brane, braneIndex) => {
     const blockPtr = finalHeap.blockPtrs[braneIndex]
     if (blockPtr === undefined) {

@@ -8,6 +8,7 @@ import {
   createMultipleBranesFixture,
   createSimpleBraneFixture,
   normalizeChanges,
+  setBraneFieldValue,
 } from "./shared/fixtures"
 
 async function createRuntimePair(fixture: ReturnType<typeof createSimpleBraneFixture>) {
@@ -196,8 +197,8 @@ describe("CPU/GPU parity — canonical cases", () => {
       expect(await cpuRuntime.readChanges()).toEqual([])
       expect(await gpuRuntime.readChanges()).toEqual([])
 
-      cpuStore.branes[0]!.localFields[0]!.value = 100
-      gpuStore.branes[0]!.localFields[0]!.value = 100
+      setBraneFieldValue(cpuStore, 0, 0, 100)
+      setBraneFieldValue(gpuStore, 0, 0, 100)
       gpuRuntime.heapUpdate([])
 
       cpuRuntime.step()

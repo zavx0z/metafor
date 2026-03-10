@@ -9,6 +9,7 @@ import {
   createLockedBraneFixture,
   createFieldUpdateFixture,
   createIsolatedStore,
+  setBraneFieldValue,
 } from "./shared/fixtures"
 
 async function skipIfNoGpu(): Promise<GPUDevice | null> {
@@ -210,7 +211,7 @@ describe("GPU runtime — scenario tests", () => {
     let changes = await runtime.readChanges()
     expect(changes).toHaveLength(0)
 
-    store.branes[0]!.localFields[0]!.value = 100
+    setBraneFieldValue(store, 0, 0, 100)
     runtime.heapUpdate([])
     runtime.step()
     changes = await runtime.readChanges()

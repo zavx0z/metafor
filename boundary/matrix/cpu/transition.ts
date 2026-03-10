@@ -1,27 +1,6 @@
 import { OP, FieldType } from "@boundary/fields"
+import { getBraneStateRecord, readBraneFieldValue } from "../../store.access"
 import type { BoundaryConditionRecord, BoundaryData, BoundaryScalarValue, BoundaryValue } from "../../store.t"
-
-function readBraneFieldValue(store: BoundaryData, braneIndex: number, fieldIndex: number): BoundaryValue {
-  const brane = store.branes[braneIndex]
-  if (!brane) {
-    return 0
-  }
-
-  const localField = brane.localFields.find((field) => field.fieldIndex === fieldIndex)
-  if (localField) {
-    return localField.value
-  }
-
-  for (const sharedBlockId of brane.sharedBlockIds) {
-    const sharedBlock = store.sharedBlocks[sharedBlockId]
-    const sharedField = sharedBlock?.fields.find((field) => field.fieldIndex === fieldIndex)
-    if (sharedField) {
-      return sharedField.value
-    }
-  }
-
-  return 0
-}
 
 function scalarEquals(left: BoundaryScalarValue, right: BoundaryScalarValue): boolean {
   return left === right
@@ -56,7 +35,7 @@ function evaluateScalarCondition(value: BoundaryScalarValue, condition: Boundary
   }
 }
 
-function evaluateArrayCondition(value: BoundaryValue, condition: BoundaryConditionRecord): boolean {
+function evaluateArrayCondition(value: BoundaryValue | undefined, condition: BoundaryConditionRecord): boolean {
   const items = Array.isArray(value) ? value : []
 
   switch (condition.op) {
@@ -88,7 +67,7 @@ function evaluateCondition(store: BoundaryData, braneIndex: number, condition: B
     return evaluateArrayCondition(value, condition)
   }
 
-  return evaluateScalarCondition(value as BoundaryScalarValue, condition)
+  return evaluateScalarCondition((value ?? 0) as BoundaryScalarValue, condition)
 }
 
 export function evaluateBraneNextState(store: BoundaryData, braneIndex: number): number {
@@ -98,14 +77,28 @@ export function evaluateBraneNextState(store: BoundaryData, braneIndex: number):
   }
 
   const currentState = store.states[braneIndex] ?? 0
-  const stateTransitions = brane.transitions[currentState] ?? []
+  const stateRecord = getBraneStateRecord(store, braneIndex, currentState)
+  if (!stateRecord) {
+    return currentState
+  }
 
-  for (const transition of stateTransitions) {
-    if (transition.targetState === null) {
+  const transitionEnd = stateRecord.transitionOffset + stateRecord.transitionCount
+  for (let transitionIndex = stateRecord.transitionOffset; transitionIndex < transitionEnd; transitionIndex++) {
+    const transition = store.transitions[transitionIndex]
+    if (!transition) {
       continue
     }
 
-    const passed = transition.conditions.every((condition) => evaluateCondition(store, braneIndex, condition))
+    let passed = true
+    const conditionEnd = transition.conditionOffset + transition.conditionCount
+    for (let conditionIndex = transition.conditionOffset; conditionIndex < conditionEnd; conditionIndex++) {
+      const condition = store.conditions[conditionIndex]
+      if (!condition || !evaluateCondition(store, braneIndex, condition)) {
+        passed = false
+        break
+      }
+    }
+
     if (passed) {
       return transition.targetState
     }

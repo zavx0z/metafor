@@ -194,11 +194,19 @@ function getArrayEncodingContext(
     ctx.subType !== undefined &&
     (op === OP.INCLUDE || op === OP.NOT_INCLUDE)
   ) {
-    return { type: ctx.subType, stringInterner: ctx.stringInterner }
+    const nextContext: EncodingContext = { type: ctx.subType }
+    if (ctx.stringInterner !== undefined) {
+      nextContext.stringInterner = ctx.stringInterner
+    }
+    return nextContext
   }
 
   // Для LENGTH, IS_EMPTY и сравнений длины — UINT
-  return { type: TYPE.UINT, stringInterner: ctx.stringInterner }
+  const nextContext: EncodingContext = { type: TYPE.UINT }
+  if (ctx.stringInterner !== undefined) {
+    nextContext.stringInterner = ctx.stringInterner
+  }
+  return nextContext
 }
 
 /**

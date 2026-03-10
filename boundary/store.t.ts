@@ -27,18 +27,28 @@ export interface BoundaryConditionRecord {
 }
 
 export interface BoundaryTransitionRecord {
-  targetState: number | null
-  conditions: BoundaryConditionRecord[]
+  targetState: number
+  conditionOffset: number
+  conditionCount: number
+}
+
+export interface BoundaryStateRecord {
+  transitionOffset: number
+  transitionCount: number
 }
 
 export interface BoundarySharedBlockRecord {
-  fields: BoundaryFieldValueRecord[]
+  valueOffset: number
+  valueCount: number
 }
 
 export interface BoundaryBraneRecord {
-  localFields: BoundaryFieldValueRecord[]
-  sharedBlockIds: number[]
-  transitions: BoundaryTransitionRecord[][]
+  localValueOffset: number
+  localValueCount: number
+  sharedBlockRefOffset: number
+  sharedBlockRefCount: number
+  stateOffset: number
+  stateCount: number
   lock: boolean
 }
 
@@ -59,8 +69,26 @@ export interface BoundaryData {
   /** Deduplicated shared field blocks for entangled branes. */
   sharedBlocks: BoundarySharedBlockRecord[]
 
-  /** Flat brane records with local fields, shared-block refs, transitions, and lock. */
+  /** Shared field values referenced by shared block descriptors. */
+  sharedValues: BoundaryFieldValueRecord[]
+
+  /** Flat brane records with value/state/shared ranges and runtime lock. */
   branes: BoundaryBraneRecord[]
+
+  /** Mutable brane-local field values. */
+  braneValues: BoundaryFieldValueRecord[]
+
+  /** Flat brane -> shared block references. */
+  braneSharedBlockRefs: number[]
+
+  /** Canonical static state graph referenced by branes via offsets. */
+  stateTable: BoundaryStateRecord[]
+
+  /** Canonical transition table referenced by state records. */
+  transitions: BoundaryTransitionRecord[]
+
+  /** Canonical condition table referenced by transition records. */
+  conditions: BoundaryConditionRecord[]
 
   /** Runtime state snapshot written and updated by Matrix. */
   states: number[]

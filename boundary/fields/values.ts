@@ -26,8 +26,14 @@ export function createFieldEncodingContext(
   const context: EncodingContext = {
     type: fieldType,
     stringInterner,
-    allocateHeap,
-    heap,
+  }
+
+  if (allocateHeap !== undefined) {
+    context.allocateHeap = allocateHeap
+  }
+
+  if (heap !== undefined) {
+    context.heap = heap
   }
 
   if (field?.enum !== undefined) {
@@ -190,7 +196,10 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
       context.heap[ptr] = arr.length
       const elementType = context.subType ?? TYPE.FLOAT
       for (let i = 0; i < arr.length; i++) {
-        const itemCtx: EncodingContext = { type: elementType, stringInterner: context.stringInterner }
+        const itemCtx: EncodingContext = { type: elementType }
+        if (context.stringInterner !== undefined) {
+          itemCtx.stringInterner = context.stringInterner
+        }
         context.heap[ptr + 1 + i] = encodeValue(arr[i], itemCtx).value1
       }
       return { value1: ptr, value2: 0 }
