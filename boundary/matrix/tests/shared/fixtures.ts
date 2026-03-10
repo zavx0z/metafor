@@ -142,6 +142,25 @@ export function createStringFieldUpdateFixture() {
   return { fields, store }
 }
 
+export function createArrayFieldUpdateFixture() {
+  const fields: Field[] = [{ type: FieldType.ARRAY_PTR, elementType: "number" }]
+  const store = createBaseStore({
+    fields,
+    branes: [
+      {
+        values: [[0, [1]]],
+        state: 0,
+        collapses: [
+          [[1, { 0: { include: 2 } }]],
+          [null],
+        ],
+      },
+    ],
+  })
+
+  return { fields, store }
+}
+
 export function createBoundaryStore<T extends { store: BoundaryStore }>(fixture: T): BoundaryStore {
   const { reset: _reset, restore: _restore, ...data } = fixture.store
   return clonePreparedStore(data)

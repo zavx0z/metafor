@@ -2,12 +2,15 @@ import shaderSource from "./evolution.wgsl" with { type: "text" }
 import type { BoundaryStore } from "../../store.t"
 import { findBraneFieldLocation } from "../../store.access"
 import { FIELD_TYPE, VALUE_TYPE } from "../constants"
+import { deriveMatrixData } from "../derived"
 import { findFieldValueOffset } from "../heap"
 import type { MatrixChanges, MatrixHeapUpdate, MatrixRuntime } from "../matrix.t"
 import { createPackContext, encodeValue } from "../pack"
 import type { GpuRuntimeContext } from "./index.t.ts"
-import { destroyBuffers } from "./buffer"
+import { createStorageBuffer, destroyBuffers } from "./buffer"
 import { createGpuRuntimeContext } from "./init"
+import { resolveStringTableBuffers } from "./layout"
+import { createBindGroup } from "./pipeline"
 import { readGpuChanges } from "./read"
 import { runGpuStep } from "./step"
 import { updateGpuHeapFields } from "./heap"
@@ -43,26 +46,26 @@ function destroyContext(context: GpuRuntimeContext): void {
  *
  * ## CRITICAL PERFORMANCE NOTE
  *
- * **This is a temporary implementation with known performance limitations.**
+ * Canonical truth remains in Boundary store. GPU owns only derived execution buffers.
  *
  * Current behavior on `heapUpdate()`:
  * - Fast path: partial `GPUQueue.writeBuffer()` updates for scalar/string/lock changes
- * - Fallback path: full context rebuild for structural changes (for example string table growth or array reallocation)
+ * - Fallback path: targeted buffer refresh for structural changes (for example string table growth or array reallocation)
  *
- * Fallback rebuild is O(N) where N = total heap + bytecode + string table size.
+ * Structural refresh is still O(N) over the affected derived payload, but no longer destroys and recreates
+ * the whole runtime context.
  *
- * **Why this is unacceptable for production:**
- * - Structural updates still trigger GPU buffer allocation and full data transfer
+ * **Remaining performance debt:**
+ * - Structural updates still trigger buffer reallocation and full data transfer for affected buffers
  * - Array growth / new strings remain expensive until full incremental sync exists
- * - Does not yet scale optimally for mutation-heavy workloads with frequent structural changes
+ * - Mutation-heavy workloads still pay O(N) refresh cost for the affected derived slice
  *
  * **Correct future implementation:**
- * - Incremental string buffer growth without full bind-group rebuild
+ * - Incremental string buffer growth without buffer reallocation
  * - Incremental array allocation / compaction without re-deriving all heap blocks
  * - Dirty tracking at canonical store level to identify minimal structural changes
  *
- * **DO NOT use this implementation as a model for production code.**
- * This runtime now uses partial sync where safe, but still keeps a rebuild fallback for structural mutations.
+ * This runtime now uses partial sync where safe, but still keeps targeted structural refresh paths.
  */
 export class GPUMatrixRuntime implements MatrixRuntime {
   private context: GpuRuntimeContext
@@ -114,8 +117,8 @@ export class GPUMatrixRuntime implements MatrixRuntime {
   /**
    * Applies incremental GPU sync when canonical mutations preserve the existing derived layout.
    *
-   * Falls back to full rebuild only for structural mutations that would invalidate
-   * current heap / string buffer sizes.
+   * Falls back to targeted derived-buffer refresh only for structural mutations that
+   * invalidate current heap or string-buffer sizes.
    */
   heapUpdate(updates: MatrixHeapUpdate[]): void {
     void this.enqueue(() => {
@@ -124,8 +127,12 @@ export class GPUMatrixRuntime implements MatrixRuntime {
       }
 
       const stringTableChanged = this.store.stringTable.length !== this.context.stringTableSize
-      if (stringTableChanged || !this.tryApplyHeapUpdates(updates)) {
-        this.rebuildContext()
+      if (stringTableChanged) {
+        this.refreshStringBuffers()
+      }
+
+      if (!this.tryApplyHeapUpdates(updates)) {
+        this.refreshHeapBuffers()
       }
     })
   }
@@ -144,11 +151,40 @@ export class GPUMatrixRuntime implements MatrixRuntime {
     return scheduled
   }
 
-  private rebuildContext(): void {
-    const nextContext = createGpuRuntimeContext(this.context.device, shaderSource, this.store, false)
-    destroyContext(this.context)
-    this.context = nextContext
-    this.lastStates = [...this.store.states]
+  private refreshStringBuffers(): void {
+    const atlas = resolveStringTableBuffers(this.store.stringTable)
+    const nextStringRegistry = createStorageBuffer(this.context.device, atlas.registry)
+    const nextStringHeap = createStorageBuffer(this.context.device, atlas.heap)
+    const previousStringRegistry = this.context.buffers.stringRegistry
+    const previousStringHeap = this.context.buffers.stringHeap
+
+    this.context.buffers.stringRegistry = nextStringRegistry
+    this.context.buffers.stringHeap = nextStringHeap
+    this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
+    this.context.stringTableSize = this.store.stringTable.length
+
+    destroyBuffers([previousStringRegistry, previousStringHeap])
+  }
+
+  private refreshHeapBuffers(): void {
+    const nextDerived = deriveMatrixData(this.store)
+    const nextBraneBlockPtrs = createStorageBuffer(this.context.device, Uint32Array.from(nextDerived.blockPtrs))
+    const nextHeap = createStorageBuffer(
+      this.context.device,
+      nextDerived.heap.length > 0 ? nextDerived.heap : new Uint32Array(1),
+    )
+    const previousBraneBlockPtrs = this.context.buffers.braneBlockPtrs
+    const previousHeap = this.context.buffers.heap
+
+    this.context.buffers.braneBlockPtrs = nextBraneBlockPtrs
+    this.context.buffers.heap = nextHeap
+    this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
+    this.context.heapMirror = nextDerived.heap
+    this.context.braneBlockPtrs = nextDerived.blockPtrs
+    this.context.sharedBlockPtrs = nextDerived.sharedBlockPtrs
+    this.context.stringTableSize = this.store.stringTable.length
+
+    destroyBuffers([previousBraneBlockPtrs, previousHeap])
   }
 
   private tryApplyHeapUpdates(updates: MatrixHeapUpdate[]): boolean {

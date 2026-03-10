@@ -9,6 +9,7 @@ import {
   createLockedBraneFixture,
   createFieldUpdateFixture,
   createStringFieldUpdateFixture,
+  createArrayFieldUpdateFixture,
   createIsolatedStore,
   setBraneFieldValue,
 } from "./shared/fixtures"
@@ -223,17 +224,56 @@ describe("GPU runtime — scenario tests", () => {
     expect((runtime as any).context.buffers.heap).toBe(heapBufferBefore)
   })
 
-  test("string table growth falls back to controlled rebuild", async () => {
+  test("string table growth refreshes only string buffers", async () => {
     const device = await skipIfNoGpu()
     if (!device) return
 
     const { runtime, store } = await createGpuRuntimeForFixture(createStringFieldUpdateFixture())
     const heapBufferBefore = (runtime as any).context.buffers.heap
+    const bytecodeBufferBefore = (runtime as any).context.buffers.bytecode
+    const statesBufferBefore = (runtime as any).context.buffers.states
+    const stringRegistryBefore = (runtime as any).context.buffers.stringRegistry
+    const stringHeapBefore = (runtime as any).context.buffers.stringHeap
+    const pipelineBefore = (runtime as any).context.pipeline
 
     setBraneFieldValue(store, 0, 0, "mage" as any)
     runtime.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])
+    runtime.step()
+    const changes = await runtime.readChanges()
 
+    expect(changes).toEqual([[0, 1]])
+    expect((runtime as any).context.buffers.heap).toBe(heapBufferBefore)
+    expect((runtime as any).context.buffers.bytecode).toBe(bytecodeBufferBefore)
+    expect((runtime as any).context.buffers.states).toBe(statesBufferBefore)
+    expect((runtime as any).context.pipeline).toBe(pipelineBefore)
+    expect((runtime as any).context.buffers.stringRegistry).not.toBe(stringRegistryBefore)
+    expect((runtime as any).context.buffers.stringHeap).not.toBe(stringHeapBefore)
+  })
+
+  test("array growth refreshes only heap-related buffers", async () => {
+    const device = await skipIfNoGpu()
+    if (!device) return
+
+    const { runtime, store } = await createGpuRuntimeForFixture(createArrayFieldUpdateFixture())
+    const heapBufferBefore = (runtime as any).context.buffers.heap
+    const braneBlockPtrsBefore = (runtime as any).context.buffers.braneBlockPtrs
+    const bytecodeBufferBefore = (runtime as any).context.buffers.bytecode
+    const statesBufferBefore = (runtime as any).context.buffers.states
+    const stringRegistryBefore = (runtime as any).context.buffers.stringRegistry
+    const pipelineBefore = (runtime as any).context.pipeline
+
+    setBraneFieldValue(store, 0, 0, [1, 2] as any)
+    runtime.heapUpdate([{ kind: "field", braneIndex: 0, fieldIndex: 0 }])
+    runtime.step()
+    const changes = await runtime.readChanges()
+
+    expect(changes).toEqual([[0, 1]])
     expect((runtime as any).context.buffers.heap).not.toBe(heapBufferBefore)
+    expect((runtime as any).context.buffers.braneBlockPtrs).not.toBe(braneBlockPtrsBefore)
+    expect((runtime as any).context.buffers.bytecode).toBe(bytecodeBufferBefore)
+    expect((runtime as any).context.buffers.states).toBe(statesBufferBefore)
+    expect((runtime as any).context.buffers.stringRegistry).toBe(stringRegistryBefore)
+    expect((runtime as any).context.pipeline).toBe(pipelineBefore)
   })
 
   test("dirtyFlagsAccuracy — only changed branes reported", async () => {
