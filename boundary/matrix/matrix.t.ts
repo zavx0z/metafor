@@ -9,7 +9,7 @@ import type { MatrixMode } from "./store.t.ts"
  * - `bytecode` — скомпилированные правила переходов (VM-код)
  * - `bytecodeOffsets` — смещения bytecode для каждой браны
  * - `states` — начальные состояния бран
- * - `braneDescriptors` — дескрипторы бран [block_ptr, bytecode_offset, ...]
+ * - `blockPtrs` — указатели на блоки бран в heap
  * - `heap` — данные кучи (поля, строки, массивы)
  */
 export interface MatrixInitParams {
@@ -19,8 +19,8 @@ export interface MatrixInitParams {
   bytecodeOffsets: Uint32Array
   /** Начальные состояния бран */
   states: Uint32Array
-  /** Дескрипторы бран: [block_ptr0, bytecode_offset0, block_ptr1, bytecode_offset1, ...] */
-  braneDescriptors: Uint32Array
+  /** Указатели на блоки бран в heap */
+  blockPtrs: number[]
   /** Данные кучи (поля, строки, массивы) */
   heap: Uint32Array
 }
@@ -56,7 +56,6 @@ export interface MatrixRuntime {
 export interface MatrixRuntimeInitContext {
   params: MatrixInitParams
   atlasExport: StringAtlasExport
-  blockPtrs: number[]
 }
 
 /**

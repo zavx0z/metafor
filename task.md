@@ -1,253 +1,84 @@
-# Task: Remove the legacy entanglement model completely and keep only prepared projection materialization
 
-## Context
+### Goal
 
-The current entanglement flow is in a transition state.
+Correct the Matrix input contract so that the shared Matrix entry point contains only canonical common execution input, while GPU-local derived materialization is created only after backend branching.
 
-Right now `boundary/fields/entangled.ts` still contains two different models:
+### Context
 
-### Legacy model
+The current Matrix initialization flow mixes two layers:
 
-- `findEntangledGroups(...)`
-- `buildBraneMapping(...)`
+- common prepared execution input
+- GPU-specific branch-local materialization
 
-This model derives entanglement directly from brane values inside `fields`.
+Current repository behavior shows:
 
-### New model
+- `MatrixInitParams` includes `bytecode`, `bytecodeOffsets`, `states`, `braneDescriptors`, and `heap`
+- `blockPtrs` is passed separately through `MatrixRuntimeInitContext`
+- CPU runtime actually needs `heap`, `states`, `bytecode`, `bytecodeOffsets`, and `blockPtrs`
+- GPU runtime additionally needs GPU-local derived structures and string atlas buffers
+- `braneDescriptors` is currently built before backend branching even though it is a GPU-oriented derived representation
+- both CPU and GPU execute directly from `bytecode` and `bytecodeOffsets`; there is no separate canonical transition IR today
 
-- `materializeEntanglement(values, projection)`
+The shared Matrix input is therefore defined incorrectly:
+- a shared item is missing from the canonical contract (`blockPtrs`)
+- a GPU-local derived item is incorrectly included in the shared contract (`braneDescriptors`)
 
-This model takes a prepared upstream entanglement projection and only materializes it into boundary-ready layout.
+### Required Actions
 
-The architecture direction is already decided:
+1. Update the shared Matrix initialization types so the canonical common Matrix input includes:
+   - `heap`
+   - `states`
+   - `bytecode`
+   - `bytecodeOffsets`
+   - `blockPtrs`
 
-- entanglement origin belongs upstream
-- boundary/fields must not remain the owner of legacy entanglement derivation
-- no fallback compatibility path should remain
+2. Remove `braneDescriptors` from the shared Matrix input contract.
 
-This task must finish that migration.
+3. Refactor Matrix runtime initialization so:
+   - CPU runtime receives the shared input directly
+   - GPU runtime derives `braneDescriptors` only inside the GPU branch, after backend selection
+   - GPU-only inputs remain GPU-local and do not shape the shared Matrix contract
 
----
+4. Keep `atlasExport` out of the canonical shared Matrix input shape.
+   It may still be passed into the GPU creation path as backend-local materialization input, but it must not define or pollute the shared execution contract.
 
-## Primary objective
+5. Update the relevant Matrix runtime wiring and helper code so the new contract is consistently used across:
+   - Matrix type definitions
+   - `matrixInit`
+   - `createMatrixRuntime`
+   - CPU runtime creation
+   - GPU runtime creation and GPU init helpers
 
-Delete the old entanglement model completely and make the new prepared-projection model the only valid path.
+6. Remove or relocate any helper that exists only to precompute `braneDescriptors` before branching.
+   If a descriptor builder is still needed, keep it inside the GPU implementation boundary.
 
-No fallback.
-No compatibility layer.
-No parallel legacy path.
+7. Update tests that assume the old input shape so they validate the corrected contract and still verify CPU/GPU parity.
 
----
+8. Run the relevant test suite and verify that:
+   - CPU runtime still behaves the same
+   - GPU runtime still behaves the same
+   - shared Matrix behavior remains unchanged
+   - the contract no longer exposes GPU-local derived input as shared input
 
-## Files that must be reviewed
+### Constraints
 
-At minimum:
+- Do not introduce a new transition IR.
+- Do not change transition semantics.
+- Do not change entanglement ownership or move preparation back into `boundary/fields`.
+- Do not expand the refactor beyond Matrix input contract correction and the minimum related wiring.
+- Do not keep `braneDescriptors` in the shared contract for convenience.
+- Do not remove `atlasExport` from GPU materialization if GPU still needs it internally.
+- Preserve the single shared runtime contract for CPU and GPU.
 
-- `boundary/fields/entangled.ts`
-- `boundary/fields/entangled.t.ts`
-- `boundary/fields/index.ts`
-- any imports or call sites using:
-  - `findEntangledGroups`
-  - `buildBraneMapping`
-  - old field-index-only projection logic
-- tests related to entanglement in:
-  - `boundary/tests/**`
-  - `force/tests/**`
-  - any other affected package
+### Expected Result
 
-Also review upstream usage:
+Matrix has one corrected common prepared input contract based on real shared execution needs.
 
-- `force/strong/strong.ts`
-- any code producing `PreparedEntanglementProjection`
+After completion:
 
----
-
-## What must be removed
-
-### 1. Legacy derivation functions
-
-Delete the old derivation path from `fields`:
-
-- `findEntangledGroups(...)`
-- `buildBraneMapping(...)`
-
-`fields` must no longer derive entanglement groups from raw values as a first-class model.
-
-### 2. Legacy compatibility fallback
-
-Delete the fallback path in `materializeEntanglement(...)` that accepts old field-index-only projection shape.
-
-Specifically:
-
-- remove support for `fieldIndices`-only compatibility
-- remove any helper that reconstructs `PreparedEntanglementField[]` from legacy fallback input
-- remove any normalization that exists only to support the old projection shape
-
-The prepared projection contract must become strict.
-
-### 3. Legacy types if still present
-
-Remove any legacy-only types that existed only to support the old local derivation model or old fallback projection shape.
-
-Do not keep dead compatibility types.
-
----
-
-## What must remain
-
-### 1. One strict upstream-to-boundary flow
-
-The only valid entanglement flow must become:
-
-upstream preparation
-→ prepared entanglement projection
-→ `materializeEntanglement(...)`
-→ boundary-ready layout
-
-### 2. Strict projection contract
-
-`PreparedEntanglementProjection` and its block/field structure must be the only accepted contract.
-
-Boundary materialization must require:
-
-- explicit blocks
-- explicit prepared fields
-- no hidden reconstruction from legacy shorthand
-
-### 3. Validation stays
-
-Boundary/fields should still validate the prepared projection against actual brane values.
-
-That is good and should stay.
-
-But validation must not turn back into derivation.
-
----
-
-## Required architectural outcome
-
-After this task:
-
-- entanglement origin lives upstream
-- boundary/fields only materializes and validates upstream projection
-- there is one entanglement model, not two
-- there is one contract, not a new contract plus fallback legacy shorthand
-
----
-
-## Important constraints
-
-### Do not reintroduce ownership drift
-
-Do not let boundary/fields remain a silent owner of entanglement origin.
-
-### Do not keep fallback “just in case”
-
-This task explicitly removes fallback paths.
-
-### Do not weaken the new upstream model
-
-Do not simplify the upstream prepared projection just to preserve legacy compatibility.
-
----
-
-## Tests
-
-Update tests so they reflect the final strict model.
-
-Required:
-
-- remove tests that validate the old derivation path as supported behavior
-- update tests that depended on old fallback projection shape
-- keep tests for:
-  - valid prepared projection materialization
-  - divergence detection
-  - duplicate assignment errors
-  - missing field / out-of-range / invalid block validation
-- keep or add tests proving that entanglement now comes only from prepared projection
-
-If useful, add one negative test that confirms legacy shorthand or fallback input is rejected.
-
----
-
-## Required implementation approach
-
-### Step 1 — Diagnose usage
-
-Before editing, list:
-
-- where old legacy functions are still exported or called
-- where old fallback projection shape is still accepted
-- which tests still depend on it
-
-### Step 2 — Remove legacy code
-
-Delete old derivation functions, legacy-only helpers, and fallback logic.
-
-### Step 3 — Tighten types
-
-Make the prepared entanglement projection contract strict and explicit.
-
-### Step 4 — Update tests
-
-Bring tests in line with the strict one-path architecture.
-
-### Step 5 — Verify architecture alignment
-
-Confirm:
-
-- upstream owns entanglement origin
-- boundary/fields only materializes and validates
-- no second model remains
-
----
-
-## Required deliverables
-
-Provide:
-
-1. A short diagnosis of all legacy entanglement entry points removed
-2. The exact files changed
-3. The exact legacy functions/helpers/types deleted
-4. The final strict projection contract used
-5. The updated tests
-6. A short confirmation that no fallback path remains
-
----
-
-## Acceptance criteria
-
-The task is complete only when all of the following are true:
-
-- `findEntangledGroups(...)` is removed
-- `buildBraneMapping(...)` is removed
-- no legacy field-index-only fallback remains in `materializeEntanglement(...)`
-- boundary/fields no longer derives entanglement origin
-- upstream prepared projection is the only supported entanglement source
-- tests reflect the strict one-path architecture
-- no compatibility shim remains
-
----
-
-## Hard prohibitions
-
-Do not:
-
-- keep the legacy model behind an internal helper
-- keep a fallback path in `materializeEntanglement(...)`
-- preserve old projection shorthand for backward compatibility
-- move entanglement origin back into `fields`
-- leave dead exports or dead types behind
-
----
-
-## Final instruction
-
-Finish the migration completely.
-
-There must be exactly one entanglement model in the system:
-upstream-prepared projection → boundary materialization.
-
-No fallback.
-No legacy derivation path.
-No second source of truth.
+- `blockPtrs` is part of the shared Matrix input
+- `braneDescriptors` is no longer part of the shared Matrix input
+- GPU derives its own descriptor representation only after branching
+- CPU and GPU still execute from the same canonical prepared execution model
+- runtime behavior and parity remain intact
+- the Matrix entry point no longer reflects GPU packaging convenience instead of true shared input

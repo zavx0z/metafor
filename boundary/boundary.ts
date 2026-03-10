@@ -488,11 +488,10 @@ export async function write(data: Data): Promise<[number, number][]> {
         bytecode: prepared.compiledRules.bytecode,
         bytecodeOffsets: prepared.compiledRules.bytecodeOffsets,
         states: prepared.initialStates,
-        braneDescriptors: buildBraneDescriptors(prepared.heapLayout.blockPtrs, prepared.compiledRules.bytecodeOffsets),
+        blockPtrs: prepared.heapLayout.blockPtrs,
         heap: prepared.heapData,
       },
       atlasExport,
-      prepared.heapLayout.blockPtrs,
     )
 
     // Минимальная рабочая реализация не выполняет шаг при write().
@@ -759,18 +758,6 @@ function encodeFieldUpdate(
   }
 
   return { value1, value2 }
-}
-
-/**
- * Построить braneDescriptors: [block_ptr0, bytecode_offset0, ...]
- */
-function buildBraneDescriptors(blockPtrs: number[], offsets: Uint32Array): Uint32Array {
-  const descriptors = new Uint32Array(blockPtrs.length * 2)
-  for (let i = 0; i < blockPtrs.length; i++) {
-    descriptors[i * 2] = blockPtrs[i] ?? 0
-    descriptors[i * 2 + 1] = offsets[i] ?? 0
-  }
-  return descriptors
 }
 
 /**

@@ -14,14 +14,12 @@ import { createMatrixRuntime } from "./runtime"
  * @param store$ - Общее хранилище `@boundary/boundary` с heap и bytecode.
  * @param params - Подготовленные данные для запуска matrix runtime.
  * @param atlasExport - Экспорт `@boundary/atlas` для GPU-режима.
- * @param blockPtrs - Смещения блоков бран в heap.
  * @internal
  */
 export async function matrixInit(
   store$: BoundaryStore,
   params: MatrixInitParams,
   atlasExport: StringAtlasExport,
-  blockPtrs: number[],
 ): Promise<void> {
   if (store.operationMutex) {
     await store.operationMutex
@@ -34,14 +32,14 @@ export async function matrixInit(
 
   try {
     matrixStoreReset()
-    const selected = await createMatrixRuntime({ params, atlasExport, blockPtrs })
+    const selected = await createMatrixRuntime({ params, atlasExport })
     store.initialized = true
     store.mode = selected.mode
     store.runtime = selected.runtime
 
     // Единый снимок boundary нужен обеим средам.
     store$.heap = params.heap
-    store$.braneBlockPtrs = blockPtrs
+    store$.braneBlockPtrs = params.blockPtrs
 
     store.cpuStates = selected.runtime.statesSnapshot() ?? params.states.slice()
   } finally {

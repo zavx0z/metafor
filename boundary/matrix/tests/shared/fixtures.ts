@@ -184,7 +184,7 @@ export function createMatrixInitParams(fixture: ReturnType<typeof createSimpleBr
     bytecode: fixture.bytecode,
     bytecodeOffsets: fixture.bytecodeOffsets,
     states: fixture.initialStates,
-    braneDescriptors: createBraneDescriptors(fixture.blockPtrs, fixture.bytecodeOffsets),
+    blockPtrs: fixture.blockPtrs,
     heap: fixture.heap,
   }
 }
@@ -199,18 +199,6 @@ export function createCpuRuntimeContext(fixture: ReturnType<typeof createSimpleB
     bytecode: fixture.bytecode,
     bytecodeOffsets: fixture.bytecodeOffsets,
   }
-}
-
-/**
- * Создаёт дескрипторы бран для GPU: [block_ptr0, bytecode_offset0, ...].
- */
-function createBraneDescriptors(blockPtrs: number[], bytecodeOffsets: Uint32Array): Uint32Array {
-  const descriptors = new Uint32Array(blockPtrs.length * 2)
-  for (let i = 0; i < blockPtrs.length; i++) {
-    descriptors[i * 2] = blockPtrs[i]!
-    descriptors[i * 2 + 1] = bytecodeOffsets[i]!
-  }
-  return descriptors
 }
 
 /**

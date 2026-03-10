@@ -21,7 +21,7 @@ export async function createMatrixRuntime(context: MatrixRuntimeInitContext): Pr
   const runtime = new CPUMatrixRuntime(
     {
       heap: context.params.heap,
-      blockPtrs: context.blockPtrs,
+      blockPtrs: context.params.blockPtrs,
       bytecode: context.params.bytecode,
       bytecodeOffsets: context.params.bytecodeOffsets,
     },
