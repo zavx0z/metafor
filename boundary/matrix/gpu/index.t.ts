@@ -18,9 +18,10 @@ export interface GpuRuntimeContext {
   bindGroup: GPUBindGroup
   buffers: GpuBufferMap
   stagingBuffer: GPUBuffer
+  braneCount: number
 }
 
 export interface GpuReadResult {
   changes: MatrixChanges
-  states: Uint32Array
+  states: number[]
 }

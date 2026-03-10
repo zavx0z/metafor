@@ -1,19 +1,10 @@
-import type { MatrixChanges } from "../matrix.t.ts"
+import type { BoundaryStore } from "../../store.t"
+import type { MatrixChanges } from "../matrix.t"
 
-/**
- * Внутреннее состояние CPU runtime.
- */
 export interface CpuRuntimeState {
-  states: Uint32Array
   bufferedChanges: MatrixChanges
 }
 
-/**
- * Backend-local контекст CPU runtime.
- */
 export interface CpuRuntimeContext {
-  heap: Uint32Array
-  blockPtrs: number[]
-  bytecode: Uint32Array
-  bytecodeOffsets: Uint32Array
+  store: BoundaryStore
 }

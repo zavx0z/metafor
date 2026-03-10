@@ -1,148 +1,113 @@
-import { findFieldOffset, OP, TYPE, uintToFloat } from "@boundary/fields"
+import { OP, FieldType } from "@boundary/fields"
+import type { BoundaryConditionRecord, BoundaryData, BoundaryScalarValue, BoundaryValue } from "../../store.t"
 
-/**
- * Читает сырое значение поля из heap (локального или entangled блока).
- *
- * @see gpu/evolution.wgsl:get_field_value_raw() — WGSL-эквивалент
- */
-function readFieldValueRaw(heap: Uint32Array, blockPtr: number, fieldIndex: number): number {
-  const localOffset = findFieldOffset(heap, blockPtr, fieldIndex)
-  if (localOffset !== null) {
-    return heap[localOffset] ?? 0
+function readBraneFieldValue(store: BoundaryData, braneIndex: number, fieldIndex: number): BoundaryValue {
+  const brane = store.branes[braneIndex]
+  if (!brane) {
+    return 0
   }
 
-  const localCount = heap[blockPtr] ?? 0
-  const entangledCount = heap[blockPtr + 1] ?? 0
-  const entangledPtrsOffset = blockPtr + 3 + localCount * 2
+  const localField = brane.localFields.find((field) => field.fieldIndex === fieldIndex)
+  if (localField) {
+    return localField.value
+  }
 
-  for (let index = 0; index < entangledCount; index++) {
-    const entangledPtr = heap[entangledPtrsOffset + index] ?? 0
-    if (entangledPtr === 0) {
-      continue
-    }
-    const entangledOffset = findFieldOffset(heap, entangledPtr, fieldIndex)
-    if (entangledOffset !== null) {
-      return heap[entangledOffset] ?? 0
+  for (const sharedBlockId of brane.sharedBlockIds) {
+    const sharedBlock = store.sharedBlocks[sharedBlockId]
+    const sharedField = sharedBlock?.fields.find((field) => field.fieldIndex === fieldIndex)
+    if (sharedField) {
+      return sharedField.value
     }
   }
 
   return 0
 }
 
-function readBytecodeWord(bytecode: Uint32Array, offset: number): number {
-  return bytecode[offset] ?? 0
+function scalarEquals(left: BoundaryScalarValue, right: BoundaryScalarValue): boolean {
+  return left === right
 }
 
-/**
- * Проверяет условие перехода (EQ/NEQ/GT/LT/GTE/LTE/IN/NOT_IN/INCLUDE/NOT_INCLUDE/LENGTH/IS_EMPTY).
- *
- * @see gpu/evolution.wgsl:check_cond() — WGSL-эквивалент
- */
-function evaluateCondition(
-  heap: Uint32Array,
-  bytecode: Uint32Array,
-  op: number,
-  fieldType: number,
-  valueRaw: number,
-  encodedRaw: number,
-  condValuesBase: number,
-): boolean {
-  if (fieldType === TYPE.ARRAY) {
-    const pointer = valueRaw
-    const length = pointer === 0 ? 0 : (heap[pointer] ?? 0)
-
-    if (op === OP.LENGTH || op === OP.EQ) return length === encodedRaw
-    if (op === OP.NEQ) return length !== encodedRaw
-    if (op === OP.GT) return length > encodedRaw
-    if (op === OP.LT) return length < encodedRaw
-    if (op === OP.GTE) return length >= encodedRaw
-    if (op === OP.LTE) return length <= encodedRaw
-    if (op === OP.IS_EMPTY) return (length === 0) === (encodedRaw === 1)
-
-    if (op === OP.INCLUDE || op === OP.NOT_INCLUDE) {
-      let found = false
-      for (let index = 0; index < length; index++) {
-        if ((heap[pointer + 1 + index] ?? 0) === encodedRaw) {
-          found = true
-          break
-        }
-      }
-      return op === OP.INCLUDE ? found : !found
-    }
-    return false
-  }
-
-  if (op === OP.IN || op === OP.NOT_IN) {
-    const listPtr = condValuesBase + encodedRaw
-    const count = readBytecodeWord(bytecode, listPtr)
-    let found = false
-
-    for (let index = 0; index < count; index++) {
-      const itemRaw = readBytecodeWord(bytecode, listPtr + 1 + index)
-      const equal = fieldType === TYPE.FLOAT
-        ? uintToFloat(valueRaw) === uintToFloat(itemRaw)
-        : valueRaw === itemRaw
-      if (equal) {
-        found = true
-        break
-      }
-    }
-
-    return op === OP.IN ? found : !found
-  }
-
-  const left = fieldType === TYPE.FLOAT ? uintToFloat(valueRaw) : valueRaw
-  const right = fieldType === TYPE.FLOAT ? uintToFloat(encodedRaw) : encodedRaw
-
-  if (op === OP.EQ) return left === right
-  if (op === OP.NEQ) return left !== right
-  if (op === OP.GT) return left > right
-  if (op === OP.LT) return left < right
-  if (op === OP.GTE) return left >= right
-  if (op === OP.LTE) return left <= right
-
-  return false
+function arrayIncludes(values: BoundaryScalarValue[], target: BoundaryScalarValue): boolean {
+  return values.some((value) => scalarEquals(value, target))
 }
 
-/**
- * Вычисляет следующее состояние браны на основе bytecode.
- *
- * @see gpu/evolution.wgsl:main() (строки 515-560) — WGSL-эквивалент логики переходов
- */
-export function evaluateBraneNextState(
-  heap: Uint32Array,
-  bytecode: Uint32Array,
-  bytecodeBase: number,
-  blockPtr: number,
-  currentState: number,
-): number {
-  const statePtr = readBytecodeWord(bytecode, bytecodeBase + currentState)
-  const transitionCount = readBytecodeWord(bytecode, bytecodeBase + statePtr)
+function evaluateScalarCondition(value: BoundaryScalarValue, condition: BoundaryConditionRecord): boolean {
+  if (Array.isArray(condition.value) && (condition.op === OP.IN || condition.op === OP.NOT_IN)) {
+    const found = condition.value.some((item) => scalarEquals(value, item))
+    return condition.op === OP.IN ? found : !found
+  }
 
-  for (let transitionIndex = 0; transitionIndex < transitionCount; transitionIndex++) {
-    const transitionBase = bytecodeBase + statePtr + 1 + transitionIndex * 2
-    const targetState = readBytecodeWord(bytecode, transitionBase)
-    const condPtr = readBytecodeWord(bytecode, transitionBase + 1)
-    const condCount = readBytecodeWord(bytecode, bytecodeBase + condPtr)
-    const condValuesBase = bytecodeBase + condPtr + 1
+  const expected = condition.value as BoundaryScalarValue
+  switch (condition.op) {
+    case OP.EQ:
+      return scalarEquals(value, expected)
+    case OP.NEQ:
+      return !scalarEquals(value, expected)
+    case OP.GT:
+      return Number(value) > Number(expected)
+    case OP.LT:
+      return Number(value) < Number(expected)
+    case OP.GTE:
+      return Number(value) >= Number(expected)
+    case OP.LTE:
+      return Number(value) <= Number(expected)
+    default:
+      return false
+  }
+}
 
-    let passed = true
-    for (let conditionIndex = 0; conditionIndex < condCount; conditionIndex++) {
-      const conditionBase = condValuesBase + conditionIndex * 4
-      const fieldType = readBytecodeWord(bytecode, conditionBase)
-      const fieldIndex = readBytecodeWord(bytecode, conditionBase + 1)
-      const op = readBytecodeWord(bytecode, conditionBase + 2)
-      const encodedRaw = readBytecodeWord(bytecode, conditionBase + 3)
-      const valueRaw = readFieldValueRaw(heap, blockPtr, fieldIndex)
+function evaluateArrayCondition(value: BoundaryValue, condition: BoundaryConditionRecord): boolean {
+  const items = Array.isArray(value) ? value : []
 
-      if (!evaluateCondition(heap, bytecode, op, fieldType, valueRaw, encodedRaw, condValuesBase)) {
-        passed = false
-        break
-      }
+  switch (condition.op) {
+    case OP.INCLUDE:
+      return arrayIncludes(items, condition.value as BoundaryScalarValue)
+    case OP.NOT_INCLUDE:
+      return !arrayIncludes(items, condition.value as BoundaryScalarValue)
+    case OP.LENGTH:
+      return items.length === Number(condition.value)
+    case OP.IS_EMPTY:
+      return (items.length === 0) === Boolean(condition.value)
+    case OP.EQ:
+    case OP.NEQ:
+    case OP.GT:
+    case OP.LT:
+    case OP.GTE:
+    case OP.LTE:
+      return evaluateScalarCondition(items.length, condition)
+    default:
+      return false
+  }
+}
+
+function evaluateCondition(store: BoundaryData, braneIndex: number, condition: BoundaryConditionRecord): boolean {
+  const field = store.fields[condition.fieldIndex]
+  const value = readBraneFieldValue(store, braneIndex, condition.fieldIndex)
+
+  if (field?.type === FieldType.ARRAY_PTR) {
+    return evaluateArrayCondition(value, condition)
+  }
+
+  return evaluateScalarCondition(value as BoundaryScalarValue, condition)
+}
+
+export function evaluateBraneNextState(store: BoundaryData, braneIndex: number): number {
+  const brane = store.branes[braneIndex]
+  if (!brane) {
+    return store.states[braneIndex] ?? 0
+  }
+
+  const currentState = store.states[braneIndex] ?? 0
+  const stateTransitions = brane.transitions[currentState] ?? []
+
+  for (const transition of stateTransitions) {
+    if (transition.targetState === null) {
+      continue
     }
 
+    const passed = transition.conditions.every((condition) => evaluateCondition(store, braneIndex, condition))
     if (passed) {
-      return targetState
+      return transition.targetState
     }
   }
 

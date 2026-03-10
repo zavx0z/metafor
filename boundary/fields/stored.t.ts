@@ -1,15 +1,7 @@
 import type { ParsedCheck } from "./condition.t"
 import type { PreparedEntanglementProjection } from "./entangled.t"
 import type { BraneValue, Field } from "./index.t"
-
-/**
- * Canonical stored string table.
- *
- * Index in `values` is the stable string ID used by heap and bytecode.
- */
-export interface StoredStringTable {
-  values: string[]
-}
+import type { StoredStringTable } from "./string-table"
 
 /**
  * Flattened atomic checks for one field.
@@ -47,39 +39,4 @@ export interface FlattenedBoundaryInput {
   entanglement?: PreparedEntanglementProjection
 }
 
-/**
- * Canonical metadata for one stored field.
- */
-export interface StoredFieldMeta {
-  fieldIndex: number
-  fieldType: number
-  fieldSize: number
-}
-
-/**
- * Canonical encoded entangled block.
- */
-export interface StoredEntangledBlock {
-  key: string
-  fields: [number, number][]
-}
-
-/**
- * Canonical stored contract between Fields and Matrix.
- *
- * This is flat, indexed, deduplicated, and backend-neutral.
- */
-export interface StoredBoundaryData {
-  fieldMeta: StoredFieldMeta[]
-  localFields: [number, number][][]
-  braneEntangledMap: number[][]
-  entangledFields: StoredEntangledBlock[]
-  heap: Uint32Array
-  blockPtrs: number[]
-  blockSizes: number[]
-  bytecode: Uint32Array
-  bytecodeOffsets: Uint32Array
-  states: Uint32Array
-  stringTable: StoredStringTable
-  arrayReserveSize: number
-}
+export type { StoredStringTable }

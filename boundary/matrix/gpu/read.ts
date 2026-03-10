@@ -1,17 +1,16 @@
 import type { GpuReadResult } from "./index.t.ts"
 
-/**
- * Читает изменения состояний из GPU (оркестрация).
- *
- * Мутабельные буферы: dirtyFlagsBuffer, statesBuffer, stagingBuffer (копируются)
- */
 export async function readGpuChanges(
   device: GPUDevice,
   dirtyFlagsBuffer: GPUBuffer,
   statesBuffer: GPUBuffer,
   stagingBuffer: GPUBuffer,
+  braneCount: number,
 ): Promise<GpuReadResult> {
-  const braneCount = statesBuffer.size / 4
+  if (braneCount === 0) {
+    return { changes: [], states: [] }
+  }
+
   const cmd = device.createCommandEncoder()
 
   cmd.copyBufferToBuffer(dirtyFlagsBuffer, 0, stagingBuffer, 0, braneCount * 4)
@@ -22,7 +21,7 @@ export async function readGpuChanges(
   await stagingBuffer.mapAsync(GPUMapMode.READ)
   const data = new Uint32Array(stagingBuffer.getMappedRange().slice(0))
   const dirtyFlags = data.slice(0, braneCount)
-  const states = data.slice(braneCount, braneCount * 2)
+  const states = Array.from(data.slice(braneCount, braneCount * 2))
 
   const changes: Array<[number, number]> = []
   for (let i = 0; i < braneCount; i++) {

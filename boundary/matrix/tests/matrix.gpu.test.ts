@@ -1,12 +1,8 @@
 /**
  * Тесты для GPU runtime матрицы.
- *
- * Проверяет корректность выполнения переходов на GPU.
- * Пропускается если GPU недоступен.
  */
-import { describe, expect, test, beforeEach, afterEach } from "bun:test"
+import { describe, expect, test } from "bun:test"
 import { GPUMatrixRuntime } from "../../matrix/gpu"
-import { floatToUint, findFieldOffset } from "../../fields"
 import {
   createSimpleBraneFixture,
   createMultipleBranesFixture,
@@ -15,16 +11,10 @@ import {
   createIsolatedStore,
 } from "./shared/fixtures"
 
-/**
- * Проверяет доступность GPU и пропускает тест если недоступен.
- */
 async function skipIfNoGpu(): Promise<GPUDevice | null> {
   return await createExecutableDevice()
 }
 
-/**
- * Создаёт GPU runtime для тестов.
- */
 async function createGpuRuntimeForFixture(fixture: ReturnType<typeof createSimpleBraneFixture>) {
   const device = await createExecutableDevice()
   if (!device) {
@@ -141,9 +131,6 @@ function createU32Buffer(device: GPUDevice, data: Uint32Array, usage: GPUBufferU
   return buffer
 }
 
-/**
- * Специфичные тесты для GPU runtime.
- */
 describe("GPU runtime — specific tests", () => {
   test("statesSnapshot returns canonical store snapshot", async () => {
     const device = await skipIfNoGpu()
@@ -152,20 +139,17 @@ describe("GPU runtime — specific tests", () => {
     const fixture = createSimpleBraneFixture()
     const { runtime } = await createGpuRuntimeForFixture(fixture)
 
-    const snapshot = runtime.statesSnapshot()
-    expect(snapshot).toBeInstanceOf(Uint32Array)
-    expect(snapshot).toEqual(fixture.states)
+    expect(runtime.statesSnapshot()).toEqual([0])
   })
 
-  test("heapUpdate updates GPU heap buffer", async () => {
+  test("heapUpdate rebuilds GPU derived buffers from canonical store", async () => {
     const device = await skipIfNoGpu()
     if (!device) return
 
     const fixture = createSimpleBraneFixture()
     const { runtime } = await createGpuRuntimeForFixture(fixture)
 
-    // GPU runtime требует явного обновления heap
-    expect(() => runtime.heapUpdate([{ offset: 0, value1: 100 }])).not.toThrow()
+    expect(() => runtime.heapUpdate([])).not.toThrow()
   })
 
   test("clear destroys GPU buffers", async () => {
@@ -179,17 +163,12 @@ describe("GPU runtime — specific tests", () => {
   })
 })
 
-/**
- * Детальные тесты сценариев.
- */
 describe("GPU runtime — scenario tests", () => {
   test("simpleTransition — 1 brane hp > 50", async () => {
     const device = await skipIfNoGpu()
     if (!device) return
 
-    const fixture = createSimpleBraneFixture()
-    const { runtime } = await createGpuRuntimeForFixture(fixture)
-
+    const { runtime } = await createGpuRuntimeForFixture(createSimpleBraneFixture())
     runtime.step()
     const changes = await runtime.readChanges()
 
@@ -201,13 +180,10 @@ describe("GPU runtime — scenario tests", () => {
     const device = await skipIfNoGpu()
     if (!device) return
 
-    const fixture = createMultipleBranesFixture()
-    const { runtime } = await createGpuRuntimeForFixture(fixture)
-
+    const { runtime } = await createGpuRuntimeForFixture(createMultipleBranesFixture())
     runtime.step()
     const changes = await runtime.readChanges()
 
-    // Браны 0 и 2 (hp > 50) должны перейти, брана 1 (hp = 30) нет
     expect(changes).toHaveLength(2)
     expect(changes).toContainEqual([0, 1])
     expect(changes).toContainEqual([2, 1])
@@ -217,60 +193,42 @@ describe("GPU runtime — scenario tests", () => {
     const device = await skipIfNoGpu()
     if (!device) return
 
-    const fixture = createLockedBraneFixture()
-    const { runtime } = await createGpuRuntimeForFixture(fixture)
-
+    const { runtime } = await createGpuRuntimeForFixture(createLockedBraneFixture())
     runtime.step()
     const changes = await runtime.readChanges()
 
-    // Locked брана не должна переходить
     expect(changes).toHaveLength(0)
   })
 
-  test("fieldUpdate — update field value and verify transition", async () => {
+  test("fieldUpdate — update canonical field value and verify transition", async () => {
     const device = await skipIfNoGpu()
     if (!device) return
 
-    const fixture = createFieldUpdateFixture()
-    const { runtime, store } = await createGpuRuntimeForFixture(fixture)
+    const { runtime, store } = await createGpuRuntimeForFixture(createFieldUpdateFixture())
 
-    // Сначала hp = 40, перехода нет
     runtime.step()
     let changes = await runtime.readChanges()
     expect(changes).toHaveLength(0)
 
-    // Обновляем hp > 50 через heapUpdate
-    // Находим смещение поля 0 (hp) в heap
-    const blockPtr = store.blockPtrs[0]!
-    const fieldOffset = findFieldOffset(store.heap, blockPtr, 0)
-    expect(fieldOffset).not.toBeNull()
+    store.branes[0]!.localFields[0]!.value = 100
+    runtime.heapUpdate([])
+    runtime.step()
+    changes = await runtime.readChanges()
 
-    if (fieldOffset !== null) {
-      // Обновляем heap на GPU
-      runtime.heapUpdate([{ offset: fieldOffset, value1: floatToUint(100) }])
-
-      runtime.step()
-      changes = await runtime.readChanges()
-
-      // Теперь должен быть переход
-      expect(changes).toHaveLength(1)
-      expect(changes[0]).toEqual([0, 1])
-    }
+    expect(changes).toHaveLength(1)
+    expect(changes[0]).toEqual([0, 1])
   })
 
   test("dirtyFlagsAccuracy — only changed branes reported", async () => {
     const device = await skipIfNoGpu()
     if (!device) return
 
-    const fixture = createMultipleBranesFixture()
-    const { runtime } = await createGpuRuntimeForFixture(fixture)
-
+    const { runtime } = await createGpuRuntimeForFixture(createMultipleBranesFixture())
     runtime.step()
     const changes = await runtime.readChanges()
 
-    // Только браны 0 и 2 должны быть в changes
     expect(changes).toHaveLength(2)
-    const indices = changes.map((c) => c[0])
+    const indices = changes.map((change) => change[0])
     expect(indices).toContain(0)
     expect(indices).toContain(2)
     expect(indices).not.toContain(1)
@@ -280,8 +238,7 @@ describe("GPU runtime — scenario tests", () => {
     const device = await skipIfNoGpu()
     if (!device) return
 
-    const fixture = createSimpleBraneFixture()
-    const { runtime } = await createGpuRuntimeForFixture(fixture)
+    const { runtime } = await createGpuRuntimeForFixture(createSimpleBraneFixture())
 
     runtime.step()
     const changes1 = await runtime.readChanges()
@@ -289,15 +246,11 @@ describe("GPU runtime — scenario tests", () => {
     runtime.step()
     const changes2 = await runtime.readChanges()
 
-    // После первого шага состояние = 1 (терминальное), изменений больше нет
     expect(changes1).toHaveLength(1)
     expect(changes2).toHaveLength(0)
   })
 })
 
-/**
- * Кросс-платформенный тест: CPU === GPU.
- */
 describe("CPU/GPU parity", () => {
   test("results match — CPU and GPU produce identical changes", async () => {
     const device = await skipIfNoGpu()
@@ -306,25 +259,16 @@ describe("CPU/GPU parity", () => {
     const fixture = createSimpleBraneFixture()
     const cpuStore = createIsolatedStore(fixture)
     const gpuStore = createIsolatedStore(fixture)
-    
-    // Создаём CPU runtime
     const { CPUMatrixRuntime } = await import("../../matrix/cpu")
     const cpuRuntime = new CPUMatrixRuntime(cpuStore)
-
-    // Создаём GPU runtime
     const gpuRuntime = await GPUMatrixRuntime.create(device, gpuStore)
 
-    // Выполняем step на обоих runtime
     cpuRuntime.step()
     gpuRuntime.step()
 
-    // Читаем изменения
     const cpuChanges = await cpuRuntime.readChanges()
     const gpuChanges = await gpuRuntime.readChanges()
-
-    // Нормализуем для сравнения (сортируем по индексу)
-    const normalize = (changes: Array<[number, number]>) =>
-      [...changes].sort((a, b) => a[0] - b[0])
+    const normalize = (changes: Array<[number, number]>) => [...changes].sort((a, b) => a[0] - b[0])
 
     expect(normalize(gpuChanges)).toEqual(normalize(cpuChanges))
 
@@ -339,12 +283,8 @@ describe("CPU/GPU parity", () => {
     const fixture = createMultipleBranesFixture()
     const cpuStore = createIsolatedStore(fixture)
     const gpuStore = createIsolatedStore(fixture)
-    
-    // CPU runtime
     const { CPUMatrixRuntime } = await import("../../matrix/cpu")
     const cpuRuntime = new CPUMatrixRuntime(cpuStore)
-
-    // GPU runtime
     const gpuRuntime = await GPUMatrixRuntime.create(device, gpuStore)
 
     cpuRuntime.step()
@@ -352,9 +292,7 @@ describe("CPU/GPU parity", () => {
 
     const cpuChanges = await cpuRuntime.readChanges()
     const gpuChanges = await gpuRuntime.readChanges()
-
-    const normalize = (changes: Array<[number, number]>) =>
-      [...changes].sort((a, b) => a[0] - b[0])
+    const normalize = (changes: Array<[number, number]>) => [...changes].sort((a, b) => a[0] - b[0])
 
     expect(normalize(gpuChanges)).toEqual(normalize(cpuChanges))
   })

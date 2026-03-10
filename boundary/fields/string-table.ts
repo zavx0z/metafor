@@ -1,6 +1,7 @@
 import type { StringAtlasExport } from "@boundary/atlas"
 import { StringAtlas } from "@boundary/atlas"
-import type { StoredStringTable } from "./stored.t"
+
+export type StoredStringTable = string[]
 
 export interface StringInterner {
   intern(value: string): number
@@ -14,11 +15,11 @@ export class StoredStringInterner implements StringInterner {
   private readonly ids = new Map<string, number>()
 
   constructor(initial?: StoredStringTable) {
-    this.table = initial ?? { values: [""] }
+    this.table = initial ?? [""]
 
-    for (let index = 0; index < this.table.values.length; index++) {
-      const value = normalizeString(this.table.values[index]!)
-      this.table.values[index] = value
+    for (let index = 0; index < this.table.length; index++) {
+      const value = normalizeString(this.table[index]!)
+      this.table[index] = value
       this.ids.set(value, index)
     }
   }
@@ -30,8 +31,8 @@ export class StoredStringInterner implements StringInterner {
       return existing
     }
 
-    const id = this.table.values.length
-    this.table.values.push(normalized)
+    const id = this.table.length
+    this.table.push(normalized)
     this.ids.set(normalized, id)
     return id
   }
@@ -47,8 +48,8 @@ export function createStoredStringInterner(initial?: StoredStringTable): StoredS
 export function createStringAtlasExport(stringTable: StoredStringTable): StringAtlasExport {
   const atlas = new StringAtlas()
 
-  for (let index = 0; index < stringTable.values.length; index++) {
-    const value = stringTable.values[index]!
+  for (let index = 0; index < stringTable.length; index++) {
+    const value = stringTable[index]!
     const id = atlas.intern(value)
     if (id !== index) {
       throw new Error(`Stored string table lost canonical ordering at index ${index}`)

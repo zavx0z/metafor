@@ -1,46 +1,29 @@
-import type { MatrixChanges } from "../matrix.t.ts"
+import type { MatrixChanges } from "../matrix.t"
 import type { CpuRuntimeContext } from "./index.t.ts"
 import { evaluateBraneNextState } from "./transition"
-import { applyStateChange } from "./change"
 
-/**
- * Выполняет шаг эволюции на CPU (оркестрация).
- *
- * Мутабельные параметры: context.heap, states
- * Возвращаемые значения: nextStates (новая копия), changes (новый массив)
- */
-export function executeCpuStep(
-  context: CpuRuntimeContext,
-  states: Uint32Array,
-): { nextStates: Uint32Array; changes: MatrixChanges } {
-  const nextStates = states.slice()
+export function executeCpuStep(context: CpuRuntimeContext): MatrixChanges {
+  const { store } = context
+  const nextStates = [...store.states]
   const changes: MatrixChanges = []
 
-  for (let braneIndex = 0; braneIndex < context.blockPtrs.length; braneIndex++) {
-    const blockPtr = context.blockPtrs[braneIndex]
-    if (blockPtr === undefined) {
+  for (let braneIndex = 0; braneIndex < store.branes.length; braneIndex++) {
+    const brane = store.branes[braneIndex]
+    if (!brane || brane.lock) {
       continue
     }
 
-    if ((context.heap[blockPtr + 2] ?? 0) === 1) {
-      continue
-    }
-
-    const currentState = states[braneIndex] ?? 0
-    const nextState = evaluateBraneNextState(
-      context.heap,
-      context.bytecode,
-      context.bytecodeOffsets[braneIndex] ?? 0,
-      blockPtr,
-      currentState,
-    )
-
+    const currentState = store.states[braneIndex] ?? 0
+    const nextState = evaluateBraneNextState(store, braneIndex)
     if (nextState === currentState) {
       continue
     }
 
-    applyStateChange(nextStates, context.heap, blockPtr, braneIndex, nextState, changes)
+    nextStates[braneIndex] = nextState
+    brane.lock = true
+    changes.push([braneIndex, nextState])
   }
 
-  return { nextStates, changes }
+  store.states = nextStates
+  return changes
 }

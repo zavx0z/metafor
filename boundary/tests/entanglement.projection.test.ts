@@ -13,12 +13,12 @@ describe("prepared entanglement projection", () => {
     }
 
     const prepared = prepareData(data)
-    const [firstPtr, secondPtr] = prepared.blockPtrs
 
-    expect(prepared.heap[firstPtr!]!).toBe(1)
-    expect(prepared.heap[firstPtr! + 1]!).toBe(0)
-    expect(prepared.heap[secondPtr!]!).toBe(1)
-    expect(prepared.heap[secondPtr! + 1]!).toBe(0)
+    expect(prepared.sharedBlocks).toEqual([])
+    expect(prepared.branes[0]?.localFields).toEqual([{ fieldIndex: 0, value: 100 }])
+    expect(prepared.branes[1]?.localFields).toEqual([{ fieldIndex: 0, value: 100 }])
+    expect(prepared.branes[0]?.sharedBlockIds).toEqual([])
+    expect(prepared.branes[1]?.sharedBlockIds).toEqual([])
   })
 
   test("boundary materializes shared блоки только из prepared projection", () => {
@@ -51,12 +51,12 @@ describe("prepared entanglement projection", () => {
     }
 
     const prepared = prepareData(data)
-    const [firstPtr, secondPtr] = prepared.blockPtrs
 
-    expect(prepared.heap[firstPtr!]!).toBe(1)
-    expect(prepared.heap[firstPtr! + 1]!).toBe(1)
-    expect(prepared.heap[secondPtr!]!).toBe(1)
-    expect(prepared.heap[secondPtr! + 1]!).toBe(1)
+    expect(prepared.sharedBlocks).toEqual([{ fields: [{ fieldIndex: 0, value: 100 }] }])
+    expect(prepared.branes[0]?.localFields).toEqual([{ fieldIndex: 1, value: 10 }])
+    expect(prepared.branes[1]?.localFields).toEqual([{ fieldIndex: 1, value: 20 }])
+    expect(prepared.branes[0]?.sharedBlockIds).toEqual([0])
+    expect(prepared.branes[1]?.sharedBlockIds).toEqual([0])
   })
 
   test("boundary валидирует projection и не materializes расходящиеся shared values", () => {

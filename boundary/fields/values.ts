@@ -1,12 +1,5 @@
 /**
- * Кодирование значений для prepared execution data.
- *
- * Преобразует JavaScript-значения в 32-битные целые числа для общего prepared execution model.
- * Поддерживает:
- * - Float32 bitcast для чисел с плавающей точкой
- * - Кодирование enum в индексы
- * - Интернирование строк в canonical string table (возвращает стабильный string_id)
- * - Кодирование массивов (возвращает pointer в heap)
+ * Кодирование и нормализация значений.
  *
  * @packageDocumentation
  */
@@ -15,16 +8,13 @@ import { TYPE } from "./opcodes"
 import type { EncodingContext } from "./values.t"
 import { FieldType, type Field, type FieldTypeValue } from "./index.t"
 
-/**
- * Результат кодирования значения.
- * Для скаляров value2 = 0, для STRING/ARRAY второй слот зарезервирован.
- */
 export interface EncodedValueResult {
-  /** Первое слово: encoded value (scalar, string_id, pointer). */
   value1: number
-  /** Второе слово: 0 для скаляров, reserved для STRING/ARRAY. */
   value2: number
 }
+
+export type NormalizedScalarValue = number | boolean
+export type NormalizedValue = NormalizedScalarValue | NormalizedScalarValue[]
 
 export function createFieldEncodingContext(
   fieldType: number,
@@ -61,57 +51,87 @@ export function createFieldEncodingContext(
   return context
 }
 
-/**
- * Кодирует значение в пару 32-битных целых чисел для GPU.
- *
- * ## Side Effects
- *
- * **Для TYPE.STRING:** Использует Fields-owned `stringInterner` для назначения canonical string_id.
- * **Для TYPE.ARRAY:** Может изменять heap при аллокации (в `encodeFieldUpdate()`).
- *
- * Строковая дедупликация теперь выполняется через явный контекст, а не через глобальный singleton.
- *
- * ## Где использовать
- *
- * - ✅ Внутри `prepareData()` — для кодирования начальных значений
- * - ✅ Внутри `encodeFieldUpdate()` — для кодирования обновлений
- * - ❌ В чистых функциях — может вызвать неожиданные side effects
- *
- * @param value - Значение для кодирования.
- * @param context - Контекст кодирования (тип, enumValues).
- * @returns EncodedValueResult с value1 и value2.
- * @throws {Error} Если значение не найдено в enum или неверный тип.
- *
- * @example
- * ```typescript
- * // Float → bitcast
- * encodeValue(3.14, { type: TYPE.FLOAT }) → { value1: 0x4048F5C3, value2: 0 }
- *
- * // Bool → 0/1
- * encodeValue(true, { type: TYPE.BOOL }) → { value1: 1, value2: 0 }
- *
- * // Enum → индекс
- * encodeValue("MAGE", { type: TYPE.UINT, enum: ["WARRIOR", "MAGE", "ROGUE"] }) → { value1: 1, value2: 0 }
- *
- * // String → canonical string_id
- * encodeValue("hello", { type: TYPE.STRING, stringInterner }) → { value1: 42, value2: 0 }
- *
- * // Array → pointer + reserved
- * encodeValue([], { type: TYPE.ARRAY }) → { value1: 0, value2: 0 }
- * ```
- */
+export function normalizeFieldValue(
+  value: unknown,
+  field: Field | undefined,
+  stringInterner: { intern(value: string): number },
+): NormalizedValue {
+  if (!field) {
+    throw new Error("Field definition is required for normalization")
+  }
+
+  if (field.enum) {
+    return normalizeEnumValue(value, field.enum)
+  }
+
+  switch (field.type) {
+    case FieldType.F32:
+    case FieldType.U32:
+      return Number(value)
+    case FieldType.BOOL:
+      return Boolean(value)
+    case FieldType.STRING_PTR:
+      if (value === null) {
+        return 0
+      }
+      if (typeof value !== "string") {
+        throw new Error(`Expected string for STRING_PTR, got ${typeof value}`)
+      }
+      return stringInterner.intern(value)
+    case FieldType.ARRAY_PTR:
+      if (!Array.isArray(value)) {
+        throw new Error(`Expected array for ARRAY_PTR, got ${typeof value}`)
+      }
+      return value.map((item) => normalizeArrayItem(item, field.elementType, stringInterner))
+    default:
+      return Number(value)
+  }
+}
+
+function normalizeEnumValue(value: unknown, enumValues: unknown[]): number {
+  if (value === null) {
+    return 0
+  }
+  if (typeof value === "number") {
+    return value
+  }
+  const index = enumValues.indexOf(value)
+  if (index === -1) {
+    throw new Error(`Value '${String(value)}' not found in enum: [${enumValues}]`)
+  }
+  return index
+}
+
+function normalizeArrayItem(
+  value: unknown,
+  elementType: Field["elementType"],
+  stringInterner: { intern(value: string): number },
+): NormalizedScalarValue {
+  switch (elementType) {
+    case "boolean":
+      return Boolean(value)
+    case "string":
+      if (value === null) {
+        return 0
+      }
+      if (typeof value !== "string") {
+        throw new Error(`Expected string array item, got ${typeof value}`)
+      }
+      return stringInterner.intern(value)
+    case "number":
+    default:
+      return Number(value)
+  }
+}
+
 export function encodeValue(value: unknown, context: EncodingContext): EncodedValueResult {
-  // 1. ENUM
   if (context.enum) {
-    // null для optional-полей — кодируется как 0
     if (value === null) {
       return { value1: 0, value2: 0 }
     }
-    // Если значение уже число (индекс) — возвращаем его
     if (typeof value === "number") {
       return { value1: value, value2: 0 }
     }
-    // Если значение строка — ищем индекс
     const idx = context.enum.indexOf(value)
     if (idx === -1) {
       throw new Error(`Value '${value}' not found in enum: [${context.enum}]`)
@@ -119,22 +139,21 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
     return { value1: idx, value2: 0 }
   }
 
-  // 2. FLOAT
   if (context.type === TYPE.FLOAT) {
     const buf = new Float32Array([Number(value)])
     return { value1: new Uint32Array(buf.buffer)[0]!, value2: 0 }
   }
 
-  // 3. BOOL
   if (context.type === TYPE.BOOL) {
     return { value1: value ? 1 : 0, value2: 0 }
   }
 
-  // 4. STRING → canonical string_id
   if (context.type === TYPE.STRING) {
-    // null для optional-полей — кодируется как 0 (пустая строка)
     if (value === null) {
       return { value1: 0, value2: 0 }
+    }
+    if (typeof value === "number") {
+      return { value1: value, value2: 0 }
     }
     if (typeof value !== "string") {
       throw new Error(`Expected string for TYPE.STRING, got ${typeof value}`)
@@ -142,41 +161,33 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
     if (!context.stringInterner) {
       throw new Error("TYPE.STRING encoding requires EncodingContext.stringInterner")
     }
-    const stringId = context.stringInterner.intern(value)
     return {
-      value1: stringId,
+      value1: context.stringInterner.intern(value),
       value2: 0,
     }
   }
 
-  // 5. ARRAY → pointer в heap + reserved (0)
-  // Если предоставлен allocateHeap — аллоцируем место и записываем данные
   if (context.type === TYPE.ARRAY) {
     if (!Array.isArray(value)) {
       throw new Error(`Expected array for TYPE.ARRAY, got ${typeof value}`)
     }
     const arr = value as unknown[]
 
-    // Для пустого массива возвращаем pointer=0
     if (arr.length === 0) {
       return { value1: 0, value2: 0 }
     }
 
-    // Если есть allocateHeap и heap — аллоцируем и записываем
     if (context.allocateHeap && context.heap) {
-      const arraySize = 1 + arr.length  // [length, item1, item2, ...]
+      const arraySize = 1 + arr.length
       const ptr = context.allocateHeap(arraySize)
 
-      // Проверка переполнения heap
       if (ptr + arraySize > context.heap.length) {
         throw new Error(
-          `Heap overflow: ARRAY allocation at ${ptr} with size ${arraySize} exceeds heap length ${context.heap.length}`
+          `Heap overflow: ARRAY allocation at ${ptr} with size ${arraySize} exceeds heap length ${context.heap.length}`,
         )
       }
 
-      // Записываем длину
       context.heap[ptr] = arr.length
-      // Кодируем и записываем элементы
       const elementType = context.subType ?? TYPE.FLOAT
       for (let i = 0; i < arr.length; i++) {
         const itemCtx: EncodingContext = { type: elementType, stringInterner: context.stringInterner }
@@ -185,40 +196,16 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
       return { value1: ptr, value2: 0 }
     }
 
-    // Без allocateHeap — возвращаем 0 (данные будут записаны позже через update())
-    // Это позволяет использовать write() с пустыми массивами, а update() для инициализации
     return { value1: 0, value2: 0 }
   }
 
-  // 6. UINT / default
   return { value1: Number(value), value2: 0 }
 }
 
-/**
- * Закодировать значение поля для heap.
- *
- * @remarks
- * Обёртка над `encodeValue()` для упрощения кодирования полей.
- * Возвращает только `value1` (первое слово encoded значения).
- *
- * @param value - Значение для кодирования
- * @param ctx - Контекст кодирования
- * @returns Закодированное значение (value1 из EncodedValueResult)
- */
-export function encodeFieldValue(
-  value: unknown,
-  ctx: EncodingContext,
-): number {
+export function encodeFieldValue(value: unknown, ctx: EncodingContext): number {
   return encodeValue(value, ctx).value1
 }
 
-/**
- * Преобразует FieldType в TYPE для байт-кода.
- *
- * @param fieldType - Тип поля из FieldType.
- * @returns Код типа для шейдера (TYPE).
- *
- */
 export function fieldTypeToBytecodeType(fieldType: FieldTypeValue): number {
   switch (fieldType) {
     case FieldType.F32:
@@ -236,23 +223,11 @@ export function fieldTypeToBytecodeType(fieldType: FieldTypeValue): number {
   }
 }
 
-/**
- * Bitcast: float32 → u32 (для кодирования чисел с плавающей точкой).
- *
- * @param value - Число с плавающей точкой.
- * @returns Битовое представление в виде u32.
- */
 export function floatToUint(value: number): number {
   const buf = new Float32Array([value])
   return new Uint32Array(buf.buffer)[0]!
 }
 
-/**
- * Bitcast: u32 → float32 (для декодирования чисел из байт-кода).
- *
- * @param value - Битовое представление u32.
- * @returns Число с плавающей точкой.
- */
 export function uintToFloat(value: number): number {
   const buf = new Uint32Array([value])
   return new Float32Array(buf.buffer)[0]!

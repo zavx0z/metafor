@@ -6,7 +6,7 @@ import { flattenBoundaryData, prepareData } from "../boundary"
 import { FieldType, type Data } from "../fields/index.t"
 import { OP } from "../fields/opcodes"
 
-describe("prepareData — подготовка общих данных выполнения", () => {
+describe("prepareData — подготовка canonical JS store", () => {
   test("Boundary flattening должен переводить nested conditions в parsed checks", () => {
     const data: Data = {
       fields: [{ type: FieldType.F32 }],
@@ -34,37 +34,33 @@ describe("prepareData — подготовка общих данных выпо�
     })
   })
 
-  test("должен подготовить данные для 1 браны с 1 полем", () => {
-    const data: Data = {
+  test("должен подготовить flat JS store для 1 браны с 1 полем", () => {
+    const result = prepareData({
       fields: [{ type: FieldType.F32 }],
       branes: [{
         values: [[0, 100]],
         state: 0,
         collapses: [[[1, { 0: { gt: 50 } }]], [null]],
       }],
-    }
-    const result = prepareData(data)
+    })
 
-    expect(result.heap).toBeInstanceOf(Uint32Array)
-    expect(result.heap.length).toBeGreaterThan(0)
-    expect(result.bytecode).toBeInstanceOf(Uint32Array)
-    expect(result.states).toHaveLength(1)
+    expect(result.fields).toEqual([{ type: FieldType.F32 }])
+    expect(result.branes).toHaveLength(1)
+    expect(result.sharedBlocks).toEqual([])
+    expect(result.states).toEqual([0])
+    expect(result.branes[0]?.localFields).toEqual([{ fieldIndex: 0, value: 100 }])
+    expect(result.branes[0]?.transitions[0]?.[0]).toEqual({
+      targetState: 1,
+      conditions: [{ fieldIndex: 0, op: OP.GT, value: 50 }],
+    })
   })
 
   test("должен подготовить данные с entanglement только из prepared projection", () => {
-    const data: Data = {
+    const result = prepareData({
       fields: [{ type: FieldType.F32 }],
       branes: [
-        {
-          values: [[0, 100]],
-          state: 0,
-          collapses: [[null]],
-        },
-        {
-          values: [[0, 100]], // одинаковое значение → entangled
-          state: 0,
-          collapses: [[null]],
-        },
+        { values: [[0, 100]], state: 0, collapses: [[null]] },
+        { values: [[0, 100]], state: 0, collapses: [[null]] },
       ],
       entanglement: {
         blocks: [
@@ -82,15 +78,18 @@ describe("prepareData — подготовка общих данных выпо�
           },
         ],
       },
-    }
-    const result = prepareData(data)
+    })
 
-    expect(result.heap).toBeInstanceOf(Uint32Array)
-    expect(result.blockPtrs).toHaveLength(2)
+    expect(result.sharedBlocks).toHaveLength(1)
+    expect(result.sharedBlocks[0]?.fields).toEqual([{ fieldIndex: 0, value: 100 }])
+    expect(result.branes[0]?.localFields).toEqual([])
+    expect(result.branes[1]?.localFields).toEqual([])
+    expect(result.branes[0]?.sharedBlockIds).toEqual([0])
+    expect(result.branes[1]?.sharedBlockIds).toEqual([0])
   })
 
   test("Fields должен дедуплицировать строки в canonical string table", () => {
-    const data: Data = {
+    const result = prepareData({
       fields: [{ type: FieldType.STRING_PTR }],
       branes: [
         {
@@ -104,28 +103,29 @@ describe("prepareData — подготовка общих данных выпо�
           collapses: [[null]],
         },
       ],
-    }
-    const result = prepareData(data)
+    })
 
-    expect(result.heap).toBeInstanceOf(Uint32Array)
-    expect(result.blockPtrs).toHaveLength(2)
-    expect(result.stringTable.values.filter((value) => value === "hello")).toHaveLength(1)
+    expect(result.stringTable.filter((value) => value === "hello")).toHaveLength(1)
+    expect(result.branes[0]?.localFields).toEqual([{ fieldIndex: 0, value: 1 }])
+    expect(result.branes[1]?.localFields).toEqual([{ fieldIndex: 0, value: 1 }])
+    expect(result.branes[0]?.transitions[0]?.[0]?.conditions).toEqual([
+      { fieldIndex: 0, op: OP.EQ, value: 1 },
+    ])
   })
 
-  test("должен рассчитать arrayReserveSize для ARRAY полей", () => {
-    const data: Data = {
+  test("должен хранить ARRAY поля в canonical JS store без heap reserve", () => {
+    const result = prepareData({
       fields: [{ type: FieldType.ARRAY_PTR, elementType: "number" }],
       branes: [
         {
-          values: [[0, [1, 2, 3, 4, 5]]], // массив из 5 элементов
+          values: [[0, [1, 2, 3, 4, 5]]],
           state: 0,
           collapses: [[null]],
         },
       ],
-    }
-    const result = prepareData(data)
+    })
 
-    expect(result.arrayReserveSize).toBeGreaterThan(0)
-    expect(result.heap.length).toBeGreaterThan(result.blockPtrs[0]!)
+    expect(result.branes[0]?.localFields).toEqual([{ fieldIndex: 0, value: [1, 2, 3, 4, 5] }])
+    expect(result.sharedBlocks).toEqual([])
   })
 })

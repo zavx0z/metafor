@@ -1,188 +1,21 @@
 /**
  * Общие фикстуры для тестов CPU/GPU матрицы.
- *
- * Содержит тестовые данные и хелперы для создания runtime.
  */
 import { boundary$ } from "../../../store"
-import { compileEnsemble, buildHeap, FieldType, floatToUint, type Field, type Brane } from "../../../fields"
-import type { StoredStringTable } from "../../../fields"
-import type { MatrixRuntime } from "../../matrix.t"
+import { FieldType, OP, type Field } from "../../../fields"
 import type { BoundaryStore } from "../../../store.t"
+import type { MatrixRuntime } from "../../matrix.t"
 
-function createEmptyStringTable(): StoredStringTable {
-  return { values: [""] }
-}
-
-/**
- * Фикстура: 1 брана с простым условием hp > 50.
- */
-export function createSimpleBraneFixture() {
-  const fields: Field[] = [{ type: FieldType.F32 }]
-  const branes: Brane[] = [
-    {
-      values: [[0, floatToUint(100)]] as [number, number][], // hp = 100 (encoded as float)
-      state: 0,
-      collapses: [
-        [[1, { 0: { gt: 50 } }]], // 0 → 1 при hp > 50
-        [null], // 1 терминальное
-      ],
-    },
-  ]
-
-  const { bytecode, bytecodeOffsets } = compileEnsemble(branes, fields)
-  const { heap, blockPtrs } = buildHeap({
-    localFields: [branes[0]!.values as [number, number][]],
-    braneEntangledMap: [[]],
-    entangledFields: new Map(),
-    fieldMeta: new Map([
-      [0, { fieldType: 0, fieldSize: 1 }], // TYPE.FLOAT
-    ]),
-  })
-
-  const states = new Uint32Array([0])
-
-  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, states, stringTable: createEmptyStringTable() }
-}
-
-/**
- * Фикстура: 3 браны с разными условиями.
- */
-export function createMultipleBranesFixture() {
-  const fields: Field[] = [{ type: FieldType.F32 }]
-  const branes: Brane[] = [
-    {
-      values: [[0, floatToUint(100)]] as [number, number][], // hp = 100 > 50 → transition
-      state: 0,
-      collapses: [
-        [[1, { 0: { gt: 50 } }]],
-        [null],
-      ],
-    },
-    {
-      values: [[0, floatToUint(30)]] as [number, number][], // hp = 30 < 50 → no transition
-      state: 0,
-      collapses: [
-        [[1, { 0: { gt: 50 } }]],
-        [null],
-      ],
-    },
-    {
-      values: [[0, floatToUint(75)]] as [number, number][], // hp = 75 > 50 → transition
-      state: 0,
-      collapses: [
-        [[1, { 0: { gt: 50 } }]],
-        [null],
-      ],
-    },
-  ]
-
-  const { bytecode, bytecodeOffsets } = compileEnsemble(branes, fields)
-  const { heap, blockPtrs } = buildHeap({
-    localFields: branes.map((b) => b.values as [number, number][]),
-    braneEntangledMap: branes.map(() => []),
-    entangledFields: new Map(),
-    fieldMeta: new Map([
-      [0, { fieldType: 0, fieldSize: 1 }],
-    ]),
-  })
-
-  const states = new Uint32Array([0, 0, 0])
-
-  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, states, stringTable: createEmptyStringTable() }
-}
-
-/**
- * Фикстура: брана с lock флагом.
- */
-export function createLockedBraneFixture() {
-  const fields: Field[] = [{ type: FieldType.F32 }]
-  const branes: Brane[] = [
-    {
-      values: [[0, floatToUint(100)]] as [number, number][], // hp = 100 > 50
-      state: 0,
-      collapses: [
-        [[1, { 0: { gt: 50 } }]],
-        [null],
-      ],
-    },
-  ]
-
-  const { bytecode, bytecodeOffsets } = compileEnsemble(branes, fields)
-  const { heap, blockPtrs } = buildHeap({
-    localFields: [branes[0]!.values as [number, number][]],
-    braneEntangledMap: [[]],
-    entangledFields: new Map(),
-    fieldMeta: new Map([
-      [0, { fieldType: 0, fieldSize: 1 }],
-    ]),
-  })
-
-  // Устанавливаем lock флаг (слово 2 в заголовке блока)
-  const blockPtr = blockPtrs[0]!
-  heap[blockPtr + 2] = 1 // lock = true
-
-  const states = new Uint32Array([0])
-
-  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, states, stringTable: createEmptyStringTable() }
-}
-
-/**
- * Фикстура: брана с 2 полями для теста field update.
- */
-export function createFieldUpdateFixture() {
-  const fields: Field[] = [{ type: FieldType.F32 }, { type: FieldType.F32 }]
-  const branes: Brane[] = [
-    {
-      values: [[0, floatToUint(40)], [1, floatToUint(10)]] as [number, number][], // hp = 40, mana = 10
-      state: 0,
-      collapses: [
-        [[1, { 0: { gt: 50 } }]], // 0 → 1 при hp > 50
-        [null],
-      ],
-    },
-  ]
-
-  const { bytecode, bytecodeOffsets } = compileEnsemble(branes, fields)
-  const { heap, blockPtrs } = buildHeap({
-    localFields: [branes[0]!.values as [number, number][]],
-    braneEntangledMap: [[]],
-    entangledFields: new Map(),
-    fieldMeta: new Map([
-      [0, { fieldType: 0, fieldSize: 1 }],
-      [1, { fieldType: 0, fieldSize: 1 }],
-    ]),
-  })
-
-  const states = new Uint32Array([0])
-
-  return { fields, branes, bytecode, bytecodeOffsets, heap, blockPtrs, states, stringTable: createEmptyStringTable() }
-}
-
-/**
- * Создаёт BoundaryStore для CPU runtime.
- */
-export function createBoundaryStore(fixture: ReturnType<typeof createSimpleBraneFixture>): BoundaryStore {
-  const store = { ...boundary$ }
-  store.bytecode = fixture.bytecode
-  store.bytecodeOffsets = fixture.bytecodeOffsets
-  store.states = fixture.states
-  store.heap = fixture.heap
-  store.blockPtrs = fixture.blockPtrs
-  store.stringTable = fixture.stringTable
-  return store
-}
-
-/**
- * Создаёт изолированный BoundaryStore для теста.
- */
-export function createIsolatedStore(fixture: ReturnType<typeof createSimpleBraneFixture>): BoundaryStore {
+function createBaseStore(fields: Field[], branes: BoundaryStore["branes"], states: number[]): BoundaryStore {
   return {
-    bytecode: fixture.bytecode.slice(),
-    bytecodeOffsets: fixture.bytecodeOffsets.slice(),
-    states: fixture.states.slice(),
-    heap: fixture.heap.slice(),
-    blockPtrs: [...fixture.blockPtrs],
-    stringTable: { values: [...fixture.stringTable.values] },
+    fields: fields.map((field) => ({
+      type: field.type,
+      ...(field.elementType !== undefined ? { elementType: field.elementType } : {}),
+    })),
+    stringTable: [""],
+    sharedBlocks: [],
+    branes,
+    states,
     reset: () => {
       throw new Error("reset not supported in isolated store")
     },
@@ -192,14 +25,129 @@ export function createIsolatedStore(fixture: ReturnType<typeof createSimpleBrane
   }
 }
 
-/**
- * Тип фабрики runtime для тестов.
- */
+export function createSimpleBraneFixture() {
+  const fields: Field[] = [{ type: FieldType.F32 }]
+  const store = createBaseStore(
+    fields,
+    [
+      {
+        localFields: [{ fieldIndex: 0, value: 100 }],
+        sharedBlockIds: [],
+        transitions: [
+          [{ targetState: 1, conditions: [{ fieldIndex: 0, op: OP.GT, value: 50 }] }],
+          [{ targetState: null, conditions: [] }],
+        ],
+        lock: false,
+      },
+    ],
+    [0],
+  )
+
+  return { fields, store }
+}
+
+export function createMultipleBranesFixture() {
+  const fields: Field[] = [{ type: FieldType.F32 }]
+  const transitions = [
+    [{ targetState: 1, conditions: [{ fieldIndex: 0, op: OP.GT, value: 50 }] }],
+    [{ targetState: null, conditions: [] }],
+  ]
+  const store = createBaseStore(
+    fields,
+    [
+      { localFields: [{ fieldIndex: 0, value: 100 }], sharedBlockIds: [], transitions, lock: false },
+      { localFields: [{ fieldIndex: 0, value: 30 }], sharedBlockIds: [], transitions, lock: false },
+      { localFields: [{ fieldIndex: 0, value: 75 }], sharedBlockIds: [], transitions, lock: false },
+    ],
+    [0, 0, 0],
+  )
+
+  return { fields, store }
+}
+
+export function createLockedBraneFixture() {
+  const fields: Field[] = [{ type: FieldType.F32 }]
+  const store = createBaseStore(
+    fields,
+    [
+      {
+        localFields: [{ fieldIndex: 0, value: 100 }],
+        sharedBlockIds: [],
+        transitions: [
+          [{ targetState: 1, conditions: [{ fieldIndex: 0, op: OP.GT, value: 50 }] }],
+          [{ targetState: null, conditions: [] }],
+        ],
+        lock: true,
+      },
+    ],
+    [0],
+  )
+
+  return { fields, store }
+}
+
+export function createFieldUpdateFixture() {
+  const fields: Field[] = [{ type: FieldType.F32 }, { type: FieldType.F32 }]
+  const store = createBaseStore(
+    fields,
+    [
+      {
+        localFields: [
+          { fieldIndex: 0, value: 40 },
+          { fieldIndex: 1, value: 10 },
+        ],
+        sharedBlockIds: [],
+        transitions: [
+          [{ targetState: 1, conditions: [{ fieldIndex: 0, op: OP.GT, value: 50 }] }],
+          [{ targetState: null, conditions: [] }],
+        ],
+        lock: false,
+      },
+    ],
+    [0],
+  )
+
+  return { fields, store }
+}
+
+export function createBoundaryStore(fixture: ReturnType<typeof createSimpleBraneFixture>): BoundaryStore {
+  const store = { ...boundary$ }
+  store.fields = fixture.store.fields.map((field) => ({ ...field }))
+  store.stringTable = [...fixture.store.stringTable]
+  store.sharedBlocks = fixture.store.sharedBlocks.map((block) => ({
+    fields: block.fields.map((field) => ({
+      fieldIndex: field.fieldIndex,
+      value: Array.isArray(field.value) ? [...field.value] : field.value,
+    })),
+  }))
+  store.branes = fixture.store.branes.map((brane) => ({
+    localFields: brane.localFields.map((field) => ({
+      fieldIndex: field.fieldIndex,
+      value: Array.isArray(field.value) ? [...field.value] : field.value,
+    })),
+    sharedBlockIds: [...brane.sharedBlockIds],
+    transitions: brane.transitions.map((stateTransitions) =>
+      stateTransitions.map((transition) => ({
+        targetState: transition.targetState,
+        conditions: transition.conditions.map((condition) => ({
+          fieldIndex: condition.fieldIndex,
+          op: condition.op,
+          value: Array.isArray(condition.value) ? [...condition.value] : condition.value,
+        })),
+      })),
+    ),
+    lock: brane.lock,
+  }))
+  store.states = [...fixture.store.states]
+  return store
+}
+
+export function createIsolatedStore(fixture: ReturnType<typeof createSimpleBraneFixture>): BoundaryStore {
+  return createBoundaryStore(fixture)
+}
+
 export type RuntimeFactory = () => Promise<MatrixRuntime>
 
-/**
- * Нормализует результат для сравнения (сортирует changes по индексу).
- */
 export function normalizeChanges(changes: Array<[number, number]>): Array<[number, number]> {
   return [...changes].sort((a, b) => a[0] - b[0])
 }

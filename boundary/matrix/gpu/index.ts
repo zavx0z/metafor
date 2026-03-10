@@ -6,7 +6,6 @@ import { destroyBuffers } from "./buffer"
 import { createGpuRuntimeContext } from "./init"
 import { readGpuChanges } from "./read"
 import { runGpuStep } from "./step"
-import { updateGpuHeapFields } from "./heap"
 
 let gpuOperationQueue: Promise<void> = Promise.resolve()
 
@@ -19,19 +18,36 @@ function enqueueGpuOperation<T>(task: () => Promise<T> | T): Promise<T> {
   return scheduled
 }
 
+function destroyContext(context: GpuRuntimeContext): void {
+  destroyBuffers([
+    context.buffers.braneBlockPtrs,
+    context.buffers.heap,
+    context.buffers.states,
+    context.buffers.dirtyFlags,
+    context.buffers.bytecode,
+    context.buffers.bytecodeOffsets,
+    context.buffers.uniforms,
+    context.buffers.stringRegistry,
+    context.buffers.stringHeap,
+    context.stagingBuffer,
+  ])
+}
+
 export class GPUMatrixRuntime implements MatrixRuntime {
-  private readonly context: GpuRuntimeContext
-  private lastStates: Uint32Array
+  private context: GpuRuntimeContext
+  private readonly store: BoundaryStore
+  private lastStates: number[]
   private pending: Promise<unknown> = Promise.resolve()
 
-  private constructor(context: GpuRuntimeContext, initialStates: Uint32Array) {
+  private constructor(context: GpuRuntimeContext, store: BoundaryStore) {
     this.context = context
-    this.lastStates = initialStates.slice()
+    this.store = store
+    this.lastStates = [...store.states]
   }
 
   static async create(device: GPUDevice, store: BoundaryStore): Promise<GPUMatrixRuntime> {
     const context = createGpuRuntimeContext(device, shaderSource, store, false)
-    return new GPUMatrixRuntime(context, store.states)
+    return new GPUMatrixRuntime(context, store)
   }
 
   step(): void {
@@ -53,36 +69,29 @@ export class GPUMatrixRuntime implements MatrixRuntime {
         this.context.buffers.dirtyFlags,
         this.context.buffers.states,
         this.context.stagingBuffer,
+        this.context.braneCount,
       )
       this.lastStates = result.states
       return result.changes
     })
   }
 
-  statesSnapshot(): Uint32Array {
-    return this.lastStates
+  statesSnapshot(): number[] {
+    return [...this.lastStates]
   }
 
-  heapUpdate(updates: MatrixHeapUpdate[]): void {
-    void this.enqueue(() => updateGpuHeapFields(this.context.device, this.context.buffers.heap, updates))
+  heapUpdate(_updates: MatrixHeapUpdate[]): void {
+    void this.enqueue(() => {
+      const nextContext = createGpuRuntimeContext(this.context.device, shaderSource, this.store, false)
+      destroyContext(this.context)
+      this.context = nextContext
+      this.lastStates = [...this.store.states]
+    })
   }
 
   clear(): void {
-    this.lastStates = new Uint32Array(0)
-    void this.enqueue(() =>
-      destroyBuffers([
-        this.context.buffers.braneBlockPtrs,
-        this.context.buffers.heap,
-        this.context.buffers.states,
-        this.context.buffers.dirtyFlags,
-        this.context.buffers.bytecode,
-        this.context.buffers.bytecodeOffsets,
-        this.context.buffers.uniforms,
-        this.context.buffers.stringRegistry,
-        this.context.buffers.stringHeap,
-        this.context.stagingBuffer,
-      ]),
-    )
+    this.lastStates = []
+    void this.enqueue(() => destroyContext(this.context))
   }
 
   private enqueue<T>(task: () => Promise<T> | T): Promise<T> {

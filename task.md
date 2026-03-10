@@ -1,348 +1,305 @@
-# Task: Refactor Boundary/Fields/Matrix data flow to the final stored-data contract
+# Task: Replace packed Boundary store with canonical flat JS store
 
 ## Communication rule
 
 The user communicates in **Russian**.
-All user-facing explanations, summaries, and follow-up questions must be in **Russian**.
+All user-facing summaries and explanations must be in **Russian**.
 
 ---
 
 ## Goal
 
-Refactor the current Boundary → Fields → Matrix pipeline so that it matches the agreed architecture exactly:
+Refactor the current Boundary/Fields/Matrix data flow so that:
 
-- **Boundary** performs flattening
-- **Fields** performs deduplication and compaction
-- **global Boundary store** contains only final flattened + deduplicated stored data plus Matrix-written runtime results
-- **Matrix** consumes the full store as the canonical source of truth
-- **CPU** executes directly over indexed stored data
-- **GPU** derives buffers locally from the same stored data
+- the **global store lives only in `boundary`**
+- this global store is the **single canonical source of truth**
+- the global store contains **flat, deduplicated, readable JavaScript data**
+- the global store does **not** use packed runtime-oriented binary layout as its canonical form
+- `fields` becomes a preparation/deduplication layer, not the owner of final stored state
+- `matrix` consumes the full boundary store
+- CPU executes from this JS store directly
+- GPU derives buffers locally from this JS store
 
-The final architecture must eliminate any extra store data that Matrix does not read or write.
-
----
-
-## Metaphor / ontology rule (must be preserved)
-
-This project is metaphor-first.
-
-- **Boundary** is the event-horizon-like boundary.
-  What approaches the boundary is stretched and flattened.
-
-- **Fields** is the imprint layer on the boundary.
-  What is written on the boundary is deduplicated.
-
-- **Matrix** consumes the imprint and computes over it.
-
-This is not decorative language.
-It is the architectural rule for data-flow responsibilities.
+The immediate goal is **clarity + flexibility + low weight**, not maximum early binary packing.
 
 ---
 
-## Required target model
+## Architectural rule to preserve
 
-### 1. Boundary
+### Boundary
 
-Boundary must do flattening only.
+Boundary is the flattening boundary.
 
-Boundary may:
+It performs flattening before data is written into the global store.
 
-- parse nested input
-- flatten transitions and conditions
-- prepare local intermediate data
+### Fields
 
-Boundary must not:
+Fields performs deduplication and compaction before data is written into the global store.
 
-- keep intermediate preparation artifacts in the global store
-- treat temporary preparation structures as canonical data
+Fields does not own the final global store.
 
-### 2. Fields
+### Boundary global store
 
-Fields must receive flattened input and produce the final canonical stored snapshot.
+The final global store belongs to Boundary and contains only:
 
-Fields owns:
-
-- deduplication
-- compaction
-- canonical indexing
-- canonical string IDs
-- compact stored transition representation
-- final stored data contract
-
-### 3. Global store
-
-Global store must contain only:
-
-- final flattened + deduplicated stored data from Fields
+- flattened data
+- deduplicated data
 - runtime results written by Matrix
 
-Global store must contain no:
+### Matrix
 
-- temporary preparation structures
-- helper/intermediate flattening IR
-- backend-local buffers
-- GPU-only payload
-- hidden duplicate representations
-- data not used by Matrix for reading or writing
+Matrix receives the full boundary store.
 
-### 4. Matrix
-
-Matrix must consume the full canonical store.
-
-CPU:
-
-- reads stored indexed data directly in JavaScript
-
-GPU:
-
-- derives buffers locally from the same stored data
-
-Matrix writes back runtime results into the store.
+- CPU works from the store directly in JavaScript
+- GPU derives buffers from the same store
 
 ---
 
-## Current repository problems to fix
+## Important correction to previous task
 
-### Problem A — deduplication still orchestrated in `boundary.ts`
+The previous direction was too close to the current packed execution layout.
 
-The current code moved in the right direction, but `boundary.ts` still performs too much Fields-owned work:
+That is **not** the target now.
 
-- creates string interner
-- creates field meta
-- encodes values
-- builds heap
-- compiles flattened ensemble
-- assembles `StoredBoundaryData`
+The new target is:
 
-This means the real Fields layer still does not fully own deduplication/compaction/stored-contract assembly.
+- **do not treat `heap`, `blockPtrs`, `bytecodeOffsets`, and similar packed structures as the canonical store by default**
+- instead, build a **flat canonical JS store**
+- only derive packed/buffer forms where actually needed for execution
 
-### Problem B — global store is still shaped around current Matrix runtime layout
+In other words:
 
-Current global store still centers around:
+- canonical truth = readable flat indexed JS store
+- CPU runtime = direct JS execution from that store
+- GPU runtime = local buffer preparation from that store
+
+---
+
+## Current problem in the repository
+
+The current `boundary` store still keeps packed execution-shaped data such as:
 
 - `bytecode`
 - `bytecodeOffsets`
-- `initialStates`
+- `states`
 - `heap`
-- `braneBlockPtrs`
+- `blockPtrs`
 - `stringTable`
 
-This may still be too close to current execution packing rather than the cleanest canonical stored model.
+This means the current store is still shaped around the runtime packing model instead of a clean canonical JS store.
 
-You must verify which structures are:
+That must be changed.
 
-- true canonical stored data
-- execution-specific packing details
+---
 
-### Problem C — Matrix shared boundary still uses an execution-slice contract instead of full canonical store
+## Required target store shape
 
-Current code still passes `params` plus `stringTable` into Matrix init.
-This is a transitional shape.
+Design and implement a new canonical Boundary global store that is:
 
-The final architecture requires:
+- flat
+- deduplicated
+- index-based
+- readable in JavaScript
+- minimal
+- not packed into GPU/VM-specific layout by default
 
-- Matrix consumes the full final store as the canonical data source
-- CPU and GPU derive what they need from that store
-- no extra hidden split between “real store” and “actual Matrix input” unless justified
+The store should contain canonical JS structures such as:
 
-### Problem D — strings must exist only as canonical IDs in stored data
+- field metadata tables
+- string table by indices
+- brane state data
+- field-value tables by indices
+- entanglement/shared-field relations
+- flattened transitions / conditions in readable indexed form
+- runtime state snapshot
 
-Strings must not exist in stored data as backend-local atlas export or alternate runtime payload.
-Stored data must use canonical string IDs plus canonical deduplicated string table.
-GPU text/buffer conversion must stay local to GPU.
+Use plain JS/TS data structures where it improves clarity:
 
-### Problem E — no unread/unwritten store data
+- arrays
+- indexed tables
+- records
+- maps if justified
 
-Every field in global store must be justified:
+Do **not** default to binary packed buffers as the canonical store.
 
-- Matrix reads it
-- and/or Matrix writes it back
+---
 
-If not, it must not be there.
+## Critical rule: no unused store data
+
+Nothing may live in the global Boundary store unless Matrix reads it or writes it.
+
+If some data is:
+
+- not read by Matrix
+- and not written by Matrix
+
+it must not be in the global store.
+
+This rule must be applied strictly during the refactor.
 
 ---
 
 ## Required implementation work
 
-### Phase 1 — define the final canonical global store
+### Phase 1 — redesign the Boundary global store
 
-Refactor the current store contract so that the global Boundary store becomes the final canonical stored snapshot.
+Replace the current packed-oriented Boundary store contract with a canonical flat JS store.
 
-The global store must contain only the data that:
+The new store must:
 
-- survived Boundary flattening
-- survived Fields deduplication
-- is actually needed by Matrix
+- be easy to inspect
+- be easy to evolve
+- remain compact through indices and deduplication
+- not depend on packed runtime layout
 
-You must explicitly classify each currently stored structure as one of:
+You must explicitly define the new store contract in `boundary/store.t.ts`.
 
-- canonical stored data
-- temporary preparation data
-- CPU-local execution detail
-- GPU-local execution detail
-- runtime result
+### Phase 2 — move final store ownership to Boundary
 
-This classification must be reflected in code, not just in comments.
+Ensure the final canonical store is created and owned by Boundary.
 
-### Phase 2 — move stored-data assembly fully into Fields
+Fields may prepare and deduplicate data,
+but the resulting canonical state must be written into the Boundary global store as the final source of truth.
 
-Fields must become the actual producer of the final stored snapshot.
+Fields must not remain the hidden owner of canonical state.
 
-That means the final stored contract must be assembled by Fields-owned logic, not by `boundary.ts` orchestration.
+### Phase 3 — refactor Fields into a preparation layer
 
-Boundary may still:
+Fields must become a pure preparation / deduplication layer.
 
-- flatten input
-- call Fields
+Fields should:
 
-But Boundary must no longer be the effective owner of:
+- receive flattened data
+- deduplicate strings and other repeated data
+- normalize values
+- prepare flattened transitions / condition structures
+- return data suitable for writing into the Boundary store
 
-- deduplication
-- stored string indexing
-- stored field-meta assembly
-- stored compact data assembly
+Fields must not define the final storage contract as a runtime-packed model.
 
-### Phase 3 — pass full store into Matrix
+### Phase 4 — redesign transitions/conditions storage
 
-Refactor Matrix initialization so Matrix consumes the full canonical store object directly.
+Transitions currently end up in bytecode-shaped form too early.
 
-Do not keep a split where:
+For this refactor:
 
-- one part is “the real store”
-- another part is “Matrix params”
-unless that split is strictly internal and derived locally inside Matrix
+- store transitions in a flat readable indexed JS form inside the canonical store
+- store conditions under one unified contract
+- if strings are used in conditions, only string indices may be stored
+- do not store multiple condition representations
 
-The architectural rule is:
+The canonical store must use one transition/condition representation.
 
-- global store is the stored imprint
-- Matrix consumes that imprint
+### Phase 5 — redesign string storage
 
-### Phase 4 — separate canonical store from backend-local preparation
+Strings must be deduplicated in Fields.
 
-Keep only canonical stored data in the store.
+In the Boundary store:
 
-Any backend-local preparation must happen after Matrix receives the store:
+- store canonical string table
+- store only string indices everywhere else
 
-- CPU selects/reads indexed structures directly
-- GPU derives buffers locally
+Do not store:
 
-Do not keep backend-local packing in the canonical store just because current CPU code uses it.
+- raw duplicate strings all over the store
+- GPU atlas export
+- GPU-local text/buffer payloads
 
-### Phase 5 — review `bytecode`, `bytecodeOffsets`, `heap`, `blockPtrs`
+GPU text conversion must happen only in GPU code.
 
-Perform an architectural classification of these structures:
+### Phase 6 — remove packed execution structures from canonical truth where possible
 
-- `bytecode`
-- `bytecodeOffsets`
+Review the following current structures:
+
 - `heap`
 - `blockPtrs`
+- `bytecode`
+- `bytecodeOffsets`
 
-Determine which of them are truly canonical stored data and which are execution packing details.
+Classify each as:
 
-Important:
+- canonical store data
+- CPU-local execution form
+- GPU-local execution form
+- derived packing only
 
-- Do not remove them blindly.
-- Do not keep them blindly.
-- Decide based on the new contract:
-  “global store contains only minimal flattened + deduplicated data actually used by Matrix.”
+Default assumption for this task:
 
-Likely outcomes to consider:
+- they should **not** remain canonical truth unless strictly necessary
 
-- compact transition representation may remain canonical
-- some current heap/layout structures may turn out to be execution preparation, not canonical truth
+Prefer moving them to derived execution preparation.
 
-Make the code reflect the final decision.
+### Phase 7 — make CPU read directly from the store
 
-### Phase 6 — enforce string contract
+Refactor CPU Matrix execution so it works directly from the new canonical JS store,
+not from packed heap/bytecode runtime structures as canonical truth.
 
-Ensure:
+This may require rewriting CPU transition evaluation around the new store contract.
 
-- stored string table is canonical and deduplicated in Fields
-- stored values and conditions use only string IDs / indices
-- GPU derives atlas/buffers locally from that table
-- no alternate string payload crosses the shared stored boundary
+That is expected.
 
-### Phase 7 — store mutation discipline
+### Phase 8 — make GPU derive buffers locally
+
+Refactor GPU preparation so it builds all required buffers from the canonical Boundary store.
+
+Do not move GPU buffer forms upward into the store.
+
+### Phase 9 — store mutation discipline
 
 Preserve the mutable-store model:
 
-- Boundary starts from an empty store
-- Boundary/Fields fill only final stored data
+- Boundary creates/owns the empty store
+- Boundary writes final flattened + deduplicated data into it
 - Matrix writes runtime results back into the same store
 
-But enforce that temporary preparation data never leaks into the store.
+No intermediate preparation artifacts may leak into the store.
 
 ---
 
-## Required files to inspect and likely refactor
+## Design guidance
 
-At minimum inspect and refactor as needed:
+This refactor should optimize for:
 
-- `boundary/boundary.ts`
-- `boundary/store.ts`
-- `boundary/store.t.ts`
-- `boundary/fields/index.ts`
-- `boundary/fields/stored.t.ts`
-- `boundary/fields/string-table.ts`
-- `boundary/fields/values.ts`
-- `boundary/fields/values.t.ts`
-- `boundary/fields/superposition.ts`
-- `boundary/matrix/matrix.t.ts`
-- `boundary/matrix/matrix.ts`
-- `boundary/matrix/runtime.ts`
-- `boundary/matrix/cpu/*`
-- `boundary/matrix/gpu/*`
+- clear canonical store shape
+- flexibility under future changes
+- minimal duplicated data
+- low memory weight through indices/deduplication
+- no hidden packed canonical truth
+- late execution packing only where needed
 
-Also inspect tests and update them.
+Do not optimize for “maximum packing as early as possible”.
+That is explicitly not the goal of this task.
 
 ---
 
-## Validation requirements
+## Expected deliverables
 
-After the refactor, verify all of the following:
-
-1. Boundary flattening exists as a distinct responsibility.
-2. Fields owns final deduplicated stored-data assembly.
-3. Global store contains only final stored data plus Matrix-written runtime results.
-4. No temporary preparation structures leak into global store.
-5. No store field remains that Matrix neither reads nor writes.
-6. CPU executes directly from stored indexed data.
-7. GPU builds its buffers locally from the same stored data.
-8. Strings are canonicalized to IDs in stored data.
-9. GPU text conversion remains local.
-10. No backend-specific payload is stored as canonical truth.
-11. Existing runtime behavior is preserved unless a behavior change is strictly required by the corrected architecture.
-
----
-
-## Deliverables
-
-1. Code refactor implementing the final stored-data contract
-2. Updated type contracts
-3. Updated store contracts
-4. Updated Matrix initialization flow
-5. Updated CPU/GPU data consumption paths
-6. Updated tests
-7. A short Russian summary:
-   - what was changed
-   - what was moved out of store
-   - what remains in store and why
-   - what Matrix reads
-   - what Matrix writes
+1. New canonical Boundary store contract
+2. Refactored Boundary write/preparation flow
+3. Refactored Fields layer as dedup/preparation only
+4. New flat indexed transitions/conditions representation
+5. Canonical string-table + string-index model
+6. CPU execution adapted to the new store
+7. GPU buffer derivation adapted to the new store
+8. Updated tests
+9. Short Russian summary:
+   - what was removed from canonical store
+   - what remains in canonical store
+   - what is now derived only for CPU/GPU execution
+   - why the new store is lighter and easier to evolve
 
 ---
 
 ## Acceptance criteria
 
-The task is complete only if all of these are true:
+The task is complete only if all of the following are true:
 
-- Boundary flattens
-- Fields deduplicates
-- global store contains only final stored data + Matrix runtime results
-- Matrix consumes the full store
-- CPU reads indexed stored data directly
-- GPU derives buffers locally
-- strings exist in stored data only via canonical indices
-- no unused data lives in the store
-- no temporary preparation artifacts live in the store
-- the resulting architecture matches the holographic metaphor exactly
+- global canonical store lives in Boundary
+- the store is flat, deduplicated, indexed, and readable in JS
+- Fields is only preparation/deduplication, not final store owner
+- CPU reads directly from the canonical JS store
+- GPU derives buffers locally from the same store
+- strings are stored only by indices plus canonical string table
+- transitions/conditions have one flat canonical representation
+- no packed runtime layout remains canonical truth without strict justification
+- no data exists in the store unless Matrix reads or writes it

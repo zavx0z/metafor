@@ -1,5 +1,4 @@
 import { describe, expect, test } from "bun:test"
-import { findFieldOffset, floatToUint } from "../../fields"
 import { CPUMatrixRuntime } from "../../matrix/cpu"
 import { GPUMatrixRuntime } from "../../matrix/gpu"
 import {
@@ -197,14 +196,9 @@ describe("CPU/GPU parity — canonical cases", () => {
       expect(await cpuRuntime.readChanges()).toEqual([])
       expect(await gpuRuntime.readChanges()).toEqual([])
 
-      const blockPtr = cpuStore.blockPtrs[0]!
-      const fieldOffset = findFieldOffset(cpuStore.heap, blockPtr, 0)
-      expect(fieldOffset).not.toBeNull()
-      if (fieldOffset === null) return
-
-      cpuStore.heap[fieldOffset] = floatToUint(100)
-      gpuStore.heap[fieldOffset] = floatToUint(100)
-      gpuRuntime.heapUpdate([{ offset: fieldOffset, value1: floatToUint(100) }])
+      cpuStore.branes[0]!.localFields[0]!.value = 100
+      gpuStore.branes[0]!.localFields[0]!.value = 100
+      gpuRuntime.heapUpdate([])
 
       cpuRuntime.step()
       gpuRuntime.step()
@@ -251,7 +245,6 @@ describe("CPU/GPU parity — canonical cases", () => {
     expect(runA.gpuSecond).toEqual(runA.cpuSecond)
     expect(runB.gpuFirst).toEqual(runB.cpuFirst)
     expect(runB.gpuSecond).toEqual(runB.cpuSecond)
-
     expect(runA).toEqual(runB)
   })
 })

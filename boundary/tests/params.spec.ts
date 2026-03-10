@@ -60,7 +60,7 @@ describe("encodeValue — кодирование значений", () => {
     expect(result1.value1).toBe(result2.value1) // Одинаковый ID для одинаковой строки
     expect(result1.value2).toBe(0)
     expect(result2.value2).toBe(0)
-    expect(stringInterner.table.values).toEqual(["", "hero"])
+    expect(stringInterner.table).toEqual(["", "hero"])
   })
 
   test("должен кодировать числа как UINT", () => {
@@ -96,7 +96,7 @@ describe("encodeFieldValue — кодирование значений для he
     const result1 = encodeFieldValue("hero", { type: TYPE.STRING, stringInterner })
     const result2 = encodeFieldValue("hero", { type: TYPE.STRING, stringInterner })
     expect(result1).toBe(result2) // Одинаковый ID для одинаковой строки
-    expect(stringInterner.table.values).toEqual(["", "hero"])
+    expect(stringInterner.table).toEqual(["", "hero"])
   })
 
   test("должен кодировать числа как UINT", () => {
