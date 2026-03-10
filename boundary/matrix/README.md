@@ -6,7 +6,7 @@
 
 ## 📊 Обзор архитектуры
 
-Matrix использует **9 GPU-буферов** для вычисления эволюции суперпозиций и один `stagingBuffer` для чтения результатов:
+Matrix использует **9 GPU-буферов** для вычисления эволюции суперпозиций + `stagingBuffer` для чтения результатов:
 
 ```text
 ┌───────────────────────────────────────────────────────────────┐
@@ -483,7 +483,7 @@ cmd.copyBufferToBuffer(
 
 ---
 
-### 10. stagingBuffer
+### stagingBuffer
 
 **Кратко:** Буфер для чтения данных из GPU в CPU.
 
@@ -566,7 +566,7 @@ async readChanges(): Promise<[number, number][]> {
 │    └─→ getStringAtlas().intern() → stringRegistry/Heap  │
 │                                                         │
 │ 3. GPUMatrixRuntime.create()                            │
-│    ├─→ Создание GPU-буферов (10 шт)                     │
+│    ├─→ Создание GPU-буферов (9 шт)                      │
 │    ├─→ dirtyFlags: 1 u32 на брану                       │
 │    └─→ Запись данных в VRAM                             │
 │                                                         │
