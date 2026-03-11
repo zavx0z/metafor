@@ -1,8 +1,4 @@
-/**
- * Типы для @boundary/matrix/bytecode.
- *
- * @packageDocumentation
- */
+/** Типы для `@boundary/matrix/gpu/bytecode`. */
 
 /** Одна инструкция проверки условия в производном bytecode. */
 export interface ConditionInstruction {

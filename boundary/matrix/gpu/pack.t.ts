@@ -1,10 +1,6 @@
-/**
- * Типы для @boundary/matrix/pack.
- *
- * @packageDocumentation
- */
+/** Типы для `@boundary/matrix/gpu/pack`. */
 
-/** Контекст кодирования значения в производную execution-форму. */
+/** Контекст кодирования значения в производную execution-форму GPU. */
 export interface PackContext {
   /** Код типа поля для derived packing. */
   type: number

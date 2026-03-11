@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 
-import { OP } from "./opcodes"
+import { OP } from "@boundary/matrix"
 import type { ConditionValue, ParsedCheck, ScalarValue } from "./condition.t"
 
 /**

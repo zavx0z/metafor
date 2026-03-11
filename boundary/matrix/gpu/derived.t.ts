@@ -1,8 +1,4 @@
-/**
- * Типы для @boundary/matrix/derived.
- *
- * @packageDocumentation
- */
+/** Типы для `@boundary/matrix/gpu/derived`. */
 
 /** Производные execution-данные Matrix, которые GPU локально выводит из канонического store. */
 export interface DerivedMatrixData {

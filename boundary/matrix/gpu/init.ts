@@ -1,5 +1,5 @@
 import type { BoundaryStore } from "../../store.t"
-import { deriveMatrixData } from "../derived"
+import { deriveMatrixData } from "./derived"
 import type { GpuBufferMap, GpuRuntimeContext } from "./index.t.ts"
 import { createBuffer, createStorageBuffer, createStorageBufferWithCapacity, nextCapacityWords } from "./buffer"
 import { createInitialArrayHeapIndex } from "./heap"

@@ -17,7 +17,7 @@
  * Boundary НЕ содержит:
  * - подготовку данных (flatten/assemble) — это `@boundary/fields`
  * - packed execution forms — это `@boundary/matrix`
- * - debug/export утилиты — это `@boundary/matrix/debug`
+ * - debug/export утилиты производных GPU-форм — это `@boundary/matrix/gpu/debug`
  */
 
 import { matrixHeapUpdate, matrixInit, matrixRunStep, matrix$ } from "./matrix"

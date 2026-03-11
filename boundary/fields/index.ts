@@ -23,7 +23,6 @@ import {
 import type {EncodingContext} from "./values.t"
 import {materializeEntanglement} from "./entangled"
 import {parseCondition} from "./condition"
-import {OP, TYPE} from "./opcodes"
 import {createStoredStringInterner, StoredStringInterner, type StoredStringTable} from "./string-table"
 import {assembleStoredBoundaryData} from "./stored"
 import type {PreparedEntanglementProjection} from "./entangled.t"
@@ -47,8 +46,6 @@ export {
   createStoredStringInterner,
   StoredStringInterner,
   assembleStoredBoundaryData,
-  OP,
-  TYPE,
 }
 export type {
   PreparedEntanglementProjection,

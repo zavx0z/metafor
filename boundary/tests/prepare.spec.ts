@@ -5,7 +5,7 @@ import { test, expect, describe } from "bun:test"
 import { flattenBoundaryData, prepareData } from "../boundary"
 import type { BoundaryData, BoundaryTransitionRecord } from "../store.t"
 import { FieldType, type Data } from "../fields/index.t"
-import { OP } from "../fields/opcodes"
+import { OP } from "../matrix/constants"
 
 function getBraneLocalValues(store: BoundaryData, braneIndex: number) {
   const brane = store.branes[braneIndex]

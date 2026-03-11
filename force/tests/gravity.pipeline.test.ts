@@ -1,6 +1,6 @@
 import { afterEach, beforeAll, describe, expect, test } from "bun:test"
 import { GPU } from "@boundary/matrix"
-import { deriveMatrixData } from "@boundary/matrix/derived"
+import { deriveMatrixData } from "@boundary/matrix/gpu/derived"
 import { boundary$ } from "../../boundary/boundary"
 import { parse } from "@metafor/template"
 import { setupDevice } from "fixture/bunWebGPU"

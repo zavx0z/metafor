@@ -1,10 +1,10 @@
 /**
- * `@boundary/matrix/heap` собирает производный packed heap для Matrix.
+ * `@boundary/matrix/gpu/layout-heap` собирает производный packed heap для Matrix.
  *
  * Это execution-форма для GPU, а не каноническая truth-модель.
  */
 
-import type { FieldMeta, HeapInput, HeapLayout, PackedMeta } from "./heap.t"
+import type { FieldMeta, HeapInput, HeapLayout, PackedMeta } from "./layout-heap.t"
 
 const META_TYPE_SHIFT = 24
 const META_TYPE_MASK = 0xff
@@ -17,8 +17,8 @@ export function packMeta(fieldType: number, fieldSize: number, fieldOffset: numb
   if (fieldSize >= 256) throw new Error(`fieldSize out of range: ${fieldSize}`)
   if (fieldOffset >= 65536) throw new Error(`offset out of range: ${fieldOffset}`)
   return ((fieldType & META_TYPE_MASK) << META_TYPE_SHIFT) |
-         ((fieldSize & META_SIZE_MASK) << META_SIZE_SHIFT) |
-         (fieldOffset & META_OFFSET_MASK)
+    ((fieldSize & META_SIZE_MASK) << META_SIZE_SHIFT) |
+    (fieldOffset & META_OFFSET_MASK)
 }
 
 export function unpackMeta(packed: PackedMeta): FieldMeta {
@@ -36,8 +36,8 @@ export function buildHeap(input: HeapInput): HeapLayout {
   const blockPtrs: number[] = []
   let currentPtr = 1
 
-  for (let i = 0; i < entangledKeys.length; i++) {
-    const fields = entangledFields.get(entangledKeys[i]!)!
+  for (let index = 0; index < entangledKeys.length; index++) {
+    const fields = entangledFields.get(entangledKeys[index]!)!
     const size = calculateBlockSizeEncoded(fields, fieldMeta, 0)
     blockPtrs.push(currentPtr)
     currentPtr += size
@@ -45,9 +45,9 @@ export function buildHeap(input: HeapInput): HeapLayout {
 
   const braneBlockPtrs: number[] = []
   const braneBlockSizes: number[] = []
-  for (let i = 0; i < localFields.length; i++) {
-    const fields = localFields[i]!
-    const entangledCount = braneEntangledMap[i]!.length
+  for (let index = 0; index < localFields.length; index++) {
+    const fields = localFields[index]!
+    const entangledCount = braneEntangledMap[index]!.length
     const size = calculateBlockSizeEncoded(fields, fieldMeta, entangledCount)
     braneBlockPtrs.push(currentPtr)
     braneBlockSizes.push(size)
@@ -56,16 +56,16 @@ export function buildHeap(input: HeapInput): HeapLayout {
 
   const heap = new Uint32Array(currentPtr)
 
-  for (let i = 0; i < entangledKeys.length; i++) {
-    const fields = entangledFields.get(entangledKeys[i]!)!
-    writeBlock(heap, blockPtrs[i]!, fields, [], fieldMeta)
+  for (let index = 0; index < entangledKeys.length; index++) {
+    const fields = entangledFields.get(entangledKeys[index]!)!
+    writeBlock(heap, blockPtrs[index]!, fields, [], fieldMeta)
   }
 
-  for (let i = 0; i < localFields.length; i++) {
-    const fields = localFields[i]!
-    const entangledIds = braneEntangledMap[i]!
+  for (let index = 0; index < localFields.length; index++) {
+    const fields = localFields[index]!
+    const entangledIds = braneEntangledMap[index]!
     const entangledPtrs = entangledIds.map((id) => blockPtrs[id]!)
-    writeBlock(heap, braneBlockPtrs[i]!, fields, entangledPtrs, fieldMeta)
+    writeBlock(heap, braneBlockPtrs[index]!, fields, entangledPtrs, fieldMeta)
   }
 
   return {
@@ -120,28 +120,28 @@ function writeBlock(
   entangledPtrs: number[],
   fieldMeta: Map<number, { fieldType: number; fieldSize: number }>,
 ): void {
-  const localCount = fields.length
-  const entangledCount = entangledPtrs.length
-
-  heap[blockPtr] = localCount
-  heap[blockPtr + 1] = entangledCount
+  heap[blockPtr] = fields.length
+  heap[blockPtr + 1] = entangledPtrs.length
   heap[blockPtr + 2] = 0
 
   let headerIndex = blockPtr + 3
-  const entangledPtrsOffset = blockPtr + 3 + localCount * 2
-  let bodyOffset = entangledPtrsOffset + entangledCount
+  let bodyOffset = blockPtr + 3 + fields.length * 2 + entangledPtrs.length
 
-  for (const [fieldId, encodedValue] of fields) {
+  for (const [fieldId, value] of fields) {
     const meta = fieldMeta.get(fieldId)
-    if (!meta) continue
+    if (!meta) {
+      continue
+    }
 
     heap[headerIndex++] = fieldId
     heap[headerIndex++] = packMeta(meta.fieldType, meta.fieldSize, bodyOffset - blockPtr)
-    heap[bodyOffset] = encodedValue
-    bodyOffset += meta.fieldSize
+    heap[bodyOffset++] = value
+    if (meta.fieldSize > 1) {
+      heap[bodyOffset++] = 0
+    }
   }
 
-  for (let i = 0; i < entangledCount; i++) {
-    heap[entangledPtrsOffset + i] = entangledPtrs[i] ?? 0
+  for (const entangledPtr of entangledPtrs) {
+    heap[headerIndex++] = entangledPtr
   }
 }

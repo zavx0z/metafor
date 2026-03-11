@@ -26,6 +26,9 @@ export const VALUE_TYPE = {
   ARRAY: 4,
 } as const
 
+/** Каноническое короткое имя execution-типов Matrix для bytecode и derived heap. */
+export const TYPE = VALUE_TYPE
+
 /**
  * Идентификаторы операций условий, которые использует Matrix execution.
  *
@@ -45,3 +48,6 @@ export const CONDITION_OP = {
   LENGTH: 10,
   IS_EMPTY: 11,
 } as const
+
+/** Каноническое короткое имя операций условий, которые использует Matrix execution. */
+export const OP = CONDITION_OP

@@ -3,7 +3,7 @@
  */
 import { test, expect, describe } from "bun:test"
 import { compileEnsemble } from "../fields/superposition"
-import { OP } from "@boundary/fields/opcodes"
+import { OP } from "@boundary/matrix"
 import { FieldType } from "../fields/index.t"
 
 describe("Компиляция индивидуальных суперпозиций — функциональные тесты", () => {

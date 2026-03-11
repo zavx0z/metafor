@@ -1,10 +1,10 @@
 import shaderSource from "./evolution.wgsl" with { type: "text" }
 import type { BoundaryStore } from "../../store.t"
 import { FIELD_TYPE, VALUE_TYPE } from "../constants"
-import { deriveMatrixData } from "../derived"
-import { findFieldValueOffset } from "../heap"
+import { deriveMatrixData } from "./derived"
+import { findFieldValueOffset } from "./layout-heap"
 import type { MatrixChanges, MatrixHeapUpdate, MatrixRuntime } from "../matrix.t"
-import { createPackContext, encodeValue } from "../pack"
+import { createPackContext, encodeValue } from "./pack"
 import type { GpuRuntimeContext } from "./index.t.ts"
 import { createStorageBuffer, createStorageBufferWithCapacity, destroyBuffers, nextCapacityWords } from "./buffer"
 import { createGpuRuntimeContext } from "./init"

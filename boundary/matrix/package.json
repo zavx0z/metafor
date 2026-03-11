@@ -5,7 +5,9 @@
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
-    "./derived": "./derived.ts"
+    "./constants": "./constants.ts",
+    "./gpu/debug": "./gpu/debug.ts",
+    "./gpu/derived": "./gpu/derived.ts"
   },
   "private": true
 }

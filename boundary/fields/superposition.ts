@@ -8,7 +8,7 @@
  */
 
 import {parseCondition} from "./condition"
-import {OP, TYPE} from "./opcodes"
+import { OP, TYPE } from "@boundary/matrix"
 import {encodeValue, fieldTypeToBytecodeType} from "./values"
 import type {Collapse, Field} from "./index.t"
 import type {

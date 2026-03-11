@@ -2,7 +2,7 @@
  * Тесты typeBridge.
  */
 import { describe, expect, test } from "bun:test"
-import { TYPE } from "@boundary/fields/opcodes"
+import { TYPE } from "@boundary/matrix"
 import { fieldTypeToBytecodeType } from "../fields/values"
 import { FieldType } from "../fields/index.t"
 

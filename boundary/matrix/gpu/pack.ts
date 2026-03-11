@@ -1,14 +1,14 @@
 /**
- * `@boundary/matrix/pack` кодирует значения из канонического store в производные execution-формы Matrix.
+ * `@boundary/matrix/gpu/pack` кодирует значения из канонического store в производные execution-формы GPU.
  *
  * Модуль не меняет канонический store и работает только с локальными derived-структурами.
  */
 
-import type { BoundaryFieldRecord, BoundaryValue } from "../store.t"
-import type { PackContext, EncodedValue } from "./pack.t"
-import { FIELD_TYPE, VALUE_TYPE } from "./constants"
+import type { BoundaryFieldRecord, BoundaryValue } from "../../store.t"
+import type { EncodedValue, PackContext } from "./pack.t"
+import { FIELD_TYPE, VALUE_TYPE } from "../constants"
 
-export type { PackContext, EncodedValue } from "./pack.t"
+export type { EncodedValue, PackContext } from "./pack.t"
 
 /**
  * Преобразует тип поля из канонической схемы в execution-тип Matrix.
@@ -138,9 +138,9 @@ export function encodeValue(value: BoundaryValue, ctx: PackContext): EncodedValu
 
       ctx.heap[ptr] = arr.length
       const elementType = ctx.subType ?? VALUE_TYPE.FLOAT
-      for (let i = 0; i < arr.length; i++) {
-        const itemCtx: PackContext = { type: elementType, stringTable: ctx.stringTable }
-        ctx.heap[ptr + 1 + i] = encodeValue(arr[i] as BoundaryValue, itemCtx).value1
+      for (let index = 0; index < arr.length; index++) {
+        const itemContext: PackContext = { type: elementType, stringTable: ctx.stringTable }
+        ctx.heap[ptr + 1 + index] = encodeValue(arr[index] as BoundaryValue, itemContext).value1
       }
       return { value1: ptr, value2: 0 }
     }

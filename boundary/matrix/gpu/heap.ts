@@ -1,7 +1,7 @@
 import type { BoundaryFieldRecord } from "../../store.t"
 import type { GpuHeapWordUpdate, ArrayHeapSlot } from "./heap.t"
 import { FIELD_TYPE } from "../constants"
-import { unpackMeta } from "../heap"
+import { unpackMeta } from "./layout-heap"
 
 export type { GpuHeapWordUpdate, ArrayHeapSlot } from "./heap.t"
 

@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import { TYPE } from "./opcodes"
+import { TYPE } from "@boundary/matrix"
 import type { EncodingContext, EncodedValueResult, NormalizedScalarValue, NormalizedValue } from "./values.t"
 import { FieldType, type Field, type FieldTypeValue } from "./index.t"
 

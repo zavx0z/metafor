@@ -22,7 +22,7 @@
  */
 
 import { test, expect, describe } from "bun:test"
-import { OP, TYPE } from "@boundary/fields/opcodes"
+import { OP, TYPE } from "@boundary/matrix"
 
 describe("Синхронизация констант OP/TYPE", () => {
   describe("OP (операции сравнения)", () => {

@@ -10,7 +10,7 @@
 
 import { test, expect, describe } from "bun:test"
 import { parseCondition } from "../fields/condition"
-import { OP } from "@boundary/fields/opcodes"
+import { OP } from "@boundary/matrix"
 
 describe("parseCondition — парсинг условий", () => {
   test("должен парсить простое числовое условие", () => {

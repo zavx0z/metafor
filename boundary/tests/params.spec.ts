@@ -12,7 +12,7 @@
 import { test, expect, describe, beforeEach } from "bun:test"
 import { createStoredStringInterner } from "../fields/string-table"
 import { encodeValue, encodeFieldValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "../fields/values"
-import { TYPE } from "@boundary/fields/opcodes"
+import { TYPE } from "@boundary/matrix"
 import { FieldType } from "../fields/index.t"
 
 let stringInterner = createStoredStringInterner()

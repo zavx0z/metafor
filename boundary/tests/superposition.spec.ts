@@ -3,7 +3,7 @@
  */
 import { test, expect, describe, beforeEach } from "bun:test"
 import { compileSuperposition, compileConditions, compileEnsemble } from "../fields/superposition"
-import { OP } from "@boundary/fields/opcodes"
+import { OP } from "@boundary/matrix"
 import { FieldType, type Collapse } from "../fields/index.t"
 
 describe("compileConditions — компиляция условий", () => {

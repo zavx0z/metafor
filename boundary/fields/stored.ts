@@ -11,7 +11,7 @@ import type {
 } from "../store.t"
 import type { Field } from "./index.t"
 import { FieldType } from "./index.t"
-import { OP } from "./opcodes"
+import { OP } from "@boundary/matrix"
 import type { FlattenedBoundaryInput } from "./stored.t"
 import { materializeEntanglement } from "./entangled"
 import { createStoredStringInterner } from "./string-table"

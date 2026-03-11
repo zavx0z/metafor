@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import type { OP } from "./opcodes"
+import { OP } from "@boundary/matrix"
 
 /**
  * Операторы сравнения для условий.
