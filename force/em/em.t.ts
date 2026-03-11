@@ -1,4 +1,4 @@
-import type { Self } from "../../metafor/dsl/metafor.t"
+import type { Self } from "@metafor/dsl"
 
 export interface Boson extends Self {
   timestamp: number
