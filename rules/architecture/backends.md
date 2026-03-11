@@ -12,12 +12,13 @@ Apply this rule when designing or reviewing parallel backend modules such as CPU
 
 ## Scope boundary
 
-This rule covers API symmetry only. It does not define runtime class state ownership.
+This rule covers API symmetry only. It does not define runtime class state ownership or the global relation between parallel domains such as `Bulk` and `Boundary`.
 
 ## Requirements
 
 - Use the same operation names across backends for the same semantics.
 - Parallel backend implementations of one role must begin from one shared conceptual prepared input before branching.
+- That shared prepared input is scoped to one backend role, not to the whole system.
 - Keep backend difference in module namespace, not in operation naming.
 - Keep the public contract stable across backends.
 - Keep method signatures aligned for the same operation across backends:
@@ -39,6 +40,7 @@ Do not:
 - keep one backend requiring external state in a signature while another backend does not for the same operation.
 - use optional parameters as a compromise when operation semantics are actually asymmetric.
 - let different backends branch from conceptually different prepared input models for the same role.
+- read backend branching as if it explains inter-domain transfer between `Bulk` and `Boundary`.
 
 ## Checklist
 

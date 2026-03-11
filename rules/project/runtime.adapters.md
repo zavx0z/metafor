@@ -20,6 +20,8 @@ This rule defines runtime/backend class-owned state policy. Store semantics are 
 - Runtime adapters are post-branch implementation adapters.
 - Runtime adapters own only branch-local technical materialization for their implementation.
 - Runtime adapters are not preparation layers.
+- Runtime adapters are not domain owners.
+- Runtime adapters must not become the place where one domain loads or owns another domain.
 - Parallel backends that implement one runtime role must share one strict abstract contract.
 - Prefer `interface` for that shared contract by default.
 - Use `abstract class` for the shared contract only when there is a real shared lifecycle or shared base behavior.
@@ -61,6 +63,7 @@ Do not:
 
 - use class instance state to hide external package or domain stores;
 - use runtime adapters as the ownership layer for preparation data;
+- use runtime adapters as the ownership layer for inter-domain transfer semantics;
 - treat backend-local fields as package/domain stores;
 - create backend-specific public verbs for the same semantic operation;
 - move temporary per-call data into long-lived runtime fields.

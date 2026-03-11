@@ -17,6 +17,8 @@ This rule defines store semantics and store ownership only. Runtime class state 
 ## Requirements
 
 - Use `$` suffix only for real package-level or domain-level source-of-truth store objects.
+- In MetaFor, real domain source-of-truth stores live at the domain `store.ts` level.
+- `store.t.ts` defines the domain store contract; `store.ts` is the concrete source of truth.
 - Persistence alone is not enough to classify a value as a store.
 - Backend-local persistent technical fields are not stores.
 - Prepared input objects are not stores by default.
@@ -28,6 +30,7 @@ This rule defines store semantics and store ownership only. Runtime class state 
 - When parallel backends share one operation contract, store presence in that contract must stay symmetric across implementations.
 - Treat store as source of truth, not scratch space.
 - Keep temporary computation data in local function variables.
+- Inter-domain transfer does not create shared store ownership; transfer contracts remain distinct from domain stores.
 
 ## State classes
 
@@ -45,6 +48,7 @@ This rule defines store semantics and store ownership only. Runtime class state 
 - A prepared input object is not a store just because multiple implementations consume it.
 - Local mutable technical objects must not be named `state$`, `heap$`, or `changes$`.
 - `boundary$` is valid when it is an external domain or package store passed into operations.
+- Use the actual owner name for external stores, for example `gravity$`, `strong$`, `weak$`, or `em$` when the store is owned at that force-aligned level.
 - `this.state$` is invalid for package or domain store ownership because it hides external source of truth in backend instance state.
 
 ## Forbidden

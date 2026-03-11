@@ -12,6 +12,10 @@ Apply this rule when creating or editing `meta.ts`.
 
 ## Requirements
 
+Treat `meta.ts` as declarative source only.
+It does not describe ownership transfer between `Bulk` and `Boundary`.
+Each domain that needs the declaration must load it through its own `DSL -> AST` path.
+
 Use this shape:
 
 ```typescript
@@ -37,7 +41,8 @@ Field rules:
 - keep primitive scalar-like data in `fields`;
 - place object-like structures in `mass`;
 - provide generics explicitly for arrays when needed;
-- keep declarations readable and intentional.
+- keep declarations readable and intentional;
+- keep the file declarative, not orchestration-oriented.
 
 ## Forbidden
 
@@ -45,7 +50,8 @@ Do not:
 
 - reorder the core builder stages;
 - put object structures into `fields` when they belong in `mass`;
-- leave declarations implicit when explicit typing improves clarity.
+- leave declarations implicit when explicit typing improves clarity;
+- use `meta.ts` to encode runtime choreography between domains.
 
 ## Checklist
 

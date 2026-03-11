@@ -20,6 +20,7 @@ This rule is naming-only. Store ownership rules live in `rules/project/stores.md
 - Use ordinary names for backend-local instance fields.
 - Do not name local technical objects as stores.
 - Do not fake store semantics through naming.
+- Prefer names that match the active architecture vocabulary over historical aliases.
 
 ## Forbidden
 
@@ -27,10 +28,13 @@ Do not:
 
 - suffix backend-local technical fields with `$`;
 - call temporary local data `state$`, `heap$`, or `changes$`;
-- use store-like names for values that are not source-of-truth state.
+- use store-like names for values that are not source-of-truth state;
+- keep legacy names in active APIs when they hide the actual architectural role of the module or value;
+- reintroduce retired project terms into new contracts, APIs, or documentation.
 
 ## Checklist
 
 - [ ] `$` names map only to real package/domain stores
 - [ ] Backend-local fields use ordinary names
 - [ ] Local technical values are not named as stores
+- [ ] Active names match the current architectural vocabulary

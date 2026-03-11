@@ -23,6 +23,8 @@ File roles:
 - `{name}.t.ts` — local types and interfaces;
 - `store.ts` and `store.t.ts` — local store files only when the module truly owns that store.
 
+In domain-oriented modules, align file roles with the active architectural forces when they exist, for example `gravity/`, `strong/`, `weak/`, and `em/`.
+
 Keep these roles separate.
 
 Practical guidance:
@@ -33,6 +35,7 @@ Practical guidance:
 - Keep branch-specific materialization in branch modules rather than mixing all branches into generic helper files.
 - Keep helpers narrow and composable instead of spreading orchestration across many helper files.
 - Keep module types in `*.t.ts` rather than scattering them across runtime files.
+- Keep `store.ts` at the domain or package level where source-of-truth ownership actually lives.
 
 ## Forbidden
 
@@ -41,10 +44,12 @@ Do not:
 - put core orchestration logic into `index.ts`;
 - mix external API export concerns with helper internals in one file role;
 - scatter one module responsibility across multiple files without a clear orchestrator center;
-- create local store files when the module does not own persistent store state.
+- create local store files when the module does not own persistent store state;
+- use historical file names that hide the active architectural role when a force-aligned name is already established.
 
 ## Checklist
 
 - [ ] `index.ts` and `index.t.ts` are used as external API surfaces
 - [ ] Orchestrator, helper, and type roles are separated
 - [ ] Local store files exist only for true module-owned store state
+- [ ] Force-aligned module roles are visible where the domain actually expresses them
