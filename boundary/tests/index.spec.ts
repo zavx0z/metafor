@@ -1,12 +1,12 @@
 /**
- * Интеграционные тесты для matrix API.
+ * Интеграционные тесты для слабого слоя Boundary.
  * По образцу boundary/tests/field.logic.test.ts и boundary/tests/types/*.test.ts
  */
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import {write, update} from "../boundary"
-import { GPU, matrix$ } from "@boundary/matrix"
+import { GPU, weak$ } from "../weak"
 import { setupDevice } from "fixture/bunWebGPU"
-import { FieldType } from "../fields/index.t"
+import { FieldType } from "../gravity"
 
 // ============================================================================
 // SETUP: GPU один раз перед всеми тестами
@@ -20,7 +20,7 @@ beforeAll(async () => {
 // ============================================================================
 describe("write / update — базовые переходы", () => {
   afterEach(() => {
-    matrix$.reset()
+    weak$.reset()
   })
 
   test("должен перейти из IDLE в PATROL при hp > 50", async () => {
@@ -114,7 +114,7 @@ describe("write / update — базовые переходы", () => {
 // ============================================================================
 describe("write / update — логические условия", () => {
   afterEach(() => {
-    matrix$.reset()
+    weak$.reset()
   })
 
   test("должен перейти при isAlive === true", async () => {
@@ -169,7 +169,7 @@ describe("write / update — логические условия", () => {
 // ============================================================================
 describe("write / update — множественные условия", () => {
   afterEach(() => {
-    matrix$.reset()
+    weak$.reset()
   })
 
   test("должен перейти при выполнении обоих условий (hp > 50 И mana > 20)", async () => {
@@ -215,7 +215,7 @@ describe("write / update — множественные условия", () => {
 // ============================================================================
 describe("write / update — entangled группы", () => {
   afterEach(() => {
-    matrix$.reset()
+    weak$.reset()
   })
 
   test("должен создать entangled блок для одинаковых значений", async () => {
@@ -305,7 +305,7 @@ describe("write / update — entangled группы", () => {
 // ============================================================================
 describe("write / update — многошаговая эволюция", () => {
   afterEach(() => {
-    matrix$.reset()
+    weak$.reset()
   })
 
   test("должен пройти через несколько состояний", async () => {
@@ -353,11 +353,11 @@ describe("write / update — многошаговая эволюция", () => {
 // ============================================================================
 describe("write / update — ошибки", () => {
   afterEach(() => {
-    matrix$.reset()
+    weak$.reset()
   })
 
   test("должен бросить ошибку при update() до write()", async () => {
-    await expect(update([[0, [[0, 100]]]])).rejects.toThrow("Matrix not initialized")
+    await expect(update([[0, [[0, 100]]]])).rejects.toThrow("Weak runtime not initialized")
   })
 
   test("должен бросить ошибку при неверном индексе браны", async () => {
@@ -375,7 +375,7 @@ describe("write / update — ошибки", () => {
 // ============================================================================
 describe("write / update — параллельные вызовы", () => {
   afterEach(() => {
-    matrix$.reset()
+    weak$.reset()
   })
 
   /**
@@ -483,7 +483,7 @@ describe("write / update — параллельные вызовы", () => {
 // ============================================================================
 describe("write / update — ARRAY поля", () => {
   afterEach(() => {
-    matrix$.reset()
+    weak$.reset()
   })
 
   /**
@@ -541,7 +541,7 @@ describe("write / update — ARRAY поля", () => {
 // ============================================================================
 describe("update() с блокировкой переходов", () => {
   afterEach(() => {
-    matrix$.reset()
+    weak$.reset()
   })
 
   test("заблокированная брана не меняет состояние", async () => {

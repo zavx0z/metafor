@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from "bun:test"
-import { OP, TYPE } from "@boundary/matrix"
+import { OP, TYPE } from "../weak"
 
 describe("OP (коды операций)", () => {
   it("должен содержать все коды операций", () => {

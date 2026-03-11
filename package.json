@@ -7,10 +7,9 @@
   "workspaces": [
     "boundary",
     "boundary/*",
-    "force",
-    "force/*",
-    "metafor/*",
+    "bulk",
     "bulk/*",
+    "metafor/*",
     "github/**/*",
     "fixture",
     "app/*"

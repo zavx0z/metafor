@@ -9,8 +9,9 @@
   },
   "private": true,
   "dependencies": {
-    "@boundary/fields": "workspace:*",
-    "@boundary/matrix": "workspace:*"
+    "@boundary/gravity": "workspace:*",
+    "@boundary/strong": "workspace:*",
+    "@boundary/weak": "workspace:*"
   },
   "devDependencies": {
     "@types/bun": "latest"

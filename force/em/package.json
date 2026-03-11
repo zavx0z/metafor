@@ -1,8 +1,0 @@
-{
-  "name": "@force/em",
-  "module": "index.ts",
-  "type": "module",
-  "private": true,
-  "devDependencies": {},
-  "scripts": {}
-}

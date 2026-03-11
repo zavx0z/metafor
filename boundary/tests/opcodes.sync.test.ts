@@ -22,7 +22,7 @@
  */
 
 import { test, expect, describe } from "bun:test"
-import { OP, TYPE } from "@boundary/matrix"
+import { OP, TYPE } from "../weak"
 
 describe("Синхронизация констант OP/TYPE", () => {
   describe("OP (операции сравнения)", () => {

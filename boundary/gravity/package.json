@@ -1,0 +1,16 @@
+{
+  "name": "@boundary/gravity",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./condition": "./condition/index.ts",
+    "./validate": "./validate/index.ts",
+    "./numeric": "./numeric/index.ts"
+  },
+  "private": true,
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

@@ -4,8 +4,8 @@
 import { test, expect, describe } from "bun:test"
 import { flattenBoundaryData, prepareData } from "../boundary"
 import type { BoundaryData, BoundaryTransitionRecord } from "../store.t"
-import { FieldType, type Data } from "../fields/index.t"
-import { OP } from "../matrix/constants"
+import { FieldType, type Data } from "../gravity"
+import { OP } from "../weak/constants"
 
 function getBraneLocalValues(store: BoundaryData, braneIndex: number) {
   const brane = store.branes[braneIndex]
@@ -138,7 +138,7 @@ describe("prepareData — подготовка canonical JS store", () => {
     expect(getBraneSharedBlockIds(result, 1)).toEqual([0])
   })
 
-  test("Fields должен дедуплицировать строки и state graph в canonical store", () => {
+  test("Strong должен дедуплицировать строки и state graph в canonical store", () => {
     const result = prepareData({
       fields: [{ type: FieldType.STRING_PTR }],
       branes: [

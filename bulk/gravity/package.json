@@ -1,0 +1,16 @@
+{
+  "name": "@bulk/gravity",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./store/actor": "./store/actor.ts",
+    "./store/graph": "./store/graph.ts",
+    "./store/order": "./store/order.ts"
+  },
+  "private": true,
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

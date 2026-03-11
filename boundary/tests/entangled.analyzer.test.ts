@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { materializeEntanglement } from "../fields/entangled"
+import { materializeEntanglement } from "../strong/entangled"
 
 describe("materializeEntanglement — strict projection validation", () => {
   test("throws when a block has fewer than 2 branes", () => {

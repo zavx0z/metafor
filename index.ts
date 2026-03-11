@@ -1,35 +1,3 @@
-import { createActor, onStateChange, updateBoundary } from "@metafor/force"
-import { GPU } from "@boundary/matrix"
-import { setupDevice } from "fixture/bunWebGPU"
-GPU._device = await setupDevice()
+import { loadDSL } from "./bulk"
 
-const root = createActor({
-  uuid: crypto.randomUUID(),
-  fields: {
-    hp: { type: "number" },
-    mana: { type: "number" },
-    isAlive: { type: "boolean" },
-  },
-  values: { hp: 100, mana: 50, isAlive: true },
-  superposition: {
-    IDLE: {
-      PATROL: { hp: { gt: 50 } }, // ← Приоритет 1: hp > 50
-      DEAD: { hp: { lte: 0 } }, // ← Приоритет 2: hp <= 0
-    },
-    PATROL: {
-      IDLE: { mana: { lt: 10 } }, // mana < 10 → IDLE
-      COMBAT: { isAlive: true }, // isAlive === true → COMBAT
-    },
-    COMBAT: null,
-    DEAD: null, // Терминальное состояние
-  },
-})
-
-onStateChange((changes) => {
-  for (const change of changes) {
-    const msg = `State changed: ${change.oldState} → ${change.newState}`
-    console.log(msg)
-  }
-})
-
-await updateBoundary()
+console.log(await loadDSL("/github/zavx0z/git"))

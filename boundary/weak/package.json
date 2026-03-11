@@ -1,0 +1,20 @@
+{
+  "name": "@boundary/weak",
+  "version": "0.0.1",
+  "type": "module",
+  "main": "index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./constants": "./constants.ts",
+    "./device": "./device.ts",
+    "./runtime": "./runtime/index.ts",
+    "./encode": "./encode/index.ts",
+    "./program": "./program/index.ts",
+    "./cpu": "./cpu/index.ts",
+    "./gpu": "./gpu/index.ts"
+  },
+  "private": true,
+  "peerDependencies": {
+    "typescript": "^5"
+  }
+}

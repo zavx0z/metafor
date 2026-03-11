@@ -10,10 +10,10 @@
  */
 
 import { test, expect, describe, beforeEach } from "bun:test"
-import { createStoredStringInterner } from "../fields/string-table"
-import { encodeValue, encodeFieldValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "../fields/values"
-import { TYPE } from "@boundary/matrix"
-import { FieldType } from "../fields/index.t"
+import { createStoredStringInterner } from "../strong/string-table"
+import { encodeValue, encodeFieldValue, fieldTypeToBytecodeType, floatToUint, uintToFloat } from "../weak/encode"
+import { TYPE } from "../weak"
+import { FieldType } from "../gravity"
 
 let stringInterner = createStoredStringInterner()
 

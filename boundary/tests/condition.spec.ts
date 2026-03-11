@@ -9,8 +9,8 @@
  */
 
 import { test, expect, describe } from "bun:test"
-import { parseCondition } from "../fields/condition"
-import { OP } from "@boundary/matrix"
+import { parseCondition } from "../gravity/condition"
+import { OP } from "../weak"
 
 describe("parseCondition — парсинг условий", () => {
   test("должен парсить простое числовое условие", () => {

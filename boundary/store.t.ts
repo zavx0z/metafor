@@ -1,7 +1,7 @@
 /** Типы для `@boundary/boundary/store`. */
 
-import type { ConditionOperator } from "./fields/condition.t"
-import type { FieldTypeValue } from "./fields/index.t"
+import type { ConditionOperator } from "./gravity/condition.t"
+import type { FieldTypeValue } from "./gravity/schema.t"
 
 /**
  * Каноническая запись схемы поля, хранящаяся в Boundary store.
@@ -65,12 +65,12 @@ export type BoundaryFieldStorageLocation =
 /**
  * Каноническое глобальное хранилище Boundary.
  *
- * Это единственный источник истины для Matrix.
+ * Это единственный источник истины для слабого вычислительного слоя.
  * Store остаётся плоским, индексным и читаемым в JS и не хранит packed
  * execution layout как каноническую форму.
  */
 export interface BoundaryData {
-  /** Минимальная field metadata table, которую читает Matrix. */
+  /** Минимальная таблица полей, которую читает слабый вычислительный слой. */
   fields: BoundaryFieldRecord[]
 
   /** Каноническая дедуплицированная таблица строк. Индекс = стабильный string id. */
@@ -100,7 +100,7 @@ export interface BoundaryData {
   /** Каноническая таблица условий, на которую ссылаются записи переходов. */
   conditions: BoundaryConditionRecord[]
 
-  /** Снимок runtime-состояний, который Matrix пишет обратно в канонический store. */
+  /** Снимок runtime-состояний, который слабый слой пишет обратно в канонический store. */
   states: number[]
 }
 

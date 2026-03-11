@@ -2,9 +2,9 @@
  * Функциональные тесты компиляции суперпозиций.
  */
 import { test, expect, describe } from "bun:test"
-import { compileEnsemble } from "../fields/superposition"
-import { OP } from "@boundary/matrix"
-import { FieldType } from "../fields/index.t"
+import { compileEnsemble } from "../weak/program"
+import { OP } from "../weak"
+import { FieldType } from "../gravity"
 
 describe("Компиляция индивидуальных суперпозиций — функциональные тесты", () => {
   describe("compileEnsemble", () => {

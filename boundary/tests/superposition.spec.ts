@@ -2,9 +2,9 @@
  * Тесты для модуля compileConditions.
  */
 import { test, expect, describe, beforeEach } from "bun:test"
-import { compileSuperposition, compileConditions, compileEnsemble } from "../fields/superposition"
-import { OP } from "@boundary/matrix"
-import { FieldType, type Collapse } from "../fields/index.t"
+import { compileSuperposition, compileConditions, compileEnsemble } from "../weak/program"
+import { OP } from "../weak"
+import { FieldType, type Collapse } from "../gravity"
 
 describe("compileConditions — компиляция условий", () => {
   beforeEach(() => {

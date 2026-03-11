@@ -1,9 +1,0 @@
-{
-  "name": "@force/weak",
-  "module": "index.ts",
-  "type": "module",
-  "private": true,
-  "devDependencies": {
-    "@metafor/dsl": "workspace:*"
-  }
-}

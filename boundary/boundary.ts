@@ -1,39 +1,36 @@
 /**
- * @boundary/boundary — оркестратор детерминированной эволюции суперпозиций.
+ * @boundary/boundary — доменный оркестратор детерминированного перехода состояний.
  *
  * @packageDocumentation
  *
  * ## Ответственность
  *
- * - `write()` — инициализация Boundary store из подготовленных данных
- * - `update()` — обновление полей и шаг эволюции
+ * - `write()` — запись канонической boundary-структуры в доменный store
+ * - `update()` — обновление полей и вычисление следующего перехода
  * - `unlock()` — снятие блокировки с бран
  *
  * ## Архитектура
  *
- * Boundary получает подготовленные данные от `@boundary/fields` и оркестрирует
- * инициализацию Matrix runtime.
+ * Boundary раскладывает входную структуру через `@boundary/gravity`, собирает
+ * канонический store через `@boundary/strong` и оркестрирует вычисление
+ * перехода через `@boundary/weak`.
  *
  * Boundary НЕ содержит:
- * - подготовку данных (flatten/assemble) — это `@boundary/fields`
- * - packed execution forms — это `@boundary/matrix`
- * - debug/export утилиты производных GPU-форм — это `@boundary/matrix/gpu/debug`
+ * - раскладку структуры и проверку входа — это `@boundary/gravity`
+ * - канонизацию и сборку store-формы — это `@boundary/strong`
+ * - вычисление перехода и backend-адаптеры — это `@boundary/weak`
  */
 
-import { matrixHeapUpdate, matrixInit, matrixRunStep, matrix$ } from "./matrix"
+import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "./weak"
 import { boundary$ } from "./store"
 import type { PreparedData } from "./boundary.t"
 import type { BoundaryFieldValueRecord, BoundaryStore } from "./store.t"
 import {
-  assembleStoredBoundaryData,
   createStoredStringInterner,
   normalizeFieldValue,
-  parseCondition,
-  validateData,
-  type BraneValue,
-  type Data,
-  type FlattenedBoundaryInput,
-} from "./fields"
+  prepareBoundaryData,
+} from "./strong"
+import { flattenBoundaryData, validateData, type Data, type FlattenedBoundaryInput } from "./gravity"
 
 let writeMutex: Promise<void> | null = null
 let updateMutex: Promise<void> | null = null
@@ -42,35 +39,11 @@ function reset(): void {
   boundary$.reset()
   writeMutex = null
   updateMutex = null
-  matrix$.reset()
-}
-
-export function flattenBoundaryData(data: Data): FlattenedBoundaryInput {
-  return {
-    fields: [...(data.fields ?? [])],
-    branes: (data.branes ?? []).map((brane) => ({
-      values: brane.values.map(([fieldIndex, value]) => [fieldIndex, value] as [number, BraneValue]),
-      state: brane.state,
-      transitions: brane.collapses.map((stateTransitions) =>
-        stateTransitions.map((collapse) =>
-          collapse === null
-            ? { targetState: null, conditions: [] }
-            : {
-                targetState: collapse[0],
-                conditions: Object.entries(collapse[1]).map(([fieldIndex, condition]) => ({
-                  fieldIndex: Number(fieldIndex),
-                  checks: parseCondition(condition),
-                })),
-              },
-        ),
-      ),
-    })),
-    ...(data.entanglement !== undefined ? { entanglement: data.entanglement } : {}),
-  }
+  weak$.reset()
 }
 
 export function prepareData(data: Data): PreparedData {
-  return assembleStoredBoundaryData(flattenBoundaryData(data))
+  return prepareBoundaryData(flattenBoundaryData(data))
 }
 
 export async function write(data: Data): Promise<[number, number][]> {
@@ -87,11 +60,11 @@ export async function write(data: Data): Promise<[number, number][]> {
   try {
     validateData(data)
     boundary$.reset()
-    matrix$.reset()
+    weak$.reset()
     const flattened = flattenBoundaryData(data)
-    const prepared = assembleStoredBoundaryData(flattened)
+    const prepared = prepareBoundaryData(flattened)
     boundary$.restore(prepared)
-    await matrixInit(boundary$)
+    await weakInit(boundary$)
     return []
   } finally {
     resolveMutex?.()
@@ -137,7 +110,7 @@ export async function update(
   try {
     requireInitializedStore(boundary$)
     const stringInterner = createStoredStringInterner(boundary$.stringTable)
-    const matrixUpdates: Array<
+    const weakUpdates: Array<
       { kind: "field"; braneIndex: number; fieldIndex: number } | { kind: "lock"; braneIndex: number; value: boolean }
     > = []
 
@@ -149,7 +122,7 @@ export async function update(
 
       if (lock !== undefined) {
         brane.lock = lock
-        matrixUpdates.push({ kind: "lock", braneIndex, value: lock })
+        weakUpdates.push({ kind: "lock", braneIndex, value: lock })
       }
 
       for (const [fieldIndex, value] of fieldUpdates) {
@@ -159,12 +132,12 @@ export async function update(
         }
         const record = findMutableFieldRecord(boundary$, braneIndex, fieldIndex)
         record.value = normalizeFieldValue(value, field, stringInterner)
-        matrixUpdates.push({ kind: "field", braneIndex, fieldIndex })
+        weakUpdates.push({ kind: "field", braneIndex, fieldIndex })
       }
     }
 
-    matrixHeapUpdate(matrixUpdates)
-    return await matrixRunStep()
+    weakHeapUpdate(weakUpdates)
+    return await weakRunStep()
   } finally {
     resolveMutex?.()
   }
@@ -172,7 +145,7 @@ export async function update(
 
 export function unlock(indexes: number[]): void {
   requireInitializedStore(boundary$)
-  const matrixUpdates: Array<{ kind: "lock"; braneIndex: number; value: boolean }> = []
+  const weakUpdates: Array<{ kind: "lock"; braneIndex: number; value: boolean }> = []
 
   for (const index of indexes) {
     const brane = boundary$.branes[index]
@@ -180,12 +153,13 @@ export function unlock(indexes: number[]): void {
       throw new Error(`Brane at index ${index} not found in boundary`)
     }
     brane.lock = false
-    matrixUpdates.push({ kind: "lock", braneIndex: index, value: false })
+    weakUpdates.push({ kind: "lock", braneIndex: index, value: false })
   }
 
-  matrixHeapUpdate(matrixUpdates)
+  weakHeapUpdate(weakUpdates)
 }
 
 export type { PreparedData } from "./boundary.t"
-export { FieldType } from "./fields"
+export { FieldType } from "./gravity"
 export { reset, boundary$ }
+export { flattenBoundaryData } from "./gravity"

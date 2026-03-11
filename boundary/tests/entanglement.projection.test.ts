@@ -1,7 +1,7 @@
 import { describe, expect, test } from "bun:test"
 import { prepareData } from "../boundary"
 import type { BoundaryData } from "../store.t"
-import { FieldType, type Data } from "../fields/index.t"
+import { FieldType, type Data } from "../gravity"
 
 function getBraneLocalValues(store: BoundaryData, braneIndex: number) {
   const brane = store.branes[braneIndex]

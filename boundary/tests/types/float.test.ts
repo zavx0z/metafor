@@ -4,16 +4,16 @@
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import {write, update} from "../../boundary"
-import { GPU, matrix$ } from "@boundary/matrix"
-import { FieldType, type Collapse } from "../../fields/index.t"
+import { GPU, weak$ } from "../../weak"
+import { FieldType, type Collapse } from "../../gravity"
 
-describe("matrix - тип FLOAT (число) с bun-webgpu", () => {
+describe("weak - тип FLOAT (число) с bun-webgpu", () => {
   beforeAll(async () => {
     GPU._device = await setupDevice()
   })
 
   afterEach(() => {
-    matrix$.reset()
+    weak$.reset()
   })
 
   describe("Оператор EQ (равно)", () => {

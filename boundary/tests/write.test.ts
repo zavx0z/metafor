@@ -4,8 +4,8 @@
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import {write, update, } from "../boundary"
-import { GPU, matrix$ } from "@boundary/matrix"
-import { FieldType, type Collapse } from "../fields/index.t"
+import { GPU, weak$ } from "../weak"
+import { FieldType, type Collapse } from "../gravity"
 
 describe("write() — возврат начальных состояний", () => {
   beforeAll(async () => {
@@ -13,7 +13,7 @@ describe("write() — возврат начальных состояний", () 
   })
 
   afterEach(() => {
-    matrix$.reset()
+    weak$.reset()
   })
 
   test("должен вернуть состояния после инициализации с переходом", async () => {

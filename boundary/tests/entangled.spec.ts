@@ -1,5 +1,5 @@
 import { describe, expect, test } from "bun:test"
-import { materializeEntanglement } from "../fields/entangled"
+import { materializeEntanglement } from "../strong/entangled"
 
 describe("materializeEntanglement — prepared projection only", () => {
   test("does not derive entanglement without prepared projection", () => {
