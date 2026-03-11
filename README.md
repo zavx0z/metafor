@@ -31,7 +31,11 @@ MetaFor — это пространство документов и кода, в
 
 - домены (Boundary, Bulk),
 - силы (Gravity, Electromagnetism, Strong, Weak),
-- сущности (Brane, Field, State, Transition, Process, Patch, Identity, Index),
+- сопряжённая пара сущностей (`Brane` и `Field`),
+- состояния и переходы (`State`, `Transition`),
+- процесс и разворачивание действия (`Process`),
+- перенос изменения (`Patch`),
+- различение устойчивой идентичности и локального индекса (`Identity`, `Index`),
 - различия между Boundary и Bulk,
 - формы проявления сущностей в каждом домене.
 
