@@ -5,8 +5,6 @@
  */
 
 import { validateData } from "./validate"
-import { buildHeap, findFieldOffset, packMeta, unpackMeta } from "./heap"
-import type { HeapInput } from "./heap.t"
 import {
   compileEnsemble,
   compileFlattenedEnsemble,
@@ -33,10 +31,6 @@ import { assembleStoredBoundaryData } from "./stored"
 
 export {
   validateData,
-  buildHeap,
-  findFieldOffset,
-  packMeta,
-  unpackMeta,
   compileEnsemble,
   compileFlattenedEnsemble,
   compileFlattenedSuperposition,
@@ -61,7 +55,6 @@ export {
 export type {
   CompiledRules,
   EncodingContext,
-  HeapInput,
   StoredStringTable,
 }
 

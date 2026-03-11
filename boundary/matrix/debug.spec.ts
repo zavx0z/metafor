@@ -20,8 +20,8 @@ import {
   visualizeBytecode,
   dumpMatrix,
 } from "./debug"
-import { packMeta } from "@boundary/fields"
-import { TYPE, OP } from "@boundary/fields"
+import { packMeta } from "./heap"
+import { TYPE, OP } from "../fields/opcodes"
 
 describe("debug — утилиты отладки", () => {
   describe("dumpHeap()", () => {
