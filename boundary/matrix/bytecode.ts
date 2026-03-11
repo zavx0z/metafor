@@ -1,47 +1,15 @@
 /**
- * @boundary/matrix/bytecode — компиляция canonical transitions в GPU bytecode.
+ * `@boundary/matrix/bytecode` компилирует канонические transitions в производный GPU bytecode.
  *
- * Этот модуль содержит функции для компиляции графов состояний в линейный
- * bytecode, оптимизированный для выполнения на WebGPU.
- *
- * @packageDocumentation
+ * Модуль переводит графы состояний в линейную execution-форму, понятную WebGPU runtime.
  */
 
-import type { BoundaryFieldRecord, BoundaryConditionRecord, BoundaryValue } from "../store.t"
-import { CONDITION_OP, VALUE_TYPE } from "./constants"
-import { fieldTypeToBytecodeType, encodeValue, type PackContext } from "./pack"
+import type {BoundaryFieldRecord, BoundaryValue} from "../store.t"
+import type {CompiledConditionsResult, ConditionInstruction, FlattenedTransition} from "./bytecode.t"
+import {CONDITION_OP, VALUE_TYPE} from "./constants"
+import {encodeValue, fieldTypeToBytecodeType, type PackContext} from "./pack"
 
-/**
- * Инструкция условия для bytecode.
- */
-export interface ConditionInstruction {
-  fieldType: number
-  fieldIndex: number
-  op: number
-  valEncoded: number
-}
-
-/**
- * Результат компиляции условий.
- */
-export interface CompiledConditionsResult {
-  instructions: ConditionInstruction[]
-  heap: number[]
-}
-
-/**
- * Flattened transition формат.
- */
-export interface FlattenedTransition {
-  targetState: number | null
-  conditions: Array<{
-    fieldIndex: number
-    checks: Array<{
-      op: number
-      val: number | boolean | (number | boolean)[]
-    }>
-  }>
-}
+export type { ConditionInstruction, CompiledConditionsResult, FlattenedTransition } from "./bytecode.t"
 
 /**
  * Компилирует распарсенные условия в инструкции.
@@ -77,8 +45,7 @@ export function compileParsedConditions(
     }
   }
 
-  const totalInstructionsSize = allChecks.length * 4
-  let heapOffset = totalInstructionsSize
+  let heapOffset = allChecks.length * 4
 
   for (const check of allChecks) {
     const ctx: PackContext = { type: check.fieldType, stringTable }

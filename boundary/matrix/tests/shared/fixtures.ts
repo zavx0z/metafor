@@ -2,23 +2,85 @@
  * Общие фикстуры для тестов CPU/GPU матрицы.
  */
 import { prepareData } from "../../../boundary"
-import { findBraneFieldRecord } from "../../../store.access"
 import { createStoredStringInterner, normalizeFieldValue } from "../../../fields"
 import { FieldType, type Collapse, type Data, type Field } from "../../../fields"
 import type { BoundaryData, BoundaryStore } from "../../../store.t"
 import type { MatrixRuntime } from "../../matrix.t"
 
 function clonePreparedStore(data: BoundaryData): BoundaryStore {
-  const cloned = structuredClone(data)
-  return {
-    ...cloned,
+  const cloned: BoundaryStore = {
+    fields: [...data.fields],
+    stringTable: [...data.stringTable],
+    sharedBlocks: data.sharedBlocks.map(b => ({ ...b })),
+    sharedValues: data.sharedValues.map(v => ({ ...v })),
+    branes: data.branes.map(b => ({ ...b })),
+    braneValues: data.braneValues.map(v => ({ ...v })),
+    braneSharedBlockRefs: [...data.braneSharedBlockRefs],
+    stateTable: data.stateTable.map(s => ({ ...s })),
+    transitions: data.transitions.map(t => ({ ...t })),
+    conditions: data.conditions.map(c => ({ ...c })),
+    states: [...data.states],
+
     reset: () => {
       throw new Error("reset not supported in isolated store")
     },
     restore: () => {
       throw new Error("restore not supported in isolated store")
     },
+    getField(braneIndex: number, fieldIndex: number) {
+      return this.getFieldLocation(braneIndex, fieldIndex)?.record
+    },
+    getFieldLocation(braneIndex: number, fieldIndex: number) {
+      const brane = this.branes[braneIndex]
+      if (!brane) {
+        return undefined
+      }
+
+      // Search local values
+      const localValueEnd = brane.localValueOffset + brane.localValueCount
+      for (let valueIndex = brane.localValueOffset; valueIndex < localValueEnd; valueIndex++) {
+        const record = this.braneValues[valueIndex]
+        if (record?.fieldIndex === fieldIndex) {
+          return { scope: "local", record }
+        }
+      }
+
+      // Search shared blocks
+      const sharedRefEnd = brane.sharedBlockRefOffset + brane.sharedBlockRefCount
+      for (let refIndex = brane.sharedBlockRefOffset; refIndex < sharedRefEnd; refIndex++) {
+        const blockIndex = this.braneSharedBlockRefs[refIndex]
+        if (blockIndex === undefined) {
+          continue
+        }
+
+        const block = this.sharedBlocks[blockIndex]
+        if (!block) {
+          continue
+        }
+
+        const blockValueEnd = block.valueOffset + block.valueCount
+        for (let valueIndex = block.valueOffset; valueIndex < blockValueEnd; valueIndex++) {
+          const record = this.sharedValues[valueIndex]
+          if (record?.fieldIndex === fieldIndex) {
+            return { scope: "shared", blockIndex, record }
+          }
+        }
+      }
+
+      return undefined
+    },
+    getFieldValue(braneIndex: number, fieldIndex: number) {
+      return this.getField(braneIndex, fieldIndex)?.value
+    },
+    getState(braneIndex: number, stateIndex: number) {
+      const brane = this.branes[braneIndex]
+      if (!brane || stateIndex < 0 || stateIndex >= brane.stateCount) {
+        return undefined
+      }
+      return this.stateTable[brane.stateOffset + stateIndex]
+    },
   }
+  return cloned
 }
 
 function createBaseStore(data: Data): BoundaryStore {
@@ -31,7 +93,7 @@ export function setBraneFieldValue(
   fieldIndex: number,
   value: unknown,
 ): void {
-  const record = findBraneFieldRecord(store, braneIndex, fieldIndex)
+  const record = store.getField(braneIndex, fieldIndex)
   const field = store.fields[fieldIndex]
   if (!record) {
     throw new Error(`Field ${fieldIndex} not found in brane ${braneIndex}`)

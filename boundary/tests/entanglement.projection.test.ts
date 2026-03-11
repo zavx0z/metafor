@@ -1,5 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { prepareData, type BoundaryData } from "../boundary"
+import { prepareData } from "../boundary"
+import type { BoundaryData } from "../store.t"
 import { FieldType, type Data } from "../fields/index.t"
 
 function getBraneLocalValues(store: BoundaryData, braneIndex: number) {

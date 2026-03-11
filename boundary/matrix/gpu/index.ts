@@ -1,6 +1,5 @@
 import shaderSource from "./evolution.wgsl" with { type: "text" }
 import type { BoundaryStore } from "../../store.t"
-import { findBraneFieldLocation } from "../../store.access"
 import { FIELD_TYPE, VALUE_TYPE } from "../constants"
 import { deriveMatrixData } from "../derived"
 import { findFieldValueOffset } from "../heap"
@@ -44,48 +43,26 @@ function destroyContext(context: GpuRuntimeContext): void {
 }
 
 /**
- * GPU Matrix runtime.
+ * GPU runtime для Matrix.
  *
- * ## CRITICAL PERFORMANCE NOTE
- *
- * Canonical truth remains in Boundary store. GPU owns only derived execution buffers.
- *
- * Current behavior on `heapUpdate()`:
- * - Fast path: partial `GPUQueue.writeBuffer()` updates for scalar/string/lock changes
- * - Reusable path: append-only string growth and array churn reuse existing GPU buffers while capacity allows
- * - Fallback path: targeted buffer refresh only when reusable capacity is exhausted or layout is incompatible
- *
- * Structural refresh is still O(N) over the affected derived payload, but no longer destroys and recreates
- * the whole runtime context.
- *
- * **Remaining performance debt:**
- * - Structural updates still trigger buffer reallocation and full data transfer once reusable capacity is exhausted
- * - No heap compaction yet; long-running workloads can accumulate fragmented free ranges
- * - Canonical store + derived heap mirror + GPU buffers still duplicate runtime data in memory
- * - Mutation-heavy workloads still pay O(N) refresh cost only on exhausted capacity / incompatible layout changes
- *
- * **Correct future implementation:**
- * - Incremental string buffer growth without buffer reallocation once capacity is exhausted
- * - Heap compaction / smarter free-list placement for long-running workloads
- * - Dirty tracking at canonical store level to identify minimal structural changes
- *
- * This runtime now uses partial sync where safe, but still keeps targeted structural refresh paths.
+ * Каноническая истина остаётся в Boundary store, а этот runtime держит только
+ * производные буферы и их CPU-side mirror для частичной синхронизации.
  */
 export class GPUMatrixRuntime implements MatrixRuntime {
   private context: GpuRuntimeContext
-  private readonly store: BoundaryStore
+  private readonly store$: BoundaryStore
   private lastStates: number[]
   private pending: Promise<unknown> = Promise.resolve()
 
-  private constructor(context: GpuRuntimeContext, store: BoundaryStore) {
+  private constructor(context: GpuRuntimeContext, store$: BoundaryStore) {
     this.context = context
-    this.store = store
-    this.lastStates = [...store.states]
+    this.store$ = store$
+    this.lastStates = [...store$.states]
   }
 
-  static async create(device: GPUDevice, store: BoundaryStore): Promise<GPUMatrixRuntime> {
-    const context = createGpuRuntimeContext(device, shaderSource, store, false)
-    return new GPUMatrixRuntime(context, store)
+  static async create(device: GPUDevice, store$: BoundaryStore): Promise<GPUMatrixRuntime> {
+    const context = createGpuRuntimeContext(device, shaderSource, store$, false)
+    return new GPUMatrixRuntime(context, store$)
   }
 
   step(): void {
@@ -119,10 +96,10 @@ export class GPUMatrixRuntime implements MatrixRuntime {
   }
 
   /**
-   * Applies incremental GPU sync when canonical mutations preserve the existing derived layout.
+   * Синхронизирует канонические изменения с GPU без полной пересборки контекста.
    *
-   * Falls back to targeted derived-buffer refresh only for structural mutations that
-   * invalidate current heap or string-buffer sizes.
+   * Если текущий derived layout больше не подходит, обновляет только затронутые
+   * производные буферы.
    */
   heapUpdate(updates: MatrixHeapUpdate[]): void {
     void this.enqueue(() => {
@@ -130,7 +107,7 @@ export class GPUMatrixRuntime implements MatrixRuntime {
         return
       }
 
-      const stringTableChanged = this.store.stringTable.length !== this.context.stringTableSize
+      const stringTableChanged = this.store$.stringTable.length !== this.context.stringTableSize
       if (stringTableChanged) {
         this.syncStringBuffers()
       }
@@ -164,7 +141,7 @@ export class GPUMatrixRuntime implements MatrixRuntime {
   }
 
   private refreshStringBuffers(): void {
-    const atlas = resolveStringTableBuffers(this.store.stringTable)
+    const atlas = resolveStringTableBuffers(this.store$.stringTable)
     const nextStringRegistryWords = atlas.registry.length > 0 ? atlas.registry.length : 1
     const nextStringHeapWords = atlas.heap.length > 0 ? atlas.heap.length : 1
     const nextStringRegistryCapacityWords = nextCapacityWords(nextStringRegistryWords)
@@ -185,19 +162,19 @@ export class GPUMatrixRuntime implements MatrixRuntime {
     this.context.buffers.stringRegistry = nextStringRegistry
     this.context.buffers.stringHeap = nextStringHeap
     this.context.bindGroup = createBindGroup(this.context.device, this.context.pipeline, this.context.buffers)
-    this.context.stringTableSize = this.store.stringTable.length
+    this.context.stringTableSize = this.store$.stringTable.length
     this.context.stringRegistryWords = nextStringRegistryWords
     this.context.stringRegistryCapacityWords = nextStringRegistryCapacityWords
     this.context.stringHeapWords = nextStringHeapWords
     this.context.stringHeapCapacityWords = nextStringHeapCapacityWords
-    this.context.stringTableSnapshot = [...this.store.stringTable]
+    this.context.stringTableSnapshot = [...this.store$.stringTable]
 
     destroyBuffers([previousStringRegistry, previousStringHeap])
   }
 
   private tryAppendStringBuffers(): boolean {
     const previousTable = this.context.stringTableSnapshot
-    const nextTable = this.store.stringTable
+    const nextTable = this.store$.stringTable
 
     if (nextTable.length < previousTable.length) {
       return false
@@ -305,7 +282,7 @@ export class GPUMatrixRuntime implements MatrixRuntime {
   }
 
   private refreshHeapBuffers(): void {
-    const nextDerived = deriveMatrixData(this.store)
+    const nextDerived = deriveMatrixData(this.store$)
     const nextBraneBlockPtrs = createStorageBuffer(this.context.device, Uint32Array.from(nextDerived.blockPtrs))
     const nextHeapWords = nextDerived.heap.length > 0 ? nextDerived.heap.length : 1
     const nextHeapCapacityWords = nextCapacityWords(nextHeapWords)
@@ -331,10 +308,10 @@ export class GPUMatrixRuntime implements MatrixRuntime {
       nextDerived.heap,
       nextDerived.blockPtrs,
       nextDerived.sharedBlockPtrs,
-      this.store.fields,
+      this.store$.fields,
     )
     this.context.arrayFreeList = []
-    this.context.stringTableSize = this.store.stringTable.length
+    this.context.stringTableSize = this.store$.stringTable.length
 
     destroyBuffers([previousBraneBlockPtrs, previousHeap])
   }
@@ -379,8 +356,8 @@ export class GPUMatrixRuntime implements MatrixRuntime {
     fieldIndex: number,
     heapMirror: Uint32Array,
   ): { writes: Array<{ offset: number; value1: number; value2?: number }>; heapMirror?: Uint32Array } | null {
-    const location = findBraneFieldLocation(this.store, braneIndex, fieldIndex)
-    const field = this.store.fields[fieldIndex]
+    const location = this.store$.getFieldLocation(braneIndex, fieldIndex)
+    const field = this.store$.fields[fieldIndex]
     if (!location || !field) {
       return null
     }
@@ -402,7 +379,7 @@ export class GPUMatrixRuntime implements MatrixRuntime {
       return this.resolveArrayWrites(heapMirror, valueOffset, fieldIndex, location.record.value)
     }
 
-    const encoded = encodeValue(location.record.value, createPackContext(field, this.store.stringTable))
+    const encoded = encodeValue(location.record.value, createPackContext(field, this.store$.stringTable))
     heapMirror[valueOffset] = encoded.value1
 
     if (field.type === FIELD_TYPE.STRING_PTR) {
@@ -437,7 +414,7 @@ export class GPUMatrixRuntime implements MatrixRuntime {
 
     const currentLength = currentPtr === 0 ? 0 : (heapMirror[currentPtr] ?? 0)
     if (currentLength !== value.length) {
-      const field = this.store.fields[fieldIndex]
+      const field = this.store$.fields[fieldIndex]
       if (!field) {
         return null
       }
@@ -466,13 +443,13 @@ export class GPUMatrixRuntime implements MatrixRuntime {
       }
 
       nextHeapMirror[targetSlot.ptr] = value.length
-      const arrayContext = createPackContext(field, this.store.stringTable)
+      const arrayContext = createPackContext(field, this.store$.stringTable)
       value.forEach((item, index) => {
         nextHeapMirror[targetSlot.ptr + 1 + index] = encodeValue(
           item,
           {
             type: arrayContext.subType ?? VALUE_TYPE.FLOAT,
-            stringTable: this.store.stringTable,
+            stringTable: this.store$.stringTable,
           },
         ).value1
       })
@@ -492,18 +469,18 @@ export class GPUMatrixRuntime implements MatrixRuntime {
       }
     }
 
-    const field = this.store.fields[fieldIndex]
+    const field = this.store$.fields[fieldIndex]
     if (!field) {
       return null
     }
 
-    const arrayContext = createPackContext(field, this.store.stringTable)
+    const arrayContext = createPackContext(field, this.store$.stringTable)
     const encodedItems = value.map((item) =>
       encodeValue(
         item,
         {
           type: arrayContext.subType ?? VALUE_TYPE.FLOAT,
-          stringTable: this.store.stringTable,
+          stringTable: this.store$.stringTable,
         },
       ).value1,
     )

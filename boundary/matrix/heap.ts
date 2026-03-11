@@ -1,9 +1,7 @@
 /**
- * @boundary/matrix/heap — Matrix-local packed heap materialization.
+ * `@boundary/matrix/heap` собирает производный packed heap для Matrix.
  *
- * Это derived execution form для GPU. Он никогда не является canonical truth.
- *
- * @packageDocumentation
+ * Это execution-форма для GPU, а не каноническая truth-модель.
  */
 
 import type { FieldMeta, HeapInput, HeapLayout, PackedMeta } from "./heap.t"

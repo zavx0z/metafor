@@ -1,5 +1,5 @@
 /**
- * @boundary — публичный API для работы с матрицей суперпозиций.
+ * `@boundary` — публичный API Boundary.
  *
  * @packageDocumentation
  *
@@ -9,12 +9,8 @@
  * - `write()` — инициализация матрицы
  * - `update()` — эволюция и чтение состояний
  * - `unlock()` — снятие блокировки с бран
- *
- * ## Ответственность
- *
- * - Экспорт публичного API Boundary
- * - Экспорт типов Boundary
- * - Сокрытие внутренней реализации (runtime, canonical store, подготовка данных)
+ * - `reset()` — сброс состояния
+ * - `FieldType` — типы полей
  *
  * @example
  * ```typescript
@@ -40,29 +36,4 @@ export {
   unlock,
   reset,
   FieldType,
-} from "./boundary"
-
-export type {
-  PreparedData,
-  Field,
-  Data,
-  Brane,
-  Collapse,
-  BraneValue,
-  FieldTypeValue,
-  FlattenedBoundaryInput,
-  FlattenedBraneInput,
-  FlattenedFieldChecks,
-  FlattenedTransition,
-  BoundaryData,
-  BoundaryStore,
-  BoundaryFieldRecord,
-  BoundaryFieldValueRecord,
-  BoundaryConditionRecord,
-  BoundaryTransitionRecord,
-  BoundaryStateRecord,
-  BoundarySharedBlockRecord,
-  BoundaryBraneRecord,
-  BoundaryScalarValue,
-  BoundaryValue,
 } from "./boundary"

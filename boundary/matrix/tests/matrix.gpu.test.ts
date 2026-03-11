@@ -2,7 +2,7 @@
  * Тесты для GPU runtime матрицы.
  */
 import { describe, expect, test } from "bun:test"
-import { GPUMatrixRuntime } from "../../matrix/gpu"
+import { GPUMatrixRuntime } from "../gpu"
 import {
   createSimpleBraneFixture,
   createMultipleBranesFixture,

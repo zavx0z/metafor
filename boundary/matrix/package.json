@@ -7,12 +7,5 @@
     ".": "./index.ts",
     "./derived": "./derived.ts"
   },
-  "private": true,
-  "dependencies": {},
-  "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  }
+  "private": true
 }

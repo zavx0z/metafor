@@ -4,7 +4,7 @@
  */
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import {write, update} from "../boundary"
-import {GPU, matrixStoreReset} from "@boundary/matrix"
+import { GPU, matrix$ } from "@boundary/matrix"
 import { setupDevice } from "fixture/bunWebGPU"
 import { FieldType } from "../fields/index.t"
 
@@ -20,7 +20,7 @@ beforeAll(async () => {
 // ============================================================================
 describe("write / update — базовые переходы", () => {
   afterEach(() => {
-    matrixStoreReset()
+    matrix$.reset()
   })
 
   test("должен перейти из IDLE в PATROL при hp > 50", async () => {
@@ -114,7 +114,7 @@ describe("write / update — базовые переходы", () => {
 // ============================================================================
 describe("write / update — логические условия", () => {
   afterEach(() => {
-    matrixStoreReset()
+    matrix$.reset()
   })
 
   test("должен перейти при isAlive === true", async () => {
@@ -169,7 +169,7 @@ describe("write / update — логические условия", () => {
 // ============================================================================
 describe("write / update — множественные условия", () => {
   afterEach(() => {
-    matrixStoreReset()
+    matrix$.reset()
   })
 
   test("должен перейти при выполнении обоих условий (hp > 50 И mana > 20)", async () => {
@@ -215,7 +215,7 @@ describe("write / update — множественные условия", () => {
 // ============================================================================
 describe("write / update — entangled группы", () => {
   afterEach(() => {
-    matrixStoreReset()
+    matrix$.reset()
   })
 
   test("должен создать entangled блок для одинаковых значений", async () => {
@@ -305,7 +305,7 @@ describe("write / update — entangled группы", () => {
 // ============================================================================
 describe("write / update — многошаговая эволюция", () => {
   afterEach(() => {
-    matrixStoreReset()
+    matrix$.reset()
   })
 
   test("должен пройти через несколько состояний", async () => {
@@ -353,7 +353,7 @@ describe("write / update — многошаговая эволюция", () => {
 // ============================================================================
 describe("write / update — ошибки", () => {
   afterEach(() => {
-    matrixStoreReset()
+    matrix$.reset()
   })
 
   test("должен бросить ошибку при update() до write()", async () => {
@@ -375,7 +375,7 @@ describe("write / update — ошибки", () => {
 // ============================================================================
 describe("write / update — параллельные вызовы", () => {
   afterEach(() => {
-    matrixStoreReset()
+    matrix$.reset()
   })
 
   /**
@@ -483,7 +483,7 @@ describe("write / update — параллельные вызовы", () => {
 // ============================================================================
 describe("write / update — ARRAY поля", () => {
   afterEach(() => {
-    matrixStoreReset()
+    matrix$.reset()
   })
 
   /**
@@ -541,7 +541,7 @@ describe("write / update — ARRAY поля", () => {
 // ============================================================================
 describe("update() с блокировкой переходов", () => {
   afterEach(() => {
-    matrixStoreReset()
+    matrix$.reset()
   })
 
   test("заблокированная брана не меняет состояние", async () => {

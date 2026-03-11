@@ -1,34 +1,14 @@
 /**
- * @boundary/matrix/pack — matrix-local кодирование значений для производных execution-форм.
+ * `@boundary/matrix/pack` кодирует значения из канонического store в производные execution-формы Matrix.
  *
- * Этот модуль кодирует значения из канонического Boundary store в формы,
- * которые нужны derived packing и GPU runtime. Канонический store он не меняет.
- *
- * @packageDocumentation
+ * Модуль не меняет канонический store и работает только с локальными derived-структурами.
  */
 
 import type { BoundaryFieldRecord, BoundaryValue } from "../store.t"
+import type { PackContext, EncodedValue } from "./pack.t"
 import { FIELD_TYPE, VALUE_TYPE } from "./constants"
 
-/**
- * Контекст кодирования значения для derived packing.
- */
-export interface PackContext {
-  type: number
-  stringTable: string[]
-  heap?: Uint32Array
-  allocateHeap?: (size: number) => number
-  enum?: unknown[]
-  subType?: number
-}
-
-/**
- * Результат кодирования одного значения.
- */
-export interface EncodedValue {
-  value1: number
-  value2: number
-}
+export type { PackContext, EncodedValue } from "./pack.t"
 
 /**
  * Преобразует тип поля из канонической схемы в execution-тип Matrix.
@@ -94,7 +74,7 @@ export function createPackContext(
 }
 
 /**
- * Кодирует значение из канонического store в derived execution-форму.
+ * Кодирует значение из канонического store в производную execution-форму.
  *
  * Это чистая функция: она не меняет канонический store и пишет только в
  * переданные derived-буферы, если они явно указаны в контексте.

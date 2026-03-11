@@ -1,5 +1,5 @@
 /**
- * Типы для модуля params — кодирование значений для GPU.
+ * Типы для модуля values — кодирование значений для GPU.
  *
  * @packageDocumentation
  */
@@ -39,3 +39,21 @@ export interface EncodedValue {
   /** Тип значения для шейдера. */
   type: number
 }
+
+/**
+ * Результат кодирования значения (value1, value2).
+ */
+export interface EncodedValueResult {
+  value1: number
+  value2: number
+}
+
+/**
+ * Нормализованное скалярное значение.
+ */
+export type NormalizedScalarValue = number | boolean
+
+/**
+ * Нормализованное значение (скаляр или массив скаляров).
+ */
+export type NormalizedValue = NormalizedScalarValue | NormalizedScalarValue[]

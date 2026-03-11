@@ -1,10 +1,8 @@
 /**
- * @boundary/matrix/derived — вывод производных execution-форм из канонического Boundary store.
+ * `@boundary/matrix/derived` выводит производные execution-формы из канонического Boundary store.
  *
- * Этот модуль превращает канонические stored data в packed execution forms
- * для GPU runtime. Все функции здесь чистые и не мутируют внешнее состояние.
- *
- * @packageDocumentation
+ * Этот модуль превращает канонические данные в packed-представления для GPU
+ * и не мутирует внешний store.
  */
 
 import type {
@@ -13,6 +11,7 @@ import type {
   BoundaryFieldRecord,
   BoundaryFieldValueRecord,
 } from "../store.t"
+import type { DerivedMatrixData } from "./derived.t"
 import { VALUE_TYPE, FIELD_TYPE } from "./constants"
 import { buildHeap } from "./heap"
 import {
@@ -22,18 +21,9 @@ import {
 } from "./pack"
 import { compileFlattenedEnsemble, type FlattenedTransition } from "./bytecode"
 
-export interface DerivedMatrixData {
-  heap: Uint32Array
-  blockPtrs: number[]
-  sharedBlockPtrs: number[]
-  bytecode: Uint32Array
-  bytecodeOffsets: Uint32Array
-  states: Uint32Array
-}
+export type { DerivedMatrixData } from "./derived.t"
 
-/**
- * Собирает метаданные полей для derived encoding.
- */
+/** Собирает метаданные полей для производного кодирования. */
 function createFieldMetaMap(fields: BoundaryFieldRecord[]): Map<number, { fieldType: number; fieldSize: number }> {
   const meta = new Map<number, { fieldType: number; fieldSize: number }>()
   fields.forEach((field, fieldIndex) => {
@@ -44,9 +34,7 @@ function createFieldMetaMap(fields: BoundaryFieldRecord[]): Map<number, { fieldT
   return meta
 }
 
-/**
- * Сгруппировать conditions по field index.
- */
+/** Группирует условия перехода по индексу поля. */
 function groupTransitionConditions(
   store: BoundaryData,
   conditionOffset: number,
@@ -78,9 +66,7 @@ function groupTransitionConditions(
   }))
 }
 
-/**
- * Преобразует канонические transitions в flattened-форму для компиляции bytecode.
- */
+/** Преобразует канонические переходы в уплощённую форму для компиляции bytecode. */
 function toFlattenedTransitions(store: BoundaryData): Array<{ transitions: FlattenedTransition[][] }> {
   return store.branes.map((brane) => ({
     transitions: Array.from({ length: brane.stateCount }, (_, stateIndex) => {
@@ -108,9 +94,7 @@ function toFlattenedTransitions(store: BoundaryData): Array<{ transitions: Flatt
   }))
 }
 
-/**
- * Собрать shared block fields из canonical store.
- */
+/** Собирает значения полей shared-блоков из канонического store. */
 function collectSharedBlockFields(store: BoundaryData): BoundaryFieldValueRecord[][] {
   return store.sharedBlocks.map((block) => {
     const fields: BoundaryFieldValueRecord[] = []
@@ -125,9 +109,7 @@ function collectSharedBlockFields(store: BoundaryData): BoundaryFieldValueRecord
   })
 }
 
-/**
- * Собрать brane local fields из canonical store.
- */
+/** Собирает локальные поля бран из канонического store. */
 function collectBraneLocalFields(store: BoundaryData): BoundaryFieldValueRecord[][] {
   return store.branes.map((brane) => {
     const fields: BoundaryFieldValueRecord[] = []
@@ -142,9 +124,7 @@ function collectBraneLocalFields(store: BoundaryData): BoundaryFieldValueRecord[
   })
 }
 
-/**
- * Собрать brane shared block refs из canonical store.
- */
+/** Собирает ссылки `brane -> shared block` из канонического store. */
 function collectBraneSharedBlockRefs(store: BoundaryData): number[][] {
   return store.branes.map((brane) => {
     const refs: number[] = []
@@ -159,9 +139,7 @@ function collectBraneSharedBlockRefs(store: BoundaryData): number[][] {
   })
 }
 
-/**
- * Посчитать слова для array полей.
- */
+/** Считает число слов heap, нужных для array-полей. */
 function countArrayWords(fields: BoundaryFieldRecord[], values: BoundaryFieldValueRecord[]): number {
   let words = 0
   for (const entry of values) {
@@ -175,9 +153,7 @@ function countArrayWords(fields: BoundaryFieldRecord[], values: BoundaryFieldVal
   return words
 }
 
-/**
- * Создать block map для shared blocks.
- */
+/** Кодирует shared-блоки в карту, понятную сборщику heap. */
 function createBlockMap(
   blocks: BoundaryFieldValueRecord[][],
   fields: BoundaryFieldRecord[],
@@ -208,9 +184,7 @@ function createBlockMap(
   return map
 }
 
-/**
- * Создать local fields encoding.
- */
+/** Кодирует локальные поля бран в форму, понятную сборщику heap. */
 function createLocalFields(
   braneFields: BoundaryFieldValueRecord[][],
   fields: BoundaryFieldRecord[],
@@ -237,24 +211,13 @@ function createLocalFields(
 }
 
 /**
- * Derive packed matrix data from canonical Boundary store.
+ * Выводит packed-данные Matrix из канонического Boundary store.
  *
- * Это чистая функция — не мутирует входные данные.
+ * Функция делает два прохода кодирования: сначала оценивает layout, затем
+ * резервирует array payload и собирает итоговый heap и bytecode для GPU.
  *
- * ## Pipeline steps:
- *
- * 1. **Schema projection** — field definitions и meta map для encoding
- * 2. **Data collection** — сбор shared/local fields из canonical store
- * 3. **Field encoding (pass 1)** — initial encoding без array allocation
- * 4. **Heap building (pass 1)** — построение initial heap для расчёта sizes
- * 5. **Array allocation** — резервирование места для array полей
- * 6. **Field encoding (pass 2)** — final encoding с array pointers
- * 7. **Heap building (pass 2)** — финальное построение heap
- * 8. **Lock projection** — projection lock flags из canonical store
- * 9. **Bytecode compilation** — компиляция transitions в bytecode
- *
- * @param store - Canonical Boundary store
- * @returns DerivedMatrixData для GPU execution
+ * @param store - Канонический store, из которого выводятся производные буферы.
+ * @returns Производные данные, достаточные для GPU runtime.
  */
 export function deriveMatrixData(store: BoundaryData): DerivedMatrixData {
   // ============================================================================

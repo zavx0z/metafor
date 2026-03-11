@@ -17,5 +17,4 @@ export type {
 } from "./force.t"
 export type { FieldDefinition, FieldsDefinition } from "./strong/field.t"
 export type { BraneStateChange } from "./force.t"
-export type { ConvertedSuperposition } from "./strong/superposition.t"
 export type { MetaJson as ParsedProcessJson } from "@metafor/ast/dsl"

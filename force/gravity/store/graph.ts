@@ -361,16 +361,6 @@ export function setOrderKey(uuid: string, key: OrderKey): void {
 }
 
 /**
- * Получает orderKey актора.
- *
- * @param uuid - UUID актора
- * @returns orderKey или undefined
- */
-export function getOrderKey(uuid: string): OrderKey | undefined {
-  return orderKeys.get(uuid)
-}
-
-/**
  * Сбрасывает состояние модуля (для тестов).
  *
  * @example

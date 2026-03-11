@@ -7,8 +7,8 @@ export class CPUMatrixRuntime implements MatrixRuntime {
   private readonly context: CpuRuntimeContext
   private readonly state: CpuRuntimeState
 
-  constructor(store: BoundaryStore) {
-    this.context = { store }
+  constructor(store$: BoundaryStore) {
+    this.context = { store$ }
     this.state = { bufferedChanges: [] }
   }
 
@@ -23,7 +23,7 @@ export class CPUMatrixRuntime implements MatrixRuntime {
   }
 
   statesSnapshot(): number[] {
-    return [...this.context.store.states]
+    return [...this.context.store$.states]
   }
 
   heapUpdate(_updates: MatrixHeapUpdate[]): void {
@@ -31,7 +31,7 @@ export class CPUMatrixRuntime implements MatrixRuntime {
   }
 
   clear(): void {
-    this.context.store.states = []
+    this.context.store$.states = []
     this.state.bufferedChanges = []
   }
 }

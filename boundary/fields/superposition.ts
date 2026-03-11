@@ -7,27 +7,22 @@
  * @packageDocumentation
  */
 
-import { parseCondition } from "./condition"
-import { OP, TYPE } from "./opcodes"
-import { encodeValue, fieldTypeToBytecodeType } from "./values"
+import {parseCondition} from "./condition"
+import {OP, TYPE} from "./opcodes"
+import {encodeValue, fieldTypeToBytecodeType} from "./values"
 import type {Collapse, Field} from "./index.t"
-import type { FieldBytecode, CompiledRules, ConditionInstruction } from "./superposition.t"
-import type { EncodingContext } from "./values.t"
-import type { ParsedCheck } from "./condition.t"
-import { createStoredStringInterner, type StringInterner } from "./string-table"
-import type { FlattenedTransition } from "./stored.t"
-import type { Superposition } from "../../force/force.t"
-import type { ConvertedSuperposition } from "@metafor/force/strong/superposition.t"
-
-/**
- * Результат компиляции условий с кучей для списков.
- */
-export interface CompiledConditionsResult {
-  /** Инструкции условий. */
-  instructions: ConditionInstruction[]
-  /** Куча для списков (IN/NOT_IN): [count, item1, item2, ...]. */
-  heap: number[]
-}
+import type {
+  CompiledConditionsResult,
+  CompiledRules,
+  ConditionInstruction,
+  ConvertedSuperposition,
+  FieldBytecode
+} from "./superposition.t"
+import type {EncodingContext} from "./values.t"
+import type {ParsedCheck} from "./condition.t"
+import {createStoredStringInterner, type StringInterner} from "./string-table"
+import type {FlattenedTransition} from "./stored.t"
+import type {Superposition} from "../../force/force.t"
 
 /**
  * Компилирует одну суперпозицию в байт-код.
@@ -252,10 +247,8 @@ export function compileParsedConditions(
   }
 
   // Считаем размер инструкций (4 слова на каждую)
-  const totalInstructionsSize = allChecks.length * 4
-
   // Куча начинается после всех инструкций
-  let heapOffset = totalInstructionsSize
+  let heapOffset = allChecks.length * 4
 
   // Генерируем инструкции с правильными указателями
   for (const check of allChecks) {

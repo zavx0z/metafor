@@ -1,10 +1,7 @@
 /**
- * @boundary/matrix/constants — execution constants local to Matrix.
+ * `@boundary/matrix/constants` хранит локальные execution-константы Matrix.
  *
- * Эти константы нужны только для derived packing и runtime execution.
- * Они не являются частью canonical Boundary store.
- *
- * @packageDocumentation
+ * Они нужны только для derived packing и runtime и не входят в канонический Boundary store.
  */
 
 /**

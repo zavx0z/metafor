@@ -1,5 +1,4 @@
-import { getBraneStateRecord, readBraneFieldValue } from "../../store.access"
-import type { BoundaryConditionRecord, BoundaryData, BoundaryScalarValue, BoundaryValue } from "../../store.t"
+import type { BoundaryConditionRecord, BoundaryScalarValue, BoundaryStore, BoundaryValue } from "../../store.t"
 import { CONDITION_OP, FIELD_TYPE } from "../constants"
 
 function scalarEquals(left: BoundaryScalarValue, right: BoundaryScalarValue): boolean {
@@ -59,9 +58,9 @@ function evaluateArrayCondition(value: BoundaryValue | undefined, condition: Bou
   }
 }
 
-function evaluateCondition(store: BoundaryData, braneIndex: number, condition: BoundaryConditionRecord): boolean {
-  const field = store.fields[condition.fieldIndex]
-  const value = readBraneFieldValue(store, braneIndex, condition.fieldIndex)
+function evaluateCondition(store$: BoundaryStore, braneIndex: number, condition: BoundaryConditionRecord): boolean {
+  const field = store$.fields[condition.fieldIndex]
+  const value = store$.getFieldValue(braneIndex, condition.fieldIndex)
 
   if (field?.type === FIELD_TYPE.ARRAY_PTR) {
     return evaluateArrayCondition(value, condition)
@@ -70,21 +69,21 @@ function evaluateCondition(store: BoundaryData, braneIndex: number, condition: B
   return evaluateScalarCondition((value ?? 0) as BoundaryScalarValue, condition)
 }
 
-export function evaluateBraneNextState(store: BoundaryData, braneIndex: number): number {
-  const brane = store.branes[braneIndex]
+export function evaluateBraneNextState(store$: BoundaryStore, braneIndex: number): number {
+  const brane = store$.branes[braneIndex]
   if (!brane) {
-    return store.states[braneIndex] ?? 0
+    return store$.states[braneIndex] ?? 0
   }
 
-  const currentState = store.states[braneIndex] ?? 0
-  const stateRecord = getBraneStateRecord(store, braneIndex, currentState)
+  const currentState = store$.states[braneIndex] ?? 0
+  const stateRecord = store$.getState(braneIndex, currentState)
   if (!stateRecord) {
     return currentState
   }
 
   const transitionEnd = stateRecord.transitionOffset + stateRecord.transitionCount
   for (let transitionIndex = stateRecord.transitionOffset; transitionIndex < transitionEnd; transitionIndex++) {
-    const transition = store.transitions[transitionIndex]
+    const transition = store$.transitions[transitionIndex]
     if (!transition) {
       continue
     }
@@ -92,8 +91,8 @@ export function evaluateBraneNextState(store: BoundaryData, braneIndex: number):
     let passed = true
     const conditionEnd = transition.conditionOffset + transition.conditionCount
     for (let conditionIndex = transition.conditionOffset; conditionIndex < conditionEnd; conditionIndex++) {
-      const condition = store.conditions[conditionIndex]
-      if (!condition || !evaluateCondition(store, braneIndex, condition)) {
+      const condition = store$.conditions[conditionIndex]
+      if (!condition || !evaluateCondition(store$, braneIndex, condition)) {
         passed = false
         break
       }

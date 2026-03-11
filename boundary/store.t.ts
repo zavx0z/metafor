@@ -1,8 +1,4 @@
-/**
- * Типы для @boundary/boundary/store.
- *
- * @packageDocumentation
- */
+/** Типы для `@boundary/boundary/store`. */
 
 import type { ConditionOperator } from "./fields/condition.t"
 import type { FieldTypeValue } from "./fields/index.t"
@@ -62,6 +58,10 @@ export interface BoundaryBraneRecord {
   lock: boolean
 }
 
+export type BoundaryFieldStorageLocation =
+  | { scope: "local"; record: BoundaryFieldValueRecord }
+  | { scope: "shared"; blockIndex: number; record: BoundaryFieldValueRecord }
+
 /**
  * Каноническое глобальное хранилище Boundary.
  *
@@ -105,6 +105,21 @@ export interface BoundaryData {
 }
 
 export interface BoundaryStore extends BoundaryData {
+  /** Сбрасывает store к пустому каноническому состоянию. */
   reset(): void
+
+  /** Восстанавливает каноническое состояние целиком. */
   restore(state: BoundaryData): void
+
+  /** Возвращает запись поля браны независимо от local/shared размещения. */
+  getField(braneIndex: number, fieldIndex: number): BoundaryFieldValueRecord | undefined
+
+  /** Возвращает фактическое место хранения поля в каноническом store. */
+  getFieldLocation(braneIndex: number, fieldIndex: number): BoundaryFieldStorageLocation | undefined
+
+  /** Возвращает текущее значение поля браны. */
+  getFieldValue(braneIndex: number, fieldIndex: number): BoundaryValue | undefined
+
+  /** Возвращает запись состояния внутри state graph конкретной браны. */
+  getState(braneIndex: number, stateIndex: number): BoundaryStateRecord | undefined
 }

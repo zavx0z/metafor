@@ -2,7 +2,7 @@
  * Тесты для CPU runtime матрицы.
  */
 import { describe, expect, test } from "bun:test"
-import { CPUMatrixRuntime } from "../../matrix/cpu"
+import { CPUMatrixRuntime } from "../cpu"
 import {
   createSimpleBraneFixture,
   createMultipleBranesFixture,

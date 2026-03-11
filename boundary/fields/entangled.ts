@@ -1,8 +1,4 @@
-/**
- * Strict prepared entanglement materialization.
- *
- * @packageDocumentation
- */
+/** Строгая materialization подготовленного entanglement. */
 import type { BraneMapping, PreparedEntanglementBlock, PreparedEntanglementField, PreparedEntanglementProjection } from "./entangled.t"
 
 const valueEquals = (left: unknown, right: unknown): boolean => {
@@ -33,9 +29,9 @@ const normalizeBlock = (block: PreparedEntanglementBlock): PreparedEntanglementB
 })
 
 /**
- * Материализует заранее подготовленную entanglement projection в brane layout.
+ * Материализует заранее подготовленную entanglement projection в layout бран.
  *
- * Boundary не выводит shared-блоки из значений, а только валидирует пришедшую
+ * Boundary не выводит shared-блоки из значений, а только валидирует готовую
  * projection и раскладывает поля по local/shared частям.
  */
 export function materializeEntanglement(

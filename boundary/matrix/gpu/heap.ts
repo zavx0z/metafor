@@ -1,17 +1,9 @@
 import type { BoundaryFieldRecord } from "../../store.t"
+import type { GpuHeapWordUpdate, ArrayHeapSlot } from "./heap.t"
 import { FIELD_TYPE } from "../constants"
 import { unpackMeta } from "../heap"
 
-export interface GpuHeapWordUpdate {
-  offset: number
-  value1: number
-  value2?: number
-}
-
-export interface ArrayHeapSlot {
-  ptr: number
-  size: number
-}
+export type { GpuHeapWordUpdate, ArrayHeapSlot } from "./heap.t"
 
 /**
  * Обновляет поля в GPU heap buffer (оркестрация).

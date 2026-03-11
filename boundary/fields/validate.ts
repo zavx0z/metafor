@@ -129,7 +129,7 @@ export function validateData(data: Data): void {
 
         // Валидация условий
         if (conditions && typeof conditions === "object") {
-          for (const [condFieldIndex, cond] of Object.entries(conditions)) {
+          for (const [condFieldIndex, _] of Object.entries(conditions)) {
             const fieldIdx = Number(condFieldIndex)
 
             if (fieldIdx < 0 || fieldIdx >= data.fields!.length) {

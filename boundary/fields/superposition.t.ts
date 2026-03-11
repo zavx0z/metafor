@@ -4,6 +4,8 @@
  * @packageDocumentation
  */
 
+import type {Collapse} from "./index.t.ts"
+
 /**
  * Инструкция условия для байт-кода.
  * Формат: [fieldType, fieldIndex, op, valEncoded]
@@ -69,4 +71,16 @@ export interface CompiledRules {
   bytecode: Uint32Array
   /** Смещения начала каждой суперпозиции: [offset0, offset1, ...]. */
   bytecodeOffsets: Uint32Array
+}
+
+/**
+ * Результат конвертации суперпозиции.
+ */
+export interface ConvertedSuperposition {
+  /** Имена состояний для reverse-маппинга (хранятся в Force). */
+  states: string[]
+  /** Суперпозиция для Boundary (только индексы). */
+  boundary: {
+    transitions: Array<Array<Collapse>>
+  }
 }

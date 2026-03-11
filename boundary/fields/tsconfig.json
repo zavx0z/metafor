@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.json",
   "include": [
     ".",
-    "../../types/**/*.d.ts"
-, "../tests"  ]
+    "../../types/**/*.d.ts",
+    "../tests"
+  ]
 }

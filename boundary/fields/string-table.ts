@@ -1,14 +1,12 @@
-export type StoredStringTable = string[]
+import type { StoredStringTable, StringInterner } from "./string-table.t"
 
-export interface StringInterner {
-  intern(value: string): number
-}
+export type { StoredStringTable, StringInterner } from "./string-table.t"
 
 /**
- * Mutable deduplicated string table owned by Fields.
+ * Изменяемая дедуплицированная таблица строк, которой владеет слой Fields.
  *
- * GPU-local atlas/UTF-32 packing no longer lives here.
- * This module owns only canonical string IDs and deduplication.
+ * Этот модуль отвечает только за канонические string id и их дедупликацию.
+ * Производная packing-форма для GPU выводится отдельно.
  */
 export class StoredStringInterner implements StringInterner {
   readonly table: StoredStringTable

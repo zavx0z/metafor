@@ -5,16 +5,8 @@
  */
 
 import { TYPE } from "./opcodes"
-import type { EncodingContext } from "./values.t"
+import type { EncodingContext, EncodedValueResult, NormalizedScalarValue, NormalizedValue } from "./values.t"
 import { FieldType, type Field, type FieldTypeValue } from "./index.t"
-
-export interface EncodedValueResult {
-  value1: number
-  value2: number
-}
-
-export type NormalizedScalarValue = number | boolean
-export type NormalizedValue = NormalizedScalarValue | NormalizedScalarValue[]
 
 export function createFieldEncodingContext(
   fieldType: number,

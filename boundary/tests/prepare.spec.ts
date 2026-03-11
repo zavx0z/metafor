@@ -2,7 +2,8 @@
  * Тесты для prepareData.
  */
 import { test, expect, describe } from "bun:test"
-import { flattenBoundaryData, prepareData, type BoundaryData } from "../boundary"
+import { flattenBoundaryData, prepareData } from "../boundary"
+import type { BoundaryData, BoundaryTransitionRecord } from "../store.t"
 import { FieldType, type Data } from "../fields/index.t"
 import { OP } from "../fields/opcodes"
 
@@ -43,7 +44,7 @@ function getBraneStateTransitions(store: BoundaryData, braneIndex: number, state
 
   return store.transitions
     .slice(state.transitionOffset, state.transitionOffset + state.transitionCount)
-    .map((transition) => ({
+    .map((transition: BoundaryTransitionRecord) => ({
       targetState: transition.targetState,
       conditions: store.conditions.slice(
         transition.conditionOffset,

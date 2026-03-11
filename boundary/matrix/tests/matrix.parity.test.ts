@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test"
-import { CPUMatrixRuntime } from "../../matrix/cpu"
-import { GPUMatrixRuntime } from "../../matrix/gpu"
+import { CPUMatrixRuntime } from "../cpu"
+import { GPUMatrixRuntime } from "../gpu"
 import {
   createFieldUpdateFixture,
   createIsolatedStore,

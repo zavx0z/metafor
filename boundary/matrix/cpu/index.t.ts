@@ -6,5 +6,5 @@ export interface CpuRuntimeState {
 }
 
 export interface CpuRuntimeContext {
-  store: BoundaryStore
+  store$: BoundaryStore
 }

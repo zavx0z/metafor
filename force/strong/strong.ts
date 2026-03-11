@@ -1,5 +1,5 @@
 import type { NodeMeta, NodeType } from "@metafor/dsl"
-import type { PreparedEntanglementProjection } from "../../boundary/fields/entangled.t"
+import type { PreparedEntanglementProjection } from "@boundary/fields"
 import type {
   FlatGravityActor,
   FlatGravityGraph,

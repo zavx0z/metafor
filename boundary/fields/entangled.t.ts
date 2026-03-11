@@ -1,8 +1,4 @@
-/**
- * Типы strict prepared entanglement materialization.
- *
- * @packageDocumentation
- */
+/** Типы для строгой materialization подготовленного entanglement. */
 
 /**
  * Маппинг браны → локальные поля + ссылки на entangled блоки.
@@ -10,7 +6,7 @@
 export interface BraneMapping {
   /** Локальные поля для каждой браны: [fieldIndex, value][] */
   localFields: [number, unknown][][]
-  /** Маппинг: индекс браны → массив ID entangled блоков */
+  /** Маппинг: индекс браны -> массив ID entangled-блоков. */
   braneEntangledMap: number[][]
   /** Поля для каждого entangled блока: ключ → [fieldIndex, value][] */
   entangledFields: Map<string, [number, unknown][]>
@@ -35,9 +31,7 @@ export interface PreparedEntanglementBlock {
   fields: PreparedEntanglementField[]
 }
 
-/**
- * Boundary-ready projection entanglement блоков.
- */
+/** Projection entanglement-блоков, готовая для materialization в Boundary. */
 export interface PreparedEntanglementProjection {
   /** Полный набор shared-блоков для materialization. */
   blocks: PreparedEntanglementBlock[]
@@ -48,9 +42,9 @@ export interface PreparedEntanglementField {
   fieldIndex: number
   /** Семантическое имя shared поля. */
   fieldName: string
-  /** Gravity payloads, из которых поле было выведено. */
+  /** Идентификаторы payload, из которых поле было выведено. */
   payloadIds: string[]
-  /** Нормализованные semantic keys gravity payloads. */
+  /** Нормализованные semantic keys этих payload. */
   semanticKeys: string[]
   /** Брана-репрезентант, из которой materialization может взять shared value. */
   representativeBraneIndex?: number

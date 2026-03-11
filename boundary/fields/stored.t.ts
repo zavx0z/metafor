@@ -4,35 +4,29 @@ import type { BraneValue, Field } from "./index.t"
 import type { StoredStringTable } from "./string-table"
 
 /**
- * Flattened atomic checks for one field.
+ * Уплощённые атомарные проверки одного поля.
  *
- * Boundary owns conversion from nested condition objects to this form.
+ * Boundary переводит вложенные condition-объекты в эту форму до передачи в Fields.
  */
 export interface FlattenedFieldChecks {
   fieldIndex: number
   checks: ParsedCheck[]
 }
 
-/**
- * Flattened transition edge.
- */
+/** Уплощённое ребро перехода между состояниями. */
 export interface FlattenedTransition {
   targetState: number | null
   conditions: FlattenedFieldChecks[]
 }
 
-/**
- * Flattened brane input consumed by Fields.
- */
+/** Уплощённый вход одной браны, который Fields дедуплицирует и нормализует. */
 export interface FlattenedBraneInput {
   values: [number, BraneValue][]
   state: number
   transitions: FlattenedTransition[][]
 }
 
-/**
- * Boundary-owned flattened input passed into Fields.
- */
+/** Уплощённый вход Boundary, который передаётся в Fields для сборки store. */
 export interface FlattenedBoundaryInput {
   fields: Field[]
   branes: FlattenedBraneInput[]

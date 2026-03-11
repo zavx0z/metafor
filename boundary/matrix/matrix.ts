@@ -1,5 +1,5 @@
 import type { MatrixChanges, MatrixHeapUpdate } from "./matrix.t"
-import { matrixStoreReset, store } from "./state"
+import { matrix$ } from "./store"
 import type { BoundaryStore } from "../store"
 import { createMatrixRuntime } from "./runtime"
 
@@ -16,22 +16,22 @@ import { createMatrixRuntime } from "./runtime"
 export async function matrixInit(
   store$: BoundaryStore,
 ): Promise<void> {
-  if (store.operationMutex) {
-    await store.operationMutex
+  if (matrix$.operationMutex) {
+    await matrix$.operationMutex
   }
 
   let resolveMutex: (() => void) | undefined
-  store.operationMutex = new Promise<void>((resolve) => {
+  matrix$.operationMutex = new Promise<void>((resolve) => {
     resolveMutex = resolve
   })
 
   try {
-    matrixStoreReset()
+    matrix$.reset()
     const selected = await createMatrixRuntime(store$)
-    store.initialized = true
-    store.mode = selected.mode
-    store.runtime = selected.runtime
-    store.boundary = store$
+    matrix$.initialized = true
+    matrix$.mode = selected.mode
+    matrix$.runtime = selected.runtime
+    matrix$.boundary$ = store$
 
     const snapshot = selected.runtime.statesSnapshot()
     if (snapshot) {
@@ -50,21 +50,21 @@ export async function matrixInit(
  * Выполняет один шаг активного runtime матрицы.
  */
 export function matrixStep(): void {
-  if (!store.initialized) throw new Error("Matrix not initialized")
-  if (!store.runtime) throw new Error("Matrix runtime not initialized")
-  store.runtime.step()
+  if (!matrix$.initialized) throw new Error("Matrix not initialized")
+  if (!matrix$.runtime) throw new Error("Matrix runtime not initialized")
+  matrix$.runtime.step()
 }
 
 /**
  * Читает изменения состояний после последнего шага матрицы.
  */
 export async function matrixReadChanges(): Promise<MatrixChanges> {
-  if (!store.initialized) throw new Error("Matrix not initialized")
-  if (!store.runtime) throw new Error("Matrix runtime not initialized")
-  const changes = await store.runtime.readChanges()
-  const snapshot = store.runtime.statesSnapshot()
-  if (snapshot && store.boundary) {
-    store.boundary.states = snapshot
+  if (!matrix$.initialized) throw new Error("Matrix not initialized")
+  if (!matrix$.runtime) throw new Error("Matrix runtime not initialized")
+  const changes = await matrix$.runtime.readChanges()
+  const snapshot = matrix$.runtime.statesSnapshot()
+  if (snapshot && matrix$.boundary$) {
+    matrix$.boundary$.states = snapshot
   }
   return changes
 }
@@ -76,16 +76,16 @@ export async function matrixReadChanges(): Promise<MatrixChanges> {
  * в частичную синхронизацию своих производных буферов.
  */
 export function matrixHeapUpdate(updates: MatrixHeapUpdate[]): void {
-  if (!store.initialized) throw new Error("Matrix not initialized")
-  if (!store.runtime) throw new Error("Matrix runtime not initialized")
-  store.runtime.heapUpdate(updates)
+  if (!matrix$.initialized) throw new Error("Matrix not initialized")
+  if (!matrix$.runtime) throw new Error("Matrix runtime not initialized")
+  matrix$.runtime.heapUpdate(updates)
 }
 
 /**
  * Выполняет шаг матрицы и возвращает список изменившихся состояний.
  */
 export async function matrixRunStep(): Promise<MatrixChanges> {
-  if (!store.initialized) throw new Error("Matrix not initialized")
+  if (!matrix$.initialized) throw new Error("Matrix not initialized")
   matrixStep()
   return await matrixReadChanges()
 }

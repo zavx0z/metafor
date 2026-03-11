@@ -20,14 +20,10 @@
  * - debug/export утилиты — это `@boundary/matrix/debug`
  */
 
-import { matrixHeapUpdate, matrixInit, matrixRunStep, matrixStoreReset } from "./matrix"
-import { findBraneFieldRecord } from "./store.access"
+import { matrixHeapUpdate, matrixInit, matrixRunStep, matrix$ } from "./matrix"
 import { boundary$ } from "./store"
-import type {
-  BoundaryData,
-  BoundaryFieldValueRecord,
-  BoundaryStore,
-} from "./store.t"
+import type { PreparedData } from "./boundary.t"
+import type { BoundaryFieldValueRecord, BoundaryStore } from "./store.t"
 import {
   assembleStoredBoundaryData,
   createStoredStringInterner,
@@ -38,9 +34,6 @@ import {
   type Data,
   type FlattenedBoundaryInput,
 } from "./fields"
-import type { Field } from "./fields/index.t"
-
-export type PreparedData = BoundaryData
 
 let writeMutex: Promise<void> | null = null
 let updateMutex: Promise<void> | null = null
@@ -49,7 +42,7 @@ function reset(): void {
   boundary$.reset()
   writeMutex = null
   updateMutex = null
-  matrixStoreReset()
+  matrix$.reset()
 }
 
 export function flattenBoundaryData(data: Data): FlattenedBoundaryInput {
@@ -94,7 +87,7 @@ export async function write(data: Data): Promise<[number, number][]> {
   try {
     validateData(data)
     boundary$.reset()
-    matrixStoreReset()
+    matrix$.reset()
     const flattened = flattenBoundaryData(data)
     const prepared = assembleStoredBoundaryData(flattened)
     boundary$.restore(prepared)
@@ -105,18 +98,22 @@ export async function write(data: Data): Promise<[number, number][]> {
   }
 }
 
-function requireInitializedStore(store: BoundaryStore): void {
-  if (!store.fields.length && !store.branes.length) {
+function requireInitializedStore(store$: BoundaryStore): void {
+  if (!store$.fields.length && !store$.branes.length) {
     throw new Error("Store not initialized. Call write() first.")
   }
 }
 
-function findMutableFieldRecord(store: BoundaryStore, braneIndex: number, fieldIndex: number): BoundaryFieldValueRecord {
-  if (!store.branes[braneIndex]) {
+function findMutableFieldRecord(
+  store$: BoundaryStore,
+  braneIndex: number,
+  fieldIndex: number,
+): BoundaryFieldValueRecord {
+  if (!store$.branes[braneIndex]) {
     throw new Error(`Brane index out of range: ${braneIndex}`)
   }
 
-  const fieldRecord = findBraneFieldRecord(store, braneIndex, fieldIndex)
+  const fieldRecord = store$.getField(braneIndex, fieldIndex)
   if (fieldRecord) {
     return fieldRecord
   }
@@ -140,7 +137,9 @@ export async function update(
   try {
     requireInitializedStore(boundary$)
     const stringInterner = createStoredStringInterner(boundary$.stringTable)
-    const matrixUpdates: Array<{ kind: "field"; braneIndex: number; fieldIndex: number } | { kind: "lock"; braneIndex: number; value: boolean }> = []
+    const matrixUpdates: Array<
+      { kind: "field"; braneIndex: number; fieldIndex: number } | { kind: "lock"; braneIndex: number; value: boolean }
+    > = []
 
     for (const [braneIndex, fieldUpdates, lock] of updates) {
       const brane = boundary$.branes[braneIndex]
@@ -187,33 +186,6 @@ export function unlock(indexes: number[]): void {
   matrixHeapUpdate(matrixUpdates)
 }
 
-export type {
-  Field,
-  Data,
-  Brane,
-  Collapse,
-  BraneValue,
-  FieldTypeValue,
-  FlattenedBoundaryInput,
-  FlattenedBraneInput,
-  FlattenedFieldChecks,
-  FlattenedTransition,
-} from "./fields"
-
-export type {
-  BoundaryData,
-  BoundaryStore,
-  BoundaryFieldRecord,
-  BoundaryFieldValueRecord,
-  BoundaryConditionRecord,
-  BoundaryTransitionRecord,
-  BoundaryStateRecord,
-  BoundarySharedBlockRecord,
-  BoundaryBraneRecord,
-  BoundaryScalarValue,
-  BoundaryValue,
-} from "./store.t"
-
+export type { PreparedData } from "./boundary.t"
 export { FieldType } from "./fields"
-
 export { reset, boundary$ }

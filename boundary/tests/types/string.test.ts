@@ -4,7 +4,7 @@
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import {write, update} from "../../boundary"
-import {GPU, matrixStoreReset} from "@boundary/matrix"
+import { GPU, matrix$ } from "@boundary/matrix"
 import { FieldType, type Collapse } from "../../fields/index.t"
 
 describe("matrix - тип STRING (строка) с bun-webgpu", () => {
@@ -13,7 +13,7 @@ describe("matrix - тип STRING (строка) с bun-webgpu", () => {
   })
 
   afterEach(() => {
-    matrixStoreReset()
+    matrix$.reset()
   })
 
   describe("Оператор EQ (равно)", () => {

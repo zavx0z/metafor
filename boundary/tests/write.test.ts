@@ -4,7 +4,7 @@
 import { test, expect, describe, beforeAll, afterEach } from "bun:test"
 import { setupDevice } from "fixture/bunWebGPU"
 import {write, update, } from "../boundary"
-import {GPU, matrixStoreReset} from "@boundary/matrix"
+import { GPU, matrix$ } from "@boundary/matrix"
 import { FieldType, type Collapse } from "../fields/index.t"
 
 describe("write() — возврат начальных состояний", () => {
@@ -13,7 +13,7 @@ describe("write() — возврат начальных состояний", () 
   })
 
   afterEach(() => {
-    matrixStoreReset()
+    matrix$.reset()
   })
 
   test("должен вернуть состояния после инициализации с переходом", async () => {

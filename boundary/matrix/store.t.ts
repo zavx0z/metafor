@@ -22,6 +22,9 @@ export interface MatrixStore {
   /** Выбранная среда выполнения матрицы. */
   mode: MatrixMode
 
-  /** Canonical Boundary store, из которого Matrix читает и в который пишет runtime results. */
-  boundary: BoundaryStore | null
+  /** Ссылка на канонический Boundary store, который Matrix читает и мутирует во время выполнения. */
+  boundary$: BoundaryStore | null
+
+  /** Сбрасывает runtime-состояние Matrix и освобождает активную среду. */
+  reset(): void
 }
