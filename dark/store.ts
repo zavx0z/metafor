@@ -1,11 +1,24 @@
 /**
- * `@metafor/dark/store` — dark-owned store of graph structure.
+ * Source-of-truth домена Dark.
  *
- * `Dark` удерживает здесь сериализуемый `AST`, source path, linked flat
- * representation и path/address lookup API для downstream-доменов.
+ * Хранит графовую структуру AST в виде плоского связанного представления и
+ * предоставляет API для навигации по узлам через path/address lookup.
+ *
+ * Инициализация через `dark$.restore()` в `dark/gravity`, проекции через
+ * `dark/em` для Boundary и Bulk.
+ *
+ * @property linkedFlat {@link DarkStore.linkedFlat | linkedFlat} — плоский список узлов для итерации
+ * @property reset {@link DarkStore.reset | reset} — сброс к пустому AST
+ * @property restore {@link DarkStore.restore | restore} — загрузка нового состояния
+ * @property getNode {@link DarkStore.getNode | getNode} — получение узла по адресу или пути
+ * @property getChildren {@link DarkStore.getChildren | getChildren} — получение дочерних узлов
+ * @property lookup {@link DarkStore.lookup | lookup} — поиск узлов по префиксу пути
+ *
+ * @see {@link DarkStore} — контракт состояния
+ * @see {@link DarkGraphNode} — узел графа
  */
 
-import type { ActorAST } from "@metafor/ast"
+import type { MetaAST } from "@metafor/ast"
 import type {
   DarkGraphLookup,
   DarkGraphNode,
@@ -17,7 +30,7 @@ import type {
   DarkStoreSnapshot,
 } from "./store.t.ts"
 
-const EMPTY_AST: ActorAST = {
+const EMPTY_AST: MetaAST = {
   name: "",
   fields: {},
   superposition: {},
@@ -69,24 +82,6 @@ function classifyNode(value: unknown): DarkGraphNodeKind {
   }
 
   return "value"
-}
-
-function createAddressIndex(nodes: DarkGraphNode[]): Map<string, DarkGraphNode> {
-  return new Map(nodes.map((node) => [node.address, node]))
-}
-
-function normalizeSnapshot(state: DarkStoreInput | DarkStoreSnapshot): DarkStoreSnapshot {
-  if ("nodes" in state) {
-    return {
-      schemaPath: normalizeSchemaPath(state.schemaPath),
-      ast: state.ast,
-      dsl: state.dsl,
-      sourcePath: state.sourcePath,
-      nodes: state.nodes,
-    }
-  }
-
-  return createDarkStoreSnapshot(state)
 }
 
 function resolveLookupPath(target: DarkGraphLookup): DarkGraphPath {
@@ -186,7 +181,7 @@ function visitChildren(
   }
 }
 
-function getTopLevelEntries(ast: ActorAST): Array<[string, unknown]> {
+function getTopLevelEntries(ast: MetaAST): Array<[string, unknown]> {
   const orderedKeys = ["name", "fields", "superposition", "processes", "reactions", "bulk", "mass"] as const
   const entries: Array<[string, unknown]> = []
   const seen = new Set<string>()
@@ -270,7 +265,7 @@ export function parseDarkAddress(address: string): { schemaPath: string; path: D
   return { schemaPath, path }
 }
 
-export function createDarkStoreSnapshot(input: DarkStoreInput): DarkStoreSnapshot {
+export function buildDarkStoreSnapshot(input: DarkStoreInput): DarkStoreSnapshot {
   const schemaPath = normalizeSchemaPath(input.schemaPath)
   const nodes: DarkGraphNode[] = []
   const byAddress = new Map<string, DarkGraphNode>()
@@ -289,56 +284,75 @@ export function createDarkStoreSnapshot(input: DarkStoreInput): DarkStoreSnapsho
   return {
     schemaPath,
     ast: input.ast,
-    dsl: input.dsl,
     sourcePath: input.sourcePath,
     nodes,
   }
 }
 
-export function createDarkStore(state: DarkStoreInput | DarkStoreSnapshot): DarkStore {
-  const store = {} as DarkStore
-  let snapshot = normalizeSnapshot(state)
-  let byAddress = createAddressIndex(snapshot.nodes)
+/**
+ * Синглтон store домена Dark.
+ *
+ * Инициализируется через `restore()`, используется как source-of-truth для
+ * проекций в Boundary и Bulk.
+ */
+export const dark$: DarkStore = {
+  schemaPath: "/",
+  ast: EMPTY_AST,
+  sourcePath: undefined,
+  nodes: [],
+  linkedFlat: [],
 
-  Object.assign(store, snapshot, {
-    linkedFlat: snapshot.nodes,
-    reset() {
-      store.restore({
-        schemaPath: store.schemaPath,
-        ast: EMPTY_AST,
-        dsl: store.dsl,
-        sourcePath: store.sourcePath,
-      })
-    },
-    restore(nextState: DarkStoreInput | DarkStoreSnapshot) {
-      snapshot = normalizeSnapshot(nextState)
-      byAddress = createAddressIndex(snapshot.nodes)
-      Object.assign(store, snapshot, {
-        linkedFlat: snapshot.nodes,
-      })
-    },
-    getNode(target: DarkGraphLookup): DarkGraphNode | undefined {
-      const path = resolveLookupPath(target)
-      return byAddress.get(createDarkAddress(store.schemaPath, path))
-    },
-    getChildren(target: DarkGraphLookup): DarkGraphNode[] {
-      return (
-        store
-          .getNode(target)
-          ?.childAddresses.map((address) => byAddress.get(address))
-          .filter((node): node is DarkGraphNode => Boolean(node)) ?? []
-      )
-    },
-    lookup(target: DarkGraphLookup): DarkGraphNode[] {
-      const path = resolveLookupPath(target)
+  reset() {
+    dark$.restore({
+      schemaPath: dark$.schemaPath,
+      ast: EMPTY_AST,
+      sourcePath: dark$.sourcePath,
+    })
+  },
 
-      if (path.length === 0) {
-        return [...store.nodes]
-      }
+  restore(nextState: DarkStoreInput | DarkStoreSnapshot) {
+    const snapshot = "nodes" in nextState
+      ? {
+          schemaPath: normalizeSchemaPath(nextState.schemaPath),
+          ast: nextState.ast,
+          sourcePath: nextState.sourcePath,
+          nodes: nextState.nodes,
+        }
+      : buildDarkStoreSnapshot(nextState)
 
-      return store.nodes.filter((node) => path.every((segment, index) => node.path[index] === segment))
-    },
-  })
+    dark$.schemaPath = snapshot.schemaPath
+    dark$.ast = snapshot.ast
+    dark$.sourcePath = snapshot.sourcePath
+    dark$.nodes = snapshot.nodes
+    dark$.linkedFlat = snapshot.nodes
+  },
 
-  return store
+  getNode(target: DarkGraphLookup): DarkGraphNode | undefined {
+    const path = resolveLookupPath(target)
+    const address = createDarkAddress(dark$.schemaPath, path)
+    return dark$.nodes.find((node) => node.address === address)
+  },
+
+  getChildren(target: DarkGraphLookup): DarkGraphNode[] {
+    const node = dark$.getNode(target)
+    if (!node) {
+      return []
+    }
+
+    return node.childAddresses
+      .map((address) => dark$.nodes.find((n) => n.address === address))
+      .filter((node): node is DarkGraphNode => Boolean(node))
+  },
+
+  lookup(target: DarkGraphLookup): DarkGraphNode[] {
+    const path = resolveLookupPath(target)
+
+    if (path.length === 0) {
+      return [...dark$.nodes]
+    }
+
+    return dark$.nodes.filter((node) =>
+      path.every((segment, index) => node.path[index] === segment)
+    )
+  },
 }

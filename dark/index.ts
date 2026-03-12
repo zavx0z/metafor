@@ -12,16 +12,16 @@
  * @packageDocumentation
  */
 
+export { dark$ } from "./store"
+export { load } from "./dark"
 export {
   createDarkAddress,
   createDarkPath,
-  createDarkStore,
-  createDarkStoreSnapshot,
   formatDarkPath,
   parseDarkAddress,
   parseDarkPath,
+  buildDarkStoreSnapshot,
 } from "./store"
-export { createDarkGraph, loadDarkGraph } from "./gravity"
 export { projectDarkGraph, projectDarkGraphToBoundary, projectDarkGraphToBulk } from "./em"
 export type {
   DarkGraphLookup,

@@ -1,9 +1,9 @@
 /**
  * @packageDocumentation
- * Модуль для преобразования MetaFor DSL в формат JSON для monad.
+ * Модуль для преобразования MetaFor DSL в MetaAST.
  *
  * Преобразует декларативное описание атома (fields, superposition, processes, reactions, bulk, mass)
- * в промежуточный JSON-формат, который используется для инициализации monad и boundary.
+ * в Meta-конфигурацию (MetaAST), которая используется для инициализации Dark store.
  */
 
 import type { ParsedProcess, ParsedDestroy, ReactionsSchema } from "@metafor/dsl"
@@ -12,7 +12,7 @@ import type {
   ArrayElementType,
   MetaJson,
   ViewJson,
-  ActorAST,
+  MetaAST,
   FieldDefinitionJson,
   ReactionDefinitionJson,
 } from "./ast.t"
@@ -93,7 +93,7 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
  * // => { name: "git", fields: {...}, superposition: {...}, processes: {...}, bulk: {...}, mass: {...} }
  * ```
  */
-export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): ActorAST {
+export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): MetaAST {
   const inputFields = meta?.fields
   if (!inputFields || typeof inputFields !== "object") {
     throw new Error("fields не найден или не является объектом")

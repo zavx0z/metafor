@@ -9,7 +9,7 @@ export type {
   ArrayElementType,
   MetaJson,
   ViewJson,
-  ActorAST,
+  MetaAST,
   FieldDefinitionJson,
   ReactionDefinitionJson,
 } from "./ast.t.ts"

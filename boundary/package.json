@@ -12,11 +12,5 @@
     "@boundary/gravity": "workspace:*",
     "@boundary/strong": "workspace:*",
     "@boundary/weak": "workspace:*"
-  },
-  "devDependencies": {
-    "@types/bun": "latest"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
   }
 }

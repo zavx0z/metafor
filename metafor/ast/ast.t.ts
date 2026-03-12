@@ -8,7 +8,7 @@ import type { NodeType, ReactionsSchema } from "@metafor/dsl"
 
 /**
  * Исходный объект MetaFor, полученный из chain API.
- * Содержит все компоненты декларации атома.
+ * Содержит все компоненты мета-конфигурации.
  */
 export type MetaLike = Record<string, any> & {
   /** Схема полей с типами и значениями по умолчанию */
@@ -80,7 +80,7 @@ export interface MetaJson {
 }
 
 /**
- * Представление атома в JSON формате.
+ * Представление мета-конфигурации в JSON формате.
  * Содержит сериализованные gravity и view компоненты.
  */
 export interface ViewJson {
@@ -91,9 +91,10 @@ export interface ViewJson {
 }
 
 /**
- * Формат JSON для monad.
+ * Meta-конфигурация в формате JSON.
  *
- * Содержит все необходимые данные для инициализации monad и boundary:
+ * Это не сам атом, а его декларация — Meta для создания атома.
+ * Содержит все необходимые данные для инициализации:
  * - **fields** — схема полей с семантикой для ИИ (type, required, label, default)
  * - **superposition** — граф переходов состояний
  * - **processes** — процессы с обработчиками (action/success/error)
@@ -144,8 +145,8 @@ export interface ViewJson {
  * }
  * ```
  */
-export interface ActorAST {
-  /** Название атома (из MetaFor("name")) */
+export interface MetaAST {
+  /** Название мета-конфигурации (из MetaFor("name")) */
   name: string
   /**
    * Схема полей с семантикой для ИИ.
