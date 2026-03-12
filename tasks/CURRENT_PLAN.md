@@ -1,6 +1,6 @@
 # Минимальный план
 
-Документ опирается на `PHILOSOPHY.md`, `ARCHITECTURE.md` и `ONTOLOGY.md`.
+Документ опирается на `docs/PHILOSOPHY.md`, `docs/ARCHITECTURE.md` и `docs/ONTOLOGY.md`.
 Он не повторяет их, а фиксирует только минимальный рабочий порядок действий.
 
 ## Цель

@@ -1,7 +1,7 @@
 # Boundary Refactor
 
 Документ разворачивает [CURRENT_PLAN.md](/Users/zavx0z/zavx0z/metafor/tasks/CURRENT_PLAN.md) только для домена `Boundary`.
-Он опирается на [ARCHITECTURE.md](/Users/zavx0z/zavx0z/metafor/ARCHITECTURE.md), [ONTOLOGY.md](/Users/zavx0z/zavx0z/metafor/ONTOLOGY.md) и правила из `rules/`.
+Он опирается на [docs/ARCHITECTURE.md](/Users/zavx0z/zavx0z/metafor/docs/ARCHITECTURE.md), [docs/ONTOLOGY.md](/Users/zavx0z/zavx0z/metafor/docs/ONTOLOGY.md) и правила из `rules/`.
 
 ## Цель
 

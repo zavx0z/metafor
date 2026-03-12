@@ -6,7 +6,6 @@ __snapshots__
 .idea
 .DS_Store
 public
-docs
 .firebase/*
 *.sqlite*
 *.db*

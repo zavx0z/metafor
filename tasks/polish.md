@@ -9,7 +9,7 @@ The documentation has already reached a strong near-final state:
 - the three-domain model (`Dark`, `Boundary`, `Bulk`) is established
 - the philosophical and ontological framing is much cleaner
 - the architecture no longer overstates `Dark` as a mandatory runtime stage
-- a dedicated `PROTOCOL.md` has been introduced
+- a dedicated `docs/PROTOCOL.md` has been introduced
 
 However, the protocol layer and the domain-force descriptions still need final alignment.
 
@@ -28,9 +28,9 @@ The final intended distinctions that must be preserved and clarified are:
 The current documentation is already close, but still risks confusion because protocol descriptions are spread across:
 
 - `README.md`
-- `ONTOLOGY.md`
-- `ARCHITECTURE.md`
-- `PROTOCOL.md`
+- `docs/ONTOLOGY.md`
+- `docs/ARCHITECTURE.md`
+- `docs/PROTOCOL.md`
 
 Some passages now state protocol relationships in slightly different ways, and those differences need to be resolved into one final wording model.
 
@@ -39,9 +39,9 @@ Some passages now state protocol relationships in slightly different ways, and t
 1. Perform a final consistency pass across the four core documentation files:
 
    - `README.md`
-   - `ONTOLOGY.md`
-   - `ARCHITECTURE.md`
-   - `PROTOCOL.md`
+   - `docs/ONTOLOGY.md`
+   - `docs/ARCHITECTURE.md`
+   - `docs/PROTOCOL.md`
 
    Ensure these documents describe the same protocol worldview and do not leave competing interpretations.
 
@@ -122,7 +122,7 @@ Some passages now state protocol relationships in slightly different ways, and t
    - `Gluon` may describe a strong-channel change mechanism
    - but `Boundary × Strong` still owns compact canonical form and deduplicated structure
 
-8. Tighten the relation between forces, channels, and entities in `ONTOLOGY.md`.
+8. Tighten the relation between forces, channels, and entities in `docs/ONTOLOGY.md`.
 
    Review the sections for:
 
@@ -152,22 +152,22 @@ Some passages now state protocol relationships in slightly different ways, and t
 
    without ambiguity.
 
-9. Tighten the same distinction in `ARCHITECTURE.md`.
+9. Tighten the same distinction in `docs/ARCHITECTURE.md`.
 
    Review all sections where protocol language appears and ensure architecture does not accidentally become a physics glossary.
 
-   `ARCHITECTURE.md` must remain architectural.
+   `docs/ARCHITECTURE.md` must remain architectural.
 
    That means:
    - architecture may reference `Photon`, `Graviton`, `Gluon`, and `Impulse`
    - but only in order to explain architectural responsibility and domain-crossing logic
-   - detailed channel semantics should remain concentrated in `PROTOCOL.md`
+   - detailed channel semantics should remain concentrated in `docs/PROTOCOL.md`
 
-   Remove or shorten any protocol detail that belongs only in `PROTOCOL.md` if it overloads architectural readability.
+   Remove or shorten any protocol detail that belongs only in `docs/PROTOCOL.md` if it overloads architectural readability.
 
-10. Tighten the scope of `PROTOCOL.md`.
+10. Tighten the scope of `docs/PROTOCOL.md`.
 
-    Ensure `PROTOCOL.md` is clearly the detailed source for:
+    Ensure `docs/PROTOCOL.md` is clearly the detailed source for:
 
     - force channels
     - carrier subtypes
@@ -178,8 +178,8 @@ Some passages now state protocol relationships in slightly different ways, and t
     But also ensure it does not contradict or outgrow ontology and architecture.
 
     In practice:
-    - `PROTOCOL.md` should deepen the system
-    - it should not redefine the ontology into something incompatible with `ONTOLOGY.md`
+    - `docs/PROTOCOL.md` should deepen the system
+    - it should not redefine the ontology into something incompatible with `docs/ONTOLOGY.md`
     - it should not silently change architectural contracts
 
 11. Re-check `README.md` as the entry point.
@@ -225,8 +225,8 @@ Some passages now state protocol relationships in slightly different ways, and t
 - Do not collapse all channels back into a single universal `Electromagnetism` channel.
 - Do not erase `Gluon` unless the repository documentation already clearly justifies such a decision.
 - Do not weaken the role of `Boundary × Strong` in canonicalization, deduplication, interning, and compaction.
-- Do not let `ARCHITECTURE.md` become a protocol-only document.
-- Do not let `PROTOCOL.md` silently redefine ontology or architecture.
+- Do not let `docs/ARCHITECTURE.md` become a protocol-only document.
+- Do not let `docs/PROTOCOL.md` silently redefine ontology or architecture.
 - Do not introduce new domains, forces, or protocol entities in this task.
 - Keep the style precise, declarative, and compatible with the current documentation tone.
 
@@ -242,12 +242,12 @@ Task instructions and technical sections are written in English, but any direct 
 
 After the task is completed:
 
-- the documentation reads as one coherent final system across `README.md`, `ONTOLOGY.md`, `ARCHITECTURE.md`, and `PROTOCOL.md`
+- the documentation reads as one coherent final system across `README.md`, `docs/ONTOLOGY.md`, `docs/ARCHITECTURE.md`, and `docs/PROTOCOL.md`
 - `Impulse` is consistently described as content/composition of change, not as a carrier
 - `Electromagnetism` is consistently described as the force of observable transfer/spread
 - `Boson` is consistently described as the general carrier/protocol type
 - `Photon`, `Graviton`, and `Gluon` are consistently described as channel subtypes with non-overlapping roles
 - `Graviton` clearly belongs to hidden/internal organization rather than visible transport metaphor
 - `Boundary × Strong` still clearly owns deduplication and compact canonical form
-- protocol detail is concentrated in `PROTOCOL.md` without breaking ontology or architecture
+- protocol detail is concentrated in `docs/PROTOCOL.md` without breaking ontology or architecture
 - the MetaFor documentation reaches a stable near-final wording state suitable for further architectural work
