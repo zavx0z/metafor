@@ -1,21 +1,36 @@
 /**
- * `dark/` — минимальная явная проекция домена скрытой структурной непрерывности.
+ * `@metafor/dark` — owner graph/store/path/address domain.
  *
- * Здесь не должно появляться:
+ * Пакет удерживает `AST`, store of graph structure, linked flat
+ * representation и downstream projection contracts для `Boundary` и `Bulk`.
+ *
+ * Здесь не появляются:
  * - boundary canonicalization и deduplication
- * - boundary runtime transition
- * - bulk runtime execution
- *
- * Здесь должны закрепляться:
- * - schema continuity
- * - fixed states модели
- * - structured changes
- * - lineage и projection contracts
- *
- * Силовые пакеты `dark/*` существуют как структурный каркас домена,
- * но пока не содержат функциональной реализации.
+ * - boundary transition runtime
+ * - bulk process execution
  *
  * @packageDocumentation
  */
 
-export {}
+export {
+  createDarkAddress,
+  createDarkPath,
+  createDarkStore,
+  createDarkStoreSnapshot,
+  formatDarkPath,
+  parseDarkAddress,
+  parseDarkPath,
+} from "./store"
+export { createDarkGraph, loadDarkGraph } from "./gravity"
+export { projectDarkGraph, projectDarkGraphToBoundary, projectDarkGraphToBulk } from "./em"
+export type {
+  DarkGraphLookup,
+  DarkGraphNode,
+  DarkGraphNodeKind,
+  DarkGraphPath,
+  DarkGraphSection,
+  DarkStore,
+  DarkStoreInput,
+  DarkStoreSnapshot,
+} from "./store.t.ts"
+export type { DarkConsumer, DarkDownstreamProjection } from "./em"

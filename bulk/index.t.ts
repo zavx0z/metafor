@@ -4,6 +4,7 @@
  * @packageDocumentation
  */
 
+export type { BulkGraphContract } from "./gravity/load"
 export type { FieldDefinition, FieldsDefinition } from "./strong/field.t"
 export type {
   GravityRuntimeBinding,

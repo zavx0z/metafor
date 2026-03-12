@@ -1,8 +1,9 @@
 /**
- * `@dark/weak` — силовой пакет hidden evolution домена Dark.
+ * `@dark/weak` — structural transformation path домена Dark.
  *
- * Этот пакет зарезервирован для structured changes, patch-like evolution
- * и переходов между версиями модели, но пока не содержит функциональной реализации.
+ * В рамках текущего среза `Weak` ещё не исполняет реконфигурацию графа,
+ * но ownership transition preparation уже закреплён за `Dark`, а не за
+ * downstream-доменами.
  */
 
 export {}

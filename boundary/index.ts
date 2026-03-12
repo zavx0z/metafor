@@ -12,6 +12,9 @@
  * - `reset()` — сброс состояния
  * - `FieldType` — типы полей
  *
+ * `Boundary` не владеет source graph loading и primary addressing:
+ * эти обязанности закреплены за `@metafor/dark`.
+ *
  * @example
  * ```typescript
  * import { write, update, unlock, FieldType } from "@boundary"

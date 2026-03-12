@@ -11,11 +11,12 @@
  *
  * ## Архитектура
  *
- * Boundary раскладывает входную структуру через `@boundary/gravity`, собирает
- * канонический store через `@boundary/strong` и оркестрирует вычисление
- * перехода через `@boundary/weak`.
+ * Boundary раскладывает уже подготовленную boundary-форму через
+ * `@boundary/gravity`, собирает канонический store через `@boundary/strong`
+ * и оркестрирует вычисление перехода через `@boundary/weak`.
  *
  * Boundary НЕ содержит:
+ * - source graph loading и primary addressing — это `@metafor/dark`
  * - раскладку структуры и проверку входа — это `@boundary/gravity`
  * - канонизацию и сборку store-формы — это `@boundary/strong`
  * - вычисление перехода и backend-адаптеры — это `@boundary/weak`

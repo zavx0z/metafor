@@ -470,8 +470,8 @@ AST отвечает только за сериализуемый контрак
 
 1. `boundary/boundary.ts` остаётся оркестратором канонической записи и перехода состояния.
 2. `boundary/strong/snapshot/*` остаётся boundary-специфичным snapshot/dump слоем, а не автоматически переносится в `Dark`.
-3. `bulk/gravity/load.ts` как прямой загрузчик `meta.json` читается как временный shortcut, а не как финальный владелец скрытого происхождения структуры.
-4. Первые явные ownership-группы `Dark` — schema continuity, fixed states модели, structured changes, lineage и projection contracts в `Boundary` и `Bulk`.
+3. `dark/gravity/index.ts` временно использует `meta.json` как bootstrap source, а `bulk/gravity/load.ts` уже читает dark-owned contract вместо прямого source ownership.
+4. Первые явные ownership-группы `Dark` — store of graph structure, path/address lookup, linked flat representation и projection contracts в `Boundary` и `Bulk`.
 
 ### Bulk <-> Boundary
 
@@ -480,10 +480,10 @@ AST отвечает только за сериализуемый контрак
 
 Архитектурный контракт между ними такой:
 
-1. `Bulk` самостоятельно загружает свой `DSL/AST`-уровень.
-2. `Boundary` самостоятельно загружает свой `DSL/AST`-уровень.
+1. `Bulk` самостоятельно потребляет свой dark-provided `DSL/AST` contract.
+2. `Boundary` самостоятельно потребляет свой dark-provided structural contract.
 3. Общий онтологический источник в `Dark` не означает общего владения данными во время исполнения.
-4. `DSL` и `AST` не передаются из одного домена в другой как общее владение в исполнении.
+4. `DSL` и `AST` не передаются из одного downstream-домена в другой как общее владение в исполнении.
 5. Пересечение границы между `Bulk` и `Boundary` проходит через силовой канал, соответствующий характеру изменения.
 6. `Photon` переносит `State`, `Gluon` изменяет значения `Field`, `Graviton` удерживает скрытый протокол организации, `W boson` проводит активный переход, `Z boson` удерживает нейтральную медицию перехода; `Impulse` задаёт содержимое такого переноса.
 7. `Boundary` не исполняет процессы домена `Bulk`.
@@ -549,11 +549,11 @@ Lock — это не отдельный домен и не отдельная с
 metafor/dsl/      # декларация
 metafor/ast/      # сериализуемый контракт
 
-dark/             # домен Dark и скрытая непрерывность
-  gravity/        # скрытая иерархия, schema graph, latent organization
-  strong/         # continuity, fixed states, lineage consistency
-  weak/           # structured change, patch-like evolution
-  em/             # projection contracts и сигнальная проекция
+dark/             # домен Dark и graph/store/path/address ownership
+  gravity/        # schema loading, path formation, graph flattening
+  strong/         # graph cohesion, relation retention, linked flat form
+  weak/           # structural transformation path, transition preparation
+  em/             # projection/export contracts
 
 boundary/         # домен Boundary
   gravity/        # геометрия, индексное пространство, раскладка
@@ -576,7 +576,7 @@ bulk/             # домен Bulk в кодовой проекции
 4. `Dark` не поглощает дедупликацию из `Boundary × Strong`,
 5. `Dark` не поглощает исполнение из `Bulk`.
 
-В текущей минимальной файловой проекции `dark/` и его силовые пакеты удерживают скрытую структуру, историю схем, зафиксированные состояния модели, structured changes и historical continuity на уровне package-каркаса.
+В текущей файловой проекции `dark/` уже удерживает `dark/store`, bootstrap graph loading, path/address lookup и downstream projection contracts.
 Каноникализация границы и исполнение домена `Bulk` в неё не входят.
 
 Конкретные технические имена и оперативное планирование не описываются здесь.

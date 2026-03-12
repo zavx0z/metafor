@@ -1,9 +1,17 @@
+import { loadDarkGraph, projectDarkGraphToBulk } from "../../dark"
+import type { DarkDownstreamProjection } from "../../dark"
+
+export type BulkGraphContract = DarkDownstreamProjection
+
+export async function loadBulkGraph(metaPath: string): Promise<BulkGraphContract> {
+  const graph = await loadDarkGraph(metaPath)
+  return projectDarkGraphToBulk(graph)
+}
+
+/**
+ * @deprecated `Bulk` больше не владеет первичным DSL/meta loading.
+ * Используй `loadBulkGraph()` и читай `contract.ast`.
+ */
 export async function loadDSL(metaPath: string) {
-  const path = metaPath + "/meta.json"
-  try {
-    const json = await fetch(path).then((r) => r.json())
-    return json
-  } catch (e) {
-    console.error(e)
-  }
+  return (await loadBulkGraph(metaPath)).ast
 }

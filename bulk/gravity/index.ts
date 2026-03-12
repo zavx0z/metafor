@@ -1,5 +1,6 @@
 /**
- * `@bulk/gravity` — загрузка bulk-описания и модули иерархии.
+ * `@bulk/gravity` — manifested topology поверх dark-owned graph contracts.
  */
 
-export { loadDSL } from "./load"
+export { loadBulkGraph, loadDSL } from "./load"
+export type { BulkGraphContract } from "./load"

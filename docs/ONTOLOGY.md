@@ -372,7 +372,7 @@ Index — это геометрический адрес времени испо
 Она является только технической проекцией.
 
 Онтологическая реальность `Dark` не зависит от полноты его файловой проекции.
-Минимальная явная проекция `dark/` допустима, если она удерживает hidden continuity, lineage и structured changes и не подменяет `Boundary` или `Bulk`.
+Явная проекция `dark/` должна удерживать graph/store/path/address ownership, `DSL/AST` continuity и downstream contracts, не подменяя `Boundary` или `Bulk`.
 
 Онтология MetaFor должна описывать:
 

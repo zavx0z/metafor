@@ -1,8 +1,9 @@
 /**
- * `@dark/strong` — силовой пакет continuity и hidden consistency домена Dark.
+ * `@dark/strong` — graph cohesion и relation retention домена Dark.
  *
- * Этот пакет зарезервирован для fixed states, lineage consistency и
- * hidden structural memory, но пока не содержит функциональной реализации.
+ * В минимальном срезе linked flat representation уже удерживается в
+ * `dark/store`, поэтому `Strong` пока остаётся тонкой силовой проекцией
+ * без отдельного runtime.
  */
 
 export {}

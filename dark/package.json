@@ -4,14 +4,16 @@
   "type": "module",
   "main": "index.ts",
   "exports": {
-    ".": "./index.ts"
+    ".": "./index.ts",
+    "./store": "./store.ts"
   },
   "private": true,
   "dependencies": {
     "@dark/gravity": "workspace:*",
     "@dark/strong": "workspace:*",
     "@dark/weak": "workspace:*",
-    "@dark/em": "workspace:*"
+    "@dark/em": "workspace:*",
+    "@metafor/ast": "workspace:*"
   },
   "peerDependencies": {
     "typescript": "^5"
