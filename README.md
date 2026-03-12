@@ -14,10 +14,10 @@ MetaFor — это пространство документов и кода, в
 
 Этот репозиторий читается через три основных документа и отдельный протокольный слой:
 
-- [docs/PHILOSOPHY.md](./docs/PHILOSOPHY.md) — философский смысл скрытого субстрата, границы фиксации и проявленного объёма,
-- [docs/ONTOLOGY.md](./docs/ONTOLOGY.md) — онтологическое описание `Dark`, `Boundary` и `Bulk`,
-- [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) — архитектурная проекция трёхдоменной онтологии,
-- [docs/PROTOCOL.md](./docs/PROTOCOL.md) — протокольный слой MetaFor: `Boson`, `Photon`, `Gluon`, `Graviton`, `W boson`, `Z boson`, `Impulse` и детальные соответствия.
+- [PHILOSOPHY.md](./docs/PHILOSOPHY.md) — философский смысл скрытого субстрата, границы фиксации и проявленного объёма,
+- [ONTOLOGY.md](./docs/ONTOLOGY.md) — онтологическое описание `Dark`, `Boundary` и `Bulk`,
+- [ARCHITECTURE.md](./docs/ARCHITECTURE.md) — архитектурная проекция трёхдоменной онтологии,
+- [PROTOCOL.md](./docs/PROTOCOL.md) — корневой протокольный слой MetaFor: `Boson`, `Impulse`, симметрия сил и навигация к детальным документам по `Gravity`, `Electromagnetism`, `Strong` и `Weak`.
 
 ## Как читать проект
 
