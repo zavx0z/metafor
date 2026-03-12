@@ -1,7 +1,7 @@
 # Минимальный план
 
-Документ опирается на `docs/PHILOSOPHY.md`, `docs/ARCHITECTURE.md` и `docs/ONTOLOGY.md`.
-Он не повторяет их, а фиксирует только минимальный рабочий порядок действий.
+Документ опирается на `docs/PHILOSOPHY.md`, `docs/ARCHITECTURE.md`, `docs/ONTOLOGY.md` и протокольные документы из `docs/proto/*`.
+Он фиксирует активный рабочий порядок миграции и явное владение между доменами.
 
 ## Цель
 
@@ -14,163 +14,193 @@ Dark -> Bulk
 Boundary -> Electromagnetism -> Bulk
 ```
 
-Где:
+В этом чтении:
 
-1. `DSL` задаёт декларацию, а `AST` фиксирует сериализуемый контракт.
-2. `Dark` владеет скрытой структурной непрерывностью: организацией схем, зафиксированными состояниями модели, структурированными изменениями, исторической линией и контрактами проекции в `Boundary` и `Bulk`.
-3. `Boundary` остаётся доменом уплощения, каноникализации, дедупликации и вычисления перехода состояния.
-4. `Bulk` остаётся доменом проявленной топологии, binding и исполнения процесса.
-5. Строка `Boundary -> Electromagnetism -> Bulk` описывает только текущий минимальный runtime-handoff вычисленного изменения. Она не делает `Electromagnetism` владельцем скрытой непрерывности и не отменяет общего основания в `Dark`.
+1. `DSL` задаёт декларацию.
+2. `AST` задаёт сериализуемый технический контракт.
+3. `Dark` является владельцем структурного графа как скрытого субстрата системы.
+4. `Boundary` и `Bulk` являются downstream-доменами, которые работают поверх подготовленной `Dark`-структуры.
+5. Строка `Boundary -> Electromagnetism -> Bulk` описывает только runtime-handoff уже подготовленного изменения и не отменяет общего источника в `Dark`.
 
-## Что считаем минимальным рабочим контуром
-
-1. `Dark`, `Boundary` и `Bulk` имеют разное владение и не подменяют друг друга.
-2. `Dark` не становится наддоменным runtime-оркестратором.
-3. `Boundary` не поглощает скрытую историю схем, а `Bulk` не становится местом хранения исторической непрерывности.
-4. `Boundary × Strong` сохраняет за собой каноникализацию, интернирование и дедупликацию.
-5. `Boundary × Weak` сохраняет за собой вычисление перехода состояния.
-6. `Bulk × Weak` сохраняет за собой исполнение процесса.
-7. `UUID` удерживает непрерывность одной сущности между `Dark`, `Boundary` и `Bulk`, а runtime `index` остаётся локальной геометрией исполнения.
-8. `Boundary` и `Bulk` могут иметь собственные загрузчики и оркестраторы, но их скрытое основание больше нельзя описывать как отсутствующее.
-
-## Карта ответственности по текущему состоянию репозитория
-
-### Boundary
-
-В `Boundary` должны оставаться:
-
-1. `boundary/boundary.ts` как доменный оркестратор записи канонической формы и вычисления перехода.
-2. `boundary/gravity/*` как flattening, валидация и адресуемая геометрия границы.
-3. `boundary/strong/*` как каноническая store-форма, дедупликация, string interning, entanglement и boundary-специфичный snapshot/dump.
-4. `boundary/weak/*` как runtime перехода состояния, включая CPU/GPU backend-адаптеры.
-5. `boundary/em/*` как boundary-проекция сериализации и переноса boundary-снимка.
-
-Важно:
-
-1. `boundary/strong/snapshot/*` остаётся boundary-снимком канонической формы и не превращается автоматически в владение `Dark`.
-2. deduplication не переносится из `Boundary × Strong` в `Dark`.
-
-### Bulk
-
-В `Bulk` должны оставаться:
-
-1. `bulk/gravity/store/*` как проявленная иерархия акторов, order и topology runtime-объёма.
-2. `bulk/strong/*` как binding и проявленная связность.
-3. `bulk/weak/*` как реестр intentions, загрузка действий и исполнение процесса.
-4. `bulk/em/*` как bulk-сторона доставки и сигнального разворачивания.
-
-Важно:
-
-1. `bulk/gravity/load.ts` в текущем состоянии ещё читает `meta.json` напрямую. Это допустимый временный shortcut, но больше не конечная архитектурная модель.
-2. исполнение процесса не переносится из `Bulk × Weak` в `Dark`.
+## Базовое владение доменов
 
 ### Dark
 
-`Dark` теперь должен владеть следующими группами ответственности:
+`Dark` является владельцем структурного graph domain.
 
-1. continuity схем и организацией семейства схем,
-2. зафиксированными состояниями модели как скрытой непрерывностью, а не как boundary-runtime snapshot,
-3. структурированными изменениями и patch-like эволюцией модели,
-4. historical continuity, lineage и version graph,
-5. скрытой иерархией и latent organization,
-6. контрактами проекции из скрытой непрерывности в `Boundary` и `Bulk`.
+`Dark` владеет:
 
-`Dark` не должен владеть:
+1. загрузкой схемы по главному schema path,
+2. удержанием `DSL`, `AST` и AST-schema на dark-стороне как входа в структурный граф,
+3. хранением графовой структуры,
+4. graph API,
+5. формированием путей,
+6. первичным addressing графа,
+7. graph flattening в плоскую связанную форму с сохранением отношений,
+8. force-level preparation структуры до domain projection,
+9. скрытой организацией графа как источником для последующего `Boundary`- и `Bulk`-потребления.
 
-1. flattening и canonical geometry,
-2. boundary deduplication и string interning,
-3. вычислением transition runtime-состояния,
-4. bulk topology runtime-акторов,
-5. исполнением процесса,
-6. прямой заменой `DSL` или `AST`.
+`Dark` не должен:
 
-## Что становится недействительным после введения `Dark`
+1. поглощать boundary canonicalization,
+2. поглощать boundary deduplication,
+3. подменять boundary transition runtime,
+4. подменять bulk manifestation runtime,
+5. подменять bulk process execution,
+6. в рамках этой задачи превращаться в полный persistence/history runtime.
 
-1. Недействительно описание проекта как минимального двухдоменного контура `Boundary/Bulk`.
-2. Недействительно предположение, что прямой `meta.json -> bulk/gravity/load.ts` исчерпывает происхождение проявленной структуры.
-3. Недействительно смешение model fixed states из `Dark` с boundary-специфичным snapshot для восстановления runtime.
-4. Недействительно представление скрытой иерархии как побочного эффекта только bulk-дерева акторов.
-5. Недействительно чтение `Boundary` как места происхождения скрытой структуры.
+`Dark` больше нельзя описывать как только continuity/history/projection слой.
+В активном плане он читается как владелец graph substrate.
 
-## Первый срез `Dark`
+### Boundary
 
-Ниже перечислены группы, которые нужно закреплять за `Dark` первыми, не делая широкого runtime-рефакторинга.
+`Boundary` больше не является владельцем source graph parsing или primary addressing.
 
-1. schema continuity / schema organization
-   Сейчас: существует на уровне `DSL/AST` и документации, но не имеет явной доменной опоры между контрактом и проекциями.
-   Закрепление: `Dark` становится владельцем непрерывности схем и их семейства версий.
-2. snapshots / fixed states
-   Сейчас: есть boundary-runtime snapshot в `boundary/strong/snapshot/*`.
-   Закрепление: `Dark` должен получить владение model fixed states и их исторической связностью, не забирая boundary dump/snapshot.
-3. structured changes / patch-like evolution
-   Сейчас: как архитектурная идея описаны, но не выделены в активном кодовом контуре.
-   Закрепление: `Dark` становится местом хранения и чтения структурированных изменений между версиями модели.
-4. historical continuity / version lineage
-   Сейчас: lineage описан документами, но отсутствует как явная рабочая проекция.
-   Закрепление: `Dark` становится владельцем version graph и линии преемственности.
-5. hidden hierarchy / latent organization
-   Сейчас: ближайшая явная иерархия находится в `bulk/gravity/store/*`, но это уже проявленная runtime-структура.
-   Закрепление: `Dark` становится владельцем скрытой организации, из которой затем выводятся boundary- и bulk-проекции.
-6. domain projection into `Boundary` and `Bulk`
-   Сейчас: оба домена читают свои контракты напрямую, а общий скрытый источник не зафиксирован в рабочем плане.
-   Закрепление: `Dark` задаёт доменные projection contracts, не становясь общим runtime-loader.
+`Boundary` владеет только boundary-specific работой поверх dark-prepared structure:
 
-## Отношение `Dark` к `DSL` и `AST`
+1. boundary flattening в boundary-смысле,
+2. canonicalization,
+3. deduplication,
+4. string interning,
+5. boundary state transition computation,
+6. boundary-specific runtime representation,
+7. boundary-side transport и serialization контракта.
 
-1. `DSL` остаётся декларацией.
-2. `AST` остаётся сериализуемым контрактом.
-3. `Dark` не заменяет `DSL` и `AST`, а читает их как вход в скрытую структурную непрерывность.
-4. `Boundary` и `Bulk` проецируются из `Dark`, но сохраняют собственное runtime-владение и собственные оркестраторы.
-5. Техническая самозагрузка доменов остаётся допустимой, но больше не описывается как архитектурное отсутствие `Dark`.
+### Bulk
 
-## Краткая карта `Dark × Сила`
+`Bulk` больше не является владельцем source graph parsing или primary graph addressing.
 
-1. `Dark × Gravity` — скрытая иерархия, schema graph, latent organization и version geometry.
-2. `Dark × Strong` — continuity памяти, связность fixed states, согласованность семейства схем и скрытая устойчивость identity.
-3. `Dark × Weak` — patch-like evolution, реконфигурация модели и переход между скрытыми версиями.
-4. `Dark × Electromagnetism` — projection contracts и вынесение скрытого изменения в сигнальную форму для `Boundary` и `Bulk`.
-5. Ни один из этих срезов не переносит boundary canonicalization или bulk execution в `Dark`.
+`Bulk` владеет только manifestation/runtime работой поверх dark-prepared structure:
 
-## Этап 1. Зафиксировать явное владение `Dark`
+1. manifested topology и runtime projection,
+2. binding,
+3. entanglement projection,
+4. intentions и action loading,
+5. process execution,
+6. bulk-side delivery и signal unfolding.
 
-1. Убрать из плана и обзорной документации двухдоменную формулу как активную цель.
-2. Зафиксировать `Dark` как явный рабочий домен со скрытой непрерывностью и projection contracts.
-3. Добавить минимальную репозиторную проекцию `dark/` с силовыми пакетами как структурным каркасом, но без функционального дублирования `Boundary` и `Bulk`.
-4. Отделить в описании model fixed states от boundary-runtime snapshots.
+## Два разных flattening
 
-## Этап 2. Сохранить активные границы `Boundary`
+Эти два значения нельзя смешивать:
 
-1. Оставить `boundary/boundary.ts` доменным оркестратором канонической записи и перехода.
-2. Оставить flattening в `Boundary × Gravity`.
-3. Оставить deduplication, string interning и canonical store в `Boundary × Strong`.
-4. Оставить weak runtime и backend-адаптеры в `Boundary × Weak`.
+1. `Dark` graph flattening
+   Это подготовка source graph в плоскую связанную структуру с сохранёнными отношениями, путями и адресами.
+2. `Boundary` flattening
+   Это boundary-specific геометрическая и каноническая подготовка уже dark-owned структуры для boundary-space, индексов и детерминированного вычисления.
 
-## Этап 3. Сохранить активные границы `Bulk`
+`Boundary` не должен считаться владельцем dark graph flattening.
 
-1. Оставить topology, actor hierarchy и order в `Bulk × Gravity`.
-2. Оставить binding и entanglement projection в `Bulk × Strong`.
-3. Оставить intentions, загрузку action-модулей и execution в `Bulk × Weak`.
-4. Зафиксировать прямую загрузку `meta.json` в bulk как временный путь, который позднее должен опираться на явный `Dark`-контракт.
+## Принцип миграции
 
-## Этап 4. Подготовить первые задачи после фиксации `Dark`
+`old force/ responsibilities -> dark/* domain responsibilities`
 
-1. Выделить dark-owned contract для schema continuity между `DSL/AST` и доменными проекциями.
-2. Развести boundary snapshot и model fixed state как разные типы ответственности.
-3. Подготовить отдельный слой lineage / structured change без переноса в него boundary canonicalization.
-4. Затем уже refactor-ить bulk и boundary bootstrap к чтению из явных dark-projection contracts.
+Предрефакторный пакет `force/` является правильным архитектурным предком нового домена `Dark`.
+Старый force-layer был не только набором каналов и не только `Gravity`.
+Он был распределённым слоем подготовки графа: хранения структуры, удержания связности, переходной подготовки и projection-ready organization.
 
-## Что разблокируется после фиксации `Dark`
+Поэтому дальнейшая миграция читается так:
 
-1. Можно отдельно проектировать lineage и schema evolution без подмены `Boundary` или `Bulk`.
-2. Можно рефакторить `bulk/gravity/load.ts` как consumer скрытой проекции, а не как первичный источник происхождения структуры.
-3. Можно развести model fixed states и boundary-runtime snapshots без спора о доменном владении.
-4. Можно строить будущий `Dark -> Boundary` и `Dark -> Bulk` projection pipeline без возврата к старой двухдоменной схеме.
+1. старые force-level обязанности переносятся не обратно в `Boundary` и не в `Bulk`,
+2. они ре-хомятся в `dark/gravity`, `dark/strong`, `dark/weak` и `dark/em`,
+3. downstream-домены должны потреблять уже dark-prepared graph structure.
+
+## Dark × Force в новой модели
+
+Старый force layer был preparation layer графа, а не "просто channels".
+
+1. `Dark × Gravity` — graph geometry, structure loading, hierarchy, path construction, primary addressing.
+2. `Dark × Strong` — graph cohesion, relation retention, stable linked flat form, удержание связности графа после flattening.
+3. `Dark × Weak` — structural transformation path, graph transition preparation, подготовка реконфигурации графа до доменных runtime-проекций.
+4. `Dark × Electromagnetism` — projection/export contract подготовленного graph state в downstream-домены.
+
+## Что переносим в Dark первым
+
+Первый срез миграции обязан закрепить в `Dark`:
+
+1. storage of graph structure,
+2. path/address API,
+3. graph flattening с сохранением связей,
+4. schema-loading ownership,
+5. force-level structure preparation,
+6. graph API как единый вход для downstream-доменов,
+7. удержание `DSL/AST`-входа по главному schema path.
+
+## Что остаётся вне Dark
+
+Следующие обязанности остаются вне `Dark` и не должны быть перенесены в него:
+
+1. boundary canonicalization,
+2. boundary deduplication,
+3. boundary string interning,
+4. boundary transition runtime,
+5. boundary-specific flattening и boundary-local indexing,
+6. bulk manifestation runtime,
+7. bulk binding и entanglement projection,
+8. bulk process execution.
+
+## Что считаем недействительным
+
+После фиксации этого плана недействительными считаются следующие допущения:
+
+1. `Dark` — это только continuity/lineage/history/projection слой.
+2. `Boundary` владеет первичным source graph parsing.
+3. `Boundary` владеет primary path/address model.
+4. `Bulk` владеет первичным source graph parsing.
+5. `Bulk` владеет primary graph addressing.
+6. boundary-side flattening и dark graph flattening обозначают одну и ту же операцию.
+7. прямое чтение `meta.json` из bulk является целевой архитектурой, а не временным shortcut.
+
+## Согласование активных задач
+
+1. `tasks/BOUNDARY_REFACTOR.md` должен читать `Boundary` как consumer dark-owned graph structure, а не как владельца source graph.
+2. Любая активная задача, которая приписывает `Boundary` или `Bulk` первичное владение графом, адресами или путями, считается устаревшей до переписывания.
+3. Любая активная задача, которая описывает `Dark` только как continuity/history/projection домен, считается устаревшей до переписывания.
+
+## Этап 1. Закрепить Dark как graph/store/address owner
+
+1. Зафиксировать `Dark` как владельца structural graph domain в активном плане и задачах.
+2. Явно отделить graph ownership от boundary- и bulk-runtime ownership.
+3. Зафиксировать загрузку схемы по главному schema path и dark-side holding `DSL/AST` как вход в graph substrate.
+4. Зафиксировать, что graph storage, path formation, addressing и graph API принадлежат `Dark`.
+
+## Этап 2. Перенести pre-refactor force responsibilities в `dark/*`
+
+1. Прочитать старый `force/` как архитектурный ancestor нового `Dark`.
+2. Разнести обязанности подготовки графа по `dark/gravity`, `dark/strong`, `dark/weak` и `dark/em`.
+3. Зафиксировать, что речь идёт не о переносе "каналов", а о переносе слоя graph preparation.
+4. Подготовить дальнейшие кодовые задачи вокруг dark-owned structure, а не вокруг boundary/bulk-owned loaders.
+
+## Этап 3. Перевести Boundary на consumption dark-owned graph structure
+
+1. Считать `Boundary` downstream-domain, работающим поверх dark-prepared linked flat graph.
+2. Оставить в `Boundary` только boundary flattening, canonicalization, deduplication, string interning и transition runtime.
+3. Убрать из задач и описаний предположение о primary parsing/path/address ownership в `Boundary`.
+4. Разводить boundary-local indexing и primary graph addressing как разные уровни ответственности.
+
+## Этап 4. Перевести Bulk на consumption dark-owned graph structure
+
+1. Считать `Bulk` downstream-domain, работающим поверх dark-prepared graph contracts.
+2. Оставить в `Bulk` только manifested topology/runtime projection, binding, entanglement projection, intentions/action loading и process execution.
+3. Убрать из задач и описаний предположение о primary graph ownership в `Bulk`.
+4. Рассматривать прямую загрузку `meta.json` как временный bootstrap, который затем должен быть переподключён к `Dark`.
+
+## Этап 5. Только после этого продолжать deeper runtime refactors
+
+1. Углублять boundary runtime refactor только после фиксации dark-owned graph input.
+2. Углублять bulk runtime refactor только после фиксации dark-owned graph input.
+3. Отдельно проектировать persistence/history runtime уже после закрепления graph/store/address ownership.
+4. Не начинать глубокий runtime-рефакторинг с сохранением старой модели владения графом.
+
+## Граница реализации следующего шага
+
+Этот шаг обновляет только план и task definitions.
+Полная code migration, перенос старых force-responsibilities и переподключение runtime-доменов выполняются после этого и должны следовать данному плану.
 
 ## Критерий завершения
 
-1. Активный план больше не описывает архитектуру как `{ DSL -> AST -> Bulk, DSL -> AST -> Boundary }`.
-2. `Dark` явно признан рабочим архитектурным доменом, а не только онтологической абстракцией.
-3. Ответственности `Dark`, `Boundary` и `Bulk` разведены без дублирования владения.
-4. deduplication остаётся в `Boundary × Strong`.
-5. исполнение процесса остаётся в `Bulk × Weak`.
-6. Следующие refactoring-задачи могут исходить из явной модели `Dark × Boundary × Bulk`.
+1. `Dark` описан как владелец graph storage, path formation, addressing и force-level graph preparation.
+2. предрефакторный `force/` явно признан источником миграции для `dark/*`.
+3. `Boundary` и `Bulk` больше не описываются как владельцы первичного графа.
+4. два смысла flattening явно разведены.
+5. активные задачи больше не противоречат corrected ownership model.
+6. следующий implementation step может начинаться с переноса force functionality в `Dark` в доменном формате.

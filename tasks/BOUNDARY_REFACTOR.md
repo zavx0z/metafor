@@ -1,82 +1,85 @@
 # Boundary Refactor
 
 Документ разворачивает [CURRENT_PLAN.md](/Users/zavx0z/zavx0z/metafor/tasks/CURRENT_PLAN.md) только для домена `Boundary`.
-Он опирается на [docs/ARCHITECTURE.md](/Users/zavx0z/zavx0z/metafor/docs/ARCHITECTURE.md), [docs/ONTOLOGY.md](/Users/zavx0z/zavx0z/metafor/docs/ONTOLOGY.md) и правила из `rules/`.
+Он опирается на [docs/ARCHITECTURE.md](/Users/zavx0z/zavx0z/metafor/docs/ARCHITECTURE.md), [docs/ONTOLOGY.md](/Users/zavx0z/zavx0z/metafor/docs/ONTOLOGY.md) и протокольные документы из `docs/proto/*`.
 
 ## Цель
 
-Привести `boundary` к целевой доменной проекции:
+Привести `Boundary` к целевой доменной проекции как consumer of dark-owned graph structure:
 
 1. `Boundary` имеет собственный доменный оркестратор.
-2. `boundary/store.ts` остаётся единственным источником истины домена.
-3. Внутренняя структура домена читается через `Boundary × Gravity`, `Boundary × Strong`, `Boundary × Weak`, `Boundary × Electromagnetism`.
-4. CPU и GPU остаются backend-адаптерами внутри `Boundary × Weak`, а не скрытыми центрами владения.
-5. Переходные исторические имена перестают быть каноническими.
-6. Исходный `boundary/fields` больше не существует; его функции распределяются по силам и категориям внутри сил.
-7. Внутри каждой силы корневой `index.ts` остаётся оркестратором, а конкретные роли уходят во вложенные подпакеты.
+2. [boundary/store.ts](/Users/zavx0z/zavx0z/metafor/boundary/store.ts) остаётся единственным источником истины только для boundary-домена, а не для source graph.
+3. Вход `Boundary` должен читаться через dark-owned graph API и dark-prepared linked flat structure.
+4. Внутренняя структура `Boundary` читается через `Boundary × Gravity`, `Boundary × Strong`, `Boundary × Weak`, `Boundary × Electromagnetism`.
+5. CPU и GPU остаются backend-адаптерами внутри `Boundary × Weak`, а не скрытыми центрами владения.
+6. Исторические имена перестают быть каноническими, если они скрывают corrected ownership model.
+
+## Что этот план больше не предполагает
+
+1. `Boundary` не является владельцем source graph parsing.
+2. `Boundary` не является владельцем primary path/address API.
+3. `Boundary × Gravity` не является владельцем dark graph flattening.
+4. runtime-store слабого слоя не является вторым источником истины домена.
 
 ## Не меняем в рамках этого плана
 
-1. Не переносим ответственность `Boundary` в `Bulk`.
-2. Не делаем `Bulk` загрузчиком `Boundary`.
-3. Не делаем runtime-адаптеры источниками истины.
-4. Не смешиваем доменный store с производными execution-структурами.
+1. Не переносим boundary canonicalization в `Dark`.
+2. Не переносим boundary deduplication в `Dark`.
+3. Не переносим boundary transition runtime в `Dark`.
+4. Не делаем `Bulk` загрузчиком `Boundary`.
+5. Не смешиваем boundary store с производными execution-структурами.
 
-## Этап 1. Закрепить Boundary как домен
+## Этап 1. Закрепить Boundary как consumer dark-owned graph
 
-1. Оставить [boundary/boundary.ts](/Users/zavx0z/zavx0z/metafor/boundary/boundary.ts) доменным оркестратором, а не местом смешения подготовки, хранения и backend-исполнения.
-2. Оставить [boundary/store.ts](/Users/zavx0z/zavx0z/metafor/boundary/store.ts) и [boundary/store.t.ts](/Users/zavx0z/zavx0z/metafor/boundary/store.t.ts) единственным доменным источником истины.
-3. Убрать из доменного оркестратора прямую силовую подготовку там, где она должна жить в force-aligned модулях.
-4. Зафиксировать, что `write/update/unlock/reset` относятся к доменному оркестратору, а не к backend-адаптерам.
-5. Явно развести доменный store и локальный runtime-store слабого слоя, чтобы производные execution-структуры не читались как второй источник истины.
+1. Оставить [boundary/boundary.ts](/Users/zavx0z/zavx0z/metafor/boundary/boundary.ts) boundary-доменным оркестратором поверх dark-provided structure.
+2. Оставить [boundary/store.ts](/Users/zavx0z/zavx0z/metafor/boundary/store.ts) и [boundary/store.t.ts](/Users/zavx0z/zavx0z/metafor/boundary/store.t.ts) единственным источником истины boundary-домена.
+3. Убрать из boundary-задач и boundary-описаний первичное graph storage, path construction и primary addressing ownership.
+4. Зафиксировать, что входная структурная форма поступает в `Boundary` из `Dark`, а не собирается в `Boundary` как source graph.
+5. Явно развести доменный store и локальный runtime-store слабого слоя, чтобы execution-структуры оставались производными.
 
-## Этап 2. Выделить Boundary × Gravity
+## Этап 2. Выделить Boundary × Gravity как boundary-specific flattening
 
-1. Вынести из [boundary/boundary.ts](/Users/zavx0z/zavx0z/metafor/boundary/boundary.ts) flattening и раскладку входной структуры в отдельный слой `boundary/gravity/*`.
-2. Удерживать в `boundary/gravity/*` только те части, которые реально относятся к геометрии, индексному пространству и форме пространства состояний.
-3. Оставить в `Boundary × Gravity` только то, что задаёт раскладку Brane и Field в boundary-пространстве, индексные связи и адресуемость.
-4. Не держать в `Gravity` канонизацию, дедупликацию и runtime-исполнение.
+1. Читать `boundary/gravity/*` как слой boundary-specific подготовки уже dark-prepared graph structure.
+2. Держать в `Boundary × Gravity` только boundary flattening, boundary geometry, boundary-local indexing и форму boundary-space.
+3. Не держать в `Boundary × Gravity` source graph flattening, primary path construction или primary graph addressing.
+4. Явно различать dark graph flattening и boundary flattening как две разные операции.
 
 ## Этап 3. Выделить Boundary × Strong
 
-1. Перенести канонизацию, дедупликацию, интернирование строк и материализацию запутанности в слой `boundary/strong/*`.
-2. Удерживать в `boundary/strong/*` канонизацию, дедупликацию, materialization связности, нормализацию и восстановление снимка.
-3. Оставить сборку канонической store-формы в `Strong`, а не в доменном оркестраторе и не в backend-runtime.
-4. Зафиксировать, что именно `Strong` удерживает компактную и согласованную boundary-форму.
+1. Удерживать в `boundary/strong/*` canonicalization, deduplication, string interning и materialization связности boundary-формы.
+2. Оставить сборку канонической boundary store-формы в `Strong`, а не в dark-domain и не в backend-runtime.
+3. Зафиксировать, что boundary snapshot/dump остаётся boundary-специфичной формой и не подменяет dark-owned fixed graph state.
 
 ## Этап 4. Выделить Boundary × Weak
 
-1. Сделать `Boundary × Weak` каноническим именем и слоем вычисления перехода состояния.
-2. Перенести backend-адаптеры CPU/GPU, устройство, константы и runtime-типы в `boundary/weak/*`.
-3. Развести [boundary/store.ts](/Users/zavx0z/zavx0z/metafor/boundary/store.ts) и [boundary/weak/runtime/store.ts](/Users/zavx0z/zavx0z/metafor/boundary/weak/runtime/store.ts) так, чтобы у домена остался один источник истины, а runtime-структуры `Weak` были явно локальными и производными.
-4. Убедиться, что `Weak` вычисляет переход, но не становится владельцем доменного store.
-5. Удалить старую файловую проекцию слабого backend-слоя после переноса backend-адаптеров и тестов.
+1. Сделать `Boundary × Weak` каноническим слоем вычисления transition runtime.
+2. Удерживать backend-адаптеры CPU/GPU, устройство, константы и runtime-типы в `boundary/weak/*`.
+3. Убедиться, что `Weak` вычисляет boundary transition, но не становится владельцем graph source и не подменяет boundary store.
+4. Держать [boundary/weak/runtime/store.ts](/Users/zavx0z/zavx0z/metafor/boundary/weak/runtime/store.ts) локальной производной runtime-структурой.
 
 ## Этап 5. Выделить Boundary × Electromagnetism
 
-1. Описать и вынести перенос структурированного изменения, сериализацию и boundary-signaling в слой `boundary/em/*`.
+1. Описать и вынести boundary-side transport, serialization и signaling в `boundary/em/*`.
 2. Перенести dump-проекцию снимка внутрь [boundary/strong/dump/](/Users/zavx0z/zavx0z/metafor/boundary/strong/dump) как часть `Boundary × Strong`.
-3. Не оставлять serialization/dump как отдельно стоящий несвязанный util-пакет, если он реально является межграничным контрактом.
-4. Зафиксировать, что любой boundary-side transport и export состояния относится к `Electromagnetism`, а не к `Weak`.
+3. Зафиксировать, что export boundary state относится к `Electromagnetism`, а не к `Weak`.
 
 ## Этап 6. Выпрямить публичный API и файловую проекцию
 
-1. Оставить [boundary/index.ts](/Users/zavx0z/zavx0z/metafor/boundary/index.ts) тонким публичным входом домена.
-2. Убрать из описаний и экспортов исторические зонтичные имена, которые скрывают роль `Gravity/Strong/Weak/Electromagnetism`.
-3. Синхронизировать [boundary/README.md](/Users/zavx0z/zavx0z/metafor/boundary/README.md) и [boundary/strong/dump/README.md](/Users/zavx0z/zavx0z/metafor/boundary/strong/dump/README.md) с новой внутренней проекцией сил только после переноса модулей.
-4. Не оставлять в документации ситуацию, где архитектурная роль уже `Weak`, а файловая и API-поверхность всё ещё читается через исторический словарь.
+1. Оставить [boundary/index.ts](/Users/zavx0z/zavx0z/metafor/boundary/index.ts) тонким публичным входом boundary-домена.
+2. Явно читать публичный вход `Boundary` как consumer dark-owned contracts, а не как первичный loader source graph.
+3. Убрать из экспортов и описаний исторические зонтичные имена, скрывающие роли `Gravity/Strong/Weak/Electromagnetism`.
+4. Синхронизировать [boundary/README.md](/Users/zavx0z/zavx0z/metafor/boundary/README.md) и [boundary/strong/dump/README.md](/Users/zavx0z/zavx0z/metafor/boundary/strong/dump/README.md) только после фактического переноса модулей.
 
 ## Этап 7. Довести тесты до новой проекции
 
-1. Разделить тесты по доменной силовой проекции: подготовка `Gravity`, канонизация `Strong`, переход `Weak`, перенос `Electromagnetism`.
-2. Перенести backend parity и CPU/GPU проверки в слой `Weak`.
-3. Добавить интеграционный тест на полный boundary-путь: подготовка структуры -> запись в store -> вычисление перехода -> чтение изменения.
-4. Добавить интеграционный тест на согласованность UUID/state/index между каноническим store и runtime-результатом.
+1. Разделить тесты по силовой проекции: boundary flattening, `Strong`, `Weak`, `Electromagnetism`.
+2. Добавить интеграционное чтение: dark-prepared graph -> boundary flattening -> canonical store -> transition runtime.
+3. Проверить согласованность UUID/state/index между dark-provided structure, boundary store и runtime-результатом.
 
 ## Критерий завершения
 
-1. `Boundary` читается как домен со своим оркестратором и своим `store.ts`.
-2. Внутри `boundary` роли `Gravity/Strong/Weak/Electromagnetism` различимы по папкам, подпакетам и ответственности.
-3. CPU и GPU не владеют источником истины и не подменяют доменный слой.
-4. Исторические имена больше не являются каноническими для архитектуры boundary.
-5. Документация, тесты и публичный API читаются через целевой словарь Boundary-домена.
+1. `Boundary` читается как downstream-domain, который потребляет dark-owned graph structure.
+2. [boundary/store.ts](/Users/zavx0z/zavx0z/metafor/boundary/store.ts) остаётся источником истины только для boundary-представления.
+3. `Boundary × Gravity` описывает только boundary-specific flattening, а не source graph flattening и не primary addressing.
+4. `Boundary × Strong`, `Boundary × Weak` и `Boundary × Electromagnetism` разведены без возврата source graph ownership в `Boundary`.
+5. Документация, тесты и публичный API читаются через corrected ownership model.

@@ -1,86 +1,170 @@
 ## Goal
 
-Introduce `Dark` as an active architectural domain in the repository plan and domain projection, and redistribute responsibilities so the system is no longer modeled as a two-domain `Boundary/Bulk` architecture.
+Rewrite `tasks/CURRENT_PLAN.md` and align all active tasks with the actual intended architecture, where `Dark` becomes the owner of graph structure, storage, paths, addressing, and force-level graph preparation.
+
+This task is not about implementing the full migration yet.
+It is about fixing the plan and task layer so further work follows the correct domain ownership model and does not preserve obsolete assumptions.
 
 ## Context
 
-The repository already documents a three-domain ontology and architecture:
+The repository has already moved to a documented three-domain language, and `tasks/CURRENT_PLAN.md` already mentions `Dark` as an architectural domain.
 
-- `README.md` defines the core model as `Dark × Boundary × Bulk`
-- `docs/ONTOLOGY.md` and `docs/ARCHITECTURE.md` describe `Dark` as the domain of hidden structure, schema history, fixed states, structured change, and model evolution
+However, the current plan still describes `Dark` mainly as:
 
-However, the active execution plan and the currently visible code projection are still centered on a two-domain runtime model:
+- hidden continuity
+- schema lineage
+- fixed states
+- structured changes
+- projection contracts
 
-- `tasks/CURRENT_PLAN.md` still uses the minimal target `{ DSL -> AST -> Bulk, DSL -> AST -> Boundary }`
-- `boundary/boundary.ts` is an active domain orchestrator for canonicalization and transition computation
-- `bulk/index.ts` is an active bulk-domain entry
-- `bulk/gravity/load.ts` still loads DSL/AST directly into bulk from `meta.json`
-- there is no explicit active `dark/` domain projection participating in the current working plan
+and still leaves major structural ownership elsewhere, including:
 
-This mismatch blocks further work: the documentation already assumes `Dark`, but the plan and functional split still push hidden-structure responsibilities into the old two-domain model.
+- boundary-side geometry / flattening
+- bulk-side topology / actor hierarchy
+- direct bulk loading assumptions
+
+This is now insufficient.
+
+The clarified target model is stricter:
+
+1. `Dark` is not only continuity.
+2. `Dark` is the domain owner of the graph itself.
+3. `Dark` must own:
+   - graph storage
+   - path formation
+   - addressing
+   - graph API
+   - schema loading
+   - graph flattening with preserved links
+   - force-level preparation of structure
+4. The old separate `force/` package from the pre-`boundary/bulk` refactor must now be reinterpreted as the source of the new `Dark` domain.
+5. The force logic is not only `Gravity`; graph preparation was distributed across the force layer and must now be re-homed into `dark/gravity`, `dark/strong`, `dark/weak`, and `dark/em`.
+6. `Boundary` and `Bulk` must stop being treated as owners of the primary graph and its addressing.
+7. Future implementation work must follow this updated ownership model.
+
+## Core architectural correction
+
+The plan must explicitly state the following.
+
+### Dark
+
+`Dark` is the owner of the structural graph domain.
+
+`Dark` owns:
+
+- schema loading by the main schema path
+- `DSL`, `AST`, and AST-schema holding on the dark side
+- graph storage
+- graph flattening into a flat form with preserved relations
+- path construction
+- addressing
+- graph API
+- force-level preparation of structure before domain projection
+- hidden organization of the graph as the source for later `Boundary` and `Bulk` usage
+
+`Dark` does not yet need to implement full persistence/history runtime in this task.
+But the plan must stop describing `Dark` as only continuity/lineage and must describe it as the owner of the graph substrate.
+
+### Boundary
+
+`Boundary` is no longer the owner of source graph parsing or primary addressing.
+
+`Boundary` must only own boundary-specific work on top of the dark-prepared structure:
+
+- boundary flattening in the boundary sense
+- canonicalization
+- deduplication
+- string interning
+- boundary state transition computation
+- boundary-specific runtime representation
+
+### Bulk
+
+`Bulk` is no longer the owner of source graph parsing or primary graph addressing.
+
+`Bulk` must only own manifestation/runtime work on top of the dark-prepared structure:
+
+- manifested topology/runtime projection
+- binding
+- entanglement projection
+- intentions / action loading
+- process execution
 
 ## Required Actions
 
-1. Inspect the current active responsibilities of `boundary/*` and `bulk/*` and classify them into:
-   - responsibilities that must remain in `Boundary`
-   - responsibilities that must remain in `Bulk`
-   - responsibilities that belong to `Dark`
+1. Rewrite `tasks/CURRENT_PLAN.md` so that it no longer describes `Dark` as only a continuity/projection layer.
+   It must explicitly describe `Dark` as the owner of graph storage, path formation, addressing, and force-level graph preparation.
 
-2. Build a minimal architectural redistribution for the three-domain model, with explicit answers for:
-   - what `Dark` owns now
-   - what `Dark` must not own
-   - how `Dark` relates to `DSL` and `AST`
-   - which current two-domain assumptions become invalid after introducing `Dark`
+2. Replace any wording in the plan that leaves primary graph ownership in `Boundary` or `Bulk`.
 
-3. Identify the concrete responsibility groups that should be assigned to `Dark` first.
-   At minimum, evaluate these groups against the actual repository state:
-   - schema continuity / schema organization
-   - snapshots / fixed states
-   - structured changes / patch-like evolution
-   - historical continuity / version lineage
-   - hidden hierarchy / latent organization
-   - domain projection into `Boundary` and `Bulk`
+3. Add an explicit section to the plan describing the migration principle:
 
-4. Update the planning layer so that the active implementation target is no longer a two-domain contour.
-   Replace the outdated two-domain formulation in `tasks/CURRENT_PLAN.md` with a three-domain working contour aligned with the documented ontology.
+   `old force/ responsibilities -> dark/* domain responsibilities`
 
-5. Update documentation only where necessary to remove planning contradictions.
-   Focus on:
-   - `README.md`
-   - `docs/ARCHITECTURE.md`
-   - `docs/ONTOLOGY.md`
-   - `tasks/CURRENT_PLAN.md`
+   This section must explain that the pre-refactor `force/` package is the correct architectural ancestor of the new `Dark` domain.
 
-6. Introduce a minimal explicit repository projection for `Dark` only if it is justified by the inspection.
-   If a `dark/` projection is introduced, it must be minimal and responsibility-driven, not a decorative mirror of existing folders.
+4. Add an explicit section describing what must move into `Dark` first.
+   At minimum, it must include:
 
-7. Produce a clear responsibility map in the repository documentation or plan that answers:
-   - `Dark × Gravity`
-   - `Dark × Strong`
-   - `Dark × Weak`
-   - `Dark × Electromagnetism`
-   - how these relate to `Boundary` and `Bulk` without collapsing domain ownership
+   - storage of graph structure
+   - path/address API
+   - graph flattening with preserved relations
+   - schema-loading ownership
+   - force-level structure preparation
 
-8. Preserve the already agreed architectural metaphor:
-   - `Boundary` is the flattening boundary
-   - `Fields` is the imprint/deduplication layer on that boundary
-   - deduplication must stay in `Boundary × Strong`
-   - `Dark` must not absorb boundary canonicalization
-   - `Dark` must not absorb bulk execution
+5. Add an explicit section describing what must remain outside `Dark`:
 
-9. After the redistribution, add a short implementation-oriented note in the plan describing which future tasks become unblocked once `Dark` exists as an explicit domain in the architecture.
+   - boundary canonicalization
+   - boundary deduplication
+   - boundary transition runtime
+   - bulk manifestation runtime
+   - bulk process execution
+
+6. Rewrite the plan stages so future work starts from the following order:
+
+   - establish `Dark` as graph/store/address owner
+   - move pre-refactor force responsibilities into `dark/*`
+   - rewire `Boundary` to consume dark-owned graph structure
+   - rewire `Bulk` to consume dark-owned graph structure
+   - only after that continue with deeper runtime refactors
+
+7. Update active task descriptions so they no longer conflict with the new ownership model.
+   Any task that still assumes:
+   - direct primary graph ownership in `Boundary`
+   - direct primary graph ownership in `Bulk`
+   - `Dark` as only continuity/history/projection
+   must be rewritten or marked obsolete.
+
+8. In the updated plan, explicitly distinguish two meanings of flattening:
+   - graph flattening in `Dark` as preparation of the source graph into flat linked structure
+   - boundary flattening in `Boundary` as boundary-specific geometric/canonical preparation
+
+   These must not be conflated.
+
+9. Add a section describing `Dark × Force` responsibilities in the new model:
+
+   - `Dark × Gravity` — graph geometry, structure loading, hierarchy, paths, addressing
+   - `Dark × Strong` — graph cohesion, relation retention, stable linked flat form
+   - `Dark × Weak` — structural transformation path, graph transition preparation
+   - `Dark × Electromagnetism` — projection/export contract of prepared graph state to downstream domains
+
+   This section must clearly state that the old force layer was not “just channels”, but the preparation layer of the graph.
+
+10. Add a section describing the implementation boundary for the next tasks:
+    this task updates plan and task definitions only.
+    Full code migration comes afterwards and must follow the corrected plan.
 
 ## Constraints
 
-- Do not perform a broad runtime rewrite in this task.
-- Do not move code between domains unless the move is directly justified by the inspection.
-- Do not duplicate ownership between `Dark`, `Boundary`, and `Bulk`.
-- Do not turn `Dark` into a generic storage bucket.
-- Do not move flattening into `Dark`.
-- Do not move deduplication from `Boundary × Strong` into `Dark`.
-- Do not move process execution from `Bulk × Weak` into `Dark`.
-- Do not break current public APIs of `boundary` or `bulk` unless a change is strictly necessary and explicitly justified.
-- Keep the task minimal: architecture alignment first, large implementation changes later.
+- Do not implement the whole migration in this task.
+- Do not keep contradictory task text alongside the new plan.
+- Do not describe `Dark` as only lineage/history/projection anymore.
+- Do not leave primary graph ownership in `Boundary` or `Bulk`.
+- Do not move boundary canonicalization into `Dark`.
+- Do not move deduplication into `Dark`.
+- Do not move bulk execution into `Dark`.
+- Do not write vague wording; ownership must be explicit.
+- Do not preserve old task language if it conflicts with the corrected architecture.
 
 ## Communication
 
@@ -94,9 +178,9 @@ Task instructions and technical sections are written in English, but any direct 
 
 After completion:
 
-- the repository no longer has a contradiction between the documented ontology and the active implementation plan
-- `Dark` is explicitly recognized as a real architectural domain in the working plan
-- the responsibilities of `Dark`, `Boundary`, and `Bulk` are clearly separated
-- the repository has a minimal, concrete three-domain responsibility map grounded in the actual codebase
-- `tasks/CURRENT_PLAN.md` is updated to a three-domain contour
-- future refactoring tasks can proceed from an explicit `Dark × Boundary × Bulk` model instead of the obsolete two-domain split
+1. `tasks/CURRENT_PLAN.md` reflects the real intended architecture.
+2. `Dark` is described as the owner of graph storage, addressing, paths, and force-level graph preparation.
+3. The old pre-refactor `force/` layer is explicitly recognized as the migration source for `dark/*`.
+4. `Boundary` and `Bulk` are no longer described as owners of the primary graph.
+5. Existing tasks are updated so they no longer contradict the corrected plan.
+6. The repository gets a clean planning baseline for the next implementation step: migration of force functionality into `Dark` in domain format.
