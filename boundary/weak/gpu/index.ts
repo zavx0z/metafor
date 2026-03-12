@@ -14,7 +14,7 @@ import { readGpuChanges } from "./read"
 import { runGpuStep } from "./step"
 import type { ArrayHeapSlot } from "./heap"
 import { createInitialArrayHeapIndex, updateGpuHeapFields } from "./heap"
-import { createStringAtlasAppendExport } from "../../string-pack"
+import { createStringAtlasAppendExport } from "./string-pack"
 
 let gpuOperationQueue: Promise<void> = Promise.resolve()
 

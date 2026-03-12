@@ -1,9 +1,8 @@
 /**
- * @boundary/string-pack — нейтральная материализация строковых таблиц.
+ * @boundary/weak/gpu/string-pack — материализация string atlas для GPU runtime.
  *
- * Этот модуль не является частью канонического store и не принадлежит GPU-слою.
- * Он превращает каноническую `stringTable` в производные таблицы, которые нужны
- * для debug/export или локальной GPU-упаковки.
+ * Модуль читает каноническую `stringTable` Boundary и превращает её в
+ * производные таблицы, пригодные для GPU-буферов слабого runtime.
  *
  * @packageDocumentation
  */
@@ -12,7 +11,7 @@
  * Материализует полную производную таблицу строк.
  *
  * Канонический `Boundary store` хранит только `stringTable` и string id.
- * UTF-32 heap и hash registry создаются локально из этого канона.
+ * UTF-32 heap и hash registry создаются локально для GPU runtime.
  */
 export function createStringAtlasExport(stringTable: string[]): {
   registry: Uint32Array
@@ -43,7 +42,7 @@ export function createStringAtlasExport(stringTable: string[]): {
  * Материализует только append-хвост производной строковой таблицы.
  *
  * Используется там, где каноническая `stringTable` выросла append-only и можно
- * дописать только новые строки без перепаковки уже существующего префикса.
+ * дописать только новые строки без перепаковки уже существующего префикса в GPU-буферах.
  */
 export function createStringAtlasAppendExport(
   stringTable: string[],
