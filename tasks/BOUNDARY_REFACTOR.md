@@ -18,8 +18,9 @@
 
 1. `Boundary` не является владельцем source graph parsing.
 2. `Boundary` не является владельцем primary path/address API.
-3. `Boundary × Gravity` не является владельцем dark graph flattening.
-4. runtime-store слабого слоя не является вторым источником истины домена.
+3. `Boundary` не является владельцем первичной addressable source geometry.
+4. `Boundary × Gravity` не является владельцем dark graph flattening.
+5. runtime-store слабого слоя не является вторым источником истины домена.
 
 ## Не меняем в рамках этого плана
 
@@ -33,16 +34,21 @@
 
 1. Оставить [boundary/boundary.ts](/Users/zavx0z/zavx0z/metafor/boundary/boundary.ts) boundary-доменным оркестратором поверх dark-provided structure.
 2. Оставить [boundary/store.ts](/Users/zavx0z/zavx0z/metafor/boundary/store.ts) и [boundary/store.t.ts](/Users/zavx0z/zavx0z/metafor/boundary/store.t.ts) единственным источником истины boundary-домена.
-3. Убрать из boundary-задач и boundary-описаний первичное graph storage, path construction и primary addressing ownership.
+3. Убрать из boundary-задач и boundary-описаний первичное graph storage, path construction, primary addressing ownership и первичную addressable geometry.
 4. Зафиксировать, что входная структурная форма поступает в `Boundary` из `Dark`, а не собирается в `Boundary` как source graph.
 5. Явно развести доменный store и локальный runtime-store слабого слоя, чтобы execution-структуры оставались производными.
 
 ## Этап 2. Выделить Boundary × Gravity как boundary-specific flattening
 
 1. Читать `boundary/gravity/*` как слой boundary-specific подготовки уже dark-prepared graph structure.
-2. Держать в `Boundary × Gravity` только boundary flattening, boundary geometry, boundary-local indexing и форму boundary-space.
-3. Не держать в `Boundary × Gravity` source graph flattening, primary path construction или primary graph addressing.
+2. Держать в `Boundary × Gravity` только boundary flattening, boundary geometry, boundary-local indexing и производную addressable geometry boundary-space.
+3. Не держать в `Boundary × Gravity` source graph flattening, primary path construction, primary graph addressing или первичную addressable source geometry.
 4. Явно различать dark graph flattening и boundary flattening как две разные операции.
+
+## Obsolete формулировки
+
+1. Любое старое описание `boundary/gravity/*` как владельца addressable source geometry считается obsolete.
+2. Любое старое описание `Boundary` как места рождения graph storage считается obsolete.
 
 ## Этап 3. Выделить Boundary × Strong
 

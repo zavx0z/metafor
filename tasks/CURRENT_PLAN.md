@@ -21,6 +21,11 @@ Boundary -> Electromagnetism -> Bulk
 3. `Dark` является владельцем структурного графа как скрытого субстрата системы.
 4. `Boundary` и `Bulk` являются downstream-доменами, которые работают поверх подготовленной `Dark`-структуры.
 5. Строка `Boundary -> Electromagnetism -> Bulk` описывает только runtime-handoff уже подготовленного изменения и не отменяет общего источника в `Dark`.
+6. Для активного плана фиксируются буквальные ownership markers:
+   - `Dark owns graph storage.`
+   - `Dark owns graph API.`
+   - `Dark owns path formation and addressing.`
+   - `Dark owns force-level graph preparation.`
 
 ## Базовое владение доменов
 
@@ -32,13 +37,16 @@ Boundary -> Electromagnetism -> Bulk
 
 1. загрузкой схемы по главному schema path,
 2. удержанием `DSL`, `AST` и AST-schema на dark-стороне как входа в структурный граф,
-3. хранением графовой структуры,
+3. `dark/store` как store of graph structure,
 4. graph API,
-5. формированием путей,
-6. первичным addressing графа,
-7. graph flattening в плоскую связанную форму с сохранением отношений,
-8. force-level preparation структуры до domain projection,
-9. скрытой организацией графа как источником для последующего `Boundary`- и `Bulk`-потребления.
+5. graph lookup API,
+6. формированием путей,
+7. path API и address API,
+8. первичным addressing графа,
+9. graph flattening в плоскую связанную форму с сохранением отношений,
+10. linked flat representation с сохранёнными ссылками,
+11. force-level preparation структуры до domain projection,
+12. скрытой организацией графа как источником для последующего `Boundary`- и `Bulk`-потребления.
 
 `Dark` не должен:
 
@@ -55,6 +63,7 @@ Boundary -> Electromagnetism -> Bulk
 ### Boundary
 
 `Boundary` больше не является владельцем source graph parsing или primary addressing.
+`Boundary` больше не является владельцем первичной addressable source geometry.
 
 `Boundary` владеет только boundary-specific работой поверх dark-prepared structure:
 
@@ -69,6 +78,7 @@ Boundary -> Electromagnetism -> Bulk
 ### Bulk
 
 `Bulk` больше не является владельцем source graph parsing или primary graph addressing.
+`Bulk` не является местом рождения graph storage и не формирует первичную path/address model.
 
 `Bulk` владеет только manifestation/runtime работой поверх dark-prepared structure:
 
@@ -89,6 +99,32 @@ Boundary -> Electromagnetism -> Bulk
    Это boundary-specific геометрическая и каноническая подготовка уже dark-owned структуры для boundary-space, индексов и детерминированного вычисления.
 
 `Boundary` не должен считаться владельцем dark graph flattening.
+
+## Force -> Dark
+
+Архитектурным источником миграции для `dark/*` является старый слой `force/`.
+
+Опорный коммит:
+
+`a333205a4f14608fe9811681f881beb6b79e31b1`
+
+`[refactor/feat/test/docs] force - реструктуризация сил и обновление API`
+
+В этом коммите было явно зафиксировано force-layer ownership:
+
+1. `core/electromagnetic.ts -> force/electromagnetic.ts`,
+2. `gravity.* -> force/gravity.*`,
+3. создание `force/strong.ts`,
+4. создание `force/week.ts`,
+5. синхронизация `Actor` и runtime с новой организацией сил,
+6. обновление `core/processes*.ts`, `core/reactions*.ts` и `schema/*`,
+7. адаптация тестов и фикстур после переноса сил,
+8. перенос документации `interaction.md -> force/force.md`.
+
+`old force/ is the migration source for dark/*`.
+
+Старый `force/` не должен трактоваться как просто historical artifact.
+Он должен трактоваться как предшественник нового домена `Dark`.
 
 ## Принцип миграции
 
@@ -113,17 +149,46 @@ Boundary -> Electromagnetism -> Bulk
 3. `Dark × Weak` — structural transformation path, graph transition preparation, подготовка реконфигурации графа до доменных runtime-проекций.
 4. `Dark × Electromagnetism` — projection/export contract подготовленного graph state в downstream-домены.
 
-## Что переносим в Dark первым
+## Что переносится в Dark первым
+
+Первое переназначение ownership читается так:
+
+1. `old force/gravity.* -> dark/gravity/*`,
+2. `old force/strong.ts responsibility -> dark/strong/*`,
+3. `old force/week.ts responsibility -> dark/weak/*`,
+4. `old force/electromagnetic.ts export/projection responsibility -> dark/em/*`.
+
+Важно:
+
+1. нельзя копировать старые файлы вслепую,
+2. нужно переносить ownership и responsibility,
+3. перенос должен происходить в новом доменном формате `Dark`, а не как буквальная реконструкция старой директории `force/`.
+
+## Dark Store
+
+В первом активном срезе должен появиться явный `dark/store` layer.
+
+`Dark must own:`
+
+1. store of graph structure,
+2. path API,
+3. address API,
+4. graph lookup API,
+5. linked flat representation.
+
+## Что закрепляется в Dark первым
 
 Первый срез миграции обязан закрепить в `Dark`:
 
 1. storage of graph structure,
 2. path/address API,
-3. graph flattening с сохранением связей,
-4. schema-loading ownership,
-5. force-level structure preparation,
-6. graph API как единый вход для downstream-доменов,
-7. удержание `DSL/AST`-входа по главному schema path.
+3. graph lookup API,
+4. graph flattening с сохранением связей,
+5. linked flat representation,
+6. schema-loading ownership,
+7. force-level structure preparation,
+8. graph API как единый вход для downstream-доменов,
+9. удержание `DSL/AST`-входа по главному schema path.
 
 ## Что остаётся вне Dark
 
@@ -155,36 +220,44 @@ Boundary -> Electromagnetism -> Bulk
 1. `tasks/BOUNDARY_REFACTOR.md` должен читать `Boundary` как consumer dark-owned graph structure, а не как владельца source graph.
 2. Любая активная задача, которая приписывает `Boundary` или `Bulk` первичное владение графом, адресами или путями, считается устаревшей до переписывания.
 3. Любая активная задача, которая описывает `Dark` только как continuity/history/projection домен, считается устаревшей до переписывания.
+4. Любая активная задача, которая оставляет `Boundary` владельцем первичной addressable geometry, считается устаревшей до переписывания.
+5. Любая активная задача, которая оставляет `Bulk` местом рождения graph storage, считается устаревшей до переписывания.
 
-## Этап 1. Закрепить Dark как graph/store/address owner
+## Этап 1. Исправить `CURRENT_PLAN.md` и связанные таски под новое владение
+
+1. Переписать активный план без старой модели, где `Dark` читается только как continuity/projection слой.
+2. Переписать связанные task-документы так, чтобы `Boundary` и `Bulk` больше не читались владельцами первичного графа.
+3. Пометить obsolete любые task-формулировки, которые противоречат новому ownership model.
+
+## Этап 2. Зафиксировать Dark как graph/store/address owner
 
 1. Зафиксировать `Dark` как владельца structural graph domain в активном плане и задачах.
 2. Явно отделить graph ownership от boundary- и bulk-runtime ownership.
 3. Зафиксировать загрузку схемы по главному schema path и dark-side holding `DSL/AST` как вход в graph substrate.
-4. Зафиксировать, что graph storage, path formation, addressing и graph API принадлежат `Dark`.
+4. Зафиксировать, что graph storage, path formation, addressing, graph lookup API и graph API принадлежат `Dark`.
 
-## Этап 2. Перенести pre-refactor force responsibilities в `dark/*`
+## Этап 3. Перенести force responsibilities из опорного слоя `force/` в `dark/*`
 
-1. Прочитать старый `force/` как архитектурный ancestor нового `Dark`.
+1. Прочитать старый `force/` из коммита `a333205a4f14608fe9811681f881beb6b79e31b1` как архитектурный ancestor нового `Dark`.
 2. Разнести обязанности подготовки графа по `dark/gravity`, `dark/strong`, `dark/weak` и `dark/em`.
 3. Зафиксировать, что речь идёт не о переносе "каналов", а о переносе слоя graph preparation.
 4. Подготовить дальнейшие кодовые задачи вокруг dark-owned structure, а не вокруг boundary/bulk-owned loaders.
 
-## Этап 3. Перевести Boundary на consumption dark-owned graph structure
+## Этап 4. Перевести Boundary на consumption dark-owned graph structure
 
 1. Считать `Boundary` downstream-domain, работающим поверх dark-prepared linked flat graph.
 2. Оставить в `Boundary` только boundary flattening, canonicalization, deduplication, string interning и transition runtime.
-3. Убрать из задач и описаний предположение о primary parsing/path/address ownership в `Boundary`.
+3. Убрать из задач и описаний предположение о primary parsing/path/address ownership и первичной addressable geometry в `Boundary`.
 4. Разводить boundary-local indexing и primary graph addressing как разные уровни ответственности.
 
-## Этап 4. Перевести Bulk на consumption dark-owned graph structure
+## Этап 5. Перевести Bulk на consumption dark-owned graph structure
 
 1. Считать `Bulk` downstream-domain, работающим поверх dark-prepared graph contracts.
 2. Оставить в `Bulk` только manifested topology/runtime projection, binding, entanglement projection, intentions/action loading и process execution.
-3. Убрать из задач и описаний предположение о primary graph ownership в `Bulk`.
+3. Убрать из задач и описаний предположение о primary graph ownership, primary path/address ownership и рождении graph storage в `Bulk`.
 4. Рассматривать прямую загрузку `meta.json` как временный bootstrap, который затем должен быть переподключён к `Dark`.
 
-## Этап 5. Только после этого продолжать deeper runtime refactors
+## Этап 6. Только после этого продолжать runtime refactor
 
 1. Углублять boundary runtime refactor только после фиксации dark-owned graph input.
 2. Углублять bulk runtime refactor только после фиксации dark-owned graph input.
@@ -198,9 +271,9 @@ Boundary -> Electromagnetism -> Bulk
 
 ## Критерий завершения
 
-1. `Dark` описан как владелец graph storage, path formation, addressing и force-level graph preparation.
-2. предрефакторный `force/` явно признан источником миграции для `dark/*`.
-3. `Boundary` и `Bulk` больше не описываются как владельцы первичного графа.
-4. два смысла flattening явно разведены.
-5. активные задачи больше не противоречат corrected ownership model.
-6. следующий implementation step может начинаться с переноса force functionality в `Dark` в доменном формате.
+1. `Dark` признан owner graph/store/path/address domain.
+2. В плане присутствуют явные формулировки `Dark owns graph storage`, `Dark owns graph API`, `Dark owns path formation and addressing`.
+3. `old force/` explicitly referenced as migration source для `dark/*`, включая коммит `a333205a4f14608fe9811681f881beb6b79e31b1`.
+4. `Boundary` и `Bulk` больше не описываются как primary graph owners.
+5. связанные task-документы обновлены под тот же ownership model.
+6. следующий implementation step может начинаться с force -> dark migration.
