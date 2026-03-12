@@ -7,8 +7,8 @@
  * @packageDocumentation
  */
 
-import { OP } from "../../weak"
-import type { ConditionValue, ParsedCheck, ScalarValue } from "../condition.t"
+import { OP } from "../weak"
+import type { ConditionValue, ParsedCheck, ScalarValue } from "./condition.t"
 
 /**
  * Парсит условие в массив проверок.

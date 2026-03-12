@@ -4,7 +4,7 @@ import type {
   PreparedEntanglementBlock,
   PreparedEntanglementField,
   PreparedEntanglementProjection,
-} from "../entangled.t"
+} from "./entangled.t"
 
 const valueEquals = (left: unknown, right: unknown): boolean => {
   if (Array.isArray(left) && Array.isArray(right)) {

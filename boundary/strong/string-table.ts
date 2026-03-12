@@ -1,6 +1,6 @@
-import type { StoredStringTable, StringInterner } from "../string-table.t"
+import type { StoredStringTable, StringInterner } from "./string-table.t"
 
-export type { StoredStringTable, StringInterner } from "../string-table.t"
+export type { StoredStringTable, StringInterner } from "./string-table.t"
 
 /**
  * Изменяемая дедуплицированная таблица строк, которой владеет strong-слой.

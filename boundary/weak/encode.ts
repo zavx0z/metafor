@@ -1,6 +1,6 @@
-import { TYPE } from "../constants"
-import type { EncodingContext, EncodedValueResult } from "../encode.t"
-import { FieldType, type Field, type FieldTypeValue } from "../../gravity/schema.t"
+import { TYPE } from "./constants"
+import type { EncodingContext, EncodedValueResult } from "./encode.t"
+import { FieldType, type Field, type FieldTypeValue } from "../gravity/schema.t"
 
 export function createFieldEncodingContext(
   fieldType: number,

@@ -4,20 +4,20 @@
  * @packageDocumentation
  */
 
-import { parseCondition } from "../../gravity/condition"
-import type { FlattenedTransition } from "../../gravity/flattened.t"
-import type { Collapse, Field } from "../../gravity/schema.t"
-import { createStoredStringInterner, type StringInterner } from "../../strong/string-table"
-import { OP, TYPE } from "../constants"
-import { encodeValue, fieldTypeToBytecodeType } from "../encode"
+import { parseCondition } from "../gravity/condition"
+import type { FlattenedTransition } from "../gravity/flattened.t"
+import type { Collapse, Field } from "../gravity/schema.t"
+import { createStoredStringInterner, type StringInterner } from "../strong/string-table"
+import { OP, TYPE } from "./constants"
+import { encodeValue, fieldTypeToBytecodeType } from "./encode"
 import type {
   CompiledConditionsResult,
   CompiledRules,
   ConditionInstruction,
   FieldBytecode,
-} from "../program.t"
-import type { EncodingContext } from "../encode.t"
-import type { ParsedCheck } from "../../gravity/condition.t"
+} from "./program.t"
+import type { EncodingContext } from "./encode.t"
+import type { ParsedCheck } from "../gravity/condition.t"
 
 export function compileSuperposition(
   collapses: Collapse[][],

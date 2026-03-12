@@ -1,5 +1,5 @@
-import type { Field } from "../../gravity/schema.t"
-import { FieldType } from "../../gravity/schema.t"
+import type { Field } from "../gravity/schema.t"
+import { FieldType } from "../gravity/schema.t"
 
 export type NormalizedScalarValue = number | boolean
 export type NormalizedValue = NormalizedScalarValue | NormalizedScalarValue[]

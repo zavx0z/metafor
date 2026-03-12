@@ -5,10 +5,10 @@
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
-    "./stored": "./stored/index.ts",
-    "./string-table": "./string-table/index.ts",
-    "./entangled": "./entangled/index.ts",
-    "./normalize": "./normalize/index.ts",
+    "./stored": "./stored.ts",
+    "./string-table": "./string-table.ts",
+    "./entangled": "./entangled.ts",
+    "./normalize": "./normalize.ts",
     "./snapshot": "./snapshot/index.ts",
     "./dump": "./dump/index.ts"
   },

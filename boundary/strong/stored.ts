@@ -8,14 +8,14 @@ import type {
   BoundarySharedBlockRecord,
   BoundaryStateRecord,
   BoundaryTransitionRecord,
-} from "../../store.t"
-import type { Field } from "../../gravity/schema.t"
-import { FieldType } from "../../gravity/schema.t"
-import { OP } from "../../weak"
-import type { FlattenedBoundaryInput } from "../../gravity/flattened.t"
-import { materializeEntanglement } from "../entangled"
-import { createStoredStringInterner } from "../string-table"
-import { normalizeFieldValue } from "../normalize"
+} from "../store.t"
+import type { Field } from "../gravity/schema.t"
+import { FieldType } from "../gravity/schema.t"
+import { OP } from "../weak"
+import type { FlattenedBoundaryInput } from "../gravity/flattened.t"
+import { materializeEntanglement } from "./entangled"
+import { createStoredStringInterner } from "./string-table"
+import { normalizeFieldValue } from "./normalize"
 
 function normalizeFieldRecord(field: Field): BoundaryFieldRecord {
   return {

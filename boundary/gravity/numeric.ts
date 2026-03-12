@@ -1,5 +1,5 @@
-import type { Collapse } from "../schema.t"
-import type { ConvertedSuperposition } from "../../weak/program.t"
+import type { Collapse } from "./schema.t"
+import type { ConvertedSuperposition } from "../weak/program.t"
 
 export interface NamedSuperposition {
   [state: string]: Record<string, any> | null

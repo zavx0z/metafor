@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import { FieldType, type Data } from "../schema.t"
+import { FieldType, type Data } from "./schema.t"
 
 /**
  * Валидирует входные данные перед обработкой.

@@ -5,9 +5,9 @@
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
-    "./condition": "./condition/index.ts",
-    "./validate": "./validate/index.ts",
-    "./numeric": "./numeric/index.ts"
+    "./condition": "./condition.ts",
+    "./validate": "./validate.ts",
+    "./numeric": "./numeric.ts"
   },
   "private": true,
   "peerDependencies": {

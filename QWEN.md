@@ -1,60 +1,128 @@
-# QWEN Guide
+# Module Naming
 
-Entry map for agents that start from `QWEN.md`.
+- Для всех модулей, кроме `index.ts`, реализация должна лежать в файле `{name}.ts`.
+- Типы этого модуля должны лежать в файле `{name}.t.ts`.
+- Оркестратор пакета должен называться по имени пакета.
+- В `index.ts` должны быть только экспорты.
 
-## Session start
+# Стандарты TSDoc
 
-Read first:
+TSDoc объясняет **почему** и **как использовать**, а не то, что уже очевидно из кода.
 
-- `rules/governance/session.md`
-- `rules/governance/rules.edit.md`
+## Назначение
 
-## Workflow
+Используй TSDoc, чтобы документировать неявные связи, ограничения и намерение.
 
-1. Identify task triggers.
-2. Read all rules matched by those triggers.
-3. Apply the narrowest relevant rule first, then broader rules.
-4. Verify outcome against rule checklists.
+## Когда применять
 
-## Context discipline
+Применяй это правило, когда пишешь или редактируешь TSDoc в TypeScript-файлах.
 
-- Keep this file and only matched rule files in active context.
-- Do not preload unrelated rules.
-- Follow cross-links only when required by a matched rule.
+## Требования
 
-## Rule-reading discipline
+Общие правила:
 
-- Do not act from memory when a matching rule exists.
-- If multiple triggers apply, read all matched rules before implementation.
-- If a rule-based change fails, reread the same rule before patching behavior.
+- документируй неочевидное;
+- не пересказывай имена и сигнатуры;
+- держи комментарии привязанными к намерению, ограничениям и использованию;
+- не переводи идентификаторы на другой язык.
 
-## Trigger map
+Ссылки:
 
-| Trigger                                                                                | Rule                                                                   |
-| -------------------------------------------------------------------------------------- | ---------------------------------------------------------------------- |
-| Working with session history or prior discussion                                       | `rules/governance/session.md`                                          |
-| Creating a new rule                                                                    | `rules/governance/rules.md`                                            |
-| Updating an existing rule                                                              | `rules/governance/rules.edit.md`                                       |
-| Using or defining tools/skills                                                         | `rules/governance/tools.md`                                            |
-| Writing or editing Markdown                                                            | `rules/engineering/markdown.md`                                        |
-| Writing or editing TSDoc                                                               | `rules/engineering/tsdoc.md`                                           |
-| Writing, moving, or reviewing tests                                                    | `rules/engineering/testing.md`                                         |
-| Test placement or monorepo test imports                                                | `rules/engineering/testing.md`                                         |
-| Writing pure functions or handling mutation boundaries                                 | `rules/engineering/fp.md`                                              |
-| Structuring a module                                                                   | `rules/architecture/modules.md`                                        |
-| Package ownership, orchestration ownership, or cross-package boundaries                | `rules/architecture/packages.md`                                       |
-| Designing symmetric backend APIs                                                       | `rules/architecture/backends.md`                                       |
-| Designing staged data flow, multi-stage preparation, or shared input before branching  | `rules/architecture/dataflow.md`                                       |
-| Building dependency or type graphs                                                     | `rules/architecture/graphs.md`                                         |
-| Working with package/domain store decisions or `$` store semantics                     | `rules/project/stores.md`                                              |
-| Working with CPU/GPU, server/client, adapters, or runtime classes                      | `rules/project/runtime.adapters.md` + `rules/architecture/backends.md` |
-| Naming decisions for stores or backend-local technical state                           | `rules/project/naming.md`                                              |
-| Working with MetaFor DSL or `meta.ts`                                                  | `rules/project/metafor.md`                                             |
+| Цель                    | Формат                                               |
+| ----------------------- | ---------------------------------------------------- |
+| Путь пакета или модуля  | `` `@scope/pkg` ``                                   |
+| Тип                     | `{@link TypeName}`                                   |
+| Поле типа               | `{@link TypeName.field}`                             |
+| Поле внутри `@property` | ``@property field {@link Type.field + description}`` |
 
-## Priority
+Store-файлы документируются по слоям:
 
-1. Direct user request
-2. This file
-3. Matched files in `rules/`
+1. `store.t.ts` — короткие однострочные комментарии полей в интерфейсе.
+2. `store.ts` — один заголовок над store-объектом с `@property`-записями.
+3. Поля внутри object literal store — без TSDoc-комментариев.
 
-If matched rules conflict, prefer the narrower rule for the current task.
+Используй такую форму `store.ts`:
+
+```typescript
+/**
+ * Короткое описание store.
+ *
+ * Заполняется в `@{domain}/orchestrator`, используется в `@{domain}/executor`.
+ *
+ * @property data {@link ModuleStore.data|description}
+ * @property offset {@link ModuleStore.offset|description}
+ *
+ * @see {@link ModuleStore} — тип состояния
+ */
+export const store: ModuleStore = {
+  data: null as unknown as Uint32Array,
+  offset: 0,
+}
+```
+
+Используй такую форму `store.t.ts`:
+
+```typescript
+/**
+ * Состояние `@{domain}/store`.
+ *
+ * Хранит данные, используемые несколькими пакетами:
+ * - {@link ModuleStore.data | data} — для инициализации
+ * - {@link ModuleStore.offset | offset} — для операций
+ */
+export interface ModuleStore {
+  /** Короткое описание поля. */
+  data: Uint32Array
+
+  /** Короткое описание поля. */
+  offset: number
+}
+```
+
+Для методов:
+
+- `@param` описывает формат, ограничение или роль, а не тип;
+- `@returns` описывает смысл, а не тип.
+
+## Запрещено
+
+Не:
+
+- используй `{@link}` для пакетов или путей модулей;
+- добавляй TSDoc к полям внутри store object literal;
+- подробно описывай одно и то же поле на нескольких уровнях документации;
+- пиши многострочные комментарии для полей интерфейса;
+- повторяй информацию о типе в `@param` или `@returns`.
+
+## Примеры
+
+Неправильно:
+
+```typescript
+export const store: Store = {
+  /** {@link Store.field|Описание поля}. */
+  field: "",
+}
+```
+
+Правильно:
+
+```typescript
+/**
+ * Описание store.
+ *
+ * @property field {@link Store.field|Описание поля}
+ */
+export const store: Store = {
+  field: "",
+}
+```
+
+## Чеклист
+
+- [ ] Комментарий объясняет что-то неочевидное
+- [ ] Пути пакетов используют литералы, а не `{@link}`
+- [ ] Поля store в `store.ts` документированы через `@property`
+- [ ] Store object literal не содержит TSDoc у полей
+- [ ] Комментарии полей интерфейса короткие
+- [ ] `@param` и `@returns` не повторяют типы
