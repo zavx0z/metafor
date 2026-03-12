@@ -1,4 +1,4 @@
-import type { WeakChanges } from "../runtime.t"
+import type { WeakChanges } from "../weak.t.ts"
 import type { CpuRuntimeContext } from "./index.t.ts"
 import { evaluateBraneNextState } from "./transition"
 

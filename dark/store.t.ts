@@ -1,4 +1,4 @@
-import type { MonadJson } from "@metafor/ast"
+import type { ActorAST } from "@metafor/ast"
 
 export type DarkGraphPath = readonly string[]
 export type DarkGraphLookup = string | DarkGraphPath
@@ -18,7 +18,7 @@ export interface DarkGraphNode {
 
 export interface DarkStoreInput {
   schemaPath: string
-  ast: MonadJson
+  ast: ActorAST
   dsl?: unknown
   sourcePath?: string | undefined
 }

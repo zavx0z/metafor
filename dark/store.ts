@@ -5,7 +5,7 @@
  * representation и path/address lookup API для downstream-доменов.
  */
 
-import type { MonadJson } from "@metafor/ast"
+import type { ActorAST } from "@metafor/ast"
 import type {
   DarkGraphLookup,
   DarkGraphNode,
@@ -17,7 +17,7 @@ import type {
   DarkStoreSnapshot,
 } from "./store.t.ts"
 
-const EMPTY_AST: MonadJson = {
+const EMPTY_AST: ActorAST = {
   name: "",
   fields: {},
   superposition: {},
@@ -186,7 +186,7 @@ function visitChildren(
   }
 }
 
-function getTopLevelEntries(ast: MonadJson): Array<[string, unknown]> {
+function getTopLevelEntries(ast: ActorAST): Array<[string, unknown]> {
   const orderedKeys = ["name", "fields", "superposition", "processes", "reactions", "bulk", "mass"] as const
   const entries: Array<[string, unknown]> = []
   const seen = new Set<string>()

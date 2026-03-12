@@ -1,20 +1,5 @@
-import type { WeakMode } from "./runtime/store.t.ts"
-import type { WeakBackendPreference } from "./device.t.ts"
-
-/**
- * GPU Device — определение и загрузка WebGPU устройства для boundary/weak.
- *
- * @packageDocumentation
- *
- * Модуль не должен падать в окружениях без `navigator.gpu` (например, server/runtime).
- * Поэтому инициализация выполняется только по запросу через `ensureGPUDevice()`.
- */
-
-type MaybeGpuNavigator = {
-  gpu?: {
-    requestAdapter: () => Promise<GPUAdapter | null>
-  }
-}
+import type { WeakMode } from "./store.t.ts"
+import type { MaybeGpuNavigator, WeakBackendPreference } from "./device.t.ts"
 
 function getNavigatorGpu(): MaybeGpuNavigator["gpu"] | undefined {
   const maybeNavigator = (globalThis as { navigator?: MaybeGpuNavigator }).navigator

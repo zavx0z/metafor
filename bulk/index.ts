@@ -4,8 +4,6 @@
  * Пакет не владеет source graph loading и читает уже подготовленный
  * dark-owned contract.
  */
-
-export { loadBulkGraph, loadDSL } from "./gravity"
 export { registerProcesses, getProcessSchema, loadAction, executeProcess, weak$, resetWeakStore, restoreWeakStore } from "./weak"
 export type { ProcessConfig } from "./weak"
 export type { FieldDefinition, FieldsDefinition } from "./strong/field.t"
@@ -15,4 +13,3 @@ export type {
   StrongEntanglementPlan,
   StrongMembershipEntanglementBlock,
 } from "./strong/strong.t"
-export type { BulkGraphContract } from "./gravity"

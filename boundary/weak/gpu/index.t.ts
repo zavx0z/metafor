@@ -1,4 +1,4 @@
-import type { WeakChanges } from "../runtime.t.ts"
+import type { WeakChanges } from "../weak.t.ts"
 import type { ArrayHeapSlot } from "./heap"
 
 export interface GpuBufferMap {

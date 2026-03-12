@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from "bun:test"
 import { flattenBoundaryData } from "../gravity"
-import { prepareBoundaryData } from "../strong"
+import { assembleStoredBoundaryData } from "../strong"
 import { serializeBoundaryState, deserializeBoundaryState } from "../em"
 import { weak$ } from "../weak"
 import { boundary$, reset, update, write } from "../boundary"
@@ -29,7 +29,7 @@ describe("boundary domain layers", () => {
     expect(flattened.branes).toHaveLength(1)
     expect(flattened.branes[0]?.transitions[0]?.[0]?.conditions[0]?.fieldIndex).toBe(0)
 
-    const prepared = prepareBoundaryData(flattened)
+    const prepared = assembleStoredBoundaryData(flattened)
     expect(prepared.fields).toHaveLength(1)
     expect(prepared.branes).toHaveLength(1)
     expect(prepared.stateTable).toHaveLength(2)

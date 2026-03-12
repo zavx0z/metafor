@@ -2,7 +2,7 @@
  * `@dark/em` — projection/export contract подготовленного graph state.
  */
 
-import type { MonadJson } from "@metafor/ast"
+import type { ActorAST } from "@metafor/ast"
 import type { DarkGraphNode, DarkStore } from "../store.t.ts"
 
 export type DarkConsumer = "boundary" | "bulk"
@@ -11,7 +11,7 @@ export interface DarkDownstreamProjection {
   consumer: DarkConsumer
   schemaPath: string
   sourcePath?: string | undefined
-  ast: MonadJson
+  ast: ActorAST
   graph: DarkStore
   root: DarkGraphNode
 }

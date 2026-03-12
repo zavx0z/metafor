@@ -12,12 +12,7 @@
 
 import type { ActorRecord } from "./actor.t"
 import type { OrderKey } from "./order.t"
-import {
-  appendChild,
-  removeChild,
-  getChildren,
-  _resetStore as resetGraph,
-} from "./graph"
+import { appendChild, removeChild, getChildren, _resetStore as resetGraph } from "./graph"
 
 // Состояние модуля
 let actors: Map<string, ActorRecord> = new Map()
@@ -41,12 +36,7 @@ let actors: Map<string, ActorRecord> = new Map()
  * )р
  * ```
  */
-export function createActor(
-  uuid: string,
-  src: string,
-  parentUuid: string | null,
-  orderKey: OrderKey
-): ActorRecord {
+export function createActor(uuid: string, src: string, parentUuid: string | null, orderKey: OrderKey): ActorRecord {
   const record: ActorRecord = {
     uuid,
     src,
@@ -89,10 +79,7 @@ export function getActor(uuid: string): ActorRecord | undefined {
  * updateActor("uuid-123", { status: "active", src: "./next.ts" })
  * ```
  */
-export function updateActor(
-  uuid: string,
-  updates: Partial<ActorRecord>
-): ActorRecord | undefined {
+export function updateActor(uuid: string, updates: Partial<ActorRecord>): ActorRecord | undefined {
   const actor = actors.get(uuid)
   if (!actor) {
     return undefined
@@ -149,9 +136,7 @@ export function getAllActors(): ActorRecord[] {
  */
 export function getActorsByParent(parentUuid: string): ActorRecord[] {
   const childUuids = getChildren(parentUuid)
-  return childUuids
-    .map((uuid) => actors.get(uuid))
-    .filter((actor): actor is ActorRecord => actor !== undefined)
+  return childUuids.map((uuid) => actors.get(uuid)).filter((actor): actor is ActorRecord => actor !== undefined)
 }
 
 /**

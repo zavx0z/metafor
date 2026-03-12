@@ -6,8 +6,8 @@
  */
 
 export { GPU } from "./device"
-export { weakInit, weakHeapUpdate, weakReadChanges, weakStep, weakRunStep, weak$ } from "./runtime"
-export { CONDITION_OP, FIELD_TYPE, OP, TYPE, VALUE_TYPE } from "./constants"
+export { weakInit, weakHeapUpdate, weakReadChanges, weakStep, weakRunStep, weak$ } from "./weak"
+export { OP as CONDITION_OP, FIELD_TYPE, OP, VALUE_TYPE as TYPE, VALUE_TYPE } from "./constants"
 export {
   createFieldEncodingContext,
   encodeValue,
@@ -25,4 +25,4 @@ export {
   compileFlattenedEnsemble,
 } from "./program"
 export type { BoundaryStore } from "../store"
-export type { WeakMode, WeakStore } from "./runtime"
+export type { WeakMode, WeakStore } from "./weak"

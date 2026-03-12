@@ -1,5 +1,5 @@
-import type { WeakRuntime } from "../runtime.t.ts"
-import type { BoundaryStore } from "../../store.t.ts"
+import type { WeakRuntime } from "./weak.t.ts"
+import type { BoundaryStore } from "../store.t.ts"
 
 /**
  * Доступные реализации слабого runtime.

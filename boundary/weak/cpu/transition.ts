@@ -1,5 +1,5 @@
 import type { BoundaryConditionRecord, BoundaryScalarValue, BoundaryStore, BoundaryValue } from "../../store.t"
-import { CONDITION_OP, FIELD_TYPE } from "../constants"
+import { OP, FIELD_TYPE } from "../constants"
 
 function scalarEquals(left: BoundaryScalarValue, right: BoundaryScalarValue): boolean {
   return left === right
@@ -10,24 +10,24 @@ function arrayIncludes(values: BoundaryScalarValue[], target: BoundaryScalarValu
 }
 
 function evaluateScalarCondition(value: BoundaryScalarValue, condition: BoundaryConditionRecord): boolean {
-  if (Array.isArray(condition.value) && (condition.op === CONDITION_OP.IN || condition.op === CONDITION_OP.NOT_IN)) {
+  if (Array.isArray(condition.value) && (condition.op === OP.IN || condition.op === OP.NOT_IN)) {
     const found = condition.value.some((item) => scalarEquals(value, item))
-    return condition.op === CONDITION_OP.IN ? found : !found
+    return condition.op === OP.IN ? found : !found
   }
 
   const expected = condition.value as BoundaryScalarValue
   switch (condition.op) {
-    case CONDITION_OP.EQ:
+    case OP.EQ:
       return scalarEquals(value, expected)
-    case CONDITION_OP.NEQ:
+    case OP.NEQ:
       return !scalarEquals(value, expected)
-    case CONDITION_OP.GT:
+    case OP.GT:
       return Number(value) > Number(expected)
-    case CONDITION_OP.LT:
+    case OP.LT:
       return Number(value) < Number(expected)
-    case CONDITION_OP.GTE:
+    case OP.GTE:
       return Number(value) >= Number(expected)
-    case CONDITION_OP.LTE:
+    case OP.LTE:
       return Number(value) <= Number(expected)
     default:
       return false
@@ -38,20 +38,20 @@ function evaluateArrayCondition(value: BoundaryValue | undefined, condition: Bou
   const items = Array.isArray(value) ? value : []
 
   switch (condition.op) {
-    case CONDITION_OP.INCLUDE:
+    case OP.INCLUDE:
       return arrayIncludes(items, condition.value as BoundaryScalarValue)
-    case CONDITION_OP.NOT_INCLUDE:
+    case OP.NOT_INCLUDE:
       return !arrayIncludes(items, condition.value as BoundaryScalarValue)
-    case CONDITION_OP.LENGTH:
+    case OP.LENGTH:
       return items.length === Number(condition.value)
-    case CONDITION_OP.IS_EMPTY:
+    case OP.IS_EMPTY:
       return (items.length === 0) === Boolean(condition.value)
-    case CONDITION_OP.EQ:
-    case CONDITION_OP.NEQ:
-    case CONDITION_OP.GT:
-    case CONDITION_OP.LT:
-    case CONDITION_OP.GTE:
-    case CONDITION_OP.LTE:
+    case OP.EQ:
+    case OP.NEQ:
+    case OP.GT:
+    case OP.LT:
+    case OP.GTE:
+    case OP.LTE:
       return evaluateScalarCondition(items.length, condition)
     default:
       return false

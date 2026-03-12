@@ -6,7 +6,7 @@
 
 import type { BoundaryFieldRecord, BoundaryValue } from "../../store.t"
 import type { CompiledConditionsResult, ConditionInstruction, FlattenedTransition } from "./bytecode.t"
-import { CONDITION_OP, VALUE_TYPE } from "../constants"
+import { OP, VALUE_TYPE } from "../constants"
 import { encodeValue, fieldTypeToBytecodeType, type PackContext } from "./pack"
 
 export type { CompiledConditionsResult, ConditionInstruction, FlattenedTransition } from "./bytecode.t"
@@ -69,7 +69,7 @@ export function compileParsedConditions(
 
     let valEncoded: number
 
-    if (Array.isArray(check.val) && (check.op === CONDITION_OP.IN || check.op === CONDITION_OP.NOT_IN)) {
+    if (Array.isArray(check.val) && (check.op === OP.IN || check.op === OP.NOT_IN)) {
       const ptr = heapOffset
       heap.push(check.val.length)
       for (const value of check.val) {
@@ -122,7 +122,7 @@ function getArrayEncodingContext(ctx: PackContext, op: number, fieldType: number
     return ctx
   }
 
-  if (ctx.subType !== undefined && (op === CONDITION_OP.IN || op === CONDITION_OP.NOT_IN)) {
+  if (ctx.subType !== undefined && (op === OP.IN || op === OP.NOT_IN)) {
     const nextContext: PackContext = { type: ctx.subType, stringTable: ctx.stringTable }
     if (ctx.enum !== undefined) {
       nextContext.enum = ctx.enum

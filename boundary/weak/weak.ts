@@ -1,5 +1,5 @@
-import type { WeakChanges, WeakHeapUpdate } from "../runtime.t"
-import type { BoundaryStore } from "../../store.t"
+import type { WeakChanges, WeakHeapUpdate } from "./weak.t"
+import type { BoundaryStore } from "../store.t"
 import { createWeakRuntime } from "./factory"
 import { weak$ } from "./store"
 

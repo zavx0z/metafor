@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-import type { NodeType, ReactionsSchema, ParsedProcess, ParsedDestroy } from "@metafor/dsl"
+import type { NodeType, ReactionsSchema } from "@metafor/dsl"
 
 /**
  * Исходный объект MetaFor, полученный из chain API.
@@ -144,7 +144,7 @@ export interface ViewJson {
  * }
  * ```
  */
-export interface MonadJson {
+export interface ActorAST {
   /** Название атома (из MetaFor("name")) */
   name: string
   /**

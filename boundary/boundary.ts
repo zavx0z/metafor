@@ -22,16 +22,12 @@
  * - вычисление перехода и backend-адаптеры — это `@boundary/weak`
  */
 
-import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "./weak"
 import { boundary$ } from "./store"
-import type { PreparedData } from "./boundary.t"
 import type { BoundaryFieldValueRecord, BoundaryStore } from "./store.t"
-import {
-  createStoredStringInterner,
-  normalizeFieldValue,
-  prepareBoundaryData,
-} from "./strong"
-import { flattenBoundaryData, validateData, type Data, type FlattenedBoundaryInput } from "./gravity"
+import type { PreparedData } from "./boundary.t"
+import { flattenBoundaryData, validateData, type Data } from "./gravity"
+import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundaryData } from "./strong"
+import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "./weak"
 
 let writeMutex: Promise<void> | null = null
 let updateMutex: Promise<void> | null = null
@@ -44,7 +40,7 @@ function reset(): void {
 }
 
 export function prepareData(data: Data): PreparedData {
-  return prepareBoundaryData(flattenBoundaryData(data))
+  return assembleStoredBoundaryData(flattenBoundaryData(data))
 }
 
 export async function write(data: Data): Promise<[number, number][]> {
@@ -63,7 +59,7 @@ export async function write(data: Data): Promise<[number, number][]> {
     boundary$.reset()
     weak$.reset()
     const flattened = flattenBoundaryData(data)
-    const prepared = prepareBoundaryData(flattened)
+    const prepared = assembleStoredBoundaryData(flattened)
     boundary$.restore(prepared)
     await weakInit(boundary$)
     return []

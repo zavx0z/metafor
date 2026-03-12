@@ -6,9 +6,17 @@
  * подготовленный linked flat contract.
  */
 
-import type { MonadJson } from "@metafor/ast"
-import { createDarkStore, createDarkStoreSnapshot, createDarkAddress, createDarkPath, formatDarkPath, parseDarkAddress, parseDarkPath } from "../store"
-import type { DarkStore, DarkStoreInput, DarkStoreSnapshot } from "../store.t.ts"
+import type { ActorAST } from "@metafor/ast"
+import {
+  createDarkStore,
+  createDarkStoreSnapshot,
+  createDarkAddress,
+  createDarkPath,
+  formatDarkPath,
+  parseDarkAddress,
+  parseDarkPath,
+} from "../store"
+import type { DarkStore, DarkStoreInput } from "../store.t.ts"
 
 interface CreateDarkGraphOptions {
   schemaPath?: string
@@ -33,10 +41,7 @@ function resolveDarkGraphSource(metaPath: string): { schemaPath: string; sourceP
   }
 }
 
-export function createDarkGraph(
-  ast: MonadJson,
-  options: CreateDarkGraphOptions = {},
-): DarkStore {
+export function createDarkGraph(ast: ActorAST, options: CreateDarkGraphOptions = {}): DarkStore {
   return createDarkStore({
     ast,
     dsl: options.dsl,
@@ -53,7 +58,7 @@ export async function loadDarkGraph(metaPath: string, options: Pick<DarkStoreInp
     throw new Error(`Unable to load dark graph source from "${sourcePath}" (${response.status} ${response.statusText})`)
   }
 
-  const ast = (await response.json()) as MonadJson
+  const ast = (await response.json()) as ActorAST
 
   return createDarkStore({
     schemaPath,

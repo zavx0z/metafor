@@ -8,7 +8,7 @@ import { parseCondition } from "../gravity/condition"
 import type { FlattenedTransition } from "../gravity/flattened.t"
 import type { Collapse, Field } from "../gravity/schema.t"
 import { createStoredStringInterner, type StringInterner } from "../strong/string-table"
-import { OP, TYPE } from "./constants"
+import { OP, VALUE_TYPE } from "./constants"
 import { encodeValue, fieldTypeToBytecodeType } from "./encode"
 import type {
   CompiledConditionsResult,
@@ -120,7 +120,7 @@ export function compileFlattenedSuperposition(
 }
 
 function getArrayEncodingContext(ctx: EncodingContext, op: number, fieldType: number): EncodingContext {
-  if (fieldType !== TYPE.ARRAY) {
+  if (fieldType !== VALUE_TYPE.ARRAY) {
     return ctx
   }
 
@@ -132,7 +132,7 @@ function getArrayEncodingContext(ctx: EncodingContext, op: number, fieldType: nu
     return nextContext
   }
 
-  const nextContext: EncodingContext = { type: TYPE.UINT }
+  const nextContext: EncodingContext = { type: VALUE_TYPE.UINT }
   if (ctx.stringInterner !== undefined) {
     nextContext.stringInterner = ctx.stringInterner
   }
@@ -181,13 +181,13 @@ export function compileParsedConditions(
     if (field?.elementType !== undefined) {
       switch (field.elementType) {
         case "number":
-          ctx.subType = TYPE.FLOAT
+          ctx.subType = VALUE_TYPE.FLOAT
           break
         case "string":
-          ctx.subType = TYPE.STRING
+          ctx.subType = VALUE_TYPE.STRING
           break
         case "boolean":
-          ctx.subType = TYPE.BOOL
+          ctx.subType = VALUE_TYPE.BOOL
           break
       }
     }

@@ -5,7 +5,7 @@ import { prepareData } from "../../../boundary"
 import { createStoredStringInterner, normalizeFieldValue } from "../../../strong"
 import { FieldType, type Collapse, type Data, type Field } from "../../../gravity"
 import type { BoundaryData, BoundaryStore } from "../../../store.t"
-import type { WeakRuntime } from "../../runtime.t"
+import type { WeakRuntime } from "../../weak.t"
 
 function clonePreparedStore(data: BoundaryData): BoundaryStore {
   const cloned: BoundaryStore = {

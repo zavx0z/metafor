@@ -1,5 +1,5 @@
 import type { BoundaryStore } from "../../store.t"
-import type { WeakChanges, WeakHeapUpdate, WeakRuntime } from "../runtime.t"
+import type { WeakChanges, WeakHeapUpdate, WeakRuntime } from "../weak.t.ts"
 import type { CpuRuntimeContext, CpuRuntimeState } from "./index.t.ts"
 import { executeCpuStep } from "./step"
 

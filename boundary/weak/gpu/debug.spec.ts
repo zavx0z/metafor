@@ -12,25 +12,25 @@ import {
   dumpWeak,
 } from "./debug"
 import { packMeta } from "./layout-heap"
-import { TYPE, OP } from "../constants"
+import { VALUE_TYPE, OP } from "../constants"
 
 describe("gpu/debug — утилиты отладки", () => {
   describe("dumpHeap()", () => {
     it("должен дампувать блок с 2 полями", () => {
-      const heap = new Uint32Array([2, 0, 0, packMeta(TYPE.FLOAT, 1, 4), 1, packMeta(TYPE.BOOL, 1, 5), 0x42c80000, 1])
+      const heap = new Uint32Array([2, 0, 0, packMeta(VALUE_TYPE.FLOAT, 1, 4), 1, packMeta(VALUE_TYPE.BOOL, 1, 5), 0x42c80000, 1])
       const dump = dumpHeap(heap, 0)
 
       expect(dump.blockPtr).toBe(0)
       expect(dump.localCount).toBe(2)
       expect(dump.entangledCount).toBe(0)
       expect(dump.fields).toHaveLength(2)
-      expect(dump.fields[0]).toEqual({ fieldId: 0, type: TYPE.FLOAT, typeName: "FLOAT", size: 1, offset: 4 })
-      expect(dump.fields[1]).toEqual({ fieldId: 1, type: TYPE.BOOL, typeName: "BOOL", size: 1, offset: 5 })
+      expect(dump.fields[0]).toEqual({ fieldId: 0, type: VALUE_TYPE.FLOAT, typeName: "FLOAT", size: 1, offset: 4 })
+      expect(dump.fields[1]).toEqual({ fieldId: 1, type: VALUE_TYPE.BOOL, typeName: "BOOL", size: 1, offset: 5 })
       expect(dump.entangledPointers).toEqual([])
     })
 
     it("должен дампувать блок с entangled указателями", () => {
-      const heap = new Uint32Array([1, 2, 0, packMeta(TYPE.UINT, 1, 3), 10, 20, 42])
+      const heap = new Uint32Array([1, 2, 0, packMeta(VALUE_TYPE.UINT, 1, 3), 10, 20, 42])
       const dump = dumpHeap(heap, 0)
 
       expect(dump.localCount).toBe(1)
@@ -41,7 +41,7 @@ describe("gpu/debug — утилиты отладки", () => {
 
   describe("dumpBytecode()", () => {
     it("должен дампувать bytecode с 2 состояниями", () => {
-      const bytecode = new Uint32Array([2, 0, 1, 1, 5, 1, TYPE.FLOAT, 0, OP.GT, 0x42480000])
+      const bytecode = new Uint32Array([2, 0, 1, 1, 5, 1, VALUE_TYPE.FLOAT, 0, OP.GT, 0x42480000])
       const dump = dumpBytecode(bytecode, 0)
 
       expect(dump.offset).toBe(0)
@@ -63,7 +63,7 @@ describe("gpu/debug — утилиты отладки", () => {
 
   describe("visualizeBytecode()", () => {
     it("должен строить текстовую визуализацию", () => {
-      const bytecode = new Uint32Array([2, 0, 1, 1, 5, 1, TYPE.FLOAT, 0, OP.GT, 0x42480000])
+      const bytecode = new Uint32Array([2, 0, 1, 1, 5, 1, VALUE_TYPE.FLOAT, 0, OP.GT, 0x42480000])
       const viz = visualizeBytecode(bytecode, 0)
       expect(viz).toContain("State 0")
       expect(viz).toContain("GT")
@@ -72,7 +72,7 @@ describe("gpu/debug — утилиты отладки", () => {
 
   describe("getHeapStats()", () => {
     it("должен считать статистику heap", () => {
-      const heap = new Uint32Array([1, 0, 0, packMeta(TYPE.UINT, 1, 3), 42, 0])
+      const heap = new Uint32Array([1, 0, 0, packMeta(VALUE_TYPE.UINT, 1, 3), 42, 0])
       const stats = getHeapStats(heap, [0])
       expect(stats.totalSize).toBe(heap.length)
       expect(stats.usedSize).toBeGreaterThan(0)
@@ -81,7 +81,7 @@ describe("gpu/debug — утилиты отладки", () => {
 
   describe("dumpWeak()", () => {
     it("должен собирать полный дамп", async () => {
-      const heap = new Uint32Array([1, 0, 0, packMeta(TYPE.UINT, 1, 3), 42, 0])
+      const heap = new Uint32Array([1, 0, 0, packMeta(VALUE_TYPE.UINT, 1, 3), 42, 0])
       const bytecode = new Uint32Array([1])
       const bytecodeOffsets = new Uint32Array([0])
       const dump = await dumpWeak(heap, bytecode, bytecodeOffsets, [0], ["", "hero"])

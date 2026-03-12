@@ -1,4 +1,4 @@
-import type { WeakMode } from "./runtime/store.t.ts"
+import type { WeakMode } from "./store.t.ts"
 
 export type WeakHeapUpdate =
   | {

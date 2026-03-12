@@ -12,7 +12,7 @@ import type {
   ArrayElementType,
   MetaJson,
   ViewJson,
-  MonadJson,
+  ActorAST,
   FieldDefinitionJson,
   ReactionDefinitionJson,
 } from "./ast.t"
@@ -93,7 +93,7 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
  * // => { name: "git", fields: {...}, superposition: {...}, processes: {...}, bulk: {...}, mass: {...} }
  * ```
  */
-export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): MonadJson {
+export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): ActorAST {
   const inputFields = meta?.fields
   if (!inputFields || typeof inputFields !== "object") {
     throw new Error("fields не найден или не является объектом")

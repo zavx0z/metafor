@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import type { MonadJson } from "@metafor/ast"
+import type { ActorAST } from "@metafor/ast"
 import { createDarkAddress, createDarkStore, formatDarkPath, parseDarkAddress } from "./store"
 
-const ast: MonadJson = {
+const ast: ActorAST = {
   name: "git",
   fields: {
     src: {

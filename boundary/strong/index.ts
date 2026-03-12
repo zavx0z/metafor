@@ -21,13 +21,6 @@ import {
 } from "./dump/codec"
 import type { BoundarySnapshot, RestoredBoundaryState } from "./dump/format.t"
 
-export function prepareBoundaryData(data: FlattenedBoundaryInput): PreparedData {
-  return assembleStoredBoundaryData(data)
-}
-
-export function restoreBoundaryState(data: Uint8Array): DeserializedBoundaryState {
-  return deserializeBoundaryState(data)
-}
 
 export {
   assembleStoredBoundaryData,

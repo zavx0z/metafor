@@ -1,4 +1,4 @@
-import { TYPE } from "./constants"
+import { VALUE_TYPE } from "./constants"
 import type { EncodingContext, EncodedValueResult } from "./encode.t"
 import { FieldType, type Field, type FieldTypeValue } from "../gravity/schema.t"
 
@@ -29,13 +29,13 @@ export function createFieldEncodingContext(
   if (field?.elementType !== undefined) {
     switch (field.elementType) {
       case "number":
-        context.subType = TYPE.FLOAT
+        context.subType = VALUE_TYPE.FLOAT
         break
       case "string":
-        context.subType = TYPE.STRING
+        context.subType = VALUE_TYPE.STRING
         break
       case "boolean":
-        context.subType = TYPE.BOOL
+        context.subType = VALUE_TYPE.BOOL
         break
     }
   }
@@ -58,16 +58,16 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
     return { value1: index, value2: 0 }
   }
 
-  if (context.type === TYPE.FLOAT) {
+  if (context.type === VALUE_TYPE.FLOAT) {
     const buffer = new Float32Array([Number(value)])
     return { value1: new Uint32Array(buffer.buffer)[0]!, value2: 0 }
   }
 
-  if (context.type === TYPE.BOOL) {
+  if (context.type === VALUE_TYPE.BOOL) {
     return { value1: value ? 1 : 0, value2: 0 }
   }
 
-  if (context.type === TYPE.STRING) {
+  if (context.type === VALUE_TYPE.STRING) {
     if (value === null) {
       return { value1: 0, value2: 0 }
     }
@@ -86,7 +86,7 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
     }
   }
 
-  if (context.type === TYPE.ARRAY) {
+  if (context.type === VALUE_TYPE.ARRAY) {
     if (!Array.isArray(value)) {
       throw new Error(`Expected array for TYPE.ARRAY, got ${typeof value}`)
     }
@@ -107,7 +107,7 @@ export function encodeValue(value: unknown, context: EncodingContext): EncodedVa
       }
 
       context.heap[pointer] = items.length
-      const elementType = context.subType ?? TYPE.FLOAT
+      const elementType = context.subType ?? VALUE_TYPE.FLOAT
       for (let index = 0; index < items.length; index++) {
         const itemContext: EncodingContext = { type: elementType }
         if (context.stringInterner !== undefined) {
@@ -131,17 +131,17 @@ export function encodeFieldValue(value: unknown, context: EncodingContext): numb
 export function fieldTypeToBytecodeType(fieldType: FieldTypeValue): number {
   switch (fieldType) {
     case FieldType.F32:
-      return TYPE.FLOAT
+      return VALUE_TYPE.FLOAT
     case FieldType.U32:
-      return TYPE.UINT
+      return VALUE_TYPE.UINT
     case FieldType.BOOL:
-      return TYPE.BOOL
+      return VALUE_TYPE.BOOL
     case FieldType.STRING_PTR:
-      return TYPE.STRING
+      return VALUE_TYPE.STRING
     case FieldType.ARRAY_PTR:
-      return TYPE.ARRAY
+      return VALUE_TYPE.ARRAY
     default:
-      return TYPE.UINT
+      return VALUE_TYPE.UINT
   }
 }
 
