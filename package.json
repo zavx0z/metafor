@@ -5,6 +5,8 @@
   "type": "module",
   "private": true,
   "workspaces": [
+    "dark",
+    "dark/*",
     "boundary",
     "boundary/*",
     "bulk",
