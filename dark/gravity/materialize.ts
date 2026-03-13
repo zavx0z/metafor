@@ -21,23 +21,14 @@ export function getInsertionIndex(state: GravityReadonlyState, children: readonl
   const candidate = mustGetGravityAtom(state, address)
   let left = 0
   let right = children.length
-
   while (left < right) {
     const middle = (left + right) >>> 1
     const current = mustGetGravityAtom(state, children[middle]!)
-
     let comparison = compareOrderKey(current.orderKey, candidate.orderKey)
-    if (comparison === 0) {
-      comparison = current.seq - candidate.seq
-    }
-
-    if (comparison <= 0) {
-      left = middle + 1
-    } else {
-      right = middle
-    }
+    if (comparison === 0) comparison = current.seq - candidate.seq
+    if (comparison <= 0) left = middle + 1
+    else right = middle
   }
-
   return left
 }
 
@@ -52,7 +43,6 @@ export function materializeDarkAtoms(state: GravityReadonlyState): Map<string, A
   return new Map(
     listTreeAddresses(state).map((address) => {
       const atom = mustGetGravityAtom(state, address)
-
       return [
         address,
         {

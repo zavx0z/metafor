@@ -10,14 +10,10 @@ function comparePath(a: string, b: string): number {
   const aIndices = pathToIndices(a)
   const bIndices = pathToIndices(b)
   const size = Math.min(aIndices.length, bIndices.length)
-
   for (let index = 0; index < size; index++) {
     const delta = aIndices[index]! - bIndices[index]!
-    if (delta !== 0) {
-      return delta
-    }
+    if (delta !== 0) return delta
   }
-
   return aIndices.length - bIndices.length
 }
 
@@ -72,7 +68,6 @@ export const dark$: DarkStore = {
 
   getChildren(parent) {
     const parentPath = parent ? this.getPath(parent) ?? null : null
-
     return [...this.atom.values()]
       .filter((atom) => getParentPath(atom.path) === parentPath)
       .sort((left, right) => comparePath(left.path, right.path))
@@ -80,11 +75,8 @@ export const dark$: DarkStore = {
 
   getNode(path) {
     for (const atom of this.atom.values()) {
-      if (atom.path === path) {
-        return atom
-      }
+      if (atom.path === path) return atom
     }
-
     return null
   },
 }

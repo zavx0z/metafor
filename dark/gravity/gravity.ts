@@ -93,7 +93,6 @@ export function reserveSibling(
   store: GravityStore = gravity$,
 ): void {
   assertAddressAvailable(store, address)
-
   const reservation = at === "before" ? getBeforeReservation(store, target) : getAfterReservation(store, target)
   store.setReservation(address, reservation)
 }
@@ -105,11 +104,7 @@ export function reserveByIndexPath(address: string, path: string, store: Gravity
 
 export function attachReserved(input: AtomInput, store: GravityStore = gravity$): GravityAtom {
   const reservation = store.getReservation(input.address)
-
-  if (!reservation) {
-    return createChildren(null, input, store)
-  }
-
+  if (!reservation) return createChildren(null, input, store)
   store.deleteReservation(input.address)
   return createWithReservation(store, input, reservation.parent, reservation.orderKey)
 }
