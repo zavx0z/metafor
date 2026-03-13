@@ -10,7 +10,7 @@ import type { NodeType, ReactionsSchema } from "@metafor/dsl"
  * Исходный объект MetaFor, полученный из chain API.
  * Содержит все компоненты мета-конфигурации.
  */
-export type MetaLike = Record<string, any> & {
+export type MetaDSLLike = Record<string, any> & {
   /** Схема полей с типами и значениями по умолчанию */
   fields?: Record<string, any>
   /** Граф переходов состояний (суперпозиция) */
@@ -19,8 +19,9 @@ export type MetaLike = Record<string, any> & {
   processes?: Record<string, any>
   /** Реакции на события других атомов */
   reactions?: ReactionsSchema | null
-  /** Bulk-конфигурация (gravity/view) */
+  /** Gravity-конфигурация компонента */
   gravity?: NodeType[]
+  /** Bulk-view конфигурация */
   view?: string
   /** Масса для сложных данных и зависимостей от среды */
   mass?: Record<string, any>
@@ -80,26 +81,24 @@ export interface MetaJson {
 }
 
 /**
- * Представление мета-конфигурации в JSON формате.
- * Содержит сериализованные gravity и view компоненты.
+ * Представление bulk-view конфигурации в JSON формате.
  */
 export interface ViewJson {
-  /** Сериализованное представление gravity как AST из @metafor/template */
-  gravity?: NodeType[]
   /** Сериализованные view-стили как CSS строка */
   view?: string
 }
 
 /**
- * Meta-конфигурация в формате JSON.
+ * MetaAST-конфигурация в формате JSON.
  *
- * Это не сам атом, а его декларация — Meta для создания атома.
+ * Это не сам атом, а его декларация — MetaDSL, сериализованная в AST для создания атома.
  * Содержит все необходимые данные для инициализации:
  * - **fields** — схема полей с семантикой для ИИ (type, required, label, default)
  * - **superposition** — граф переходов состояний
  * - **processes** — процессы с обработчиками (action/success/error)
  * - **reactions** — реакции на события других атомов
- * - **bulk** — bulk-конфигурация (gravity/view) для BULK уровня
+ * - **gravity** — иерархия акторов как AST
+ * - **bulk** — bulk-view конфигурация для BULK уровня
  * - **mass** — масса для сложных данных и зависимостей от среды
  *
  * @example
@@ -135,8 +134,8 @@ export interface ViewJson {
  *     "reactions": { ... },
  *     "superposition": { ... }
  *   },
+ *   "gravity": [...],
  *   "bulk": {
- *     "gravity": [...],
  *     "view": ".container { color: blue; }"
  *   },
  *   "mass": {
@@ -175,8 +174,13 @@ export interface MetaAST {
     superposition: Record<string, string[]>
   }
   /**
-   * Bulk-конфигурация для BULK уровня.
-   * Содержит gravity (AST) и view (CSS).
+   * Gravity-конфигурация для иерархии акторов.
+   * Содержит AST шаблона из DSL `.gravity(...)`.
+   */
+  gravity?: NodeType[]
+  /**
+   * Bulk-view конфигурация для BULK уровня.
+   * Содержит только view (CSS).
    */
   bulk?: ViewJson
   /**

@@ -91,32 +91,10 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
       label: "Парсинг опций",
       desc: "Извлекает флаги и сообщение из аргументов командной строки",
     })
-      .action(({ value }) => {
-        const args = value.args || ""
-
-        // Проверка: args не должен быть пустым
-        if (!args.trim()) {
-          throw new Error("Команда не указана")
-        }
-
-        const result: Record<string, any> = {}
-
-        // Флаги
-        if (args.includes("-a") || args.includes("--all")) result.all = true
-        if (args.includes("--amend")) result.amend = true
-        if (args.includes("-s") || args.includes("--signoff")) result.signoff = true
-        if (args.includes("-n") || args.includes("--no-verify")) result.noVerify = true
-        if (args.includes("--dry-run")) result.dryRun = true
-        if (args.includes("-v") || args.includes("--verbose")) result.verbose = true
-        if (args.includes("-e") || args.includes("--edit")) result.edit = true
-
-        // Сообщение коммита
-        const msgMatch = args.match(/-m\s+"([^"]+)"/) || args.match(/-m\s+'([^']+)'/) || args.match(/-m\s+(\S+)/)
-        if (msgMatch && msgMatch[1]) {
-          result.message = msgMatch[1]
-        }
-
-        return result
+      .action(async ({ value }) => {
+        if (!value.args) throw new Error("Не указаны аргументы")
+        const mod = await import("./actions/commit")
+        return mod.parseCommitOptions(value.args)
       })
       .error(({ update, error }) => update({ error: error.message })),
 
@@ -125,11 +103,8 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
       desc: "Создаёт коммит с указанным сообщением",
     })
       .action(async ({ value }) => {
-        const cmd = `git commit -m ${JSON.stringify(value.message)}`
-        const result = await Bun.$`${cmd}`.quiet().text()
-        if (!result.includes("created") && !result.includes("mode")) {
-          throw new Error(result || "Не удалось создать коммит")
-        }
+        const mod = await import("./actions/commit")
+        return mod.runCommitCommand({ command: `git commit -m ${JSON.stringify(value.message)}`, mode: "commit" })
       })
       .error(({ update, error }) => update({ error: error.message })),
 
@@ -138,10 +113,8 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
       desc: "Создаёт коммит всех изменённых отслеживаемых файлов",
     })
       .action(async () => {
-        const result = await Bun.$`git commit -a`.quiet().text()
-        if (!result.includes("created") && !result.includes("mode")) {
-          throw new Error(result || "Не удалось создать коммит")
-        }
+        const mod = await import("./actions/commit")
+        return mod.runCommitCommand({ command: "git commit -a", mode: "commit" })
       })
       .error(({ update, error }) => update({ error: error.message })),
 
@@ -150,10 +123,8 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
       desc: "Заменяет последний коммит без изменения сообщения",
     })
       .action(async () => {
-        const result = await Bun.$`git commit --amend --no-edit`.quiet().text()
-        if (!result.includes("amend") && !result.includes("mode")) {
-          throw new Error(result || "Не удалось заменить коммит")
-        }
+        const mod = await import("./actions/commit")
+        return mod.runCommitCommand({ command: "git commit --amend --no-edit", mode: "amend" })
       })
       .error(({ update, error }) => update({ error: error.message })),
 
@@ -162,11 +133,11 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
       desc: "Создаёт коммит с добавлением Signed-off-by трейлера",
     })
       .action(async ({ value }) => {
-        const cmd = value.message ? `git commit -s -m ${JSON.stringify(value.message)}` : `git commit -s`
-        const result = await Bun.$`${cmd}`.quiet().text()
-        if (!result.includes("created") && !result.includes("mode")) {
-          throw new Error(result || "Не удалось создать коммит")
-        }
+        const mod = await import("./actions/commit")
+        return mod.runCommitCommand({
+          command: value.message ? `git commit -s -m ${JSON.stringify(value.message)}` : "git commit -s",
+          mode: "commit",
+        })
       })
       .error(({ update, error }) => update({ error: error.message })),
 
@@ -175,11 +146,11 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
       desc: "Пропускает pre-commit и commit-msg хуки",
     })
       .action(async ({ value }) => {
-        const cmd = value.message ? `git commit -n -m ${JSON.stringify(value.message)}` : `git commit -n`
-        const result = await Bun.$`${cmd}`.quiet().text()
-        if (!result.includes("created") && !result.includes("mode")) {
-          throw new Error(result || "Не удалось создать коммит")
-        }
+        const mod = await import("./actions/commit")
+        return mod.runCommitCommand({
+          command: value.message ? `git commit -n -m ${JSON.stringify(value.message)}` : "git commit -n",
+          mode: "commit",
+        })
       })
       .error(({ update, error }) => update({ error: error.message })),
 
@@ -188,8 +159,11 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
       desc: "Показывает что будет закоммичено без фактического создания коммита",
     })
       .action(async ({ value }) => {
-        const cmd = value.message ? `git commit --dry-run -m ${JSON.stringify(value.message)}` : `git commit --dry-run`
-        await Bun.$`${cmd}`.quiet().text()
+        const mod = await import("./actions/commit")
+        return mod.runCommitCommand({
+          command: value.message ? `git commit --dry-run -m ${JSON.stringify(value.message)}` : "git commit --dry-run",
+          mode: "dry-run",
+        })
       })
       .error(({ update, error }) => update({ error: error.message })),
 
@@ -198,10 +172,8 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
       desc: "Открывает редактор для написания сообщения коммита",
     })
       .action(async () => {
-        const result = await Bun.$`git commit -e`.quiet().text()
-        if (!result.includes("created") && !result.includes("mode")) {
-          throw new Error(result || "Не удалось создать коммит")
-        }
+        const mod = await import("./actions/commit")
+        return mod.runCommitCommand({ command: "git commit -e", mode: "commit" })
       })
       .error(({ update, error }) => update({ error: error.message })),
 
@@ -210,11 +182,8 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
       desc: "Создаёт коммит всех изменённых файлов с сообщением",
     })
       .action(async ({ value }) => {
-        const cmd = `git commit -a -m ${JSON.stringify(value.message)}`
-        const result = await Bun.$`${cmd}`.quiet().text()
-        if (!result.includes("created") && !result.includes("mode")) {
-          throw new Error(result || "Не удалось создать коммит")
-        }
+        const mod = await import("./actions/commit")
+        return mod.runCommitCommand({ command: `git commit -a -m ${JSON.stringify(value.message)}`, mode: "commit" })
       })
       .error(({ update, error }) => update({ error: error.message })),
 
@@ -223,11 +192,8 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
       desc: "Заменяет последний коммит с новым сообщением",
     })
       .action(async ({ value }) => {
-        const cmd = `git commit --amend -m ${JSON.stringify(value.message)}`
-        const result = await Bun.$`${cmd}`.quiet().text()
-        if (!result.includes("amend") && !result.includes("mode")) {
-          throw new Error(result || "Не удалось заменить коммит")
-        }
+        const mod = await import("./actions/commit")
+        return mod.runCommitCommand({ command: `git commit --amend -m ${JSON.stringify(value.message)}`, mode: "amend" })
       })
       .error(({ update, error }) => update({ error: error.message })),
 
@@ -236,11 +202,8 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
       desc: "Создаёт коммит с подписью и сообщением",
     })
       .action(async ({ value }) => {
-        const cmd = `git commit -s -m ${JSON.stringify(value.message)}`
-        const result = await Bun.$`${cmd}`.quiet().text()
-        if (!result.includes("created") && !result.includes("mode")) {
-          throw new Error(result || "Не удалось создать коммит")
-        }
+        const mod = await import("./actions/commit")
+        return mod.runCommitCommand({ command: `git commit -s -m ${JSON.stringify(value.message)}`, mode: "commit" })
       })
       .error(({ update, error }) => update({ error: error.message })),
 
@@ -249,10 +212,8 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
       desc: "Заменяет последний коммит с добавлением подписи",
     })
       .action(async () => {
-        const result = await Bun.$`git commit --amend -s --no-edit`.quiet().text()
-        if (!result.includes("amend") && !result.includes("mode")) {
-          throw new Error(result || "Не удалось заменить коммит")
-        }
+        const mod = await import("./actions/commit")
+        return mod.runCommitCommand({ command: "git commit --amend -s --no-edit", mode: "amend" })
       })
       .error(({ update, error }) => update({ error: error.message })),
 
@@ -261,17 +222,13 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
       desc: "Заменяет последний коммит с подписью и новым сообщением",
     })
       .action(async ({ value }) => {
-        const cmd = `git commit --amend -s -m ${JSON.stringify(value.message)}`
-        const result = await Bun.$`${cmd}`.quiet().text()
-        if (!result.includes("amend") && !result.includes("mode")) {
-          throw new Error(result || "Не удалось заменить коммит")
-        }
+        const mod = await import("./actions/commit")
+        return mod.runCommitCommand({ command: `git commit --amend -s -m ${JSON.stringify(value.message)}`, mode: "amend" })
       })
       .error(({ update, error }) => update({ error: error.message })),
 
     выполнено: destroy(),
   }))
   .reactions(() => [])
-  .bulk({
-    gravity: ({ value, html }) => html` ${value.error && html`<div class="error">${value.error}</div>`} `,
-  })
+  .gravity(({ value, html }) => html` ${value.error && html`<div class="error">${value.error}</div>`} `)
+  .bulk()

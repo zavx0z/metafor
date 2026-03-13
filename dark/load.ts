@@ -1,15 +1,18 @@
 import type { MetaAST } from "@metafor/ast"
 
 /**
- * Загружает MetaAST из `meta.json` в Web-среде.
+ * Загружает MetaAST по hub-адресу.
  *
- * Использует `fetch()` для загрузки по HTTP/HTTPS.
+ * Хаб — это каноническая адресация meta-сущности вида `owner/path`, которая резолвится в `owner/path/meta.json`.
  *
- * @param metaPath Базовый URL к директории с `meta.json`
+ * Текущая реализация использует `fetch()` для загрузки по HTTP/HTTPS.
+ * В будущем может включать git-кэш, OPFS и pinning по commit hash.
+ *
+ * @param hub Hub-адрес вида `owner/path`
  * @returns Распарсенный JSON или `undefined` при ошибке загрузки
  */
-export async function loadMetaAST(metaPath: string): Promise<MetaAST | undefined> {
-  const cleanPath = metaPath.trim().replace(/^\/+|\/+$/g, "")
+export async function loadMetaAST(hub: string): Promise<MetaAST | undefined> {
+  const cleanPath = hub.trim().replace(/^\/+|\/+$/g, "")
   const url = `/${cleanPath}/meta.json`
   try {
     const response = await fetch(url)

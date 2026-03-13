@@ -8,27 +8,26 @@
   },
   "superposition": {},
   "processes": {},
-  "view": {
-    "render": [
-      {
-        "type": "log",
-        "data": "/context/error",
-        "child": [
-          {
-            "tag": "div",
-            "type": "el",
-            "child": [
-              {
-                "type": "text",
-                "data": "/context/error"
-              }
-            ],
-            "string": {
-              "class": "error"
+  "gravity": [
+    {
+      "type": "log",
+      "data": "/value/error",
+      "child": [
+        {
+          "tag": "div",
+          "type": "el",
+          "child": [
+            {
+              "type": "text",
+              "data": "/value/error"
             }
+          ],
+          "string": {
+            "class": "error"
           }
-        ]
-      }
-    ]
-  }
+        }
+      ]
+    }
+  ],
+  "mass": {}
 }

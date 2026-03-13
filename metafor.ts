@@ -1,3 +1,12 @@
+/**
+ * Загружает схему Meta по hub-адресу.
+ *
+ * Хаб — это каноническая адресация meta-сущности вида `owner/path`,
+ * которая резолвится в `owner/path/meta.json`.
+ *
+ * @param src Hub-адрес вида `owner/path`
+ * @returns Распарсенная схема или undefined при ошибке
+ */
 export async function load(src: string) {
   const [author, name] = src.split("/")
   if (!author || !name) {

@@ -20,15 +20,13 @@ const ast: MetaAST = {
       type: "action",
     },
   },
-  bulk: {
-    gravity: [
-      {
-        type: "log",
-        data: "/state",
-        child: [],
-      },
-    ],
-  },
+  gravity: [
+    {
+      type: "log",
+      data: "/state",
+      child: [],
+    },
+  ],
   mass: {
     history: [],
   },
@@ -45,7 +43,7 @@ describe("dark/store", () => {
     expect(dark$.getNode(["fields", "src"])?.section).toBe("fields")
     expect(dark$.getNode(createDarkAddress("/schemas/git", ["fields", "src", "type"]))?.value).toBe("string")
     expect(dark$.getChildren(["fields"]).map((node) => node.key)).toEqual(["src"])
-    expect(dark$.lookup(["bulk"]).map((node) => node.key)).toContain("gravity")
+    expect(dark$.lookup(["gravity"]).map((node) => node.key)).toContain("0")
   })
 
   test("formats and parses addressable paths", () => {

@@ -3,9 +3,9 @@
  * Экспорт API @metafor/ast
  */
 
-export { convertMetaToMonadJson, extractArrayElementTypesFromSource } from "./ast.ts"
+export { convertMetaDSLToMetaAST, extractArrayElementTypesFromSource } from "./ast.ts"
 export type {
-  MetaLike,
+  MetaDSLLike,
   ArrayElementType,
   MetaJson,
   ViewJson,

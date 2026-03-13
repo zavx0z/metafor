@@ -42,6 +42,7 @@ const TOP_LEVEL_SECTIONS = new Set<DarkGraphSection>([
   "superposition",
   "processes",
   "reactions",
+  "gravity",
   "bulk",
   "mass",
 ])
@@ -182,7 +183,7 @@ function visitChildren(
 }
 
 function getTopLevelEntries(ast: MetaAST): Array<[string, unknown]> {
-  const orderedKeys = ["name", "fields", "superposition", "processes", "reactions", "bulk", "mass"] as const
+  const orderedKeys = ["name", "fields", "superposition", "processes", "reactions", "gravity", "bulk", "mass"] as const
   const entries: Array<[string, unknown]> = []
   const seen = new Set<string>()
 

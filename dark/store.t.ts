@@ -10,7 +10,16 @@ export type DarkGraphLookup = string | DarkGraphPath
 export type DarkGraphNodeKind = "root" | "section" | "object" | "array" | "value"
 
 /** Раздел графа: корень или топ-уровень AST. */
-export type DarkGraphSection = "root" | "name" | "fields" | "superposition" | "processes" | "reactions" | "bulk" | "mass"
+export type DarkGraphSection =
+  | "root"
+  | "name"
+  | "fields"
+  | "superposition"
+  | "processes"
+  | "reactions"
+  | "gravity"
+  | "bulk"
+  | "mass"
 
 /**
  * Узел графа AST.

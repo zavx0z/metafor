@@ -69,16 +69,15 @@
  *         .equal(({ update }) => update({ isLoading: true }))
  *     ]
  *   ])
- *   .bulk({
- *     gravity: ({ value, html, update }) => html`
- *       <div>
- *         <h1>${value.userName}</h1>
- *         <button onclick=${() => update({ isLoading: true })}>
- *           Загрузить
- *         </button>
- *       </div>
- *     `
- *   })
+ *   .gravity(({ value, html, update }) => html`
+ *     <div>
+ *       <h1>${value.userName}</h1>
+ *       <button onclick=${() => update({ isLoading: true })}>
+ *         Загрузить
+ *       </button>
+ *     </div>
+ *   `)
+ *   .bulk()
  * ```
  *
  * @packageDocumentation
@@ -91,9 +90,9 @@ import { reactionsSchema, type ReactionsDeclaration } from "./reactions"
 import { processesSchema, type ProcessesDeclaration, type ActionParams } from "./process"
 import { serializeStyle } from "./style"
 
-import type { MetaForConfig, MetaForFn, BulkDeclaration, Meta, Mass, Self } from "./metafor.t"
+import type { MetaForConfig, MetaForFn, BulkDeclaration, GravityDeclaration, MetaDSL, Mass, Self } from "./metafor.t"
 
-export type { MetaForFn, Meta, Self, Mass, Superposition, NodeMeta, NodeType, NodeLogical, ActionParams }
+export type { MetaForFn, MetaDSL, Self, Mass, Superposition, NodeMeta, NodeType, NodeLogical, ActionParams }
 
 export const MetaFor: MetaForFn = function (name: string, config?: MetaForConfig) {
   const desc = config?.desc
@@ -120,14 +119,23 @@ export const MetaFor: MetaForFn = function (name: string, config?: MetaForConfig
                     reactions(reaction: ReactionsDeclaration<ɸ, 𝛴, m> = () => []) {
                       const reactions = reactionsSchema(reaction)
                       return {
-                        bulk(bulk?: BulkDeclaration<ɸ, m, 𝛴>): Meta<ɸ, 𝛴, m> {
-                          const schema: Meta<ɸ, 𝛴, m> = { name, superposition, fields: fields, mass: mass || ({} as m) }
-                          if (desc) schema.desc = desc
-                          if (bulk && "view" in bulk) schema.view = serializeStyle(bulk.view as any)
-                          if (bulk && "gravity" in bulk) schema.gravity = parse(bulk.gravity as any)
-                          if (processes) schema.processes = processes
-                          if (reactions) schema.reactions = reactions
-                          return schema
+                        gravity(gravity?: GravityDeclaration<ɸ, m, 𝛴>) {
+                          return {
+                            bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, 𝛴, m> {
+                              const schema: MetaDSL<ɸ, 𝛴, m> = {
+                                name,
+                                superposition,
+                                fields: fields,
+                                mass: mass || ({} as m),
+                              }
+                              if (desc) schema.desc = desc
+                              if (gravity) schema.gravity = parse(gravity as any)
+                              if (bulk && "view" in bulk) schema.view = serializeStyle(bulk.view as any)
+                              if (processes) schema.processes = processes
+                              if (reactions) schema.reactions = reactions
+                              return schema
+                            },
+                          }
                         },
                       }
                     },

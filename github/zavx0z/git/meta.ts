@@ -48,8 +48,7 @@ export default MetaFor("git", { desc: "Git — распределённая си
       .error(({ update, error }) => update({ error: error.message })),
   }))
   .reactions(() => [])
-  .bulk({
-    gravity: ({ value, html }) => html`
+  .gravity(({ value, html }) => html`
       ${value.operation &&
       html`
         <meta-for
@@ -60,5 +59,5 @@ export default MetaFor("git", { desc: "Git — распределённая си
           }} />
       `}
       ${value.error && html` <meta-for src="zavx0z/git-error" context=${{ message: value.error }} /> `}
-    `,
-  })
+    `)
+  .bulk()

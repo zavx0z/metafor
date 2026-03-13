@@ -47,11 +47,13 @@ const meta = MetaFor("git")
         }),
     ],
   ])
-  .bulk({
-    gravity: ({ value, state, html }) =>
+  .gravity(
+    ({ value, state, html }) =>
       html`${state === "коммит" && html`<meta-for src="meta/status.js" fields=${{ message: "Коммит в процессе...", src: value.src }}></meta-for>`}
         ${state === "завершено" && html`<meta-for src="meta/success.js" fields=${{ message: "Готово!", patches: value.patches }}></meta-for>`}
         ${state === "ошибка" && html`<meta-for src="meta/error.js" fields=${{ error: "Ошибка коммита" }}></meta-for>`}`,
+  )
+  .bulk({
     view: ({ css }) => css``,
   })
 

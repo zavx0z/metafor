@@ -11,13 +11,13 @@ export default MetaFor("<name>")
   .mass({})
   .processes((process, destroy) => ({}))
   .reactions((reaction) => [])
+  .gravity(({ state, value, html }) => html``)
   .bulk({
-    gravity: ({ state, value, html }) => html``,
     view: ({ css }) => css``,
   })
 ```
 
-**Порядок вызовов:** `fields → superposition → mass → processes → reactions → bulk`
+**Порядок вызовов:** `fields → superposition → mass → processes → reactions → gravity → bulk`
 
 ---
 
@@ -369,22 +369,22 @@ return { group: group as "start" | "work" | "examine" }
 
 ---
 
-## Bulk — иерархия акторов
+## Gravity — иерархия акторов
 
 ```typescript
+.gravity(({ value, html }) => html`
+  ${value.operation && html`
+    <meta-for
+      src="zavx0z/git-${value.operation}"
+      fields=${{ command: value.command, args: value.args }} />
+  `}
+  ${value.error && html`
+    <meta-for
+      src="zavx0z/git-error"
+      fields=${{ message: value.error }} />
+  `}
+`)
 .bulk({
-  gravity: ({ value, html }) => html`
-    ${value.operation && html`
-      <meta-for
-        src="zavx0z/git-${value.operation}"
-        fields=${{ command: value.command, args: value.args }} />
-    `}
-    ${value.error && html`
-      <meta-for
-        src="zavx0z/git-error"
-        fields=${{ message: value.error }} />
-    `}
-  `,
   view: ({ css }) => css`.container { padding: 1rem; }`,
 })
 ```
@@ -448,16 +448,15 @@ export default MetaFor("git")
       })
       .success(({ update }) => update({ operation: null })),
   }))
-  .bulk({
-    gravity: ({ value, html }) => html`
-      ${value.operation && html`
-        <meta-for src="zavx0z/git-${value.operation}" fields=${{ command: value.command }} />
-      `}
-      ${value.error && html`
-        <meta-for src="zavx0z/git-error" fields=${{ message: value.error }} />
-      `}
-    `,
-  })
+  .gravity(({ value, html }) => html`
+    ${value.operation && html`
+      <meta-for src="zavx0z/git-${value.operation}" fields=${{ command: value.command }} />
+    `}
+    ${value.error && html`
+      <meta-for src="zavx0z/git-error" fields=${{ message: value.error }} />
+    `}
+  `)
+  .bulk()
 ```
 
 ### Пример action-модуля: detectOperation.ts
@@ -586,19 +585,20 @@ github.com/otheruser/git-work/      # группа work от другого по
 
 **Пути в src:**
 
+Хаб — это каноническая адресация meta-сущности вида `owner/path`, которая резолвится в `owner/path/meta.json`.
+
 Путь указывает на GitHub репо: `<username>/<repo-name>`
 
 ```typescript
-.bulk({
-  gravity: ({ value, html }) => html`
-    ${value.operation === "start" && html`
-      <meta-for src="zavx0z/git-start" fields=${{ command: value.command, args: value.args }} />
-    `}
-    ${value.operation === "work" && html`
-      <meta-for src="otheruser/git-work" fields=${{ command: value.command, args: value.args }} />
-    `}
-  `,
-})
+.gravity(({ value, html }) => html`
+  ${value.operation === "start" && html`
+    <meta-for src="zavx0z/git-start" fields=${{ command: value.command, args: value.args }} />
+  `}
+  ${value.operation === "work" && html`
+    <meta-for src="otheruser/git-work" fields=${{ command: value.command, args: value.args }} />
+  `}
+`)
+.bulk()
 ```
 
 **Главное репо загружает группы:**
@@ -647,16 +647,15 @@ export default MetaFor("git")
       })
       .success(({ update }) => update({ operation: null })),
   }))
-  .bulk({
-    gravity: ({ value, html }) => html`
-      ${value.operation === "start" && html`
-        <meta-for src="zavx0z/git-start" fields=${{ command: value.command, args: value.args }} />
-      `}
-      ${value.operation === "work" && html`
-        <meta-for src="otheruser/git-work" fields=${{ command: value.command, args: value.args }} />
-      `}
-    `,
-  })
+  .gravity(({ value, html }) => html`
+    ${value.operation === "start" && html`
+      <meta-for src="zavx0z/git-start" fields=${{ command: value.command, args: value.args }} />
+    `}
+    ${value.operation === "work" && html`
+      <meta-for src="otheruser/git-work" fields=${{ command: value.command, args: value.args }} />
+    `}
+  `)
+  .bulk()
 ```
 
 ### Пример action-модуля в репозитории

@@ -1,6 +1,6 @@
 /**
  * Mock action module for testing purposes.
- * Used in monadJson.spec.ts tests.
+ * Used in metaAst.spec.ts tests.
  */
 
 export default function mockAction(data: any): any {

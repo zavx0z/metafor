@@ -8,8 +8,7 @@ export default MetaFor("git-start-clone", { desc: "Git start-clone — кома�
   .mass({})
   .processes(() => ({}))
   .reactions(() => [])
-  .bulk({
-    gravity: ({ value, html }) => html`
+  .gravity(({ value, html }) => html`
       ${value.error && html`<div class="error">${value.error}</div>`}
-    `,
-  })
+    `)
+  .bulk()

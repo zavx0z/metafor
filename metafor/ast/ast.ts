@@ -2,13 +2,13 @@
  * @packageDocumentation
  * Модуль для преобразования MetaFor DSL в MetaAST.
  *
- * Преобразует декларативное описание атома (fields, superposition, processes, reactions, bulk, mass)
- * в Meta-конфигурацию (MetaAST), которая используется для инициализации Dark store.
+ * Преобразует декларативное описание атома (fields, superposition, processes, reactions, gravity, bulk, mass)
+ * в MetaAST-конфигурацию, которая используется для инициализации Dark store.
  */
 
 import type { ParsedProcess, ParsedDestroy, ReactionsSchema } from "@metafor/dsl"
 import type {
-  MetaLike,
+  MetaDSLLike,
   ArrayElementType,
   MetaJson,
   ViewJson,
@@ -70,12 +70,13 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
  * - **superposition** — граф переходов состояний
  * - **processes** — процессы с обработчиками (action/success/error/before)
  * - **reactions** — реакции на события других атомов
- * - **bulk** — bulk-конфигурация (gravity/view) для BULK уровня
+ * - **gravity** — иерархия акторов как AST
+ * - **bulk** — bulk-view конфигурация для BULK уровня
  * - **mass** — масса для сложных данных и зависимостей от среды
  *
  * @param meta - Исходный объект MetaFor со всеми компонентами
  * @param sourceText - Исходный код TS файла для извлечения generic-типов массивов
- * @returns Объект в формате MonadJson для инициализации monad и boundary
+ * @returns Объект в формате MetaAST для инициализации dark и downstream-проекций
  *
  * @example
  * ```typescript
@@ -87,13 +88,14 @@ function inferEnumValueType(values: unknown): "string" | "number" | undefined {
  *     коммит: process().action(({ value }) => {}).success(({ update }) => update({ src: "" }))
  *   }))
  *   .reactions()
- *   .bulk({ gravity: ({ value, html }) => html`<div>${value.src}</div>` })
+ *   .gravity(({ value, html }) => html`<div>${value.src}</div>`)
+ *   .bulk()
  *
- * const json = convertMetaToMonadJson(meta, sourceCode)
- * // => { name: "git", fields: {...}, superposition: {...}, processes: {...}, bulk: {...}, mass: {...} }
+ * const json = convertMetaDSLToMetaAST(meta, sourceCode)
+ * // => { name: "git", fields: {...}, superposition: {...}, gravity: [...], bulk: {...}, mass: {...} }
  * ```
  */
-export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): MetaAST {
+export function convertMetaDSLToMetaAST(meta: MetaDSLLike, sourceText?: string): MetaAST {
   const inputFields = meta?.fields
   if (!inputFields || typeof inputFields !== "object") {
     throw new Error("fields не найден или не является объектом")
@@ -269,14 +271,10 @@ export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): Met
         }
       : undefined
 
-  // Собираем bulk
-  const bulkJson: ViewJson | undefined =
-    meta.gravity || meta.view
-      ? {
-          ...(meta.gravity ? { gravity: meta.gravity } : {}),
-          ...(meta.view ? { view: meta.view } : {}),
-        }
-      : undefined
+  const gravityJson = meta.gravity
+
+  // Собираем bulk-view
+  const bulkJson: ViewJson | undefined = meta.view ? { view: meta.view } : undefined
 
   // Собираем mass
   const massJson: Record<string, any> | undefined = meta.mass
@@ -288,6 +286,7 @@ export function convertMetaToMonadJson(meta: MetaLike, sourceText?: string): Met
     superposition,
     ...(processesJson ? { processes: processesJson } : {}),
     ...(reactionsJson ? { reactions: reactionsJson } : {}),
+    ...(gravityJson ? { gravity: gravityJson } : {}),
     ...(bulkJson ? { bulk: bulkJson } : {}),
     ...(massJson ? { mass: massJson } : {}),
   }

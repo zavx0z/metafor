@@ -241,7 +241,6 @@
       "label": "Парсинг опций",
       "desc": "Извлекает флаги и сообщение из аргументов командной строки",
       "action": {
-        "src": "({ context }) => {\n    const args = context.args || \"\";\n    if (!args.trim())\n      throw Error(\"\\u041A\\u043E\\u043C\\u0430\\u043D\\u0434\\u0430 \\u043D\\u0435 \\u0443\\u043A\\u0430\\u0437\\u0430\\u043D\\u0430\");\n    const result = {};\n    if (args.includes(\"-a\") || args.includes(\"--all\"))\n      result.all = true;\n    if (args.includes(\"--amend\"))\n      result.amend = true;\n    if (args.includes(\"-s\") || args.includes(\"--signoff\"))\n      result.signoff = true;\n    if (args.includes(\"-n\") || args.includes(\"--no-verify\"))\n      result.noVerify = true;\n    if (args.includes(\"--dry-run\"))\n      result.dryRun = true;\n    if (args.includes(\"-v\") || args.includes(\"--verbose\"))\n      result.verbose = true;\n    if (args.includes(\"-e\") || args.includes(\"--edit\"))\n      result.edit = true;\n    const msgMatch = args.match(/-m\\s+\"([^\"]+)\"/) || args.match(/-m\\s+'([^']+)'/) || args.match(/-m\\s+(\\S+)/);\n    if (msgMatch && msgMatch[1])\n      result.message = msgMatch[1];\n    return result;\n  }",
         "read": [
           "args"
         ]
@@ -258,7 +257,6 @@
       "label": "git commit -m \"msg\"",
       "desc": "Создаёт коммит с указанным сообщением",
       "action": {
-        "src": "async ({ context }) => {\n    const cmd = `git commit -m ${JSON.stringify(context.message)}`, result = await Bun.$`${cmd}`.quiet().text();\n    if (!result.includes(\"created\") && !result.includes(\"mode\"))\n      throw Error(result || \"\\u041D\\u0435 \\u0443\\u0434\\u0430\\u043B\\u043E\\u0441\\u044C \\u0441\\u043E\\u0437\\u0434\\u0430\\u0442\\u044C \\u043A\\u043E\\u043C\\u043C\\u0438\\u0442\");\n  }",
         "read": [
           "message"
         ]
@@ -275,7 +273,8 @@
       "label": "git commit -a",
       "desc": "Создаёт коммит всех изменённых отслеживаемых файлов",
       "action": {
-        "src": "async () => {\n    const result = await Bun.$`git commit -a`.quiet().text();\n    if (!result.includes(\"created\") && !result.includes(\"mode\"))\n      throw Error(result || \"\\u041D\\u0435 \\u0443\\u0434\\u0430\\u043B\\u043E\\u0441\\u044C \\u0441\\u043E\\u0437\\u0434\\u0430\\u0442\\u044C \\u043A\\u043E\\u043C\\u043C\\u0438\\u0442\");\n  }"
+        "src": "./actions/commit",
+        "importSpecifier": "runCommitCommand"
       },
       "error": {
         "src": "({ update, error }) => update({ error: error.message }, \"e\")",
@@ -289,7 +288,8 @@
       "label": "git commit --amend",
       "desc": "Заменяет последний коммит без изменения сообщения",
       "action": {
-        "src": "async () => {\n    const result = await Bun.$`git commit --amend --no-edit`.quiet().text();\n    if (!result.includes(\"amend\") && !result.includes(\"mode\"))\n      throw Error(result || \"\\u041D\\u0435 \\u0443\\u0434\\u0430\\u043B\\u043E\\u0441\\u044C \\u0437\\u0430\\u043C\\u0435\\u043D\\u0438\\u0442\\u044C \\u043A\\u043E\\u043C\\u043C\\u0438\\u0442\");\n  }"
+        "src": "./actions/commit",
+        "importSpecifier": "runCommitCommand"
       },
       "error": {
         "src": "({ update, error }) => update({ error: error.message }, \"e\")",
@@ -303,7 +303,6 @@
       "label": "git commit -s",
       "desc": "Создаёт коммит с добавлением Signed-off-by трейлера",
       "action": {
-        "src": "async ({ context }) => {\n    const cmd = context.message ? `git commit -s -m ${JSON.stringify(context.message)}` : \"git commit -s\", result = await Bun.$`${cmd}`.quiet().text();\n    if (!result.includes(\"created\") && !result.includes(\"mode\"))\n      throw Error(result || \"\\u041D\\u0435 \\u0443\\u0434\\u0430\\u043B\\u043E\\u0441\\u044C \\u0441\\u043E\\u0437\\u0434\\u0430\\u0442\\u044C \\u043A\\u043E\\u043C\\u043C\\u0438\\u0442\");\n  }",
         "read": [
           "message"
         ]
@@ -320,7 +319,6 @@
       "label": "git commit -n",
       "desc": "Пропускает pre-commit и commit-msg хуки",
       "action": {
-        "src": "async ({ context }) => {\n    const cmd = context.message ? `git commit -n -m ${JSON.stringify(context.message)}` : \"git commit -n\", result = await Bun.$`${cmd}`.quiet().text();\n    if (!result.includes(\"created\") && !result.includes(\"mode\"))\n      throw Error(result || \"\\u041D\\u0435 \\u0443\\u0434\\u0430\\u043B\\u043E\\u0441\\u044C \\u0441\\u043E\\u0437\\u0434\\u0430\\u0442\\u044C \\u043A\\u043E\\u043C\\u043C\\u0438\\u0442\");\n  }",
         "read": [
           "message"
         ]
@@ -337,7 +335,6 @@
       "label": "git commit --dry-run",
       "desc": "Показывает что будет закоммичено без фактического создания коммита",
       "action": {
-        "src": "async ({ context }) => {\n    const cmd = context.message ? `git commit --dry-run -m ${JSON.stringify(context.message)}` : \"git commit --dry-run\";\n    await Bun.$`${cmd}`.quiet().text();\n  }",
         "read": [
           "message"
         ]
@@ -354,7 +351,8 @@
       "label": "git commit -e",
       "desc": "Открывает редактор для написания сообщения коммита",
       "action": {
-        "src": "async () => {\n    const result = await Bun.$`git commit -e`.quiet().text();\n    if (!result.includes(\"created\") && !result.includes(\"mode\"))\n      throw Error(result || \"\\u041D\\u0435 \\u0443\\u0434\\u0430\\u043B\\u043E\\u0441\\u044C \\u0441\\u043E\\u0437\\u0434\\u0430\\u0442\\u044C \\u043A\\u043E\\u043C\\u043C\\u0438\\u0442\");\n  }"
+        "src": "./actions/commit",
+        "importSpecifier": "runCommitCommand"
       },
       "error": {
         "src": "({ update, error }) => update({ error: error.message }, \"e\")",
@@ -368,7 +366,6 @@
       "label": "git commit -a -m \"msg\"",
       "desc": "Создаёт коммит всех изменённых файлов с сообщением",
       "action": {
-        "src": "async ({ context }) => {\n    const cmd = `git commit -a -m ${JSON.stringify(context.message)}`, result = await Bun.$`${cmd}`.quiet().text();\n    if (!result.includes(\"created\") && !result.includes(\"mode\"))\n      throw Error(result || \"\\u041D\\u0435 \\u0443\\u0434\\u0430\\u043B\\u043E\\u0441\\u044C \\u0441\\u043E\\u0437\\u0434\\u0430\\u0442\\u044C \\u043A\\u043E\\u043C\\u043C\\u0438\\u0442\");\n  }",
         "read": [
           "message"
         ]
@@ -385,7 +382,6 @@
       "label": "git commit --amend -m \"msg\"",
       "desc": "Заменяет последний коммит с новым сообщением",
       "action": {
-        "src": "async ({ context }) => {\n    const cmd = `git commit --amend -m ${JSON.stringify(context.message)}`, result = await Bun.$`${cmd}`.quiet().text();\n    if (!result.includes(\"amend\") && !result.includes(\"mode\"))\n      throw Error(result || \"\\u041D\\u0435 \\u0443\\u0434\\u0430\\u043B\\u043E\\u0441\\u044C \\u0437\\u0430\\u043C\\u0435\\u043D\\u0438\\u0442\\u044C \\u043A\\u043E\\u043C\\u043C\\u0438\\u0442\");\n  }",
         "read": [
           "message"
         ]
@@ -402,7 +398,6 @@
       "label": "git commit -s -m \"msg\"",
       "desc": "Создаёт коммит с подписью и сообщением",
       "action": {
-        "src": "async ({ context }) => {\n    const cmd = `git commit -s -m ${JSON.stringify(context.message)}`, result = await Bun.$`${cmd}`.quiet().text();\n    if (!result.includes(\"created\") && !result.includes(\"mode\"))\n      throw Error(result || \"\\u041D\\u0435 \\u0443\\u0434\\u0430\\u043B\\u043E\\u0441\\u044C \\u0441\\u043E\\u0437\\u0434\\u0430\\u0442\\u044C \\u043A\\u043E\\u043C\\u043C\\u0438\\u0442\");\n  }",
         "read": [
           "message"
         ]
@@ -419,7 +414,8 @@
       "label": "git commit --amend -s",
       "desc": "Заменяет последний коммит с добавлением подписи",
       "action": {
-        "src": "async () => {\n    const result = await Bun.$`git commit --amend -s --no-edit`.quiet().text();\n    if (!result.includes(\"amend\") && !result.includes(\"mode\"))\n      throw Error(result || \"\\u041D\\u0435 \\u0443\\u0434\\u0430\\u043B\\u043E\\u0441\\u044C \\u0437\\u0430\\u043C\\u0435\\u043D\\u0438\\u0442\\u044C \\u043A\\u043E\\u043C\\u043C\\u0438\\u0442\");\n  }"
+        "src": "./actions/commit",
+        "importSpecifier": "runCommitCommand"
       },
       "error": {
         "src": "({ update, error }) => update({ error: error.message }, \"e\")",
@@ -433,7 +429,6 @@
       "label": "git commit --amend -s -m \"msg\"",
       "desc": "Заменяет последний коммит с подписью и новым сообщением",
       "action": {
-        "src": "async ({ context }) => {\n    const cmd = `git commit --amend -s -m ${JSON.stringify(context.message)}`, result = await Bun.$`${cmd}`.quiet().text();\n    if (!result.includes(\"amend\") && !result.includes(\"mode\"))\n      throw Error(result || \"\\u041D\\u0435 \\u0443\\u0434\\u0430\\u043B\\u043E\\u0441\\u044C \\u0437\\u0430\\u043C\\u0435\\u043D\\u0438\\u0442\\u044C \\u043A\\u043E\\u043C\\u043C\\u0438\\u0442\");\n  }",
         "read": [
           "message"
         ]
@@ -452,27 +447,26 @@
       }
     }
   },
-  "view": {
-    "render": [
-      {
-        "type": "log",
-        "data": "/context/error",
-        "child": [
-          {
-            "tag": "div",
-            "type": "el",
-            "child": [
-              {
-                "type": "text",
-                "data": "/context/error"
-              }
-            ],
-            "string": {
-              "class": "error"
+  "gravity": [
+    {
+      "type": "log",
+      "data": "/value/error",
+      "child": [
+        {
+          "tag": "div",
+          "type": "el",
+          "child": [
+            {
+              "type": "text",
+              "data": "/value/error"
             }
+          ],
+          "string": {
+            "class": "error"
           }
-        ]
-      }
-    ]
-  }
+        }
+      ]
+    }
+  ],
+  "mass": {}
 }

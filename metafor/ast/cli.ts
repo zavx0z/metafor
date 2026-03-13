@@ -199,7 +199,7 @@ async function build(): Promise<boolean | string> {
     // Генерируем код для временного файла
     const tempCode = `
       import { pathToFileURL } from "url"
-      import { convertMetaToMonadJson } from "${pathToFileURL(join(projectRoot, "dsl/build/monadJson.ts")).href}"
+      import { convertMetaDSLToMetaAST } from "${pathToFileURL(join(scriptDir, "ast.ts")).href}"
       import { MetaFor } from "@metafor/dsl"
 
       const sourceText = ${JSON.stringify(sourceText)}
@@ -215,7 +215,7 @@ async function build(): Promise<boolean | string> {
           process.exit(1)
         }
 
-        const normalized = convertMetaToMonadJson(data, sourceText)
+        const normalized = convertMetaDSLToMetaAST(data, sourceText)
         const json = JSON.stringify(normalized, null, 2)
 
         // Выводим JSON в stdout

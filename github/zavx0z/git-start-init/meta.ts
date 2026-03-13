@@ -8,8 +8,7 @@ export default MetaFor("git-start-init", { desc: "Git start-init — коман�
   .mass({})
   .processes(() => ({}))
   .reactions(() => [])
-  .bulk({
-    gravity: ({ value, html }) => html`
+  .gravity(({ value, html }) => html`
       ${value.error && html`<div class="error">${value.error}</div>`}
-    `,
-  })
+    `)
+  .bulk()

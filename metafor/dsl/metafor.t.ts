@@ -63,7 +63,7 @@ export type Mass = Record<string, any>
 /**
  * MetaFor — фабрика для создания web-компонента-атома конечного автомата
  * @param name - имя атома (используется для создания тега `meta-${name}`)
- * @returns chain API: fields() -> superposition() -> mass() -> processes() -> reactions() -> bulk()
+ * @returns chain API: fields() -> superposition() -> mass() -> processes() -> reactions() -> gravity() -> bulk()
  *
  * **Важно:** Итоговый тег компонента формируется как `meta-${name}`,
  * где name — это имя компонента, переданное в конструктор.
@@ -77,7 +77,8 @@ export type Mass = Record<string, any>
  * - `mass()` - настройка массы для сложных данных и зависимостей от среды
  * - `processes()` - определение процессов (действий)
  * - `reactions()` - определение реакций на события
- * - `bulk()` - определение bulk-конфигурации компонента
+ * - `gravity()` - определение иерархии акторов компонента
+ * - `bulk()` - определение bulk-view компонента
  *
  * @example
  * ```typescript
@@ -87,7 +88,8 @@ export type Mass = Record<string, any>
  *   .mass({ users: [] })
  *   .processes((process) => ({ load: process().action(...) }))
  *   .reactions((reaction) => [...])
- *   .bulk({ gravity: ({ value }) => html`<div>${value.name}</div>` })
+ *   .gravity(({ value }) => html`<div>${value.name}</div>`)
+ *   .bulk()
  * ```
  */
 export type MetaForFn = (
@@ -188,7 +190,7 @@ export type MetaForFn = (
            * Реакции связывают разные атомы в событийной архитектуре.
            *
            * @param reaction Функция (filter => декларация), где декларация — массив кортежей [string[], { update, filter, label }]
-           * @returns chain API для вызова .bulk(...)
+           * @returns chain API для вызова .gravity(...)
            *
            * @example
            * ```typescript
@@ -213,10 +215,10 @@ export type MetaForFn = (
            */
           reactions(reaction?: ReactionsDeclaration<ɸ, 𝛴, m>): {
             /**
-             * Регистрирует bulk-конфигурацию компонента и завершает конфигурацию.
+             * Регистрирует gravity-функцию компонента и возвращает финальный bulk-этап.
              *
-             * @param bulk Конфигурация с gravity и view функциями
-             * @returns Компонент для создания элемента с тегом `meta-${name}`
+             * @param gravity Функция gravity для иерархии акторов
+             * @returns chain API для вызова .bulk(...)
              *
              * @example
              * ```typescript
@@ -226,8 +228,8 @@ export type MetaForFn = (
              *   .mass(...)
              *   .processes(...)
              *   .reactions(...)
+             *   .gravity(({ value, html }) => html`<div>${value.label}</div>`)
              *   .bulk({
-             *     gravity: ({ value, html }) => html`<div>${value.label}</div>`,
              *     view: ({ css }) => css`.container { color: blue; }`
              *   })
              *
@@ -235,7 +237,15 @@ export type MetaForFn = (
              * document.body.innerHTML = `<meta-my-component></meta-my-component>`
              * ```
              */
-            bulk(bulk?: BulkDeclaration<ɸ, m, 𝛴>): Meta<ɸ, 𝛴, m>
+            gravity(gravity?: GravityDeclaration<ɸ, m, 𝛴>): {
+              /**
+               * Регистрирует bulk-view конфигурацию компонента и завершает конфигурацию.
+               *
+               * @param bulk Конфигурация bulk-view
+               * @returns Компонент для создания элемента с тегом `meta-${name}`
+               */
+              bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, 𝛴, m>
+            }
           }
         }
       }
@@ -253,7 +263,7 @@ declare global {
   /**
    * MetaFor — фабрика для создания web-компонента-атома конечного автомата
    * @param name - имя атома (используется для создания тега `meta-${name}`)
-   * @returns chain API: fields() -> superposition() -> mass() -> processes() -> reactions() -> bulk()
+   * @returns chain API: fields() -> superposition() -> mass() -> processes() -> reactions() -> gravity() -> bulk()
    *
    * **Важно:** Итоговый тег компонента формируется как `meta-${name}`,
    * где name — это имя компонента, переданное в конструктор.
@@ -268,7 +278,8 @@ declare global {
    * - `mass()` - настройка массы для сложных данных и зависимостей от среды
    * - `processes()` - определение процессов (действий)
    * - `reactions()` - определение реакций на события
-   * - `bulk()` - определение bulk-конфигурации компонента
+   * - `gravity()` - определение иерархии акторов компонента
+   * - `bulk()` - определение bulk-view компонента
    *
    * @example
    * ```typescript
@@ -278,7 +289,8 @@ declare global {
    *   .mass({ users: [] })
    *   .processes((process) => ({ load: process().action(...) }))
    *   .reactions((reaction) => [...])
-   *   .bulk({ gravity: ({ field }) => html`<div>${field.name}</div>` })
+   *   .gravity(({ value }) => html`<div>${value.name}</div>`)
+   *   .bulk()
    * ```
    */ // @ts-ignore
   var MetaFor: MetaFor
@@ -306,14 +318,14 @@ export type MetaForConfig = {
 }
 
 /**
- * Параметры функции bulk-конфигурации атома.
+ * Параметры функции gravity атома.
  *
  * Предназначены для декларирования иерархии акторов через `<meta-for>`.
  *
  * ## API
  * - `state` — текущее состояние для условий gravity
  * - `html` — шаблонизация для `<meta-for>` элементов
- * - `field` — данные атома для передачи дочерним акторам
+ * - `value` — данные атома для передачи дочерним акторам
  * - `update` — функция обновления контекста
  * - `mass` — масса для сложных данных и зависимостей от среды
  *
@@ -380,48 +392,35 @@ export type ViewDefinitionParams<ɸ extends Schema = Schema, m extends Mass = Ma
   /**
    * Функция шаблонизации для создания HTML.
    * Используется для декларирования иерархии акторов через `<meta-for>`.
+   *
    * @example
    * ```ts
    * gravity: ({ html }) => html`
    *   <meta-for src="meta/header.js"></meta-for>
    *   <meta-for src="meta/content.js"></meta-for>
    * `
+   * ```
+   *
+   * @remarks
+   * Атрибут `src` задаёт hub-адрес вида `owner/path` — канонический идентификатор meta-сущности,
+   * который loader резолвит в `owner/path/meta.json`.
    */
   html: (strings: TemplateStringsArray, ...values: any[]) => void
 }
 
 /**
+ * Тип gravity-декларации для иерархии акторов.
+ */
+export type GravityDeclaration<ɸ extends Schema, m extends Mass, 𝛴 extends string> = (
+  params: ViewDefinitionParams<ɸ, m, 𝛴>,
+) => void
+
+/**
  * Конфигурация для bulk-компонента.
  *
- * Определяет иерархию акторов через `<meta-for>` и стили компонента.
- * Поддерживает передачу данных дочерним акторам через атрибут `fields`.
+ * Определяет только bulk-view стили компонента.
  */
-export interface BulkDeclaration<ɸ extends Schema, m extends Mass, 𝛴 extends string> {
-  /**
-   * Функция gravity для иерархии акторов.
-   * Декларирует вложенные акторы через `<meta-for src="..." fields={...}>`.
-   *
-   * @example
-   * ```ts
-   * // Условный gravity по состоянию
-   * gravity: ({ state, html }) => html`
-   *   ${state === "loading" && html`<meta-for src="meta/spinner.js"></meta-for>`}
-   *   ${state === "ready" && html`<meta-for src="meta/content.js"></meta-for>`}
-   * `
-   *
-   * // Передача данных
-   * gravity: ({ value, html }) => html`
-   *   <meta-for src="meta/child.js" fields=${{ data: value.value }}></meta-for>
-   * `
-   *
-   * // Статическая иерархия
-   * gravity: ({ html }) => html`
-   *   <meta-for src="meta/header.js"></meta-for>
-   *   <meta-for src="meta/main.js"></meta-for>
-   *   <meta-for src="meta/footer.js"></meta-for>
-   * `
-   */
-  gravity?: (params: ViewDefinitionParams<ɸ, m, 𝛴>) => void
+export interface BulkDeclaration {
   /**
    * Функция для определения view-стилей компонента.
    * Возвращает CSS строку через функцию css.
@@ -450,7 +449,7 @@ export interface BulkDeclaration<ɸ extends Schema, m extends Mass, 𝛴 extends
  *
  * @example
  * ```typescript
- * const schema: Meta = {
+ * const schema: MetaDSL = {
  *   name: "user-profile",
  *   fields: { name: field.string.required("") },
  *   superposition: { idle: { loading: {} } },
@@ -458,7 +457,7 @@ export interface BulkDeclaration<ɸ extends Schema, m extends Mass, 𝛴 extends
  * }
  * ```
  */
-export interface Meta<ɸ extends Schema = Schema, 𝛴 extends string = string, m extends Mass = {}> {
+export interface MetaDSL<ɸ extends Schema = Schema, 𝛴 extends string = string, m extends Mass = {}> {
   /** Название компонента */
   name: string
   /** Описание компонента */

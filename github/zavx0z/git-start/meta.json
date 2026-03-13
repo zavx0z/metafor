@@ -16,28 +16,30 @@
   },
   "superposition": {},
   "processes": {},
-  "view": {
-    "render": [
-      {
-        "type": "log",
-        "data": "/context/operation",
-        "child": [
-          {
-            "tag": "meta-for",
-            "type": "meta",
-            "string": {
-              "src": {
-                "data": "/context/operation",
-                "expr": "zavx0z/git-start-${_[0]}"
-              }
+  "gravity": [
+    {
+      "type": "log",
+      "data": "/value/operation",
+      "child": [
+        {
+          "tag": "meta-for",
+          "type": "meta",
+          "string": {
+            "src": {
+              "data": "/value/operation",
+              "expr": "zavx0z/git-start-${_[0]}"
             },
             "context": {
-              "data": "/context/args",
-              "expr": "{ args: _[0] }"
+              "data": [
+                "/value/args",
+                "/args"
+              ],
+              "expr": "${{ _[1]: _[0] }}"
             }
           }
-        ]
-      }
-    ]
-  }
+        }
+      ]
+    }
+  ],
+  "mass": {}
 }

@@ -1,8 +1,8 @@
 import { describe, expect, test } from "bun:test"
-import { convertMetaToMonadJson, extractArrayElementTypesFromSource } from "../index.ts"
+import { convertMetaDSLToMetaAST, extractArrayElementTypesFromSource } from "../index.ts"
 import { MetaFor } from "../../dsl/metafor.ts"
 
-describe("convertMetaToMonadJson", () => {
+describe("convertMetaDSLToMetaAST", () => {
   test("должен преобразовать fields с сохранением всех данных", () => {
     const meta = MetaFor("test")
       .fields((field) => ({
@@ -16,9 +16,10 @@ describe("convertMetaToMonadJson", () => {
       .mass()
       .processes()
       .reactions()
+      .gravity()
       .bulk()
 
-    const result = convertMetaToMonadJson(meta as any)
+    const result = convertMetaDSLToMetaAST(meta as any)
 
     expect(result.name).toBe("test")
     expect(result.fields.name).toEqual({
@@ -55,9 +56,10 @@ describe("convertMetaToMonadJson", () => {
       .mass()
       .processes()
       .reactions()
+      .gravity()
       .bulk()
 
-    const result = convertMetaToMonadJson(meta as any, sourceText)
+    const result = convertMetaDSLToMetaAST(meta as any, sourceText)
 
     expect(result.fields.tags!.type).toBe("array<string>")
     expect(result.fields.numbers!.type).toBe("array<number>")
@@ -73,9 +75,10 @@ describe("convertMetaToMonadJson", () => {
       .mass()
       .processes()
       .reactions()
+      .gravity()
       .bulk()
 
-    const result = convertMetaToMonadJson(meta as any)
+    const result = convertMetaDSLToMetaAST(meta as any)
 
     expect(result.fields.tags!.type).toBe("array<string>")
     expect(result.fields.numbers!.type).toBe("array<number>")
@@ -90,9 +93,10 @@ describe("convertMetaToMonadJson", () => {
       .mass()
       .processes()
       .reactions()
+      .gravity()
       .bulk()
 
-    expect(() => convertMetaToMonadJson(meta as any)).toThrow(
+    expect(() => convertMetaDSLToMetaAST(meta as any)).toThrow(
       "Не удалось вывести тип элементов массива для компоненты 'items'"
     )
   })
@@ -106,9 +110,10 @@ describe("convertMetaToMonadJson", () => {
       .mass()
       .processes()
       .reactions()
+      .gravity()
       .bulk()
 
-    const result = convertMetaToMonadJson(meta as any)
+    const result = convertMetaDSLToMetaAST(meta as any)
 
     expect(result.fields.status).toEqual({
       type: "enum<string>",
@@ -127,9 +132,10 @@ describe("convertMetaToMonadJson", () => {
       .mass()
       .processes()
       .reactions()
+      .gravity()
       .bulk()
 
-    const result = convertMetaToMonadJson(meta as any)
+    const result = convertMetaDSLToMetaAST(meta as any)
 
     expect(result.fields.level).toEqual({
       type: "enum<number>",
@@ -149,9 +155,10 @@ describe("convertMetaToMonadJson", () => {
       .mass()
       .processes()
       .reactions()
+      .gravity()
       .bulk()
 
-    expect(() => convertMetaToMonadJson(meta as any)).toThrow(
+    expect(() => convertMetaDSLToMetaAST(meta as any)).toThrow(
       "Не удалось вывести тип значений enum для компоненты 'status'"
     )
   })
@@ -170,9 +177,10 @@ describe("convertMetaToMonadJson", () => {
       .mass()
       .processes()
       .reactions()
+      .gravity()
       .bulk()
 
-    const result = convertMetaToMonadJson(meta as any)
+    const result = convertMetaDSLToMetaAST(meta as any)
 
     expect(result.superposition).toEqual({
       idle: { loading: {} },
@@ -197,9 +205,10 @@ describe("convertMetaToMonadJson", () => {
         }),
       }))
       .reactions()
+      .gravity()
       .bulk()
 
-    const result = convertMetaToMonadJson(meta as any)
+    const result = convertMetaDSLToMetaAST(meta as any)
 
     expect(result.processes).toBeDefined()
     expect(result.processes!.idle).toBeDefined()
@@ -222,9 +231,10 @@ describe("convertMetaToMonadJson", () => {
             .equal(({ update }) => update({ name: "updated" })),
         ],
       ])
+      .gravity()
       .bulk()
 
-    const result = convertMetaToMonadJson(meta as any)
+    const result = convertMetaDSLToMetaAST(meta as any)
 
     expect(result.reactions).toBeDefined()
     expect(result.reactions!.reactions).toBeDefined()
@@ -237,7 +247,7 @@ describe("convertMetaToMonadJson", () => {
       superposition: { idle: null },
     }
 
-    expect(() => convertMetaToMonadJson(meta as any)).toThrow(
+    expect(() => convertMetaDSLToMetaAST(meta as any)).toThrow(
       "fields не найден или не является объектом"
     )
   })
@@ -253,9 +263,10 @@ describe("convertMetaToMonadJson", () => {
       .mass()
       .processes()
       .reactions()
+      .gravity()
       .bulk()
 
-    const result = convertMetaToMonadJson(meta as any)
+    const result = convertMetaDSLToMetaAST(meta as any)
 
     expect(result.fields).toEqual({
       name: { type: "string", required: true, default: "" },
@@ -288,9 +299,10 @@ describe("convertMetaToMonadJson", () => {
           }),
       }))
       .reactions()
+      .gravity()
       .bulk()
 
-    const result = convertMetaToMonadJson(meta as any)
+    const result = convertMetaDSLToMetaAST(meta as any)
 
     expect(result.processes).toBeDefined()
     expect(result.processes!.idle).toEqual({
@@ -322,9 +334,10 @@ describe("convertMetaToMonadJson", () => {
         done: destroy({ label: "Cleanup", desc: "Очистка" }),
       }))
       .reactions()
+      .gravity()
       .bulk()
 
-    const result = convertMetaToMonadJson(meta as any)
+    const result = convertMetaDSLToMetaAST(meta as any)
 
     expect(result.processes!.done).toEqual({
       type: "finally",
@@ -358,9 +371,10 @@ describe("convertMetaToMonadJson", () => {
             }),
         ],
       ])
+      .gravity()
       .bulk()
 
-    const result = convertMetaToMonadJson(meta as any)
+    const result = convertMetaDSLToMetaAST(meta as any)
 
     expect(result.reactions).toBeDefined()
     const reaction = result.reactions!.reactions["0"]
@@ -381,13 +395,15 @@ describe("convertMetaToMonadJson", () => {
       .mass()
       .processes()
       .reactions()
-      .bulk({
-        gravity: ({ value, state, html, update }) =>
+      .gravity(
+        ({ value, state, html, update }) =>
           html`<div>
             <h1>${value.label}</h1>
             <p>State: ${state}</p>
             <button onclick=${() => update({ label: "Clicked" })}>Click</button>
           </div>`,
+      )
+      .bulk({
         view: ({ css }) => css`
           div {
             padding: 16px;
@@ -398,12 +414,12 @@ describe("convertMetaToMonadJson", () => {
         `,
       })
 
-    const result = convertMetaToMonadJson(meta as any)
+    const result = convertMetaDSLToMetaAST(meta as any)
 
+    expect(result.gravity).toBeDefined()
     expect(result.bulk).toBeDefined()
-    expect(result.bulk!.gravity).toBeDefined()
-    expect(Array.isArray(result.bulk!.gravity)).toBe(true)
-    const firstNode = result.bulk!.gravity![0] as { tag: string }
+    expect(Array.isArray(result.gravity)).toBe(true)
+    const firstNode = result.gravity![0] as { tag: string }
     expect(firstNode.tag).toBe("div")
     expect(result.bulk!.view).toContain("div{padding:16px;")
     expect(result.bulk!.view).toContain("h1{color:blue;")
@@ -425,9 +441,10 @@ describe("convertMetaToMonadJson", () => {
       })
       .processes()
       .reactions()
+      .gravity()
       .bulk()
 
-    const result = convertMetaToMonadJson(meta as any)
+    const result = convertMetaDSLToMetaAST(meta as any)
 
     expect(result.mass).toBeDefined()
     expect(result.mass!.history).toEqual([])
@@ -461,18 +478,19 @@ describe("convertMetaToMonadJson", () => {
             .equal(({ update }) => update({ count: 1 })),
         ],
       ])
+      .gravity(({ value, html }) => html`<div>${value.name}</div>`)
       .bulk({
-        gravity: ({ value, html }) => html`<div>${value.name}</div>`,
         view: ({ css }) => css`div { color: red; }`,
       })
 
-    const result = convertMetaToMonadJson(meta as any)
+    const result = convertMetaDSLToMetaAST(meta as any)
 
     expect(result.name).toBe("complete")
     expect(result.fields).toBeDefined()
     expect(result.superposition).toBeDefined()
     expect(result.processes).toBeDefined()
     expect(result.reactions).toBeDefined()
+    expect(result.gravity).toBeDefined()
     expect(result.bulk).toBeDefined()
     expect(result.mass).toBeDefined()
   })

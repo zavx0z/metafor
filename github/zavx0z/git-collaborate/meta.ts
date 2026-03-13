@@ -9,9 +9,8 @@ export default MetaFor("git-collaborate", { desc: "Git collaborate — кома�
   .mass({})
   .processes(() => ({}))
   .reactions(() => [])
-  .bulk({
-    gravity: ({ value, html }) => html`
+  .gravity(({ value, html }) => html`
       ${value.operation &&
       html` <meta-for src="zavx0z/git-collaborate-${value.operation}" context=${{ args: value.args }} /> `}
-    `,
-  })
+    `)
+  .bulk()

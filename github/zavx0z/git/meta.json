@@ -80,49 +80,52 @@
       }
     }
   },
-  "bulk": {
-    "gravity": [
-      {
-        "type": "log",
-        "data": "/value/operation",
-        "child": [
-          {
-            "tag": "meta-for",
-            "type": "meta",
-            "string": {
-              "src": {
-                "data": "/value/operation",
-                "expr": "zavx0z/git-${_[0]}"
-              }
+  "gravity": [
+    {
+      "type": "log",
+      "data": "/value/operation",
+      "child": [
+        {
+          "tag": "meta-for",
+          "type": "meta",
+          "string": {
+            "src": {
+              "data": "/value/operation",
+              "expr": "zavx0z/git-${_[0]}"
             },
             "context": {
               "data": [
                 "/value/operation",
-                "/value/args"
+                "/value/args",
+                "/operation",
+                "/args"
               ],
-              "expr": "{ operation: _[0], args: _[1] }"
+              "expr": "${{ _[2]: _[0], _[3]: _[1] }}"
             }
           }
-        ]
-      },
-      {
-        "type": "log",
-        "data": "/value/error",
-        "child": [
-          {
-            "tag": "meta-for",
-            "type": "meta",
-            "string": {
-              "src": "zavx0z/git-error"
-            },
+        }
+      ]
+    },
+    {
+      "type": "log",
+      "data": "/value/error",
+      "child": [
+        {
+          "tag": "meta-for",
+          "type": "meta",
+          "string": {
+            "src": "zavx0z/git-error",
             "context": {
-              "data": "/value/error",
-              "expr": "{ message: _[0] }"
+              "data": [
+                "/value/error",
+                "/message"
+              ],
+              "expr": "${{ _[1]: _[0] }}"
             }
           }
-        ]
-      }
-    ]
-  },
+        }
+      ]
+    }
+  ],
   "mass": {}
 }
