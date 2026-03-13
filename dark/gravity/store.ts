@@ -1,18 +1,60 @@
 /**
- * `@dark/gravity/store` — структурный store дерева meta-атомов.
+ * `@dark/gravity/store` — assembly mechanics для лексикографического дерева атомов.
  *
- * Слой хранит только:
- * - meta по адресу,
- * - atom по адресу,
- * - приватную геометрию дерева (parent + lexicographic order key).
- *
- * Путь атома вычисляется из фактической позиции в дереве.
+ * `gravity$` не является top-level store домена. Это singleton-объект методов,
+ * который умеет работать либо со своим внутренним state, либо с переданным
+ * временным `GravityState`.
  */
 
-import type { Atom, AtomInput, AtomTreeMeta, OrderKey, Reservation, Store } from "./store.t.js"
+import type {
+  Atom,
+  AtomInput,
+  AtomSeed,
+  AtomTreeMeta,
+  GravitySnapshot,
+  GravityState,
+  GravityStore,
+  OrderKey,
+  Reservation,
+} from "./store.t.js"
 
 const ROOT = ""
 const BYTE_BASE = 256
+
+function createStoredAtom<Meta>(address: string, meta: string, state: GravityState<Meta>): Atom {
+  const atom = {
+    get path() {
+      return gravity$.getPath(address, state)
+    },
+    meta,
+    address,
+  } satisfies Atom
+
+  return Object.freeze(atom)
+}
+
+function cloneOrderKey(orderKey: OrderKey): OrderKey {
+  return Uint8Array.from(orderKey)
+}
+
+function cloneTreeMeta(meta: AtomTreeMeta): AtomTreeMeta {
+  return {
+    parent: meta.parent,
+    orderKey: cloneOrderKey(meta.orderKey),
+    seq: meta.seq,
+  }
+}
+
+function createGravityState<Meta = unknown>(): GravityState<Meta> {
+  return {
+    meta: new Map(),
+    atom: new Map(),
+    tree: new Map(),
+    childrenView: new Map(),
+    reservations: new Map(),
+    nextSeq: 0,
+  }
+}
 
 function normalizeIndexPathString(path: string): string {
   return path.trim().replace(/^\/+/, "").replace(/\/+/g, "/")
@@ -70,6 +112,127 @@ function compareOrderKey(a: OrderKey, b: OrderKey): number {
   }
 
   return a.length - b.length
+}
+
+function resolveState<Meta>(state?: GravityState<Meta>): GravityState<Meta> {
+  return (state ?? internalState) as GravityState<Meta>
+}
+
+function parentKey(parent: string | null): string {
+  return parent ?? ROOT
+}
+
+function ensureChildren<Meta>(state: GravityState<Meta>, parent: string | null): string[] {
+  const key = parentKey(parent)
+  const existing = state.childrenView.get(key)
+
+  if (existing) {
+    return existing
+  }
+
+  const children: string[] = []
+  state.childrenView.set(key, children)
+  return children
+}
+
+function requireAtom<Meta>(state: GravityState<Meta>, address: string): Atom {
+  const atom = state.atom.get(address)
+  if (!atom) {
+    throw new Error(`Атом не найден: ${address}`)
+  }
+
+  return atom
+}
+
+function requireTreeMeta<Meta>(state: GravityState<Meta>, address: string): AtomTreeMeta {
+  const meta = state.tree.get(address)
+  if (!meta) {
+    throw new Error(`Структурные метаданные атома отсутствуют: ${address}`)
+  }
+
+  return meta
+}
+
+function assertParentExists<Meta>(state: GravityState<Meta>, parent: string | null): void {
+  if (parent !== null) {
+    requireAtom(state, parent)
+  }
+}
+
+function assertAddressAvailable<Meta>(state: GravityState<Meta>, address: string): void {
+  if (!address) {
+    throw new Error("У атома отсутствует address")
+  }
+
+  if (state.atom.has(address)) {
+    throw new Error(`Атом уже существует: ${address}`)
+  }
+
+  if (state.reservations.has(address)) {
+    throw new Error(`Атом уже зарезервирован: ${address}`)
+  }
+}
+
+function bsearchByKey<Meta>(state: GravityState<Meta>, children: string[], orderKey: OrderKey, seq: number): number {
+  let left = 0
+  let right = children.length
+
+  while (left < right) {
+    const middle = (left + right) >>> 1
+    const current = requireTreeMeta(state, children[middle]!)
+
+    let comparison = compareOrderKey(current.orderKey, orderKey)
+    if (comparison === 0) {
+      comparison = current.seq - seq
+    }
+
+    if (comparison <= 0) {
+      left = middle + 1
+    } else {
+      right = middle
+    }
+  }
+
+  return left
+}
+
+function createWithOrder<Meta>(state: GravityState<Meta>, parent: string | null, orderKey: OrderKey, input: AtomInput): Atom {
+  assertParentExists(state, parent)
+  assertAddressAvailable(state, input.address)
+
+  const atom = createStoredAtom(input.address, input.meta, state)
+  const treeMeta: AtomTreeMeta = {
+    parent,
+    orderKey: cloneOrderKey(orderKey),
+    seq: state.nextSeq++,
+  }
+
+  state.atom.set(atom.address, atom)
+  state.tree.set(atom.address, treeMeta)
+
+  const children = ensureChildren(state, parent)
+  const index = bsearchByKey(state, children, treeMeta.orderKey, treeMeta.seq)
+  children.splice(index, 0, atom.address)
+
+  return atom
+}
+
+function getAddressByIndexPath<Meta>(state: GravityState<Meta>, root: string | null, indexPath: readonly number[]): string | null {
+  let parent = root
+  let current: string | null = null
+
+  for (const index of indexPath) {
+    const children = ensureChildren(state, parent)
+
+    if (index < 0 || index >= children.length) {
+      return null
+    }
+
+    current = children[index]!
+    parent = current
+  }
+
+  return current
 }
 
 /**
@@ -130,177 +293,82 @@ export function between(a: OrderKey | null, b: OrderKey | null): OrderKey {
   return Uint8Array.from([...out, Math.floor((BYTE_BASE - 1) / 2)])
 }
 
-/**
- * Структурный store домена Gravity.
- *
- * Публично экспонирует только dumb maps `meta` и `atom`.
- * Родители, order keys и резервации остаются приватной механикой.
- */
-export class GravityStore<Meta = unknown> implements Store<Meta> {
-  public readonly meta = new Map<string, Meta>()
-  public readonly atom = new Map<string, Atom>()
+const internalState = createGravityState()
 
-  private readonly tree = new Map<string, AtomTreeMeta>()
-  private readonly childrenView = new Map<string, string[]>()
-  private readonly reservations = new Map<string, Reservation>()
-  private nextSeq = 0
+export const gravity$: GravityStore = {
+  meta: internalState.meta,
+  atom: internalState.atom,
 
-  public reset(): void {
-    this.meta.clear()
-    this.atom.clear()
-    this.tree.clear()
-    this.childrenView.clear()
-    this.reservations.clear()
-    this.nextSeq = 0
-  }
+  createState() {
+    return createGravityState()
+  },
 
-  private parentKey(parent: string | null): string {
-    return parent ?? ROOT
-  }
+  reset(state) {
+    const active = resolveState(state)
+    active.meta.clear()
+    active.atom.clear()
+    active.tree.clear()
+    active.childrenView.clear()
+    active.reservations.clear()
+    active.nextSeq = 0
+  },
 
-  private ensureChildren(parent: string | null): string[] {
-    const key = this.parentKey(parent)
-    const existing = this.childrenView.get(key)
+  restore(snapshot, state) {
+    const active = resolveState(state)
+    this.reset(active)
 
-    if (existing) {
-      return existing
+    for (const [address, meta] of snapshot.meta) {
+      active.meta.set(address, meta)
     }
 
-    const children: string[] = []
-    this.childrenView.set(key, children)
-    return children
-  }
-
-  private requireAtom(address: string): Atom {
-    const atom = this.atom.get(address)
-    if (!atom) {
-      throw new Error(`Атом не найден: ${address}`)
+    for (const [address, treeMeta] of snapshot.tree) {
+      active.tree.set(address, cloneTreeMeta(treeMeta))
     }
 
-    return atom
-  }
-
-  private requireTreeMeta(address: string): AtomTreeMeta {
-    const meta = this.tree.get(address)
-    if (!meta) {
-      throw new Error(`Структурные метаданные атома отсутствуют: ${address}`)
+    for (const [parent, children] of snapshot.childrenView) {
+      active.childrenView.set(parent, [...children])
     }
 
-    return meta
-  }
-
-  private assertParentExists(parent: string | null): void {
-    if (parent !== null) {
-      this.requireAtom(parent)
-    }
-  }
-
-  private assertAddressAvailable(address: string): void {
-    if (!address) {
-      throw new Error("У атома отсутствует address")
+    for (const [address, seed] of snapshot.atom) {
+      active.atom.set(address, createStoredAtom(seed.address, seed.meta, active))
     }
 
-    if (this.atom.has(address)) {
-      throw new Error(`Атом уже существует: ${address}`)
+    active.nextSeq = snapshot.nextSeq
+    return active
+  },
+
+  snapshot(state) {
+    const active = resolveState(state)
+
+    return {
+      meta: new Map(active.meta),
+      atom: new Map(Array.from(active.atom.values(), (entry) => [entry.address, { address: entry.address, meta: entry.meta }])),
+      tree: new Map(Array.from(active.tree.entries(), ([address, meta]) => [address, cloneTreeMeta(meta)])),
+      childrenView: new Map(Array.from(active.childrenView.entries(), ([parent, children]) => [parent, [...children]])),
+      nextSeq: active.nextSeq,
     }
+  },
 
-    if (this.reservations.has(address)) {
-      throw new Error(`Атом уже зарезервирован: ${address}`)
-    }
-  }
+  getAtom(address, state) {
+    const active = resolveState(state)
+    return active.atom.get(address) ?? null
+  },
 
-  private createStoredAtom(input: AtomInput): Atom {
-    const store = this
-    const atom = {
-      get path() {
-        return store.getPath(input.address)
-      },
-      meta: input.meta,
-      address: input.address,
-    } satisfies Atom
+  getParent(address, state) {
+    const active = resolveState(state)
+    return active.tree.get(address)?.parent ?? null
+  },
 
-    return Object.freeze(atom)
-  }
-
-  private bsearchByKey(children: string[], orderKey: OrderKey, seq: number): number {
-    let left = 0
-    let right = children.length
-
-    while (left < right) {
-      const middle = (left + right) >>> 1
-      const current = this.requireTreeMeta(children[middle]!)
-
-      let comparison = compareOrderKey(current.orderKey, orderKey)
-      if (comparison === 0) {
-        comparison = current.seq - seq
-      }
-
-      if (comparison <= 0) {
-        left = middle + 1
-      } else {
-        right = middle
-      }
-    }
-
-    return left
-  }
-
-  private createWithOrder(parent: string | null, orderKey: OrderKey, input: AtomInput): Atom {
-    this.assertParentExists(parent)
-    this.assertAddressAvailable(input.address)
-
-    const atom = this.createStoredAtom(input)
-    const treeMeta: AtomTreeMeta = {
-      parent,
-      orderKey: Uint8Array.from(orderKey),
-      seq: this.nextSeq++,
-    }
-
-    this.atom.set(atom.address, atom)
-    this.tree.set(atom.address, treeMeta)
-
-    const children = this.ensureChildren(parent)
-    const index = this.bsearchByKey(children, treeMeta.orderKey, treeMeta.seq)
-    children.splice(index, 0, atom.address)
-
-    return atom
-  }
-
-  private getAddressByIndexPath(root: string | null, indexPath: readonly number[]): string | null {
-    let parent = root
-    let current: string | null = null
-
-    for (const index of indexPath) {
-      const children = this.ensureChildren(parent)
-
-      if (index < 0 || index >= children.length) {
-        return null
-      }
-
-      current = children[index]!
-      parent = current
-    }
-
-    return current
-  }
-
-  public getAtom(address: string): Atom | null {
-    return this.atom.get(address) ?? null
-  }
-
-  public getParent(address: string): string | null {
-    return this.tree.get(address)?.parent ?? null
-  }
-
-  public getPath(address: string): string {
-    this.requireAtom(address)
+  getPath(address, state) {
+    const active = resolveState(state)
+    requireAtom(active, address)
 
     const indices: number[] = []
     let current: string | null = address
 
     while (current) {
-      const meta = this.requireTreeMeta(current)
-      const siblings = this.ensureChildren(meta.parent)
+      const meta = requireTreeMeta(active, current)
+      const siblings = ensureChildren(active, meta.parent)
       const index = siblings.indexOf(current)
 
       if (index < 0) {
@@ -313,30 +381,34 @@ export class GravityStore<Meta = unknown> implements Store<Meta> {
 
     indices.reverse()
     return indices.join("/")
-  }
+  },
 
-  public getChildren(parent: string | null): readonly Atom[] {
-    return this.ensureChildren(parent).map((address) => this.requireAtom(address))
-  }
+  getChildren(parent, state) {
+    const active = resolveState(state)
+    return ensureChildren(active, parent).map((address) => requireAtom(active, address))
+  },
 
-  public getNode(path: string): Atom | null {
-    const address = this.getAddressByIndexPath(null, parseIndexPath(path))
-    return address ? this.getAtom(address) : null
-  }
+  getNode(path, state) {
+    const active = resolveState(state)
+    const address = getAddressByIndexPath(active, null, parseIndexPath(path))
+    return address ? active.atom.get(address) ?? null : null
+  },
 
-  public createChildren(parent: string | null, input: AtomInput): Atom {
-    this.assertParentExists(parent)
+  createChildren(parent, input, state) {
+    const active = resolveState(state)
+    assertParentExists(active, parent)
 
-    const children = this.ensureChildren(parent)
+    const children = ensureChildren(active, parent)
     const lastAddress = children.length > 0 ? children[children.length - 1]! : null
-    const lastKey = lastAddress ? this.requireTreeMeta(lastAddress).orderKey : null
+    const lastKey = lastAddress ? requireTreeMeta(active, lastAddress).orderKey : null
 
-    return this.createWithOrder(parent, between(lastKey, null), input)
-  }
+    return createWithOrder(active, parent, between(lastKey, null), input)
+  },
 
-  public createBetween(left: string | null, right: string | null, input: AtomInput): Atom {
-    const leftMeta = left ? this.requireTreeMeta(left) : null
-    const rightMeta = right ? this.requireTreeMeta(right) : null
+  createBetween(left, right, input, state) {
+    const active = resolveState(state)
+    const leftMeta = left ? requireTreeMeta(active, left) : null
+    const rightMeta = right ? requireTreeMeta(active, right) : null
 
     let parent: string | null = null
 
@@ -358,12 +430,13 @@ export class GravityStore<Meta = unknown> implements Store<Meta> {
     const leftKey = leftMeta?.orderKey ?? null
     const rightKey = rightMeta?.orderKey ?? null
 
-    return this.createWithOrder(parent, between(leftKey, rightKey), input)
-  }
+    return createWithOrder(active, parent, between(leftKey, rightKey), input)
+  },
 
-  public createBefore(neighbor: string, input: AtomInput): Atom {
-    const neighborMeta = this.requireTreeMeta(neighbor)
-    const siblings = this.ensureChildren(neighborMeta.parent)
+  createBefore(neighbor, input, state) {
+    const active = resolveState(state)
+    const neighborMeta = requireTreeMeta(active, neighbor)
+    const siblings = ensureChildren(active, neighborMeta.parent)
     const neighborIndex = siblings.indexOf(neighbor)
 
     if (neighborIndex < 0) {
@@ -371,14 +444,15 @@ export class GravityStore<Meta = unknown> implements Store<Meta> {
     }
 
     const leftAddress = neighborIndex > 0 ? siblings[neighborIndex - 1]! : null
-    const leftKey = leftAddress ? this.requireTreeMeta(leftAddress).orderKey : null
+    const leftKey = leftAddress ? requireTreeMeta(active, leftAddress).orderKey : null
 
-    return this.createWithOrder(neighborMeta.parent, between(leftKey, neighborMeta.orderKey), input)
-  }
+    return createWithOrder(active, neighborMeta.parent, between(leftKey, neighborMeta.orderKey), input)
+  },
 
-  public createAfter(neighbor: string, input: AtomInput): Atom {
-    const neighborMeta = this.requireTreeMeta(neighbor)
-    const siblings = this.ensureChildren(neighborMeta.parent)
+  createAfter(neighbor, input, state) {
+    const active = resolveState(state)
+    const neighborMeta = requireTreeMeta(active, neighbor)
+    const siblings = ensureChildren(active, neighborMeta.parent)
     const neighborIndex = siblings.indexOf(neighbor)
 
     if (neighborIndex < 0) {
@@ -386,37 +460,39 @@ export class GravityStore<Meta = unknown> implements Store<Meta> {
     }
 
     const rightAddress = neighborIndex + 1 < siblings.length ? siblings[neighborIndex + 1]! : null
-    const rightKey = rightAddress ? this.requireTreeMeta(rightAddress).orderKey : null
+    const rightKey = rightAddress ? requireTreeMeta(active, rightAddress).orderKey : null
 
-    return this.createWithOrder(neighborMeta.parent, between(neighborMeta.orderKey, rightKey), input)
-  }
+    return createWithOrder(active, neighborMeta.parent, between(neighborMeta.orderKey, rightKey), input)
+  },
 
-  public createNode(path: string, input: AtomInput): Atom {
+  createNode(path, input, state) {
+    const active = resolveState(state)
     const { parentPath, index } = splitParentAndIndex(path)
-    const parent = parentPath ? this.getAddressByIndexPath(null, parseIndexPath(parentPath)) : null
+    const parent = parentPath ? getAddressByIndexPath(active, null, parseIndexPath(parentPath)) : null
 
     if (parentPath && !parent) {
       throw new Error(`Родительский путь не найден: "${parentPath}"`)
     }
 
-    const children = this.ensureChildren(parent)
+    const children = ensureChildren(active, parent)
 
     if (index < 0 || index > children.length) {
       throw new Error(`Индекс вне диапазона для пути "${path}"`)
     }
 
     if (index < children.length) {
-      return this.createBefore(children[index]!, input)
+      return this.createBefore(children[index]!, input, active)
     }
 
-    return this.createChildren(parent, input)
-  }
+    return this.createChildren(parent, input, active)
+  },
 
-  public reserveSibling(address: string, target: string, at: "before" | "after" = "after"): void {
-    this.assertAddressAvailable(address)
+  reserveSibling(address, target, at = "after", state) {
+    const active = resolveState(state)
+    assertAddressAvailable(active, address)
 
-    const parent = this.getParent(target)
-    const children = this.ensureChildren(parent)
+    const parent = this.getParent(target, active)
+    const children = ensureChildren(active, parent)
     const targetIndex = children.indexOf(target)
 
     if (targetIndex < 0) {
@@ -426,26 +502,27 @@ export class GravityStore<Meta = unknown> implements Store<Meta> {
     const leftAddress = at === "before" ? (targetIndex > 0 ? children[targetIndex - 1]! : null) : target
     const rightAddress = at === "before" ? target : targetIndex + 1 < children.length ? children[targetIndex + 1]! : null
 
-    const leftKey = leftAddress ? this.requireTreeMeta(leftAddress).orderKey : null
-    const rightKey = rightAddress ? this.requireTreeMeta(rightAddress).orderKey : null
+    const leftKey = leftAddress ? requireTreeMeta(active, leftAddress).orderKey : null
+    const rightKey = rightAddress ? requireTreeMeta(active, rightAddress).orderKey : null
 
-    this.reservations.set(address, {
+    active.reservations.set(address, {
       parent,
       orderKey: between(leftKey, rightKey),
     })
-  }
+  },
 
-  public reserveByIndexPath(address: string, path: string): void {
-    this.assertAddressAvailable(address)
+  reserveByIndexPath(address, path, state) {
+    const active = resolveState(state)
+    assertAddressAvailable(active, address)
 
     const { parentPath, index } = splitParentAndIndex(path)
-    const parent = parentPath ? this.getAddressByIndexPath(null, parseIndexPath(parentPath)) : null
+    const parent = parentPath ? getAddressByIndexPath(active, null, parseIndexPath(parentPath)) : null
 
     if (parentPath && !parent) {
       throw new Error(`Родительский путь не найден: "${parentPath}"`)
     }
 
-    const children = this.ensureChildren(parent)
+    const children = ensureChildren(active, parent)
 
     if (index < 0 || index > children.length) {
       throw new Error(`Индекс вне диапазона для пути "${path}"`)
@@ -454,31 +531,24 @@ export class GravityStore<Meta = unknown> implements Store<Meta> {
     const leftAddress = index > 0 ? children[index - 1]! : null
     const rightAddress = index < children.length ? children[index]! : null
 
-    const leftKey = leftAddress ? this.requireTreeMeta(leftAddress).orderKey : null
-    const rightKey = rightAddress ? this.requireTreeMeta(rightAddress).orderKey : null
+    const leftKey = leftAddress ? requireTreeMeta(active, leftAddress).orderKey : null
+    const rightKey = rightAddress ? requireTreeMeta(active, rightAddress).orderKey : null
 
-    this.reservations.set(address, {
+    active.reservations.set(address, {
       parent,
       orderKey: between(leftKey, rightKey),
     })
-  }
+  },
 
-  /**
-   * Привязать атом к заранее зарезервированному structural slot.
-   *
-   * Если резервации нет, атом попадёт в конец корня.
-   */
-  public attachReserved(input: AtomInput): Atom {
-    const reserved = this.reservations.get(input.address)
+  attachReserved(input, state) {
+    const active = resolveState(state)
+    const reserved = active.reservations.get(input.address)
 
     if (!reserved) {
-      return this.createChildren(null, input)
+      return this.createChildren(null, input, active)
     }
 
-    this.reservations.delete(input.address)
-    return this.createWithOrder(reserved.parent, reserved.orderKey, input)
-  }
+    active.reservations.delete(input.address)
+    return createWithOrder(active, reserved.parent, reserved.orderKey, input)
+  },
 }
-
-/** Синглтон структурного store слоя Gravity. */
-export const gravity$ = new GravityStore()

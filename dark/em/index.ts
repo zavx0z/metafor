@@ -4,6 +4,7 @@
  * Использует синглтон `dark$` для проекций в Boundary и Bulk.
  */
 
+import type { MetaAST } from "@metafor/ast"
 import { dark$ } from "../store"
 import type { Atom } from "../store"
 
@@ -12,6 +13,7 @@ export type DarkConsumer = "boundary" | "bulk"
 export interface DarkDownstreamProjection {
   consumer: DarkConsumer
   graph: typeof dark$
+  meta: Map<string, MetaAST>
   atom: Atom[]
 }
 
@@ -19,6 +21,7 @@ export function projectDarkGraph(consumer: DarkConsumer): DarkDownstreamProjecti
   return {
     consumer,
     graph: dark$,
+    meta: new Map(dark$.meta),
     atom: [...dark$.atom.values()],
   }
 }

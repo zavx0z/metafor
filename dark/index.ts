@@ -6,5 +6,6 @@
 
 export { dark$ } from "./store"
 export { load } from "./dark"
-export { GravityStore, between, gravity$ } from "./gravity"
-export type { Atom, AtomInput, OrderKey, Store } from "./store"
+export { projectDarkGraph, projectDarkGraphToBoundary, projectDarkGraphToBulk } from "./em"
+export type { Atom, DarkStore, DarkStoreSnapshot } from "./store"
+export type { DarkConsumer, DarkDownstreamProjection } from "./em"
