@@ -4,7 +4,8 @@
  * Здесь нет assembly-логики. Store держит только данные и узкий store API.
  */
 
-import { cloneGravityAtom, cloneGravitySnapshot, cloneReservation, parentKey } from "./model"
+import { cloneGravityAtom, cloneGravitySnapshot, cloneReservation } from "./snapshot"
+import { parentKey } from "./tree"
 import type { GravityStore } from "./store.t.js"
 
 export const gravity$: GravityStore = {

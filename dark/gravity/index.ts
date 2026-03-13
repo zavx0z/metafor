@@ -1,14 +1,8 @@
 export { gravity$ } from "./store"
-export {
-  between,
-  compareOrderKey,
-  getChildren,
-  getNode,
-  getPath,
-  materializeDarkAtoms,
-  parseIndexPath,
-  splitParentAndIndex,
-} from "./model"
+export { between, compareOrderKey } from "./key"
+export { parseIndexPath, splitParentAndIndex } from "./path"
+export { getChildren, getNode, getPath } from "./tree"
+export { materializeDarkAtoms } from "./materialize"
 export {
   resetGravity,
   attachReserved,

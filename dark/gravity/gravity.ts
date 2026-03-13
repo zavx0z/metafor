@@ -1,20 +1,20 @@
 import type { Atom } from "../store.t.js"
+import { buildGravityAtom, insertChildAddress, materializeDarkAtoms as buildDarkAtoms } from "./materialize"
 import {
   assertAddressAvailable,
   assertParentExists,
-  buildGravityAtom,
   getAfterReservation,
   getAppendReservation,
   getBeforeReservation,
   getBetweenReservation,
-  getChildren as readChildren,
   getIndexPathReservation,
+} from "./reservation"
+import {
+  getChildren as readChildren,
   getNode as readNode,
   getPath as readPath,
-  insertChildAddress,
-  materializeDarkAtoms as buildDarkAtoms,
   mustGetGravityAtom,
-} from "./model"
+} from "./tree"
 import { gravity$ } from "./store"
 import type { AtomInput, GravityAtom, GravityStore } from "./store.t.js"
 

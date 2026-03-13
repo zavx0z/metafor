@@ -14,7 +14,7 @@ import {
   reserveByIndexPath,
   reserveSibling,
 } from "./gravity"
-import { between } from "./model"
+import { between } from "./key"
 import { gravity$ } from "./store"
 
 function atom(address: string, meta = "/meta/shared") {
