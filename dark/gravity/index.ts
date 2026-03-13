@@ -10,6 +10,7 @@ export {
   splitParentAndIndex,
 } from "./model"
 export {
+  resetGravity,
   attachReserved,
   createAfter,
   createBefore,
@@ -21,5 +22,5 @@ export {
   reserveByIndexPath,
   reserveSibling,
   snapshot,
-} from "./pipeline"
+} from "./gravity"
 export type { AtomInput, AtomSeed, GravityAtom, GravityReadonlyState, GravitySnapshot, GravityStore, OrderKey, Reservation } from "./store.t"

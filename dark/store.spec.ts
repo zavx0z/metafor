@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import type { MetaAST } from "@metafor/ast"
-import { createChildren } from "./gravity/pipeline"
+import { createChildren } from "./gravity/gravity"
 import { gravity$ } from "./gravity/store"
-import { load } from "./load"
+import { load } from "./dark"
 import { dark$ } from "./store"
 
 const originalFetch = globalThis.fetch
@@ -53,12 +53,14 @@ afterEach(() => {
 })
 
 describe("dark/store", () => {
-  test("loader package surface идёт через dedicated load module", async () => {
+  test("dark/index экспортирует Dark orchestrator и отдельный loader", async () => {
     const indexModule = await import("./index")
+    const darkModule = await import("./dark")
     const loadModule = await import("./load")
 
-    expect(indexModule.load).toBe(loadModule.load)
+    expect(indexModule.load).toBe(darkModule.load)
     expect(indexModule.loadMetaAST).toBe(loadModule.loadMetaAST)
+    expect("load" in loadModule).toBe(false)
   })
 
   test("dark больше не является alias gravity", () => {

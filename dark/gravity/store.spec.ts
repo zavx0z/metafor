@@ -10,9 +10,10 @@ import {
   getChildren,
   getNode,
   getPath,
+  resetGravity,
   reserveByIndexPath,
   reserveSibling,
-} from "./pipeline"
+} from "./gravity"
 import { between } from "./model"
 import { gravity$ } from "./store"
 
@@ -22,15 +23,19 @@ function atom(address: string, meta = "/meta/shared") {
 
 describe("dark/gravity/store", () => {
   beforeEach(() => {
-    gravity$.reset()
+    resetGravity()
   })
 
-  test("gravity$ является singleton-store объектом с default state без factory API", () => {
+  test("gravity$ является singleton-store объектом с default state без factory API", async () => {
     expect(typeof gravity$.reset).toBe("function")
     expect(typeof gravity$.restore).toBe("function")
     expect(gravity$.atom.size).toBe(0)
     expect(gravity$.children.size).toBe(0)
     expect("createState" in gravity$).toBe(false)
+
+    const gravityModule = await import("./gravity")
+    expect(typeof gravityModule.createChildren).toBe("function")
+    await expect(import("./pipeline")).rejects.toThrow()
   })
 
   test("snapshot/restore восстанавливают structural state", () => {

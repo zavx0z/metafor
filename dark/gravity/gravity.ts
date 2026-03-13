@@ -38,6 +38,15 @@ function createWithReservation(store: GravityStore, input: AtomInput, parent: st
   )
 }
 
+/**
+ * Главный dirty orchestrator Gravity-layer.
+ *
+ * Здесь сосредоточены все mutation-операции над `gravity$`.
+ */
+export function resetGravity(store: GravityStore = gravity$): void {
+  store.reset()
+}
+
 export function getAtom(address: string, store: GravityStore = gravity$): GravityAtom | null {
   return store.get(address) ?? null
 }
