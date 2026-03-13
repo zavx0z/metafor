@@ -2,7 +2,7 @@
 
 `PROTOCOL.md` является корневой точкой входа в протокольный слой MetaFor.
 Он задаёт общий строй сил, каналов и содержимого изменения.
-Детальные разборы отдельных сил вынесены в [Gravity](./proto/gravity.md), [Electromagnetism](./proto/electromagnetism.md), [Strong](./proto/strong.md) и [Weak](./proto/weak.md).
+Детальные разборы отдельных сил и topology-field канала вынесены в [Gravity](./proto/gravity.md), [Electromagnetism](./proto/electromagnetism.md), [Strong](./proto/strong.md), [Weak](./proto/weak.md) и [Higgs](./proto/higgs.md).
 
 ## Назначение
 
@@ -12,6 +12,7 @@
 
 Этот слой углубляет онтологию и архитектуру, но не перераспределяет их обязанности.
 Каноникализация, дедупликация, интернирование и уплотнение остаются за `Boundary × Strong`.
+Типовое различие между ordinary data-fields и topology-fields остаётся первичным и не определяется самим протоколом задним числом.
 
 ## Центральные различия
 
@@ -30,10 +31,11 @@
 - `Graviton`,
 - `Photon`,
 - `Gluon`,
+- `Higgs boson`,
 - `W boson`,
 - `Z boson`.
 
-Каждый такой подтип принадлежит своей силе и не должен смешиваться с другими.
+Каждый такой подтип принадлежит своей силе или отдельному topology-field каналу и не должен смешиваться с другими.
 
 ### Impulse
 
@@ -50,6 +52,28 @@
 - подтип `Boson` задаёт конкретный силовой канал,
 - `Impulse` задаёт содержимое изменения.
 
+## Типы полей
+
+Протокол различает:
+
+- ordinary data-fields,
+- topology-fields.
+
+`enum` и `array` относятся к topology-fields по своей типовой природе.
+Это не вывод из AST-формы постфактум, а первичная категория модели.
+`AST` только разворачивает уже существующую семантику.
+
+Topology-fields в MetaFor читаются как Higgs fields:
+
+- `enum` всегда выражает topology selection,
+- `array` всегда выражает topology multiplicity / branch expansion.
+
+Ограничения topology-fields таковы:
+
+- `array` не участвует в entanglement,
+- `array` не мутируется внешними реакциями,
+- `array` может меняться только внутренним процессом атома и только проходя через изменение `State`.
+
 ## Глобальная симметрия
 
 Протокольная симметрия MetaFor задаётся так:
@@ -57,6 +81,7 @@
 - `Gravity -> Graviton`
 - `Electromagnetism -> Photon`
 - `Strong -> Gluon`
+- `Higgs field change -> Higgs boson`
 - `Weak -> W boson / Z boson`
 
 Это соответствие должно читаться единообразно в онтологии, архитектуре и протоколе.
@@ -80,11 +105,25 @@
 ### Strong
 
 `Strong` отвечает за удержание, сцепление, связность и устойчивость формы.
-Её каналом является `Gluon`, через который изменяются значения `Field`.
+Её каналом является `Gluon`, через который изменяются значения ordinary `Field`.
 
 При этом `Gluon` не заменяет архитектурную роль `Boundary × Strong`.
 Каноникализация, дедупликация, интернирование и уплотнение остаются отдельной обязанностью границы.
 Глюонный октет и соответствия типам `Field` вынесены в [Strong](./proto/strong.md).
+
+### Higgs
+
+`Higgs` в MetaFor обозначает topology-field change.
+Его каналом является `Higgs boson`, который изменяет topology-fields как Higgs fields.
+
+Здесь важно различать:
+
+- `Photon` переносит `State`,
+- `Gluon` изменяет ordinary `Field`,
+- `Higgs boson` изменяет topology-fields,
+- `Graviton` удерживает скрытую организацию и геометрию.
+
+Подробный разбор вынесен в [Higgs](./proto/higgs.md).
 
 ### Weak
 
@@ -101,5 +140,6 @@
 
 - [Gravity](./proto/gravity.md) — скрытая организация, адресуемость и внутренний геометрический протокол.
 - [Electromagnetism](./proto/electromagnetism.md) — наблюдаемое распространение, сигнал и перенос `State`.
-- [Strong](./proto/strong.md) — изменение значений `Field`, удержание формы и глюонный октет.
+- [Strong](./proto/strong.md) — изменение значений ordinary `Field`, удержание формы и границы действия `Gluon`.
+- [Higgs](./proto/higgs.md) — topology-fields как Higgs fields, branch selection, branch multiplicity и `Higgs boson`.
 - [Weak](./proto/weak.md) — активный переход, нейтральная медиция и различие между `W boson` и `Z boson`.

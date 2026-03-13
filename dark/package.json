@@ -4,9 +4,7 @@
   "type": "module",
   "main": "index.ts",
   "exports": {
-    ".": "./index.ts",
-    "./store": "./store.ts",
-    "./load": "./load.ts"
+    ".": "./index.ts"
   },
   "private": true,
   "dependencies": {
@@ -14,6 +12,7 @@
     "@dark/strong": "workspace:*",
     "@dark/weak": "workspace:*",
     "@dark/em": "workspace:*",
-    "@metafor/ast": "workspace:*"
+    "@metafor/ast": "workspace:*",
+    "@zavx0z/template": "workspace:*"
   }
 }

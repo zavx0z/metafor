@@ -17,7 +17,7 @@ MetaFor — это пространство документов и кода, в
 - [PHILOSOPHY.md](./docs/PHILOSOPHY.md) — философский смысл скрытого субстрата, границы фиксации и проявленного объёма,
 - [ONTOLOGY.md](./docs/ONTOLOGY.md) — онтологическое описание `Dark`, `Boundary` и `Bulk`,
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md) — архитектурная проекция трёхдоменной онтологии,
-- [PROTOCOL.md](./docs/PROTOCOL.md) — корневой протокольный слой MetaFor: `Boson`, `Impulse`, симметрия сил и навигация к детальным документам по `Gravity`, `Electromagnetism`, `Strong` и `Weak`.
+- [PROTOCOL.md](./docs/PROTOCOL.md) — корневой протокольный слой MetaFor: `Boson`, `Impulse`, симметрия сил, topology-field/Higgs слой и навигация к детальным документам по `Gravity`, `Electromagnetism`, `Strong`, `Weak` и `Higgs`.
 
 ## Активный рабочий контур
 
@@ -59,9 +59,10 @@ Boundary -> Electromagnetism -> Bulk
 - силы (`Gravity`, `Electromagnetism`, `Strong`, `Weak`),
 - скрытая иерархия, память, зафиксированные состояния, структурированные изменения и эволюция модели,
 - сопряжённая пара сущностей (`Brane` и `Field`),
+- различие между обычными data-fields и topology-fields,
 - состояния и переходы (`State`, `Transition`),
 - процесс и разворачивание действия (`Process`),
-- каналы сил: `Graviton` для скрытой организации, `Photon` для переноса `State`, `Gluon` для изменения `Field`, `W boson` и `Z boson` для перехода, `Impulse` как содержимое изменения,
+- каналы сил и topology-change: `Graviton` для скрытой организации, `Photon` для переноса `State`, `Gluon` для изменения обычных `Field`, `Higgs boson` для изменения topology-fields, `W boson` и `Z boson` для перехода, `Impulse` как содержимое изменения,
 - различение устойчивой идентичности и локального индекса (`Identity`, `Index`),
 - разные роли гравитации в `Dark`, `Boundary` и `Bulk`.
 
@@ -75,7 +76,7 @@ Boundary -> Electromagnetism -> Bulk
 - архитектурное чтение декларации, сериализуемого контракта, скрытой структурной непрерывности и доменных проекций,
 - домены и силы в кодовой проекции,
 - границы между латентной структурой, фиксацией и проявлением,
-- различие между силой, её каналом (`Boson` и подтипы `Graviton`, `Photon`, `Gluon`, `W boson`, `Z boson`) и содержимым изменения (`Impulse`),
+- различие между силой, её каналом (`Boson` и подтипы `Graviton`, `Photon`, `Gluon`, `Higgs boson`, `W boson`, `Z boson`) и содержимым изменения (`Impulse`),
 - файловая система как техническая проекция, а не источник истины.
 
 ### Протокол
@@ -86,8 +87,30 @@ Boundary -> Electromagnetism -> Bulk
 Там описываются:
 
 - каналы сил и способы переноса,
-- `Boson`, `Photon`, `Gluon`, `Graviton`, `W boson`, `Z boson`, `Impulse`,
-- детальные соответствия между значением, полем и каналом изменения.
+- `Boson`, `Photon`, `Gluon`, `Higgs boson`, `Graviton`, `W boson`, `Z boson`, `Impulse`,
+- детальные соответствия между состоянием, обычным полем, topology-field и каналом изменения.
+
+## Типовой разрез
+
+MetaFor различает два первичных рода полей:
+
+- data-fields,
+- topology-fields.
+
+`enum` и `array` принадлежат topology-fields по своей типовой природе.
+Это различие первично по отношению к конкретному AST-разворачиванию: `AST` применяет и раскрывает эти семантики, но не создаёт саму категорию.
+
+Topology-fields читаются как Higgs fields:
+
+- `enum` всегда задаёт выбор ветви,
+- `array` всегда задаёт множественность ветвей и их расширение.
+
+При этом транспортные инварианты сохраняются:
+
+- `Photon` переносит `State`,
+- `Gluon` изменяет обычные значения `Field`,
+- `Higgs boson` изменяет topology-fields,
+- `Graviton` относится к скрытой структурной и геометрической организации.
 
 ## Базовый принцип
 
