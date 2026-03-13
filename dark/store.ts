@@ -1,6 +1,5 @@
-import type { DarkStore } from "./store.t.js"
-
-export type { Atom, DarkStore, DarkStoreSnapshot } from "./store.t.js"
+import type { DarkStore } from "./store.t"
+export type { Atom, DarkStore, DarkStoreSnapshot } from "./store.t"
 
 function pathToIndices(path: string): number[] {
   return path.split("/").map((segment) => Number(segment))
@@ -33,13 +32,13 @@ export const dark$: DarkStore = {
 
   restore(snapshot) {
     this.meta = new Map(snapshot.meta)
-    this.atom = new Map(Array.from(snapshot.atom, ([address, atom]) => [address, { ...atom }]))
+    this.atom = new Map(Array.from(snapshot.atom, ([uuid, atom]) => [uuid, { ...atom }]))
   },
 
   snapshot() {
     return {
       meta: new Map(this.meta),
-      atom: new Map(Array.from(this.atom, ([address, atom]) => [address, { ...atom }])),
+      atom: new Map(Array.from(this.atom, ([uuid, atom]) => [uuid, { ...atom }])),
     }
   },
 
@@ -50,7 +49,7 @@ export const dark$: DarkStore = {
 
   setAtom(atom) {
     const next = { ...atom }
-    this.atom.set(next.address, next)
+    this.atom.set(next.uuid, next)
     return next
   },
 
@@ -58,16 +57,16 @@ export const dark$: DarkStore = {
     return this.meta.get(address)
   },
 
-  getAtom(address) {
-    return this.atom.get(address)
+  getAtom(uuid) {
+    return this.atom.get(uuid)
   },
 
-  getPath(address) {
-    return this.getAtom(address)?.path
+  getPath(uuid) {
+    return this.getAtom(uuid)?.path
   },
 
   getChildren(parent) {
-    const parentPath = parent ? this.getPath(parent) ?? null : null
+    const parentPath = parent ? (this.getPath(parent) ?? null) : null
     return [...this.atom.values()]
       .filter((atom) => getParentPath(atom.path) === parentPath)
       .sort((left, right) => comparePath(left.path, right.path))

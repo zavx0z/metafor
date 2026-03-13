@@ -22,10 +22,10 @@ export const gravity$: GravityStore = {
   },
 
   restore(snapshot) {
-    this.atom = new Map(Array.from(snapshot.atom, ([address, atom]) => [address, cloneGravityAtom(atom)]))
+    this.atom = new Map(Array.from(snapshot.atom, ([uuid, atom]) => [uuid, cloneGravityAtom(atom)]))
     this.children = new Map(Array.from(snapshot.children, ([parent, children]) => [parent, [...children]]))
     this.reservations = new Map(
-      Array.from(snapshot.reservations, ([address, reservation]) => [address, cloneReservation(reservation)]),
+      Array.from(snapshot.reservations, ([uuid, reservation]) => [uuid, cloneReservation(reservation)]),
     )
     this.nextSeq = snapshot.nextSeq
   },
@@ -34,13 +34,13 @@ export const gravity$: GravityStore = {
     return cloneGravitySnapshot(this)
   },
 
-  get(address) {
-    return this.atom.get(address)
+  get(uuid) {
+    return this.atom.get(uuid)
   },
 
   set(atom) {
     const next = cloneGravityAtom(atom)
-    this.atom.set(next.address, next)
+    this.atom.set(next.uuid, next)
     return next
   },
 
@@ -54,17 +54,17 @@ export const gravity$: GravityStore = {
     return next
   },
 
-  getReservation(address) {
-    return this.reservations.get(address)
+  getReservation(uuid) {
+    return this.reservations.get(uuid)
   },
 
-  setReservation(address, reservation) {
+  setReservation(uuid, reservation) {
     const next = cloneReservation(reservation)
-    this.reservations.set(address, next)
+    this.reservations.set(uuid, next)
     return next
   },
 
-  deleteReservation(address) {
-    this.reservations.delete(address)
+  deleteReservation(uuid) {
+    this.reservations.delete(uuid)
   },
 }

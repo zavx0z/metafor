@@ -16,9 +16,10 @@ import {
 } from "./gravity"
 import { between } from "./key"
 import { gravity$ } from "./store"
+import type { UUID } from "../identifier.t"
 
-function atom(address: string, meta = "/meta/shared") {
-  return { address, meta }
+function atom(uuid: UUID, meta = "/meta/shared") {
+  return { uuid, meta }
 }
 
 describe("dark/gravity/store", () => {
@@ -38,8 +39,10 @@ describe("dark/gravity/store", () => {
   })
 
   test("snapshot/restore восстанавливают structural state", () => {
-    createChildren(null, atom("a"))
-    createChildren("a", atom("leaf"))
+    const a = crypto.randomUUID()
+    const leaf = crypto.randomUUID()
+    createChildren(null, atom(a))
+    createChildren(a, atom(leaf))
 
     const snapshot = gravity$.snapshot()
     gravity$.reset()
@@ -49,8 +52,8 @@ describe("dark/gravity/store", () => {
 
     gravity$.restore(snapshot)
 
-    expect(getPath("a")).toBe("0")
-    expect(getPath("leaf")).toBe("0/0")
+    expect(getPath(a)).toBe("0")
+    expect(getPath(leaf)).toBe("0/0")
   })
 
   test("between сохраняет стабильный лексикографический порядок", () => {
@@ -60,78 +63,94 @@ describe("dark/gravity/store", () => {
   })
 
   test("createChildren/createBefore/createAfter удерживают порядок siblings", () => {
-    createChildren(null, atom("a", "/meta/a"))
-    createChildren(null, atom("c", "/meta/c"))
-    createBefore("c", atom("b", "/meta/b"))
-    createAfter("b", atom("b2", "/meta/b2"))
+    const a = crypto.randomUUID()
+    const c = crypto.randomUUID()
+    const b = crypto.randomUUID()
+    const b2 = crypto.randomUUID()
 
-    expect(getChildren(null).map((entry) => entry.address)).toEqual(["a", "b", "b2", "c"])
-    expect(getChildren(null).map((entry) => getPath(entry.address))).toEqual(["0", "1", "2", "3"])
+    createChildren(null, atom(a, "/meta/a"))
+    createChildren(null, atom(c, "/meta/c"))
+    createBefore(c, atom(b, "/meta/b"))
+    createAfter(b, atom(b2, "/meta/b2"))
+
+    expect(getChildren(null).map((entry) => entry.uuid)).toEqual([a, b, b2, c])
+    expect(getChildren(null).map((entry) => getPath(entry.uuid))).toEqual(["0", "1", "2", "3"])
   })
 
   test("createBetween сохраняет стабильный порядок при плотных вставках между теми же соседями", () => {
-    createChildren(null, atom("L"))
-    createChildren(null, atom("R"))
+    const l = crypto.randomUUID()
+    const r = crypto.randomUUID()
 
+    createChildren(null, atom(l))
+    createChildren(null, atom(r))
+
+    const xs: UUID[] = []
     for (let index = 0; index < 8; index++) {
-      createBetween("L", "R", atom(`X${index}`))
+      const x = crypto.randomUUID()
+      xs.push(x)
+      createBetween(l, r, atom(x))
     }
 
-    expect(getChildren(null).map((entry) => entry.address)).toEqual([
-      "L",
-      "X0",
-      "X1",
-      "X2",
-      "X3",
-      "X4",
-      "X5",
-      "X6",
-      "X7",
-      "R",
-    ])
+    expect(getChildren(null).map((entry) => entry.uuid)).toEqual([l, ...xs, r])
   })
 
   test("createNode/getNode/getPath выводят path из реальной позиции в дереве", () => {
-    createNode("0", atom("root-a", "/meta/a"))
-    createNode("1", atom("root-c", "/meta/c"))
-    createNode("1", atom("root-b", "/meta/b"))
-    createNode("1/0", atom("leaf", "/meta/leaf"))
+    const rootA = crypto.randomUUID()
+    const rootC = crypto.randomUUID()
+    const rootB = crypto.randomUUID()
+    const leaf = crypto.randomUUID()
 
-    expect(getPath("root-a")).toBe("0")
-    expect(getPath("root-b")).toBe("1")
-    expect(getPath("root-c")).toBe("2")
-    expect(getNode("1")?.address).toBe("root-b")
-    expect(getNode("1/0")?.address).toBe("leaf")
+    createNode("0", atom(rootA, "/meta/a"))
+    createNode("1", atom(rootC, "/meta/c"))
+    createNode("1", atom(rootB, "/meta/b"))
+    createNode("1/0", atom(leaf, "/meta/leaf"))
+
+    expect(getPath(rootA)).toBe("0")
+    expect(getPath(rootB)).toBe("1")
+    expect(getPath(rootC)).toBe("2")
+    expect(getNode("1")?.uuid).toBe(rootB)
+    expect(getNode("1/0")?.uuid).toBe(leaf)
   })
 
   test("reserveSibling + attachReserved ставят будущий атом в зарезервированный slot", () => {
-    createChildren(null, atom("a"))
-    createChildren(null, atom("c"))
-    reserveSibling("b", "c", "before")
-    attachReserved(atom("b"))
+    const a = crypto.randomUUID()
+    const c = crypto.randomUUID()
+    const b = crypto.randomUUID()
 
-    expect(getChildren(null).map((entry) => entry.address)).toEqual(["a", "b", "c"])
-    expect(getAtom("b")?.parent).toBe(null)
-    expect(getPath("b")).toBe("1")
+    createChildren(null, atom(a))
+    createChildren(null, atom(c))
+    reserveSibling(b, c, "before")
+    attachReserved(atom(b))
+
+    expect(getChildren(null).map((entry) => entry.uuid)).toEqual([a, b, c])
+    expect(getAtom(b)?.parent).toBe(null)
+    expect(getPath(b)).toBe("1")
   })
 
   test("reserveByIndexPath резервирует позицию по индексному пути", () => {
-    createChildren(null, atom("a"))
-    createChildren(null, atom("c"))
-    reserveByIndexPath("b", "1")
-    attachReserved(atom("b"))
+    const a = crypto.randomUUID()
+    const c = crypto.randomUUID()
+    const b = crypto.randomUUID()
 
-    expect(getChildren(null).map((entry) => entry.address)).toEqual(["a", "b", "c"])
-    expect(getNode("1")?.address).toBe("b")
-    expect(getNode("2")?.address).toBe("c")
+    createChildren(null, atom(a))
+    createChildren(null, atom(c))
+    reserveByIndexPath(b, "1")
+    attachReserved(atom(b))
+
+    expect(getChildren(null).map((entry) => entry.uuid)).toEqual([a, b, c])
+    expect(getNode("1")?.uuid).toBe(b)
+    expect(getNode("2")?.uuid).toBe(c)
   })
 
   test("повторное использование одного meta остаётся валидным", () => {
-    createChildren(null, atom("user-1", "/meta/user"))
-    createChildren(null, atom("user-2", "/meta/user"))
+    const user1 = crypto.randomUUID()
+    const user2 = crypto.randomUUID()
+
+    createChildren(null, atom(user1, "/meta/user"))
+    createChildren(null, atom(user2, "/meta/user"))
 
     expect(getChildren(null).map((entry) => entry.meta)).toEqual(["/meta/user", "/meta/user"])
-    expect(getChildren(null).map((entry) => getPath(entry.address))).toEqual(["0", "1"])
+    expect(getChildren(null).map((entry) => getPath(entry.uuid))).toEqual(["0", "1"])
   })
 })
 

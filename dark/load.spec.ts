@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { loadMetaAST } from "./load"
 import reference from "../github/zavx0z/git/meta.json"
 import type { MetaAST } from "../metafor/ast/ast.t"
-import type { Address } from "./dark.t.js"
+import type { Address } from "./dark.t"
 import { HubFixture } from "../fixture/hub"
 
 const hub = new HubFixture("./github/")

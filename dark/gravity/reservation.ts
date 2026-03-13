@@ -2,18 +2,19 @@ import { between } from "./key"
 import { splitParentAndIndex } from "./path"
 import { getChildAddresses, getNodeAddress, mustGetGravityAtom, parentKey } from "./tree"
 import type { GravityReadonlyState, Reservation } from "./store.t.js"
+import type { UUID } from "../identifier.t.js"
 
-export function assertParentExists(state: GravityReadonlyState, parent: string | null): void {
+export function assertParentExists(state: GravityReadonlyState, parent: UUID | null): void {
   if (parent !== null) mustGetGravityAtom(state, parent)
 }
 
-export function assertAddressAvailable(state: GravityReadonlyState, address: string): void {
-  if (!address) throw new Error("У атома отсутствует address")
-  if (state.atom.has(address)) throw new Error(`Атом уже существует: ${address}`)
-  if (state.reservations.has(address)) throw new Error(`Атом уже зарезервирован: ${address}`)
+export function assertAddressAvailable(state: GravityReadonlyState, uuid: UUID): void {
+  if (!uuid) throw new Error("У атома отсутствует uuid")
+  if (state.atom.has(uuid)) throw new Error(`Атом уже существует: ${uuid}`)
+  if (state.reservations.has(uuid)) throw new Error(`Атом уже зарезервирован: ${uuid}`)
 }
 
-export function getAppendReservation(state: GravityReadonlyState, parent: string | null): Reservation {
+export function getAppendReservation(state: GravityReadonlyState, parent: UUID | null): Reservation {
   const children = getChildAddresses(state, parent)
   const last = children.length > 0 ? mustGetGravityAtom(state, children[children.length - 1]!) : null
   return {
@@ -24,12 +25,12 @@ export function getAppendReservation(state: GravityReadonlyState, parent: string
 
 export function getBetweenReservation(
   state: GravityReadonlyState,
-  left: string | null,
-  right: string | null,
+  left: UUID | null,
+  right: UUID | null,
 ): Reservation {
   const leftAtom = left ? mustGetGravityAtom(state, left) : null
   const rightAtom = right ? mustGetGravityAtom(state, right) : null
-  let parent: string | null = null
+  let parent: UUID | null = null
   if (leftAtom && rightAtom) {
     if (parentKey(leftAtom.parent) !== parentKey(rightAtom.parent)) {
       throw new Error("Соседи должны иметь одного родителя")
@@ -46,7 +47,7 @@ export function getBetweenReservation(
   }
 }
 
-export function getBeforeReservation(state: GravityReadonlyState, neighbor: string): Reservation {
+export function getBeforeReservation(state: GravityReadonlyState, neighbor: UUID): Reservation {
   const atom = mustGetGravityAtom(state, neighbor)
   const siblings = getChildAddresses(state, atom.parent)
   const index = siblings.indexOf(neighbor)
@@ -58,7 +59,7 @@ export function getBeforeReservation(state: GravityReadonlyState, neighbor: stri
   }
 }
 
-export function getAfterReservation(state: GravityReadonlyState, neighbor: string): Reservation {
+export function getAfterReservation(state: GravityReadonlyState, neighbor: UUID): Reservation {
   const atom = mustGetGravityAtom(state, neighbor)
   const siblings = getChildAddresses(state, atom.parent)
   const index = siblings.indexOf(neighbor)

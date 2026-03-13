@@ -1,30 +1,31 @@
 import { parseIndexPath } from "./path"
 import type { GravityAtom, GravityReadonlyState } from "./store.t.js"
+import type { UUID } from "../identifier.t.js"
 
 const ROOT = ""
 
-export function parentKey(parent: string | null): string {
+export function parentKey(parent: UUID | null): string {
   return parent ?? ROOT
 }
 
-export function getGravityAtom(state: GravityReadonlyState, address: string): GravityAtom | undefined {
-  return state.atom.get(address)
+export function getGravityAtom(state: GravityReadonlyState, uuid: UUID): GravityAtom | undefined {
+  return state.atom.get(uuid)
 }
 
-export function mustGetGravityAtom(state: GravityReadonlyState, address: string): GravityAtom {
-  const atom = getGravityAtom(state, address)
-  if (!atom) throw new Error(`Атом не найден: ${address}`)
+export function mustGetGravityAtom(state: GravityReadonlyState, uuid: UUID): GravityAtom {
+  const atom = getGravityAtom(state, uuid)
+  if (!atom) throw new Error(`Атом не найден: ${uuid}`)
   return atom
 }
 
-export function getChildAddresses(state: GravityReadonlyState, parent: string | null): readonly string[] {
+export function getChildAddresses(state: GravityReadonlyState, parent: UUID | null): readonly UUID[] {
   return state.children.get(parentKey(parent)) ?? []
 }
 
-export function getPath(state: GravityReadonlyState, address: string): string {
-  mustGetGravityAtom(state, address)
+export function getPath(state: GravityReadonlyState, uuid: UUID): string {
+  mustGetGravityAtom(state, uuid)
   const indices: number[] = []
-  let current: string | null = address
+  let current: UUID | null = uuid
   while (current) {
     const atom = mustGetGravityAtom(state, current)
     const siblings = getChildAddresses(state, atom.parent)
@@ -37,9 +38,9 @@ export function getPath(state: GravityReadonlyState, address: string): string {
   return indices.join("/")
 }
 
-export function getNodeAddress(state: GravityReadonlyState, path: string): string | null {
-  let parent: string | null = null
-  let current: string | null = null
+export function getNodeAddress(state: GravityReadonlyState, path: string): UUID | null {
+  let parent: UUID | null = null
+  let current: UUID | null = null
   for (const index of parseIndexPath(path)) {
     const children = getChildAddresses(state, parent)
     if (index < 0 || index >= children.length) return null
@@ -50,19 +51,19 @@ export function getNodeAddress(state: GravityReadonlyState, path: string): strin
 }
 
 export function getNode(state: GravityReadonlyState, path: string): GravityAtom | null {
-  const address = getNodeAddress(state, path)
-  return address ? state.atom.get(address) ?? null : null
+  const uuid = getNodeAddress(state, path)
+  return uuid ? state.atom.get(uuid) ?? null : null
 }
 
-export function getChildren(state: GravityReadonlyState, parent: string | null): readonly GravityAtom[] {
-  return getChildAddresses(state, parent).map((address) => mustGetGravityAtom(state, address))
+export function getChildren(state: GravityReadonlyState, parent: UUID | null): readonly GravityAtom[] {
+  return getChildAddresses(state, parent).map((uuid) => mustGetGravityAtom(state, uuid))
 }
 
-export function listTreeAddresses(state: GravityReadonlyState, parent: string | null = null): string[] {
-  const out: string[] = []
-  for (const address of getChildAddresses(state, parent)) {
-    out.push(address)
-    out.push(...listTreeAddresses(state, address))
+export function listTreeAddresses(state: GravityReadonlyState, parent: UUID | null = null): UUID[] {
+  const out: UUID[] = []
+  for (const uuid of getChildAddresses(state, parent)) {
+    out.push(uuid)
+    out.push(...listTreeAddresses(state, uuid))
   }
   return out
 }

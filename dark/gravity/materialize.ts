@@ -2,14 +2,15 @@ import type { Atom } from "../store.t.js"
 import { cloneOrderKey, compareOrderKey } from "./key"
 import { getChildAddresses, getPath, listTreeAddresses, mustGetGravityAtom } from "./tree"
 import type { GravityAtom, GravityReadonlyState, Reservation } from "./store.t.js"
+import type { UUID } from "../identifier.t.js"
 
 export function buildGravityAtom(
   state: GravityReadonlyState,
-  input: { address: string; meta: string },
+  input: { uuid: UUID; meta: string },
   reservation: Reservation,
 ): GravityAtom {
   return {
-    address: input.address,
+    uuid: input.uuid,
     meta: input.meta,
     parent: reservation.parent,
     orderKey: cloneOrderKey(reservation.orderKey),
@@ -17,8 +18,8 @@ export function buildGravityAtom(
   }
 }
 
-export function getInsertionIndex(state: GravityReadonlyState, children: readonly string[], address: string): number {
-  const candidate = mustGetGravityAtom(state, address)
+export function getInsertionIndex(state: GravityReadonlyState, children: readonly UUID[], uuid: UUID): number {
+  const candidate = mustGetGravityAtom(state, uuid)
   let left = 0
   let right = children.length
   while (left < right) {
@@ -32,23 +33,23 @@ export function getInsertionIndex(state: GravityReadonlyState, children: readonl
   return left
 }
 
-export function insertChildAddress(state: GravityReadonlyState, parent: string | null, address: string): string[] {
+export function insertChildAddress(state: GravityReadonlyState, parent: UUID | null, uuid: UUID): UUID[] {
   const children = [...getChildAddresses(state, parent)]
-  const index = getInsertionIndex(state, children, address)
-  children.splice(index, 0, address)
+  const index = getInsertionIndex(state, children, uuid)
+  children.splice(index, 0, uuid)
   return children
 }
 
-export function materializeDarkAtoms(state: GravityReadonlyState): Map<string, Atom> {
+export function materializeDarkAtoms(state: GravityReadonlyState): Map<UUID, Atom> {
   return new Map(
-    listTreeAddresses(state).map((address) => {
-      const atom = mustGetGravityAtom(state, address)
+    listTreeAddresses(state).map((uuid) => {
+      const atom = mustGetGravityAtom(state, uuid)
       return [
-        address,
+        uuid,
         {
-          address: atom.address,
+          uuid: atom.uuid,
           meta: atom.meta,
-          path: getPath(state, address),
+          path: getPath(state, uuid),
         } satisfies Atom,
       ] as const
     }),

@@ -1,8 +1,10 @@
 import { loadMetaAST } from "./load"
 import { dark$ } from "./store"
-import { createChildren, materializeDarkAtoms } from "./gravity/gravity"
+import { createChildren } from "./gravity/gravity"
 import type { NodeType } from "@metafor/template"
-import type { Address } from "./dark.t.js"
+import type { Address } from "./dark.t"
+import { generateUUID, type UUID } from "./identifier"
+import { gravity$, materializeDarkAtoms } from "./gravity"
 
 function getNodeChildren(node: NodeType): NodeType[] {
   return "child" in node && Array.isArray(node.child) ? node.child : []
@@ -18,13 +20,7 @@ function getMetaAddress(node: NodeType): Address | null {
   return typeof src === "string" ? src : null
 }
 
-function createAssemblyChildAddress(rootAddress: string, index: number): string {
-  return `${rootAddress}#atom/${index}`
-}
-
-export async function load(address: Address): Promise<void> {
-  let nextAtomIndex = 0
-
+export async function matter(address: Address): Promise<void> {
   const ensureMetaLoaded = async (metaAddress: Address): Promise<Address> => {
     const existing = dark$.getMeta(metaAddress)
     if (existing) return metaAddress
@@ -35,44 +31,26 @@ export async function load(address: Address): Promise<void> {
     return metaAddress
   }
 
-  const walk = async (
-    parentAddress: string,
-    nodes: readonly NodeType[],
-    rootAddress: string,
-  ): Promise<void> => {
-    for (const node of nodes) {
-      if (isMetaNode(node)) {
-        const childMetaAddress = getMetaAddress(node)
-        if (!childMetaAddress) continue
-
-        await ensureMetaLoaded(childMetaAddress)
-
-        const childAtom = createChildren(parentAddress, {
-          address: createAssemblyChildAddress(rootAddress, ++nextAtomIndex),
-          meta: childMetaAddress,
-        })
-
-        await walk(childAtom.address, getNodeChildren(node), rootAddress)
-        continue
-      }
-
-      await walk(parentAddress, getNodeChildren(node), rootAddress)
-    }
-  }
-
   const ast = await loadMetaAST(address)
   if (!ast) throw new Error(`Не удалось загрузить meta: ${address}`)
   dark$.setMeta(address, ast)
 
-  createChildren(null, {
-    address,
-    meta: address,
-  })
+  const rootAtom = createChildren(null, { uuid: generateUUID(), meta: address })
 
-  await walk(address, ast.gravity ?? [], address)
+  const walk = async (parentUuid: UUID, nodes: readonly NodeType[]): Promise<void> => {
+    for (const node of nodes) {
+      if (isMetaNode(node)) {
+        const childMetaAddress = getMetaAddress(node)
+        if (!childMetaAddress) continue
+        await ensureMetaLoaded(childMetaAddress)
+        const childAtom = createChildren(parentUuid, { uuid: generateUUID(), meta: childMetaAddress })
+        await walk(childAtom.uuid, getNodeChildren(node))
+        continue
+      }
+      await walk(parentUuid, getNodeChildren(node))
+    }
+  }
 
-  dark$.restore({
-    meta: new Map(dark$.meta),
-    atom: materializeDarkAtoms(),
-  })
+  await walk(rootAtom.uuid, ast.gravity ?? [])
+  dark$.atom = materializeDarkAtoms(gravity$)
 }

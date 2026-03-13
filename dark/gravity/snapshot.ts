@@ -3,7 +3,7 @@ import type { GravityAtom, GravityReadonlyState, GravitySnapshot, Reservation } 
 
 export function cloneGravityAtom(atom: GravityAtom): GravityAtom {
   return {
-    address: atom.address,
+    uuid: atom.uuid,
     meta: atom.meta,
     parent: atom.parent,
     orderKey: cloneOrderKey(atom.orderKey),
@@ -20,10 +20,10 @@ export function cloneReservation(reservation: Reservation): Reservation {
 
 export function cloneGravitySnapshot(state: GravityReadonlyState): GravitySnapshot {
   return {
-    atom: new Map(Array.from(state.atom, ([address, atom]) => [address, cloneGravityAtom(atom)])),
+    atom: new Map(Array.from(state.atom, ([uuid, atom]) => [uuid, cloneGravityAtom(atom)])),
     children: new Map(Array.from(state.children, ([parent, children]) => [parent, [...children]])),
     reservations: new Map(
-      Array.from(state.reservations, ([address, reservation]) => [address, cloneReservation(reservation)]),
+      Array.from(state.reservations, ([uuid, reservation]) => [uuid, cloneReservation(reservation)]),
     ),
     nextSeq: state.nextSeq,
   }

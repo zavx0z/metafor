@@ -1,5 +1,5 @@
 import type { MetaAST } from "@metafor/ast"
-import type { Address } from "./dark.t.js"
+import type { Address } from "./dark.t"
 
 /**
  * Загружает MetaAST из файла.
@@ -19,12 +19,13 @@ export async function loadMetaAST(address: Address): Promise<MetaAST | undefined
     return undefined
   }
 }
+
 /**
  * Преобразует Address в путь к файлу для загрузки.
  *
  * @param address - канонический адрес хаба
  * @returns путь к файлу для fetch
  */
-export function resolveMetaSource(address: Address): string {
+function resolveMetaSource(address: Address): string {
   return `/${address}/meta.json`
 }
