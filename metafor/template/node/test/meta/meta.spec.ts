@@ -7,7 +7,7 @@ describe("meta", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse(({ html }) => html`<meta-hash></meta-hash>`)
+        elements = parse(({ html }) => html`<meta-hash src="org/repo"></meta-hash>`)
       })
 
       it("hierarchy", () => {
@@ -15,6 +15,7 @@ describe("meta", () => {
           {
             tag: "meta-hash",
             type: "meta",
+            string: { src: "org/repo" },
           },
         ])
       })
@@ -23,6 +24,7 @@ describe("meta", () => {
           {
             tag: "meta-hash",
             type: "meta",
+            string: { src: "org/repo" },
           },
         ])
       })
@@ -32,13 +34,14 @@ describe("meta", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse(({ html }) => html`<meta-hash />`)
+        elements = parse(({ html }) => html`<meta-hash src="org/repo" />`)
       })
       it("hierarchy", () => {
         expect(elements).toEqual([
           {
             tag: "meta-hash",
             type: "meta",
+            string: { src: "org/repo" },
           },
         ])
       })
@@ -48,6 +51,7 @@ describe("meta", () => {
           {
             tag: "meta-hash",
             type: "meta",
+            string: { src: "org/repo" },
           },
         ])
       })
@@ -57,7 +61,7 @@ describe("meta", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse(({ html, mass }) => html`<meta-${mass.actors.child} />`)
+        elements = parse(({ html, mass }) => html`<meta-${mass.actors.child} src="org/repo" />`)
       })
 
       it("data", () => {
@@ -68,6 +72,7 @@ describe("meta", () => {
               expr: "meta-${_[0]}",
             },
             type: "meta",
+            string: { src: "org/repo" },
           },
         ])
       })
@@ -77,7 +82,7 @@ describe("meta", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse(({ html, mass }) => html`<meta-${mass.actors.child}></meta-${mass.actors.child}>`)
+        elements = parse(({ html, mass }) => html`<meta-${mass.actors.child} src="org/repo"></meta-${mass.actors.child}>`)
       })
 
       it("data", () => {
@@ -88,6 +93,7 @@ describe("meta", () => {
               expr: "meta-${_[0]}",
             },
             type: "meta",
+            string: { src: "org/repo" },
           },
         ])
       })
@@ -97,7 +103,7 @@ describe("meta", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse(({ html, mass }) => html`<div><meta-${mass.tag} /></div>`)
+        elements = parse(({ html, mass }) => html`<div><meta-${mass.tag} src="org/repo" /></div>`)
       })
 
       it("data", () => {
@@ -112,6 +118,7 @@ describe("meta", () => {
                   expr: "meta-${_[0]}",
                 },
                 type: "meta",
+                string: { src: "org/repo" },
               },
             ],
           },
@@ -123,7 +130,7 @@ describe("meta", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse(({ html, mass }) => html`<meta-hash><meta-${mass.tag} /></meta-hash>`)
+        elements = parse(({ html, mass }) => html`<meta-hash src="org/parent"><meta-${mass.tag} src="org/child" /></meta-hash>`)
       })
 
       it("data", () => {
@@ -131,6 +138,7 @@ describe("meta", () => {
           {
             tag: "meta-hash",
             type: "meta",
+            string: { src: "org/parent" },
             child: [
               {
                 tag: {
@@ -138,6 +146,7 @@ describe("meta", () => {
                   expr: "meta-${_[0]}",
                 },
                 type: "meta",
+                string: { src: "org/child" },
               },
             ],
           },
@@ -150,7 +159,7 @@ describe("meta", () => {
 
       beforeAll(() => {
         elements = parse<any, { items: { tag: string }[] }>(
-          ({ html, mass }) => html`${mass.items.map((item) => html`<meta-${item.tag} />`)}`
+          ({ html, mass }) => html`${mass.items.map((item) => html`<meta-${item.tag} src="org/repo" />`)}`
         )
       })
 
@@ -166,6 +175,7 @@ describe("meta", () => {
                   expr: "meta-${_[0]}",
                 },
                 type: "meta",
+                string: { src: "org/repo" },
               },
             ],
           },
@@ -178,7 +188,7 @@ describe("meta", () => {
 
       beforeAll(() => {
         elements = parse(
-          ({ html, mass }) => html`${mass.items.length > 0 ? html`<meta-${mass.tag} />` : html`<meta-${mass.tag} />`}`
+          ({ html, mass }) => html`${mass.items.length > 0 ? html`<meta-${mass.tag} src="org/true" />` : html`<meta-${mass.tag} src="org/false" />`}`
         )
       })
 
@@ -195,6 +205,7 @@ describe("meta", () => {
                   expr: "meta-${_[0]}",
                 },
                 type: "meta",
+                string: { src: "org/true" },
               },
               {
                 tag: {
@@ -202,6 +213,7 @@ describe("meta", () => {
                   expr: "meta-${_[0]}",
                 },
                 type: "meta",
+                string: { src: "org/false" },
               },
             ],
           },
@@ -215,7 +227,7 @@ describe("meta", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse(({ html }) => html`<meta-hash data-type="component" class="meta-element" />`)
+        elements = parse(({ html }) => html`<meta-hash src="org/repo" data-type="component" class="meta-element" />`)
       })
 
       it("data", () => {
@@ -224,6 +236,7 @@ describe("meta", () => {
             tag: "meta-hash",
             type: "meta",
             string: {
+              src: "org/repo",
               "data-type": "component",
               class: "meta-element",
             },
@@ -236,7 +249,7 @@ describe("meta", () => {
       let elements: NodeType[]
 
       beforeAll(() => {
-        elements = parse(({ html, mass }) => html`<meta-${mass.tag} data-id="${mass.id}" class="meta-${mass.type}" />`)
+        elements = parse(({ html, mass }) => html`<meta-${mass.tag} src="org/repo" data-id="${mass.id}" class="meta-${mass.type}" />`)
       })
 
       it("data", () => {
@@ -248,6 +261,7 @@ describe("meta", () => {
             },
             type: "meta",
             string: {
+              src: "org/repo",
               "data-id": {
                 data: "/mass/id",
               },
@@ -267,7 +281,7 @@ describe("meta", () => {
       beforeAll(() => {
         elements = parse(
           ({ html, mass }) => html`
-            <meta-${mass.tag} ${mass.active && "data-active"} class="${mass.active ? "active" : "inactive"}" />
+            <meta-${mass.tag} src="org/repo" ${mass.active && "data-active"} class="${mass.active ? "active" : "inactive"}" />
           `
         )
       })
@@ -279,15 +293,16 @@ describe("meta", () => {
               expr: "meta-${_[0]}",
             },
             type: "meta",
-            boolean: {
-              "data-active": {
-                data: "/mass/active",
-              },
-            },
             string: {
+              src: "org/repo",
               class: {
                 data: "/mass/active",
                 expr: '${_[0] ? "active" : "inactive"}',
+              },
+            },
+            boolean: {
+              "data-active": {
+                data: "/mass/active",
               },
             },
           },
@@ -301,7 +316,7 @@ describe("meta", () => {
       beforeAll(() => {
         elements = parse(
           ({ html, mass }) => html`
-            <meta-${mass.tag}
+            <meta-${mass.tag} src="org/repo"
               onclick=${() => mass.handleClick(mass.id)}
               onchange=${(e: Event) => mass.handleChange(e, mass.value)} />
           `
@@ -315,6 +330,9 @@ describe("meta", () => {
               expr: "meta-${_[0]}",
             },
             type: "meta",
+            string: {
+              src: "org/repo",
+            },
             event: {
               onclick: {
                 data: ["/mass/handleClick", "/mass/id"],
@@ -335,7 +353,7 @@ describe("meta", () => {
 
       beforeAll(() => {
         elements = parse(
-          ({ html, mass, update }) => html`<meta-${mass.tag} onclick=${() => update({ selected: mass.id })} />`
+          ({ html, mass, update }) => html`<meta-${mass.tag} src="org/repo" onclick=${() => update({ selected: mass.id })} />`
         )
       })
 
@@ -347,6 +365,9 @@ describe("meta", () => {
               expr: "meta-${_[0]}",
             },
             type: "meta",
+            string: {
+              src: "org/repo",
+            },
             event: {
               onclick: {
                 data: "/mass/id",
@@ -370,7 +391,7 @@ describe("meta", () => {
           ({ html, mass }) => html`
             ${mass.items.map(
               (item) => html`
-                <meta-${item.tag}
+                <meta-${item.tag} src="org/repo"
                   data-id="${item.id}"
                   ${item.active && "data-active"}
                   class="meta-${item.active ? "active" : "inactive"}"
@@ -392,19 +413,20 @@ describe("meta", () => {
                   expr: "meta-${_[0]}",
                 },
                 type: "meta",
-                event: {
-                  onclick: {
-                    data: ["[item]/handleClick", "[item]/id"],
-                    expr: "() => _[0](_[1])",
-                  },
-                },
                 string: {
+                  src: "org/repo",
                   "data-id": {
                     data: "[item]/id",
                   },
                   class: {
                     data: "[item]/active",
                     expr: 'meta-${_[0] ? "active" : "inactive"}',
+                  },
+                },
+                event: {
+                  onclick: {
+                    data: ["[item]/handleClick", "[item]/id"],
+                    expr: "() => _[0](_[1])",
                   },
                 },
                 boolean: {

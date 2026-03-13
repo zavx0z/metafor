@@ -4,6 +4,7 @@ import { createChildren } from "./gravity/gravity"
 import { gravity$ } from "./gravity/store"
 import { load } from "./dark"
 import { dark$ } from "./store"
+import type { Address } from "./dark.t.js"
 
 const originalFetch = globalThis.fetch
 
@@ -110,7 +111,7 @@ describe("dark/store", () => {
       { preconnect: () => {} },
     )
 
-    await load("root")
+    await load("root" as Address)
 
     expect(dark$.meta.has("root")).toBe(true)
     expect(dark$.meta.has("child/static")).toBe(true)

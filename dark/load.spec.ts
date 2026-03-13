@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, test } from "bun:test"
 import { loadMetaAST } from "./load"
 import reference from "../github/zavx0z/git/meta.json"
 import type { MetaAST } from "../metafor/ast/ast.t"
+import type { Address } from "./dark.t.js"
 import { HubFixture } from "../fixture/hub"
 
 const hub = new HubFixture("./github/")
@@ -21,13 +22,13 @@ describe("dark/load", () => {
    * а loader резолвит его в owner/path/meta.json.
    */
   test("должен загрузить MetaAST по hub-адресу zavx0z/git", async () => {
-    const ast = await loadMetaAST("zavx0z/git")
+    const ast = await loadMetaAST("zavx0z/git" as Address)
     expect(ast).toEqual(reference as MetaAST)
   })
 
   test("load.ts остаётся single-schema loader и не экспортирует package orchestration", async () => {
     const module = await import("./load")
-    const ast = await loadMetaAST("zavx0z/git")
+    const ast = await loadMetaAST("zavx0z/git" as Address)
 
     expect(ast).toEqual(reference as MetaAST)
     expect("load" in module).toBe(false)

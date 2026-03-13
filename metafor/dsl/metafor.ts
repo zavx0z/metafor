@@ -112,27 +112,27 @@ export const MetaFor: MetaForFn = function (name: string, config?: MetaForConfig
           }
           return {
             mass<m extends Mass>(mass?: m) {
+              const schema: MetaDSL<ɸ, 𝛴, m> = {
+                name,
+                superposition,
+                fields: fields,
+                mass: mass || ({} as m),
+              }
+              if (desc) schema.desc = desc
               return {
                 processes(process: ProcessesDeclaration<ɸ, 𝛴, m> = () => ({})) {
                   const processes = processesSchema(process)
+                  if (processes) schema.processes = processes
                   return {
                     reactions(reaction: ReactionsDeclaration<ɸ, 𝛴, m> = () => []) {
                       const reactions = reactionsSchema(reaction)
+                      if (reactions) schema.reactions = reactions
                       return {
                         gravity(gravity?: GravityDeclaration<ɸ, m, 𝛴>) {
+                          if (gravity) schema.gravity = parse(gravity as any)
                           return {
                             bulk(bulk?: BulkDeclaration): MetaDSL<ɸ, 𝛴, m> {
-                              const schema: MetaDSL<ɸ, 𝛴, m> = {
-                                name,
-                                superposition,
-                                fields: fields,
-                                mass: mass || ({} as m),
-                              }
-                              if (desc) schema.desc = desc
-                              if (gravity) schema.gravity = parse(gravity as any)
                               if (bulk && "view" in bulk) schema.view = serializeStyle(bulk.view as any)
-                              if (processes) schema.processes = processes
-                              if (reactions) schema.reactions = reactions
                               return schema
                             },
                           }

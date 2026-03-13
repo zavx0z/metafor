@@ -1,55 +1,48 @@
-import { loadMetaAST, normalizeSchemaAddress } from "./load"
+import { loadMetaAST } from "./load"
 import { dark$ } from "./store"
 import { createChildren, materializeDarkAtoms } from "./gravity/gravity"
+import type { NodeType } from "@metafor/template"
+import type { Address } from "./dark.t.js"
 
-type GravityNode = {
-  type?: string
-  child?: GravityNode[]
-  string?: Record<string, unknown>
+function getNodeChildren(node: NodeType): NodeType[] {
+  return "child" in node && Array.isArray(node.child) ? node.child : []
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null
-}
-
-function getNodeChildren(node: GravityNode): GravityNode[] {
-  return Array.isArray(node.child) ? node.child : []
-}
-
-function isMetaNode(node: GravityNode): boolean {
+function isMetaNode(node: NodeType): node is Extract<NodeType, { type: "meta" }> {
   return node.type === "meta"
 }
 
-function getStaticMetaAddress(node: GravityNode): string | null {
-  if (!isRecord(node.string)) return null
+function getMetaAddress(node: NodeType): Address | null {
+  if (node.type !== "meta" || !node.string) return null
   const src = node.string.src
-  return typeof src === "string" ? normalizeSchemaAddress(src) : null
+  return typeof src === "string" ? src : null
 }
 
 function createAssemblyChildAddress(rootAddress: string, index: number): string {
   return `${rootAddress}#atom/${index}`
 }
 
-/**
- * Главный dirty orchestrator пакета Dark.
- *
- * Координирует schema loading, Gravity-stage и final mutation `dark$`.
- */
-export async function load(metaPath: string): Promise<void> {
+export async function load(address: Address): Promise<void> {
   let nextAtomIndex = 0
 
-  const ensureMetaLoaded = async (metaSource: string): Promise<string> => {
-    const ast = await loadMetaAST(metaSource)
-    if (!ast) throw new Error(`Не удалось загрузить meta: ${metaSource}`)
-    const metaAddress = normalizeSchemaAddress(metaSource)
-    if (!dark$.getMeta(metaAddress)) dark$.setMeta(metaAddress, ast)
+  const ensureMetaLoaded = async (metaAddress: Address): Promise<Address> => {
+    const existing = dark$.getMeta(metaAddress)
+    if (existing) return metaAddress
+
+    const ast = await loadMetaAST(metaAddress)
+    if (!ast) throw new Error(`Не удалось загрузить meta: ${metaAddress}`)
+    dark$.setMeta(metaAddress, ast)
     return metaAddress
   }
 
-  const walk = async (parentAddress: string, nodes: readonly GravityNode[], rootAddress: string): Promise<void> => {
+  const walk = async (
+    parentAddress: string,
+    nodes: readonly NodeType[],
+    rootAddress: string,
+  ): Promise<void> => {
     for (const node of nodes) {
       if (isMetaNode(node)) {
-        const childMetaAddress = getStaticMetaAddress(node)
+        const childMetaAddress = getMetaAddress(node)
         if (!childMetaAddress) continue
 
         await ensureMetaLoaded(childMetaAddress)
@@ -67,17 +60,16 @@ export async function load(metaPath: string): Promise<void> {
     }
   }
 
-  const ast = await loadMetaAST(metaPath)
-  if (!ast) throw new Error(`Не удалось загрузить meta: ${metaPath}`)
-  const metaAddress = normalizeSchemaAddress(metaPath)
-  dark$.setMeta(metaAddress, ast)
+  const ast = await loadMetaAST(address)
+  if (!ast) throw new Error(`Не удалось загрузить meta: ${address}`)
+  dark$.setMeta(address, ast)
 
   createChildren(null, {
-    address: metaAddress,
-    meta: metaAddress,
+    address,
+    meta: address,
   })
 
-  await walk(metaAddress, (ast.gravity ?? []) as GravityNode[], metaAddress)
+  await walk(address, ast.gravity ?? [], address)
 
   dark$.restore({
     meta: new Map(dark$.meta),
