@@ -1,6 +1,6 @@
-import { loadMetaEntry, normalizeSchemaAddress } from "./load"
+import { loadMetaAST, normalizeSchemaAddress } from "./load"
 import { dark$ } from "./store"
-import { createChildren, materializeDarkAtoms, resetGravity } from "./gravity/gravity"
+import { createChildren, materializeDarkAtoms } from "./gravity/gravity"
 
 type GravityNode = {
   type?: string
@@ -21,10 +21,7 @@ function isMetaNode(node: GravityNode): boolean {
 }
 
 function getStaticMetaAddress(node: GravityNode): string | null {
-  if (!isRecord(node.string)) {
-    return null
-  }
-
+  if (!isRecord(node.string)) return null
   const src = node.string.src
   return typeof src === "string" ? normalizeSchemaAddress(src) : null
 }
@@ -39,18 +36,13 @@ function createAssemblyChildAddress(rootAddress: string, index: number): string 
  * Координирует schema loading, Gravity-stage и final mutation `dark$`.
  */
 export async function load(metaPath: string): Promise<void> {
-  dark$.reset()
-  resetGravity()
-
   let nextAtomIndex = 0
 
   const ensureMetaLoaded = async (metaSource: string): Promise<string> => {
-    const { metaAddress, ast } = await loadMetaEntry(metaSource)
-
-    if (!dark$.getMeta(metaAddress)) {
-      dark$.setMeta(metaAddress, ast)
-    }
-
+    const ast = await loadMetaAST(metaSource)
+    if (!ast) throw new Error(`Не удалось загрузить meta: ${metaSource}`)
+    const metaAddress = normalizeSchemaAddress(metaSource)
+    if (!dark$.getMeta(metaAddress)) dark$.setMeta(metaAddress, ast)
     return metaAddress
   }
 
@@ -58,9 +50,7 @@ export async function load(metaPath: string): Promise<void> {
     for (const node of nodes) {
       if (isMetaNode(node)) {
         const childMetaAddress = getStaticMetaAddress(node)
-        if (!childMetaAddress) {
-          continue
-        }
+        if (!childMetaAddress) continue
 
         await ensureMetaLoaded(childMetaAddress)
 
@@ -77,7 +67,9 @@ export async function load(metaPath: string): Promise<void> {
     }
   }
 
-  const { metaAddress, ast } = await loadMetaEntry(metaPath)
+  const ast = await loadMetaAST(metaPath)
+  if (!ast) throw new Error(`Не удалось загрузить meta: ${metaPath}`)
+  const metaAddress = normalizeSchemaAddress(metaPath)
   dark$.setMeta(metaAddress, ast)
 
   createChildren(null, {

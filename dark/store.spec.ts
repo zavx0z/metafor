@@ -93,19 +93,22 @@ describe("dark/store", () => {
   })
 
   test("load запускает Dark pipeline и заполняет dark.meta + dark.atom", async () => {
-    globalThis.fetch = async (input) => {
-      const url = String(input)
+    globalThis.fetch = Object.assign(
+      async (input: URL | RequestInfo) => {
+        const url = String(input)
 
-      if (url === "/root/meta.json") {
-        return Response.json(rootAst)
-      }
+        if (url === "/root/meta.json") {
+          return Response.json(rootAst)
+        }
 
-      if (url === "/child/static/meta.json") {
-        return Response.json(childAst)
-      }
+        if (url === "/child/static/meta.json") {
+          return Response.json(childAst)
+        }
 
-      return new Response("not found", { status: 404 })
-    }
+        return new Response("not found", { status: 404 })
+      },
+      { preconnect: () => {} },
+    )
 
     await load("root")
 

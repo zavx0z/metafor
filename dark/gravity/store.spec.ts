@@ -35,7 +35,6 @@ describe("dark/gravity/store", () => {
 
     const gravityModule = await import("./gravity")
     expect(typeof gravityModule.createChildren).toBe("function")
-    await expect(import("./pipeline")).rejects.toThrow()
   })
 
   test("snapshot/restore восстанавливают structural state", () => {

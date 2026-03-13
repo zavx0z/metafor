@@ -17,11 +17,7 @@ export function buildGravityAtom(
   }
 }
 
-export function getInsertionIndex(
-  state: GravityReadonlyState,
-  children: readonly string[],
-  address: string,
-): number {
+export function getInsertionIndex(state: GravityReadonlyState, children: readonly string[], address: string): number {
   const candidate = mustGetGravityAtom(state, address)
   let left = 0
   let right = children.length

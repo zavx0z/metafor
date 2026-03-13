@@ -9,12 +9,7 @@ import {
   getBetweenReservation,
   getIndexPathReservation,
 } from "./reservation"
-import {
-  getChildren as readChildren,
-  getNode as readNode,
-  getPath as readPath,
-  mustGetGravityAtom,
-} from "./tree"
+import { getChildren as readChildren, getNode as readNode, getPath as readPath, mustGetGravityAtom } from "./tree"
 import { gravity$ } from "./store"
 import type { AtomInput, GravityAtom, GravityStore } from "./store.t.js"
 
@@ -25,17 +20,15 @@ function commitAtom(store: GravityStore, atom: GravityAtom): GravityAtom {
   return committed
 }
 
-function createWithReservation(store: GravityStore, input: AtomInput, parent: string | null, order: Uint8Array): GravityAtom {
+function createWithReservation(
+  store: GravityStore,
+  input: AtomInput,
+  parent: string | null,
+  order: Uint8Array,
+): GravityAtom {
   assertParentExists(store, parent)
   assertAddressAvailable(store, input.address)
-
-  return commitAtom(
-    store,
-    buildGravityAtom(store, input, {
-      parent,
-      orderKey: order,
-    }),
-  )
+  return commitAtom(store, buildGravityAtom(store, input, { parent, orderKey: order }))
 }
 
 /**
