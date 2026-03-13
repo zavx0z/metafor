@@ -5,7 +5,8 @@
   "main": "index.ts",
   "exports": {
     ".": "./index.ts",
-    "./store": "./store.ts"
+    "./store": "./store.ts",
+    "./load": "./load.ts"
   },
   "private": true,
   "dependencies": {

@@ -5,7 +5,7 @@
  */
 
 export { dark$ } from "./store"
-export { load } from "./dark"
+export { load, loadMetaAST } from "./load"
 export { projectDarkGraph, projectDarkGraphToBoundary, projectDarkGraphToBulk } from "./em"
 export type { Atom, DarkStore, DarkStoreSnapshot } from "./store"
 export type { DarkConsumer, DarkDownstreamProjection } from "./em"

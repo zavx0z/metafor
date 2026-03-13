@@ -1,4 +1,19 @@
 import { beforeEach, describe, expect, test } from "bun:test"
+import {
+  attachReserved,
+  createAfter,
+  createBefore,
+  createBetween,
+  createChildren,
+  createNode,
+  getAtom,
+  getChildren,
+  getNode,
+  getPath,
+  reserveByIndexPath,
+  reserveSibling,
+} from "./pipeline"
+import { between } from "./model"
 import { gravity$ } from "./store"
 
 function atom(address: string, meta = "/meta/shared") {
@@ -10,30 +25,55 @@ describe("dark/gravity/store", () => {
     gravity$.reset()
   })
 
-  test("gravity$ является singleton-объектом с методами", () => {
+  test("gravity$ является singleton-store объектом с default state без factory API", () => {
     expect(typeof gravity$.reset).toBe("function")
-    expect(typeof gravity$.createState).toBe("function")
+    expect(typeof gravity$.restore).toBe("function")
+    expect(gravity$.atom.size).toBe(0)
+    expect(gravity$.children.size).toBe(0)
+    expect("createState" in gravity$).toBe(false)
+  })
+
+  test("snapshot/restore восстанавливают structural state", () => {
+    createChildren(null, atom("a"))
+    createChildren("a", atom("leaf"))
+
+    const snapshot = gravity$.snapshot()
+    gravity$.reset()
+
+    expect(gravity$.atom.size).toBe(0)
+    expect(gravity$.children.size).toBe(0)
+
+    gravity$.restore(snapshot)
+
+    expect(getPath("a")).toBe("0")
+    expect(getPath("leaf")).toBe("0/0")
+  })
+
+  test("between сохраняет стабильный лексикографический порядок", () => {
+    expect(Array.from(between(null, null))).toEqual([128])
+    expect(compareUint8(between(Uint8Array.from([10]), Uint8Array.from([20])), Uint8Array.from([10]))).toBeGreaterThan(0)
+    expect(compareUint8(between(Uint8Array.from([10]), Uint8Array.from([20])), Uint8Array.from([20]))).toBeLessThan(0)
   })
 
   test("createChildren/createBefore/createAfter удерживают порядок siblings", () => {
-    gravity$.createChildren(null, atom("a", "/meta/a"))
-    gravity$.createChildren(null, atom("c", "/meta/c"))
-    gravity$.createBefore("c", atom("b", "/meta/b"))
-    gravity$.createAfter("b", atom("b2", "/meta/b2"))
+    createChildren(null, atom("a", "/meta/a"))
+    createChildren(null, atom("c", "/meta/c"))
+    createBefore("c", atom("b", "/meta/b"))
+    createAfter("b", atom("b2", "/meta/b2"))
 
-    expect(gravity$.getChildren(null).map((entry) => entry.address)).toEqual(["a", "b", "b2", "c"])
-    expect(gravity$.getChildren(null).map((entry) => entry.path)).toEqual(["0", "1", "2", "3"])
+    expect(getChildren(null).map((entry) => entry.address)).toEqual(["a", "b", "b2", "c"])
+    expect(getChildren(null).map((entry) => getPath(entry.address))).toEqual(["0", "1", "2", "3"])
   })
 
   test("createBetween сохраняет стабильный порядок при плотных вставках между теми же соседями", () => {
-    gravity$.createChildren(null, atom("L"))
-    gravity$.createChildren(null, atom("R"))
+    createChildren(null, atom("L"))
+    createChildren(null, atom("R"))
 
     for (let index = 0; index < 8; index++) {
-      gravity$.createBetween("L", "R", atom(`X${index}`))
+      createBetween("L", "R", atom(`X${index}`))
     }
 
-    expect(gravity$.getChildren(null).map((entry) => entry.address)).toEqual([
+    expect(getChildren(null).map((entry) => entry.address)).toEqual([
       "L",
       "X0",
       "X1",
@@ -48,54 +88,58 @@ describe("dark/gravity/store", () => {
   })
 
   test("createNode/getNode/getPath выводят path из реальной позиции в дереве", () => {
-    gravity$.createNode("0", atom("root-a", "/meta/a"))
-    gravity$.createNode("1", atom("root-c", "/meta/c"))
-    gravity$.createNode("1", atom("root-b", "/meta/b"))
-    gravity$.createNode("1/0", atom("leaf", "/meta/leaf"))
+    createNode("0", atom("root-a", "/meta/a"))
+    createNode("1", atom("root-c", "/meta/c"))
+    createNode("1", atom("root-b", "/meta/b"))
+    createNode("1/0", atom("leaf", "/meta/leaf"))
 
-    expect(gravity$.getPath("root-a")).toBe("0")
-    expect(gravity$.getPath("root-b")).toBe("1")
-    expect(gravity$.getPath("root-c")).toBe("2")
-    expect(gravity$.getAtom("leaf")?.path).toBe("1/0")
-    expect(gravity$.getNode("1")?.address).toBe("root-b")
-    expect(gravity$.getNode("1/0")?.address).toBe("leaf")
+    expect(getPath("root-a")).toBe("0")
+    expect(getPath("root-b")).toBe("1")
+    expect(getPath("root-c")).toBe("2")
+    expect(getNode("1")?.address).toBe("root-b")
+    expect(getNode("1/0")?.address).toBe("leaf")
   })
 
   test("reserveSibling + attachReserved ставят будущий атом в зарезервированный slot", () => {
-    gravity$.createChildren(null, atom("a"))
-    gravity$.createChildren(null, atom("c"))
-    gravity$.reserveSibling("b", "c", "before")
-    gravity$.attachReserved(atom("b"))
+    createChildren(null, atom("a"))
+    createChildren(null, atom("c"))
+    reserveSibling("b", "c", "before")
+    attachReserved(atom("b"))
 
-    expect(gravity$.getChildren(null).map((entry) => entry.address)).toEqual(["a", "b", "c"])
-    expect(gravity$.getAtom("b")?.path).toBe("1")
+    expect(getChildren(null).map((entry) => entry.address)).toEqual(["a", "b", "c"])
+    expect(getAtom("b")?.parent).toBe(null)
+    expect(getPath("b")).toBe("1")
   })
 
   test("reserveByIndexPath резервирует позицию по индексному пути", () => {
-    gravity$.createChildren(null, atom("a"))
-    gravity$.createChildren(null, atom("c"))
-    gravity$.reserveByIndexPath("b", "1")
-    gravity$.attachReserved(atom("b"))
+    createChildren(null, atom("a"))
+    createChildren(null, atom("c"))
+    reserveByIndexPath("b", "1")
+    attachReserved(atom("b"))
 
-    expect(gravity$.getChildren(null).map((entry) => entry.address)).toEqual(["a", "b", "c"])
-    expect(gravity$.getNode("1")?.address).toBe("b")
-    expect(gravity$.getNode("2")?.address).toBe("c")
+    expect(getChildren(null).map((entry) => entry.address)).toEqual(["a", "b", "c"])
+    expect(getNode("1")?.address).toBe("b")
+    expect(getNode("2")?.address).toBe("c")
   })
 
-  test("temporary state snapshot/restore сохраняет структуру и reuse одного meta", () => {
-    const state = gravity$.createState<{ name: string }>()
+  test("повторное использование одного meta остаётся валидным", () => {
+    createChildren(null, atom("user-1", "/meta/user"))
+    createChildren(null, atom("user-2", "/meta/user"))
 
-    state.meta.set("/meta/user", { name: "user" })
-    gravity$.createChildren(null, atom("user-1", "/meta/user"), state)
-    gravity$.createChildren(null, atom("user-2", "/meta/user"), state)
-
-    const snapshot = gravity$.snapshot(state)
-    const restored = gravity$.createState<{ name: string }>()
-    gravity$.restore(snapshot, restored)
-
-    expect(restored.meta.size).toBe(1)
-    expect(restored.atom.size).toBe(2)
-    expect(gravity$.getChildren(null, restored).map((entry) => entry.meta)).toEqual(["/meta/user", "/meta/user"])
-    expect(gravity$.getChildren(null, restored).map((entry) => entry.path)).toEqual(["0", "1"])
+    expect(getChildren(null).map((entry) => entry.meta)).toEqual(["/meta/user", "/meta/user"])
+    expect(getChildren(null).map((entry) => getPath(entry.address))).toEqual(["0", "1"])
   })
 })
+
+function compareUint8(a: Uint8Array, b: Uint8Array): number {
+  const size = Math.min(a.length, b.length)
+
+  for (let index = 0; index < size; index++) {
+    const delta = a[index]! - b[index]!
+    if (delta !== 0) {
+      return delta
+    }
+  }
+
+  return a.length - b.length
+}
