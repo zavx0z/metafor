@@ -1,6 +1,18 @@
 import type { MetaAST } from "@metafor/ast"
 import { dark$ } from "./store"
-import { buildDarkStoreSnapshot } from "./store"
+
+function normalizeSchemaPath(schemaPath: string): string {
+  const trimmed = schemaPath.trim()
+  if (!trimmed) {
+    return "/"
+  }
+
+  if (trimmed === "/") {
+    return trimmed
+  }
+
+  return trimmed.replace(/\/+$/, "") || "/"
+}
 
 /**
  * Загружает граф Dark из meta.json.
@@ -31,11 +43,5 @@ export async function load(metaPath: string): Promise<void> {
     throw new Error(`Unable to load dark graph source from "${sourcePath}" (${response.status} ${response.statusText})`)
 
   const ast = (await response.json()) as MetaAST
-  const snapshot = buildDarkStoreSnapshot({ schemaPath, sourcePath, ast })
-
-  dark$.schemaPath = snapshot.schemaPath
-  dark$.sourcePath = snapshot.sourcePath
-  dark$.ast = snapshot.ast
-  dark$.nodes = snapshot.nodes
-  dark$.linkedFlat = snapshot.nodes
+  dark$.meta.set(normalizeSchemaPath(schemaPath), ast)
 }

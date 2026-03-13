@@ -92,7 +92,7 @@ export default MetaFor("git-history-commit", { desc: "Git commit — созда�
       desc: "Извлекает флаги и сообщение из аргументов командной строки",
     })
       .action(async ({ value }) => {
-        if (!value.args) throw new Error("Не указаны аргументы")
+        if (!value.args) throw new Error("Не указаны аргументы")e 
         const mod = await import("./actions/commit")
         return mod.parseCommitOptions(value.args)
       })
