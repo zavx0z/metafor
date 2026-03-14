@@ -22,10 +22,11 @@ import type {
   GlobalTopologyObject,
   GlobalTopologyPlacement,
   GlobalTopologyReference,
+  GravityStore,
   LocalTopologyFragment,
 } from "@dark/gravity"
 import type { DarkStore, StrongIndexes } from "@dark/gravity"
-import type { LocalTopologyPlacementRelation } from "@metafor/dsl"
+import type { LocalTopologyPlacementRelation } from "../../metafor/dsl/topology.t"
 import { dark$, gravity$ } from "@dark/gravity"
 import { strong$, indexEntanglement, indexObject, indexPlacement, indexReference } from "@dark/strong"
 import { cloneStoredValue } from "@dark/gravity"

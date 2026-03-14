@@ -14,7 +14,7 @@ import type { StoredStringTable } from "./string-table.t"
 import { normalizeFieldValue } from "./normalize"
 import type { PreparedData } from "../boundary.t"
 import { deserializeBoundaryState, serializeBoundaryState } from "./snapshot/codec"
-import type { BoundaryStateSnapshot, DeserializedBoundaryState } from "./snapshot/types"
+import type { BoundaryStateSnapshot, DeserializedBoundaryState, BinaryHeader, SectionDescriptor, SectionType } from "./snapshot/types"
 import { deserializeBoundarySnapshot, serializeBoundarySnapshot } from "./dump/codec"
 import type { BoundarySnapshot, RestoredBoundaryState } from "./dump/format.t"
 

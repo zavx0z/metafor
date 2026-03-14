@@ -33,6 +33,8 @@ export function flattenBoundaryData(data: Data): FlattenedBoundaryInput {
 
 export { parseCondition, validateData }
 export type { Data, FlattenedBoundaryInput }
+export type { BoundaryStore } from "../store.t"
+export type { ConditionOperator } from "./condition.t"
 export { convertToNumeric } from "./numeric"
 export type { NamedSuperposition } from "./numeric"
 export type {

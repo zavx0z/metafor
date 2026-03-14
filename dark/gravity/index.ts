@@ -25,7 +25,8 @@
 export { dark$ } from "../store.ts"
 export { gravity$ } from "./store.ts"
 export { cloneStoredValue } from "../snapshot.ts"
-export type { DarkStore, DarkStoreSnapshot, LocalTopologyFragment } from "../store.t.ts"
+export type { DarkStore, DarkStoreSnapshot } from "../store.t.ts"
+export type { LocalTopologyFragment } from "../../metafor/dsl/topology.t"
 export type { StrongIndexes } from "../strong/store.t.ts"
 export {
   getChildren,
