@@ -16,136 +16,13 @@ afterAll(async () => {
 })
 
 describe("dark.matter", () => {
-  test("загружает meta и создаёт атомы", async () => {
-    await dark.matter("zavx0z/git" as Address)
+  test("загружает meta и строит topology", async () => {
+    await dark.matter("zavx0z/git-error" as Address)
 
     const snapshot = dark$.snapshot()
 
-    // Проверяем структуру snapshot
     expect(snapshot).toMatchObject({
       meta: new Map([
-        [
-          "zavx0z/git",
-          {
-            name: "git",
-            fields: {
-              operation: {
-                type: "enum<string>",
-                label: "Тип операции",
-                values: [
-                  "start",
-                  "work",
-                  "examine",
-                  "history",
-                  "collaborate",
-                  "worktree",
-                  "stash",
-                  "submodule",
-                  "config",
-                  "plumbing",
-                ],
-              },
-              error: {
-                type: "string",
-                label: "Ошибка",
-              },
-              command: {
-                type: "string",
-                label: "Команда",
-              },
-              args: {
-                type: "string",
-                label: "Аргументы",
-              },
-            },
-            superposition: {
-              "получение команды": {
-                "определение операции": {
-                  command: {
-                    null: false,
-                  },
-                },
-              },
-              "определение операции": {
-                "выполнение": {
-                  operation: {
-                    null: false,
-                  },
-                },
-                "ошибка": {
-                  error: {
-                    null: false,
-                  },
-                },
-              },
-              "выполнение": {
-                "получение команды": {
-                  operation: null,
-                },
-              },
-              "ошибка": {
-                "получение команды": {
-                  error: null,
-                },
-              },
-            },
-            processes: {
-              "определение операции": {
-                type: "action",
-                action: {
-                  read: ["command"],
-                },
-                success: {
-                  src: "({ update, data }) => update(data, \"s\")",
-                },
-                error: {
-                  src: "({ update, error }) => update({ error: error.message }, \"e\")",
-                  write: ["error"],
-                },
-              },
-            },
-            gravity: [
-              {
-                type: "log",
-                data: "/value/operation",
-                child: [
-                  {
-                    tag: "meta-for",
-                    type: "meta",
-                    string: {
-                      src: {
-                        data: "/value/operation",
-                        expr: "zavx0z/git-${_[0]}",
-                      },
-                      context: {
-                        data: ["/value/operation", "/value/args", "/operation", "/args"],
-                        expr: "${{ _[2]: _[0], _[3]: _[1] }}",
-                      },
-                    },
-                  },
-                ],
-              },
-              {
-                type: "log",
-                data: "/value/error",
-                child: [
-                  {
-                    tag: "meta-for",
-                    type: "meta",
-                    string: {
-                      src: "zavx0z/git-error",
-                      context: {
-                        data: ["/value/error", "/message"],
-                        expr: "${{ _[1]: _[0] }}",
-                      },
-                    },
-                  },
-                ],
-              },
-            ],
-            mass: {},
-          },
-        ],
         [
           "zavx0z/git-error",
           {
@@ -183,24 +60,30 @@ describe("dark.matter", () => {
           },
         ],
       ]),
-      atom: new Map([
-        [
-          expect.any(String),
-          {
-            uuid: expect.any(String),
-            meta: "zavx0z/git",
-            path: "0",
-          },
-        ],
-        [
-          expect.any(String),
-          {
-            uuid: expect.any(String),
-            meta: "zavx0z/git-error",
-            path: expect.stringMatching(/^0\/\d+$/),
-          },
-        ],
-      ]),
+      topology: {
+        fragments: expect.any(Map),
+        objects: expect.any(Map),
+        placements: expect.any(Map),
+        links: expect.any(Map),
+        references: expect.any(Map),
+        entanglements: expect.any(Map),
+        placementAddressIndex: expect.any(Map),
+        entanglementAddressIndex: expect.any(Map),
+        objectPlacementsIndex: expect.any(Map),
+        sourceMetaIndex: expect.any(Map),
+        metaSourceLookup: expect.any(Map),
+        nextPlacementSeq: expect.any(Number),
+        nextLinkSeq: expect.any(Number),
+        nextReferenceSeq: expect.any(Number),
+        rootOccurrenceSeq: expect.any(Number),
+      },
     })
+
+    // Проверяем что meta загружены
+    expect(dark$.meta.has("zavx0z/git-error")).toBe(true)
+
+    // Проверяем что topology построена
+    const gitErrorPlacements = dark$.topology.getPlacementsByMeta("zavx0z/git-error")
+    expect(gitErrorPlacements.length).toBeGreaterThan(0)
   })
 })

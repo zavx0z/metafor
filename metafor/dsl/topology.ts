@@ -395,18 +395,25 @@ function compileStaticMetaNode(
   parentAddress: string | undefined,
   nodePath: string,
   relation: LocalTopologyPlacementRelation,
-  src?: string,
+  src?: string | ValueDynamic | ValueVariable,
   variant?: { field: string; value: string | number },
 ): string {
   const objectId = makeObjectId(state, "w")
+  const srcString: string | undefined = src && typeof src === "object" && "data" in src
+    ? (Array.isArray(src.data) ? src.data[0] : src.data)
+    : src
+  const tagString = typeof node.tag === "string" ? node.tag : (Array.isArray(node.tag.data) ? node.tag.data[0] : node.tag.data)
+  if (!tagString) {
+    throw new Error(`meta node tag is undefined at ${nodePath}`)
+  }
   state.objects[objectId] = {
     id: objectId,
     kind: "wimp",
     nodePath,
     sourceNode: node,
-    tag: typeof node.tag === "string" ? node.tag : node.tag.data,
-    ...(src ? { src } : {}),
-    srcMode: variant ? "enum" : src ? "static" : "none",
+    tag: tagString,
+    ...(srcString ? { src: srcString } : {}),
+    srcMode: variant ? "enum" : srcString ? "static" : "none",
     ...(variant ? { variant } : {}),
   }
 
@@ -417,8 +424,8 @@ function compileStaticMetaNode(
   const dataPaths = variant ? [`/value/${variant.field}`] : []
   const referenceIds: string[] = []
 
-  if (src) {
-    referenceIds.push(addReference(state, placementId, objectId, typeof node.tag === "string" ? node.tag : node.tag.data, src, variant ? "enum" : "static", variant?.field, variant?.value))
+  if (srcString) {
+    referenceIds.push(addReference(state, placementId, objectId, tagString, srcString, variant ? "enum" : "static", variant?.field, variant?.value))
   }
 
   addEntanglementSeed(state, placementId, objectId, "wimp", address, dataPaths, referenceIds)
@@ -441,7 +448,7 @@ function compileMetaNode(
 ): void {
   const rawSrc = getNodeMetaSrc(node)
   if (typeof rawSrc === "string" || rawSrc === undefined) {
-    compileStaticMetaNode(meta, node, state, parentPlacementId, parentAddress, nodePath, relation, rawSrc)
+    compileStaticMetaNode(meta, node, state, parentPlacementId, parentAddress, nodePath, relation, typeof rawSrc === "string" ? rawSrc : undefined)
     return
   }
 

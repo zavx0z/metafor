@@ -86,7 +86,7 @@ describe("compileLocalTopologyFragment", () => {
       "zavx0z/git-start",
       "zavx0z/git-work",
     ])
-    expect(enumWimps.map((object) => object.variant?.value).sort()).toEqual(["history", "start", "work"])
+    expect(enumWimps.map((object) => (object.kind === "wimp" ? object.variant?.value : undefined)).sort()).toEqual(["history", "start", "work"])
     expect(Object.values(fragment.placements).some((placement) => placement.relation === "branch")).toBe(true)
   })
 

@@ -6,23 +6,25 @@
 
 import type { MetaAST } from "@metafor/ast"
 import { dark$ } from "../store"
-import type { Atom } from "../store"
+import type { GlobalTopologyPlacement, GlobalTopologyReference, GlobalTopologyEntanglement } from "../ap/store.t"
 
 export type DarkConsumer = "boundary" | "bulk"
 
 export interface DarkDownstreamProjection {
   consumer: DarkConsumer
-  graph: typeof dark$
   meta: Map<string, MetaAST>
-  atom: Atom[]
+  placements: GlobalTopologyPlacement[]
+  references: GlobalTopologyReference[]
+  entanglements: GlobalTopologyEntanglement[]
 }
 
 export function projectDarkGraph(consumer: DarkConsumer): DarkDownstreamProjection {
   return {
     consumer,
-    graph: dark$,
     meta: new Map(dark$.meta),
-    atom: [...dark$.atom.values()],
+    placements: Array.from(dark$.topology.placements.values()),
+    references: Array.from(dark$.topology.references.values()),
+    entanglements: Array.from(dark$.topology.entanglements.values()),
   }
 }
 

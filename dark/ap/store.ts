@@ -10,7 +10,7 @@ import type {
   GlobalTopologySnapshot,
   GlobalTopologyStore,
 } from "./store.t"
-import type { LocalTopologyFragment } from "../../metafor/dsl/topology.t.ts"
+import type { LocalTopologyFragment, LocalTopologyPlacementRelation } from "../../metafor/dsl/topology.t.ts"
 
 function cloneValue<T>(value: T): T {
   return structuredClone(value)
@@ -266,7 +266,7 @@ export const topology$: GlobalTopologyStore = {
           id: linkId,
           from: parentId,
           to: placementId,
-          relation,
+          relation: relation as Exclude<LocalTopologyPlacementRelation, "root">,
         }
         this.links.set(linkId, link)
       }
