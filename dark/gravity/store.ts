@@ -1,7 +1,7 @@
-import type { GravityStore } from "@dark/types"
+import type { DarkGravityStore } from "@dark/types"
 import { cloneFragment, cloneGravitySnapshot } from "./snapshot.ts"
 
-export const gravity$: GravityStore = {
+export const gravity$: DarkGravityStore = {
   fragments: new Map(),
   nextPlacementSeq: 0,
   nextLinkSeq: 0,

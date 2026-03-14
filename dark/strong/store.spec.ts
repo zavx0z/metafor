@@ -42,7 +42,7 @@ describe("@dark/strong — индексация и lookup", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      const result = ingestFragment("address-test/meta", fragment)
+      const result = ingestFragment(dark$, gravity$, strong$, "address-test/meta", fragment, {})
 
       const rootPlacement = dark$.getPlacement(result.rootPlacementIds[0]!)
       expect(rootPlacement).toBeDefined()
@@ -93,12 +93,12 @@ describe("@dark/strong — индексация и lookup", () => {
       const rootFragment = compileLocalTopologyFragment(rootMeta)
       const childFragment = compileLocalTopologyFragment(childMeta)
 
-      const rootIngest = ingestFragment("root-multi/meta", rootFragment)
+      const rootIngest = ingestFragment(dark$, gravity$, strong$, "root-multi/meta", rootFragment, {})
 
       // Ингест child через два references
       for (const referenceId of rootIngest.referenceIds) {
         const reference = dark$.getReference(referenceId)!
-        ingestFragment("child/shared", childFragment, {
+        ingestFragment(dark$, gravity$, strong$, "child/shared", childFragment, {
           parentPlacementId: reference.placementId,
           viaReferenceId: reference.id,
         })
@@ -132,7 +132,7 @@ describe("@dark/strong — индексация и lookup", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      const result = ingestFragment("meta-index/root", fragment)
+      const result = ingestFragment(dark$, gravity$, strong$, "meta-index/root", fragment, {})
 
       const metaIndex = strong$.sourceMetaIndex.get("meta-index/root")
       expect(metaIndex).toBeDefined()
@@ -153,7 +153,7 @@ describe("@dark/strong — индексация и lookup", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      ingestFragment("meta-lookup/root", fragment)
+      ingestFragment(dark$, gravity$, strong$, "meta-lookup/root", fragment, {})
 
       const placements = getPlacementsByMeta(dark$, "meta-lookup/root")
       expect(placements.length).toBeGreaterThan(0)
@@ -179,7 +179,7 @@ describe("@dark/strong — индексация и lookup", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      ingestFragment("ref-lookup/root", fragment)
+      ingestFragment(dark$, gravity$, strong$, "ref-lookup/root", fragment, {})
 
       // Проверка lookup по source
       const refsA = getReferencesBySource(dark$, "child/a")
@@ -213,7 +213,7 @@ describe("@dark/strong — индексация и lookup", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      const result = ingestFragment("ent-lookup/root", fragment)
+      const result = ingestFragment(dark$, gravity$, strong$, "ent-lookup/root", fragment, {})
 
       // Получить первый entanglement
       if (result.entanglementIds.length > 0) {

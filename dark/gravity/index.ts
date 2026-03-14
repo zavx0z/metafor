@@ -1,6 +1,4 @@
-export { dark$ } from "../store.ts"
 export { gravity$ } from "./store.ts"
-export { cloneStoredValue } from "../snapshot.ts"
 export {
   getChildren,
   getEntanglementByAddress,

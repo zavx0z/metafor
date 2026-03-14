@@ -196,6 +196,43 @@ grep "function.*\$" .  # Все грязные функции
 
 **Паттерн:** состояние и методы мутации в одном объекте с суффиксом `$`.
 
+### Порядок мутабельных параметров
+
+Мутабельные store-параметры с суффиксом `$` идут **первыми** в списке аргументов.
+
+Порядок:
+1. **Доменный store** (`dark$`)
+2. **Store пакетов** (`gravity$`, `strong$`)
+3. **Данные** (fragment, meta, options)
+
+**Именование параметров:** параметры должны называться по имени соответствующего store.
+
+```typescript
+// ✅ ПРАВИЛЬНО — параметры по имени стора
+export function ingestFragment(
+  dark$,             // 1. Domain store (dark$)
+  gravity$,          // 2. Package store (gravity$)
+  strong$,           // 2. Package store (strong$)
+  meta: string,      // 3. Data
+  fragment: LocalTopologyFragment,
+  options: GlobalTopologyIngestOptions = {},
+)
+
+// ❌ НЕПРАВИЛЬНО — данные до store
+export function ingestFragment(meta: string, dark$, ...)
+
+// ❌ НЕПРАВИЛЬНО — пакетный store до доменного
+export function ingestFragment(gravity$, dark$, ...)
+
+// ❌ НЕПРАВИЛЬНО — общие имена параметров
+export function ingestFragment(
+  store$,            // ❌ неясно какой store
+  gravityState$,     // ❌ State ≠ store
+  indexes$,          // ❌ indexes ≠ strong$
+  ...
+)
+```
+
 ✅ Правильно:
 
 ```typescript

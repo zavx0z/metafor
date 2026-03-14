@@ -32,7 +32,25 @@ metafor/                            ← проект (metafor)
 └── space/                          ← домен (@metafor/space)
 ```
 
-**Правило импортов:** пакеты могут импортировать из вышестоящего уровня, но не наоборот.
+**Правило импортов:** домен может импортировать из пакетов через `@{domain}/{package}`, но пакеты не могут импортировать из домена через относительные пути (`../`).
+
+```typescript
+// ✅ ПРАВИЛЬНО — домен импортирует из пакета
+// dark/dark.ts
+import { gravity$ } from "@dark/gravity"
+import { strong$ } from "@dark/strong"
+
+// ✅ ПРАВИЛЬНО — пакет импортирует shared типы из @domain/types
+// @dark/gravity/gravity.ts
+import type { GravityStore, GlobalTopologyPlacement } from "@dark/types"
+
+// ❌ НЕПРАВИЛЬНО — пакет импортирует из домена через относительный путь
+// @dark/gravity/gravity.ts
+import { dark$ } from "../store.ts"
+import { cloneStoredValue } from "../snapshot.ts"
+```
+
+**Принцип:** пакеты изолированы от домена, но могут использовать shared типы из `@{domain}/types`.
 
 ---
 

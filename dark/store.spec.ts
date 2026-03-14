@@ -148,7 +148,7 @@ describe("dark/store", () => {
       .bulk()
 
     const fragment = compileLocalTopologyFragment(meta)
-    ingestFragment("reset-dark/root", fragment)
+    ingestFragment(dark$, gravity$, strong$, "reset-dark/root", fragment, {})
 
     expect(dark$.placements.size).toBeGreaterThan(0)
     expect(gravity$.fragments.size).toBeGreaterThan(0)
@@ -174,7 +174,7 @@ describe("dark/store", () => {
       .bulk()
 
     const fragment = compileLocalTopologyFragment(meta)
-    const first = ingestFragment("restore-dark/root", fragment)
+    const first = ingestFragment(dark$, gravity$, strong$, "restore-dark/root", fragment, {})
     const firstRoot = dark$.getPlacement(first.rootPlacementIds[0]!)!
     const snapshot = snapshotDark()
 
@@ -184,7 +184,7 @@ describe("dark/store", () => {
     expect(dark$.getPlacement(firstRoot.id)?.address).toBe(firstRoot.address)
     expect(getPlacementByAddress(dark$, firstRoot.address)?.id).toBe(firstRoot.id)
 
-    const second = ingestFragment("restore-dark/root", fragment)
+    const second = ingestFragment(dark$, gravity$, strong$, "restore-dark/root", fragment, {})
     const secondRoot = dark$.getPlacement(second.rootPlacementIds[0]!)!
 
     expect(secondRoot.id).not.toBe(firstRoot.id)

@@ -39,7 +39,7 @@ describe("@dark/weak — мутации topology", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      const result = ingestFragment("remove-test/root", fragment)
+      const result = ingestFragment(dark$, gravity$, strong$, "remove-test/root", fragment, {})
 
       const rootPlacementId = result.rootPlacementIds[0]!
       const initialPlacements = dark$.placements.size
@@ -49,7 +49,7 @@ describe("@dark/weak — мутации topology", () => {
       expect(initialIndexes).toBeGreaterThan(0)
 
       // Удалить subtree
-      const mutationResult = removePlacementSubtree(rootPlacementId)
+      const mutationResult = removePlacementSubtree(dark$, strong$, rootPlacementId)
 
       expect(mutationResult.removedPlacementIds).toContain(rootPlacementId)
       expect(dark$.placements.size).toBe(0)
@@ -85,11 +85,11 @@ describe("@dark/weak — мутации topology", () => {
       const rootFragment = compileLocalTopologyFragment(rootMeta)
       const childFragment = compileLocalTopologyFragment(childMeta)
 
-      const rootResult = ingestFragment("remove-cascade/root", rootFragment)
+      const rootResult = ingestFragment(dark$, gravity$, strong$, "remove-cascade/root", rootFragment, {})
 
       // Ингест child
       const reference = dark$.getReference(rootResult.referenceIds[0]!)!
-      ingestFragment("child/cascade", childFragment, {
+      ingestFragment(dark$, gravity$, strong$, "child/cascade", childFragment, {
         parentPlacementId: reference.placementId,
         viaReferenceId: reference.id,
       })
@@ -102,7 +102,7 @@ describe("@dark/weak — мутации topology", () => {
 
       // Удалить root subtree
       const rootPlacementId = rootResult.rootPlacementIds[0]!
-      removePlacementSubtree(rootPlacementId, {
+      removePlacementSubtree(dark$, strong$, rootPlacementId, {
         cascadeReferences: true,
         cascadeEntanglements: true,
       })
@@ -144,13 +144,13 @@ describe("@dark/weak — мутации topology", () => {
       const fragmentV2 = compileLocalTopologyFragment(metaV2)
 
       // Ingest v1
-      const v1Result = ingestFragment("replace-test/meta", fragmentV1)
+      const v1Result = ingestFragment(dark$, gravity$, strong$, "replace-test/meta", fragmentV1, {})
       const initialPlacements = dark$.placements.size
 
       expect(initialPlacements).toBeGreaterThan(0)
 
       // Replace на v2
-      const replaceResult = replaceFragment("replace-test/meta", fragmentV2)
+      const replaceResult = replaceFragment(dark$, gravity$, strong$, "replace-test/meta", fragmentV2)
 
       expect(replaceResult.meta).toBe("replace-test/meta")
       expect(replaceResult.removedPlacementIds.length).toBeGreaterThan(0)
@@ -195,13 +195,16 @@ describe("@dark/weak — мутации topology", () => {
       const childFragment = compileLocalTopologyFragment(childMeta)
 
       // Ingest parent
-      const parentResult = ingestFragment("parent-insert/meta", parentFragment)
+      const parentResult = ingestFragment(dark$, gravity$, strong$, "parent-insert/meta", parentFragment, {})
       const parentPlacementId = parentResult.rootPlacementIds[0]!
 
       const initialPlacements = dark$.placements.size
 
       // Insert child
       const insertResult = insertFragmentAtPlacement(
+        dark$,
+        gravity$,
+        strong$,
         parentPlacementId,
         childFragment,
         "child-insert/meta",
@@ -230,7 +233,7 @@ describe("@dark/weak — мутации topology", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      const result = ingestFragment("remap-test/root", fragment)
+      const result = ingestFragment(dark$, gravity$, strong$, "remap-test/root", fragment, {})
 
       const rootPlacementId = result.rootPlacementIds[0]!
       const rootPlacement = dark$.getPlacement(rootPlacementId)!
@@ -240,7 +243,7 @@ describe("@dark/weak — мутации topology", () => {
 
       // Remap адреса
       const newPrefix = "/w:new-prefix-0"
-      const addressMap = remapPlacementAddresses(rootPlacementId, newPrefix)
+      const addressMap = remapPlacementAddresses(dark$, strong$, rootPlacementId, newPrefix)
 
       expect(addressMap.size).toBeGreaterThan(0)
       expect(addressMap.get(oldAddress)).toBe(newPrefix)
@@ -285,11 +288,11 @@ describe("@dark/weak — мутации topology", () => {
       const childFragment = compileLocalTopologyFragment(childMeta)
 
       // Ingest root
-      const rootResult = ingestFragment("detach-root/meta", rootFragment)
+      const rootResult = ingestFragment(dark$, gravity$, strong$, "detach-root/meta", rootFragment, {})
 
       // Ingest child
       const reference = dark$.getReference(rootResult.referenceIds[0]!)!
-      ingestFragment("detach/child", childFragment, {
+      ingestFragment(dark$, gravity$, strong$, "detach/child", childFragment, {
         parentPlacementId: reference.placementId,
         viaReferenceId: reference.id,
       })
@@ -302,7 +305,7 @@ describe("@dark/weak — мутации topology", () => {
       expect(childPlacement.parentId).toBeDefined()
 
       // Detach
-      const detached = detachSubtree(childPlacement.id)
+      const detached = detachSubtree(dark$, childPlacement.id)
 
       expect(detached).toContain(childPlacement.id)
 
@@ -344,11 +347,11 @@ describe("@dark/weak — мутации topology", () => {
       const childFragment = compileLocalTopologyFragment(childMeta)
 
       // Ingest root
-      const rootResult = ingestFragment("move-root/meta", rootFragment)
+      const rootResult = ingestFragment(dark$, gravity$, strong$, "move-root/meta", rootFragment, {})
 
       // Ingest child
       const reference = dark$.getReference(rootResult.referenceIds[0]!)!
-      ingestFragment("move/child", childFragment, {
+      ingestFragment(dark$, gravity$, strong$, "move/child", childFragment, {
         parentPlacementId: reference.placementId,
         viaReferenceId: reference.id,
       })
@@ -364,7 +367,7 @@ describe("@dark/weak — мутации topology", () => {
       const targetPlacement = rootPlacements[0]!
 
       // Move child под root
-      const moveResult = movePlacement(sourcePlacement.id, {
+      const moveResult = movePlacement(dark$, strong$, sourcePlacement.id, {
         newParentPlacementId: targetPlacement.id,
         rebuildAddresses: false,
       })

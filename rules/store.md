@@ -255,6 +255,43 @@ Pure helper-модули не должны напрямую мутировать
 - не становится публичной идентичностью домена
 - не хранит финальное состояние чужого уровня
 
+## Изоляция store пакетов
+
+**Правило:** пакеты не импортируют store домена или других пакетов напрямую через относительные пути (`../`).
+
+```typescript
+// ✅ ПРАВИЛЬНО — пакет работает со своим store
+// @dark/gravity/gravity.ts
+import { gravity$ } from "./store.ts"  // локальный DarkGravityStore
+
+// ❌ НЕПРАВИЛЬНО — пакет импортирует store домена
+// @dark/gravity/gravity.ts
+import { dark$ } from "../store.ts"
+
+// ❌ НЕПРАВИЛЬНО — пакет импортирует store соседнего пакета
+// @dark/gravity/gravity.ts
+import { strong$ } from "../strong/store.ts"
+```
+
+**Решение:** функции пакетов принимают store как параметры из доменного pipeline.
+
+```typescript
+// ✅ ПРАВИЛЬНО — store параметрами из pipeline
+export function ingestFragment(
+  dark$,             // доменный store
+  gravity$,          // store пакета
+  strong$,           // store пакета
+  meta: string,
+  fragment: LocalTopologyFragment,
+  options: GlobalTopologyIngestOptions = {},
+)
+
+// ❌ НЕПРАВИЛЬНО — импорт из домена
+import { dark$ } from "../store.ts"
+```
+
+**Принцип:** store пакета изолирован. Домен импортирует store пакетов через `@{domain}/{package}` для orchestration, но пакеты не импортируют store домена напрямую.
+
 ## Как store должен соотноситься с pipeline
 
 Pipeline — это единственный допустимый путь изменения состояния.

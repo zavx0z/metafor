@@ -424,7 +424,7 @@ export interface DarkStore extends DarkStoreSnapshot {
  *
  * Хранит промежуточное состояние assembly-слоя.
  */
-export interface GravityStoreSnapshot {
+export interface DarkGravityStoreSnapshot {
   /** Загруженные local topology fragments по meta. */
   fragments: Map<string, LocalTopologyFragment>
 
@@ -446,7 +446,7 @@ export interface GravityStoreSnapshot {
  *
  * Хранит промежуточное состояние assembly-слоя gravity.
  */
-export interface GravityStore extends GravityStoreSnapshot {
+export interface DarkGravityStore extends DarkGravityStoreSnapshot {
   /** Сбрасывает всё состояние в начальное. */
   reset(): void
 
@@ -454,13 +454,13 @@ export interface GravityStore extends GravityStoreSnapshot {
    * Восстанавливает состояние из снимка.
    * @param snapshot — снимок состояния для восстановления
    */
-  restore(snapshot: GravityStoreSnapshot): void
+  restore(snapshot: DarkGravityStoreSnapshot): void
 
   /**
    * Создаёт глубокую копию текущего состояния.
    * @returns снимок состояния
    */
-  snapshot(): GravityStoreSnapshot
+  snapshot(): DarkGravityStoreSnapshot
 
   /**
    * Сохраняет local topology fragment по meta.

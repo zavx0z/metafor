@@ -1,4 +1,4 @@
-import type { GravityStoreSnapshot } from "@dark/types"
+import type { DarkGravityStoreSnapshot } from "@dark/types"
 import type { LocalTopologyFragment } from "../../metafor/dsl/topology.t.ts"
 
 /**
@@ -22,12 +22,12 @@ function cloneFragments(source: ReadonlyMap<string, LocalTopologyFragment>): Map
 }
 
 /**
- * Создаёт глубокую копию снимка GravityStore.
+ * Создаёт глубокую копию снимка DarkGravityStore.
  *
  * @param snapshot — снимок для клонирования
  * @returns глубокая копия снимка
  */
-export function cloneGravitySnapshot(snapshot: GravityStoreSnapshot): GravityStoreSnapshot {
+export function cloneGravitySnapshot(snapshot: DarkGravityStoreSnapshot): DarkGravityStoreSnapshot {
   return {
     fragments: cloneFragments(snapshot.fragments),
     nextPlacementSeq: snapshot.nextPlacementSeq,

@@ -1,4 +1,6 @@
 import type {
+  DarkStore,
+  DarkGravityStore,
   GlobalTopologyEntanglement,
   GlobalTopologyIngestOptions,
   GlobalTopologyIngestResult,
@@ -6,15 +8,23 @@ import type {
   GlobalTopologyObject,
   GlobalTopologyPlacement,
   GlobalTopologyReference,
-  GravityStore,
-  DarkStore,
   StrongIndexes,
+  StrongIndexesSnapshot,
 } from "@dark/types"
+import type { DarkStrongStore } from "@dark/types/strong"
 import type { LocalTopologyFragment, LocalTopologyPlacementRelation } from "../../metafor/dsl/topology.t"
-import { dark$ } from "../store.ts"
 import { gravity$ } from "./store.ts"
-import { strong$, indexEntanglement, indexObject, indexPlacement, indexReference } from "@dark/strong"
-import { cloneStoredValue } from "../snapshot.ts"
+import { indexEntanglement, indexObject, indexPlacement, indexReference } from "@dark/strong"
+
+/**
+ * Создаёт глубокую копию значения.
+ *
+ * @param value — значение для клонирования
+ * @returns глубокая копия значения
+ */
+function cloneValue<T>(value: T): T {
+  return structuredClone(value)
+}
 
 /**
  * Создаёт глобальный ID объекта из meta и локального ID.
@@ -30,36 +40,36 @@ function makeObjectId(meta: string, localObjectId: string): string {
 /**
  * Генерирует уникальный ID размещения.
  *
- * @param store$ — состояние gravity store
+ * @param dark$ — состояние gravity store
  * @returns ID в формате `gp{n}`
  */
-function makePlacementId(store$: GravityStore): string {
-  const id = `gp${store$.nextPlacementSeq}`
-  store$.nextPlacementSeq += 1
+function makePlacementId(dark$: DarkGravityStore): string {
+  const id = `gp${dark$.nextPlacementSeq}`
+  dark$.nextPlacementSeq += 1
   return id
 }
 
 /**
  * Генерирует уникальный ID связи.
  *
- * @param store$ — состояние gravity store
+ * @param dark$ — состояние gravity store
  * @returns ID в формате `gl{n}`
  */
-function makeLinkId(store$: GravityStore): string {
-  const id = `gl${store$.nextLinkSeq}`
-  store$.nextLinkSeq += 1
+function makeLinkId(dark$: DarkGravityStore): string {
+  const id = `gl${dark$.nextLinkSeq}`
+  dark$.nextLinkSeq += 1
   return id
 }
 
 /**
  * Генерирует уникальный ID ссылки.
  *
- * @param store$ — состояние gravity store
+ * @param dark$ — состояние gravity store
  * @returns ID в формате `gr{n}`
  */
-function makeReferenceId(store$: GravityStore): string {
-  const id = `gr${store$.nextReferenceSeq}`
-  store$.nextReferenceSeq += 1
+function makeReferenceId(dark$: DarkGravityStore): string {
+  const id = `gr${dark$.nextReferenceSeq}`
+  dark$.nextReferenceSeq += 1
   return id
 }
 
@@ -76,44 +86,44 @@ function sanitizeMetaSegment(meta: string): string {
 /**
  * Генерирует root prefix для meta и инкрементирует счётчик.
  *
- * @param store$ — состояние gravity store
+ * @param dark$ — состояние gravity store
  * @param meta — адрес meta-схемы
  * @returns префикс в формате `/w:{sanitizedMeta}-{n}`
  */
-function ensureRootPrefix(store$: GravityStore, meta: string): string {
-  const prefix = `/w:${sanitizeMetaSegment(meta)}-${store$.rootOccurrenceSeq}`
-  store$.rootOccurrenceSeq += 1
+function ensureRootPrefix(dark$: DarkGravityStore, meta: string): string {
+  const prefix = `/w:${sanitizeMetaSegment(meta)}-${dark$.rootOccurrenceSeq}`
+  dark$.rootOccurrenceSeq += 1
   return prefix
 }
 
 /**
  * Создаёт глобальные объекты из local topology fragment.
  *
- * @param store$ — dark store для записи объектов
- * @param indexes$ — strong indexes для индексации
+ * @param dark$ — dark store для записи объектов
+ * @param strong$ — strong indexes для индексации
  * @param meta — адрес meta-схемы
  * @param fragment — local topology fragment
  */
 function ensureObjectDefinitions(
-  store$: DarkStore,
-  indexes$: StrongIndexes,
+  dark$: DarkStore,
+  strong$: StrongIndexes,
   meta: string,
   fragment: LocalTopologyFragment,
 ): void {
   for (const [localObjectId, definition] of Object.entries(fragment.objects as Record<string, any>)) {
     const objectId = makeObjectId(meta, localObjectId)
-    if (store$.getObject(objectId)) continue
+    if (dark$.getObject(objectId)) continue
 
     const object: GlobalTopologyObject = {
       id: objectId,
       meta,
       localObjectId,
       kind: definition.kind,
-      definition: cloneStoredValue(definition),
+      definition: cloneValue(definition),
     }
 
-    store$.setObject(objectId, object)
-    indexObject(objectId, meta, indexes$)
+    dark$.setObject(objectId, object)
+    indexObject(objectId, meta, strong$)
   }
 }
 
@@ -123,31 +133,31 @@ function ensureObjectDefinitions(
  * Создаёт global placements, links, references и entanglements,
  * записывает в `dark$`, обновляет индексы `strong$`.
  *
+ * @param dark$ — dark store для записи
+ * @param gravity$ — gravity store для счётчиков
+ * @param strong$ — strong indexes для индексации
  * @param meta — адрес meta-схемы
  * @param fragment — local topology fragment для вставки
  * @param options — опции вставки (parent, viaReference)
- * @param store$ — dark store для записи (по умолчанию `dark$`)
- * @param gravityState$ — gravity store для счётчиков (по умолчанию `gravity$`)
- * @param indexes$ — strong indexes для индексации (по умолчанию `strong$`)
  * @returns результат вставки с IDs созданных сущностей
  */
 export function ingestFragment(
+  dark$: DarkStore,
+  gravity$: DarkGravityStore,
+  strong$: DarkStrongStore,
   meta: string,
   fragment: LocalTopologyFragment,
   options: GlobalTopologyIngestOptions = {},
-  store$: DarkStore = dark$,
-  gravityState$: GravityStore = gravity$,
-  indexes$: StrongIndexes = strong$,
 ): GlobalTopologyIngestResult {
-  gravityState$.setFragment(meta, fragment)
-  ensureObjectDefinitions(store$, indexes$, meta, fragment)
+  gravity$.setFragment(meta, fragment)
+  ensureObjectDefinitions(dark$, strong$, meta, fragment)
 
   const localPlacements = Object.values(fragment.placements).sort(
     (left, right) => left.address.length - right.address.length,
   )
   const localToGlobalPlacement = new Map<string, string>()
   const localToGlobalReference = new Map<string, string>()
-  const rootPrefix = options.parentPlacementId ? null : ensureRootPrefix(gravityState$, meta)
+  const rootPrefix = options.parentPlacementId ? null : ensureRootPrefix(gravity$, meta)
   const rootPlacementIds: string[] = []
   const placementIds: string[] = []
   const referenceIds: string[] = []
@@ -155,7 +165,7 @@ export function ingestFragment(
 
   for (const localPlacement of localPlacements) {
     const objectId = makeObjectId(meta, localPlacement.objectId)
-    const placementId = makePlacementId(gravityState$)
+    const placementId = makePlacementId(gravity$)
 
     let address: string
     let parentId: string | undefined
@@ -166,7 +176,7 @@ export function ingestFragment(
       if (!parentId) {
         throw new Error(`Не найден global parent placement для ${localPlacement.parentId}.`)
       }
-      const parentPlacement = store$.getPlacement(parentId)
+      const parentPlacement = dark$.getPlacement(parentId)
       const localParent = fragment.placements[localPlacement.parentId]
       if (!parentPlacement || !localParent) {
         throw new Error(`Не удалось перевести local topology address ${localPlacement.address}.`)
@@ -174,7 +184,7 @@ export function ingestFragment(
       const suffix = localPlacement.address.slice(localParent.address.length)
       address = `${parentPlacement.address}${suffix}`
     } else if (options.parentPlacementId) {
-      const parentPlacement = store$.getPlacement(options.parentPlacementId)
+      const parentPlacement = dark$.getPlacement(options.parentPlacementId)
       if (!parentPlacement) {
         throw new Error(`Не найден stitch parent placement ${options.parentPlacementId}.`)
       }
@@ -197,8 +207,8 @@ export function ingestFragment(
       ...(options.viaReferenceId ? { viaReferenceId: options.viaReferenceId } : {}),
     }
 
-    store$.setPlacement(placementId, placement)
-    indexPlacement(placement, meta, indexes$)
+    dark$.setPlacement(placementId, placement)
+    indexPlacement(placement, meta, strong$)
 
     localToGlobalPlacement.set(localPlacement.id, placementId)
     placementIds.push(placementId)
@@ -206,14 +216,14 @@ export function ingestFragment(
     if (!parentId) {
       rootPlacementIds.push(placementId)
     } else {
-      const linkId = makeLinkId(gravityState$)
+      const linkId = makeLinkId(gravity$)
       const link: GlobalTopologyLink = {
         id: linkId,
         from: parentId,
         to: placementId,
         relation: relation as Exclude<LocalTopologyPlacementRelation, "root">,
       }
-      store$.setLink(linkId, link)
+      dark$.setLink(linkId, link)
     }
   }
 
@@ -223,12 +233,12 @@ export function ingestFragment(
       throw new Error(`Не найден global placement для reference ${localReference.id}.`)
     }
 
-    const placement = store$.getPlacement(placementId)
+    const placement = dark$.getPlacement(placementId)
     if (!placement) {
       throw new Error(`Placement ${placementId} не найден для reference ${localReference.id}.`)
     }
 
-    const referenceId = makeReferenceId(gravityState$)
+    const referenceId = makeReferenceId(gravity$)
     const reference: GlobalTopologyReference = {
       id: referenceId,
       meta,
@@ -242,10 +252,10 @@ export function ingestFragment(
       ...(localReference.value !== undefined ? { value: localReference.value } : {}),
     }
 
-    store$.setReference(referenceId, reference)
+    dark$.setReference(referenceId, reference)
     localToGlobalReference.set(localReference.id, referenceId)
     referenceIds.push(referenceId)
-    indexReference(reference, meta, indexes$)
+    indexReference(reference, meta, strong$)
   }
 
   for (const seed of fragment.entanglementSeeds) {
@@ -254,7 +264,7 @@ export function ingestFragment(
       throw new Error(`Не найден global placement для entanglement seed ${seed.placementId}.`)
     }
 
-    const placement = store$.getPlacement(placementId)
+    const placement = dark$.getPlacement(placementId)
     if (!placement) {
       throw new Error(`Placement ${placementId} не найден для entanglement seed ${seed.placementId}.`)
     }
@@ -272,11 +282,11 @@ export function ingestFragment(
       referenceIds: seed.referenceIds
         .map((localReferenceId) => localToGlobalReference.get(localReferenceId))
         .filter(Boolean) as string[],
-      seed: cloneStoredValue(seed),
+      seed: cloneValue(seed),
     }
 
-    store$.setEntanglement(entanglement.id, entanglement)
-    indexEntanglement(entanglement, meta, indexes$)
+    dark$.setEntanglement(entanglement.id, entanglement)
+    indexEntanglement(entanglement, meta, strong$)
     entanglementIds.push(entanglement.id)
   }
 

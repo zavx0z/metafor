@@ -1,7 +1,6 @@
 
 import type { MetaAST } from "@metafor/ast"
-import type { GlobalTopologyPlacement, GlobalTopologyReference, GlobalTopologyEntanglement } from "@dark/types"
-import { dark$ } from "../store.ts"
+import type { DarkStore, GlobalTopologyPlacement, GlobalTopologyReference, GlobalTopologyEntanglement } from "@dark/types"
 
 /** Потребитель проекции: boundary или bulk. */
 export type DarkConsumer = "boundary" | "bulk"
@@ -41,36 +40,39 @@ export interface DarkDownstreamProjection {
  * - `Impulse` как содержимое переносимого изменения состояния
  * - доменная связь между скрытой непрерывностью и её наблюдаемыми проекциями
  *
+ * @param store$ — dark store
  * @param consumer — тип потребителя (`boundary` для каноникализации, `bulk` для исполнения)
  * @returns проекция графа для downstream-домена
  *
  * @see https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md#dark--electromagnetism — ONTOLOGY.md: онтология Dark × Electromagnetism
  * @see https://github.com/zavx0z/metafor/blob/main/docs/proto/electromagnetism.md — proto/electromagnetism.md: протокол Electromagnetism и Photon
  */
-export function projectDarkGraph(consumer: DarkConsumer): DarkDownstreamProjection {
+export function projectDarkGraph(store$: DarkStore, consumer: DarkConsumer): DarkDownstreamProjection {
   return {
     consumer,
-    meta: new Map(dark$.meta),
-    placements: Array.from(dark$.placements.values()),
-    references: Array.from(dark$.references.values()),
-    entanglements: Array.from(dark$.entanglements.values()),
+    meta: new Map(store$.meta),
+    placements: Array.from(store$.placements.values()),
+    references: Array.from(store$.references.values()),
+    entanglements: Array.from(store$.entanglements.values()),
   }
 }
 
 /**
  * Создаёт проекцию графа для Boundary.
  *
+ * @param store$ — dark store
  * @returns проекция графа для boundary consumer
  */
-export function projectDarkGraphToBoundary(): DarkDownstreamProjection {
-  return projectDarkGraph("boundary")
+export function projectDarkGraphToBoundary(store$: DarkStore): DarkDownstreamProjection {
+  return projectDarkGraph(store$, "boundary")
 }
 
 /**
  * Создаёт проекцию графа для Bulk.
  *
+ * @param store$ — dark store
  * @returns проекция графа для bulk consumer
  */
-export function projectDarkGraphToBulk(): DarkDownstreamProjection {
-  return projectDarkGraph("bulk")
+export function projectDarkGraphToBulk(store$: DarkStore): DarkDownstreamProjection {
+  return projectDarkGraph(store$, "bulk")
 }

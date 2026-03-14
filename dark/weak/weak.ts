@@ -1,4 +1,5 @@
-import type { DarkStore, GravityStore, StrongIndexes } from "@dark/types"
+import type { DarkStore, DarkGravityStore } from "@dark/types"
+import type { DarkStrongStore } from "@dark/types/strong"
 import type {
   InsertFragmentAtPlacementOptions,
   InsertFragmentAtPlacementResult,
@@ -12,9 +13,8 @@ import type {
   RebuildFragmentResult,
 } from "@dark/types/weak"
 import type { LocalTopologyFragment } from "../../metafor/dsl/topology.t"
-import { dark$ } from "../store.ts"
-import { gravity$, ingestFragment } from "@dark/gravity"
-import { strong$, getPlacementIdsByMeta, removeEntanglementIndexes, removePlacementIndexes, removeReferenceIndexes } from "@dark/strong"
+import { ingestFragment } from "@dark/gravity"
+import { getPlacementIdsByMeta, removeEntanglementIndexes, removePlacementIndexes, removeReferenceIndexes } from "@dark/strong"
 
 /**
  * Находит все descendant placement IDs.
@@ -56,20 +56,20 @@ function getSubtreePlacementIds(store: Pick<DarkStore, "placements" | "links">, 
 /**
  * Удаляет placement и связанные links.
  *
- * @param store$ — dark store
+ * @param dark$ — dark store
  * @param placementId — ID размещения для удаления
- * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ * @param strong$ — strong indexes
  */
-function removePlacement(store$: DarkStore, placementId: string, indexes$: StrongIndexes = strong$): void {
-  const placement = store$.getPlacement(placementId)
+function removePlacement(dark$: DarkStore, placementId: string, strong$: DarkStrongStore): void {
+  const placement = dark$.getPlacement(placementId)
   if (!placement) return
 
-  removePlacementIndexes(placement, placement.objectId, placement.meta, indexes$)
-  store$.deletePlacement(placementId)
+  removePlacementIndexes(placement, placement.objectId, placement.meta, strong$)
+  dark$.deletePlacement(placementId)
 
-  for (const [linkId, link] of store$.links.entries()) {
+  for (const [linkId, link] of dark$.links.entries()) {
     if (link.from === placementId || link.to === placementId) {
-      store$.deleteLink(linkId)
+      dark$.deleteLink(linkId)
     }
   }
 }
@@ -77,31 +77,31 @@ function removePlacement(store$: DarkStore, placementId: string, indexes$: Stron
 /**
  * Удаляет reference и индексы.
  *
- * @param store$ — dark store
+ * @param dark$ — dark store
  * @param referenceId — ID ссылки для удаления
- * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ * @param strong$ — strong indexes
  */
-function removeReference(store$: DarkStore, referenceId: string, indexes$: StrongIndexes = strong$): void {
-  const reference = store$.getReference(referenceId)
+function removeReference(dark$: DarkStore, referenceId: string, strong$: DarkStrongStore): void {
+  const reference = dark$.getReference(referenceId)
   if (!reference) return
 
-  removeReferenceIndexes(reference, reference.meta, indexes$)
-  store$.deleteReference(referenceId)
+  removeReferenceIndexes(reference, reference.meta, strong$)
+  dark$.deleteReference(referenceId)
 }
 
 /**
  * Удаляет entanglement и индексы.
  *
- * @param store$ — dark store
+ * @param dark$ — dark store
  * @param entanglementId — ID запутанности для удаления
- * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ * @param strong$ — strong indexes
  */
-function removeEntanglement(store$: DarkStore, entanglementId: string, indexes$: StrongIndexes = strong$): void {
-  const entanglement = store$.getEntanglement(entanglementId)
+function removeEntanglement(dark$: DarkStore, entanglementId: string, strong$: DarkStrongStore): void {
+  const entanglement = dark$.getEntanglement(entanglementId)
   if (!entanglement) return
 
-  removeEntanglementIndexes(entanglement, entanglement.meta, indexes$)
-  store$.deleteEntanglement(entanglementId)
+  removeEntanglementIndexes(entanglement, entanglement.meta, strong$)
+  dark$.deleteEntanglement(entanglementId)
 }
 
 /**
@@ -112,18 +112,18 @@ function removeEntanglement(store$: DarkStore, entanglementId: string, indexes$:
  * @param meta — адрес meta-схемы для замены
  * @param newFragment — новый local topology fragment
  * @param options — опции замены (по умолчанию `{}`)
- * @param store$ — dark store (по умолчанию `dark$`)
- * @param gravityState$ — gravity store (по умолчанию `gravity$`)
- * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ * @param dark$ — dark store (по умолчанию `dark$`)
+ * @param gravity$ — gravity store (по умолчанию `gravity$`)
+ * @param strong$ — strong indexes
  * @returns результат замены с IDs созданных и удалённых сущностей
  */
 export function replaceFragment(
+  dark$: DarkStore,
+  gravity$: DarkGravityStore,
+  strong$: DarkStrongStore,
   meta: string,
   newFragment: LocalTopologyFragment,
   options: ReplaceFragmentOptions = {},
-  store$: DarkStore = dark$,
-  gravityState$: GravityStore = gravity$,
-  indexes$: StrongIndexes = strong$,
 ): ReplaceFragmentResult {
   const result: ReplaceFragmentResult = {
     meta,
@@ -136,40 +136,40 @@ export function replaceFragment(
     removedEntanglementIds: [],
   }
 
-  const existingPlacementIds = getPlacementIdsByMeta(meta, indexes$)
+  const existingPlacementIds = getPlacementIdsByMeta(meta, strong$)
   const allToRemove = new Set<string>()
 
   for (const placementId of existingPlacementIds) {
-    const placement = store$.getPlacement(placementId)
+    const placement = dark$.getPlacement(placementId)
     if (placement && !placement.parentId) {
-      for (const subtreeId of getSubtreePlacementIds(store$, placementId)) {
+      for (const subtreeId of getSubtreePlacementIds(dark$, placementId)) {
         allToRemove.add(subtreeId)
       }
     }
   }
 
   for (const placementId of allToRemove) {
-    if (store$.getPlacement(placementId)) {
+    if (dark$.getPlacement(placementId)) {
       result.removedPlacementIds.push(placementId)
     }
-    removePlacement(store$, placementId, indexes$)
+    removePlacement(dark$, placementId, strong$)
   }
 
-  for (const [referenceId, reference] of store$.references.entries()) {
+  for (const [referenceId, reference] of dark$.references.entries()) {
     if (reference.meta === meta) {
       result.removedReferenceIds.push(referenceId)
-      removeReference(store$, referenceId, indexes$)
+      removeReference(dark$, referenceId, strong$)
     }
   }
 
-  for (const [entanglementId, entanglement] of store$.entanglements.entries()) {
+  for (const [entanglementId, entanglement] of dark$.entanglements.entries()) {
     if (entanglement.meta === meta) {
       result.removedEntanglementIds.push(entanglementId)
-      removeEntanglement(store$, entanglementId, indexes$)
+      removeEntanglement(dark$, entanglementId, strong$)
     }
   }
 
-  const ingested = ingestFragment(meta, newFragment, options, store$, gravityState$, indexes$)
+  const ingested = ingestFragment(dark$, gravity$, strong$, meta, newFragment, options)
   result.rootPlacementIds = ingested.rootPlacementIds
   result.placementIds = ingested.placementIds
   result.referenceIds = ingested.referenceIds
@@ -183,15 +183,15 @@ export function replaceFragment(
  *
  * @param rootPlacementId — ID корневого размещения для удаления
  * @param options — опции удаления cascade (по умолчанию `{ cascadeReferences: true, cascadeEntanglements: true }`)
- * @param store$ — dark store (по умолчанию `dark$`)
- * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ * @param dark$ — dark store
+ * @param strong$ — strong indexes
  * @returns результат удаления с IDs удалённых сущностей
  */
 export function removePlacementSubtree(
+  dark$: DarkStore,
+  strong$: DarkStrongStore,
   rootPlacementId: string,
   options: RemovePlacementSubtreeOptions = {},
-  store$: DarkStore = dark$,
-  indexes$: StrongIndexes = strong$,
 ): RemovePlacementSubtreeResult {
   const result: RemovePlacementSubtreeResult = {
     placementIds: [],
@@ -203,11 +203,11 @@ export function removePlacementSubtree(
   }
 
   const { cascadeReferences = true, cascadeEntanglements = true } = options
-  const subtreeIds = getSubtreePlacementIds(store$, rootPlacementId)
+  const subtreeIds = getSubtreePlacementIds(dark$, rootPlacementId)
 
   const relatedReferenceIds: string[] = []
   if (cascadeReferences) {
-    for (const [referenceId, reference] of store$.references.entries()) {
+    for (const [referenceId, reference] of dark$.references.entries()) {
       if (subtreeIds.includes(reference.placementId)) {
         relatedReferenceIds.push(referenceId)
       }
@@ -216,7 +216,7 @@ export function removePlacementSubtree(
 
   const relatedEntanglementIds: string[] = []
   if (cascadeEntanglements) {
-    for (const [entanglementId, entanglement] of store$.entanglements.entries()) {
+    for (const [entanglementId, entanglement] of dark$.entanglements.entries()) {
       if (subtreeIds.includes(entanglement.placementId)) {
         relatedEntanglementIds.push(entanglementId)
       }
@@ -225,17 +225,17 @@ export function removePlacementSubtree(
 
   for (const entanglementId of relatedEntanglementIds) {
     result.removedEntanglementIds.push(entanglementId)
-    removeEntanglement(store$, entanglementId, indexes$)
+    removeEntanglement(dark$, entanglementId, strong$)
   }
 
   for (const referenceId of relatedReferenceIds) {
     result.removedReferenceIds.push(referenceId)
-    removeReference(store$, referenceId, indexes$)
+    removeReference(dark$, referenceId, strong$)
   }
 
   for (const placementId of [...subtreeIds].reverse()) {
     result.removedPlacementIds.push(placementId)
-    removePlacement(store$, placementId, indexes$)
+    removePlacement(dark$, placementId, strong$)
   }
 
   return result
@@ -248,30 +248,30 @@ export function removePlacementSubtree(
  * @param fragment — local topology fragment для вставки
  * @param fragmentMeta — адрес meta-схемы фрагмента
  * @param options — опции вставки (по умолчанию `{}`)
- * @param store$ — dark store (по умолчанию `dark$`)
- * @param gravityState$ — gravity store (по умолчанию `gravity$`)
- * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ * @param dark$ — dark store
+ * @param gravity$ — gravity store
+ * @param strong$ — strong indexes
  * @returns результат вставки с IDs созданных сущностей
  */
 export function insertFragmentAtPlacement(
+  dark$: DarkStore,
+  gravity$: DarkGravityStore,
+  strong$: DarkStrongStore,
   parentPlacementId: string,
   fragment: LocalTopologyFragment,
   fragmentMeta: string,
   options: InsertFragmentAtPlacementOptions = {},
-  store$: DarkStore = dark$,
-  gravityState$: GravityStore = gravity$,
-  indexes$: StrongIndexes = strong$,
 ): InsertFragmentAtPlacementResult {
   const ingested = ingestFragment(
+    dark$,
+    gravity$,
+    strong$,
     fragmentMeta,
     fragment,
     {
       parentPlacementId,
       ...options,
     },
-    store$,
-    gravityState$,
-    indexes$,
   )
 
   return {
@@ -289,15 +289,15 @@ export function insertFragmentAtPlacement(
  *
  * @param placementId — ID размещения для перемещения
  * @param options — опции перемещения с newParentPlacementId
- * @param store$ — dark store (по умолчанию `dark$`)
- * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ * @param dark$ — dark store
+ * @param strong$ — strong indexes
  * @returns результат перемещения с новыми адресами
  */
 export function movePlacement(
+  dark$: DarkStore,
+  strong$: DarkStrongStore,
   placementId: string,
   options: MovePlacementOptions,
-  store$: DarkStore = dark$,
-  indexes$: StrongIndexes = strong$,
 ): MovePlacementResult {
   const result: MovePlacementResult = {
     movedPlacementId: placementId,
@@ -310,12 +310,12 @@ export function movePlacement(
     removedEntanglementIds: [],
   }
 
-  const placement = store$.getPlacement(placementId)
+  const placement = dark$.getPlacement(placementId)
   if (!placement) {
     throw new Error(`Placement ${placementId} не найден для перемещения.`)
   }
 
-  const newParent = store$.getPlacement(options.newParentPlacementId)
+  const newParent = dark$.getPlacement(options.newParentPlacementId)
   if (!newParent) {
     throw new Error(`Parent placement ${options.newParentPlacementId} не найден.`)
   }
@@ -323,7 +323,7 @@ export function movePlacement(
   placement.parentId = options.newParentPlacementId
   placement.relation = "contains"
 
-  for (const [, link] of store$.links.entries()) {
+  for (const [, link] of dark$.links.entries()) {
     if (link.to === placementId) {
       link.from = options.newParentPlacementId
       link.relation = "contains"
@@ -332,7 +332,7 @@ export function movePlacement(
   }
 
   if (options.rebuildAddresses !== false) {
-    result.newAddresses = remapPlacementAddresses(placementId, newParent.address, store$, indexes$)
+    result.newAddresses = remapPlacementAddresses(dark$, strong$, placementId, newParent.address)
   }
 
   return result
@@ -343,17 +343,17 @@ export function movePlacement(
  *
  * @param meta — адрес meta-схемы
  * @param options — опции перестройки (по умолчанию `{}`)
- * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ * @param strong$ — strong indexes
  * @returns результат перестройки с IDs сущностей
  */
 export function rebuildFragment(
+  strong$: Pick<DarkStrongStore, "sourceMetaIndex">,
   meta: string,
   options: RebuildFragmentOptions = {},
-  indexes$: Pick<StrongIndexes, "sourceMetaIndex"> = strong$,
 ): RebuildFragmentResult {
   void options
   return {
-    placementIds: getPlacementIdsByMeta(meta, indexes$),
+    placementIds: getPlacementIdsByMeta(meta, strong$),
     referenceIds: [],
     entanglementIds: [],
     removedPlacementIds: [],
@@ -366,23 +366,23 @@ export function rebuildFragment(
  * Отсоединяет subtree от parent.
  *
  * @param placementId — ID корневого размещения subtree
- * @param store$ — dark store (по умолчанию `dark$`)
+ * @param dark$ — dark store
  * @returns массив IDs всех placements в отсоединённом subtree
  */
-export function detachSubtree(placementId: string, store$: DarkStore = dark$): string[] {
-  const placement = store$.getPlacement(placementId)
+export function detachSubtree(dark$: DarkStore, placementId: string): string[] {
+  const placement = dark$.getPlacement(placementId)
   if (!placement) return []
 
-  for (const [linkId, link] of store$.links.entries()) {
+  for (const [linkId, link] of dark$.links.entries()) {
     if (link.to === placementId) {
-      store$.deleteLink(linkId)
+      dark$.deleteLink(linkId)
       break
     }
   }
 
   delete placement.parentId
 
-  return getSubtreePlacementIds(store$, placementId)
+  return getSubtreePlacementIds(dark$, placementId)
 }
 
 /**
@@ -390,43 +390,43 @@ export function detachSubtree(placementId: string, store$: DarkStore = dark$): s
  *
  * @param rootPlacementId — ID корневого размещения
  * @param newAddressPrefix — новый префикс адреса
- * @param store$ — dark store (по умолчанию `dark$`)
- * @param indexes$ — strong indexes (по умолчанию `strong$`)
+ * @param dark$ — dark store
+ * @param strong$ — strong indexes
  * @returns карту старых адресов → новые адреса
  */
 export function remapPlacementAddresses(
+  dark$: DarkStore,
+  strong$: DarkStrongStore,
   rootPlacementId: string,
   newAddressPrefix: string,
-  store$: DarkStore = dark$,
-  indexes$: StrongIndexes = strong$,
 ): Map<string, string> {
   const addressMap = new Map<string, string>()
-  const root = store$.getPlacement(rootPlacementId)
+  const root = dark$.getPlacement(rootPlacementId)
   if (!root) return addressMap
 
   const oldPrefix = root.address
   root.address = newAddressPrefix
   addressMap.set(oldPrefix, newAddressPrefix)
 
-  indexes$.placementAddressIndex.delete(oldPrefix)
-  indexes$.placementAddressIndex.set(newAddressPrefix, root.id)
+  strong$.placementAddressIndex.delete(oldPrefix)
+  strong$.placementAddressIndex.set(newAddressPrefix, root.id)
 
-  const descendants = getDescendantPlacementIds(store$, rootPlacementId)
+  const descendants = getDescendantPlacementIds(dark$, rootPlacementId)
   for (const descId of descendants) {
-    const desc = store$.getPlacement(descId)
+    const desc = dark$.getPlacement(descId)
     if (!desc) continue
 
     const oldDescAddress = desc.address
     const newDescAddress = desc.address.replace(oldPrefix, newAddressPrefix)
     desc.address = newDescAddress
 
-    indexes$.placementAddressIndex.delete(oldDescAddress)
-    indexes$.placementAddressIndex.set(newDescAddress, desc.id)
+    strong$.placementAddressIndex.delete(oldDescAddress)
+    strong$.placementAddressIndex.set(newDescAddress, desc.id)
     addressMap.set(oldDescAddress, newDescAddress)
   }
 
   const subtreeIds = [rootPlacementId, ...descendants]
-  for (const [, reference] of store$.references.entries()) {
+  for (const [, reference] of dark$.references.entries()) {
     if (subtreeIds.includes(reference.placementId)) {
       const oldRefAddress = reference.address
       const newRefAddress = reference.address.replace(oldPrefix, newAddressPrefix)
@@ -435,7 +435,7 @@ export function remapPlacementAddresses(
     }
   }
 
-  for (const [, entanglement] of store$.entanglements.entries()) {
+  for (const [, entanglement] of dark$.entanglements.entries()) {
     if (subtreeIds.includes(entanglement.placementId)) {
       const oldEntAddress = entanglement.topologyAddress
       const newEntAddress = entanglement.topologyAddress.replace(oldPrefix, newAddressPrefix)
@@ -444,8 +444,8 @@ export function remapPlacementAddresses(
       const oldEntanglementAddress = entanglement.entanglementAddress
       entanglement.entanglementAddress = `ent:${entanglement.objectId}@${newEntAddress}`
 
-      indexes$.entanglementAddressIndex.delete(oldEntanglementAddress)
-      indexes$.entanglementAddressIndex.set(entanglement.entanglementAddress, entanglement.id)
+      strong$.entanglementAddressIndex.delete(oldEntanglementAddress)
+      strong$.entanglementAddressIndex.set(entanglement.entanglementAddress, entanglement.id)
       addressMap.set(oldEntAddress, newEntAddress)
     }
   }

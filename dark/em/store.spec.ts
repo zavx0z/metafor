@@ -36,9 +36,9 @@ describe("@dark/em — projection-only", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      ingestFragment("em-projection/root", fragment)
+      ingestFragment(dark$, gravity$, strong$, "em-projection/root", fragment, {})
 
-      const projection = projectDarkGraph("boundary")
+      const projection = projectDarkGraph(dark$, "boundary")
 
       expect(projection.consumer).toBe("boundary")
       expect(projection.placements.length).toBeGreaterThan(0)
@@ -66,9 +66,9 @@ describe("@dark/em — projection-only", () => {
         throw new Error("axion object не собран")
       }
 
-      ingestFragment("em-axion/root", fragment)
+      ingestFragment(dark$, gravity$, strong$, "em-axion/root", fragment, {})
 
-      const projection = projectDarkGraphToBoundary()
+      const projection = projectDarkGraphToBoundary(dark$)
       const globalAxionObjectId = `em-axion/root#${axion.id}`
 
       expect(projection.placements.some((placement) => placement.objectId === globalAxionObjectId)).toBe(true)
@@ -88,9 +88,9 @@ describe("@dark/em — projection-only", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      ingestFragment("em-boundary/root", fragment)
+      ingestFragment(dark$, gravity$, strong$, "em-boundary/root", fragment, {})
 
-      const projection = projectDarkGraphToBoundary()
+      const projection = projectDarkGraphToBoundary(dark$)
 
       expect(projection.consumer).toBe("boundary")
       expect(projection.placements.length).toBeGreaterThan(0)
@@ -109,9 +109,9 @@ describe("@dark/em — projection-only", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      ingestFragment("em-bulk/root", fragment)
+      ingestFragment(dark$, gravity$, strong$, "em-bulk/root", fragment, {})
 
-      const projection = projectDarkGraphToBulk()
+      const projection = projectDarkGraphToBulk(dark$)
 
       expect(projection.consumer).toBe("bulk")
       expect(projection.placements.length).toBeGreaterThan(0)
@@ -132,10 +132,10 @@ describe("@dark/em — projection-only", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      ingestFragment("em-immut/root", fragment)
+      ingestFragment(dark$, gravity$, strong$, "em-immut/root", fragment, {})
 
       const snapshotBefore = dark$.snapshot()
-      const projection = projectDarkGraph("boundary")
+      const projection = projectDarkGraph(dark$, "boundary")
 
       // Изменить projection
       projection.placements.push({
@@ -156,7 +156,7 @@ describe("@dark/em — projection-only", () => {
     })
 
     test("projection DTO не содержит internal storage methods", () => {
-      const projection = projectDarkGraphToBoundary()
+      const projection = projectDarkGraphToBoundary(dark$)
 
       expect("ingestFragment" in projection).toBe(false)
       expect("reset" in projection).toBe(false)
@@ -178,12 +178,12 @@ describe("@dark/em — projection-only", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      ingestFragment("em-meta/root", fragment)
+      ingestFragment(dark$, gravity$, strong$, "em-meta/root", fragment, {})
 
       // Добавим meta в dark$.meta для корректной проекции
       dark$.setMeta("em-meta/root", fragment as any)
 
-      const projection = projectDarkGraph("boundary")
+      const projection = projectDarkGraph(dark$, "boundary")
 
       expect(projection.meta.size).toBeGreaterThan(0)
       expect(projection.meta.has("em-meta/root")).toBe(true)

@@ -1,11 +1,14 @@
 import type { GlobalTopologyMetaIndex, GlobalTopologyObject, GlobalTopologyPlacement, GlobalTopologyReference, StrongIndexes, StrongIndexesSnapshot } from "./shared.ts"
 
+// Re-export shared types used by strong
+export type { GlobalTopologyMetaIndex, StrongIndexes, StrongIndexesSnapshot }
+
 /**
  * Состояние хранилища `@dark/strong/store`.
  *
  * Хранит индексное промежуточное состояние для cohesion и lookup.
  */
-export interface StrongIndexStore extends StrongIndexes {
+export interface DarkStrongStore extends StrongIndexes {
   /** Сбрасывает все индексы в начальное состояние. */
   reset(): void
 

@@ -1,7 +1,7 @@
-import type { StrongIndexStore } from "@dark/types/strong"
+import type { DarkStrongStore } from "@dark/types/strong"
 import { cloneStrongSnapshot } from "./snapshot.ts"
 
-export const strong$: StrongIndexStore = {
+export const strong$: DarkStrongStore = {
   placementAddressIndex: new Map(),
   entanglementAddressIndex: new Map(),
   objectPlacementsIndex: new Map(),

@@ -198,10 +198,17 @@ export async function matter(address: Address): Promise<void> {
     while (pending.length > 0) {
       const next = pending.shift()!
       const fragment = await ensureLocalFragment(next.metaAddress)
-      const ingested = ingestFragment(next.metaAddress, fragment, {
-        ...(next.parentPlacementId ? { parentPlacementId: next.parentPlacementId } : {}),
-        ...(next.viaReferenceId ? { viaReferenceId: next.viaReferenceId } : {}),
-      })
+      const ingested = ingestFragment(
+        dark$,
+        gravity$,
+        strong$,
+        next.metaAddress,
+        fragment,
+        {
+          ...(next.parentPlacementId ? { parentPlacementId: next.parentPlacementId } : {}),
+          ...(next.viaReferenceId ? { viaReferenceId: next.viaReferenceId } : {}),
+        },
+      )
 
       for (const referenceId of ingested.referenceIds) {
         const reference = dark$.getReference(referenceId)
