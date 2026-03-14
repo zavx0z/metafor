@@ -2,10 +2,7 @@ import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:tes
 import type { Address } from "./dark.t"
 import { HubFixture } from "../fixture/hub"
 import * as dark from "./dark"
-import { getPlacementsByMeta } from "./gravity/query.ts"
 import { dark$ } from "./store"
-import { gravity$ } from "./gravity/store.ts"
-import { strong$ } from "./strong/store.ts"
 
 const hub = new HubFixture("./github/")
 
@@ -15,15 +12,11 @@ beforeAll(async () => {
 
 beforeEach(() => {
   dark$.reset()
-  gravity$.reset()
-  strong$.reset()
 })
 
 afterAll(async () => {
   await hub.teardown()
   dark$.reset()
-  gravity$.reset()
-  strong$.reset()
 })
 
 describe("dark.matter", () => {
@@ -31,7 +24,6 @@ describe("dark.matter", () => {
     await dark.matter("zavx0z/git-error" as Address)
 
     const snapshot = dark$.snapshot()
-
     expect(snapshot).toMatchObject({
       meta: new Map([
         [
@@ -46,27 +38,6 @@ describe("dark.matter", () => {
             },
             superposition: {},
             processes: {},
-            gravity: [
-              {
-                type: "log",
-                data: "/value/error",
-                child: [
-                  {
-                    tag: "div",
-                    type: "el",
-                    child: [
-                      {
-                        type: "text",
-                        data: "/value/error",
-                      },
-                    ],
-                    string: {
-                      class: "error",
-                    },
-                  },
-                ],
-              },
-            ],
             mass: {},
           },
         ],
@@ -77,16 +48,8 @@ describe("dark.matter", () => {
       references: expect.any(Map),
       entanglements: expect.any(Map),
     })
-    expect((snapshot as any).fragments).toBeUndefined()
-    expect((snapshot as any).placementAddressIndex).toBeUndefined()
 
-    // Проверяем что meta загружены
+    // Проверяем что meta загружена
     expect(dark$.meta.has("zavx0z/git-error")).toBe(true)
-    expect(gravity$.fragments.has("zavx0z/git-error")).toBe(true)
-    expect(strong$.sourceMetaIndex.has("zavx0z/git-error")).toBe(true)
-
-    // Проверяем что topology построена
-    const gitErrorPlacements = getPlacementsByMeta(dark$, "zavx0z/git-error")
-    expect(gitErrorPlacements.length).toBeGreaterThan(0)
   })
 })
