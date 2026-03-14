@@ -27,6 +27,7 @@
       "name": "@metafor/boundary",
       "version": "0.0.1",
       "dependencies": {
+        "@boundary/em": "workspace:*",
         "@boundary/gravity": "workspace:*",
         "@boundary/strong": "workspace:*",
         "@boundary/weak": "workspace:*",
@@ -68,10 +69,6 @@
         "@bulk/gravity": "workspace:*",
         "@bulk/strong": "workspace:*",
         "@bulk/weak": "workspace:*",
-        "@metafor/dark": "workspace:*",
-      },
-      "peerDependencies": {
-        "typescript": "^5",
       },
     },
     "bulk/em": {
@@ -116,8 +113,6 @@
         "@dark/gravity": "workspace:*",
         "@dark/strong": "workspace:*",
         "@dark/weak": "workspace:*",
-        "@metafor/ast": "workspace:*",
-        "@metafor/template": "workspace:*",
       },
     },
     "dark/em": {

@@ -22,8 +22,8 @@
  */
 
 import type { MetaAST } from "@metafor/ast"
-import { dark$ } from "../store"
-import type { GlobalTopologyPlacement, GlobalTopologyReference, GlobalTopologyEntanglement } from "../gravity/store.t"
+import { dark$ } from "@dark/gravity"
+import type { GlobalTopologyPlacement, GlobalTopologyReference, GlobalTopologyEntanglement } from "@dark/gravity"
 
 /** Потребитель проекции: boundary или bulk. */
 export type DarkConsumer = "boundary" | "bulk"

@@ -1,13 +1,6 @@
 {
   "name": "@bulk/strong",
-  "version": "0.0.1",
   "type": "module",
   "main": "index.ts",
-  "exports": {
-    ".": "./index.ts"
-  },
-  "private": true,
-  "peerDependencies": {
-    "typescript": "^5"
-  }
+  "private": true
 }

@@ -25,9 +25,9 @@
 import { boundary$ } from "./store"
 import type { BoundaryFieldValueRecord, BoundaryStore } from "./store.t"
 import type { PreparedData } from "./boundary.t"
-import { flattenBoundaryData, validateData, type Data } from "./gravity"
-import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundaryData } from "./strong"
-import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "./weak"
+import { flattenBoundaryData, validateData, type Data } from "@boundary/gravity"
+import { createStoredStringInterner, normalizeFieldValue, assembleStoredBoundaryData } from "@boundary/strong"
+import { weakHeapUpdate, weakInit, weakRunStep, weak$ } from "@boundary/weak"
 
 let writeMutex: Promise<void> | null = null
 let updateMutex: Promise<void> | null = null

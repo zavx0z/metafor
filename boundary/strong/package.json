@@ -1,19 +1,9 @@
 {
   "name": "@boundary/strong",
-  "version": "0.0.1",
   "type": "module",
   "main": "index.ts",
-  "exports": {
-    ".": "./index.ts",
-    "./stored": "./stored.ts",
-    "./string-table": "./string-table.ts",
-    "./entangled": "./entangled.ts",
-    "./normalize": "./normalize.ts",
-    "./snapshot": "./snapshot/index.ts",
-    "./dump": "./dump/index.ts"
-  },
   "private": true,
-  "peerDependencies": {
-    "typescript": "^5"
+  "dependencies": {
+    "@boundary/gravity": "workspace:*"
   }
 }

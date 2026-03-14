@@ -1,16 +1,6 @@
 {
   "name": "@bulk/weak",
-  "version": "0.0.1",
   "type": "module",
   "main": "index.ts",
-  "exports": {
-    ".": "./index.ts"
-  },
-  "private": true,
-  "dependencies": {
-    "@metafor/dsl": "workspace:*"
-  },
-  "peerDependencies": {
-    "typescript": "^5"
-  }
+  "private": true
 }

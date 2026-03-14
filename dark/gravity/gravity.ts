@@ -22,16 +22,13 @@ import type {
   GlobalTopologyObject,
   GlobalTopologyPlacement,
   GlobalTopologyReference,
-} from "./store.t.ts"
-import type { DarkStore } from "../store.t.ts"
-import type { GravityStore } from "./store.t.ts"
-import type { StrongIndexes } from "../strong/store.t.ts"
-import type { LocalTopologyFragment, LocalTopologyPlacementRelation } from "../../metafor/dsl/topology.t.ts"
-import { dark$ } from "../store.ts"
-import { gravity$ } from "./store.ts"
-import { strong$ } from "../strong/store.ts"
-import { cloneStoredValue } from "../snapshot.ts"
-import { indexEntanglement, indexObject, indexPlacement, indexReference } from "../strong/strong.ts"
+  LocalTopologyFragment,
+} from "@dark/gravity"
+import type { DarkStore, StrongIndexes } from "@dark/gravity"
+import type { LocalTopologyPlacementRelation } from "@metafor/dsl"
+import { dark$, gravity$ } from "@dark/gravity"
+import { strong$, indexEntanglement, indexObject, indexPlacement, indexReference } from "@dark/strong"
+import { cloneStoredValue } from "@dark/gravity"
 
 /**
  * Создаёт глобальный ID объекта из meta и локального ID.

@@ -1,10 +1,9 @@
 import { afterEach, describe, expect, test } from "bun:test"
-import { flattenBoundaryData } from "../gravity"
+import { flattenBoundaryData, FieldType } from "../gravity"
 import { assembleStoredBoundaryData } from "../strong"
 import { serializeBoundaryState, deserializeBoundaryState } from "../em"
 import { weak$ } from "../weak"
 import { boundary$, reset, update, write } from "../boundary"
-import { FieldType } from "../gravity"
 
 describe("boundary domain layers", () => {
   afterEach(() => {

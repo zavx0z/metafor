@@ -4,12 +4,12 @@
  * Каноническая логика восстановления принадлежит strong-слою.
  */
 
-export { serializeBoundaryState, deserializeBoundaryState } from "../strong/snapshot"
+export { serializeBoundaryState, deserializeBoundaryState } from "@boundary/strong"
 export type {
   BoundaryStateSnapshot,
   DeserializedBoundaryState,
   BinaryHeader,
   SectionDescriptor,
   SectionType,
-} from "../strong/snapshot"
-export { MAGIC_NUMBER, FORMAT_VERSION } from "../strong/snapshot"
+} from "@boundary/strong"
+export { MAGIC_NUMBER, FORMAT_VERSION } from "@boundary/strong"

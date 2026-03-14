@@ -22,7 +22,11 @@
  * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/proto/gravity.md | proto/gravity.md} — протокол Gravity
  */
 
+export { dark$ } from "../store.ts"
 export { gravity$ } from "./store.ts"
+export { cloneStoredValue } from "../snapshot.ts"
+export type { DarkStore, DarkStoreSnapshot, LocalTopologyFragment } from "../store.t.ts"
+export type { StrongIndexes } from "../strong/store.t.ts"
 export {
   getChildren,
   getEntanglementByAddress,

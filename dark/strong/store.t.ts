@@ -1,10 +1,4 @@
-import type {
-  GlobalTopologyEntanglement,
-  GlobalTopologyMetaIndex,
-  GlobalTopologyObject,
-  GlobalTopologyPlacement,
-  GlobalTopologyReference,
-} from "../gravity/store.t.ts"
+import type { GlobalTopologyEntanglement, GlobalTopologyMetaIndex, GlobalTopologyObject, GlobalTopologyPlacement, GlobalTopologyReference } from "@dark/gravity"
 
 /**
  * Индексы `@dark/strong` для cohesion и lookup.

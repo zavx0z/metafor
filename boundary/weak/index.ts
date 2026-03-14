@@ -24,5 +24,5 @@ export {
   compileEnsemble,
   compileFlattenedEnsemble,
 } from "./program"
-export type { BoundaryStore } from "../store"
+export type { BoundaryStore } from "@boundary/gravity"
 export type { WeakMode, WeakStore } from "./weak"

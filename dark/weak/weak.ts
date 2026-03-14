@@ -19,32 +19,21 @@
  * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/proto/higgs.md | proto/higgs.md} — протокол Higgs и topology-field change
  */
 
-import type { DarkStore } from "../store.t.ts"
-import type { GravityStore } from "../gravity/store.t.ts"
-import type { StrongIndexes } from "../strong/store.t.ts"
-import type { LocalTopologyFragment } from "../../metafor/dsl/topology.t.ts"
+import type { DarkStore, GravityStore, StrongIndexes, LocalTopologyFragment } from "@dark/gravity"
 import type {
   InsertFragmentAtPlacementOptions,
   InsertFragmentAtPlacementResult,
   MovePlacementOptions,
   MovePlacementResult,
-  RebuildFragmentOptions,
-  RebuildFragmentResult,
   RemovePlacementSubtreeOptions,
   RemovePlacementSubtreeResult,
   ReplaceFragmentOptions,
   ReplaceFragmentResult,
+  RebuildFragmentOptions,
+  RebuildFragmentResult,
 } from "./store.t.ts"
-import { dark$ } from "../store.ts"
-import { gravity$ } from "../gravity/store.ts"
-import { strong$ } from "../strong/store.ts"
-import { ingestFragment } from "../gravity/gravity.ts"
-import {
-  getPlacementIdsByMeta,
-  removeEntanglementIndexes,
-  removePlacementIndexes,
-  removeReferenceIndexes,
-} from "../strong/strong.ts"
+import { dark$, gravity$, ingestFragment } from "@dark/gravity"
+import { strong$, getPlacementIdsByMeta, removeEntanglementIndexes, removePlacementIndexes, removeReferenceIndexes } from "@dark/strong"
 
 /**
  * Находит все descendant placement IDs.

@@ -1,4 +1,4 @@
-import type { GlobalTopologyMetaIndex } from "../gravity/store.t.ts"
+import type { GlobalTopologyMetaIndex } from "@dark/gravity"
 import type { StrongIndexes, StrongIndexesSnapshot } from "./store.t.ts"
 
 /**

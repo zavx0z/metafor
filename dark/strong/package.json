@@ -1,10 +1,9 @@
 {
   "name": "@dark/strong",
-  "version": "0.0.1",
   "type": "module",
   "main": "index.ts",
-  "exports": {
-    ".": "./index.ts"
-  },
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@dark/gravity": "workspace:*"
+  }
 }

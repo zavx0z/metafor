@@ -1,7 +1,6 @@
 /** Типы для `@boundary/boundary/store`. */
 
-import type { ConditionOperator } from "./gravity/condition.t"
-import type { FieldTypeValue } from "./gravity/schema.t"
+import type { ConditionOperator, FieldTypeValue } from "@boundary/gravity"
 
 /**
  * Каноническая запись схемы поля, хранящаяся в Boundary store.
