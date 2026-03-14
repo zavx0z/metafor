@@ -108,6 +108,38 @@ describe("@dark/gravity — world assembly", () => {
       // Проверяем что placements существуют и имеют разные адреса
       expect(entanglementAddresses[0]).not.toBe(entanglementAddresses[1])
     })
+
+    test("не создаёт global entanglement для macho placements", () => {
+      const meta = MetaFor("macho-no-entanglement")
+        .fields((field) => ({
+          rows: field.array.required<string>([]),
+        }))
+        .superposition({ idle: null })
+        .mass()
+        .processes()
+        .reactions()
+        .gravity(({ value, html }) => html`
+          ${value.rows.map((row) => html`
+            <meta-for src="child/row" fields=${{ row }}></meta-for>
+          `)}
+        `)
+        .bulk()
+
+      const fragment = compileLocalTopologyFragment(meta)
+      const macho = Object.values(fragment.objects).find((object) => object.kind === "macho")
+
+      expect(macho).toBeDefined()
+      if (!macho) {
+        throw new Error("macho object не собран")
+      }
+
+      ingestFragment("macho-no-entanglement/root", fragment)
+
+      const globalMachoObjectId = `macho-no-entanglement/root#${macho.id}`
+      expect(dark$.getObject(globalMachoObjectId)).toBeDefined()
+      expect(Array.from(dark$.entanglements.values()).some((entanglement) => entanglement.objectId === globalMachoObjectId)).toBe(false)
+      expect(Array.from(dark$.entanglements.values()).every((entanglement) => entanglement.seed.kind !== "macho")).toBe(true)
+    })
   })
 
   describe("global placement creation", () => {

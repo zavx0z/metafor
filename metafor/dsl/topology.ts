@@ -15,6 +15,19 @@ type FieldLike = {
   values?: unknown
 }
 
+type TopologyAddressPrefix = "w" | "a" | "f" | "m"
+
+type FuzzyConditionBasis =
+  | {
+      kind: "state"
+      dataPath: "/state"
+    }
+  | {
+      kind: "enum"
+      dataPath: string
+      field: string
+    }
+
 type BuilderState = {
   objectIndex: number
   placementIndex: number
@@ -35,6 +48,10 @@ function normalizeFieldPath(dataPath: string): string | null {
   return null
 }
 
+function isEnumFieldType(fieldType: string): boolean {
+  return fieldType === "enum" || fieldType.startsWith("enum<")
+}
+
 function getEnumValues(meta: LocalTopologyMetaLike, dataPath: string): Array<string | number> | null {
   const fieldName = normalizeFieldPath(dataPath)
   if (!fieldName) return null
@@ -42,7 +59,7 @@ function getEnumValues(meta: LocalTopologyMetaLike, dataPath: string): Array<str
   const field = meta.fields?.[fieldName] as FieldLike | undefined
   if (!field?.type) return null
 
-  if (field.type !== "enum" && !String(field.type).startsWith("enum<")) {
+  if (!isEnumFieldType(String(field.type))) {
     return null
   }
 
@@ -58,7 +75,54 @@ function getEnumValues(meta: LocalTopologyMetaLike, dataPath: string): Array<str
   return variants
 }
 
-function makeObjectId(state: BuilderState, prefix: "w" | "f" | "m"): string {
+function resolveFuzzyConditionBasis(meta: LocalTopologyMetaLike, dataPath: string): FuzzyConditionBasis {
+  if (dataPath === "/state") {
+    return {
+      kind: "state",
+      dataPath,
+    }
+  }
+
+  const fieldName = normalizeFieldPath(dataPath)
+  if (!fieldName) {
+    throw new Error(
+      `basis "${dataPath}" не поддерживается. Разрешены только "/state" и прямые enum-пути "/value/<field>" или "/fields/<field>".`,
+    )
+  }
+
+  const field = meta.fields?.[fieldName] as FieldLike | undefined
+  if (!field?.type) {
+    throw new Error(
+      `basis "${dataPath}" ссылается на поле "${fieldName}", но оно не объявлено как enum topology-field в meta.fields.`,
+    )
+  }
+
+  const fieldType = String(field.type)
+  if (!isEnumFieldType(fieldType)) {
+    throw new Error(
+      `basis "${dataPath}" ссылается на поле "${fieldName}" типа "${fieldType}", но Fuzzy branch selection разрешает только state или enum.`,
+    )
+  }
+
+  return {
+    kind: "enum",
+    dataPath,
+    field: fieldName,
+  }
+}
+
+function validateConditionDataPaths(meta: LocalTopologyMetaLike, nodePath: string, dataPaths: string[]): void {
+  for (const dataPath of dataPaths) {
+    try {
+      resolveFuzzyConditionBasis(meta, dataPath)
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`NodeCondition в "${nodePath}" использует недопустимый branch-choice basis: ${message}`)
+    }
+  }
+}
+
+function makeObjectId(state: BuilderState, prefix: TopologyAddressPrefix): string {
   const id = `${prefix}${state.objectIndex}`
   state.objectIndex += 1
   return id
@@ -81,7 +145,7 @@ function sanitizeSegment(value: string): string {
   return cleaned || "node"
 }
 
-function buildAddress(parentAddress: string | undefined, prefix: "w" | "f" | "m", segment: string): string {
+function buildAddress(parentAddress: string | undefined, prefix: TopologyAddressPrefix, segment: string): string {
   const next = `${prefix}:${sanitizeSegment(segment)}`
   return parentAddress ? `${parentAddress}/${next}` : `/${next}`
 }
@@ -308,7 +372,7 @@ function compileLogical(
 ): void {
   const objectId = makeObjectId(state, "a")
   const dataPaths = Array.isArray(node.data) ? node.data : [node.data]
-  
+
   state.objects[objectId] = {
     id: objectId,
     kind: "axion",
@@ -320,7 +384,7 @@ function compileLogical(
 
   const address = buildAddress(parentAddress, "a", nodePath)
   const placementId = addPlacement(state, objectId, address, relation, parentPlacementId)
-  
+
   // Axion не участвует в entanglement — это не выбор ветви и не множественность
   // Это логическая группировка, которая не создаёт альтернативных миров
 
@@ -339,27 +403,10 @@ function compileCondition(
   relation: LocalTopologyPlacementRelation,
 ): void {
   const dataPaths = Array.isArray(node.data) ? node.data : [node.data]
-  
-  // Валидация: Fuzzy branch-choice basis ограничен state и enum
-  // NodeCondition требует branch-choice через state или enum topology-field
-  if (dataPaths.length > 0) {
-    const fieldName = normalizeFieldPath(dataPaths[0]!)
-    if (fieldName) {
-      const field = meta.fields?.[fieldName] as FieldLike | undefined
-      if (field?.type) {
-        const fieldType = String(field.type)
-        // Разрешены только state или enum для branch selection
-        if (fieldType !== "state" && fieldType !== "enum" && !fieldType.startsWith("enum<")) {
-          throw new Error(
-            `NodeCondition в "${nodePath}" требует branch-choice basis 'state' или 'enum', ` +
-            `но поле "${fieldName}" имеет тип "${fieldType}". ` +
-            `Fuzzy branch selection должен использовать topology-field (state/enum), а не ordinary data-field.`
-          )
-        }
-      }
-    }
-  }
-  
+
+  // Fuzzy branch-choice допускает только state и enum topology-fields.
+  validateConditionDataPaths(meta, nodePath, dataPaths)
+
   const objectId = makeObjectId(state, "f")
   state.objects[objectId] = {
     id: objectId,

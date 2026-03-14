@@ -46,6 +46,35 @@ describe("@dark/em — projection-only", () => {
       expect(projection.placements.some(p => p.meta === "em-projection/root")).toBe(true)
     })
 
+    test("сохраняет axion placements в downstream projection без entanglement", async () => {
+      const meta = MetaFor("em-axion")
+        .fields((field) => ({
+          enabled: field.boolean.required(true),
+        }))
+        .superposition({ idle: null })
+        .mass()
+        .processes()
+        .reactions()
+        .gravity(({ value, html }) => html`${value.enabled && html`<meta-for src="em/child"></meta-for>`}`)
+        .bulk()
+
+      const fragment = compileLocalTopologyFragment(meta)
+      const axion = Object.values(fragment.objects).find((object) => object.kind === "axion")
+
+      expect(axion).toBeDefined()
+      if (!axion) {
+        throw new Error("axion object не собран")
+      }
+
+      ingestFragment("em-axion/root", fragment)
+
+      const projection = projectDarkGraphToBoundary()
+      const globalAxionObjectId = `em-axion/root#${axion.id}`
+
+      expect(projection.placements.some((placement) => placement.objectId === globalAxionObjectId)).toBe(true)
+      expect(projection.entanglements.some((entanglement) => entanglement.objectId === globalAxionObjectId)).toBe(false)
+    })
+
     test("projectDarkGraphToBoundary возвращает boundary projection", async () => {
       const meta = MetaFor("em-boundary")
         .fields((field) => ({

@@ -17,7 +17,7 @@ MetaFor — это пространство документов и кода, в
 - [PHILOSOPHY.md](./docs/PHILOSOPHY.md) — философский смысл скрытого субстрата, границы фиксации и проявленного объёма,
 - [ONTOLOGY.md](./docs/ONTOLOGY.md) — онтологическое описание `Dark`, `Boundary` и `Bulk`,
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md) — архитектурная проекция трёхдоменной онтологии,
-- [TOPOLOGY.md](./docs/TOPOLOGY.md) — формализация скрытого topology-слоя: локальная и глобальная topology, `WIMP` / `Fuzzy` / `MACHO`, topology-адресация и адресация entanglement,
+- [TOPOLOGY.md](./docs/TOPOLOGY.md) — формализация скрытого topology-слоя: локальная и глобальная topology, `WIMP` / `Axion` / `Fuzzy` / `MACHO`, topology-адресация и адресация entanglement,
 - [PROTOCOL.md](./docs/PROTOCOL.md) — корневой протокольный слой MetaFor: `Boson`, `Impulse`, симметрия сил, topology-field/Higgs слой и навигация к детальным документам по `Gravity`, `Electromagnetism`, `Strong`, `Weak` и `Higgs`.
 
 ## Активный рабочий контур
@@ -90,7 +90,8 @@ Topology отвечает на вопрос:
 - topology как отдельный скрытый архитектурный объект,
 - различие между `LocalTopologyFragment` и `GlobalTopologyGraph`,
 - ответственность template / DSL / `Dark`,
-- topology entities `WIMP`, `Fuzzy`, `MACHO`,
+- topology entities `WIMP`, `Axion`, `Fuzzy`, `MACHO`,
+- правило локальной нормализации `NodeLogical -> Axion`, `NodeCondition(state|enum) -> Fuzzy`, `NodeMap(array) -> MACHO`,
 - topology-адресация и topology-уровневая адресация entanglement.
 
 ### Протокол
