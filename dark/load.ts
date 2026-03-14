@@ -1,5 +1,5 @@
 import type { MetaAST } from "@metafor/ast"
-import type { Address } from "./dark.t"
+import type { Address } from "@dark/types/dark"
 
 /**
  * Преобразует Address в путь к файлу для загрузки.

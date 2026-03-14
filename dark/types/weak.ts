@@ -1,15 +1,9 @@
-import type { GlobalTopologyIngestOptions } from "../gravity/store.t.ts"
+import type { GlobalTopologyIngestOptions } from "./shared.ts"
 
 /**
  * Результат мутации скрытой topology.
  *
- * Возвращает IDs всех затронутых и удалённых сущностей:
- * - `placementIds` — затронутые размещения
- * - `referenceIds` — затронутые ссылки
- * - `entanglementIds` — затронутые запутанности
- * - `removedPlacementIds` — удалённые размещения
- * - `removedReferenceIds` — удалённые ссылки
- * - `removedEntanglementIds` — удалённые запутанности
+ * Возвращает IDs всех затронутых и удалённых сущностей.
  */
 export interface TopologyMutationResult {
   /** Затронутые placement IDs. */
@@ -34,10 +28,7 @@ export interface TopologyMutationResult {
 /**
  * Опции для замены фрагмента.
  *
- * Используется в `replaceFragment` для указания контекста:
- * - `parentPlacementId` — ID родителя
- * - `viaReferenceId` — ID ссылки
- * - `rebuildEntanglements` — перестройка запутанностей
+ * Используется в `replaceFragment` для указания контекста.
  */
 export interface ReplaceFragmentOptions extends GlobalTopologyIngestOptions {
   /** Перестроить entanglement seeds после замены. */
@@ -47,9 +38,7 @@ export interface ReplaceFragmentOptions extends GlobalTopologyIngestOptions {
 /**
  * Результат замены фрагмента.
  *
- * Возвращает IDs всех созданных и удалённых сущностей:
- * - `meta` — адрес заменённого фрагмента
- * - `rootPlacementIds` — новые root размещения
+ * Возвращает IDs всех созданных и удалённых сущностей.
  */
 export interface ReplaceFragmentResult extends TopologyMutationResult {
   /** Meta заменённого фрагмента. */
@@ -62,9 +51,7 @@ export interface ReplaceFragmentResult extends TopologyMutationResult {
 /**
  * Опции для удаления placement subtree.
  *
- * Используется в `removePlacementSubtree` для указания cascade-поведения:
- * - `cascadeReferences` — удаление references
- * - `cascadeEntanglements` — удаление entanglements
+ * Используется в `removePlacementSubtree` для указания cascade-поведения.
  */
 export interface RemovePlacementSubtreeOptions {
   /** Удалить также связанные references. */
@@ -98,9 +85,7 @@ export interface InsertFragmentAtPlacementResult extends TopologyMutationResult 
 /**
  * Опции для перемещения placement.
  *
- * Используется в `movePlacement` для указания нового родителя:
- * - `newParentPlacementId` — новый parent
- * - `rebuildAddresses` — перестройка адресов
+ * Используется в `movePlacement` для указания нового родителя.
  */
 export interface MovePlacementOptions {
   /** Новый parent placement ID. */
@@ -113,9 +98,7 @@ export interface MovePlacementOptions {
 /**
  * Результат перемещения placement.
  *
- * Возвращает IDs перемещённых сущностей и карту новых адресов:
- * - `movedPlacementId` — перемещённый placement
- * - `newAddresses` — карта старых → новые адреса
+ * Возвращает IDs перемещённых сущностей и карту новых адресов.
  */
 export interface MovePlacementResult extends TopologyMutationResult {
   /** Перемещённый placement ID. */
@@ -128,9 +111,7 @@ export interface MovePlacementResult extends TopologyMutationResult {
 /**
  * Опции для перестройки фрагмента.
  *
- * Используется в `rebuildFragment` для указания типа перестройки:
- * - `rebuildIndexes` — перестройка индексов
- * - `rebuildEntanglements` — перестройка запутанностей
+ * Используется в `rebuildFragment` для указания типа перестройки.
  */
 export interface RebuildFragmentOptions {
   /** Перестроить индексы. */

@@ -1,6 +1,5 @@
-import type { GlobalTopologyEntanglement, GlobalTopologyPlacement, GlobalTopologyReference } from "@dark/gravity"
-import type { StrongIndexes } from "@dark/strong"
-import { strong$ } from "@dark/strong"
+import type { GlobalTopologyEntanglement, GlobalTopologyPlacement, GlobalTopologyReference, StrongIndexes } from "@dark/types"
+import { strong$ } from "../strong/store.ts"
 
 interface PlacementAddressLookupState {
   placements: ReadonlyMap<string, GlobalTopologyPlacement>

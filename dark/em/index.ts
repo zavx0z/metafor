@@ -1,29 +1,7 @@
-/**
- * `@dark/em` — projection/export contract подготовленного graph state.
- *
- * **Сила Electromagnetism в Dark (`Dark × Electromagnetism`):**
- * - проекция к другим доменам и перенос `State` в наблюдаемой форме через `Photon`
- * - сообщение скрытого изменения как сигнала состояния
- * - распространение обновлений, порождённых состоянием
- * - перенос доменного состояния в проекции
- * - вынесение `Impulse` как содержимого изменения состояния
- *
- * **Ответственность пакета:**
- * - projection contracts — контракты проекции из `Dark`
- * - export prepared graph state — экспорт подготовленного состояния графа
- * - downstream projections — проекции для `Boundary` и `Bulk`
- *
- * Использует синглтон `dark$` для проекций в Boundary и Bulk.
- * Не является каналом исполнения и не дублирует `boundary/em` или `bulk/em`.
- *
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md#dark--electromagnetism | ONTOLOGY.md} — онтология Dark × Electromagnetism
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ARCHITECTURE.md#dark--electromagnetism | ARCHITECTURE.md} — архитектура Dark × Electromagnetism
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/proto/electromagnetism.md | proto/electromagnetism.md} — протокол Electromagnetism и Photon
- */
 
 import type { MetaAST } from "@metafor/ast"
-import { dark$ } from "@dark/gravity"
-import type { GlobalTopologyPlacement, GlobalTopologyReference, GlobalTopologyEntanglement } from "@dark/gravity"
+import type { GlobalTopologyPlacement, GlobalTopologyReference, GlobalTopologyEntanglement } from "@dark/types"
+import { dark$ } from "../store.ts"
 
 /** Потребитель проекции: boundary или bulk. */
 export type DarkConsumer = "boundary" | "bulk"
@@ -66,8 +44,8 @@ export interface DarkDownstreamProjection {
  * @param consumer — тип потребителя (`boundary` для каноникализации, `bulk` для исполнения)
  * @returns проекция графа для downstream-домена
  *
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md#dark--electromagnetism | ONTOLOGY.md} — онтология Dark × Electromagnetism
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/proto/electromagnetism.md | proto/electromagnetism.md} — протокол Electromagnetism и Photon
+ * @see https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md#dark--electromagnetism — ONTOLOGY.md: онтология Dark × Electromagnetism
+ * @see https://github.com/zavx0z/metafor/blob/main/docs/proto/electromagnetism.md — proto/electromagnetism.md: протокол Electromagnetism и Photon
  */
 export function projectDarkGraph(consumer: DarkConsumer): DarkDownstreamProjection {
   return {

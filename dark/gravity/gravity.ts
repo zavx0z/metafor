@@ -1,19 +1,3 @@
-/**
- * `@dark/gravity/gravity` — orchestrator hidden world assembly.
- *
- * Канонический graph пишет в `dark$`, промежуточное gravity-состояние
- * держит `gravity$`, индексы пишет `strong$`.
- *
- * **Dark × Gravity:**
- * - скрытая иерархия и организация схем
- * - `Graviton` как носитель внутренней гравитационной связности
- * - геометрия скрытых версий и их преемственности
- *
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md#dark--gravity | ONTOLOGY.md} — онтология Dark × Gravity
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/TOPOLOGY.md | TOPOLOGY.md} — topology как скрытая карта построения
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/proto/gravity.md | proto/gravity.md} — протокол Gravity
- */
-
 import type {
   GlobalTopologyEntanglement,
   GlobalTopologyIngestOptions,
@@ -23,13 +7,15 @@ import type {
   GlobalTopologyPlacement,
   GlobalTopologyReference,
   GravityStore,
-  LocalTopologyFragment,
-} from "@dark/gravity"
-import type { DarkStore, StrongIndexes } from "@dark/gravity"
-import type { LocalTopologyPlacementRelation } from "../../metafor/dsl/topology.t"
-import { dark$, gravity$ } from "@dark/gravity"
-import { strong$, indexEntanglement, indexObject, indexPlacement, indexReference } from "@dark/strong"
-import { cloneStoredValue } from "@dark/gravity"
+  DarkStore,
+  StrongIndexes,
+} from "@dark/types"
+import type { LocalTopologyFragment, LocalTopologyPlacementRelation } from "../../metafor/dsl/topology.t"
+import { dark$ } from "../store.ts"
+import { gravity$ } from "./store.ts"
+import { strong$ } from "../strong/store.ts"
+import { indexEntanglement, indexObject, indexPlacement, indexReference } from "../strong/strong.ts"
+import { cloneStoredValue } from "../snapshot.ts"
 
 /**
  * Создаёт глобальный ID объекта из meta и локального ID.

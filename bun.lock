@@ -35,30 +35,24 @@
     },
     "boundary/em": {
       "name": "@boundary/em",
-      "version": "0.0.1",
-      "peerDependencies": {
-        "typescript": "^5",
+      "dependencies": {
+        "@boundary/strong": "workspace:*",
       },
     },
     "boundary/gravity": {
       "name": "@boundary/gravity",
-      "version": "0.0.1",
-      "peerDependencies": {
-        "typescript": "^5",
-      },
     },
     "boundary/strong": {
       "name": "@boundary/strong",
-      "version": "0.0.1",
-      "peerDependencies": {
-        "typescript": "^5",
+      "dependencies": {
+        "@boundary/gravity": "workspace:*",
       },
     },
     "boundary/weak": {
       "name": "@boundary/weak",
-      "version": "0.0.1",
-      "peerDependencies": {
-        "typescript": "^5",
+      "dependencies": {
+        "@boundary/gravity": "workspace:*",
+        "@boundary/strong": "workspace:*",
       },
     },
     "bulk": {
@@ -73,37 +67,15 @@
     },
     "bulk/em": {
       "name": "@bulk/em",
-      "version": "0.0.1",
-      "peerDependencies": {
-        "typescript": "^5",
-      },
     },
     "bulk/gravity": {
       "name": "@bulk/gravity",
-      "version": "0.0.1",
-      "dependencies": {
-        "@metafor/dark": "workspace:*",
-      },
-      "peerDependencies": {
-        "typescript": "^5",
-      },
     },
     "bulk/strong": {
       "name": "@bulk/strong",
-      "version": "0.0.1",
-      "peerDependencies": {
-        "typescript": "^5",
-      },
     },
     "bulk/weak": {
       "name": "@bulk/weak",
-      "version": "0.0.1",
-      "dependencies": {
-        "@metafor/dsl": "workspace:*",
-      },
-      "peerDependencies": {
-        "typescript": "^5",
-      },
     },
     "dark": {
       "name": "@metafor/dark",
@@ -112,23 +84,39 @@
         "@dark/em": "workspace:*",
         "@dark/gravity": "workspace:*",
         "@dark/strong": "workspace:*",
+        "@dark/types": "workspace:*",
         "@dark/weak": "workspace:*",
       },
     },
     "dark/em": {
       "name": "@dark/em",
-      "version": "0.0.1",
+      "dependencies": {
+        "@dark/types": "workspace:*",
+      },
     },
     "dark/gravity": {
       "name": "@dark/gravity",
+      "dependencies": {
+        "@dark/strong": "workspace:*",
+        "@dark/types": "workspace:*",
+      },
     },
     "dark/strong": {
       "name": "@dark/strong",
-      "version": "0.0.1",
+      "dependencies": {
+        "@dark/types": "workspace:*",
+      },
+    },
+    "dark/types": {
+      "name": "@dark/types",
     },
     "dark/weak": {
       "name": "@dark/weak",
-      "version": "0.0.1",
+      "dependencies": {
+        "@dark/gravity": "workspace:*",
+        "@dark/strong": "workspace:*",
+        "@dark/types": "workspace:*",
+      },
     },
     "fixture": {
       "name": "fixture",
@@ -356,6 +344,8 @@
     "@dark/gravity": ["@dark/gravity@workspace:dark/gravity"],
 
     "@dark/strong": ["@dark/strong@workspace:dark/strong"],
+
+    "@dark/types": ["@dark/types@workspace:dark/types"],
 
     "@dark/weak": ["@dark/weak@workspace:dark/weak"],
 

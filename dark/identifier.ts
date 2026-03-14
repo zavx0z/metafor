@@ -1,5 +1,4 @@
-import type { UUID } from "./identifier.t"
-export type { UUID }
+import type { UUID } from "@dark/types/dark"
 
 /**
  * Генерирует уникальный UUID для атома.

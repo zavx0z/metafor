@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, test } from "bun:test"
 import type { MetaAST } from "@metafor/ast"
+import type { Address } from "@dark/types/dark"
 import { MetaFor, compileLocalTopologyFragment } from "../metafor/dsl/metafor.ts"
 import { matter, resetDark, restoreDark, snapshotDark } from "./dark"
 import {
@@ -11,7 +12,6 @@ import {
 import { dark$ } from "./store"
 import { gravity$ } from "./gravity/store.ts"
 import { strong$ } from "./strong/store.ts"
-import type { Address } from "./dark.t"
 import { ingestFragment } from "./gravity/gravity.ts"
 
 const originalFetch = globalThis.fetch

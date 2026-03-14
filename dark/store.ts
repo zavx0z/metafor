@@ -1,30 +1,14 @@
-/**
- * `@dark/store` — корневой store домена Dark.
- *
- * Здесь живёт весь канонический graph state, который нужен между
- * подпакетами `dark/gravity`, `dark/strong`, `dark/weak` и `dark/em`.
- *
- * **Домен `Dark`:**
- * - скрытый субстрат структуры, памяти, иерархии, истории и эволюции модели
- * - не является runtime-оркестратором и не дублирует `boundary/` или `bulk/`
- * - удерживает скрытую структурную рамку и историю схем
- *
- * @property `meta` — загруженные meta-схемы
- * @property `objects` — глобальные объекты
- * @property `placements` — размещения
- * @property `links` — связи между размещениями
- * @property `references` — ссылки на источники
- * @property `entanglements` — запутанности
- *
- * @see DarkStore — тип состояния
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md#dark | ONTOLOGY.md} — онтология Dark
- * @see {@link https://github.com/zavx0z/metafor/blob/main/dark/README.md | dark/README.md} — ответственность Dark
- */
-
-import type { DarkStore } from "./store.t.ts"
+import type { MetaAST } from "@metafor/ast"
+import type {
+  DarkStore,
+  DarkStoreSnapshot,
+  GlobalTopologyEntanglement,
+  GlobalTopologyLink,
+  GlobalTopologyObject,
+  GlobalTopologyPlacement,
+  GlobalTopologyReference,
+} from "@dark/types"
 import { cloneDarkSnapshot, cloneStoredValue } from "./snapshot.ts"
-
-export type { DarkStore, DarkStoreSnapshot } from "./store.t.ts"
 
 export const dark$: DarkStore = {
   meta: new Map(),
@@ -43,7 +27,7 @@ export const dark$: DarkStore = {
     this.entanglements = new Map()
   },
 
-  restore(snapshot) {
+  restore(snapshot: DarkStoreSnapshot) {
     const next = cloneDarkSnapshot(snapshot)
     this.meta = next.meta
     this.objects = next.objects
@@ -57,83 +41,83 @@ export const dark$: DarkStore = {
     return cloneDarkSnapshot(this)
   },
 
-  setMeta(address, meta) {
+  setMeta(address: string, meta: MetaAST) {
     const next = cloneStoredValue(meta)
     this.meta.set(address, next)
     return next
   },
 
-  getMeta(address) {
+  getMeta(address: string) {
     return this.meta.get(address)
   },
 
-  setObject(id, object) {
+  setObject(id: string, object: GlobalTopologyObject) {
     const next = cloneStoredValue(object)
     this.objects.set(id, next)
     return next
   },
 
-  getObject(id) {
+  getObject(id: string) {
     return this.objects.get(id)
   },
 
-  deleteObject(id) {
+  deleteObject(id: string) {
     this.objects.delete(id)
   },
 
-  setPlacement(id, placement) {
+  setPlacement(id: string, placement: GlobalTopologyPlacement) {
     const next = cloneStoredValue(placement)
     this.placements.set(id, next)
     return next
   },
 
-  getPlacement(id) {
+  getPlacement(id: string) {
     return this.placements.get(id)
   },
 
-  deletePlacement(id) {
+  deletePlacement(id: string) {
     this.placements.delete(id)
   },
 
-  setLink(id, link) {
+  setLink(id: string, link: GlobalTopologyLink) {
     const next = cloneStoredValue(link)
     this.links.set(id, next)
     return next
   },
 
-  getLink(id) {
+  getLink(id: string) {
     return this.links.get(id)
   },
 
-  deleteLink(id) {
+  deleteLink(id: string) {
     this.links.delete(id)
   },
 
-  setReference(id, reference) {
+  setReference(id: string, reference: GlobalTopologyReference) {
     const next = cloneStoredValue(reference)
     this.references.set(id, next)
     return next
   },
 
-  getReference(id) {
+  getReference(id: string) {
     return this.references.get(id)
   },
 
-  deleteReference(id) {
+  deleteReference(id: string) {
     this.references.delete(id)
   },
 
-  setEntanglement(id, entanglement) {
+  setEntanglement(id: string, entanglement: GlobalTopologyEntanglement) {
     const next = cloneStoredValue(entanglement)
     this.entanglements.set(id, next)
     return next
   },
 
-  getEntanglement(id) {
+  getEntanglement(id: string) {
     return this.entanglements.get(id)
   },
 
-  deleteEntanglement(id) {
+  deleteEntanglement(id: string) {
     this.entanglements.delete(id)
   },
 }

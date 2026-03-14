@@ -5,6 +5,7 @@
   "main": "index.ts",
   "private": true,
   "dependencies": {
+    "@dark/types": "workspace:*",
     "@dark/gravity": "workspace:*",
     "@dark/strong": "workspace:*",
     "@dark/weak": "workspace:*",

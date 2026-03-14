@@ -1,25 +1,4 @@
-/**
- * `@dark/weak` — mutation orchestrator topology-слоя поверх глобального `dark$`.
- *
- * **Dark × Weak:**
- * - эволюция схем и активный скрытый переход через `W boson`
- * - нейтральная переходная медиция через `Z boson`
- * - мутация и преобразование скрытой структуры
- * - изменение модели до её проекций в `Boundary` и `Bulk`
- *
- * **Topology mutation:**
- * - `Higgs boson` изменяет topology-fields (`enum` → branch selection, `array` → branch multiplicity)
- * - `W boson` проводит активный переход между состояниями
- * - `Z boson` удерживает нейтральную медицию перехода
- *
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md#dark--weak | ONTOLOGY.md} — онтология Dark × Weak
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ARCHITECTURE.md#dark--weak | ARCHITECTURE.md} — архитектура Dark × Weak
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/TOPOLOGY.md | TOPOLOGY.md} — topology как скрытая карта построения
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/proto/weak.md | proto/weak.md} — протокол Weak и W/Z boson
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/proto/higgs.md | proto/higgs.md} — протокол Higgs и topology-field change
- */
-
-import type { DarkStore, GravityStore, StrongIndexes, LocalTopologyFragment } from "@dark/gravity"
+import type { DarkStore, GravityStore, StrongIndexes } from "@dark/types"
 import type {
   InsertFragmentAtPlacementOptions,
   InsertFragmentAtPlacementResult,
@@ -31,9 +10,18 @@ import type {
   ReplaceFragmentResult,
   RebuildFragmentOptions,
   RebuildFragmentResult,
-} from "./store.t.ts"
-import { dark$, gravity$, ingestFragment } from "@dark/gravity"
-import { strong$, getPlacementIdsByMeta, removeEntanglementIndexes, removePlacementIndexes, removeReferenceIndexes } from "@dark/strong"
+} from "@dark/types/weak"
+import type { LocalTopologyFragment } from "../../metafor/dsl/topology.t"
+import { dark$ } from "../store.ts"
+import { gravity$ } from "../gravity/store.ts"
+import { ingestFragment } from "../gravity/gravity.ts"
+import { strong$ } from "../strong/store.ts"
+import {
+  getPlacementIdsByMeta,
+  removeEntanglementIndexes,
+  removePlacementIndexes,
+  removeReferenceIndexes,
+} from "../strong/strong.ts"
 
 /**
  * Находит все descendant placement IDs.
@@ -388,10 +376,7 @@ export function rebuildFragment(
  * @param store$ — dark store (по умолчанию `dark$`)
  * @returns массив IDs всех placements в отсоединённом subtree
  */
-export function detachSubtree(
-  placementId: string,
-  store$: DarkStore = dark$,
-): string[] {
+export function detachSubtree(placementId: string, store$: DarkStore = dark$): string[] {
   const placement = store$.getPlacement(placementId)
   if (!placement) return []
 

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, beforeEach, describe, expect, test } from "bun:test"
-import type { Address } from "./dark.t"
+import type { Address } from "@dark/types/dark"
 import { HubFixture } from "../fixture/hub"
 import * as dark from "./dark"
 import { dark$ } from "./store"

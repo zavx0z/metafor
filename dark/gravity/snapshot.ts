@@ -1,5 +1,5 @@
 import type { LocalTopologyFragment } from "../../metafor/dsl/topology.t.ts"
-import type { GravityStoreSnapshot } from "./store.t.ts"
+import type { GravityStoreSnapshot } from "@dark/types"
 
 /**
  * Создаёт глубокую копию значения.

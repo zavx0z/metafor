@@ -1,5 +1,4 @@
-import type { GlobalTopologyMetaIndex } from "@dark/strong"
-import type { StrongIndexesSnapshot } from "./store.t.ts"
+import type { GlobalTopologyMetaIndex, StrongIndexesSnapshot } from "@dark/types"
 
 /**
  * Создаёт глубокую копию Map со string[].

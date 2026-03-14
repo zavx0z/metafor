@@ -1,26 +1,4 @@
-/**
- * `@dark/strong/store` — singleton store индексов Strong-layer.
- *
- * Здесь нет lookup-логики и индексации. Store держит только индексное
- * промежуточное состояние и узкий store API.
- *
- * **Dark × Strong:**
- * - постоянство структурной памяти и согласованность схем
- * - изменение значений ordinary `Field` через `Gluon` без разрыва связности
- * - удержание скрытой структурной рамки и скрытой устойчивости идентичности
- *
- * @property `placementAddressIndex` — адрес → placement
- * @property `entanglementAddressIndex` — address → entanglement
- * @property `objectPlacementsIndex` — object → placements
- * @property `sourceMetaIndex` — meta → сущности
- * @property `metaSourceLookup` — source → references
- *
- * @see StrongIndexStore — тип состояния
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md#dark--strong | ONTOLOGY.md} — онтология Dark × Strong
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/proto/strong.md | proto/strong.md} — протокол Strong и Gluon
- */
-
-import type { StrongIndexStore } from "./store.t.ts"
+import type { StrongIndexStore } from "@dark/types/strong"
 import { cloneStrongSnapshot } from "./snapshot.ts"
 
 export const strong$: StrongIndexStore = {

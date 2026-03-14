@@ -1,29 +1,14 @@
 import type { MetaAST } from "@metafor/ast"
-import { loadMetaAST, resolveMetaSource, resolveMetaTsPath } from "./load"
+import type { DarkStoreSnapshot } from "@dark/types"
+import type { Address } from "@dark/types/dark"
+import type { LocalTopologyFragment, LocalTopologyMetaLike } from "../metafor/dsl/topology.t.ts"
+import { loadMetaAST, resolveMetaTsPath } from "./load"
 import { dark$ } from "./store"
 import { gravity$ } from "./gravity/store.ts"
 import { strong$ } from "./strong/store.ts"
-import type { Address } from "./dark.t"
-import type { DarkStoreSnapshot } from "./store.t"
 import { ingestFragment } from "./gravity/gravity.ts"
 import { compileLocalTopologyFragment } from "../metafor/dsl/topology.ts"
-import type { LocalTopologyFragment, LocalTopologyMetaLike } from "../metafor/dsl/topology.t.ts"
 import { indexEntanglement, indexObject, indexPlacement, indexReference } from "./strong/strong.ts"
-
-/**
- * Orchestrator загрузки meta и сборки скрытой topology.
- *
- * **Рабочий контур:**
- * ```text
- * DSL -> AST -> Dark
- * Dark -> Boundary
- * Dark -> Bulk
- * ```
- *
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md#dark | ONTOLOGY.md} — онтология Dark
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/TOPOLOGY.md | TOPOLOGY.md} — topology как скрытая карта построения
- * @see {@link https://github.com/zavx0z/metafor/blob/main/dark/README.md | dark/README.md} — ответственность Dark
- */
 
 /**
  * Находит следующее доступное число в последовательности ID.

@@ -1,19 +1,5 @@
-/**
- * `@dark/strong` — index orchestration и lookup поверх `strong$`.
- *
- * **Dark × Strong:**
- * - постоянство структурной памяти и согласованность схем
- * - изменение значений ordinary `Field` через `Gluon`
- * - удержание скрытой структурной рамки и скрытой устойчивости идентичности
- *
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ONTOLOGY.md#dark--strong | ONTOLOGY.md} — онтология Dark × Strong
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/ARCHITECTURE.md#dark--strong | ARCHITECTURE.md} — архитектура Dark × Strong
- * @see {@link https://github.com/zavx0z/metafor/blob/main/docs/proto/strong.md | proto/strong.md} — протокол Strong и Gluon
- */
 
-import type { GlobalTopologyEntanglement, GlobalTopologyPlacement, GlobalTopologyReference } from "@dark/gravity"
-import type { GlobalTopologyMetaIndex } from "@dark/strong"
-import type { StrongIndexes } from "./store.t.ts"
+import type { GlobalTopologyEntanglement, GlobalTopologyPlacement, GlobalTopologyReference, GlobalTopologyMetaIndex, StrongIndexes } from "@dark/types"
 import { strong$ } from "./store.ts"
 
 /**

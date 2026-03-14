@@ -1,4 +1,4 @@
-import type { DarkStoreSnapshot } from "./store.t.ts"
+import type { DarkStoreSnapshot } from "@dark/types"
 
 /**
  * Создаёт глубокую копию значения.

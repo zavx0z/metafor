@@ -2,5 +2,9 @@
   "name": "@dark/gravity",
   "module": "index.ts",
   "type": "module",
-  "private": true
+  "private": true,
+  "dependencies": {
+    "@dark/types": "workspace:*",
+    "@dark/strong": "workspace:*"
+  }
 }

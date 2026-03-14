@@ -1,0 +1,13 @@
+{
+  "name": "@dark/types",
+  "type": "module",
+  "main": "shared.ts",
+  "exports": {
+    ".": "./shared.ts",
+    "./shared": "./shared.ts",
+    "./strong": "./strong.ts",
+    "./weak": "./weak.ts",
+    "./dark": "./dark.ts"
+  },
+  "private": true
+}
