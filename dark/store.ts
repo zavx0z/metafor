@@ -1,5 +1,6 @@
 import type { DarkStore } from "./store.t"
 export type { Atom, DarkStore, DarkStoreSnapshot } from "./store.t"
+import { topology$ } from "./ap/store"
 
 function pathToIndices(path: string): number[] {
   return path.split("/").map((segment) => Number(segment))
@@ -24,21 +25,25 @@ function getParentPath(path: string): string | null {
 export const dark$: DarkStore = {
   meta: new Map(),
   atom: new Map(),
+  topology: topology$,
 
   reset() {
     this.meta = new Map()
     this.atom = new Map()
+    this.topology.reset()
   },
 
   restore(snapshot) {
     this.meta = new Map(snapshot.meta)
     this.atom = new Map(Array.from(snapshot.atom, ([uuid, atom]) => [uuid, { ...atom }]))
+    this.topology.restore(snapshot.topology)
   },
 
   snapshot() {
     return {
       meta: new Map(this.meta),
       atom: new Map(Array.from(this.atom, ([uuid, atom]) => [uuid, { ...atom }])),
+      topology: this.topology.snapshot(),
     }
   },
 

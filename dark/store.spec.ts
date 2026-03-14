@@ -12,6 +12,21 @@ const childAst: MetaAST = {
   name: "child-static",
   fields: {},
   superposition: {},
+  gravity: [
+    {
+      type: "meta",
+      tag: "meta-for",
+      string: {
+        src: "leaf/static",
+      },
+    },
+  ],
+}
+
+const leafAst: MetaAST = {
+  name: "leaf-static",
+  fields: {},
+  superposition: {},
 }
 
 const rootAst: MetaAST = {
@@ -93,6 +108,10 @@ describe("dark/store", () => {
           return Response.json(childAst)
         }
 
+        if (url === "/leaf/static/meta.json") {
+          return Response.json(leafAst)
+        }
+
         return new Response("not found", { status: 404 })
       },
       { preconnect: () => {} },
@@ -113,6 +132,17 @@ describe("dark/store", () => {
     expect(new Set(uuids).size).toBe(uuids.length)
 
     expect(gravity$.atom.size).toBe(3)
+    expect(dark$.topology.getReferencesBySource("child/static")).toHaveLength(2)
+    expect(dark$.topology.getReferencesBySource("leaf/static")).toHaveLength(2)
+
+    const childPlacements = dark$.topology.getPlacementsByObject("child/static#w0")
+    expect(childPlacements).toHaveLength(2)
+    expect(new Set(childPlacements.map((placement) => placement.address)).size).toBe(2)
+
+    const childEntanglements = childPlacements
+      .map((placement) => dark$.topology.getEntanglementByAddress(`ent:child/static#w0@${placement.address}`))
+      .filter(Boolean)
+    expect(childEntanglements).toHaveLength(2)
   })
 
   test("атомы с одинаковым meta получают разные uuid", () => {

@@ -1,6 +1,7 @@
 import type { MetaAST } from "@metafor/ast"
 import type { UUID } from "./identifier.t"
 import type { NodeCondition, NodeLogical, NodeMap, NodeMeta } from "@metafor/template"
+import type { GlobalTopologySnapshot, GlobalTopologyStore } from "./ap/store.t"
 
 export interface Atom {
   uuid: UUID
@@ -11,6 +12,7 @@ export interface Atom {
 export interface DarkStoreSnapshot {
   meta: Map<string, MetaAST>
   atom: Map<UUID, Atom>
+  topology: GlobalTopologySnapshot
 }
 
 export interface DarkStore extends DarkStoreSnapshot {
@@ -24,6 +26,7 @@ export interface DarkStore extends DarkStoreSnapshot {
   getPath(uuid: UUID): string | undefined
   getChildren(parent: UUID | null): readonly Atom[]
   getNode(path: string): Atom | null
+  topology: GlobalTopologyStore
 }
 
 /**
