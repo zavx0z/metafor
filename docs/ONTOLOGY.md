@@ -132,6 +132,8 @@ Topology-fields в MetaFor являются Higgs fields.
 - `enum` как выбор ветви,
 - `array` как множественность ветвей и их разворачивание.
 
+Отдельная формализация topology как скрытой карты построения, различие между `LocalTopologyFragment` и `GlobalTopologyGraph`, а также topology-адресация и адресация entanglement вынесены в [TOPOLOGY.md](./TOPOLOGY.md).
+
 Остальные поля относятся к data-fields и остаются в режиме обычной внутренней определённости значения.
 
 Для topology-fields действуют дополнительные ограничения:

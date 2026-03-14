@@ -17,6 +17,7 @@ MetaFor — это пространство документов и кода, в
 - [PHILOSOPHY.md](./docs/PHILOSOPHY.md) — философский смысл скрытого субстрата, границы фиксации и проявленного объёма,
 - [ONTOLOGY.md](./docs/ONTOLOGY.md) — онтологическое описание `Dark`, `Boundary` и `Bulk`,
 - [ARCHITECTURE.md](./docs/ARCHITECTURE.md) — архитектурная проекция трёхдоменной онтологии,
+- [TOPOLOGY.md](./docs/TOPOLOGY.md) — формализация скрытого topology-слоя: локальная и глобальная topology, `WIMP` / `Fuzzy` / `MACHO`, topology-адресация и адресация entanglement,
 - [PROTOCOL.md](./docs/PROTOCOL.md) — корневой протокольный слой MetaFor: `Boson`, `Impulse`, симметрия сил, topology-field/Higgs слой и навигация к детальным документам по `Gravity`, `Electromagnetism`, `Strong`, `Weak` и `Higgs`.
 
 ## Активный рабочий контур
@@ -79,6 +80,19 @@ Boundary -> Electromagnetism -> Bulk
 - различие между силой, её каналом (`Boson` и подтипы `Graviton`, `Photon`, `Gluon`, `Higgs boson`, `W boson`, `Z boson`) и содержимым изменения (`Impulse`),
 - файловая система как техническая проекция, а не источник истины.
 
+### Topology
+
+Topology отвечает на вопрос:
+**как формализовано скрытое построение мира до `Boundary` и `Bulk`**
+
+Там описываются:
+
+- topology как отдельный скрытый архитектурный объект,
+- различие между `LocalTopologyFragment` и `GlobalTopologyGraph`,
+- ответственность template / DSL / `Dark`,
+- topology entities `WIMP`, `Fuzzy`, `MACHO`,
+- topology-адресация и topology-уровневая адресация entanglement.
+
 ### Протокол
 
 Протокол отвечает на вопрос:
@@ -99,6 +113,7 @@ MetaFor различает два первичных рода полей:
 
 `enum` и `array` принадлежат topology-fields по своей типовой природе.
 Это различие первично по отношению к конкретному AST-разворачиванию: `AST` применяет и раскрывает эти семантики, но не создаёт саму категорию.
+Формальная topology-модель, где эти поля становятся узлами выбора ветви и множественности, вынесена в [TOPOLOGY.md](./docs/TOPOLOGY.md).
 
 Topology-fields читаются как Higgs fields:
 
