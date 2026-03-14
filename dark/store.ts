@@ -1,72 +1,123 @@
 /**
  * `@dark/store` — корневой store домена Dark.
  *
- * Композиция force-split store:
- * - `@dark/strong` — индексы и cohesion
- * - `@dark/gravity` — world assembly
- * - `@dark/weak` — мутации
- * - `@dark/em` — проекции
- *
- * @see {@link dark$} — явный domain store
- * @see {@link gravity$} — gravity package store
- * @see {@link strong$} — strong package store
- * @see {@link weak$} — weak package store
+ * Здесь живёт весь канонический graph state, который нужен между
+ * подпакетами `dark/gravity`, `dark/strong`, `dark/weak` и `dark/em`.
  */
 
-import type { DarkStore } from "./store.t"
-export type { DarkStore, DarkStoreSnapshot } from "./store.t"
-import { gravity$ } from "./gravity/store.ts"
-import { strong$ } from "./strong/store.ts"
-import { weak$ } from "./weak/store.ts"
+import type { DarkStore } from "./store.t.ts"
+import { cloneDarkSnapshot, cloneStoredValue } from "./snapshot.ts"
 
-/**
- * Явный domain store `@dark`.
- *
- * Композиция package stores:
- * - `meta` — domain-level meta cache
- * - `topology` — unified topology API (gravity + strong + weak)
- */
+export type { DarkStore, DarkStoreSnapshot } from "./store.t.ts"
+
 export const dark$: DarkStore = {
   meta: new Map(),
-  topology: gravity$,
+  objects: new Map(),
+  placements: new Map(),
+  links: new Map(),
+  references: new Map(),
+  entanglements: new Map(),
 
   reset() {
     this.meta = new Map()
-    this.topology.reset()
+    this.objects = new Map()
+    this.placements = new Map()
+    this.links = new Map()
+    this.references = new Map()
+    this.entanglements = new Map()
   },
 
   restore(snapshot) {
-    this.meta = new Map(snapshot.meta)
-    this.topology.restore(snapshot.topology)
+    const next = cloneDarkSnapshot(snapshot)
+    this.meta = next.meta
+    this.objects = next.objects
+    this.placements = next.placements
+    this.links = next.links
+    this.references = next.references
+    this.entanglements = next.entanglements
   },
 
   snapshot() {
-    return {
-      meta: new Map(this.meta),
-      topology: this.topology.snapshot(),
-    }
+    return cloneDarkSnapshot(this)
   },
 
   setMeta(address, meta) {
-    this.meta.set(address, meta)
-    return meta
+    const next = cloneStoredValue(meta)
+    this.meta.set(address, next)
+    return next
   },
 
   getMeta(address) {
     return this.meta.get(address)
   },
+
+  setObject(id, object) {
+    const next = cloneStoredValue(object)
+    this.objects.set(id, next)
+    return next
+  },
+
+  getObject(id) {
+    return this.objects.get(id)
+  },
+
+  deleteObject(id) {
+    this.objects.delete(id)
+  },
+
+  setPlacement(id, placement) {
+    const next = cloneStoredValue(placement)
+    this.placements.set(id, next)
+    return next
+  },
+
+  getPlacement(id) {
+    return this.placements.get(id)
+  },
+
+  deletePlacement(id) {
+    this.placements.delete(id)
+  },
+
+  setLink(id, link) {
+    const next = cloneStoredValue(link)
+    this.links.set(id, next)
+    return next
+  },
+
+  getLink(id) {
+    return this.links.get(id)
+  },
+
+  deleteLink(id) {
+    this.links.delete(id)
+  },
+
+  setReference(id, reference) {
+    const next = cloneStoredValue(reference)
+    this.references.set(id, next)
+    return next
+  },
+
+  getReference(id) {
+    return this.references.get(id)
+  },
+
+  deleteReference(id) {
+    this.references.delete(id)
+  },
+
+  setEntanglement(id, entanglement) {
+    const next = cloneStoredValue(entanglement)
+    this.entanglements.set(id, next)
+    return next
+  },
+
+  getEntanglement(id) {
+    return this.entanglements.get(id)
+  },
+
+  deleteEntanglement(id) {
+    this.entanglements.delete(id)
+  },
 }
-
-// Экспорт weak mutation API на topology для удобства
-Object.assign(gravity$, {
-  replaceFragment: weak$.replaceFragment.bind(weak$),
-  removePlacementSubtree: weak$.removePlacementSubtree.bind(weak$),
-  insertFragmentAtPlacement: weak$.insertFragmentAtPlacement.bind(weak$),
-  movePlacement: weak$.movePlacement.bind(weak$),
-  rebuildFragment: weak$.rebuildFragment.bind(weak$),
-  detachSubtree: weak$.detachSubtree.bind(weak$),
-  remapPlacementAddresses: weak$.remapPlacementAddresses.bind(weak$),
-})
-
-// Экспорт package stores
-export { gravity$, strong$, weak$ }

@@ -1,10 +1,18 @@
 /**
  * `@dark/weak` — structural transformation path домена Dark.
  *
- * @see {@link weak$} — явный object store
+ * Мутации topology объявлены как функции уровня пакета в `weak.ts`.
  */
 
-export { weak$ } from "./store.ts"
+export {
+  detachSubtree,
+  insertFragmentAtPlacement,
+  movePlacement,
+  rebuildFragment,
+  remapPlacementAddresses,
+  removePlacementSubtree,
+  replaceFragment,
+} from "./weak.ts"
 export type {
   TopologyMutationResult,
   ReplaceFragmentOptions,
@@ -17,5 +25,4 @@ export type {
   MovePlacementResult,
   RebuildFragmentOptions,
   RebuildFragmentResult,
-  WeakMutationStore,
 } from "./store.t.ts"

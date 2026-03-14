@@ -4,13 +4,28 @@
 
 import { describe, expect, test, beforeEach } from "bun:test"
 import { MetaFor, compileLocalTopologyFragment } from "../../metafor/dsl/metafor.ts"
-import { strong$, indexPlacement } from "./store.ts"
+import {
+  hasReferenceBySource,
+  indexPlacement,
+  isPlacementIndexed,
+} from "./strong.ts"
+import { ingestFragment } from "../gravity/gravity.ts"
+import {
+  getEntanglementByAddress,
+  getPlacementByAddress,
+  getPlacementsByMeta,
+  getPlacementsByObject,
+  getReferencesBySource,
+} from "../gravity/query.ts"
+import { dark$ } from "../store.ts"
 import { gravity$ } from "../gravity/store.ts"
+import { strong$ } from "./store.ts"
 
 describe("@dark/strong — индексация и lookup", () => {
   beforeEach(() => {
-    strong$.resetIndexes()
+    dark$.reset()
     gravity$.reset()
+    strong$.reset()
   })
 
   describe("placement address index", () => {
@@ -27,22 +42,21 @@ describe("@dark/strong — индексация и lookup", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      const result = gravity$.ingestFragment("address-test/meta", fragment)
+      const result = ingestFragment("address-test/meta", fragment)
 
-      const rootPlacement = gravity$.getPlacement(result.rootPlacementIds[0]!)
+      const rootPlacement = dark$.getPlacement(result.rootPlacementIds[0]!)
       expect(rootPlacement).toBeDefined()
 
       // Lookup по адресу через strong index
       const placementId = strong$.placementAddressIndex.get(rootPlacement!.address)
       expect(placementId).toBe(rootPlacement!.id)
 
-      // Lookup через gravity store (делегирование strong)
-      const lookedUp = gravity$.getPlacementByAddress(rootPlacement!.address)
+      const lookedUp = getPlacementByAddress(dark$, rootPlacement!.address)
       expect(lookedUp?.id).toBe(rootPlacement?.id)
     })
 
     test("проверяет что placement ещё не индексирован", () => {
-      const isIndexed = strong$.isPlacementIndexed("/non-existent")
+      const isIndexed = isPlacementIndexed("/non-existent")
       expect(isIndexed).toBe(false)
     })
   })
@@ -79,12 +93,12 @@ describe("@dark/strong — индексация и lookup", () => {
       const rootFragment = compileLocalTopologyFragment(rootMeta)
       const childFragment = compileLocalTopologyFragment(childMeta)
 
-      const rootIngest = gravity$.ingestFragment("root-multi/meta", rootFragment)
+      const rootIngest = ingestFragment("root-multi/meta", rootFragment)
 
       // Ингест child через два references
       for (const referenceId of rootIngest.referenceIds) {
-        const reference = gravity$.getReference(referenceId)!
-        gravity$.ingestFragment("child/shared", childFragment, {
+        const reference = dark$.getReference(referenceId)!
+        ingestFragment("child/shared", childFragment, {
           parentPlacementId: reference.placementId,
           viaReferenceId: reference.id,
         })
@@ -95,8 +109,7 @@ describe("@dark/strong — индексация и lookup", () => {
       const placementIds = strong$.objectPlacementsIndex.get(childObjectId)
       expect(placementIds).toHaveLength(2)
 
-      // Проверка через gravity store
-      const placements = gravity$.getPlacementsByObject(childObjectId)
+      const placements = getPlacementsByObject(dark$, childObjectId)
       expect(placements).toHaveLength(2)
       expect(new Set(placements.map((p) => p.address)).size).toBe(2)
     })
@@ -118,7 +131,7 @@ describe("@dark/strong — индексация и lookup", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      const result = gravity$.ingestFragment("meta-index/root", fragment)
+      const result = ingestFragment("meta-index/root", fragment)
 
       const metaIndex = strong$.sourceMetaIndex.get("meta-index/root")
       expect(metaIndex).toBeDefined()
@@ -139,9 +152,9 @@ describe("@dark/strong — индексация и lookup", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      gravity$.ingestFragment("meta-lookup/root", fragment)
+      ingestFragment("meta-lookup/root", fragment)
 
-      const placements = gravity$.getPlacementsByMeta("meta-lookup/root")
+      const placements = getPlacementsByMeta(dark$, "meta-lookup/root")
       expect(placements.length).toBeGreaterThan(0)
     })
   })
@@ -165,13 +178,13 @@ describe("@dark/strong — индексация и lookup", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      gravity$.ingestFragment("ref-lookup/root", fragment)
+      ingestFragment("ref-lookup/root", fragment)
 
       // Проверка lookup по source
-      const refsA = gravity$.getReferencesBySource("child/a")
+      const refsA = getReferencesBySource(dark$, "child/a")
       expect(refsA).toHaveLength(1)
 
-      const refsB = gravity$.getReferencesBySource("child/b")
+      const refsB = getReferencesBySource(dark$, "child/b")
       expect(refsB).toHaveLength(1)
 
       // Проверка через strong index
@@ -180,7 +193,7 @@ describe("@dark/strong — индексация и lookup", () => {
     })
 
     test("проверяет что reference уже индексирован по source", () => {
-      const hasRef = strong$.hasReferenceBySource("non-existent", "ref-1")
+      const hasRef = hasReferenceBySource("non-existent", "ref-1")
       expect(hasRef).toBe(false)
     })
   })
@@ -199,19 +212,18 @@ describe("@dark/strong — индексация и lookup", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      const result = gravity$.ingestFragment("ent-lookup/root", fragment)
+      const result = ingestFragment("ent-lookup/root", fragment)
 
       // Получить первый entanglement
       if (result.entanglementIds.length > 0) {
-        const entanglement = gravity$.getEntanglement(result.entanglementIds[0]!)
+        const entanglement = dark$.getEntanglement(result.entanglementIds[0]!)
         expect(entanglement).toBeDefined()
 
         // Lookup по entanglement address
         const entId = strong$.entanglementAddressIndex.get(entanglement!.entanglementAddress)
         expect(entId).toBe(entanglement!.id)
 
-        // Lookup через gravity store
-        const lookedUp = gravity$.getEntanglementByAddress(entanglement!.entanglementAddress)
+        const lookedUp = getEntanglementByAddress(dark$, entanglement!.entanglementAddress)
         expect(lookedUp?.id).toBe(entanglement?.id)
       }
     })
@@ -234,14 +246,14 @@ describe("@dark/strong — индексация и lookup", () => {
       expect(strong$.placementAddressIndex.size).toBeGreaterThan(0)
 
       // Сделать snapshot
-      const snapshot = strong$.snapshotIndexes()
+      const snapshot = strong$.snapshot()
       expect(snapshot.placementAddressIndex.size).toBeGreaterThan(0)
 
       // Reset и restore
-      strong$.resetIndexes()
+      strong$.reset()
       expect(strong$.placementAddressIndex.size).toBe(0)
 
-      strong$.restoreIndexes(snapshot)
+      strong$.restore(snapshot)
       expect(strong$.placementAddressIndex.size).toBeGreaterThan(0)
     })
   })

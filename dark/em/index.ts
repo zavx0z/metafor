@@ -22,9 +22,9 @@ export function projectDarkGraph(consumer: DarkConsumer): DarkDownstreamProjecti
   return {
     consumer,
     meta: new Map(dark$.meta),
-    placements: Array.from(dark$.topology.placements.values()),
-    references: Array.from(dark$.topology.references.values()),
-    entanglements: Array.from(dark$.topology.entanglements.values()),
+    placements: Array.from(dark$.placements.values()),
+    references: Array.from(dark$.references.values()),
+    entanglements: Array.from(dark$.entanglements.values()),
   }
 }
 

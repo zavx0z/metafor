@@ -44,6 +44,12 @@ export interface StrongIndexesSnapshot {
   metaSourceLookup: Map<string, string[]>
 }
 
+export interface StrongIndexStore extends StrongIndexes {
+  reset(): void
+  restore(snapshot: StrongIndexesSnapshot): void
+  snapshot(): StrongIndexesSnapshot
+}
+
 /**
  * Lookup-результат для placement.
  */

@@ -1,10 +1,19 @@
 /**
  * `@dark/gravity` — world assembly домена Dark.
  *
- * @see {@link gravity$} — явный object store
+ * `gravity$` держит промежуточное состояние assembly-слоя.
  */
 
 export { gravity$ } from "./store.ts"
+export {
+  getChildren,
+  getEntanglementByAddress,
+  getPlacementByAddress,
+  getPlacementsByMeta,
+  getPlacementsByObject,
+  getReferencesBySource,
+} from "./query.ts"
+export { ingestFragment } from "./gravity.ts"
 export type {
   GlobalTopologyEntanglement,
   GlobalTopologyIngestOptions,
@@ -14,6 +23,6 @@ export type {
   GlobalTopologyObject,
   GlobalTopologyPlacement,
   GlobalTopologyReference,
-  GlobalTopologySnapshot,
-  GlobalTopologyStore,
+  GravityStore,
+  GravityStoreSnapshot,
 } from "./store.t.ts"

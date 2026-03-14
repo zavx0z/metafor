@@ -10,11 +10,16 @@
 import { describe, expect, test, beforeEach } from "bun:test"
 import { MetaFor, compileLocalTopologyFragment } from "../../metafor/dsl/metafor.ts"
 import { projectDarkGraph, projectDarkGraphToBoundary, projectDarkGraphToBulk } from "./index.ts"
+import { ingestFragment } from "../gravity/gravity.ts"
+import { gravity$ } from "../gravity/store.ts"
 import { dark$ } from "../store.ts"
+import { strong$ } from "../strong/store.ts"
 
 describe("@dark/em — projection-only", () => {
   beforeEach(() => {
     dark$.reset()
+    gravity$.reset()
+    strong$.reset()
   })
 
   describe("projection", () => {
@@ -31,7 +36,7 @@ describe("@dark/em — projection-only", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      dark$.topology.ingestFragment("em-projection/root", fragment)
+      ingestFragment("em-projection/root", fragment)
 
       const projection = projectDarkGraph("boundary")
 
@@ -54,7 +59,7 @@ describe("@dark/em — projection-only", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      dark$.topology.ingestFragment("em-boundary/root", fragment)
+      ingestFragment("em-boundary/root", fragment)
 
       const projection = projectDarkGraphToBoundary()
 
@@ -75,7 +80,7 @@ describe("@dark/em — projection-only", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      dark$.topology.ingestFragment("em-bulk/root", fragment)
+      ingestFragment("em-bulk/root", fragment)
 
       const projection = projectDarkGraphToBulk()
 
@@ -98,9 +103,9 @@ describe("@dark/em — projection-only", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      dark$.topology.ingestFragment("em-immut/root", fragment)
+      ingestFragment("em-immut/root", fragment)
 
-      const snapshotBefore = dark$.topology.snapshot()
+      const snapshotBefore = dark$.snapshot()
       const projection = projectDarkGraph("boundary")
 
       // Изменить projection
@@ -114,7 +119,7 @@ describe("@dark/em — projection-only", () => {
         relation: "root",
       })
 
-      const snapshotAfter = dark$.topology.snapshot()
+      const snapshotAfter = dark$.snapshot()
 
       // Проверка что исходные данные не изменились
       expect(snapshotAfter.placements.size).toBe(snapshotBefore.placements.size)
@@ -144,7 +149,7 @@ describe("@dark/em — projection-only", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      dark$.topology.ingestFragment("em-meta/root", fragment)
+      ingestFragment("em-meta/root", fragment)
 
       // Добавим meta в dark$.meta для корректной проекции
       dark$.setMeta("em-meta/root", fragment as any)

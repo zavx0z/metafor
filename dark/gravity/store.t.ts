@@ -79,39 +79,18 @@ export interface GlobalTopologyIngestResult {
   entanglementIds: string[]
 }
 
-export interface GlobalTopologySnapshot {
+export interface GravityStoreSnapshot {
   fragments: Map<string, LocalTopologyFragment>
-  objects: Map<string, GlobalTopologyObject>
-  placements: Map<string, GlobalTopologyPlacement>
-  links: Map<string, GlobalTopologyLink>
-  references: Map<string, GlobalTopologyReference>
-  entanglements: Map<string, GlobalTopologyEntanglement>
-  placementAddressIndex: Map<string, string>
-  entanglementAddressIndex: Map<string, string>
-  objectPlacementsIndex: Map<string, string[]>
-  sourceMetaIndex: Map<string, GlobalTopologyMetaIndex>
-  metaSourceLookup: Map<string, string[]>
   nextPlacementSeq: number
   nextLinkSeq: number
   nextReferenceSeq: number
   rootOccurrenceSeq: number
 }
 
-export interface GlobalTopologyStore extends GlobalTopologySnapshot {
+export interface GravityStore extends GravityStoreSnapshot {
   reset(): void
-  restore(snapshot: GlobalTopologySnapshot): void
-  snapshot(): GlobalTopologySnapshot
+  restore(snapshot: GravityStoreSnapshot): void
+  snapshot(): GravityStoreSnapshot
   setFragment(meta: string, fragment: LocalTopologyFragment): LocalTopologyFragment
   getFragment(meta: string): LocalTopologyFragment | undefined
-  ingestFragment(meta: string, fragment: LocalTopologyFragment, options?: GlobalTopologyIngestOptions): GlobalTopologyIngestResult
-  getObject(id: string): GlobalTopologyObject | undefined
-  getPlacement(id: string): GlobalTopologyPlacement | undefined
-  getPlacementByAddress(address: string): GlobalTopologyPlacement | undefined
-  getPlacementsByObject(objectId: string): readonly GlobalTopologyPlacement[]
-  getPlacementsByMeta(meta: string): readonly GlobalTopologyPlacement[]
-  getChildren(parentPlacementId: string): readonly GlobalTopologyPlacement[]
-  getReference(id: string): GlobalTopologyReference | undefined
-  getReferencesBySource(metaSource: string): readonly GlobalTopologyReference[]
-  getEntanglement(id: string): GlobalTopologyEntanglement | undefined
-  getEntanglementByAddress(address: string): GlobalTopologyEntanglement | undefined
 }

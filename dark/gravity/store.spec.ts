@@ -10,12 +10,23 @@
 
 import { describe, expect, test, beforeEach } from "bun:test"
 import { MetaFor, compileLocalTopologyFragment } from "../../metafor/dsl/metafor.ts"
+import {
+  getEntanglementByAddress,
+  getPlacementByAddress,
+  getPlacementsByMeta,
+  getPlacementsByObject,
+  getReferencesBySource,
+} from "./query.ts"
+import { ingestFragment } from "./gravity.ts"
+import { dark$ } from "../store.ts"
 import { gravity$ } from "./store.ts"
 import { strong$ } from "../strong/store.ts"
 
 describe("@dark/gravity — world assembly", () => {
   beforeEach(() => {
+    dark$.reset()
     gravity$.reset()
+    strong$.reset()
   })
 
   describe("fragment ingest", () => {
@@ -32,7 +43,7 @@ describe("@dark/gravity — world assembly", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      const result = gravity$.ingestFragment("ingest-single/meta", fragment)
+      const result = ingestFragment("ingest-single/meta", fragment)
 
       expect(result.meta).toBe("ingest-single/meta")
       expect(result.placementIds.length).toBeGreaterThan(0)
@@ -70,30 +81,30 @@ describe("@dark/gravity — world assembly", () => {
       const rootFragment = compileLocalTopologyFragment(rootMeta)
       const childFragment = compileLocalTopologyFragment(childMeta)
 
-      const rootIngest = gravity$.ingestFragment("root-identity/meta", rootFragment)
+      const rootIngest = ingestFragment("root-identity/meta", rootFragment)
       expect(rootIngest.referenceIds).toHaveLength(2)
 
       for (const referenceId of rootIngest.referenceIds) {
-        const reference = gravity$.getReference(referenceId)!
-        gravity$.ingestFragment("child/shared", childFragment, {
+        const reference = dark$.getReference(referenceId)!
+        ingestFragment("child/shared", childFragment, {
           parentPlacementId: reference.placementId,
           viaReferenceId: reference.id,
         })
       }
 
       const childObjectId = "child/shared#f0"
-      const childPlacements = gravity$.getPlacementsByObject(childObjectId)
+      const childPlacements = getPlacementsByObject(dark$, childObjectId)
 
-      expect(gravity$.getObject(childObjectId)).toBeDefined()
+      expect(dark$.getObject(childObjectId)).toBeDefined()
       expect(childPlacements).toHaveLength(2)
       expect(new Set(childPlacements.map((placement) => placement.address)).size).toBe(2)
-      expect(gravity$.getReferencesBySource("child/shared")).toHaveLength(2)
+      expect(getReferencesBySource(dark$, "child/shared")).toHaveLength(2)
 
       const entanglementAddresses = childPlacements.map(
         (placement) => `ent:${childObjectId}@${placement.address}`,
       )
-      expect(gravity$.getEntanglementByAddress(entanglementAddresses[0]!)).toBeDefined()
-      expect(gravity$.getEntanglementByAddress(entanglementAddresses[1]!)).toBeDefined()
+      expect(getEntanglementByAddress(dark$, entanglementAddresses[0]!)).toBeDefined()
+      expect(getEntanglementByAddress(dark$, entanglementAddresses[1]!)).toBeDefined()
       expect(entanglementAddresses[0]).not.toBe(entanglementAddresses[1])
     })
   })
@@ -112,9 +123,9 @@ describe("@dark/gravity — world assembly", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      const result = gravity$.ingestFragment("placement-create/root", fragment)
+      const result = ingestFragment("placement-create/root", fragment)
 
-      const placement = gravity$.getPlacement(result.placementIds[0]!)
+      const placement = dark$.getPlacement(result.placementIds[0]!)
       expect(placement).toBeDefined()
       expect(placement?.id).toMatch(/^gp\d+$/)
       expect(placement?.meta).toBe("placement-create/root")
@@ -136,9 +147,9 @@ describe("@dark/gravity — world assembly", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      const ingested = gravity$.ingestFragment("address-stitch/root", fragment)
+      const ingested = ingestFragment("address-stitch/root", fragment)
 
-      const rootPlacement = gravity$.getPlacement(ingested.rootPlacementIds[0]!)
+      const rootPlacement = dark$.getPlacement(ingested.rootPlacementIds[0]!)
       expect(rootPlacement).toBeDefined()
       expect(rootPlacement?.address.startsWith("/w:address-stitch-root-0")).toBe(true)
       expect(rootPlacement?.localAddress.startsWith("/f")).toBe(true)
@@ -157,12 +168,12 @@ describe("@dark/gravity — world assembly", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      const ingested = gravity$.ingestFragment("address-lookup/root", fragment)
+      const ingested = ingestFragment("address-lookup/root", fragment)
 
-      const rootPlacement = gravity$.getPlacement(ingested.rootPlacementIds[0]!)
+      const rootPlacement = dark$.getPlacement(ingested.rootPlacementIds[0]!)
       expect(rootPlacement).toBeDefined()
 
-      const lookedUp = gravity$.getPlacementByAddress(rootPlacement!.address)
+      const lookedUp = getPlacementByAddress(dark$, rootPlacement!.address)
       expect(lookedUp?.id).toBe(rootPlacement?.id)
     })
   })
@@ -196,22 +207,22 @@ describe("@dark/gravity — world assembly", () => {
       const rootFragment = compileLocalTopologyFragment(rootMeta)
       const childFragment = compileLocalTopologyFragment(childMeta)
 
-      const rootResult = gravity$.ingestFragment("link-root/meta", rootFragment)
+      const rootResult = ingestFragment("link-root/meta", rootFragment)
 
-      const reference = gravity$.getReference(rootResult.referenceIds[0]!)!
-      gravity$.ingestFragment("link/child", childFragment, {
+      const reference = dark$.getReference(rootResult.referenceIds[0]!)!
+      ingestFragment("link/child", childFragment, {
         parentPlacementId: reference.placementId,
         viaReferenceId: reference.id,
       })
 
       // Проверка что link создан
-      const childPlacements = gravity$.getPlacementsByMeta("link/child")
+      const childPlacements = getPlacementsByMeta(dark$, "link/child")
       expect(childPlacements.length).toBeGreaterThan(0)
 
       const childPlacement = childPlacements[0]!
       expect(childPlacement.parentId).toBeDefined()
 
-      const link = Array.from(gravity$.links.values()).find(
+      const link = Array.from(dark$.links.values()).find(
         (link) => link.to === childPlacement.id,
       )
       expect(link).toBeDefined()
@@ -236,12 +247,12 @@ describe("@dark/gravity — world assembly", () => {
       const fragment = compileLocalTopologyFragment(meta)
 
       // Первый ingest
-      const result1 = gravity$.ingestFragment("root-occur/meta", fragment)
-      const addr1 = gravity$.getPlacement(result1.rootPlacementIds[0]!)?.address
+      const result1 = ingestFragment("root-occur/meta", fragment)
+      const addr1 = dark$.getPlacement(result1.rootPlacementIds[0]!)?.address
 
       // Второй ingest того же meta
-      const result2 = gravity$.ingestFragment("root-occur/meta", fragment)
-      const addr2 = gravity$.getPlacement(result2.rootPlacementIds[0]!)?.address
+      const result2 = ingestFragment("root-occur/meta", fragment)
+      const addr2 = dark$.getPlacement(result2.rootPlacementIds[0]!)?.address
 
       expect(addr1).not.toBe(addr2)
       expect(addr1).toMatch(/root-occur-meta-0/)
@@ -279,17 +290,17 @@ describe("@dark/gravity — world assembly", () => {
       const rootFragment = compileLocalTopologyFragment(rootMeta)
       const sharedFragment = compileLocalTopologyFragment(sharedMeta)
 
-      const rootResult = gravity$.ingestFragment("multi-context/root", rootFragment)
+      const rootResult = ingestFragment("multi-context/root", rootFragment)
 
       // Ингест shared fragment дважды через разные references
       const contexts: string[] = []
       for (const referenceId of rootResult.referenceIds) {
-        const reference = gravity$.getReference(referenceId)!
-        const result = gravity$.ingestFragment("shared/fragment", sharedFragment, {
+        const reference = dark$.getReference(referenceId)!
+        const result = ingestFragment("shared/fragment", sharedFragment, {
           parentPlacementId: reference.placementId,
           viaReferenceId: reference.id,
         })
-        const placement = gravity$.getPlacement(result.placementIds[0]!)
+        const placement = dark$.getPlacement(result.placementIds[0]!)
         if (placement) {
           contexts.push(placement.address)
         }
@@ -314,16 +325,16 @@ describe("@dark/gravity — world assembly", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      gravity$.ingestFragment("snapshot-gravity/root", fragment)
+      ingestFragment("snapshot-gravity/root", fragment)
 
       const snapshot = gravity$.snapshot()
-      expect(snapshot.placements.size).toBeGreaterThan(0)
+      expect(snapshot.fragments.size).toBeGreaterThan(0)
 
       gravity$.reset()
-      expect(gravity$.placements.size).toBe(0)
+      expect(gravity$.fragments.size).toBe(0)
 
       gravity$.restore(snapshot)
-      expect(gravity$.placements.size).toBeGreaterThan(0)
+      expect(gravity$.fragments.size).toBeGreaterThan(0)
     })
   })
 })

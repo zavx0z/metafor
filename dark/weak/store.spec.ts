@@ -4,14 +4,25 @@
 
 import { describe, expect, test, beforeEach } from "bun:test"
 import { MetaFor, compileLocalTopologyFragment } from "../../metafor/dsl/metafor.ts"
-import { strong$ } from "../strong/store.ts"
+import { getPlacementsByMeta } from "../gravity/query.ts"
+import { ingestFragment } from "../gravity/gravity.ts"
 import { gravity$ } from "../gravity/store.ts"
-import { weak$ } from "./store.ts"
+import { dark$ } from "../store.ts"
+import { strong$ } from "../strong/store.ts"
+import {
+  detachSubtree,
+  insertFragmentAtPlacement,
+  movePlacement,
+  remapPlacementAddresses,
+  removePlacementSubtree,
+  replaceFragment,
+} from "./weak.ts"
 
 describe("@dark/weak — мутации topology", () => {
   beforeEach(() => {
+    dark$.reset()
     gravity$.reset()
-    strong$.resetIndexes()
+    strong$.reset()
   })
 
   describe("removePlacementSubtree", () => {
@@ -28,20 +39,20 @@ describe("@dark/weak — мутации topology", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      const result = gravity$.ingestFragment("remove-test/root", fragment)
+      const result = ingestFragment("remove-test/root", fragment)
 
       const rootPlacementId = result.rootPlacementIds[0]!
-      const initialPlacements = gravity$.placements.size
+      const initialPlacements = dark$.placements.size
       const initialIndexes = strong$.placementAddressIndex.size
 
       expect(initialPlacements).toBeGreaterThan(0)
       expect(initialIndexes).toBeGreaterThan(0)
 
       // Удалить subtree
-      const mutationResult = weak$.removePlacementSubtree(rootPlacementId)
+      const mutationResult = removePlacementSubtree(rootPlacementId)
 
       expect(mutationResult.removedPlacementIds).toContain(rootPlacementId)
-      expect(gravity$.placements.size).toBe(0)
+      expect(dark$.placements.size).toBe(0)
       expect(strong$.placementAddressIndex.size).toBe(0)
       expect(strong$.objectPlacementsIndex.size).toBe(0)
     })
@@ -74,29 +85,30 @@ describe("@dark/weak — мутации topology", () => {
       const rootFragment = compileLocalTopologyFragment(rootMeta)
       const childFragment = compileLocalTopologyFragment(childMeta)
 
-      const rootResult = gravity$.ingestFragment("remove-cascade/root", rootFragment)
+      const rootResult = ingestFragment("remove-cascade/root", rootFragment)
 
       // Ингест child
-      const reference = gravity$.getReference(rootResult.referenceIds[0]!)!
-      gravity$.ingestFragment("child/cascade", childFragment, {
+      const reference = dark$.getReference(rootResult.referenceIds[0]!)!
+      ingestFragment("child/cascade", childFragment, {
         parentPlacementId: reference.placementId,
         viaReferenceId: reference.id,
       })
 
-      const initialReferences = gravity$.references.size
-      const initialEntanglements = gravity$.entanglements.size
+      const initialReferences = dark$.references.size
+      const initialEntanglements = dark$.entanglements.size
 
       expect(initialReferences).toBeGreaterThan(0)
+      expect(initialEntanglements).toBeGreaterThanOrEqual(0)
 
       // Удалить root subtree
       const rootPlacementId = rootResult.rootPlacementIds[0]!
-      weak$.removePlacementSubtree(rootPlacementId, {
+      removePlacementSubtree(rootPlacementId, {
         cascadeReferences: true,
         cascadeEntanglements: true,
       })
 
-      expect(gravity$.references.size).toBe(0)
-      expect(gravity$.placements.size).toBe(0)
+      expect(dark$.references.size).toBe(0)
+      expect(dark$.placements.size).toBe(0)
     })
   })
 
@@ -132,13 +144,13 @@ describe("@dark/weak — мутации topology", () => {
       const fragmentV2 = compileLocalTopologyFragment(metaV2)
 
       // Ingest v1
-      const v1Result = gravity$.ingestFragment("replace-test/meta", fragmentV1)
-      const initialPlacements = gravity$.placements.size
+      const v1Result = ingestFragment("replace-test/meta", fragmentV1)
+      const initialPlacements = dark$.placements.size
 
       expect(initialPlacements).toBeGreaterThan(0)
 
       // Replace на v2
-      const replaceResult = weak$.replaceFragment("replace-test/meta", fragmentV2)
+      const replaceResult = replaceFragment("replace-test/meta", fragmentV2)
 
       expect(replaceResult.meta).toBe("replace-test/meta")
       expect(replaceResult.removedPlacementIds.length).toBeGreaterThan(0)
@@ -146,11 +158,11 @@ describe("@dark/weak — мутации topology", () => {
 
       // Проверка что v1 placements удалены
       for (const placementId of v1Result.placementIds) {
-        expect(gravity$.getPlacement(placementId)).toBeUndefined()
+        expect(dark$.getPlacement(placementId)).toBeUndefined()
       }
 
       // Проверка что v2 placements существуют
-      const newPlacements = gravity$.getPlacementsByMeta("replace-test/meta")
+      const newPlacements = getPlacementsByMeta(dark$, "replace-test/meta")
       expect(newPlacements.length).toBeGreaterThan(0)
     })
   })
@@ -183,23 +195,23 @@ describe("@dark/weak — мутации topology", () => {
       const childFragment = compileLocalTopologyFragment(childMeta)
 
       // Ingest parent
-      const parentResult = gravity$.ingestFragment("parent-insert/meta", parentFragment)
+      const parentResult = ingestFragment("parent-insert/meta", parentFragment)
       const parentPlacementId = parentResult.rootPlacementIds[0]!
 
-      const initialPlacements = gravity$.placements.size
+      const initialPlacements = dark$.placements.size
 
       // Insert child
-      const insertResult = weak$.insertFragmentAtPlacement(
+      const insertResult = insertFragmentAtPlacement(
         parentPlacementId,
         childFragment,
         "child-insert/meta",
       )
 
       expect(insertResult.placementIds.length).toBeGreaterThan(0)
-      expect(gravity$.placements.size).toBeGreaterThan(initialPlacements)
+      expect(dark$.placements.size).toBeGreaterThan(initialPlacements)
 
       // Проверка что child имеет parent
-      const childPlacement = gravity$.getPlacement(insertResult.placementIds[0]!)
+      const childPlacement = dark$.getPlacement(insertResult.placementIds[0]!)
       expect(childPlacement?.parentId).toBe(parentPlacementId)
     })
   })
@@ -218,17 +230,17 @@ describe("@dark/weak — мутации topology", () => {
         .bulk()
 
       const fragment = compileLocalTopologyFragment(meta)
-      const result = gravity$.ingestFragment("remap-test/root", fragment)
+      const result = ingestFragment("remap-test/root", fragment)
 
       const rootPlacementId = result.rootPlacementIds[0]!
-      const rootPlacement = gravity$.getPlacement(rootPlacementId)!
+      const rootPlacement = dark$.getPlacement(rootPlacementId)!
       const oldAddress = rootPlacement.address
 
       expect(oldAddress).toBeDefined()
 
       // Remap адреса
       const newPrefix = "/w:new-prefix-0"
-      const addressMap = weak$.remapPlacementAddresses(rootPlacementId, newPrefix)
+      const addressMap = remapPlacementAddresses(rootPlacementId, newPrefix)
 
       expect(addressMap.size).toBeGreaterThan(0)
       expect(addressMap.get(oldAddress)).toBe(newPrefix)
@@ -273,29 +285,29 @@ describe("@dark/weak — мутации topology", () => {
       const childFragment = compileLocalTopologyFragment(childMeta)
 
       // Ingest root
-      const rootResult = gravity$.ingestFragment("detach-root/meta", rootFragment)
+      const rootResult = ingestFragment("detach-root/meta", rootFragment)
 
       // Ingest child
-      const reference = gravity$.getReference(rootResult.referenceIds[0]!)!
-      gravity$.ingestFragment("detach/child", childFragment, {
+      const reference = dark$.getReference(rootResult.referenceIds[0]!)!
+      ingestFragment("detach/child", childFragment, {
         parentPlacementId: reference.placementId,
         viaReferenceId: reference.id,
       })
 
       // Найти child placement
-      const childPlacements = gravity$.getPlacementsByMeta("detach/child")
+      const childPlacements = getPlacementsByMeta(dark$, "detach/child")
       expect(childPlacements.length).toBeGreaterThan(0)
 
       const childPlacement = childPlacements[0]!
       expect(childPlacement.parentId).toBeDefined()
 
       // Detach
-      const detached = weak$.detachSubtree(childPlacement.id)
+      const detached = detachSubtree(childPlacement.id)
 
       expect(detached).toContain(childPlacement.id)
 
       // Проверка что parent удалён
-      const updatedChild = gravity$.getPlacement(childPlacement.id)
+      const updatedChild = dark$.getPlacement(childPlacement.id)
       expect(updatedChild?.parentId).toBeUndefined()
     })
   })
@@ -332,18 +344,18 @@ describe("@dark/weak — мутации topology", () => {
       const childFragment = compileLocalTopologyFragment(childMeta)
 
       // Ingest root
-      const rootResult = gravity$.ingestFragment("move-root/meta", rootFragment)
+      const rootResult = ingestFragment("move-root/meta", rootFragment)
 
       // Ingest child
-      const reference = gravity$.getReference(rootResult.referenceIds[0]!)!
-      gravity$.ingestFragment("move/child", childFragment, {
+      const reference = dark$.getReference(rootResult.referenceIds[0]!)!
+      ingestFragment("move/child", childFragment, {
         parentPlacementId: reference.placementId,
         viaReferenceId: reference.id,
       })
 
       // Получить root и child placements
-      const rootPlacements = gravity$.getPlacementsByMeta("move-root/meta")
-      const childPlacements = gravity$.getPlacementsByMeta("move/child")
+      const rootPlacements = getPlacementsByMeta(dark$, "move-root/meta")
+      const childPlacements = getPlacementsByMeta(dark$, "move/child")
 
       expect(rootPlacements.length).toBeGreaterThan(0)
       expect(childPlacements.length).toBeGreaterThan(0)
@@ -352,7 +364,7 @@ describe("@dark/weak — мутации topology", () => {
       const targetPlacement = rootPlacements[0]!
 
       // Move child под root
-      const moveResult = weak$.movePlacement(sourcePlacement.id, {
+      const moveResult = movePlacement(sourcePlacement.id, {
         newParentPlacementId: targetPlacement.id,
         rebuildAddresses: false,
       })
@@ -360,7 +372,7 @@ describe("@dark/weak — мутации topology", () => {
       expect(moveResult.movedPlacementId).toBe(sourcePlacement.id)
 
       // Проверка что parent обновлён
-      const updated = gravity$.getPlacement(sourcePlacement.id)
+      const updated = dark$.getPlacement(sourcePlacement.id)
       expect(updated?.parentId).toBe(targetPlacement.id)
       expect(updated?.relation).toBe("contains")
     })

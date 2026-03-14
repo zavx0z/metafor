@@ -1,14 +1,32 @@
 /**
  * `@dark/strong` — graph cohesion и relation retention домена Dark.
  *
- * @see {@link strong$} — явный object store
+ * `strong$` держит индексное промежуточное состояние, а `strong.ts`
+ * управляет его обновлением и lookup.
  */
 
-export { strong$, getPlacementIdByAddress, getPlacementIdsByObject, getPlacementIdsByMeta, getReferenceIdsBySource, getEntanglementIdByAddress } from "./store.ts"
+export { strong$ } from "./store.ts"
+export {
+  getEntanglementIdByAddress,
+  getPlacementIdByAddress,
+  getPlacementIdsByMeta,
+  getPlacementIdsByObject,
+  getReferenceIdsBySource,
+  hasReferenceBySource,
+  indexEntanglement,
+  indexObject,
+  indexPlacement,
+  indexReference,
+  isPlacementIndexed,
+  removeEntanglementIndexes,
+  removeObjectIndex,
+  removePlacementIndexes,
+  removeReferenceIndexes,
+} from "./strong.ts"
 export type {
   StrongIndexes,
-  StrongIndexesSnapshot,
   StrongIndexStore,
+  StrongIndexesSnapshot,
   PlacementLookupResult,
   ReferenceLookupResult,
 } from "./store.t.ts"
